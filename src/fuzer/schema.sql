@@ -52,7 +52,9 @@ create index if not exists entity_key_fuzer_id on entity_key (fuzer_id);
 
 create or replace view entity_label as
 select fuzer_id,
-       min(case when kind = 'equipment' then 'S/N ' || key else key end)
+       min(case when kind = 'equipment' then 'S/N ' || key
+                when kind = 'equipment_model' then replace(key, '|', ' ')
+                else key end)
            filter (where kind <> 'tag_noarea') as label
 from entity_key
 group by fuzer_id;

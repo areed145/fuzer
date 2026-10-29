@@ -62,4 +62,17 @@ def build(conn, cands: list[Candidate], assigned: dict[str, str], pack: Pack) ->
     conn.execute("delete from golden")
     db.copy_rows(conn, "golden", ["fuzer_id", "field", "value", "source", "rule"], golden)
     replace_open_reviews(conn, "conflict", conflicts)
-    return {"assertions": len(rows), "conflict_reviews": len(conflicts)}
+    values = defaultdict(dict)
+    for fid, field, value, _, _ in golden:
+        values[fid][field] = value.obj
+    return {"assertions": len(rows), "conflict_reviews": len(conflicts)}, values
+
+
+def append(conn, cands: list[Candidate], assigned: dict[str, str], extra: list[tuple]) -> int:
+    """Golden values for derived records and fields (attributed to Fuzer; no conflicts possible)."""
+    rows = [(assigned[c.ref], f, Jsonb(v), c.source, c.source_key) for c in cands for f, v in c.fields.items()]
+    rows += [(fid, field, Jsonb(value), "fuzer", None) for fid, field, value in extra]
+    db.copy_rows(conn, "assertion", ["fuzer_id", "field", "value", "source", "source_key"], rows)
+    db.copy_rows(conn, "golden", ["fuzer_id", "field", "value", "source", "rule"],
+                 ((fid, f, v, src, "derived") for fid, f, v, src, _ in rows))
+    return len(rows)

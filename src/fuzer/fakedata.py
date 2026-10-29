@@ -187,7 +187,8 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                         swap = None
                     installs = [("2018-01-01", swap), (swap, "")] if swap else [("2018-01-01", "")]
                     maker = rng.choice(MAKERS[func])
-                    model = f"{maker[:3].upper()}-{rng.randint(100, 999)}"
+                    # A fleet has a few models per maker, not one per item (same random draw as before).
+                    model = f"{maker[:3].upper()}-{(rng.randint(100, 999) % 3 + 1) * 200}"
                     for valid_from, valid_to in installs:
                         serial += rng.randint(1, 900)
                         equipment.append({

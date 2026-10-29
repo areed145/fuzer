@@ -35,3 +35,52 @@ survivorship:
     model: {priority: [review, sap, maximo, jde], review_on_conflict: true}
     description: {priority: [review, sap, pi_af, pi, ec, maximo, jde]}
     uom: {priority: [review, pi, pi_af]}
+
+# How this asset's records map onto the equipment taxonomy. Other assets swap these rules (or
+# the taxonomy) without code changes.
+classification:
+  taxonomy: iso14224
+  # ISA 5.1 function letters on the tag -> class or class.type
+  tag_functions:
+    P: PU
+    K: CO
+    E: HE
+    V: VE
+    PT: IP.PR
+    TT: IP.TE
+    LT: IP.LE
+    FT: IP.FL
+    PDT: IP.DP
+    ST: IP.SP
+    VT: IP.VI
+    FIC: CL
+    LIC: CL
+    PIC: CL
+    TIC: CL
+    XV: VA.ES
+    PSV: VA.PS
+    ZSC: IP
+  # PI AF element template -> class.type (refines the function-letter class)
+  templates:
+    Centrifugal Pump: PU.CE
+    Compressor: CO.CE
+    Heat Exchanger: HE.ST
+    Pressure Vessel: VE
+  # Description words -> type, checked when the class has types (first match wins)
+  description_types:
+    separator: SE
+    scrubber: SC
+    drum: DR
+    deaerator: DR
+    cooler: ST
+    heater: ST
+  # Spellings seen in source systems -> one manufacturer name
+  manufacturer_aliases:
+    flowsrve: Flowserve
+    sulzer pumps: Sulzer
+    siemens: Siemens Energy
+    alfa-laval: Alfa Laval
+    bhge: Baker Hughes
+    k.s.b.: KSB
+  # Extra classes this asset needs beyond the taxonomy (same shape as the standards file)
+  extra_classes: {}

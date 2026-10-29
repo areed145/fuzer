@@ -1,0 +1,68 @@
+# Equipment taxonomy after ISO 14224:2016 (petroleum, petrochemical and natural gas industries -
+# collection and exchange of reliability and maintenance data), Annex A equipment classes.
+#
+# This is a working subset for Fuzer, not a copy of the standard: class codes follow Annex A,
+# type codes are Fuzer's own short codes. Verify against your licensed copy and extend or
+# override in an asset pack (`classification.extra_classes`). `cfihos` holds the matching
+# CFIHOS tag / equipment class name; CFIHOS unique IDs are left for the asset team to fill from
+# the CFIHOS reference data library rather than guessed here.
+#
+# Taxonomy levels (ISO 14224 Figure 3) and how Fuzer maps them:
+#   3 installation -> facility      4 plant / unit -> area      5 section / system -> area or system
+#   6 equipment unit -> tag (position) + equipment (physical item)
+#   7 subunit, 8 component / maintainable item, 9 part -> not modelled yet
+standard: ISO 14224:2016
+
+levels:
+  facility: {iso14224: installation, isa95: site}
+  area: {iso14224: plant/unit, isa95: area}
+  tag: {iso14224: equipment unit (position), isa95: work unit}
+  equipment: {iso14224: equipment unit, isa95: equipment}
+
+categories:
+  rotating: Rotating equipment
+  mechanical: Mechanical equipment
+  electrical: Electrical equipment
+  safety_control: Safety and control equipment
+  subsea: Subsea production equipment
+  well_completion: Well completion equipment
+
+classes:
+  # rotating
+  BL: {name: Blowers and fans, category: rotating, cfihos: fan}
+  CE: {name: Combustion engines, category: rotating, cfihos: combustion engine}
+  CO: {name: Compressors, category: rotating, cfihos: compressor,
+       types: {CE: Centrifugal, RE: Reciprocating, SC: Screw, AX: Axial}}
+  EG: {name: Electric generators, category: rotating, cfihos: electric generator}
+  EM: {name: Electric motors, category: rotating, cfihos: electric motor}
+  GT: {name: Gas turbines, category: rotating, cfihos: gas turbine}
+  PU: {name: Pumps, category: rotating, cfihos: pump,
+       types: {CE: Centrifugal, RE: Reciprocating, RO: Rotary}}
+  ST: {name: Steam turbines, category: rotating, cfihos: steam turbine}
+  TE: {name: Turboexpanders, category: rotating, cfihos: turboexpander}
+  # mechanical
+  FS: {name: Filters and strainers, category: mechanical, cfihos: filter}
+  HE: {name: Heat exchangers, category: mechanical, cfihos: heat exchanger,
+       types: {ST: Shell and tube, PL: Plate, AC: Air cooled, PC: Printed circuit}}
+  HB: {name: Heaters and boilers, category: mechanical, cfihos: heater}
+  PI: {name: Piping, category: mechanical, cfihos: piping}
+  VE: {name: Pressure vessels, category: mechanical, cfihos: pressure vessel,
+       types: {SE: Separator, SC: Scrubber, DR: Drum, CO: Column}}
+  TA: {name: Storage tanks, category: mechanical, cfihos: storage tank}
+  CR: {name: Cranes, category: mechanical, cfihos: crane}
+  # electrical
+  FC: {name: Frequency converters, category: electrical, cfihos: variable frequency drive}
+  PT: {name: Power transformers, category: electrical, cfihos: power transformer}
+  SG: {name: Switchgear, category: electrical, cfihos: switchgear}
+  UP: {name: Uninterruptible power supply, category: electrical, cfihos: uninterruptible power supply}
+  # safety and control
+  CL: {name: Control logic units, category: safety_control, cfihos: control system}
+  FG: {name: Fire and gas detectors, category: safety_control, cfihos: fire and gas detector}
+  IP: {name: Input devices, category: safety_control, cfihos: transmitter,
+       types: {PR: Pressure, TE: Temperature, LE: Level, FL: Flow, DP: Differential pressure,
+               SP: Speed, VI: Vibration, AN: Analyser}}
+  VA: {name: Valves, category: safety_control, cfihos: valve,
+       types: {ES: Emergency shutdown, PS: Pressure safety / relief, CO: Control, CH: Choke}}
+  # subsea / well completion (placeholders for completeness; extend as needed)
+  XT: {name: Subsea Xmas trees, category: subsea, cfihos: christmas tree}
+  WE: {name: Wellhead and Xmas trees, category: well_completion, cfihos: wellhead}

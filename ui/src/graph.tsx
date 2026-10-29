@@ -21,12 +21,15 @@ export const KIND_COLORS: Record<string, string> = {
   document: "#7b8794",
   log_entry: "#a0679b",
   event: "#d6455d",
+  equipment_model: "#b5651d",
+  equipment_class: "#3f6e8c",
 };
 export const kindColor = (kind: string) => KIND_COLORS[kind] ?? "#8d98a7";
 
 /** Link types grouped by the ontology "view" they belong to. */
 export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [
   { id: "physical", label: "Physical", rels: ["part_of", "installed_at", "sidetrack_of"] },
+  { id: "classes", label: "Classes & models", rels: ["classified_as", "instance_of", "is_a"] },
   { id: "flow", label: "Flow / allocation", rels: ["flows_to"] },
   { id: "data", label: "Data", rels: ["has_timeseries"] },
   { id: "documents", label: "Documents & logs", rels: ["mentions"] },

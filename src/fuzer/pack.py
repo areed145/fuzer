@@ -19,6 +19,7 @@ class Pack:
     aliases: dict[str, tuple[str, str]]
     matching: dict
     survivorship: dict
+    classification: dict
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -35,4 +36,5 @@ def load_pack(name: str = "offshore_demo") -> Pack:
         aliases={phrase: tuple(target) for phrase, target in raw.get("aliases", {}).items()},
         matching=raw["matching"],
         survivorship=raw["survivorship"],
+        classification=raw.get("classification", {}),
     )
