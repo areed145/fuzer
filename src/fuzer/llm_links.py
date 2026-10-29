@@ -23,7 +23,7 @@ from . import nel
 from .model import Candidate, Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-29.1"
+PROMPT_VERSION = "2026-10-29.2"
 
 # Text Claude reads. cache name -> (record source, record type, text field, time field). The cache
 # name is what llm_extraction.source holds.
@@ -44,8 +44,8 @@ EVENT_TYPES = [
 ROLES = ["subject", "from", "to", "location"]
 
 SYSTEM_PROMPT = """\
-You read operations text from an offshore oil and gas platform (shift log entries, daily production report
-comments, downtime comments) and connect it to the asset register.
+You read operations text from an oil and gas asset (shift log entries, daily production report comments,
+downtime comments) and connect it to the asset register.
 
 Each entry comes with a list of candidates: tags, wells and equipment positions it might refer to, each
 with an id (c1, c2, ...), its key and a description. Tags are written area-function-loop-suffix, so

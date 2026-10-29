@@ -1,0 +1,65 @@
+# Asset pack for a fake onshore field, "Ridgeback" (RBF): pads with many wells and little equipment
+# per well. Same core, different names, classes and codes.
+name: onshore_demo
+facility: RBF
+
+tag_grammar:
+  area_digits: 2        # pad number
+  loop_digits: [3, 4]
+  function_codes: [SEP, TK, LACT, ESP, WH, PT, TT, LT, FT, ST, XV, PSV]
+
+well_grammar:
+  pattern: 'RB[-_\s]?(?P<pad>\d{2})[-_\s]?(?P<num>\d{2})(?P<h>H?)'
+  key: 'RB {pad}-{num}{h}'
+
+aliases:
+  tank battery: [tag, 01-TK-201A]
+
+matching:
+  equipment:
+    auto_accept: 0.90
+    review_min: 0.60
+
+survivorship:
+  default:
+    priority: [review, sap, pi_af, pi, ec, oplog]
+    review_on_conflict: false
+  fields:
+    manufacturer: {priority: [review, sap], review_on_conflict: true}
+    description: {priority: [review, sap, pi_af, pi, ec]}
+    uom: {priority: [review, pi, pi_af]}
+
+classification:
+  taxonomy: iso14224
+  tag_functions:
+    SEP: VE.SE
+    TK: TA
+    LACT: IP.FL
+    ESP: ESP
+    WH: WE
+    PT: IP.PR
+    TT: IP.TE
+    LT: IP.LE
+    FT: IP.FL
+    ST: IP.SP
+    XV: VA.ES
+    PSV: VA.PS
+  templates: {}
+  description_types: {}
+  manufacturer_aliases:
+    apex: Apex Lift
+    canyon: Canyon Pumps
+  # Onshore artificial lift isn't in Fuzer's ISO 14224 subset; the pack adds it.
+  extra_classes:
+    ESP: {name: Electric submersible pumps, category: well_completion, cfihos: electric submersible pump}
+
+maintenance_codes:
+  damage: {D03: FTS, D09: UST, D05: LOO, D02: ELP, D07: AIR}
+  cause: {C01: "2.4", C04: "3.3", C05: "5.2"}
+  activity: {A01: "1", A02: "2", A04: "6"}
+
+downtime_reasons:
+  ESP-FAIL: {name: ESP failure, category: equipment}
+  WORKOVER: {name: Workover, category: well}
+  POWER: {name: Power outage, category: external}
+  TRUCKING: {name: Trucking constraint, category: external}

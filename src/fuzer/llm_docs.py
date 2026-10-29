@@ -18,12 +18,12 @@ from .model import Candidate, Edge
 from .pack import Pack
 from .taxonomy import load_standard
 
-PROMPT_VERSION = "2026-10-29.1"
+PROMPT_VERSION = "2026-10-29.2"
 CACHE = "edms_section"
 
 SYSTEM_PROMPT = """\
 You read sections of maintenance documents (OEM manuals, troubleshooting guides, procedures) for an
-offshore oil and gas platform. For each section return:
+oil and gas asset. For each section return:
 
 failure_modes: the ISO 14224 failure modes (codes from the list given) the section helps diagnose,
 prevent or fix. Only modes the section actually addresses; none for sections like Safety or Description.

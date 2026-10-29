@@ -23,12 +23,26 @@ uv run pytest              # always uses a throwaway embedded Postgres
 Without Docker, skip the first two lines and run `uv sync --extra local`;
 Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
 
+### Other assets
+
+Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
+tag and well naming, aliases, classification onto the ISO 14224 taxonomy (and
+extra classes), maintenance and downtime codes, survivorship. A fake onshore
+field shows a very different asset running on the same core:
+
+```sh
+export FUZER_PACK=onshore_demo
+uv run fuzer demo --asset onshore   # 40 pads, 480 wells on ESPs, pad separators / tanks / LACTs
+```
+
 ### Bigger fake data
 
 ```sh
 uv run fuzer demo --size medium   # ~1/10 of a real offshore asset: 60 areas, ~7.9k tags,
                                   # ~17k PI points, ~2k equipment, 40 wells, 480 P&IDs, 3k log entries
 uv run fuzer generate --size medium --areas 90 --trains 10 --logs 10000   # or tune any part
+uv run fuzer demo --size large    # close to a real asset: 58k tags, 163k PI points, ~300k records
+uv run fuzer bench                # time the main queries on whatever is loaded
 ```
 
 `small` (the default) is the hand-checked asset the tests use. A full rebuild of

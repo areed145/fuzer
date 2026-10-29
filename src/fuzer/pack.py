@@ -1,11 +1,12 @@
 """Asset packs: everything that differs between assets, loaded from YAML."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
-from .tags import TagGrammar, WellGrammar
+from .tags import PatternWellGrammar, TagGrammar, WellGrammar
 
 PACKS_DIR = Path(__file__).parent / "packs"
 
@@ -15,7 +16,7 @@ class Pack:
     name: str
     facility: str
     tags: TagGrammar
-    wells: WellGrammar
+    wells: WellGrammar | PatternWellGrammar
     aliases: dict[str, tuple[str, str]]
     matching: dict
     survivorship: dict
@@ -27,14 +28,17 @@ class Pack:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
 
 
-def load_pack(name: str = "offshore_demo") -> Pack:
+def load_pack(name: str | None = None) -> Pack:
+    """An asset pack by name; FUZER_PACK (default offshore_demo) when no name is given."""
+    name = name or os.environ.get("FUZER_PACK", "offshore_demo")
     raw = yaml.safe_load((PACKS_DIR / f"{name}.yaml").read_text())
     tg = raw["tag_grammar"]
     return Pack(
         name=raw["name"],
         facility=raw["facility"],
         tags=TagGrammar(tg["function_codes"], tg["area_digits"], tuple(tg["loop_digits"])),
-        wells=WellGrammar(raw["well_grammar"]["platforms"]),
+        wells=(PatternWellGrammar(wg["pattern"], wg["key"]) if "pattern" in (wg := raw["well_grammar"])
+               else WellGrammar(wg["platforms"])),
         aliases={phrase: tuple(target) for phrase, target in raw.get("aliases", {}).items()},
         matching=raw["matching"],
         survivorship=raw["survivorship"],

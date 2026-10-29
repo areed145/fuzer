@@ -89,3 +89,28 @@ class WellGrammar:
     def parse(self, text: str) -> str | None:
         found = self.find_all(text)
         return found[0].key if found else None
+
+
+@dataclass(frozen=True)
+class PatternWellMatch:
+    key: str
+    start: int
+    end: int
+
+
+class PatternWellGrammar:
+    """Wells named by an asset-specific pattern (onshore lease / pad / well numbers, API numbers, ...).
+    `pattern` is a regular expression with named groups; `key` formats them into the canonical name,
+    e.g. pattern 'RB[-\\s]?(?P<pad>\\d{2})[-\\s]?(?P<num>\\d{2})(?P<h>H?)' and key 'RB {pad}-{num}{h}'."""
+
+    def __init__(self, pattern: str, key: str):
+        self._re = re.compile(rf"(?<![A-Z0-9])(?:{pattern})(?![A-Z0-9])")
+        self._key = key
+
+    def find_all(self, text: str) -> list[PatternWellMatch]:
+        return [PatternWellMatch(self._key.format(**{k: v or "" for k, v in m.groupdict().items()}), m.start(), m.end())
+                for m in self._re.finditer(text.upper())]
+
+    def parse(self, text: str) -> str | None:
+        found = self.find_all(text)
+        return found[0].key if found else None
