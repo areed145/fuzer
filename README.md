@@ -37,6 +37,21 @@ values and what each source says, source records, dated links, flow trace with
 an "as of" date) and **Review** (yes/no on possible matches, pick the right
 value when sources disagree).
 
+### MCP server (AI agents)
+
+```sh
+uv run fuzer mcp           # stdio, for Claude Code / Claude Desktop
+uv run fuzer mcp --http    # streamable HTTP on http://127.0.0.1:8001/mcp
+```
+
+Claude Code picks it up from `.mcp.json` in this folder (approve it once when
+asked). Read-only tools: `search`, `get_entity`, `trace_flow`,
+`equipment_history`, `equipment_changes`, `link_text`, `list_reviews`,
+`get_stats`. Anything that takes a `ref` accepts a tag in any style, a well,
+a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production
+separator on 2024-01-01, and what changed after?"* or *"Which pumps were
+swapped, and what replaced them?"*
+
 ### API
 
 Try:
@@ -60,5 +75,7 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
 | `src/fuzer/golden.py` | Per-field survivorship and conflict review |
 | `src/fuzer/graph.py` | Dated edges and flow tracing |
+| `src/fuzer/queries.py` | Read queries shared by the API and MCP server |
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
+| `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `ui/` | React + TypeScript web UI (Vite) |
