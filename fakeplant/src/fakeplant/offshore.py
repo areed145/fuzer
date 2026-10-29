@@ -239,22 +239,27 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
 
     ec = _ec_network(wells, big if is_big else None)
 
-    pid_truth: dict[str, list[str]] = {}  # answer key for scoring image reading; never ingested
+    pid_truth: dict[str, dict] = {}  # answer key for scoring drawing reading; never ingested
     drawing_rng = random.Random(seed + 2)  # own sequence, so drawings never change the other data
     for (area, t), tags in sheet_tags.items():
         tmpl, area_name = plan[area]
         fmt = PID_FORMAT[tmpl]
         sheet = {"sheet": f"{FACILITY}-{area}-PID-{t + 1:03d}", "title": f"AREA {area} - {area_name.upper()}",
                  "revision": rng.choice("BCD"), "format": fmt}
+        conns = _pipe_connections(area, tags, t, len(sheets))
         if fmt == "smart":
             sheet["tags"] = [tag.canonical for tag in tags]
-            sheet["connections"] = _pipe_connections(area, tags, t, len(sheets))
+            sheet["connections"] = conns
         elif fmt == "pdf_text":
             bubbles = "\n".join(tag.fmt("{f}\n{l}{s}") for tag in tags)
             sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-{area}-PID-{t + 2:03d}"
-        elif fmt == "image" and cfg["images"]:
+        if cfg["images"]:
+            # Every sheet has a drawing: smart and text-PDF sheets as clean exports, the rest as scans.
             sheet["image"] = f"pid/{sheet['sheet']}.png"
-            pid_truth[sheet["sheet"]] = pid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng)
+            truth = pid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng, conns, scan=fmt == "image")
+            if fmt == "smart":  # smart files carry where each item sits on the sheet
+                sheet["positions"] = {x["key"]: [x["x"], x["y"]] for x in truth["tags"]}
+            pid_truth[sheet["sheet"]] = truth
         sheets.append(sheet)
 
     logs, log_truth = [], []

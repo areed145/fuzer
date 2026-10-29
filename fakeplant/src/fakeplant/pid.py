@@ -1,8 +1,9 @@
-"""Draws fake scanned P&IDs (PNG) for testing tag reading from images.
+"""Draws fake P&IDs (PNG) for Claude to read: clean CAD exports and damaged scans.
 
 Each drawing has equipment with tag labels, instrument bubbles (function letters over the loop
-number, as on real P&IDs), process lines with line numbers that are not tags, a title block, and
-scan damage: a slight rotation, blur and speckle.
+number, as on real P&IDs), the sheet's process lines between equipment with their line numbers
+(not tags), and a title block. Scans also get a slight rotation, blur and speckle. `draw` returns
+the answer key: every tag and line number drawn, where it sits, and the piping.
 """
 
 import math
@@ -48,8 +49,10 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
     return box
 
 
-def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: random.Random) -> list[str]:
-    """Render one drawing; returns the canonical tags drawn on it (the answer key)."""
+def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: random.Random,
+         connections: list[dict] = (), scan: bool = True) -> dict:
+    """Render one drawing. Returns {size, tags: [{key, kind, x, y}], lines: [{text, from, to, x, y}]}:
+    what is drawn where (pixels), for scoring readings and checking overlays."""
     img = Image.new("L", (W, H), 255)
     d = ImageDraw.Draw(img)
     f_tag, f_small, f_bubble = _font(26), _font(18), _font(20)
@@ -71,16 +74,16 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     cols = min(len(groups), 4) or 1
     rows = math.ceil(len(groups) / cols) or 1
     cell_w, cell_h = (W - 120) / cols, (H - 320) / rows
-    drawn, boxes = [], []
+    drawn, boxes, at = [], {}, {}
     for i, (eq, insts) in enumerate(groups):
         cx = 60 + cell_w * (i % cols) + cell_w / 2
         cy = 60 + cell_h * (i // cols) + cell_h * 0.62
         if eq:
             box = _equipment(d, eq.func, cx, cy)
-            boxes.append(box)
+            boxes[eq.canonical] = box
             d.text((cx, box[3] + 30), eq.canonical, font=f_tag, fill=0, anchor="mm")
             d.text((cx, box[3] + 60), titles.get(eq.canonical, "").upper(), font=f_small, fill=0, anchor="mm")
-            drawn.append(eq.canonical)
+            drawn.append({"key": eq.canonical, "kind": "equipment", "x": round(cx), "y": round(box[3] + 30)})
             top = box[1]
         else:
             top = cy
@@ -93,27 +96,28 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
             d.text((bx, by + 17), f"{inst.loop}{inst.suffix}", font=f_bubble, fill=0, anchor="mm")
             if eq:
                 _dashed(d, (bx, by + 44), (cx, top))
-            drawn.append(inst.canonical)
+            drawn.append({"key": inst.canonical, "kind": "instrument", "x": round(bx), "y": round(by)})
 
-    # Process lines between equipment, labelled with line numbers (not tags).
-    area = tags[0].area if tags else "00"
-    for a, b in zip(boxes, boxes[1:]):
+    # The sheet's process lines between equipment, labelled with line numbers (not tags).
+    lines = []
+    for c in connections:
+        a, b = boxes.get(c["from"]), boxes.get(c["to"])
+        if not a or not b or b[0] <= a[2]:  # off-page, or the next row: not drawn on this sheet
+            continue
         y = (a[1] + a[3]) / 2 if abs(((a[1] + a[3]) / 2) - ((b[1] + b[3]) / 2)) < 5 else a[3] - 20
         x1, x2 = a[2], b[0]
-        if x2 <= x1:
-            continue
         d.line([(x1, y), (x2, y)], fill=0, width=3)
         d.polygon([(x2, y), (x2 - 16, y - 8), (x2 - 16, y + 8)], fill=0)
-        label = f'{rng.choice([4, 6, 8, 10])}"-P-{area}{rng.randint(100, 999)}-A1'
-        d.text(((x1 + x2) / 2, y - 18), label, font=f_small, fill=0, anchor="mm")
+        d.text(((x1 + x2) / 2, y - 18), c["line"], font=f_small, fill=0, anchor="mm")
+        lines.append({"text": c["line"], "from": c["from"], "to": c["to"], "x": round((x1 + x2) / 2), "y": round(y - 18)})
 
-    # Scan damage.
-    img = img.rotate(rng.uniform(-0.8, 0.8), fillcolor=255, resample=Image.Resampling.BICUBIC)
-    img = img.filter(ImageFilter.GaussianBlur(0.6))
-    d = ImageDraw.Draw(img)
-    for _ in range(2500):
-        x, y = rng.randrange(W), rng.randrange(H)
-        d.point((x, y), fill=rng.randrange(0, 160))
+    if scan:  # scan damage
+        img = img.rotate(rng.uniform(-0.8, 0.8), fillcolor=255, resample=Image.Resampling.BICUBIC)
+        img = img.filter(ImageFilter.GaussianBlur(0.6))
+        d = ImageDraw.Draw(img)
+        for _ in range(2500):
+            x, y = rng.randrange(W), rng.randrange(H)
+            d.point((x, y), fill=rng.randrange(0, 160))
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path, optimize=True)
-    return drawn
+    return {"size": [W, H], "tags": drawn, "lines": lines}

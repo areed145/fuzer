@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
+import { DrawingViewer } from "../DrawingViewer";
 import { IncidentDetail, IncidentList } from "./Incidents";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
 
@@ -92,7 +93,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <Records e={e} />
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
-          {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
+          {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={e.fuzer_id} />}
           {e.kind === "document" && e.golden.doc_type && (
             <section className="card">
               <div className="row spread">
@@ -109,6 +110,11 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
               {e.golden.status?.value === "superseded" && (
                 <p className="error small">This revision is superseded; see "Superseded by" below.</p>
               )}
+              <iframe
+                className="doc-file"
+                title={fmt(e.golden.title?.value)}
+                src={`/documents/${encodeURIComponent(e.fuzer_id)}/file`}
+              />
             </section>
           )}
           {e.kind === "document_section" && (
@@ -337,20 +343,6 @@ function Events({ id }: { id: string }) {
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-function Drawing({ id }: { id: string }) {
-  const src = `/documents/${encodeURIComponent(id)}/image`;
-  return (
-    <section className="card">
-      <h2>
-        Scanned drawing <span className="muted small">tags read from it by Claude are listed under Mentions</span>
-      </h2>
-      <a href={src} target="_blank" rel="noreferrer">
-        <img className="drawing" src={src} alt="Scanned P&ID" />
-      </a>
     </section>
   );
 }

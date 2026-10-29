@@ -1,4 +1,4 @@
-"""Claude reads tags off scanned P&ID images.
+"""Claude reads P&ID drawings (scans and clean exports): tags, piping and where each tag sits.
 
 Each drawing is cut into overlapping tiles (small text stays readable after the model's image
 resizing) and sent in one request. Claude transcribes every tag as drawn; Fuzer then turns each
@@ -7,8 +7,10 @@ against the register. Readings that are not tags, or tags missing from the regis
 findings instead of becoming links. Claude is deliberately not shown the expected tags, so it
 can't "find" ones that aren't on the drawing.
 
-Results are cached in llm_extraction per sheet, keyed by the image's SHA-256, and applied during
-rebuilds without calling the model.
+Every reading carries the tile it was read on and a point within that tile, turned into sheet
+pixels so the UI can mark it on the drawing. Smart P&IDs are not sent: their tags and piping are
+exact already. Results are cached in llm_extraction per sheet, keyed by the image's SHA-256, and
+applied during rebuilds without calling the model.
 """
 
 import base64
@@ -25,7 +27,7 @@ from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
 from .model import Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-29.3"
+PROMPT_VERSION = "2026-10-30.1"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
@@ -45,8 +47,9 @@ Also report connections: each process line between two pieces of equipment, as f
 at each end, following the flow arrow) and the line number written on it.
 
 Write each tag exactly as drawn and don't add an area or prefix that isn't written. Report a tag once
-even if it appears on several tiles. If a character is unclear, give your best reading and a lower
-confidence (0 to 1). Also read the title block."""
+even if it appears on several tiles, giving the tile number where it is clearest and the centre of
+the label within that tile as x and y from 0 (left / top) to 1000 (right / bottom). If a character is
+unclear, give your best reading and a lower confidence (0 to 1). Also read the title block."""
 
 SCHEMA = {
     "type": "object",
@@ -67,41 +70,52 @@ SCHEMA = {
         "tags": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["text", "kind", "confidence"],
+            "required": ["text", "kind", "confidence", "tile", "x", "y"],
             "properties": {
                 "text": {"type": "string"},
                 "kind": {"type": "string", "enum": ["instrument", "equipment", "line", "other"]},
                 "confidence": {"type": "number"},
+                "tile": {"type": "integer"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
             },
         }},
     },
 }
 
 
-def tiles(path: str) -> list[tuple[str, bytes]]:
-    """Overlapping PNG tiles of a drawing, each no larger than MAX_EDGE on its long side."""
-    img = Image.open(path).convert("L")
-    w, h = img.size
+def tile_boxes(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    """Overlapping tile boxes (left, top, right, bottom) covering a w x h drawing, in reading order."""
     cols, rows = max(1, math.ceil(w / TILE_TARGET)), max(1, math.ceil(h / TILE_TARGET))
     tw, th = w / cols, h / rows
+    return [(max(0, int(c * tw - tw * OVERLAP)), max(0, int(r * th - th * OVERLAP)),
+             min(w, int((c + 1) * tw + tw * OVERLAP)), min(h, int((r + 1) * th + th * OVERLAP)))
+            for r in range(rows) for c in range(cols)]
+
+
+def tiles(path: str) -> list[tuple[str, bytes, tuple[int, int, int, int]]]:
+    """Overlapping PNG tiles of a drawing, each no larger than MAX_EDGE on its long side, with the
+    box (in sheet pixels) each was cut from."""
+    img = Image.open(path).convert("L")
+    w, h = img.size
+    boxes = tile_boxes(w, h)
+    cols = max(1, math.ceil(w / TILE_TARGET))
+    rows = len(boxes) // cols
     out = []
-    for r in range(rows):
-        for c in range(cols):
-            box = (max(0, int(c * tw - tw * OVERLAP)), max(0, int(r * th - th * OVERLAP)),
-                   min(w, int((c + 1) * tw + tw * OVERLAP)), min(h, int((r + 1) * th + th * OVERLAP)))
-            tile = img.crop(box)
-            if max(tile.size) > MAX_EDGE:
-                tile.thumbnail((MAX_EDGE, MAX_EDGE))
-            buf = io.BytesIO()
-            tile.save(buf, format="PNG", optimize=True)
-            label = f"row {r + 1} of {rows}, column {c + 1} of {cols}"
-            out.append((label, buf.getvalue()))
+    for i, box in enumerate(boxes):
+        tile = img.crop(box)
+        if max(tile.size) > MAX_EDGE:
+            tile.thumbnail((MAX_EDGE, MAX_EDGE))
+        buf = io.BytesIO()
+        tile.save(buf, format="PNG", optimize=True)
+        label = f"{i + 1} (row {i // cols + 1} of {rows}, column {i % cols + 1} of {cols})"
+        out.append((label, buf.getvalue(), box))
     return out
 
 
 def _request(model: str, effort: str, sheet: dict) -> dict:
     content = [{"type": "text", "text": f"Drawing {sheet['sheet']}. Register title: {sheet.get('title', '')}."}]
-    for label, png in tiles(sheet["image_path"]):
+    for label, png, _ in tiles(sheet["image_path"]):
         content.append({"type": "text", "text": f"Tile {label}:"})
         content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png",
                                                     "data": base64.standard_b64encode(png).decode()}})
@@ -119,22 +133,32 @@ def _area(sheet: dict) -> str | None:
     return m.group(1) if m else None
 
 
-def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str]) -> dict:
-    """Claude's readings -> links to known tags, plus findings for everything else."""
+def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
+              boxes: list[tuple[int, int, int, int]] | None = None) -> dict:
+    """Claude's readings -> links to known tags, plus findings for everything else. With the tile
+    boxes, each reading gets its position on the sheet (pixels)."""
     area = _area(sheet)
     mentions, findings, lines, seen = [], [], [], set()
+
+    def at(t):
+        if not boxes or not isinstance(t.get("tile"), int) or not 1 <= t["tile"] <= len(boxes):
+            return {}
+        x0, y0, x1, y1 = boxes[t["tile"] - 1]
+        fx, fy = min(max(t.get("x", 500), 0), 1000) / 1000, min(max(t.get("y", 500), 0), 1000) / 1000
+        return {"x": round(x0 + fx * (x1 - x0)), "y": round(y0 + fy * (y1 - y0))}
+
     for t in data["tags"]:
         if t["kind"] == "line":
-            lines.append(t["text"])
+            lines.append({"text": t["text"], **at(t)})
             continue
         key = pack.tags.parse(t["text"], default_area=area)
         if key is None:
-            findings.append({"text": t["text"], "kind": t["kind"], "issue": "not a tag"})
+            findings.append({"text": t["text"], "kind": t["kind"], "issue": "not a tag", **at(t)})
         elif key not in known_tags:
-            findings.append({"text": t["text"], "kind": t["kind"], "key": key, "issue": "not in register"})
+            findings.append({"text": t["text"], "kind": t["kind"], "key": key, "issue": "not in register", **at(t)})
         elif key not in seen:
             seen.add(key)
-            mentions.append({"text": t["text"], "kind": "tag", "key": key, "confidence": t["confidence"]})
+            mentions.append({"text": t["text"], "kind": "tag", "key": key, "confidence": t["confidence"], **at(t)})
     connections = []
     for c in data.get("connections", []):
         a, b = pack.tags.parse(c["from"], default_area=area), pack.tags.parse(c["to"], default_area=area)
@@ -147,19 +171,23 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str]) -> dict
         findings.append({"text": tb["drawing_number"], "kind": "title_block", "issue": "drawing number differs from register"})
     if tb["revision"] and sheet.get("revision") and tb["revision"].strip().upper() != str(sheet["revision"]).upper():
         findings.append({"text": tb["revision"], "kind": "title_block", "issue": "revision differs from register"})
-    return {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines, "connections": connections}
+    out = {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines, "connections": connections}
+    if boxes:
+        out["size"] = [max(b[2] for b in boxes), max(b[3] for b in boxes)]
+    return out
 
 
 def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
         limit: int | None = None, workers: int = 4, batch: bool = False, force: bool = False,
         dry_run: bool = False, poll_seconds: int = 30) -> dict:
-    """Read scanned drawings that have no current cached result. Needs a rebuilt register first."""
+    """Read drawings (all but smart P&IDs) that have no current cached result. Needs a rebuilt register first."""
     rows = conn.execute(
         """
         select r.source_key, r.payload, x.text_hash, x.prompt_version
         from source_record r
         left join llm_extraction x on x.source = r.source and x.source_key = r.source_key
-        where r.source = 'pid' and r.record_type = 'sheet' and r.payload->>'format' = 'image'
+        where r.source = 'pid' and r.record_type = 'sheet' and r.payload->>'format' <> 'smart'
+          and r.payload ? 'image'
         order by r.source_key
         """
     ).fetchall()
@@ -190,7 +218,7 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
         if message.stop_reason == "max_tokens":
             raise RuntimeError("answer cut off at max_tokens")
         data = json.loads(next(b.text for b in message.content if b.type == "text"))
-        result = interpret(data, sheets[sk], pack, known_tags)
+        result = interpret(data, sheets[sk], pack, known_tags, tile_boxes(*Image.open(sheets[sk]["image_path"]).size))
         for k, v in usage(message).items():
             totals[k] += v
         with conn.cursor() as cur:
@@ -240,8 +268,9 @@ def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:
     return edges
 
 
-def score(conn, truth: dict[str, list[str]]) -> dict:
-    """Compare what was linked from each drawing with an answer key {sheet: [tag keys]}."""
+def score(conn, truth: dict) -> dict:
+    """Compare what was read from each drawing with the answer key {sheet: {tags: [{key}], lines:
+    [{from, to}]}} (or {sheet: [tag keys]}): tags linked, and piping read."""
     found: dict[str, set[str]] = {}
     for r in conn.execute(
         """
@@ -253,17 +282,25 @@ def score(conn, truth: dict[str, list[str]]) -> dict:
         """
     ):
         found.setdefault(r["sheet"], set()).add(r["tag"])
-    per_sheet, tp, fp, fn = [], 0, 0, 0
-    for sheet, expected in truth.items():
+    pipes = {r["source_key"]: {(c["from"], c["to"]) for c in r["result"].get("connections", [])}
+             for r in conn.execute("select source_key, result from llm_extraction where source = 'pid'")}
+    per_sheet, tp, fp, fn, ptp, pfp, pfn = [], 0, 0, 0, 0, 0, 0
+    for sheet, key in truth.items():
+        expected = [x["key"] for x in key["tags"]] if isinstance(key, dict) else key
         exp, got = set(expected), found.get(sheet, set())
         tp += len(exp & got)
         fp += len(got - exp)
         fn += len(exp - got)
         if exp - got or got - exp:
             per_sheet.append({"sheet": sheet, "missed": sorted(exp - got), "wrong": sorted(got - exp)})
+        if isinstance(key, dict) and sheet in pipes:
+            want, read = {(x["from"], x["to"]) for x in key.get("lines", [])}, pipes[sheet]
+            ptp, pfp, pfn = ptp + len(want & read), pfp + len(read - want), pfn + len(want - read)
     return {
         "sheets": len(truth), "sheets_read": sum(1 for s in truth if s in found),
         "recall": round(tp / (tp + fn), 3) if tp + fn else None,
         "precision": round(tp / (tp + fp), 3) if tp + fp else None,
+        "piping": {"recall": round(ptp / (ptp + pfn), 3) if ptp + pfn else None,
+                   "precision": round(ptp / (ptp + pfp), 3) if ptp + pfp else None},
         "problems": per_sheet[:20],
     }
