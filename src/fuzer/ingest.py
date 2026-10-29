@@ -22,6 +22,7 @@ CSV_FILES = {
     "sap_notifications.csv": ("sap", "notification", "qmnum"),
     "sap_work_orders.csv": ("sap", "work_order", "aufnr"),
     "ec_downtime.csv": ("ec", "downtime", "event_id"),
+    "sap_materials.csv": ("sap", "material", "matnr"),
     "ec_day001.csv": ("ec", "daily_report", "report_date"),
 }
 
@@ -34,6 +35,12 @@ def _csv(name):
             for row in csv.DictReader(f):
                 yield source, record_type, row[key_col], row
     return load
+
+
+def _bom(path: Path):
+    with path.open(newline="") as f:
+        for row in csv.DictReader(f):
+            yield "sap", "bom", f"{row['equnr']}>{row['matnr']}", row
 
 
 def _pi_af(path: Path):
@@ -85,6 +92,7 @@ EXPORTS = {
     "ec_network": ("ec_network.json", _ec_network),
     "pid_sheets": ("pid_sheets.json", _pid_sheets),
     "documents": ("documents.json", _documents),
+    "sap_bom": ("sap_bom.csv", _bom),
 }
 
 

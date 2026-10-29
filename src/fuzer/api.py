@@ -75,6 +75,12 @@ def entity_history(fuzer_id: str, limit: int = 50, conn=Depends(get_conn)):
     return queries.record_history(conn, PACK, fuzer_id, min(limit, 500))
 
 
+@app.get("/entities/{fuzer_id}/spares")
+def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
+    """Spare parts (SAP materials from equipment BOMs) with stock and the manual sections naming them."""
+    return queries.spares(conn, fuzer_id)
+
+
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):

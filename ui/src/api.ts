@@ -313,6 +313,10 @@ export const api = {
   lessons: (status: string) => request<Lesson[]>("GET", "/lessons", { status }),
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
     request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
+  spares: (id: string) =>
+    request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
+              used_by: number; documents: { id: string; label: string }[] }[]>(
+      "GET", `/entities/${encodeURIComponent(id)}/spares`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
