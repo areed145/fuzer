@@ -211,6 +211,11 @@ Score = text rank x closeness (this tag > model > class > area) x authority (OEM
 manual / procedure > site guide > past incident); questions match on any of
 their words. Results are cited passages (document, revision, page, section,
 snippet, why it applies). Superseded revisions are left out by default.
+Sections carry the ISO 14224 failure modes they address: keyword rules in the
+standards file (packs can add more), refined by an optional cached Claude reader
+that can also narrow a section to one model / class / tag from its candidates.
+Searches can boost a failure mode, and each incident gets suggested reading:
+sections in scope of its unit that cover its failure modes.
 Embeddings (pgvector) can be added beside full text once an embedding model is
 chosen (an external service).
 

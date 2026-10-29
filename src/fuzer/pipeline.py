@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import db, golden, graph, llm_links, llm_pids
+from . import db, golden, graph, llm_docs, llm_links, llm_pids
 from .extract import extract
 from .pack import Pack
 from psycopg.types.json import Jsonb
@@ -49,7 +49,7 @@ def rebuild(conn, pack: Pack) -> dict:
     # Claude's cached reads of logs and scanned drawings; never calls the model here.
     c, e = llm_links.cached_items(conn, texts)
     cands += c
-    extra += e + llm_pids.cached_edges(conn, pid_sheets)
+    extra += e + llm_pids.cached_edges(conn, pid_sheets) + llm_docs.apply_cached(conn, cands)
     lap("extract")
 
     assigned, key_index, stats = resolve(conn, cands, pack)

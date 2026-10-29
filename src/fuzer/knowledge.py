@@ -10,7 +10,9 @@ source is. Questions match on any of their words, so full sentences still find p
 from . import db
 
 AUTHORITY = {"oem_manual": 1.0, "procedure": 1.0, "troubleshooting_guide": 0.9, "incident": 0.7}
-COLS = ["fuzer_id", "kind", "document", "title", "doc_type", "status", "heading", "page", "body", "scope_ids"]
+COLS = ["fuzer_id", "kind", "document", "title", "doc_type", "status", "heading", "page", "body", "scope_ids",
+        "failure_modes"]
+MODE_BOOST = 1.5  # a passage about the failure mode you're dealing with
 
 
 def build(conn) -> dict:
@@ -26,8 +28,10 @@ def build(conn) -> dict:
                gt.value #>> '{}' as title, gd.value #>> '{}' as doc_type, gs.value #>> '{}' as status,
                gh.value #>> '{}' as heading, (gp.value #>> '{}')::int as page, coalesce(gx.value #>> '{}', '') as body,
                array(select distinct e.dst from edge e
-                     where (e.src = sec.doc and e.rel = 'applies_to') or (e.src = sec.fuzer_id and e.rel = 'mentions'))
-                   as scope_ids
+                     where (e.src = sec.doc and e.rel = 'applies_to')
+                        or (e.src = sec.fuzer_id and e.rel in ('mentions', 'applies_to')))
+                   as scope_ids,
+               array(select jsonb_array_elements_text(coalesce(gm.value, '[]'))) as failure_modes
         from sec
         left join golden gt on gt.fuzer_id = sec.doc and gt.field = 'title'
         left join golden gd on gd.fuzer_id = sec.doc and gd.field = 'doc_type'
@@ -35,10 +39,12 @@ def build(conn) -> dict:
         left join golden gh on gh.fuzer_id = sec.fuzer_id and gh.field = 'heading'
         left join golden gp on gp.fuzer_id = sec.fuzer_id and gp.field = 'page'
         left join golden gx on gx.fuzer_id = sec.fuzer_id and gx.field = 'text'
+        left join golden gm on gm.fuzer_id = sec.fuzer_id and gm.field = 'failure_modes'
         union all
         select i.fuzer_id, 'incident', null, gd.value #>> '{}', 'incident', 'current', null, null,
                concat_ws(' ', gd.value #>> '{}', gm.value::text, ge.value::text),
-               array(select a.dst from edge a where a.src = i.fuzer_id and a.rel = 'about')
+               array(select a.dst from edge a where a.src = i.fuzer_id and a.rel = 'about'),
+               array(select jsonb_array_elements_text(coalesce(gm.value, '[]')))
         from entity i
         left join golden gd on gd.fuzer_id = i.fuzer_id and gd.field = 'description'
         left join golden gm on gm.fuzer_id = i.fuzer_id and gm.field = 'failure_modes'
@@ -85,8 +91,10 @@ def scope(conn, fuzer_id: str) -> dict[str, tuple[float, str]]:
 
 
 def search(conn, question: str, fuzer_id: str | None = None, limit: int = 10,
-           include_superseded: bool = False) -> list[dict]:
+           include_superseded: bool = False, failure_modes: list[str] | None = None) -> list[dict]:
+    """failure_modes (ISO 14224 codes) boosts passages about those modes."""
     sc = scope(conn, fuzer_id) if fuzer_id else {}
+    wanted = set(failure_modes or [])
     rows = conn.execute(
         """
         with q as (
@@ -94,6 +102,7 @@ def search(conn, question: str, fuzer_id: str | None = None, limit: int = 10,
             from unnest(to_tsvector('english', %(q)s))
         )
         select k.fuzer_id, k.kind, k.document, k.title, k.doc_type, k.status, k.heading, k.page, k.scope_ids,
+               k.failure_modes,
                ts_rank_cd(k.tsv, q.query) as rank,
                ts_headline('english', k.body, q.query, 'StartSel=[[, StopSel=]], MaxFragments=2, MaxWords=35, MinWords=12')
                    as snippet
@@ -116,11 +125,13 @@ def search(conn, question: str, fuzer_id: str | None = None, limit: int = 10,
         best = max((sc[i] for i in r["scope_ids"] if i in sc), default=(1.0, None))
         hit = next((i for i in r["scope_ids"] if i in sc and sc[i] == best), None)
         score = float(r["rank"]) * best[0] * AUTHORITY.get(r["doc_type"] or "", 0.8)
+        if wanted & set(r["failure_modes"]):
+            score *= MODE_BOOST
         out.append({
             "id": r["fuzer_id"], "kind": r["kind"], "score": round(score, 4),
             "document": r["document"], "document_label": labels.get(r["document"]), "title": r["title"],
             "doc_type": r["doc_type"], "status": r["status"], "heading": r["heading"], "page": r["page"],
-            "snippet": r["snippet"],
+            "snippet": r["snippet"], "failure_modes": r["failure_modes"],
             **({"why": f"{best[1]}: {labels.get(hit, hit)}"} if hit else {}),
         })
     return sorted(out, key=lambda x: -x["score"])[:limit]
@@ -150,3 +161,39 @@ def documents_for(conn, fuzer_id: str) -> list[dict]:
         if r["id"] not in best or w > best[r["id"]]["_w"]:
             best[r["id"]] = {**{k: r[k] for k in ("id", "label", "title", "doc_type", "revision")}, "why": how, "_w": w}
     return [{k: v for k, v in d.items() if k != "_w"} for d in sorted(best.values(), key=lambda d: (-d["_w"], d["label"]))]
+
+
+
+def for_incident(conn, incident_id: str, limit: int = 5) -> list[dict]:
+    """Suggested reading for an incident: sections in scope of its unit that cover its failure modes."""
+    row = conn.execute(
+        """
+        select a.dst as unit, coalesce(fm.value, '[]') as modes, coalesce(et.value, '[]') as types
+        from edge a
+        left join golden fm on fm.fuzer_id = a.src and fm.field = 'failure_modes'
+        left join golden et on et.fuzer_id = a.src and et.field = 'event_types'
+        where a.src = %s and a.rel = 'about'
+        """,
+        (incident_id,),
+    ).fetchone()
+    if not row or not row["modes"]:
+        return []
+    sc = scope(conn, row["unit"])
+    rows = conn.execute(
+        """
+        select k.fuzer_id, k.document, k.title, k.doc_type, k.heading, k.page, k.failure_modes, k.scope_ids,
+               l.label as document_label
+        from knowledge_index k left join entity_label l on l.fuzer_id = k.document
+        where k.kind = 'document_section' and coalesce(k.status, 'current') <> 'superseded'
+          and k.failure_modes && %(modes)s::text[] and k.scope_ids && %(scope)s::text[]
+        """,
+        {"modes": list(row["modes"]), "scope": list(sc)},
+    ).fetchall()
+    out = []
+    for r in rows:
+        closeness = max(sc[i][0] for i in r["scope_ids"] if i in sc)
+        overlap = len(set(r["failure_modes"]) & set(row["modes"]))
+        out.append({"id": r["fuzer_id"], "document_label": r["document_label"], "title": r["title"],
+                    "heading": r["heading"], "page": r["page"], "failure_modes": r["failure_modes"],
+                    "score": round(closeness * overlap * AUTHORITY.get(r["doc_type"] or "", 0.8), 3)})
+    return sorted(out, key=lambda x: -x["score"])[:limit]

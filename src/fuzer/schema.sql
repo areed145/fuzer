@@ -190,3 +190,5 @@ create table if not exists knowledge_index (
 );
 create index if not exists knowledge_tsv on knowledge_index using gin (tsv);
 create index if not exists knowledge_scope on knowledge_index using gin (scope_ids);
+alter table knowledge_index add column if not exists failure_modes text[] not null default '{}';
+create index if not exists knowledge_modes on knowledge_index using gin (failure_modes);

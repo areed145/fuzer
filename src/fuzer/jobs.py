@@ -93,7 +93,7 @@ def register(fuzer: Fuzer) -> dg.MaterializeResult:
 
 
 def _claude_result(stats: dict, rebuilt: bool) -> dg.MaterializeResult:
-    keep = ("entries", "sheets", "stored", "failed_requests", "input_tokens", "output_tokens", "findings")
+    keep = ("entries", "sheets", "sections", "stored", "failed_requests", "input_tokens", "output_tokens", "findings")
     return dg.MaterializeResult(metadata={**{k: v for k, v in stats.items() if k in keep},
                                           "model": stats.get("model", ""), "rebuilt": rebuilt,
                                           "errors": dg.MetadataValue.json(stats.get("errors", []))})
@@ -121,6 +121,22 @@ def claude_pid_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResu
     with fuzer.connect() as conn:
         stats = llm_pids.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,
                              limit=claude.max_drawings)
+        rebuilt = bool(stats.get("stored"))
+        if rebuilt:
+            pipeline.rebuild(conn, pack)
+    if stats.get("failed_requests") and not stats.get("stored"):
+        raise dg.Failure(f"every Claude request failed: {stats.get('errors')}")
+    return _claude_result(stats, rebuilt)
+
+
+@dg.asset(group_name="claude", deps=[register],
+          description="Claude reads new or changed document sections: failure modes and specific links.")
+def claude_doc_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResult:
+    from . import llm_docs
+    pack = load_pack(fuzer.pack)
+    with fuzer.connect() as conn:
+        stats = llm_docs.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,
+                             limit=claude.max_log_entries)
         rebuilt = bool(stats.get("stored"))
         if rebuilt:
             pipeline.rebuild(conn, pack)
@@ -259,7 +275,7 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 
 
 defs = dg.Definitions(
-    assets=[*SOURCES, register, claude_log_reads, claude_pid_reads],
+    assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
                   document_revisions],
     jobs=[refresh_all, refresh_logs, claude_reading],

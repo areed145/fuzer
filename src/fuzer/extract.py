@@ -134,7 +134,11 @@ def edms_document(key, p, pack):
 
 
 def edms_section(key, p, pack):
+    from .taxonomy import failure_modes_in
+
     fields = {**_pick(p, "heading", "page", "text", "status", "index"), "description": p.get("heading", key)}
+    if modes := failure_modes_in(f"{p.get('heading', '')}\n{p.get('text', '')}", pack):
+        fields["failure_modes"] = modes
     c = Candidate("edms", "section", key, "document_section", key, fields)
     c.edges.append(Edge(("ref", c.ref), "part_of", ("ref", f"edms:document:{p['document']}"), "edms"))
     for m in nel.find_mentions(p.get("text", ""), pack):

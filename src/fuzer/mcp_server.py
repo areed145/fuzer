@@ -315,25 +315,29 @@ def get_incidents(ref: str | None = None, since: str | None = None, until: str |
 
 @server.tool(annotations=READ_ONLY)
 def incident_detail(ref: str) -> dict[str, Any]:
-    """One incident's timeline (every event, downtime record and notification in it, in order) and the
-    most similar past incidents on the same unit or equipment class: how those went is often the best clue."""
+    """One incident's timeline (every event, downtime record and notification in it, in order), the most
+    similar past incidents on the same unit or class (how those went is often the best clue), and suggested
+    reading: manual / guide sections in scope of the unit that cover the incident's failure modes."""
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
             return err
+        from . import knowledge
         return _plain({"incident": fid, "timeline": queries.incident_timeline(conn, fid),
-                       "similar": queries.similar_incidents(conn, fid, 10)})
+                       "similar": queries.similar_incidents(conn, fid, 10),
+                       "suggested_reading": knowledge.for_incident(conn, fid, 5)})
 
 
 @server.tool(annotations=READ_ONLY)
 def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
-                     include_superseded: bool = False) -> dict[str, Any]:
+                     include_superseded: bool = False, failure_modes: list[str] | None = None) -> dict[str, Any]:
     """Search OEM manuals, troubleshooting guides, procedures and past incidents, returning cited
     passages (document, revision, page, section, snippet with [[matches]]).
 
     ref scopes the search to what applies to one tag / equipment / well: the item itself, its model's
     manuals, its class's procedures and its area's guides, ranked closest first. Always cite the document
-    and page you use. Superseded revisions are left out unless include_superseded is true."""
+    and page you use. Superseded revisions are left out unless include_superseded is true. failure_modes
+    (ISO 14224 codes such as VIB, ELP, FTS, OHE) boosts passages about those modes."""
     from . import knowledge
     with db.connect() as conn:
         fid = None
@@ -342,7 +346,8 @@ def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
             if err:
                 return err
         return _plain({"for": fid or "facility",
-                       "passages": knowledge.search(conn, question, fid, min(limit, 30), include_superseded)})
+                       "passages": knowledge.search(conn, question, fid, min(limit, 30), include_superseded,
+                                                    failure_modes)})
 
 
 @server.tool(annotations=READ_ONLY)

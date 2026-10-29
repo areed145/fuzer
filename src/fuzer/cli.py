@@ -32,7 +32,7 @@ def main(argv=None):
     s.add_argument("--port", type=int, default=8000)
 
     lk = sub.add_parser("llm-link", help="have Claude read operator logs and scanned P&IDs, then rebuild")
-    lk.add_argument("--source", choices=["logs", "pids", "all"], default="all")
+    lk.add_argument("--source", choices=["logs", "pids", "docs", "all"], default="all")
     lk.add_argument("--limit", type=int, help="only this many entries (try a small sample first)")
     lk.add_argument("--model", default=None, help="Claude model id (default claude-opus-5-5 or $FUZER_LLM_MODEL)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
@@ -101,6 +101,9 @@ def main(argv=None):
                     result["logs"] = llm_links.run(conn, pack, per_request=args.per_request, **common)
                 if args.source in ("pids", "all"):
                     result["pids"] = llm_pids.run(conn, pack, **common)
+                if args.source in ("docs", "all"):
+                    from . import llm_docs
+                    result["docs"] = llm_docs.run(conn, pack, **common)
                 _print(result)
                 if not (args.dry_run or args.no_rebuild) and any(r.get("stored") for r in result.values()):
                     _print(pipeline.rebuild(conn, pack))
