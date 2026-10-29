@@ -374,6 +374,16 @@ def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved", limit: int = 20) -> dict[str, Any]:
+    """Lessons learned per equipment model (or class) and ISO 14224 failure mode: the corrective work that has
+    fixed it before, how often it held for 30 days, and the incidents behind it. Approved lessons were
+    reviewed by engineers; suggested ones are drafts. Approved lessons also come back from search_knowledge."""
+    from . import lessons
+    with db.connect() as conn:
+        return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with

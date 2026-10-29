@@ -304,6 +304,17 @@ CAUSES = {"D01": ["C02", "C06", "C01"], "D02": ["C01", "C03"], "D03": ["C04", "C
           "D05": ["C01", "C05"], "D06": ["C01", "C06"], "D07": ["C04"], "D08": ["C03", "C01"], "D09": ["C04", "C02"],
           "D10": ["C01"]}
 FAILURE_RATE = {"P": 0.8, "K": 1.0, "E": 0.3, "V": 0.2}  # notifications per item per year
+# What corrective work orders actually did, per damage code (picked in turn, no extra random draws).
+ACTIONS = {"D01": ["Realign driver and coupling", "Replace bearings", "Balance impeller / rotor"],
+           "D02": ["Replace mechanical seal", "Clear seal flush line and replace seal faces"],
+           "D03": ["Replace motor starter contactor", "Reset interlock and recalibrate permissive switch"],
+           "D04": ["Clean cooler tubes", "Restore cooling medium flow"],
+           "D05": ["Replace wear rings", "Clean suction strainer"],
+           "D06": ["Replace bearings", "Tighten baseplate bolts"],
+           "D07": ["Recalibrate level transmitter", "Clear impulse lines"],
+           "D08": ["Replace gasket and pressure test", "Plug leaking tubes"],
+           "D09": ["Replace faulty trip transmitter", "Adjust trip setpoint after review"],
+           "D10": ["Overhaul unit"]}
 
 
 def _maintenance(rng: random.Random, equipment: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -330,8 +341,9 @@ def _maintenance(rng: random.Random, equipment: list[dict]) -> tuple[list[dict],
                      "damage_code": damage, "cause_code": rng.choice(CAUSES[damage]), "status": "NOCO"}
                 notifications.append(n)
                 if rng.random() < 0.85:
+                    actions = ACTIONS[damage]
                     order(n, e, _add_days(created, rng.randint(0, 5)), rng.choice(["A01", "A02", "A03"]), "PM01",
-                          f"Corrective: {n['short_text']}")
+                          actions[len(orders) % len(actions)])
             if rng.random() < 0.5:  # preventive inspection
                 order(None, e, f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}", rng.choice(["A04", "A05"]),
                       "PM02", f"Preventive maintenance {e['description'].lower()}")

@@ -6,6 +6,7 @@ import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { DowntimePage } from "./pages/Downtime";
 import { IncidentsPage } from "./pages/Incidents";
+import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import "./styles.css";
 
@@ -57,6 +58,9 @@ function App() {
         <a className={section === "incidents" ? "on" : ""} href={href("/incidents")}>
           Incidents
         </a>
+        <a className={section === "lessons" ? "on" : ""} href={href("/lessons")}>
+          Lessons
+        </a>
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
@@ -83,6 +87,8 @@ function App() {
             <DowntimePage />
           ) : section === "incidents" ? (
             <IncidentsPage />
+          ) : section === "lessons" ? (
+            <LessonsPage query={query} />
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (

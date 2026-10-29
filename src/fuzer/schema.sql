@@ -205,3 +205,22 @@ create table if not exists source_record_history (
     change      text not null check (change in ('updated', 'removed'))
 );
 create index if not exists source_record_history_key on source_record_history (source, record_type, source_key, replaced_at);
+
+-- Lessons learned: drafted from incidents and their corrective work orders, owned by engineers once
+-- reviewed. Rebuilds refresh a draft's evidence and numbers, never reviewed wording or decisions.
+create table if not exists lesson (
+    id          bigserial primary key,
+    scope_kind  text not null,   -- equipment_model or equipment_class
+    scope_key   text not null,
+    failure_mode text not null,
+    title       text not null,
+    draft       text not null,   -- suggested steps, regenerated
+    text        text,            -- the engineer's wording once edited / approved
+    evidence    jsonb not null default '[]',
+    stats       jsonb not null default '{}',
+    status      text not null default 'suggested' check (status in ('suggested', 'approved', 'rejected')),
+    decided_by  text,
+    decided_at  timestamptz,
+    updated_at  timestamptz not null default now(),
+    unique (scope_kind, scope_key, failure_mode)
+);

@@ -488,8 +488,8 @@ function KnowledgeCard({ id }: { id: string }) {
             <li key={r.id}>
               <span className="when">{r.page ? `p. ${r.page}` : r.kind === "incident" ? "incident" : ""}</span>
               <div className="what">
-                <a href={entityHref(r.id)}>
-                  {r.document_label ? `${r.document_label} · ${r.heading}` : r.title}
+                <a href={r.kind === "lesson" ? href("/lessons", { status: "approved" }) : entityHref(r.id)}>
+                  {r.kind === "lesson" ? `Lesson learned · ${r.title}` : r.document_label ? `${r.document_label} · ${r.heading}` : r.title}
                 </a>
                 <span className="small"><Highlighted text={r.snippet} /></span>
                 {r.why && <span className="muted small">{r.why}</span>}

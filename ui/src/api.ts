@@ -243,6 +243,18 @@ export interface DocRef {
   why: string;
 }
 
+export interface Lesson {
+  id: number;
+  title: string;
+  text: string;
+  draft: string;
+  failure_mode: string;
+  status: string;
+  stats: { incidents: number; fixed: number; fix_rate: number };
+  evidence: { id: string; label: string; start: string; unit: string; recurred: boolean }[];
+  decided_by: string | null;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -298,6 +310,9 @@ export const api = {
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
+  lessons: (status: string) => request<Lesson[]>("GET", "/lessons", { status }),
+  decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
+    request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>

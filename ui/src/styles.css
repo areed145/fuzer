@@ -228,6 +228,8 @@ img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-r
 
 .section-text { white-space: pre-wrap; line-height: 1.6; }
 
+textarea.lesson-text { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 8px 0; }
+
 /* events */
 ul.timeline { list-style: none; padding: 0; margin: 8px 0 0; }
 ul.timeline li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
