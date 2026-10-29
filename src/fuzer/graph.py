@@ -46,10 +46,10 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
     rows = [(src, rel, dst, valid_from, r["valid_to"], sorted(r["sources"]), r["confidence"],
              Jsonb(r["props"]) if r["props"] else None)
             for (src, rel, dst, valid_from), r in merged.items()]
-    conn.execute("delete from edge")
-    db.copy_rows(conn, "edge", ["src", "rel", "dst", "valid_from", "valid_to", "sources", "confidence", "props"],
-                 rows)
-    return {"edges": len(rows), "unresolved_edges": dict(unresolved)}
+    sync = db.sync_table(conn, "edge", ["src", "rel", "dst", "valid_from"],
+                         ["valid_to", "sources", "confidence", "props"], rows, nullable_keys=("valid_from",))
+    return {"edges": len(rows), "unresolved_edges": dict(unresolved),
+            "edge_changes": {k: v for k, v in sync.items() if k != "rows"}}
 
 
 def _trace_sql(direction: str) -> str:

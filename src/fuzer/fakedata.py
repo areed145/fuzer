@@ -89,6 +89,9 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 SIZES = {
     "small": {"areas": 4, "trains": 1, "wells": 12, "logs": 30, "extra_points": False, "images": True},
     "medium": {"areas": 60, "trains": 8, "wells": 40, "logs": 3000, "extra_points": True, "images": True},
+    # Close to a real offshore asset: several instruments of each type per item (loop +10, +20, ...).
+    "large": {"areas": 90, "trains": 10, "wells": 60, "logs": 20000, "extra_points": True, "images": True,
+              "instrument_repeats": 5},
 }
 AREA_TYPES = list(AREAS)  # "20", "23", "27", "44": the template for every other area
 
@@ -162,8 +165,11 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                         vessels.append((eq, title))
 
                     attrs = []
-                    for ifunc, idesc, uom in INSTRUMENTS[func]:
-                        inst = Tag(area, ifunc, eq.loop, s)
+                    repeats = cfg.get("instrument_repeats", 1)
+                    for ifunc, idesc, uom in [(f, d, u) for f, d, u in INSTRUMENTS[func] for _ in range(repeats)]:
+                        k = sum(1 for t in tags if t.func == ifunc and t.suffix == s and eq.loop <= t.loop < eq.loop + 100)
+                        inst = Tag(area, ifunc, eq.loop + 10 * k, s)
+                        idesc = idesc if k == 0 else f"{idesc} {k + 1}"
                         tags.append(inst)
                         instruments.append(inst)
                         floc.append({"floc": inst.fmt(f"{FACILITY}-{{a}}-{{f}}{{l}}{{s}}"), "parent": eq_floc,

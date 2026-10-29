@@ -50,14 +50,27 @@ create table if not exists entity_key (
 );
 create index if not exists entity_key_fuzer_id on entity_key (fuzer_id);
 
-create or replace view entity_label as
-select fuzer_id,
-       min(case when kind = 'equipment' then 'S/N ' || key
-                when kind = 'equipment_model' then replace(key, '|', ' ')
-                else key end)
-           filter (where kind <> 'tag_noarea') as label
-from entity_key
-group by fuzer_id;
+-- One display label per entity, kept by every rebuild (a table, not a view: computing it from
+-- entity_key on every query cost seconds at 300k entities).
+do $$
+begin
+    if exists (select 1 from pg_views where viewname = 'entity_label') then
+        drop view entity_label;
+    end if;
+end
+$$;
+create table if not exists entity_label (
+    fuzer_id text primary key,
+    label    text not null
+);
+create index if not exists entity_label_label on entity_label (label);
+
+-- Summaries computed once per rebuild (e.g. the ontology), read many times.
+create table if not exists register_summary (
+    name       text primary key,
+    value      jsonb not null,
+    updated_at timestamptz not null default now()
+);
 
 -- Reviewer choices (source = 'review'). What each source says is re-derived from its records on demand.
 create table if not exists assertion (
@@ -124,10 +137,12 @@ do $$
 begin
     if exists (select 1 from pg_available_extensions where name = 'pg_trgm') then
         create extension if not exists pg_trgm;
+        -- Rebuilds sync golden (only changed rows touch the index), so a full index is cheap to keep.
         drop index if exists golden_value_trgm;
-        create index if not exists golden_search_trgm on golden using gin ((value::text) gin_trgm_ops)
-            where field in ('description', 'manufacturer', 'model', 'serial', 'short_text', 'text', 'title', 'summary');
+        drop index if exists golden_search_trgm;
+        create index if not exists golden_text_trgm on golden using gin ((value::text) gin_trgm_ops);
         create index if not exists entity_key_trgm on entity_key using gin (key gin_trgm_ops);
+        create index if not exists entity_label_trgm on entity_label using gin (label gin_trgm_ops);
         create index if not exists crosswalk_key_trgm on crosswalk using gin (source_key gin_trgm_ops);
     end if;
 end

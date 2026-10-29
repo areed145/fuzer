@@ -58,13 +58,23 @@ def build(conn, cands: list[Candidate], assigned: dict[str, str], pack: Pack) ->
                                for a in items],
                 }))
 
-    conn.execute("delete from golden")
-    db.copy_rows(conn, "golden", ["fuzer_id", "field", "value", "source", "rule"], golden)
     replace_open_reviews(conn, "conflict", conflicts)
     values = defaultdict(dict)
     for fid, field, value, _, _ in golden:
         values[fid][field] = value.obj
-    return {"source_values": n_values, "conflict_reviews": len(conflicts)}, values
+    return {"source_values": n_values, "conflict_reviews": len(conflicts)}, values, golden
+
+
+GOLDEN_KEYS, GOLDEN_VALUES = ["fuzer_id", "field"], ["value", "source", "rule"]
+
+
+def derived_rows(cands: list[Candidate], assigned: dict[str, str], extra: list[tuple]) -> list[tuple]:
+    rows = [(assigned[c.ref], f, Jsonb(v), c.source, "derived") for c in cands for f, v in c.fields.items()]
+    return rows + [(fid, field, Jsonb(value), "fuzer", "derived") for fid, field, value in extra]
+
+
+def sync(conn, rows: list[tuple]) -> dict:
+    return db.sync_table(conn, "golden", GOLDEN_KEYS, GOLDEN_VALUES, rows)
 
 
 def append(conn, cands: list[Candidate], assigned: dict[str, str], extra: list[tuple]) -> int:
