@@ -218,6 +218,36 @@ def lesson_decide(lesson_id: int, d: LessonDecision, conn=Depends(get_conn)):
     return row
 
 
+@app.get("/entities/{fuzer_id}/brief")
+def troubleshooting_brief(fuzer_id: str, conn=Depends(get_conn)):
+    """Everything that helps troubleshoot a unit or incident, with sources."""
+    from . import assistant
+    return assistant.brief(conn, PACK, fuzer_id)
+
+
+class Feedback(BaseModel):
+    target: str
+    useful: bool
+    comment: str | None = None
+    by: str = "anonymous"
+
+
+@app.post("/feedback")
+def feedback(f: Feedback, conn=Depends(get_conn)):
+    row = conn.execute("insert into feedback (target, useful, comment, by_user) values (%s, %s, %s, %s) returning id",
+                       (f.target, f.useful, f.comment, f.by)).fetchone()
+    conn.commit()
+    return row
+
+
+@app.get("/feedback/summary")
+def feedback_summary(conn=Depends(get_conn)):
+    return conn.execute(
+        "select split_part(target, ':', 1) as kind, count(*) as ratings, "
+        "round(avg(case when useful then 1 else 0 end), 2) as useful_share from feedback group by 1 order by 1"
+    ).fetchall()
+
+
 @app.get("/ontology")
 def ontology(conn=Depends(get_conn)):
     return queries.ontology(conn)

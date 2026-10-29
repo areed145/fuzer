@@ -399,6 +399,35 @@ def spare_parts(ref: str) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def troubleshooting_brief(ref: str) -> dict[str, Any]:
+    """Start here when troubleshooting. For an incident, tag or piece of equipment: what happened (timeline),
+    similar past incidents and how they ended, engineer-approved lessons for its model / class, manual and
+    guide sections covering its failure modes, maintenance history, downtime, spares in stock, and suggested
+    checks. Every item has the id it came from: cite them, and use get_entity / search_knowledge to dig in."""
+    from . import assistant
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain(assistant.brief(conn, PACK, fid))
+
+
+@server.prompt(title="Troubleshoot an upset")
+def troubleshoot(what: str) -> str:
+    """Guided troubleshooting of an event, incident or piece of equipment."""
+    return f"""Help an operations engineer troubleshoot: {what}
+
+1. Call troubleshooting_brief with the tag, equipment or incident. If it's ambiguous, ask which one.
+2. Summarise what happened from the timeline, then what has worked before: approved lessons first, then
+   similar past incidents and how they ended.
+3. Give a short, ordered list of checks. Back each with a citation (lesson, document and page, incident or
+   work order). Say plainly where Fuzer has no evidence.
+4. Mention spares that are out of stock and recent repeat failures.
+5. Never instruct anyone to operate plant equipment directly; recommend checks for the responsible
+   operator or engineer, and follow site procedures (permit to work, isolation)."""
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with
