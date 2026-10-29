@@ -9,7 +9,7 @@ from .pack import load_pack
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="fuzer")
-    p.add_argument("--pack", default="offshore_demo")
+    p.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK or offshore_demo)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     g = sub.add_parser("generate", help="write fake source exports")
@@ -61,7 +61,7 @@ def main(argv=None):
     pack = load_pack(args.pack)
 
     if args.cmd == "generate":
-        _print(fakedata.generate(args.out, args.seed, **_size_kwargs(args)))
+        _print(_generate(args.out, args.seed, args))
     elif args.cmd == "serve":
         import uvicorn
 
@@ -119,18 +119,27 @@ def main(argv=None):
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "demo":
                 db.reset(conn)
-                _print({"generated": fakedata.generate(args.data, args.seed, **_size_kwargs(args))})
+                _print({"generated": _generate(args.data, args.seed, args)})
                 _print({"ingested": ingest.ingest(conn, args.data)})
                 _print(pipeline.rebuild(conn, pack))
 
 
 def _size_args(p):
+    p.add_argument("--asset", choices=["offshore", "onshore"], default="offshore",
+                   help="which fake asset to make (onshore pairs with --pack onshore_demo)")
     p.add_argument("--size", choices=list(fakedata.SIZES), default="small",
                    help="small: hand-checked test asset; medium: about 1/10 of a real offshore asset")
     p.add_argument("--areas", type=int, help="override number of process areas (max 90)")
     p.add_argument("--trains", type=int, help="override equipment trains per area (1-10)")
     p.add_argument("--wells", type=int, help="override number of wells")
     p.add_argument("--logs", type=int, help="override number of operator log entries")
+
+
+def _generate(out, seed, args) -> dict:
+    if args.asset == "onshore":
+        from . import fakeonshore
+        return fakeonshore.generate(out)
+    return fakedata.generate(out, seed, **_size_kwargs(args))
 
 
 def _size_kwargs(args) -> dict:

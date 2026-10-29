@@ -138,7 +138,10 @@ cases (pronouns, "the B pump", context from earlier entries).
 Everything asset-specific lives in `src/fuzer/packs/<name>.yaml`: tag function
 codes, area digits, well platforms, phrase aliases, matching thresholds and
 survivorship rules. A new onshore or downstream asset is a new pack, not new
-core code.
+core code. `onshore_demo` (pads with hundreds of wells on ESPs, SAP + PI + EC
+only, pattern-based well names like `RB 07-03H`, an ESP class the pack adds)
+runs end to end on the same code as the offshore pack; `FUZER_PACK` selects the
+pack for the API, MCP server and jobs.
 
 ### 9. Equipment classes and models (ISO 14224, CFIHOS)
 `standards/iso14224.yaml` holds the ISO 14224 categories, equipment classes and

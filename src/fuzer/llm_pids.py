@@ -25,14 +25,14 @@ from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
 from .model import Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-28.1"
+PROMPT_VERSION = "2026-10-29.2"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
 
 SYSTEM_PROMPT = """\
-You transcribe tag numbers from scanned piping and instrumentation diagrams (P&IDs) of an offshore oil
-and gas platform. The drawing comes as overlapping tiles in reading order.
+You transcribe tag numbers from scanned piping and instrumentation diagrams (P&IDs) of an oil and gas
+facility. The drawing comes as overlapping tiles in reading order.
 
 Report every tag you can read:
 - instrument bubbles: function letters on the top line, loop number with any suffix letter on the
