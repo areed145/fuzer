@@ -160,6 +160,24 @@ with server-side refusal fallback on.
 Ingest treats each export file as a full snapshot: records no longer in it are
 removed and their entities retired (IDs are kept and revived if they return).
 
+### Lake tables (Parquet / Delta)
+
+Each table can be a CSV export, a `.parquet` file, or a lake-style folder of
+Parquet part files or a Delta table (`uv sync --extra delta`), found by name in
+the data folder (`sap_equipment/`, `sap_equipment.parquet`, `sap_equipment.csv`).
+
+```sh
+uv run fuzer generate --size medium --format parquet --out data/lake
+uv run fuzer ingest --data data/lake     # unchanged tables are skipped; --full reads all
+```
+
+Fuzer remembers each table's fingerprint, columns and watermark
+(`dataset_state`). An unchanged table isn't read at all. If a column disappears
+or changes type, the table is held (its records stay as they were) and a
+**Schema changes** item appears in the review queue; accept it to load the new
+shape. Append-only lake tables (operator logs) read only rows at or after the
+last timestamp.
+
 ### Scheduled jobs (Dagster)
 
 ```sh

@@ -110,7 +110,7 @@ create index if not exists edge_dst on edge (dst, rel);
 
 create table if not exists review_item (
     id         bigserial primary key,
-    kind       text not null check (kind in ('match', 'conflict')),
+    kind       text not null,  -- match, conflict, schema
     subject    text not null,
     payload    jsonb not null,
     status     text not null default 'open' check (status in ('open', 'decided', 'stale')),
@@ -233,4 +233,18 @@ create table if not exists feedback (
     comment    text,
     by_user    text not null default 'anonymous',
     created_at timestamptz not null default now()
+);
+
+alter table review_item drop constraint if exists review_item_kind_check;
+
+-- What each dataset looked like when last loaded: an unchanged fingerprint skips it, a changed schema
+-- is compared column by column, and position is the watermark for append-only lake tables.
+create table if not exists dataset_state (
+    dataset     text primary key,
+    connector   text not null,
+    fingerprint text not null,
+    schema      jsonb,
+    position    jsonb,
+    rows        bigint not null default 0,
+    loaded_at   timestamptz not null default now()
 );

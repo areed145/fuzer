@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import shutil
+from pathlib import Path
 
 from . import db, fakedata, ingest, pipeline
 from .pack import load_pack
@@ -19,6 +21,7 @@ def main(argv=None):
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
     i.add_argument("--data", default="data/fake")
+    i.add_argument("--full", action="store_true", help="read every dataset again, even unchanged ones")
 
     sub.add_parser("rebuild", help="rerun resolve / golden / graph")
 
@@ -73,7 +76,6 @@ def main(argv=None):
         import os
         import subprocess
         import sys
-        from pathlib import Path
 
         home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
         home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
@@ -91,7 +93,7 @@ def main(argv=None):
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "ingest":
-                _print(ingest.ingest(conn, args.data))
+                _print(ingest.ingest(conn, args.data, full=args.full))
             elif args.cmd == "llm-link":
                 from . import llm_links, llm_pids
 
@@ -138,13 +140,36 @@ def _size_args(p):
     p.add_argument("--trains", type=int, help="override equipment trains per area (1-10)")
     p.add_argument("--wells", type=int, help="override number of wells")
     p.add_argument("--logs", type=int, help="override number of operator log entries")
+    p.add_argument("--format", choices=["csv", "parquet"], default="csv",
+                   help="parquet writes each table as a lake-style folder of Parquet part files")
 
 
 def _generate(out, seed, args) -> dict:
     if args.asset == "onshore":
         from . import fakeonshore
-        return fakeonshore.generate(out)
-    return fakedata.generate(out, seed, **_size_kwargs(args))
+        stats = fakeonshore.generate(out)
+    else:
+        stats = fakedata.generate(out, seed, **_size_kwargs(args))
+    if args.format == "parquet":
+        stats["parquet_tables"] = _to_parquet(Path(out))
+    else:  # a lake folder left from an earlier --format parquet run would win over the new CSV
+        for name in ingest.TABLES:
+            shutil.rmtree(Path(out) / name, ignore_errors=True)
+    return stats
+
+
+def _to_parquet(out: Path) -> int:
+    """Rewrite each CSV table as a folder of Parquet part files, as it would sit in the data lake."""
+    from . import connectors
+
+    n = 0
+    for name in ingest.TABLES:
+        if (csv_path := out / f"{name}.csv").exists():
+            shutil.rmtree(out / name, ignore_errors=True)
+            connectors.write_parquet(csv_path, out / name)
+            csv_path.unlink()
+            n += 1
+    return n
 
 
 def _size_kwargs(args) -> dict:

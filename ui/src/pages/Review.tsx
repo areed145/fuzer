@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { api, type ConflictPayload, type Decision, type MatchPayload, type ReviewItem, type Stats } from "../api";
+import {
+  api,
+  type ConflictPayload,
+  type Decision,
+  type MatchPayload,
+  type ReviewItem,
+  type ReviewKind,
+  type SchemaPayload,
+  type Stats,
+} from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
 
 const NAME_KEY = "fuzer.reviewer";
@@ -13,7 +22,8 @@ function loadName(): string {
 }
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
-  const kind = query.get("kind") === "conflict" ? "conflict" : "match";
+  const asked = query.get("kind");
+  const kind: ReviewKind = asked === "conflict" || asked === "schema" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = useState(loadName);
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -35,7 +45,11 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
     setToast(
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
-        : `Saved #${item.id}. The chosen value is live.`,
+        : item.kind === "schema"
+          ? d.decision === "accept"
+            ? `Saved #${item.id}. ${item.payload.dataset} loads with its new columns on the next ingest.`
+            : `Saved #${item.id}. ${item.payload.dataset} stays on hold.`
+          : `Saved #${item.id}. The chosen value is live.`,
     );
     notifyChanged();
   };
@@ -52,6 +66,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "conflict" ? "on" : ""} href={href("/review", { kind: "conflict" })}>
             Conflicting values <span className="muted">{stats?.open_reviews.conflict ?? 0}</span>
           </a>
+          <a className={kind === "schema" ? "on" : ""} href={href("/review", { kind: "schema" })}>
+            Schema changes <span className="muted">{stats?.open_reviews.schema ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -62,7 +79,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       <p className="muted">
         {kind === "match"
           ? "Fuzer thinks these records might be the same physical item, but isn't sure. Your answer is saved and kept on every rerun."
-          : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
+          : kind === "schema"
+            ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
+            : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
       </p>
 
       {toast && (
@@ -77,6 +96,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       {open.map((item) =>
         item.kind === "match" ? (
           <MatchCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "schema" ? (
+          <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
           <ConflictCard
             key={item.id}
@@ -151,6 +172,51 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
         </button>
         <button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Different items
+        </button>
+        {error && <span className="error">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecide: OnDecide }) {
+  const { busy, error, run } = useBusy(onDecide);
+  const was = new Map(p.old);
+  const now = new Map(p.new);
+  const columns = [...new Set([...was.keys(), ...now.keys()])];
+  return (
+    <div className="card review">
+      <div className="row spread">
+        <h3>
+          <span className="mono">{p.dataset}</span> changed columns <span className="muted small">#{id}</span>
+        </h3>
+        <span className="muted small">{p.connector}</span>
+      </div>
+      <p className="muted small mono">{p.path}</p>
+      <table className="compare">
+        <thead>
+          <tr>
+            <th>column</th>
+            <th>last loaded</th>
+            <th>now</th>
+          </tr>
+        </thead>
+        <tbody>
+          {columns.map((c) => (
+            <tr key={c} className={was.get(c) !== now.get(c) ? "diff" : ""}>
+              <th className="mono">{c}</th>
+              <td>{was.get(c) ?? "(new)"}</td>
+              <td>{now.get(c) ?? "(removed)"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="actions">
+        <button className="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
+          Expected, load it
+        </button>
+        <button disabled={busy} onClick={() => run({ decision: "reject" })}>
+          Keep on hold
         </button>
         {error && <span className="error">{error}</span>}
       </div>

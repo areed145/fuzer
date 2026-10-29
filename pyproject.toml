@@ -15,11 +15,14 @@ dependencies = [
     "pillow>=12.3,<13",
     "pypdf>=6.20,<6.21",
     "python-dotenv>=1.2",
+    "pyarrow>=25.0,<26",
 ]
 
 [project.optional-dependencies]
 # Embedded Postgres for local runs when FUZER_DATABASE_URL is not set.
 local = ["pgserver>=0.1.4"]
+# Delta Lake tables in the lake connector (plain Parquet needs only pyarrow).
+delta = ["deltalake>=1.6.6,<1.7"]
 jobs = [
     "dagster==1.13.26",
     "dagster-webserver==1.13.26",

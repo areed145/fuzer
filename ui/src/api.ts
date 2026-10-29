@@ -81,8 +81,22 @@ export interface ConflictPayload {
   values: SourceValue[];
 }
 
+export interface SchemaPayload {
+  dataset: string;
+  connector: string;
+  path: string;
+  old: [string, string][];
+  new: [string, string][];
+  added: string[];
+  removed: string[];
+  retyped: { column: string; was: string; now: string }[];
+}
+
+export type ReviewKind = "match" | "conflict" | "schema";
+
 export type ReviewItem =
   | { id: number; kind: "match"; subject: string; status: string; label: null; payload: MatchPayload }
+  | { id: number; kind: "schema"; subject: string; status: string; label: null; payload: SchemaPayload }
   | {
       id: number;
       kind: "conflict";
@@ -326,6 +340,6 @@ export const api = {
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
   network: (asOf?: string, rel: "flows_to" | "pipes_to" = "flows_to") =>
     request<Subgraph>("GET", "/network", { as_of: asOf, rel }),
-  reviews: (kind: "match" | "conflict") => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
+  reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
 };
