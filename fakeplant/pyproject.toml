@@ -5,7 +5,7 @@ description = "Fake plants for Fuzer: messy source exports, drawings, documents 
 requires-python = ">=3.12"
 dependencies = [
     "fuzer",
-    "pillow>=12.3,<13",
+    "pillow>=12.3,<14",
     "pyarrow>=25.0,<26",
 ]
 
