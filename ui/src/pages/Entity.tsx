@@ -28,6 +28,7 @@ const REL_LABELS: Record<string, [string, string]> = {
   about: ["About", "Incidents"],
   applies_to: ["Applies to", "Documents"],
   supersedes: ["Supersedes", "Superseded by"],
+  uses_part: ["Spare parts", "Used by"],
   includes: ["Includes", "Part of incident"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
@@ -126,6 +127,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {["tag", "equipment", "equipment_model", "equipment_class", "area"].includes(e.kind) && (
             <KnowledgeCard id={e.fuzer_id} />
           )}
+          {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <IncidentsCard id={e.fuzer_id} />
           )}
@@ -528,6 +530,29 @@ function HistoryCard({ id }: { id: string }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function SparesCard({ id }: { id: string }) {
+  const parts = useAsync(() => api.spares(id), [id]);
+  if (!parts.data?.length) return null;
+  return (
+    <section className="card">
+      <h2>Spare parts</h2>
+      <table className="list">
+        <tbody>
+          {parts.data.map((p) => (
+            <tr key={p.fuzer_id}>
+              <td><a href={entityHref(p.fuzer_id)} className="mono">{p.label}</a></td>
+              <td>{p.description}<div className="muted small mono">{p.mpn}</div></td>
+              <td className={p.stock > 0 ? "small" : "small error"}>{p.stock > 0 ? `${p.stock} in stock` : "none in stock"}</td>
+              <td className="muted small">{p.bin}</td>
+              <td className="small">{p.documents.map((d) => <a key={d.id} href={entityHref(d.id)}>manual</a>)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }

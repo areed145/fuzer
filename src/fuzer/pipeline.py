@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 
 from . import db, golden, graph, llm_docs, llm_links, llm_pids
-from .extract import extract
+from .extract import extract, link_part_numbers
 from .pack import Pack
 from psycopg.types.json import Jsonb
 
@@ -50,6 +50,7 @@ def rebuild(conn, pack: Pack) -> dict:
     c, e = llm_links.cached_items(conn, texts)
     cands += c
     extra += e + llm_pids.cached_edges(conn, pid_sheets) + llm_docs.apply_cached(conn, cands)
+    extra += link_part_numbers(cands)
     lap("extract")
 
     assigned, key_index, stats = resolve(conn, cands, pack)

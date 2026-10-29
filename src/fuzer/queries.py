@@ -776,3 +776,37 @@ def record_history(conn, pack: Pack, fuzer_id: str, limit: int = 50) -> list[dic
         elif r["change"] != "current":
             prev[key] = (r["payload"], r["at"], r["change"])
     return sorted(changes, key=lambda c: c["at"], reverse=True)[:limit]
+
+
+
+def spares(conn, fuzer_id: str) -> list[dict]:
+    """Spare parts for a tag (via what's installed), a piece of equipment or every instance of a model:
+    each material with stock, storage bin, how many units use it and the manual sections that name it."""
+    return conn.execute(
+        """
+        with units as (
+            select %(id)s::text as id
+            union select src from edge where rel = 'installed_at' and dst = %(id)s and valid_to is null
+            union select src from edge where rel = 'instance_of' and dst = %(id)s
+        ), parts as (
+            select b.dst as material, count(distinct b.src) as used_by
+            from edge b where b.rel = 'uses_part' and b.src in (select id from units)
+            group by b.dst
+        )
+        select p.material as fuzer_id, l.label, p.used_by,
+               gd.value #>> '{}' as description, gm.value #>> '{}' as mpn,
+               (gs.value #>> '{}')::numeric as stock, gb.value #>> '{}' as bin,
+               (select coalesce(jsonb_agg(jsonb_build_object('id', s.fuzer_id, 'label', sl.label)), '[]')
+                from edge m join entity s on s.fuzer_id = m.src and s.kind = 'document_section'
+                left join entity_label sl on sl.fuzer_id = s.fuzer_id
+                where m.dst = p.material and m.rel = 'mentions') as documents
+        from parts p
+        left join entity_label l on l.fuzer_id = p.material
+        left join golden gd on gd.fuzer_id = p.material and gd.field = 'description'
+        left join golden gm on gm.fuzer_id = p.material and gm.field = 'mpn'
+        left join golden gs on gs.fuzer_id = p.material and gs.field = 'stock'
+        left join golden gb on gb.fuzer_id = p.material and gb.field = 'bin'
+        order by l.label
+        """,
+        {"id": fuzer_id},
+    ).fetchall()

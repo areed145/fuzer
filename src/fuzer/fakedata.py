@@ -268,6 +268,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     downtime = _downtime(random.Random(seed + 4), notifications, wells)
     daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
     documents = fakedocs.generate(out, equipment, plan, FACILITY)
+    materials, bom = _spares(equipment)
     (out / "answer_keys").mkdir(exist_ok=True)
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
 
@@ -275,6 +276,8 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", work_orders)
     _write_csv(out / "ec_downtime.csv", downtime)
+    _write_csv(out / "sap_materials.csv", materials)
+    _write_csv(out / "sap_bom.csv", bom)
     _write_csv(out / "ec_day001.csv", daily)
     _write_csv(out / "sap_equipment.csv", equipment)
     _write_csv(out / "jde_assets.csv", jde)
@@ -290,7 +293,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
             "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),
             "notifications": len(notifications), "work_orders": len(work_orders), "downtime": len(downtime),
-            "daily_reports": len(daily), "documents": len(documents)}
+            "daily_reports": len(daily), "documents": len(documents), "materials": len(materials)}
 
 
 # SAP PM catalog codes per equipment type (mapped to ISO 14224 in the asset pack).
@@ -411,6 +414,25 @@ def _daily_reports(rng: random.Random, downtime: list[dict], days: int) -> list[
                      "gas_ksm3": f"{(oil - lost) * 0.12:.0f}", "water_inj_sm3": f"{rng.uniform(30000, 45000):.0f}",
                      "comments": " ".join(notes)})
     return rows
+
+
+def _spares(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
+    """SAP materials for each model's spare parts (the part numbers its manual lists) and an equipment
+    BOM line per part. Stock levels are deterministic; some are zero."""
+    parts = [("SK1", "Seal kit"), ("BS2", "Bearing set"), ("GS3", "Gasket set")]
+    materials, by_mpn, bom = [], {}, []
+    for e in equipment:
+        for code, name in parts:
+            mpn = f"{e['model']}-{code}"
+            if mpn not in by_mpn:
+                n = len(materials)
+                by_mpn[mpn] = f"MAT-{100001 + n}"
+                materials.append({"matnr": by_mpn[mpn], "description": f"{name}, {e['manufacturer']} {e['model']}",
+                                  "manufacturer": e["manufacturer"], "mpn": mpn, "stock": str((n * 7) % 5),
+                                  "bin": f"W{1 + n % 3}-{10 + n % 40}"})
+            if not e["valid_to"]:
+                bom.append({"equnr": e["equnr"], "matnr": by_mpn[mpn], "quantity": "1"})
+    return materials, bom
 
 
 def _add_hours(when: str, n: int) -> str:

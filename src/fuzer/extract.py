@@ -147,6 +147,33 @@ def edms_section(key, p, pack):
     return [c], []
 
 
+def sap_material(key, p, pack):
+    fields = {**_pick(p, "description", "manufacturer", "mpn", "bin"), "stock": _num(p.get("stock"))}
+    return [Candidate("sap", "material", key, "material", key, fields)], []
+
+
+def sap_bom(key, p, pack):
+    return [], [Edge(("ref", f"sap:equipment:{p['equnr']}"), "uses_part", ("material", p["matnr"]), "sap",
+                     props={"quantity": _num(p.get("quantity"))})]
+
+
+def link_part_numbers(cands: list[Candidate]) -> list[Edge]:
+    """Document sections that name a material's manufacturer part number mention that material.
+    One compiled pattern over all part numbers, one pass over section text."""
+    mpns = {c.fields["mpn"].upper(): c.key for c in cands if c.kind == "material" and c.fields.get("mpn")}
+    if not mpns:
+        return []
+    pattern = re.compile(r"(?<![A-Z0-9-])(" + "|".join(map(re.escape, sorted(mpns, key=len, reverse=True)))
+                         + r")(?![A-Z0-9-])")
+    edges = []
+    for c in cands:
+        if c.kind == "document_section":
+            for mpn in {m.group(1) for m in pattern.finditer(c.fields.get("text", "").upper())}:
+                edges.append(Edge(("ref", c.ref), "mentions", ("material", mpns[mpn]), "edms",
+                                  props={"text": mpn, "method": "part number"}))
+    return edges
+
+
 def _area_in(text: str | None) -> str | None:
     m = re.search(r"\b(\d{2})\b", text or "")
     return m.group(1) if m else None
@@ -285,6 +312,8 @@ EXTRACTORS = {
     ("sap", "equipment"): sap_equipment,
     ("sap", "notification"): sap_notification,
     ("sap", "work_order"): sap_work_order,
+    ("sap", "material"): sap_material,
+    ("sap", "bom"): sap_bom,
     ("jde", "asset"): jde_asset,
     ("maximo", "asset"): maximo_asset,
     ("pi_af", "element"): af_element,

@@ -69,6 +69,7 @@ REL_LABELS = {
     ("includes", "out"): "includes", ("includes", "in"): "in_incident",
     ("applies_to", "out"): "applies_to", ("applies_to", "in"): "documents",
     ("supersedes", "out"): "supersedes", ("supersedes", "in"): "superseded_by",
+    ("uses_part", "out"): "spare_parts", ("uses_part", "in"): "used_by",
 }
 
 
@@ -381,6 +382,17 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
     from . import lessons
     with db.connect() as conn:
         return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
+def spare_parts(ref: str) -> dict[str, Any]:
+    """Spare parts for a tag, piece of equipment or equipment model: SAP material, manufacturer part number,
+    stock on hand (0 = none in stock), storage bin, how many units use it, and manual sections naming it."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"for": fid, "parts": queries.spares(conn, fid)})
 
 
 @server.tool(annotations=READ_ONLY)

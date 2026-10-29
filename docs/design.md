@@ -232,7 +232,15 @@ and numbers. Approved lessons join knowledge search (authority between site
 guides and past incidents), scoped to their model or class. Teams thread
 summaries (#22) will feed the same drafts.
 
-### 16. Performance at full size
+### 16. Spare parts
+SAP materials (manufacturer part number, stock, bin) and equipment BOMs: equipment
+`uses_part` material. Document sections that name a manufacturer part number
+`mentions` that material (one compiled pattern over all part numbers, one pass
+over section text). Spares for a tag (via what's installed), equipment or model
+list each part with stock (zero flagged), bin, how many units use it and the
+manual sections naming it.
+
+### 17. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).
