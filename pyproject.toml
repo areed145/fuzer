@@ -13,6 +13,7 @@ dependencies = [
     "mcp>=2.3",
     "anthropic>=2.3",
     "pillow>=12.3,<13",
+    "pypdf>=6.20,<6.21",
 ]
 
 [project.optional-dependencies]

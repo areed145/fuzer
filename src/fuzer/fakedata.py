@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import fakepid
+from . import fakedocs, fakepid
 
 FACILITY = "OSB"
 AREAS = {"20": "Separation", "23": "Gas Compression", "27": "Oil Export", "44": "Water Injection"}
@@ -263,6 +263,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     notifications, work_orders = _maintenance(random.Random(seed + 3), equipment)
     downtime = _downtime(random.Random(seed + 4), notifications, wells)
     daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
+    documents = fakedocs.generate(out, equipment, plan, FACILITY)
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_notifications.csv", notifications)
@@ -283,7 +284,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
             "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),
             "notifications": len(notifications), "work_orders": len(work_orders), "downtime": len(downtime),
-            "daily_reports": len(daily)}
+            "daily_reports": len(daily), "documents": len(documents)}
 
 
 # SAP PM catalog codes per equipment type (mapped to ISO 14224 in the asset pack).

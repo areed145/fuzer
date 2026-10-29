@@ -106,6 +106,43 @@ def ec_daily_report(key, p, pack):
     return [c], []
 
 
+def edms_document(key, p, pack):
+    from .taxonomy import Taxonomy, normalise_model
+
+    fields = {**_pick(p, "doc_number", "revision", "title", "doc_type", "status", "effective_date", "format",
+                      "pages", "manufacturer", "model", "equipment_class", "file_sha256", "sections"),
+              "description": p.get("title", key)}
+    if p.get("needs_ocr"):
+        fields["needs_ocr"] = True
+    c = Candidate("edms", "document", key, "document", key, fields)
+    if p.get("supersedes"):
+        c.edges.append(Edge(("ref", c.ref), "supersedes", ("document", f"{p['doc_number']} rev {p['supersedes']}"),
+                            "edms"))
+    # What the EDMS says the document applies to (manufacturer + model, class, tag references).
+    tax = Taxonomy(pack)
+    mfr, model = tax.manufacturer(p.get("manufacturer"), []), normalise_model(p.get("model"))
+    if mfr and model:
+        c.edges.append(Edge(("ref", c.ref), "applies_to", ("equipment_model", f"{mfr.upper()}|{model}"), "edms",
+                            props={"basis": "document metadata"}))
+    if p.get("equipment_class") and tax.valid(p["equipment_class"]):
+        c.edges.append(Edge(("ref", c.ref), "applies_to", ("equipment_class", tax.key(p["equipment_class"])), "edms",
+                            props={"basis": "document metadata"}))
+    for t in p.get("tags", []):
+        c.edges.append(Edge(("ref", c.ref), "applies_to", ("tag", pack.tags.parse(t)), "edms",
+                            props={"basis": "tag reference"}))
+    return [c], []
+
+
+def edms_section(key, p, pack):
+    fields = {**_pick(p, "heading", "page", "text", "status", "index"), "description": p.get("heading", key)}
+    c = Candidate("edms", "section", key, "document_section", key, fields)
+    c.edges.append(Edge(("ref", c.ref), "part_of", ("ref", f"edms:document:{p['document']}"), "edms"))
+    for m in nel.find_mentions(p.get("text", ""), pack):
+        c.edges.append(Edge(("ref", c.ref), "mentions", (m.kind, m.key), "edms", confidence=m.confidence,
+                            props={"text": m.text, "method": m.method}))
+    return [c], []
+
+
 def _area_in(text: str | None) -> str | None:
     m = re.search(r"\b(\d{2})\b", text or "")
     return m.group(1) if m else None
@@ -253,6 +290,8 @@ EXTRACTORS = {
     ("ec", "downtime"): ec_downtime,
     ("ec", "daily_report"): ec_daily_report,
     ("pid", "sheet"): pid_sheet,
+    ("edms", "document"): edms_document,
+    ("edms", "section"): edms_section,
     ("oplog", "entry"): oplog_entry,
 }
 

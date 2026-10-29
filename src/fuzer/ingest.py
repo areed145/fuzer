@@ -62,12 +62,29 @@ def _pid_sheets(path: Path):
         yield "pid", "sheet", s["sheet"], s
 
 
+def _documents(path: Path):
+    """EDMS-style manifest: one record per document revision, plus one per section of its file."""
+    from .documents import sections
+
+    for d in json.loads(path.read_text()):
+        key = f"{d['doc_number']} rev {d['revision']}"
+        file = (path.parent / d["file"]).resolve() if d.get("file") else None
+        secs, facts = sections(file) if file and file.exists() else ([], {"missing_file": True})
+        yield "edms", "document", key, {**d, **facts, "file_path": str(file) if file else None,
+                                        "file_sha256": hashlib.sha256(file.read_bytes()).hexdigest()
+                                        if file and file.exists() else None, "sections": len(secs)}
+        for i, sec in enumerate(secs, 1):
+            yield "edms", "section", f"{key}#{i:03d}", {**sec, "document": key, "index": i,
+                                                       "status": d.get("status", "current")}
+
+
 # export name -> (file name, loader). One export = one file = one full snapshot of that source.
 EXPORTS = {
     **{name.removesuffix(".csv"): (name, _csv(name)) for name in CSV_FILES},
     "pi_af": ("pi_af.json", _pi_af),
     "ec_network": ("ec_network.json", _ec_network),
     "pid_sheets": ("pid_sheets.json", _pid_sheets),
+    "documents": ("documents.json", _documents),
 }
 
 
