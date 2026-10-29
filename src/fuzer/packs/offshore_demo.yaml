@@ -1,0 +1,37 @@
+# Asset pack for the fake offshore platform "OSB".
+# Everything asset-specific lives here; the core code stays generic.
+name: offshore_demo
+facility: OSB
+
+tag_grammar:
+  area_digits: 2
+  loop_digits: [3, 5]
+  # ISA 5.1-style function codes used on this asset.
+  function_codes: [P, V, K, E, PT, TT, LT, FT, VT, ST, PDT, FIC, LIC, PIC, TIC, XV, PSV, ZSC]
+
+well_grammar:
+  platforms: [A]
+
+# Phrases operators use instead of tag numbers.
+aliases:
+  test separator: [tag, 20-V-2002]
+  test sep: [tag, 20-V-2002]
+  production separator: [tag, 20-V-2001]
+  prod sep: [tag, 20-V-2001]
+  surge drum: [tag, 27-V-2001]
+  deaerator: [tag, 44-V-2001]
+
+matching:
+  equipment:
+    auto_accept: 0.90
+    review_min: 0.60
+
+survivorship:
+  default:
+    priority: [review, sap, pi_af, pi, ec, maximo, jde, pid, oplog]
+    review_on_conflict: false
+  fields:
+    manufacturer: {priority: [review, sap, maximo, jde], review_on_conflict: true}
+    model: {priority: [review, sap, maximo, jde], review_on_conflict: true}
+    description: {priority: [review, sap, pi_af, pi, ec, maximo, jde]}
+    uom: {priority: [review, pi, pi_af]}
