@@ -134,24 +134,3 @@ def schema_drift(old: list[list[str]] | None, new: list[list[str]]) -> dict:
     o, n = dict(map(tuple, old)), dict(map(tuple, new))
     return {"added": [c for c in n if c not in o], "removed": [c for c in o if c not in n],
             "retyped": [{"column": c, "was": o[c], "now": n[c]} for c in n if c in o and o[c] != n[c]]}
-
-
-def write_parquet(csv_path: Path, out_dir: Path, rows_per_file: int = 100_000) -> int:
-    """A CSV export as a lake table: a folder of Parquet part files, every column text."""
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    with csv_path.open(newline="") as f:
-        reader = csv.DictReader(f)
-        schema = pa.schema([(c, pa.string()) for c in reader.fieldnames or []])
-        part, n, chunk = 0, 0, []
-        for row in reader:
-            chunk.append(row)
-            if len(chunk) == rows_per_file:
-                pq.write_table(pa.Table.from_pylist(chunk, schema), out_dir / f"part-{part:05d}.parquet")
-                part, n, chunk = part + 1, n + len(chunk), []
-        if chunk or part == 0:
-            pq.write_table(pa.Table.from_pylist(chunk, schema), out_dir / f"part-{part:05d}.parquet")
-            n += len(chunk)
-    return n

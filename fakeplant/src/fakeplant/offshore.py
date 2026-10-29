@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import fakedocs, fakepid
+from . import docs, pid
 
 FACILITY = "OSB"
 AREAS = {"20": "Separation", "23": "Gas Compression", "27": "Oil Export", "44": "Water Injection"}
@@ -254,7 +254,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
             sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-{area}-PID-{t + 2:03d}"
         elif fmt == "image" and cfg["images"]:
             sheet["image"] = f"pid/{sheet['sheet']}.png"
-            pid_truth[sheet["sheet"]] = fakepid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng)
+            pid_truth[sheet["sheet"]] = pid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng)
         sheets.append(sheet)
 
     logs, log_truth = [], []
@@ -275,7 +275,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     notifications, work_orders = _maintenance(random.Random(seed + 3), equipment)
     downtime = _downtime(random.Random(seed + 4), notifications, wells)
     daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
-    documents = fakedocs.generate(out, equipment, plan, FACILITY)
+    documents = docs.generate(out, equipment, plan, FACILITY)
     materials, bom = _spares(equipment)
     (out / "answer_keys").mkdir(exist_ok=True)
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
@@ -298,9 +298,9 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
     if pid_truth:
         (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
-    from . import fakeincoming
+    from . import incoming
 
-    fakeincoming.generate(out, equipment, floc, wells)
+    incoming.generate(out, equipment, floc, wells)
     return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
             "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),

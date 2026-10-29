@@ -1,11 +1,9 @@
-"""Command line: fuzer demo | generate | ingest | rebuild | serve | reset."""
+"""Command line: fuzer ingest | rebuild | serve | mcp | jobs | eval | reset ... (fake data: `fakeplant`)."""
 
 import argparse
 import json
-import shutil
-from pathlib import Path
 
-from . import db, fakedata, ingest, pipeline
+from . import db, ingest, pipeline
 from .pack import load_pack
 
 
@@ -13,11 +11,6 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="fuzer")
     p.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK or offshore_demo)")
     sub = p.add_subparsers(dest="cmd", required=True)
-
-    g = sub.add_parser("generate", help="write fake source exports")
-    g.add_argument("--out", default="data/fake")
-    g.add_argument("--seed", type=int, default=7)
-    _size_args(g)
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
     i.add_argument("--data", default="data/fake")
@@ -29,11 +22,6 @@ def main(argv=None):
     sm.add_argument("--data", default="data/fake")
     sm.add_argument("--table", action="append", help="only this table (repeatable); default: every unmapped table")
     sm.add_argument("--claude", action="store_true", help="ask Claude about columns rules can't name (costs money)")
-
-    d = sub.add_parser("demo", help="reset, generate, ingest and rebuild")
-    d.add_argument("--data", default="data/fake")
-    d.add_argument("--seed", type=int, default=7)
-    _size_args(d)
 
     s = sub.add_parser("serve", help="run the API")
     s.add_argument("--host", default="127.0.0.1")
@@ -70,9 +58,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     pack = load_pack(args.pack)
 
-    if args.cmd == "generate":
-        _print(_generate(args.out, args.seed, args))
-    elif args.cmd == "serve":
+    if args.cmd == "serve":
         import uvicorn
 
         db.database_url()  # start embedded Postgres before uvicorn
@@ -81,6 +67,7 @@ def main(argv=None):
         import os
         import subprocess
         import sys
+        from pathlib import Path
 
         home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
         home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
@@ -133,56 +120,6 @@ def main(argv=None):
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
-            elif args.cmd == "demo":
-                db.reset(conn)
-                _print({"generated": _generate(args.data, args.seed, args)})
-                _print({"ingested": ingest.ingest(conn, args.data)})
-                _print(pipeline.rebuild(conn, pack))
-
-
-def _size_args(p):
-    p.add_argument("--asset", choices=["offshore", "onshore"], default="offshore",
-                   help="which fake asset to make (onshore pairs with --pack onshore_demo)")
-    p.add_argument("--size", choices=list(fakedata.SIZES), default="small",
-                   help="small: hand-checked test asset; medium: about 1/10 of a real offshore asset")
-    p.add_argument("--areas", type=int, help="override number of process areas (max 90)")
-    p.add_argument("--trains", type=int, help="override equipment trains per area (1-10)")
-    p.add_argument("--wells", type=int, help="override number of wells")
-    p.add_argument("--logs", type=int, help="override number of operator log entries")
-    p.add_argument("--format", choices=["csv", "parquet"], default="csv",
-                   help="parquet writes each table as a lake-style folder of Parquet part files")
-
-
-def _generate(out, seed, args) -> dict:
-    if args.asset == "onshore":
-        from . import fakeonshore
-        stats = fakeonshore.generate(out)
-    else:
-        stats = fakedata.generate(out, seed, **_size_kwargs(args))
-    if args.format == "parquet":
-        stats["parquet_tables"] = _to_parquet(Path(out))
-    else:  # a lake folder left from an earlier --format parquet run would win over the new CSV
-        for name in ingest.tables():
-            shutil.rmtree(Path(out) / name, ignore_errors=True)
-    return stats
-
-
-def _to_parquet(out: Path) -> int:
-    """Rewrite each CSV table as a folder of Parquet part files, as it would sit in the data lake."""
-    from . import connectors
-
-    n = 0
-    for name in ingest.tables():
-        if (csv_path := out / f"{name}.csv").exists():
-            shutil.rmtree(out / name, ignore_errors=True)
-            connectors.write_parquet(csv_path, out / name)
-            csv_path.unlink()
-            n += 1
-    return n
-
-
-def _size_kwargs(args) -> dict:
-    return {"size": args.size, "areas": args.areas, "trains": args.trains, "wells": args.wells, "logs": args.logs}
 
 
 def _bench(conn, pack) -> dict:

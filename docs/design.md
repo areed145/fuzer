@@ -304,7 +304,7 @@ an incident (one of each instrument type first) show as small-multiple trend
 charts on incident pages, in the MCP `process_values` tool and in the brief.
 
 ### 19. Performance at full size
-`fuzer generate --size large` makes an asset close to a real offshore one: 58k
+`fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).
 

@@ -7,6 +7,12 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
+[manifest]
+members = [
+    "fuzer",
+    "fuzer-fakeplant",
+]
+
 [[package]]
 name = "alembic"
 version = "1.20.1"
@@ -681,6 +687,7 @@ local = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fuzer-fakeplant" },
     { name = "httpx" },
     { name = "pgserver" },
     { name = "pytest" },
@@ -708,9 +715,27 @@ provides-extras = ["local", "delta", "jobs"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fuzer-fakeplant", editable = "fakeplant" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pgserver", specifier = ">=0.1.4" },
     { name = "pytest", specifier = ">=8" },
+]
+
+[[package]]
+name = "fuzer-fakeplant"
+version = "0.1.0"
+source = { editable = "fakeplant" }
+dependencies = [
+    { name = "fuzer" },
+    { name = "pillow" },
+    { name = "pyarrow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fuzer", editable = "." },
+    { name = "pillow", specifier = ">=12.3,<13" },
+    { name = "pyarrow", specifier = ">=25.0,<26" },
 ]
 
 [[package]]
