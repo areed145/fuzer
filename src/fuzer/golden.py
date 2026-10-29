@@ -30,15 +30,14 @@ def _distinct(values) -> list[str]:
 
 
 def build(conn, cands: list[Candidate], assigned: dict[str, str], pack: Pack) -> dict:
-    conn.execute("delete from assertion where source <> 'review'")
-    rows = [(assigned[c.ref], f, Jsonb(v), c.source, c.source_key)
-            for c in cands for f, v in c.fields.items()]
-    db.copy_rows(conn, "assertion", ["fuzer_id", "field", "value", "source", "source_key"], rows)
-
-    # Group in memory: the source values we just wrote plus reviewer choices already stored.
+    # Group in memory: what every source says plus reviewer choices (the only values stored).
     grouped = defaultdict(list)
-    for fid, field, value, source, source_key in rows:
-        grouped[(fid, field)].append({"value": value.obj, "source": source, "source_key": source_key})
+    n_values = 0
+    for c in cands:
+        fid = assigned[c.ref]
+        for field, value in c.fields.items():
+            grouped[(fid, field)].append({"value": value, "source": c.source, "source_key": c.source_key})
+            n_values += 1
     for a in conn.execute("select fuzer_id, field, value, source, source_key from assertion where source = 'review'"):
         grouped[(a["fuzer_id"], a["field"])].append(a)
 
@@ -65,14 +64,12 @@ def build(conn, cands: list[Candidate], assigned: dict[str, str], pack: Pack) ->
     values = defaultdict(dict)
     for fid, field, value, _, _ in golden:
         values[fid][field] = value.obj
-    return {"assertions": len(rows), "conflict_reviews": len(conflicts)}, values
+    return {"source_values": n_values, "conflict_reviews": len(conflicts)}, values
 
 
 def append(conn, cands: list[Candidate], assigned: dict[str, str], extra: list[tuple]) -> int:
     """Golden values for derived records and fields (attributed to Fuzer; no conflicts possible)."""
-    rows = [(assigned[c.ref], f, Jsonb(v), c.source, c.source_key) for c in cands for f, v in c.fields.items()]
-    rows += [(fid, field, Jsonb(value), "fuzer", None) for fid, field, value in extra]
-    db.copy_rows(conn, "assertion", ["fuzer_id", "field", "value", "source", "source_key"], rows)
-    db.copy_rows(conn, "golden", ["fuzer_id", "field", "value", "source", "rule"],
-                 ((fid, f, v, src, "derived") for fid, f, v, src, _ in rows))
+    rows = [(assigned[c.ref], f, Jsonb(v), c.source, "derived") for c in cands for f, v in c.fields.items()]
+    rows += [(fid, field, Jsonb(value), "fuzer", "derived") for fid, field, value in extra]
+    db.copy_rows(conn, "golden", ["fuzer_id", "field", "value", "source", "rule"], rows)
     return len(rows)

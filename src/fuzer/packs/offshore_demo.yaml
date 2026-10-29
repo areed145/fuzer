@@ -84,3 +84,30 @@ classification:
     k.s.b.: KSB
   # Extra classes this asset needs beyond the taxonomy (same shape as the standards file)
   extra_classes: {}
+
+# This site's SAP PM catalog codes -> ISO 14224 reliability codes.
+maintenance_codes:
+  damage:   # -> failure mode
+    D01: VIB
+    D02: ELP
+    D03: FTS
+    D04: OHE
+    D05: LOO
+    D06: NOI
+    D07: AIR
+    D08: INL
+    D09: UST
+    D10: BRD
+  cause:    # -> failure mechanism
+    C01: "2.4"
+    C02: "1.2"
+    C03: "2.2"
+    C04: "3.3"
+    C05: "5.2"
+    C06: "1.3"
+  activity: # -> maintenance activity
+    A01: "1"
+    A02: "2"
+    A03: "4"
+    A04: "6"
+    A05: "10"
