@@ -153,7 +153,7 @@ def _generate(out, seed, args) -> dict:
     if args.format == "parquet":
         stats["parquet_tables"] = _to_parquet(Path(out))
     else:  # a lake folder left from an earlier --format parquet run would win over the new CSV
-        for name in ingest.TABLES:
+        for name in ingest.tables():
             shutil.rmtree(Path(out) / name, ignore_errors=True)
     return stats
 
@@ -163,7 +163,7 @@ def _to_parquet(out: Path) -> int:
     from . import connectors
 
     n = 0
-    for name in ingest.TABLES:
+    for name in ingest.tables():
         if (csv_path := out / f"{name}.csv").exists():
             shutil.rmtree(out / name, ignore_errors=True)
             connectors.write_parquet(csv_path, out / name)

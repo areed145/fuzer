@@ -1,0 +1,11 @@
+# JDE assets (legacy). The tag is only inside free text: used for matching, not as a link.
+source: jde
+record_type: asset
+shape: records
+dataset: jde_assets
+key: asset_number
+entity:
+  kind: equipment
+  key: {from: serial, as: serial}
+  block: {from: description, as: tag}
+  fields: [description, manufacturer, model, serial]

@@ -1,0 +1,26 @@
+# EDMS document revisions: manuals, guides, procedures, and what each applies to.
+source: edms
+record_type: document
+shape: documents
+entity:
+  kind: document
+  fields:
+    - doc_number
+    - revision
+    - title
+    - doc_type
+    - status
+    - effective_date
+    - format
+    - pages
+    - manufacturer
+    - model
+    - equipment_class
+    - file_sha256
+    - sections
+    - [description, {from: title, default: {from: _key}, keep: true}]
+links:
+  - rel: supersedes
+    when: supersedes
+    to: {kind: document, template: "{doc_number} rev {supersedes}"}
+hooks: [document_applies_to]

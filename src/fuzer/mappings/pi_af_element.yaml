@@ -1,0 +1,14 @@
+# PI AF elements: the asset tree by path, with the PI points behind each attribute.
+source: pi_af
+record_type: element
+shape: hierarchy
+entity:
+  node: {from: _key, as: af_path}
+  fields: [template]
+links:
+  - rel: part_of
+    to: {from: _key, as: af_parent}
+  - rel: has_timeseries
+    each: attributes
+    to: {kind: timeseries, from: pi_point, as: upper}
+    props: {attribute: name}

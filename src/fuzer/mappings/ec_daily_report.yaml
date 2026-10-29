@@ -1,0 +1,22 @@
+# Energy Components DAY001 daily reports: production figures and free-text comments.
+source: ec
+record_type: daily_report
+shape: events
+dataset: ec_day001
+key: report_date
+entity:
+  kind: daily_report
+  fields:
+    - report_date
+    - comments
+    - [timestamp, {from: _key, keep: true}]
+    - [description, {template: "Daily report {_key}", keep: true}]
+    - [oil_sm3, {from: oil_sm3, as: number, keep: true}]
+    - [gas_ksm3, {from: gas_ksm3, as: number, keep: true}]
+    - [water_inj_sm3, {from: water_inj_sm3, as: number, keep: true}]
+links:
+  - rel: reports_on
+    when: facility
+    to: {kind: facility, from: facility}
+mentions:
+  - from: comments

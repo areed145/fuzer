@@ -1,0 +1,8 @@
+# P&ID sheets. What a sheet yields depends on its format, so a hook reads tags and piping.
+source: pid
+record_type: sheet
+shape: documents
+entity:
+  kind: document
+  fields: [title, revision, format]
+hooks: [pid_sheet]

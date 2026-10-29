@@ -1,0 +1,28 @@
+# SAP work orders, with the site activity code as an ISO 14224 maintenance activity.
+source: sap
+record_type: work_order
+shape: events
+dataset: sap_work_orders
+key: aufnr
+entity:
+  kind: work_order
+  fields:
+    - order_type
+    - start
+    - finish
+    - activity_code
+    - cost
+    - text
+    - [description, {from: text, default: "", keep: true}]
+links:
+  - rel: concerns
+    when: equnr
+    to: {ref: "sap:equipment:{equnr}"}
+  - rel: concerns
+    when: floc
+    to: {from: floc, as: floc}
+  - rel: for_notification
+    when: qmnum
+    to: {kind: notification, from: qmnum}
+hooks:
+  - {name: iso_code, column: activity_code, catalog: activity, field: activity}

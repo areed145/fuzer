@@ -1,0 +1,14 @@
+# SAP materials (spare parts) with stock.
+source: sap
+record_type: material
+shape: records
+dataset: sap_materials
+key: matnr
+entity:
+  kind: material
+  fields:
+    - description
+    - manufacturer
+    - mpn
+    - bin
+    - [stock, {from: stock, as: number, keep: true}]

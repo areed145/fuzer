@@ -1,0 +1,19 @@
+# Sections of EDMS documents, with the failure modes they cover and the tags they mention.
+source: edms
+record_type: section
+shape: documents
+entity:
+  kind: document_section
+  fields:
+    - heading
+    - page
+    - text
+    - status
+    - index
+    - [description, {from: heading, default: {from: _key}, keep: true}]
+links:
+  - rel: part_of
+    to: {ref: "edms:document:{document}"}
+mentions:
+  - from: text
+hooks: [section_failure_modes]

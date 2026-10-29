@@ -1,6 +1,6 @@
 """Land source datasets into source_record, unchanged.
 
-Tables (ERP, EC, PI point lists, logs) come through a connector (connectors.py): a CSV export,
+Tables (ERP, EC, PI point lists, logs; declared by mapping files) come through a connector (connectors.py): a CSV export,
 a folder of Parquet part files or a Delta table, found by name in the data folder. Nested
 exports (PI AF tree, EC network, P&ID sheets, document manifests) have their own readers.
 Each load is remembered in dataset_state (fingerprint, schema, watermark): unchanged datasets
@@ -14,27 +14,12 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from . import connectors
+from . import connectors, mappings
 
-# table name -> (source, record_type, key column, or columns joined by ">")
-TABLES = {
-    "sap_floc": ("sap", "floc", "floc"),
-    "sap_equipment": ("sap", "equipment", "equnr"),
-    "jde_assets": ("jde", "asset", "asset_number"),
-    "maximo_assets": ("maximo", "asset", "assetnum"),
-    "pi_points": ("pi", "point", "tag"),
-    "oplogs": ("oplog", "entry", "entry_id"),
-    "sap_notifications": ("sap", "notification", "qmnum"),
-    "sap_work_orders": ("sap", "work_order", "aufnr"),
-    "ec_downtime": ("ec", "downtime", "event_id"),
-    "sap_materials": ("sap", "material", "matnr"),
-    "ec_day001": ("ec", "daily_report", "report_date"),
-    "sap_bom": ("sap", "bom", ("equnr", "matnr")),
-}
 
-# Append-only tables: lake connectors read only rows at or after the last value of this column
-# (CSV exports are always read whole). Rows already loaded are never removed by such a load.
-WATERMARKS = {"oplogs": "timestamp"}
+def tables() -> dict:
+    """Tabular datasets by name, from the mapping files (mappings.py)."""
+    return mappings.tables()
 
 
 def _pi_af(path: Path):
@@ -87,7 +72,9 @@ FILES = {
     "documents": ("documents.json", "file", _documents),
 }
 
-EXPORTS = [*TABLES, *FILES]
+
+def export_names() -> list[str]:
+    return [*tables(), *FILES]
 
 
 class _Manifest:
@@ -124,8 +111,9 @@ def _records(name: str, conn_, since=None):
     if name in FILES:
         yield from conn_.load(conn_.path)
         return
-    source, record_type, key = TABLES[name]
-    cols = key if isinstance(key, tuple) else (key,)
+    m = tables()[name]
+    source, record_type = m.source, m.record_type
+    cols = m.key if isinstance(m.key, tuple) else (m.key,)
     for row in conn_.rows(since):
         yield source, record_type, ">".join(str(row[c]) for c in cols), row
 
@@ -159,7 +147,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
     loaded_state = []
 
     plan = []  # decide every dataset before COPY starts: nothing else may run on conn during it
-    for name in exports or EXPORTS:
+    for name in exports or export_names():
         if (c := dataset(data_dir, name)) is None:
             continue
         prev = state.get(name) or {}
@@ -177,7 +165,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
 
     def rows():
         for name, c, fp, schema, position in plan:
-            wm = WATERMARKS.get(name) if c.watermarks else None
+            wm = (m.watermark if (m := tables().get(name)) else None) if c.watermarks else None
             since = (wm, position) if wm and position is not None and not full else None
             top = since[1] if since else None
             n = 0
