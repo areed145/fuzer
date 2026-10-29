@@ -139,3 +139,17 @@ maintenance_activities:
   "10": Overhaul
   "11": Combination
   "12": Other
+
+# Words that signal a failure mode in free text (documents, comments). Regular expressions,
+# case-insensitive; asset packs can add their own under classification.failure_mode_keywords.
+failure_mode_keywords:
+  VIB: ['vibrat\w*']
+  ELP: ['seal leak\w*', 'external leak\w*', 'flange leak\w*', 'seal(?:s)? .{0,20}leak\w*']
+  INL: ['internal leak\w*', 'passing']
+  FTS: ['fail\w* to start', 'trips? on start', 'won.t start']
+  UST: ['spurious(?:ly)? (?:stop|trip)\w*', 'tripped unexpectedly']
+  OHE: ['high (?:discharge |outlet |bearing )?temperature', 'overheat\w*']
+  LOO: ['low (?:discharge |output|flow|pressure)\w*']
+  NOI: ['noise', 'noisy']
+  AIR: ['indication faulty', 'transmitters? disagree\w*', 'disagrees? with the gauge', 'reading erratic']
+  PLU: ['blockage', 'plugged', 'fouling', 'fouled']

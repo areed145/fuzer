@@ -292,6 +292,9 @@ export const api = {
   similarIncidents: (id: string) =>
     request<(Incident & { score: number; same_unit: boolean })[]>("GET", `/incidents/${encodeURIComponent(id)}/similar`),
   knowledgeSearch: (q: string, ref?: string) => request<Passage[]>("GET", "/knowledge/search", { q, ref, limit: 8 }),
+  incidentReading: (id: string) =>
+    request<{ id: string; document_label: string | null; heading: string | null; page: number | null;
+              failure_modes: string[] }[]>("GET", `/incidents/${encodeURIComponent(id)}/reading`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>

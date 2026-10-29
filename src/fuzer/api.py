@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
@@ -141,6 +141,12 @@ def incident_timeline(fuzer_id: str, conn=Depends(get_conn)):
     return queries.incident_timeline(conn, fuzer_id)
 
 
+@app.get("/incidents/{fuzer_id}/reading")
+def incident_reading(fuzer_id: str, limit: int = 5, conn=Depends(get_conn)):
+    """Document sections in scope of the incident's unit that cover its failure modes."""
+    return knowledge.for_incident(conn, fuzer_id, min(limit, 50))
+
+
 @app.get("/incidents/{fuzer_id}/similar")
 def similar_incidents(fuzer_id: str, limit: int = 10, conn=Depends(get_conn)):
     return queries.similar_incidents(conn, fuzer_id, min(limit, 100))
@@ -166,13 +172,13 @@ def document_file(fuzer_id: str, conn=Depends(get_conn)):
 
 @app.get("/knowledge/search")
 def knowledge_search(q: str, ref: str | None = None, limit: int = 10, include_superseded: bool = False,
-                     conn=Depends(get_conn)):
+                     failure_mode: list[str] = Query(default=[]), conn=Depends(get_conn)):
     """Cited passages from manuals, guides, procedures and past incidents, optionally scoped to an
     entity (a Fuzer ID or any tag / well name) and what it relates to."""
     fid = queries.resolve_ref(conn, PACK, ref) if ref else None
     if ref and not fid:
         raise HTTPException(404, f"nothing found for {ref!r}")
-    return knowledge.search(conn, q, fid, min(limit, 50), include_superseded)
+    return knowledge.search(conn, q, fid, min(limit, 50), include_superseded, failure_mode)
 
 
 @app.get("/entities/{fuzer_id}/documents")

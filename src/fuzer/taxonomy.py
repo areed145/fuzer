@@ -171,3 +171,18 @@ def derive(pack: Pack, kinds: dict[str, str], golden: dict[str, dict], tag_keys:
         if level := tax.levels.get(kind):
             fields += [(fid, "iso14224_level", level["iso14224"]), (fid, "isa95_level", level["isa95"])]
     return cands, edges, fields
+
+
+@cache
+def _mode_patterns(taxonomy: str, extra: tuple) -> list[tuple[str, "re.Pattern"]]:
+    words = {**load_standard(taxonomy).get("failure_mode_keywords", {})}
+    for code, pats in extra:
+        words[code] = [*words.get(code, []), *pats]
+    return [(code, re.compile("|".join(f"(?:{p})" for p in pats), re.I)) for code, pats in words.items()]
+
+
+def failure_modes_in(text: str, pack: Pack) -> list[str]:
+    """ISO 14224 failure modes a piece of text talks about, from keyword rules (standard + pack)."""
+    rules = pack.classification
+    extra = tuple((k, tuple(v)) for k, v in rules.get("failure_mode_keywords", {}).items())
+    return sorted(code for code, pat in _mode_patterns(rules.get("taxonomy", "iso14224"), extra) if pat.search(text))

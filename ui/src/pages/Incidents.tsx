@@ -50,6 +50,7 @@ export function IncidentList({ items }: { items: Incident[] }) {
 export function IncidentDetail({ id }: { id: string }) {
   const timeline = useAsync(() => api.incidentTimeline(id), [id]);
   const similar = useAsync(() => api.similarIncidents(id), [id]);
+  const reading = useAsync(() => api.incidentReading(id), [id]);
   return (
     <div className="grid">
       <section className="card">
@@ -71,6 +72,21 @@ export function IncidentDetail({ id }: { id: string }) {
         </ul>
       </section>
       <section className="card">
+        {reading.data && reading.data.length > 0 && (
+          <>
+            <h2>Suggested reading</h2>
+            <p className="muted small">Manual and guide sections for this unit that cover these failure modes.</p>
+            <ul className="plain">
+              {reading.data.map((r) => (
+                <li key={r.id} className="small">
+                  <a href={entityHref(r.id)}>{r.document_label} · {r.heading}</a>
+                  {r.page && <span className="muted"> p. {r.page}</span>}{" "}
+                  {r.failure_modes.map((m) => <span key={m} className="badge">{m}</span>)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <h2>Similar past incidents</h2>
         <p className="muted small">Same unit or equipment class, ranked by shared failure modes and event types.</p>
         <Status loading={similar.loading && !similar.data} empty={similar.data?.length === 0}>
