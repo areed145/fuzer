@@ -1,0 +1,13 @@
+# Operator log entries: free text, with the tags, wells and aliases it mentions.
+source: oplog
+record_type: entry
+shape: events
+dataset: oplogs
+key: entry_id
+watermark: timestamp
+entity:
+  kind: log_entry
+  fields: [timestamp, author, text]
+mentions:
+  - from: text
+    props: [text, span, method]

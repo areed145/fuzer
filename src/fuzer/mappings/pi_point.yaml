@@ -1,0 +1,17 @@
+# PI points: time series, owned by the tag or well their name contains.
+source: pi
+record_type: point
+shape: timeseries
+dataset: pi_points
+key: tag
+entity:
+  kind: timeseries
+  key: {from: _key, as: upper}
+  fields:
+    - [description, {from: descriptor, default: "", keep: true}]
+    - [uom, {from: engunits, default: "", keep: true}]
+links:
+  - rel: has_timeseries
+    from: {from: _key, as: tag_or_well}
+    to: self
+    confidence: 0.9

@@ -72,7 +72,7 @@ def _source_asset(name: str):
     return load
 
 
-SOURCES = [_source_asset(name) for name in ingest.EXPORTS]
+SOURCES = [_source_asset(name) for name in ingest.export_names()]
 
 
 @dg.asset(group_name="register", deps=SOURCES,
@@ -255,7 +255,7 @@ schedules = [
 def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
     data_dir = Path(fuzer.data_dir)
     seen = json.loads(context.cursor) if context.cursor else {}
-    current = {name: sig for name in ingest.EXPORTS if (sig := export_signature(data_dir, name))}
+    current = {name: sig for name in ingest.export_names() if (sig := export_signature(data_dir, name))}
     changed = sorted(name for name, sig in current.items() if seen.get(name) != sig)
     if not changed:
         return dg.SkipReason(f"no changed exports in {data_dir}")

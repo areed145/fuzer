@@ -1,0 +1,10 @@
+# Energy Components allocation network edges, dated.
+source: ec
+record_type: edge
+shape: network
+links:
+  - rel: flows_to
+    from: {from: from, as: ec_node}
+    to: {from: to, as: ec_node}
+    valid_from: valid_from
+    valid_to: valid_to

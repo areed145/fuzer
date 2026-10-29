@@ -1,0 +1,10 @@
+# Energy Components allocation network nodes: wells, separators / meters (by tag), other nodes.
+source: ec
+record_type: node
+shape: network
+entity:
+  node: {from: _row, as: ec_node}
+  fields:
+    - [ec_code, {from: code, keep: true}]
+    - [ec_type, {from: type, keep: true}]
+    - [description, name]

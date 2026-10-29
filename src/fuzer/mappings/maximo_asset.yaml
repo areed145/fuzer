@@ -1,0 +1,11 @@
+# Maximo assets (legacy). Location codes often drop the area; it is read from the location text.
+source: maximo
+record_type: asset
+shape: records
+dataset: maximo_assets
+key: assetnum
+entity:
+  kind: equipment
+  key: {from: serial, as: serial}
+  block: {from: location, as: tag, area_from: location}
+  fields: [description, manufacturer, serial]

@@ -178,6 +178,35 @@ or changes type, the table is held (its records stay as they were) and a
 shape. Append-only lake tables (operator logs) read only rows at or after the
 last timestamp.
 
+### Mapping files (new sources without code)
+
+What each column means is set in YAML, one file per source record type, in
+[src/fuzer/mappings/](src/fuzer/mappings/). Put extra or site-specific
+mappings in a folder named by `FUZER_MAPPINGS` (later files win for the same
+source and record type). A new table needs only a mapping and its file in the
+data folder:
+
+```yaml
+source: einx
+record_type: instrument
+shape: records             # records, hierarchy, network, timeseries, events, documents, reference
+dataset: instrument_index  # instrument_index.csv / .parquet / folder / Delta table
+key: tag_no
+entity:
+  kind: tag
+  key: {from: tag_no, as: tag}    # read with the pack's tag grammar, so it merges with SAP / PI
+  fields: [service, [range_high, {from: range_high, as: number}]]
+links:
+  - rel: instrument_of
+    when: equipment
+    to: {kind: tag, from: equipment, as: tag}
+```
+
+Logic that really is source-specific (EC downtime reasons, document
+applicability, P&ID formats, ISO 14224 code lookups) is a named hook in
+[extract.py](src/fuzer/extract.py) that a mapping lists. The full syntax is at
+the top of [mappings.py](src/fuzer/mappings.py).
+
 ### Scheduled jobs (Dagster)
 
 ```sh

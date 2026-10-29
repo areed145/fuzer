@@ -352,6 +352,15 @@ hold the dataset behind a `schema` review item, and watermarked lake tables read
 only new rows. Medium asset from Parquet: same records and eval scores as CSV;
 large first load 3.6 s either way.
 
+Mappings (#58): every source record type is a YAML file read by one compiled
+extractor (`mappings.py`); `extract.py` keeps only named value transforms
+(tag, well, serial, number), resolvers that read kind and key together (FLOC,
+AF path, EC node) and six hooks (ISO 14224 codes, sidetracks, EC downtime,
+document applicability, section failure modes, P&ID formats). All 77,585
+records of the small, medium and onshore assets give identical candidates and
+links to the old extractors; medium eval and large entity / link counts are
+unchanged; large extraction 1.0 s -> 1.4 s.
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |

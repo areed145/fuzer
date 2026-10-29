@@ -1,0 +1,25 @@
+# Energy Components downtime / deferment: lost volume, reason, and equipment named in the comment.
+source: ec
+record_type: downtime
+shape: events
+dataset: ec_downtime
+key: event_id
+entity:
+  kind: downtime
+  fields:
+    - start
+    - end
+    - reason_code
+    - comment
+    - [timestamp, {from: start, keep: true}]
+    - [lost_oil_sm3, {from: lost_oil_sm3, as: number, keep: true}]
+    - [lost_gas_ksm3, {from: lost_gas_ksm3, as: number, keep: true}]
+links:
+  - rel: affects
+    to: {from: object_code, default: "", as: facility_or_well}
+mentions:
+  - from: comment
+    rel: caused_by
+    kinds: [tag, tag_noarea]
+    method: rules
+hooks: [downtime]

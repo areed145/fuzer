@@ -1,0 +1,11 @@
+# SAP equipment bills of materials: one link per line, no entity of its own.
+source: sap
+record_type: bom
+shape: network
+dataset: sap_bom
+key: [equnr, matnr]
+links:
+  - rel: uses_part
+    from: {ref: "sap:equipment:{equnr}"}
+    to: {kind: material, from: matnr}
+    props: {quantity: {from: quantity, as: number}}

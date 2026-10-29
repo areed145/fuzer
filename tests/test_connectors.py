@@ -36,7 +36,7 @@ def as_lake(exports: Path) -> Path:
     """A copy of the exports with every table as a folder of Parquet part files."""
     lake = Path(tempfile.mkdtemp(prefix="fzlake"))
     shutil.copytree(exports, lake, dirs_exist_ok=True)
-    for name in ingest.TABLES:
+    for name in ingest.tables():
         if (lake / f"{name}.csv").exists():
             connectors.write_parquet(lake / f"{name}.csv", lake / name, rows_per_file=25)
             (lake / f"{name}.csv").unlink()
@@ -56,7 +56,7 @@ def test_parquet_loads_the_same_records_as_csv(exports, conn):
     assert len(list((lake / "pi_points").glob("*.parquet"))) > 1  # several part files
 
     stats = ingest.ingest(conn, lake)
-    assert set(stats["loaded"]) >= {n for n in ingest.TABLES if (lake / n).is_dir()}
+    assert set(stats["loaded"]) >= {n for n in ingest.tables() if (lake / n).is_dir()}
     assert stats["inserted"] == stats["removed"] == 0
     # Identical payloads; only manifest records holding absolute file paths change with the folder.
     assert {r["source"] for r in conn.execute("select distinct source from source_record_history")} <= {"edms", "pid"}

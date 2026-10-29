@@ -1,0 +1,14 @@
+# SAP functional locations: the plant hierarchy (facility > area > tag, wells under areas).
+source: sap
+record_type: floc
+shape: hierarchy
+dataset: sap_floc
+key: floc
+entity:
+  node: {from: _key, as: floc}
+  fields: [description]
+links:
+  - rel: part_of
+    when: parent
+    to: {from: parent, as: floc}
+hooks: [sidetrack]

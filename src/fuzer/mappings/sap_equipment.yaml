@@ -1,0 +1,16 @@
+# SAP equipment: physical items, matched on serial number and the tag they are installed at.
+source: sap
+record_type: equipment
+shape: records
+dataset: sap_equipment
+key: equnr
+entity:
+  kind: equipment
+  key: {from: serial, as: serial}
+  block: {from: floc, as: tag}
+  fields: [description, manufacturer, model, serial]
+links:
+  - rel: installed_at
+    to: {kind: tag, from: floc, as: tag}
+    valid_from: valid_from
+    valid_to: valid_to

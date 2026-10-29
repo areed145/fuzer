@@ -1,0 +1,27 @@
+# SAP maintenance notifications, with site damage / cause codes as ISO 14224 failure modes and mechanisms.
+source: sap
+record_type: notification
+shape: events
+dataset: sap_notifications
+key: qmnum
+entity:
+  kind: notification
+  fields:
+    - notif_type
+    - created
+    - priority
+    - status
+    - short_text
+    - damage_code
+    - cause_code
+    - [description, {from: short_text, default: "", keep: true}]
+links:
+  - rel: concerns
+    when: equnr
+    to: {ref: "sap:equipment:{equnr}"}
+  - rel: concerns
+    when: floc
+    to: {from: floc, as: floc}
+hooks:
+  - {name: iso_code, column: damage_code, catalog: damage, field: failure_mode}
+  - {name: iso_code, column: cause_code, catalog: cause, field: failure_mechanism}
