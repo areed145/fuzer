@@ -286,6 +286,67 @@ orders, 20k log entries (~300k source records, 289k entities, 510k links).
   neighbourhoods, class hierarchies) are milliseconds in Postgres at full size;
   revisit only if multi-asset graphs or deep path queries change that (#37).
 
+### 20. Sources as connectors, shapes and mappings
+Today each export has a hand-written loader and each source / record type a
+hand-written extractor, so every new source is new code. Landing is already
+generic (every record is source + type + key + JSON payload). The plan is to
+describe every dataset by three independent things, so a new source is mostly
+configuration:
+
+**Connector: how data arrives.** Each yields records plus a schema fingerprint;
+a changed fingerprint (column added, renamed, retyped) sends the mapping back
+for review instead of failing quietly.
+
+| Connector | Examples | Reads |
+|---|---|---|
+| Lake table | Parquet / Delta in ADLS (SAP, EC, Maximo extracts) | Streamed with column projection; incremental by file, table version or watermark column |
+| API | SAP OData, PI Web API, GIS feature services | Paged; incremental by change date |
+| Time-series store | PI, ADX, OPC UA | Metadata only (AF templates / elements / attributes, ADX schemas and tag columns); values stay put and are read through `timeseries.Provider` |
+| File / document store | EDMS, SharePoint, P&ID scans, inspection photos | Listed and fingerprinted; only changed files re-read |
+| Messages | Teams, operator logs | Incremental by timestamp |
+| Standard exchange file | DEXPI (smart P&IDs), CFIHOS handover, WITSML / PRODML, PODS, GeoPackage | Parsed by a standard reader into the shapes below, no Claude needed |
+
+**Shape: what kind of data it is.** One generic extractor per shape:
+
+| Shape | Today | Anticipated |
+|---|---|---|
+| Records (things with attributes) | SAP equipment, JDE, Maximo, materials | Line lists, instrument index, cable schedules, vendors, contracts |
+| Hierarchy | FLOCs, PI AF | ISA-95 site / area / unit, ISO 14224 trees, org units |
+| Network (nodes + edges) | EC allocation, P&ID piping | Pipeline and gathering networks, electrical single-lines, cause & effect matrices and trip logic (input -> trips -> output) |
+| Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
+| Measurements (sparse, landed) | none | Lab / LIMS samples, well tests, inspection thickness readings (CMLs), vibration routes, emissions / LDAR surveys |
+| Events (time + text + references) | Logs, downtime, notifications, DAY001 | Teams threads, alarm journals, trips |
+| Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |
+| Documents | Manuals, guides, procedures | Any PDF / Office file, datasheets, inspection reports |
+| Geospatial features | none | GIS wells, pads, pipelines, rights-of-way, facility outlines |
+| Positions along a line | none | Pipeline stationing and in-line inspection anomalies (PODS); well trajectories, completions and depth logs by MD / TVD (WITSML, LAS) |
+| Reference data / code lists | Pack maintenance codes, ISO 14224 | Site catalogs, units of measure, EC reason codes, CFIHOS reference data library |
+
+Measurements differ from PI data: they are few, manual and not in a historian,
+so they are landed and kept. Drawings and documents are not shapes but
+**extractions**: a reader (Claude, OCR, a DEXPI parser) turns a sheet or file into
+derived records / network / references that flow through the shapes above,
+each carrying a link back to the sheet, tile or page it came from. 3D plant
+models and laser scans fit later as records with plant coordinates and a
+viewer link.
+
+**Mapping: what each column means.** A YAML file per dataset names the shape,
+the Fuzer kind or ISO 14224 class, and which column is key, tag, description,
+parent, from / to, timestamp, unit, value or geometry. Today's extractors
+become mapping files plus a few named hooks for logic that truly is
+source-specific. **Schema detection proposes the mapping**: profile columns
+(types, uniqueness, distinct values, nulls), match values against the pack's
+tag / well / FLOC grammars, spot dates, units, coordinates and from / to pairs,
+and let Claude name the rest from headers and sample rows (structured output
+limited to Fuzer's field meanings). A person approves it in the review queue;
+the approved mapping is versioned, and rebuilds never call Claude.
+
+New linking methods come with new shapes: **spatial** (a well within 50 m of a
+pad, a pipeline segment crossing a road) on PostGIS, which keeps the
+Postgres-first decision, and **along-line** (an anomaly at station 12+340 on
+segment X). Both produce scored candidate links like every other matcher;
+identities, history, review and the graph stay as they are.
+
 ## Data model (Postgres)
 
 | Table | What it holds |
@@ -372,6 +433,11 @@ sections below explain the thinking behind the bigger items.
 7. **[Later](https://github.com/areed145/fuzer/milestone/7)**: P&ID flow connectivity (#32), source record history
    (#33), spares and BOM (#34), onshore asset pack (#35), Splink matcher (#36),
    graph DB read replica (#37).
+8. **[Source framework](https://github.com/areed145/fuzer/milestone/8)** (section 20): connector contract and
+   lake-table connector (#57), mapping files and generic per-shape extractors
+   (#58), schema profiling and suggested mappings (#59), geospatial shape and
+   PostGIS (#60), pipeline stationing and well depths (#61), measurements (#62),
+   DEXPI and CFIHOS handover readers (#63).
 
 ### Operational history and conversations
 
