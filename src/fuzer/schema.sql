@@ -224,3 +224,13 @@ create table if not exists lesson (
     updated_at  timestamptz not null default now(),
     unique (scope_kind, scope_key, failure_mode)
 );
+
+-- Engineers' ratings of what Fuzer suggests (briefs, reading, lessons), to measure and improve it.
+create table if not exists feedback (
+    id         bigserial primary key,
+    target     text not null,          -- what was rated, e.g. brief:<fuzer_id> or reading:<fuzer_id>
+    useful     boolean not null,
+    comment    text,
+    by_user    text not null default 'anonymous',
+    created_at timestamptz not null default now()
+);

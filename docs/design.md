@@ -248,7 +248,17 @@ drawing reader returns connections read off scans; both become directional
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 
-### 18. Performance at full size
+### 18. Troubleshooting brief
+One call (`troubleshooting_brief` in MCP, `/entities/{id}/brief`) gathers, for an
+incident or a unit's latest incident: the timeline, similar past incidents,
+approved lessons for its model or class (and unreviewed drafts, labelled),
+manual / guide sections covering its failure modes, documents that apply,
+maintenance history, downtime, spares in stock and suggested checks — each with
+the id it came from. An MCP prompt (`troubleshoot`) tells agents to start there,
+cite everything and never instruct anyone to operate plant directly. Engineers'
+ratings go to a `feedback` table. Live process values join with #15–#17.
+
+### 19. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).
