@@ -317,6 +317,9 @@ export const api = {
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
+  values: (id: string) =>
+    request<{ provider: string; upsets: string[]; series: import("./Trend").Series[] }>(
+      "GET", `/entities/${encodeURIComponent(id)}/values`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>

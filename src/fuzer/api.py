@@ -81,6 +81,14 @@ def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
     return queries.spares(conn, fuzer_id)
 
 
+@app.get("/entities/{fuzer_id}/values")
+def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
+                  conn=Depends(get_conn)):
+    """Process values on a unit (or an incident's unit) around a time, from the time-series provider."""
+    from . import timeseries
+    return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30))
+
+
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):

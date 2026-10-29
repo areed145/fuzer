@@ -256,7 +256,14 @@ manual / guide sections covering its failure modes, documents that apply,
 maintenance history, downtime, spares in stock and suggested checks — each with
 the id it came from. An MCP prompt (`troubleshoot`) tells agents to start there,
 cite everything and never instruct anyone to operate plant directly. Engineers'
-ratings go to a `feedback` table. Live process values join with #15–#17.
+ratings go to a `feedback` table.
+
+Process values come through a pluggable time-series provider (`FUZER_TIMESERIES`):
+Fuzer asks for values when needed and never copies them. Until the PI Web API /
+ADX connectors (#15, #16) exist, a deterministic synthetic provider makes
+plausible signals per PI point with the asset's incidents in them. Values around
+an incident (one of each instrument type first) show as small-multiple trend
+charts on incident pages, in the MCP `process_values` tool and in the brief.
 
 ### 19. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k

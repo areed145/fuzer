@@ -428,6 +428,21 @@ def troubleshoot(what: str) -> str:
 
 
 @server.tool(annotations=READ_ONLY)
+def process_values(ref: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
+    """Process values (PI points on the unit and its instruments) around a time: per point min / max /
+    mean / last and the provider used. For an incident, at defaults to its start. at is ISO date or time."""
+    from . import timeseries
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        out = timeseries.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720))
+    if "series" in out:
+        out["series"] = [{k: v for k, v in s.items() if k != "values"} for s in out["series"]]
+    return _plain(out)
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with
