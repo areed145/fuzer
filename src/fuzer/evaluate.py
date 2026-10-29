@@ -8,6 +8,7 @@ asset an engineer curates the same files (a few dozen good questions go a long w
   linking.json       [{document, applies_to: [entity labels]}]
   section_modes.json [{document, heading_contains, failure_modes: [ISO 14224 codes]}]
   logs.json          [{entry_id, mentions: [entity labels], event_types: [..]}]
+  matches.json       [{source, key, same_as: {source, key}}]  (record pairs that are the same item)
 """
 
 import json
@@ -104,12 +105,32 @@ def logs(conn, pack: Pack, cases: list[dict]) -> dict:
             "events": _pr(etp, efp, efn) if events else "no events yet (run fuzer llm-link --source logs)"}
 
 
+def matches(conn, pack: Pack, cases: list[dict]) -> dict:
+    """Entity resolution: is each record merged with the record it really is (and only that)?
+    Records still waiting in the review queue count as not merged."""
+    owner = {(r["source"], r["source_key"]): r["fuzer_id"] for r in conn.execute(
+        "select source, source_key, fuzer_id from crosswalk where record_type in ('equipment', 'asset')")}
+    tp = fp = fn = pending = 0
+    for c in cases:
+        a, b = owner.get((c["source"], c["key"])), owner.get((c["same_as"]["source"], c["same_as"]["key"]))
+        if a and a == b:
+            tp += 1
+            continue
+        fn += 1
+        merged_with_other = a and any(f == a and s == c["same_as"]["source"] for (s, _), f in owner.items())
+        if merged_with_other:
+            fp += 1
+        else:
+            pending += 1
+    return {"pairs": len(cases), **_pr(tp, fp, fn), "wrong_merges": fp, "not_merged": pending}
+
+
 def run(conn, pack: Pack, keys_dir) -> dict:
     keys_dir = Path(keys_dir)
     load = lambda name: json.loads((keys_dir / name).read_text()) if (keys_dir / name).exists() else None
     out = {}
     for name, fn in [("search.json", search), ("linking.json", linking), ("section_modes.json", section_modes),
-                     ("logs.json", logs)]:
+                     ("logs.json", logs), ("matches.json", matches)]:
         if (cases := load(name)) is not None:
             out[name.removesuffix(".json")] = fn(conn, pack, cases)
     return out

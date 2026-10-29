@@ -42,3 +42,9 @@ def test_log_reading_rules_baseline(scores):
     m = scores["logs"]["mentions"]
     assert m["precision"] >= 0.95 and 0.8 <= m["recall"] < 1.0  # short tags in several areas need Claude
     assert scores["logs"]["events"].startswith("no events yet")
+
+
+def test_equipment_matching(scores):
+    m = scores["matches"]
+    assert m["pairs"] > 20 and m["wrong_merges"] == 0 and m["precision"] == 1.0
+    assert m["recall"] >= 0.85  # the rest wait in the review queue (no serial, no maker)

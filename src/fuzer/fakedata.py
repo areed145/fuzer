@@ -142,6 +142,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     sheet_tags: dict[tuple[str, int], list[Tag]] = {}
     titles: dict[str, str] = {}  # canonical tag -> description, for drawing labels
     pumps, vessels, instruments = [], [], []  # for log text at bigger sizes
+    match_truth: list[dict] = []
     serial = 40000
 
     for area, (tmpl, area_name) in plan.items():
@@ -204,8 +205,14 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                             "valid_from": valid_from, "valid_to": valid_to,
                         })
                         retired = bool(valid_to)
+                        before = len(jde)
                         _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, t, retired)
+                        if len(jde) > before:  # answer key: which SAP item this JDE record really is
+                            match_truth.append({"source": "jde", "key": jde[-1]["asset_number"],
+                                                "same_as": {"source": "sap", "key": equipment[-1]["equnr"]}})
                         if not retired and rng.random() < 0.6:
+                            match_truth.append({"source": "maximo", "key": f"MX-{len(maximo) + 1:05d}",
+                                                "same_as": {"source": "sap", "key": equipment[-1]["equnr"]}})
                             maximo.append({
                                 "assetnum": f"MX-{len(maximo) + 1:05d}", "description": desc,
                                 "manufacturer": maker.upper(), "serial": f"sn-{serial}",
@@ -272,6 +279,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     materials, bom = _spares(equipment)
     (out / "answer_keys").mkdir(exist_ok=True)
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
+    (out / "answer_keys" / "matches.json").write_text(json.dumps(match_truth, indent=1))
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_notifications.csv", notifications)
