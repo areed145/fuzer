@@ -5,10 +5,13 @@ source (SAP, JDE, Maximo, PI / AF, Energy Components, operator logs), P&ID
 drawings, manuals and procedures, tables with no mapping yet, and the answer
 keys `fuzer eval` scores against. Fuzer never imports it; its tests do.
 
+All fake output lives in `fakeplant/data/<asset>` (git-ignored); point Fuzer at it
+with `FUZER_DATA_DIR=fakeplant/data/offshore` in `.env`.
+
 ```sh
-uv run fakeplant generate --size medium --out data/fake      # write exports
-uv run fakeplant demo                                        # reset, generate, ingest, rebuild
-uv run fakeplant demo --asset onshore                        # the onshore field (onshore_demo pack)
+uv run fakeplant generate --size medium     # write exports to fakeplant/data/offshore
+uv run fakeplant demo                       # reset the database, generate, ingest, rebuild
+uv run fakeplant demo --asset onshore       # fakeplant/data/onshore, onshore_demo pack
 ```
 
 | Module | What it makes |

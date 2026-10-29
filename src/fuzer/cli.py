@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import os
+from pathlib import Path
 
 from . import db, ingest, pipeline
 from .pack import load_pack
@@ -13,13 +15,13 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
-    i.add_argument("--data", default="data/fake")
+    i.add_argument("--data", default=None, help="exports folder (default: $FUZER_DATA_DIR or data)")
     i.add_argument("--full", action="store_true", help="read every dataset again, even unchanged ones")
 
     sub.add_parser("rebuild", help="rerun resolve / golden / graph")
 
     sm = sub.add_parser("suggest-mappings", help="draft mappings for tables that have none (review queue)")
-    sm.add_argument("--data", default="data/fake")
+    sm.add_argument("--data", default=None, help="folder of new tables (default: $FUZER_DATA_DIR or data)")
     sm.add_argument("--table", action="append", help="only this table (repeatable); default: every unmapped table")
     sm.add_argument("--claude", action="store_true", help="ask Claude about columns rules can't name (costs money)")
 
@@ -34,7 +36,7 @@ def main(argv=None):
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
-    ps.add_argument("--truth", default="data/fake/pid_truth.json")
+    ps.add_argument("--truth", default=None, help="answer key (default: pid_truth.json in the exports folder)")
     lk.add_argument("--workers", type=int, default=4, help="parallel requests")
     lk.add_argument("--batch", action="store_true", help="use the Batches API: half price, results within ~1 hour")
     lk.add_argument("--force", action="store_true", help="re-read entries that already have a result")
@@ -51,12 +53,13 @@ def main(argv=None):
 
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
-    ev.add_argument("--keys", default="data/fake/answer_keys", help="folder of answer-key JSON files")
+    ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
 
     sub.add_parser("reset", help="drop and recreate all tables")
 
     args = p.parse_args(argv)
     pack = load_pack(args.pack)
+    data = Path(getattr(args, "data", None) or data_dir())
 
     if args.cmd == "serve":
         import uvicorn
@@ -64,10 +67,8 @@ def main(argv=None):
         db.database_url()  # start embedded Postgres before uvicorn
         uvicorn.run("fuzer.api:app", host=args.host, port=args.port)
     elif args.cmd == "jobs":
-        import os
         import subprocess
         import sys
-        from pathlib import Path
 
         home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
         home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
@@ -87,9 +88,9 @@ def main(argv=None):
             elif args.cmd == "suggest-mappings":
                 from . import suggest
 
-                _print(suggest.run(conn, pack, args.data, claude=args.claude, datasets=args.table))
+                _print(suggest.run(conn, pack, data, claude=args.claude, datasets=args.table))
             elif args.cmd == "ingest":
-                _print(ingest.ingest(conn, args.data, full=args.full))
+                _print(ingest.ingest(conn, data, full=args.full))
             elif args.cmd == "llm-link":
                 from . import llm_links, llm_pids
 
@@ -112,14 +113,19 @@ def main(argv=None):
 
                 from . import llm_pids
 
-                _print(llm_pids.score(conn, _json.loads(open(args.truth).read())))
+                _print(llm_pids.score(conn, _json.loads(open(args.truth or data / "pid_truth.json").read())))
             elif args.cmd == "eval":
                 from . import evaluate
-                _print(evaluate.run(conn, pack, args.keys))
+                _print(evaluate.run(conn, pack, args.keys or data / "answer_keys"))
             elif args.cmd == "bench":
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
+
+
+def data_dir() -> str:
+    """Where source exports land: $FUZER_DATA_DIR, else ./data."""
+    return os.environ.get("FUZER_DATA_DIR") or "data"
 
 
 def _bench(conn, pack) -> dict:

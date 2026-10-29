@@ -74,7 +74,7 @@ Needs [uv](https://docs.astral.sh/uv/) and Docker.
 
 ```sh
 docker compose up -d       # Postgres 16 on localhost:5432
-cp .env.example .env       # then set FUZER_DATABASE_URL (and ANTHROPIC_API_KEY for Claude)
+cp .env.example .env       # then set FUZER_DATABASE_URL, FUZER_DATA_DIR (and ANTHROPIC_API_KEY)
 uv sync
 uv run fakeplant demo      # fake data -> Postgres -> resolve -> golden -> graph
 uv run fuzer serve         # API on http://127.0.0.1:8000 (docs at /docs)
@@ -91,7 +91,7 @@ Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
 ### Measuring quality
 
 ```sh
-uv run fuzer eval --keys data/fake/answer_keys
+uv run fuzer eval     # answer keys in $FUZER_DATA_DIR/answer_keys
 ```
 
 Scores the loaded register against answer keys: knowledge search (hit@1, hit@3,
@@ -175,8 +175,8 @@ Parquet part files or a Delta table (`uv sync --extra delta`), found by name in
 the data folder (`sap_equipment/`, `sap_equipment.parquet`, `sap_equipment.csv`).
 
 ```sh
-uv run fakeplant generate --size medium --format parquet --out data/lake
-uv run fuzer ingest --data data/lake     # unchanged tables are skipped; --full reads all
+uv run fakeplant generate --size medium --format parquet --out fakeplant/data/lake
+uv run fuzer ingest --data fakeplant/data/lake     # unchanged tables are skipped; --full reads all
 ```
 
 Fuzer remembers each table's fingerprint, columns and watermark
@@ -220,8 +220,8 @@ the top of [mappings.py](src/fuzer/mappings.py).
 Drop a table Fuzer doesn't know into a data folder and ask for a draft mapping:
 
 ```sh
-uv run fuzer suggest-mappings --data data/fake/incoming            # rules only
-uv run fuzer suggest-mappings --data data/fake/incoming --claude   # Claude names what rules can't
+uv run fuzer suggest-mappings --data fakeplant/data/offshore/incoming            # rules only
+uv run fuzer suggest-mappings --data fakeplant/data/offshore/incoming --claude   # Claude names what rules can't
 ```
 
 Fuzer profiles a sample of each column and names its meaning: from the header,
@@ -237,7 +237,7 @@ mappings are versioned in Postgres. `fuzer eval` scores the suggestions
 
 ```sh
 uv sync --extra jobs
-export FUZER_DATA_DIR=data/fake    # the folder the exports land in
+export FUZER_DATA_DIR=fakeplant/data/offshore    # the folder the exports land in
 uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C to stop)
 ```
 
