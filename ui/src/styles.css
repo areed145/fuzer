@@ -9,6 +9,7 @@
   --accent-soft: #e6f0fb;
   --ok: #1a7f4b;
   --ok-soft: #e3f4ea;
+  --warn: #a35f00;
   --warn-soft: #fff4d6;
   --danger: #c4302b;
   --radius: 8px;
@@ -28,6 +29,7 @@
     --accent-soft: #16273d;
     --ok: #4cc38a;
     --ok-soft: #12291e;
+    --warn: #f0b44c;
     --warn-soft: #2e2611;
     --danger: #ff6b66;
     color-scheme: dark;
@@ -295,3 +297,29 @@ a.button:hover { border-color: var(--accent); text-decoration: none; }
   .graph-layout, .grid.three { grid-template-columns: 1fr; }
   .graph-panel { max-height: none; }
 }
+
+/* drawing viewer */
+.drawing-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.drawing-tools .chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 10px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
+.drawing-tools .chip.off { opacity: 0.45; }
+.drawing-tools .swatch { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; }
+.drawing-tools .swatch.dashed { border-style: dashed; }
+.viewer { overflow: auto; max-height: 75vh; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.viewer .sheet { position: relative; }
+.viewer img { display: block; width: 100%; height: auto; }
+.viewer svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.viewer .mark circle { fill: transparent; stroke-width: 5; }
+.viewer .mark.focus circle { stroke-width: 10; }
+.viewer .mark text { font: 600 26px system-ui, sans-serif; paint-order: stroke; stroke: #fff; stroke-width: 6px; }
+.st-linked { color: var(--ok); stroke: var(--ok); fill: var(--ok); }
+.st-not_in_register { color: var(--warn); stroke: var(--warn); fill: var(--warn); }
+.st-not_a_tag { color: var(--danger); stroke: var(--danger); fill: var(--danger); }
+.st-line { color: var(--muted); stroke: var(--muted); fill: var(--muted); }
+.viewer .mark.st-line circle { stroke-dasharray: 10 8; }
+.drawing-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
+.drawing-lists ul { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }
+.drawing-lists li { display: flex; gap: 8px; align-items: baseline; padding: 3px 4px; border-radius: 4px; }
+.drawing-lists li:hover, .drawing-lists li.focus { background: var(--accent-soft); }
+.drawing-lists .status { font-size: 11px; }
+iframe.doc-file { width: 100%; height: 75vh; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }

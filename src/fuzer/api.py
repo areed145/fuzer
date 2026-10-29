@@ -117,6 +117,15 @@ def entity_events(fuzer_id: str, since: str | None = None, until: str | None = N
     return queries.events(conn, fuzer_id, since, until, type, min(limit, 1000))
 
 
+@app.get("/documents/{fuzer_id}/drawing")
+def document_drawing(fuzer_id: str, conn=Depends(get_conn)):
+    """A P&ID drawing with what was read from it placed on the sheet (tags, line numbers, piping)."""
+    d = queries.drawing(conn, fuzer_id)
+    if d is None:
+        raise HTTPException(404, "no drawing for this document")
+    return d
+
+
 @app.get("/documents/{fuzer_id}/image", include_in_schema=False)
 def document_image(fuzer_id: str, conn=Depends(get_conn)):
     """The scanned drawing behind a P&ID document, if there is one."""

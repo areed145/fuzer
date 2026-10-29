@@ -127,15 +127,15 @@ uv run fuzer bench                # time the main queries on whatever is loaded
 applied immediately, and match answers queue one background rebuild (the UI
 shows "Updating…").
 
-### Claude reads operator logs and scanned P&IDs
+### Claude reads operator logs and P&ID drawings
 
 ```sh
 export ANTHROPIC_API_KEY=...       # or `ant auth login`
 uv run fuzer llm-link --dry-run    # how many entries / requests / tokens, calls nothing
 uv run fuzer llm-link --limit 40   # try a small sample first
 uv run fuzer llm-link --batch      # everything, via the Batches API at half price (results within ~1 h)
-uv run fuzer llm-link --source pids --limit 5   # just scanned drawings (or --source logs)
-uv run fuzer pid-score             # fake data only: found / missed / wrong tags vs. the answer key
+uv run fuzer llm-link --source pids --limit 5   # just P&ID drawings (or --source logs)
+uv run fuzer pid-score             # fake data only: tags and piping found / missed / wrong vs. the answer key
 ```
 
 For each log entry Claude gets a numbered list of candidates from the asset
@@ -145,14 +145,22 @@ the text) and picks from it, or says it can't tell. It also pulls out events
 ...) which become `event` entities linked to the log entry and to the tags and
 wells involved. Results are cached per entry; rebuilds never call the model,
 and an entry is only re-read when its text changes (`--force` re-reads all).
-Scanned P&IDs (the fake generator draws them as PNGs, with an answer key in
-`pid_truth.json` that is never ingested) are sent as overlapping tiles. Claude
-transcribes every tag as drawn; Fuzer turns each reading into a tag key with the
-asset pack's grammar and checks it against the register. Readings that aren't
-tags, tags missing from the register, and title blocks that disagree with the
+P&ID drawings (`fakeplant` draws every sheet: clean exports for smart and
+text-PDF sheets, damaged scans for the rest, with an answer key in
+`pid_truth.json` that is never ingested) are sent as overlapping tiles; smart
+P&IDs aren't sent, their tags and piping are exact already. Claude transcribes
+every tag and line number as drawn, says where each sits, and reads the piping
+between equipment. Fuzer turns each reading into a tag key with the asset
+pack's grammar and checks it against the register. Readings that aren't tags,
+tags missing from the register, and title blocks that disagree with the
 document register are kept as findings rather than links. Each drawing is cached
-by the SHA-256 of its image, so it's only re-read when re-scanned. The drawing
-shows on the P&ID's page in the UI.
+by the SHA-256 of its image, so it's only re-read when it changes.
+`fuzer pid-score` reports tag and piping recall / precision.
+
+On a P&ID's page the UI shows the drawing with every reading marked where it
+sits (linked to the register, not in the register, not a tag, line number;
+click a linked tag to open it), the piping and the findings. Manuals and
+procedures show their file inline on their page.
 
 Model defaults to `claude-opus-5-5` (`--model` or `FUZER_LLM_MODEL` to change),
 with server-side refusal fallback on.

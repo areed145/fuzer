@@ -113,6 +113,31 @@ export interface MappingPayload {
   yaml: string;
 }
 
+export type MarkStatus = "linked" | "not_in_register" | "not_a_tag" | "line";
+
+export interface DrawingMark {
+  text: string;
+  key?: string | null;
+  status: MarkStatus;
+  x?: number;
+  y?: number;
+  id?: string | null;
+  confidence?: number;
+}
+
+export interface Drawing {
+  sheet: string;
+  format: string;
+  title: string | null;
+  read_by: string | null;
+  image: string;
+  width: number;
+  height: number;
+  marks: DrawingMark[];
+  connections: { from: string; to: string; line: string | null; from_id: string | null; to_id: string | null }[];
+  findings: { text: string; kind: string; issue: string }[];
+}
+
 export type ReviewKind = "match" | "conflict" | "schema" | "mapping";
 
 export type ReviewItem =
@@ -356,6 +381,7 @@ export const api = {
   values: (id: string) =>
     request<{ provider: string; upsets: string[]; series: import("./Trend").Series[] }>(
       "GET", `/entities/${encodeURIComponent(id)}/values`),
+  drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
