@@ -36,13 +36,15 @@ uv run fuzer generate --size medium --areas 90 --trains 10 --logs 10000   # or t
 applied immediately, and match answers queue one background rebuild (the UI
 shows "Updating…").
 
-### Claude reads the operator logs
+### Claude reads operator logs and scanned P&IDs
 
 ```sh
 export ANTHROPIC_API_KEY=...       # or `ant auth login`
 uv run fuzer llm-link --dry-run    # how many entries / requests / tokens, calls nothing
 uv run fuzer llm-link --limit 40   # try a small sample first
 uv run fuzer llm-link --batch      # everything, via the Batches API at half price (results within ~1 h)
+uv run fuzer llm-link --source pids --limit 5   # just scanned drawings (or --source logs)
+uv run fuzer pid-score             # fake data only: found / missed / wrong tags vs. the answer key
 ```
 
 For each log entry Claude gets a numbered list of candidates from the asset
@@ -52,8 +54,20 @@ the text) and picks from it, or says it can't tell. It also pulls out events
 ...) which become `event` entities linked to the log entry and to the tags and
 wells involved. Results are cached per entry; rebuilds never call the model,
 and an entry is only re-read when its text changes (`--force` re-reads all).
+Scanned P&IDs (the fake generator draws them as PNGs, with an answer key in
+`pid_truth.json` that is never ingested) are sent as overlapping tiles. Claude
+transcribes every tag as drawn; Fuzer turns each reading into a tag key with the
+asset pack's grammar and checks it against the register. Readings that aren't
+tags, tags missing from the register, and title blocks that disagree with the
+document register are kept as findings rather than links. Each drawing is cached
+by the SHA-256 of its image, so it's only re-read when re-scanned. The drawing
+shows on the P&ID's page in the UI.
+
 Model defaults to `claude-opus-5-5` (`--model` or `FUZER_LLM_MODEL` to change),
 with server-side refusal fallback on.
+
+Ingest treats each export file as a full snapshot: records no longer in it are
+removed and their entities retired (IDs are kept and revived if they return).
 
 ### Web UI
 
@@ -121,4 +135,5 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
+| `src/fuzer/llm_pids.py`, `fakepid.py` | Claude reads scanned P&IDs; fake drawing generator |
 | `ui/` | React + TypeScript web UI (Vite) |

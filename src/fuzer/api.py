@@ -74,6 +74,22 @@ def entity_events(fuzer_id: str, since: str | None = None, until: str | None = N
     return queries.events(conn, fuzer_id, since, until, type, min(limit, 1000))
 
 
+@app.get("/documents/{fuzer_id}/image", include_in_schema=False)
+def document_image(fuzer_id: str, conn=Depends(get_conn)):
+    """The scanned drawing behind a P&ID document, if there is one."""
+    row = conn.execute(
+        """
+        select r.payload->>'image_path' as path
+        from crosswalk c join source_record r using (source, record_type, source_key)
+        where c.fuzer_id = %s and c.source = 'pid' and r.payload ? 'image_path'
+        """,
+        (fuzer_id,),
+    ).fetchone()
+    if not row or not Path(row["path"]).is_file():
+        raise HTTPException(404, "no image for this document")
+    return FileResponse(row["path"], media_type="image/png")
+
+
 @app.get("/ontology")
 def ontology(conn=Depends(get_conn)):
     return queries.ontology(conn)

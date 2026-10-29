@@ -16,6 +16,8 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import fakepid
+
 FACILITY = "OSB"
 AREAS = {"20": "Separation", "23": "Gas Compression", "27": "Oil Export", "44": "Water Injection"}
 
@@ -84,8 +86,8 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 # Size presets. "small" is the hand-checked asset the tests use; bigger sizes clone the four
 # area types into more areas and add trains of equipment inside each area.
 SIZES = {
-    "small": {"areas": 4, "trains": 1, "wells": 12, "logs": 30, "extra_points": False},
-    "medium": {"areas": 60, "trains": 8, "wells": 40, "logs": 3000, "extra_points": True},
+    "small": {"areas": 4, "trains": 1, "wells": 12, "logs": 30, "extra_points": False, "images": True},
+    "medium": {"areas": 60, "trains": 8, "wells": 40, "logs": 3000, "extra_points": True, "images": True},
 }
 AREA_TYPES = list(AREAS)  # "20", "23", "27", "44": the template for every other area
 
@@ -134,6 +136,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     af = [{"path": FACILITY, "template": "Facility", "attributes": []}]
     equipment, jde, maximo, points, sheets = [], [], [], [], []
     sheet_tags: dict[tuple[str, int], list[Tag]] = {}
+    titles: dict[str, str] = {}  # canonical tag -> description, for drawing labels
     pumps, vessels, instruments = [], [], []  # for log text at bigger sizes
     serial = 40000
 
@@ -150,6 +153,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                     eq_floc = eq.fmt(f"{FACILITY}-{{a}}-{{f}}{{l}}{{s}}")
                     title = f"{desc} {s}".strip()
                     floc.append({"floc": eq_floc, "parent": area_floc, "description": title})
+                    titles[eq.canonical] = title
                     tags.append(eq)
                     if func == "P":
                         pumps.append((eq, area_name))
@@ -220,6 +224,8 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
 
     ec = _ec_network(wells, big if is_big else None)
 
+    pid_truth: dict[str, list[str]] = {}  # answer key for scoring image reading; never ingested
+    drawing_rng = random.Random(seed + 2)  # own sequence, so drawings never change the other data
     for (area, t), tags in sheet_tags.items():
         tmpl, area_name = plan[area]
         fmt = PID_FORMAT[tmpl]
@@ -230,6 +236,9 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
         elif fmt == "pdf_text":
             bubbles = "\n".join(tag.fmt("{f}\n{l}{s}") for tag in tags)
             sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-{area}-PID-{t + 2:03d}"
+        elif fmt == "image" and cfg["images"]:
+            sheet["image"] = f"pid/{sheet['sheet']}.png"
+            pid_truth[sheet["sheet"]] = fakepid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng)
         sheets.append(sheet)
 
     logs = []
@@ -252,9 +261,11 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps(ec, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
+    if pid_truth:
+        (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
     return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
-            "pid_sheets": len(sheets), "logs": len(logs)}
+            "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs)}
 
 
 def _log_text(rng, pumps, vessels, instruments, wells) -> str:

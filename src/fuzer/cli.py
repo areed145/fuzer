@@ -31,11 +31,14 @@ def main(argv=None):
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
 
-    lk = sub.add_parser("llm-link", help="have Claude read operator logs (links + events), then rebuild")
+    lk = sub.add_parser("llm-link", help="have Claude read operator logs and scanned P&IDs, then rebuild")
+    lk.add_argument("--source", choices=["logs", "pids", "all"], default="all")
     lk.add_argument("--limit", type=int, help="only this many entries (try a small sample first)")
     lk.add_argument("--model", default=None, help="Claude model id (default claude-opus-5-5 or $FUZER_LLM_MODEL)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
+    ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
+    ps.add_argument("--truth", default="data/fake/pid_truth.json")
     lk.add_argument("--workers", type=int, default=4, help="parallel requests")
     lk.add_argument("--batch", action="store_true", help="use the Batches API: half price, results within ~1 hour")
     lk.add_argument("--force", action="store_true", help="re-read entries that already have a result")
@@ -72,15 +75,25 @@ def main(argv=None):
             elif args.cmd == "ingest":
                 _print({"records": ingest.ingest(conn, args.data)})
             elif args.cmd == "llm-link":
-                from . import llm_links
+                from . import llm_links, llm_pids
 
                 opts = {k: v for k, v in {"model": args.model, "effort": args.effort}.items() if v}
-                result = llm_links.run(conn, pack, limit=args.limit, per_request=args.per_request,
-                                       workers=args.workers, batch=args.batch, force=args.force,
-                                       dry_run=args.dry_run, **opts)
+                common = {"limit": args.limit, "workers": args.workers, "batch": args.batch, "force": args.force,
+                          "dry_run": args.dry_run, **opts}
+                result = {}
+                if args.source in ("logs", "all"):
+                    result["logs"] = llm_links.run(conn, pack, per_request=args.per_request, **common)
+                if args.source in ("pids", "all"):
+                    result["pids"] = llm_pids.run(conn, pack, **common)
                 _print(result)
-                if not (args.dry_run or args.no_rebuild) and result.get("stored"):
+                if not (args.dry_run or args.no_rebuild) and any(r.get("stored") for r in result.values()):
                     _print(pipeline.rebuild(conn, pack))
+            elif args.cmd == "pid-score":
+                import json as _json
+
+                from . import llm_pids
+
+                _print(llm_pids.score(conn, _json.loads(open(args.truth).read())))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "demo":

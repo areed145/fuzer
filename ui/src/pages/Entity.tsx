@@ -77,6 +77,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <Records e={e} />
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
+          {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
           <Links edges={e.edges} asOf={asOf} />
         </>
@@ -271,6 +272,20 @@ function Events({ id }: { id: string }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function Drawing({ id }: { id: string }) {
+  const src = `/documents/${encodeURIComponent(id)}/image`;
+  return (
+    <section className="card">
+      <h2>
+        Scanned drawing <span className="muted small">tags read from it by Claude are listed under Mentions</span>
+      </h2>
+      <a href={src} target="_blank" rel="noreferrer">
+        <img className="drawing" src={src} alt="Scanned P&ID" />
+      </a>
     </section>
   );
 }
