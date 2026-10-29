@@ -81,6 +81,11 @@ def test_link_text(call):
     assert [(m["key"], bool(m["fuzer_id"])) for m in out] == [("A-03", True), ("20-V-2002", True)]
 
 
+def test_get_ontology(call):
+    o = call("get_ontology")
+    assert any(r["rel"] == "installed_at" and r["src_kind"] == "equipment" for r in o["relations"])
+
+
 def test_list_reviews(call):
     kinds = {r["kind"] for r in call("list_reviews")}
     assert kinds == {"match", "conflict"}

@@ -91,6 +91,51 @@ export type ReviewItem =
       payload: ConflictPayload;
     };
 
+export interface GraphNode {
+  id: string;
+  kind: string;
+  label: string | null;
+  description: string | null;
+}
+
+export interface GraphEdge {
+  id: number;
+  src: string;
+  rel: string;
+  dst: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  sources: string[];
+}
+
+export interface Subgraph {
+  root?: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  truncated: boolean;
+}
+
+export interface OntologyKind {
+  kind: string;
+  count: number;
+  fields: { field: string; count: number }[];
+  sources: { source: string; records: number }[];
+}
+
+export interface OntologyRelation {
+  src_kind: string;
+  rel: string;
+  dst_kind: string;
+  n: number;
+  dated: number;
+  sources: string[];
+}
+
+export interface Ontology {
+  kinds: OntologyKind[];
+  relations: OntologyRelation[];
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -124,6 +169,10 @@ export const api = {
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
   trace: (id: string, direction: "up" | "down", asOf?: string) =>
     request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf }),
+  ontology: () => request<Ontology>("GET", "/ontology"),
+  neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
+    request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
+  network: (asOf?: string) => request<Subgraph>("GET", "/network", { as_of: asOf }),
   reviews: (kind: "match" | "conflict") => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
 };

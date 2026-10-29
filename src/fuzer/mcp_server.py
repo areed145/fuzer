@@ -75,6 +75,15 @@ def get_stats() -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def get_ontology() -> dict[str, Any]:
+    """The data model as it exists in Fuzer: entity kinds with counts, fields and feeding sources,
+    and which link types connect which kinds (with counts and sources). Call this first when unsure
+    what can be asked."""
+    with db.connect() as conn:
+        return _plain(queries.ontology(conn))
+
+
+@server.tool(annotations=READ_ONLY)
 def search(query: str, kind: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Find entities by tag, well, PI point, serial number, source key or description text.
 

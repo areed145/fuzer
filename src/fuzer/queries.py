@@ -167,3 +167,125 @@ def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 10
         """,
         (status, kind, kind, limit),
     ).fetchall()
+
+
+def ontology(conn) -> dict:
+    """The data model as it actually exists: entity kinds, which link types join which kinds,
+    which fields each kind carries and which sources feed it."""
+    kinds = conn.execute(
+        "select kind, count(*) as n from entity where merged_into is null group by kind order by n desc"
+    ).fetchall()
+    relations = conn.execute(
+        """
+        select s.kind as src_kind, e.rel, d.kind as dst_kind, count(distinct e.id) as n,
+               count(distinct e.id) filter (where e.valid_from is not null or e.valid_to is not null) as dated,
+               array_agg(distinct s_src.name) as sources
+        from edge e
+        join entity s on s.fuzer_id = e.src
+        join entity d on d.fuzer_id = e.dst
+        cross join lateral unnest(e.sources) as s_src(name)
+        group by s.kind, e.rel, d.kind
+        order by n desc
+        """
+    ).fetchall()
+    fields = conn.execute(
+        """
+        select en.kind, g.field, count(*) as n
+        from golden g join entity en using (fuzer_id)
+        where en.merged_into is null
+        group by en.kind, g.field
+        order by en.kind, n desc, g.field
+        """
+    ).fetchall()
+    sources = conn.execute(
+        """
+        select en.kind, c.source, count(*) as n
+        from crosswalk c join entity en using (fuzer_id)
+        where en.merged_into is null
+        group by en.kind, c.source
+        order by en.kind, n desc
+        """
+    ).fetchall()
+    out_fields, out_sources = defaultdict(list), defaultdict(list)
+    for r in fields:
+        out_fields[r["kind"]].append({"field": r["field"], "count": r["n"]})
+    for r in sources:
+        out_sources[r["kind"]].append({"source": r["source"], "records": r["n"]})
+    return {
+        "kinds": [{"kind": k["kind"], "count": k["n"], "fields": out_fields[k["kind"]],
+                   "sources": out_sources[k["kind"]]} for k in kinds],
+        "relations": relations,
+    }
+
+
+_EDGE_DATES = """
+    (%(as_of)s::date is null
+     or ((e.valid_from is null or e.valid_from <= %(as_of)s::date)
+         and (e.valid_to is null or e.valid_to > %(as_of)s::date)))
+"""
+
+
+def _subgraph(conn, edges: list[dict], extra_nodes: set[str] = frozenset()) -> list[dict]:
+    ids = {e["src"] for e in edges} | {e["dst"] for e in edges} | set(extra_nodes)
+    return conn.execute(
+        """
+        select en.fuzer_id as id, en.kind, l.label, g.value as description
+        from entity en
+        left join entity_label l using (fuzer_id)
+        left join golden g on g.fuzer_id = en.fuzer_id and g.field = 'description'
+        where en.fuzer_id = any(%s)
+        """,
+        (list(ids),),
+    ).fetchall()
+
+
+def neighborhood(conn, fuzer_id: str, depth: int = 1, rels: list[str] | None = None,
+                 as_of: date | None = None, max_nodes: int = 250) -> dict:
+    """Entities within `depth` links of one entity, for graph exploration."""
+    seen, frontier, edges, truncated = {fuzer_id}, {fuzer_id}, {}, False
+    for _ in range(depth):
+        rows = conn.execute(
+            f"""
+            select e.id, e.src, e.rel, e.dst, e.valid_from, e.valid_to, e.sources
+            from edge e
+            where (e.src = any(%(f)s) or e.dst = any(%(f)s))
+              and (%(rels)s::text[] is null or e.rel = any(%(rels)s))
+              and {_EDGE_DATES}
+            order by e.rel, e.id
+            """,
+            {"f": list(frontier), "rels": rels, "as_of": as_of},
+        ).fetchall()
+        nxt = set()
+        for r in rows:
+            for n in (r["src"], r["dst"]):
+                if n not in seen:
+                    if len(seen) >= max_nodes:
+                        truncated = True
+                        break
+                    seen.add(n)
+                    nxt.add(n)
+            if r["src"] in seen and r["dst"] in seen:
+                edges[r["id"]] = r
+        frontier = nxt
+        if not frontier:
+            break
+    edge_list = list(edges.values())
+    return {"root": fuzer_id, "nodes": _subgraph(conn, edge_list, {fuzer_id}), "edges": edge_list,
+            "truncated": truncated}
+
+
+def network(conn, rel: str = "flows_to", as_of: date | None = None, max_edges: int = 5000) -> dict:
+    """Every link of one type (e.g. the whole flow / allocation network)."""
+    rows = conn.execute(
+        f"""
+        select e.id, e.src, e.rel, e.dst, e.valid_from, e.valid_to, e.sources
+        from edge e
+        where e.rel = %(rel)s and {_EDGE_DATES}
+        order by e.id
+        limit %(limit)s
+        """,
+        {"rel": rel, "as_of": as_of, "limit": max_edges + 1},
+    ).fetchall()
+    truncated = len(rows) > max_edges
+    rows = rows[:max_edges]
+    return {"nodes": _subgraph(conn, rows), "edges": rows, "truncated": truncated}

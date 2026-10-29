@@ -32,10 +32,20 @@ cd ui && npm install && npm run build   # then `fuzer serve` shows the UI at /
 npm run dev                             # or: live-reload UI at :5173 (keep `fuzer serve` running)
 ```
 
-Three screens: **Browse** (search everything), **entity detail** (chosen
-values and what each source says, source records, dated links, flow trace with
-an "as of" date) and **Review** (yes/no on possible matches, pick the right
-value when sources disagree).
+Screens:
+
+- **Browse**: search everything.
+- **Entity detail**: chosen values and what each source says, source records,
+  dated links, flow trace, all with an "as of" date. Its **Graph** tab draws
+  the neighbourhood (click a node for details, double-click to expand, filter
+  by link type, choose a layout).
+- **Ontology**: the data model as a diagram (kinds sized by count, link types
+  with counts) with physical / flow / data / documents views; click a kind for
+  its fields, field coverage and feeding sources.
+- **Network**: the whole production / allocation flow, left to right, as of
+  any date.
+- **Review**: yes/no on possible matches, pick the right value when sources
+  disagree.
 
 ### MCP server (AI agents)
 
@@ -45,7 +55,7 @@ uv run fuzer mcp --http    # streamable HTTP on http://127.0.0.1:8001/mcp
 ```
 
 Claude Code picks it up from `.mcp.json` in this folder (approve it once when
-asked). Read-only tools: `search`, `get_entity`, `trace_flow`,
+asked). Read-only tools: `get_ontology`, `search`, `get_entity`, `trace_flow`,
 `equipment_history`, `equipment_changes`, `link_text`, `list_reviews`,
 `get_stats`. Anything that takes a `ref` accepts a tag in any style, a well,
 a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production

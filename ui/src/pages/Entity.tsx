@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
-import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, useAsync } from "../lib";
+import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
+
+// The graph tab pulls in Cytoscape; load it only when opened.
+const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
 
 // How each edge reads from this entity's point of view: [outgoing, incoming].
 const REL_LABELS: Record<string, [string, string]> = {
@@ -13,7 +16,7 @@ const REL_LABELS: Record<string, [string, string]> = {
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
-export function Entity({ id }: { id: string }) {
+export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
   const [asOf, setAsOf] = useState("");
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
 
@@ -52,12 +55,29 @@ export function Entity({ id }: { id: string }) {
         </label>
       </header>
 
-      <div className="grid">
-        <Fields e={e} />
-        <Records e={e} />
+      <div className="tabs page-tabs">
+        <a className={tab === "details" ? "on" : ""} href={href(`/e/${encodeURIComponent(id)}`)}>
+          Details
+        </a>
+        <a className={tab === "graph" ? "on" : ""} href={href(`/e/${encodeURIComponent(id)}`, { tab: "graph" })}>
+          Graph
+        </a>
       </div>
-      {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
-      <Links edges={e.edges} asOf={asOf} />
+
+      {tab === "graph" ? (
+        <Suspense fallback={<Status loading />}>
+          <EntityGraph id={e.fuzer_id} asOf={asOf || undefined} />
+        </Suspense>
+      ) : (
+        <>
+          <div className="grid">
+            <Fields e={e} />
+            <Records e={e} />
+          </div>
+          {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
+          <Links edges={e.edges} asOf={asOf} />
+        </>
+      )}
     </article>
   );
 }

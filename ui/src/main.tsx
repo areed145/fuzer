@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode, Suspense, lazy, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
 import { CHANGED, href, useAsync, useRoute } from "./lib";
@@ -6,6 +6,10 @@ import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { Search } from "./pages/Search";
 import "./styles.css";
+
+// Graph views pull in Cytoscape; load them only when opened.
+const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
+const Network = lazy(() => import("./pages/Network").then((m) => ({ default: m.Network })));
 
 function App() {
   const { path, query } = useRoute();
@@ -30,6 +34,12 @@ function App() {
         <a className={section === "" || section === "e" ? "on" : ""} href={href("/")}>
           Browse
         </a>
+        <a className={section === "ontology" ? "on" : ""} href={href("/ontology")}>
+          Ontology
+        </a>
+        <a className={section === "network" ? "on" : ""} href={href("/network")}>
+          Network
+        </a>
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
@@ -43,13 +53,19 @@ function App() {
         {stats.error && <span className="error small">API not reachable</span>}
       </nav>
       <main>
-        {section === "e" && path[1] ? (
-          <Entity id={path[1]} />
-        ) : section === "review" ? (
-          <Review query={query} stats={s} />
-        ) : (
-          <Search query={query} stats={s} />
-        )}
+        <Suspense fallback={<div className="status">Loading…</div>}>
+          {section === "e" && path[1] ? (
+            <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
+          ) : section === "ontology" ? (
+            <Ontology />
+          ) : section === "network" ? (
+            <Network />
+          ) : section === "review" ? (
+            <Review query={query} stats={s} />
+          ) : (
+            <Search query={query} stats={s} />
+          )}
+        </Suspense>
       </main>
     </>
   );
