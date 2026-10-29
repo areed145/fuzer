@@ -13,6 +13,7 @@ without company data. Each source names things its own way on purpose:
 import csv
 import json
 import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -253,7 +254,11 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                      "facility": FACILITY, "author": big.choice(AUTHORS),
                      "text": _log_text(big, pumps, vessels, instruments, wells)})
 
+    notifications, work_orders = _maintenance(random.Random(seed + 3), equipment)
+
     _write_csv(out / "sap_floc.csv", floc)
+    _write_csv(out / "sap_notifications.csv", notifications)
+    _write_csv(out / "sap_work_orders.csv", work_orders)
     _write_csv(out / "sap_equipment.csv", equipment)
     _write_csv(out / "jde_assets.csv", jde)
     _write_csv(out / "maximo_assets.csv", maximo)
@@ -266,7 +271,67 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
         (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
     return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
-            "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs)}
+            "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),
+            "notifications": len(notifications), "work_orders": len(work_orders)}
+
+
+# SAP PM catalog codes per equipment type (mapped to ISO 14224 in the asset pack).
+DAMAGE = {"P": ["D01", "D02", "D03", "D05", "D06"], "K": ["D01", "D04", "D09", "D06"],
+          "E": ["D04", "D08", "D05"], "V": ["D07", "D08", "D02"]}
+DAMAGE_TEXT = {"D01": "High vibration on {d}", "D02": "Seal / flange leak on {d}", "D03": "{d} failed to start",
+               "D04": "High temperature on {d}", "D05": "Low output from {d}", "D06": "Abnormal noise from {d}",
+               "D07": "Level indication faulty on {d}", "D08": "Internal leak suspected on {d}",
+               "D09": "{d} tripped unexpectedly", "D10": "{d} broken down"}
+CAUSES = {"D01": ["C02", "C06", "C01"], "D02": ["C01", "C03"], "D03": ["C04", "C05"], "D04": ["C05", "C01"],
+          "D05": ["C01", "C05"], "D06": ["C01", "C06"], "D07": ["C04"], "D08": ["C03", "C01"], "D09": ["C04", "C02"],
+          "D10": ["C01"]}
+FAILURE_RATE = {"P": 0.8, "K": 1.0, "E": 0.3, "V": 0.2}  # notifications per item per year
+
+
+def _maintenance(rng: random.Random, equipment: list[dict]) -> tuple[list[dict], list[dict]]:
+    """A few years of SAP PM notifications and work orders (own random sequence)."""
+    notifications, orders = [], []
+
+    def order(n: dict | None, e: dict, start: str, activity: str, kind: str, text: str):
+        finish = _add_days(start, rng.randint(0, 10))
+        orders.append({"aufnr": str(40000000 + len(orders)), "order_type": kind, "qmnum": n["qmnum"] if n else "",
+                       "equnr": e["equnr"], "floc": e["floc"], "start": start, "finish": finish,
+                       "activity_code": activity, "cost": f"{rng.uniform(500, 40000):.0f}", "text": text})
+
+    for e in equipment:
+        func = re.match(r"[A-Z]+-\d{2}-([A-Z]+)", e["floc"]).group(1)
+        first = max(2019, int(e["valid_from"][:4]))
+        last = int(e["valid_to"][:4]) - 1 if e["valid_to"] else 2025
+        for year in range(first, last + 1):
+            for _ in range(sum(rng.random() < FAILURE_RATE[func] / 4 for _ in range(4))):
+                damage = rng.choice(DAMAGE[func])
+                created = f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}"
+                n = {"qmnum": str(10000000 + len(notifications)), "notif_type": "M1", "created": created,
+                     "equnr": e["equnr"], "floc": e["floc"], "priority": str(rng.randint(1, 4)),
+                     "short_text": DAMAGE_TEXT[damage].format(d=e["description"].lower()),
+                     "damage_code": damage, "cause_code": rng.choice(CAUSES[damage]), "status": "NOCO"}
+                notifications.append(n)
+                if rng.random() < 0.85:
+                    order(n, e, _add_days(created, rng.randint(0, 5)), rng.choice(["A01", "A02", "A03"]), "PM01",
+                          f"Corrective: {n['short_text']}")
+            if rng.random() < 0.5:  # preventive inspection
+                order(None, e, f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}", rng.choice(["A04", "A05"]),
+                      "PM02", f"Preventive maintenance {e['description'].lower()}")
+
+    # Planted: the 2024-01-01 trip of 20-P-1001B in the operator log got a notification the next day.
+    current = next(e for e in equipment if e["floc"].endswith("-20-P1001B") and not e["valid_to"])
+    n = {"qmnum": str(10000000 + len(notifications)), "notif_type": "M1", "created": "2024-01-02",
+         "equnr": current["equnr"], "floc": current["floc"], "priority": "2",
+         "short_text": "Separator oil pump B tripped on high vibration", "damage_code": "D01", "cause_code": "C06",
+         "status": "NOCO"}
+    notifications.append(n)
+    order(n, current, "2024-01-03", "A03", "PM01", "Realign pump and motor, check bearings")
+    return notifications, orders
+
+
+def _add_days(day: str, n: int) -> str:
+    from datetime import date, timedelta
+    return (date.fromisoformat(day) + timedelta(days=n)).isoformat()
 
 
 def _log_text(rng, pumps, vessels, instruments, wells) -> str:

@@ -158,6 +158,23 @@ Entity pages and agent tools return at most 100 (50 for agents) links per
 relationship with the true total, so hubs like "Pumps" stay fast; members of a
 class (including subtypes) or a model are listed with paging.
 
+### 10. Maintenance history (ISO 14224 reliability codes)
+SAP PM notifications and work orders become `notification` and `work_order`
+entities that `concerns` the equipment (by SAP equipment number) and the tag;
+work orders link `for_notification`. The standards file holds ISO 14224 failure
+modes, failure mechanisms, failure causes and maintenance activities; the pack's
+`maintenance_codes` maps the site's SAP catalog codes onto them. A notification on
+a tag within 3 days of a logged event on that tag is linked `related_to` it (one
+set-based statement). Failure history rolls up from a tag or piece of equipment
+to every instance of its model and every member of its class.
+
+### 11. Rebuild performance
+Rebuilds write in bulk (`COPY`), keep only reviewer choices as stored
+assertions (what each source says is re-derived from an entity's own records when
+its page is opened), skip per-row foreign-key checks on the tables they rebuild
+in full, and index only searchable text. At ~1/10 of a real asset (58k source
+records, 53k entities) a full rebuild takes about 7 s.
+
 ## Data model (Postgres)
 
 | Table | What it holds |
@@ -166,7 +183,7 @@ class (including subtypes) or a model are listed with paging.
 | `entity` | One row per Fuzer ID, with kind and `merged_into` |
 | `crosswalk` | Source record → Fuzer ID, with how it was matched |
 | `entity_key` | Canonical keys (tag key, serial, well key) → Fuzer ID |
-| `assertion` | Every field value from every source, plus reviewer choices |
+| `assertion` | Reviewer choices (per-source values are re-derived from records on demand) |
 | `golden` | The chosen value per entity and field, and why |
 | `edge` | Typed links with dates, sources and confidence |
 | `review_item` | Open/decided match and conflict questions |

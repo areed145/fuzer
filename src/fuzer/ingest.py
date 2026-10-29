@@ -19,6 +19,8 @@ CSV_FILES = {
     "maximo_assets.csv": ("maximo", "asset", "assetnum"),
     "pi_points.csv": ("pi", "point", "tag"),
     "oplogs.csv": ("oplog", "entry", "entry_id"),
+    "sap_notifications.csv": ("sap", "notification", "qmnum"),
+    "sap_work_orders.csv": ("sap", "work_order", "aufnr"),
 }
 
 

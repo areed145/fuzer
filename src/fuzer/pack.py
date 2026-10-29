@@ -20,6 +20,7 @@ class Pack:
     matching: dict
     survivorship: dict
     classification: dict
+    maintenance_codes: dict
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -37,4 +38,5 @@ def load_pack(name: str = "offshore_demo") -> Pack:
         matching=raw["matching"],
         survivorship=raw["survivorship"],
         classification=raw.get("classification", {}),
+        maintenance_codes=raw.get("maintenance_codes", {}),
     )

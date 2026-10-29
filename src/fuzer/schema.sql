@@ -45,7 +45,7 @@ create index if not exists crosswalk_fuzer_id on crosswalk (fuzer_id);
 create table if not exists entity_key (
     kind     text not null,
     key      text not null,
-    fuzer_id text not null references entity (fuzer_id),
+    fuzer_id text not null,
     primary key (kind, key, fuzer_id)
 );
 create index if not exists entity_key_fuzer_id on entity_key (fuzer_id);
@@ -59,10 +59,10 @@ select fuzer_id,
 from entity_key
 group by fuzer_id;
 
--- Every field value from every source. Reviewer choices use source = 'review'.
+-- Reviewer choices (source = 'review'). What each source says is re-derived from its records on demand.
 create table if not exists assertion (
     id          bigserial primary key,
-    fuzer_id    text not null references entity (fuzer_id),
+    fuzer_id    text not null,
     field       text not null,
     value       jsonb not null,
     source      text not null,
@@ -72,7 +72,7 @@ create table if not exists assertion (
 create index if not exists assertion_fuzer_id on assertion (fuzer_id, field);
 
 create table if not exists golden (
-    fuzer_id text not null references entity (fuzer_id),
+    fuzer_id text not null,
     field    text not null,
     value    jsonb not null,
     source   text not null,
@@ -82,9 +82,9 @@ create table if not exists golden (
 
 create table if not exists edge (
     id         bigserial primary key,
-    src        text not null references entity (fuzer_id),
+    src        text not null,
     rel        text not null,
-    dst        text not null references entity (fuzer_id),
+    dst        text not null,
     valid_from date,
     valid_to   date,
     sources    text[] not null,
@@ -124,7 +124,9 @@ do $$
 begin
     if exists (select 1 from pg_available_extensions where name = 'pg_trgm') then
         create extension if not exists pg_trgm;
-        create index if not exists golden_value_trgm on golden using gin ((value::text) gin_trgm_ops);
+        drop index if exists golden_value_trgm;
+        create index if not exists golden_search_trgm on golden using gin ((value::text) gin_trgm_ops)
+            where field in ('description', 'manufacturer', 'model', 'serial', 'short_text', 'text', 'title', 'summary');
         create index if not exists entity_key_trgm on entity_key using gin (key gin_trgm_ops);
         create index if not exists crosswalk_key_trgm on crosswalk using gin (source_key gin_trgm_ops);
     end if;
@@ -143,3 +145,13 @@ create table if not exists llm_extraction (
     created_at     timestamptz not null default now(),
     primary key (source, source_key)
 );
+
+-- These tables are rebuilt in full by every rebuild, which guarantees their IDs exist; per-row
+-- foreign-key checks on hundreds of thousands of rows cost more than they protect.
+alter table assertion drop constraint if exists assertion_fuzer_id_fkey;
+alter table golden drop constraint if exists golden_fuzer_id_fkey;
+alter table edge drop constraint if exists edge_src_fkey;
+alter table edge drop constraint if exists edge_dst_fkey;
+alter table entity_key drop constraint if exists entity_key_fuzer_id_fkey;
+-- Older versions also stored every source value here; only reviewer choices are kept now.
+delete from assertion where source <> 'review';

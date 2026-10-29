@@ -83,3 +83,24 @@ def trace(conn, start: str, rel: str = "flows_to", direction: str = "up",
         raise ValueError("direction must be 'up' or 'down'")
     params = {"start": start, "rel": rel, "depth": depth, "as_of": as_of}
     return conn.execute(_trace_sql(direction), params).fetchall()
+
+
+def link_maintenance_to_events(conn, days: int = 3) -> int:
+    """A notification on a tag within `days` of a logged event on that tag is probably the same
+    problem: link them (set-based, one statement)."""
+    return conn.execute(
+        """
+        insert into edge (src, rel, dst, sources, confidence, props)
+        select distinct on (n.src, ev.src) n.src, 'related_to', ev.src, array['fuzer'], 0.6,
+               jsonb_build_object('days_apart', abs(left(gn.value #>> '{}', 10)::date - left(ge.value #>> '{}', 10)::date))
+        from edge n
+        join entity en on en.fuzer_id = n.src and en.kind = 'notification'
+        join edge ev on ev.rel = 'involves' and ev.dst = n.dst
+        join golden gn on gn.fuzer_id = n.src and gn.field = 'created'
+        join golden ge on ge.fuzer_id = ev.src and ge.field = 'timestamp'
+        where n.rel = 'concerns'
+          and abs(left(gn.value #>> '{}', 10)::date - left(ge.value #>> '{}', 10)::date) <= %s
+        on conflict do nothing
+        """,
+        (days,),
+    ).rowcount

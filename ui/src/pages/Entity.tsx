@@ -18,6 +18,9 @@ const REL_LABELS: Record<string, [string, string]> = {
   classified_as: ["Class", "Members"],
   instance_of: ["Model", "Instances"],
   is_a: ["Is a", "Subtypes / models"],
+  concerns: ["Concerns", "Maintenance records"],
+  for_notification: ["For notification", "Work orders"],
+  related_to: ["Related events", "Related notifications"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
@@ -81,6 +84,9 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
           {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
+          {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
+            <MaintenanceCard id={e.fuzer_id} />
+          )}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
         </>
@@ -297,6 +303,56 @@ function Drawing({ id }: { id: string }) {
       <a href={src} target="_blank" rel="noreferrer">
         <img className="drawing" src={src} alt="Scanned P&ID" />
       </a>
+    </section>
+  );
+}
+
+function MaintenanceCard({ id }: { id: string }) {
+  const m = useAsync(() => api.maintenance(id), [id]);
+  if (!m.data?.total) return null;
+  const top = Math.max(...m.data.failure_modes.map((f) => f.count));
+  return (
+    <section className="card">
+      <h2>
+        Maintenance <span className="muted small">{m.data.total.toLocaleString()} SAP notifications</span>
+      </h2>
+      <div className="grid">
+        <div>
+          <h3>Failure modes (ISO 14224)</h3>
+          <ul className="coverage">
+            {m.data.failure_modes.map((f) => (
+              <li key={f.code ?? "none"}>
+                <span>{f.name ?? "Not coded"}</span>
+                <span className="bar">
+                  <span style={{ width: `${(100 * f.count) / top}%` }} />
+                </span>
+                <span className="muted small">{f.count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3>Recent</h3>
+          <ul className="timeline">
+            {m.data.recent.slice(0, 8).map((n) => (
+              <li key={n.id}>
+                <span className="when">{n.created}</span>
+                <div className="what">
+                  <div className="row">
+                    {n.failure_mode && <span className="badge event-type">{n.failure_mode}</span>}
+                    <a href={entityHref(n.id)}>{n.text}</a>
+                  </div>
+                  {n.work_orders.map((w) => (
+                    <div key={w.id} className="muted small">
+                      WO <a href={entityHref(w.id)}>{w.label}</a> · {w.activity} · {w.start}
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </section>
   );
 }

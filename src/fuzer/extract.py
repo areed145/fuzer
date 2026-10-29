@@ -18,6 +18,51 @@ def norm_serial(serial: str | None) -> str | None:
     return re.sub(r"^SN", "", s) or None
 
 
+def _iso(pack: Pack, kind: str, raw: str | None) -> tuple[str | None, str | None]:
+    """Site catalog code -> (ISO 14224 code, name) through the pack's maintenance_codes."""
+    from .taxonomy import load_standard
+
+    code = pack.maintenance_codes.get(kind, {}).get(raw) if raw else None
+    if not code:
+        return None, None
+    table = {"damage": "failure_modes", "cause": "failure_mechanisms", "activity": "maintenance_activities"}[kind]
+    return code, load_standard(pack.classification.get("taxonomy", "iso14224")).get(table, {}).get(code)
+
+
+def _maintenance_targets(c: Candidate, p: dict, pack: Pack) -> None:
+    if p.get("equnr"):
+        c.edges.append(Edge(("ref", c.ref), "concerns", ("ref", f"sap:equipment:{p['equnr']}"), "sap"))
+    if p.get("floc"):
+        c.edges.append(Edge(("ref", c.ref), "concerns", _floc_endpoint(p["floc"], pack), "sap"))
+
+
+def sap_notification(key, p, pack):
+    fields = _pick(p, "notif_type", "created", "priority", "status", "short_text", "damage_code", "cause_code")
+    fields["description"] = p.get("short_text", "")
+    mode, mode_name = _iso(pack, "damage", p.get("damage_code"))
+    mech, mech_name = _iso(pack, "cause", p.get("cause_code"))
+    if mode:
+        fields |= {"failure_mode": mode, "failure_mode_name": mode_name}
+    if mech:
+        fields |= {"failure_mechanism": mech, "failure_mechanism_name": mech_name}
+    c = Candidate("sap", "notification", key, "notification", key, fields)
+    _maintenance_targets(c, p, pack)
+    return [c], []
+
+
+def sap_work_order(key, p, pack):
+    fields = _pick(p, "order_type", "start", "finish", "activity_code", "cost", "text")
+    fields["description"] = p.get("text", "")
+    act, act_name = _iso(pack, "activity", p.get("activity_code"))
+    if act:
+        fields |= {"activity": act, "activity_name": act_name}
+    c = Candidate("sap", "work_order", key, "work_order", key, fields)
+    _maintenance_targets(c, p, pack)
+    if p.get("qmnum"):
+        c.edges.append(Edge(("ref", c.ref), "for_notification", ("notification", p["qmnum"]), "sap"))
+    return [c], []
+
+
 def _area_in(text: str | None) -> str | None:
     m = re.search(r"\b(\d{2})\b", text or "")
     return m.group(1) if m else None
@@ -154,6 +199,8 @@ def oplog_entry(key, p, pack):
 EXTRACTORS = {
     ("sap", "floc"): sap_floc,
     ("sap", "equipment"): sap_equipment,
+    ("sap", "notification"): sap_notification,
+    ("sap", "work_order"): sap_work_order,
     ("jde", "asset"): jde_asset,
     ("maximo", "asset"): maximo_asset,
     ("pi_af", "element"): af_element,

@@ -67,6 +67,7 @@ def rebuild(conn, pack: Pack) -> dict:
     lap("taxonomy")
 
     stats |= graph.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
+    stats["maintenance_event_links"] = graph.link_maintenance_to_events(conn)
     retire_unused(conn, set(assigned.values()) | set(d_assigned.values()))
     lap("graph")
     conn.commit()

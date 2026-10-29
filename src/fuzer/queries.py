@@ -48,6 +48,7 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
             select fuzer_id, 1 from crosswalk where %(q)s <> '' and source_key ilike %(like)s
             union all
             select fuzer_id, 2 from golden where %(q)s <> '' and value::text ilike %(like)s
+              and field in ('description', 'manufacturer', 'model', 'serial', 'short_text', 'text', 'title', 'summary')
         ), best as (
             select fuzer_id, min(rank) as rank from hits group by fuzer_id
         )
@@ -109,7 +110,37 @@ def resolve_ref(conn, pack: Pack, ref: str) -> str | None:
     return ids[0] if ids else None
 
 
-def entity(conn, fuzer_id: str, as_of: date | None = None, per_group: int = 100) -> dict | None:
+def source_values(conn, pack: Pack, fuzer_id: str) -> dict[str, list[dict]]:
+    """What each source says about one entity: its few records re-extracted on demand, plus
+    reviewer choices and derived values. Nothing per-source is stored for the whole register."""
+    from .extract import extract
+
+    values = defaultdict(list)
+    for rec in conn.execute(
+        """
+        select r.source, r.record_type, r.source_key, r.payload
+        from crosswalk c join source_record r using (source, record_type, source_key)
+        where c.fuzer_id = %s
+        """,
+        (fuzer_id,),
+    ):
+        for cand in extract(rec, pack)[0]:
+            for field, value in cand.fields.items():
+                values[field].append({"source": cand.source, "source_key": cand.source_key, "value": value})
+    for a in conn.execute(
+        """
+        select field, value, source, source_key from assertion where fuzer_id = %(id)s
+        union all
+        select field, value, source, null from golden where fuzer_id = %(id)s and rule = 'derived'
+        """,
+        {"id": fuzer_id},
+    ):
+        values[a["field"]].append({"source": a["source"], "source_key": a["source_key"], "value": a["value"]})
+    return {f: sorted(v, key=lambda x: x["source"]) for f, v in sorted(values.items())}
+
+
+def entity(conn, fuzer_id: str, as_of: date | None = None, per_group: int = 100,
+           pack: Pack | None = None) -> dict | None:
     ent = conn.execute("select * from entity where fuzer_id = %s", (fuzer_id,)).fetchone()
     if not ent:
         return None
@@ -118,10 +149,7 @@ def entity(conn, fuzer_id: str, as_of: date | None = None, per_group: int = 100)
 
     golden = {r["field"]: {"value": r["value"], "source": r["source"], "rule": r["rule"]}
               for r in conn.execute("select * from golden where fuzer_id = %s", (fuzer_id,))}
-    values = defaultdict(list)
-    for a in conn.execute("select field, value, source, source_key from assertion where fuzer_id = %s "
-                          "order by field, source", (fuzer_id,)):
-        values[a["field"]].append({"source": a["source"], "source_key": a["source_key"], "value": a["value"]})
+    values = source_values(conn, pack, fuzer_id) if pack else defaultdict(list)
     keys = conn.execute("select kind, key from entity_key where fuzer_id = %s", (fuzer_id,)).fetchall()
     records = conn.execute(
         "select source, record_type, source_key, method, confidence from crosswalk where fuzer_id = %s",
@@ -396,3 +424,70 @@ def members(conn, fuzer_id: str, kind: str | None = None, limit: int = 100, offs
     total = rows[0]["total"] if rows else 0
     return {"total": total, "offset": offset, "items": [{k: r[k] for k in ("fuzer_id", "kind", "label", "description")}
                                                         for r in rows]}
+
+
+
+def maintenance(conn, fuzer_id: str, since: str | None = None, limit: int = 50) -> dict:
+    """Notifications (with their work orders) for a tag, a piece of equipment, every instance of a
+    model, or every member of a class including subtypes; plus counts by ISO 14224 failure mode."""
+    params = {"id": fuzer_id, "since": since, "limit": limit}
+    scope = """
+        with recursive classes(id) as (
+            select %(id)s::text
+            union
+            select e.src from edge e join classes c on e.dst = c.id
+            where e.rel = 'is_a' and e.src in (select fuzer_id from entity where kind = 'equipment_class')
+        ), targets as (
+            select %(id)s::text as id
+            union select src from edge where rel = 'instance_of' and dst = %(id)s
+            union select src from edge where rel = 'classified_as' and dst in (select id from classes)
+        ), notifs as (
+            select distinct e.src as id
+            from edge e join entity en on en.fuzer_id = e.src and en.kind = 'notification' and en.retired_at is null
+            where e.rel = 'concerns' and e.dst in (select id from targets)
+        ), n as (
+            select notifs.id, jsonb_object_agg(g.field, g.value) as f
+            from notifs join golden g on g.fuzer_id = notifs.id
+            group by notifs.id
+        )
+    """
+    since_clause = "where (%(since)s::text is null or n.f->>'created' >= %(since)s)"
+    modes = conn.execute(scope + f"""
+        select n.f->>'failure_mode' as code, n.f->>'failure_mode_name' as name, count(*) as count
+        from n {since_clause}
+        group by 1, 2 order by count desc, code
+    """, params).fetchall()
+    recent = conn.execute(scope + f"""
+        select n.id, n.f from n {since_clause}
+        order by n.f->>'created' desc nulls last, n.id
+        limit %(limit)s
+    """, params).fetchall()
+    ids = [r["id"] for r in recent]
+    orders = defaultdict(list)
+    for r in conn.execute(
+        """
+        select e.dst as notification, w.fuzer_id as id, l.label, jsonb_object_agg(g.field, g.value) as f
+        from edge e
+        join entity w on w.fuzer_id = e.src
+        left join entity_label l on l.fuzer_id = w.fuzer_id
+        join golden g on g.fuzer_id = w.fuzer_id
+        where e.rel = 'for_notification' and e.dst = any(%s)
+        group by e.dst, w.fuzer_id, l.label
+        """,
+        (ids,),
+    ):
+        f = r["f"]
+        orders[r["notification"]].append({"id": r["id"], "label": r["label"], "order_type": f.get("order_type"),
+                                          "activity": f.get("activity_name"), "start": f.get("start"),
+                                          "finish": f.get("finish"), "cost": f.get("cost"), "text": f.get("text")})
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
+    return {
+        "total": sum(m["count"] for m in modes),
+        "failure_modes": modes,
+        "recent": [{"id": r["id"], "label": labels.get(r["id"]), "created": r["f"].get("created"),
+                    "type": r["f"].get("notif_type"), "priority": r["f"].get("priority"),
+                    "failure_mode": r["f"].get("failure_mode"), "failure_mode_name": r["f"].get("failure_mode_name"),
+                    "failure_mechanism_name": r["f"].get("failure_mechanism_name"),
+                    "text": r["f"].get("short_text"), "work_orders": orders[r["id"]]} for r in recent],
+    }

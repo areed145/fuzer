@@ -26,7 +26,8 @@ Entity kinds: facility, area, tag (a functional position such as 20-P-1001B), eq
 item installed at a tag, identified by serial number; pumps get swapped, tags stay), equipment_model
 (manufacturer + model), equipment_class (ISO 14224 category / class / type, e.g. ISO14224:PU.CE =
 centrifugal pumps), well (A-07, sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node,
-document (P&ID sheet), log_entry, event.
+document (P&ID sheet), log_entry, event, notification and work_order (SAP PM, with ISO 14224 failure
+mode / mechanism and maintenance activity).
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
 flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
@@ -54,6 +55,9 @@ REL_LABELS = {
     ("classified_as", "out"): "class", ("classified_as", "in"): "members",
     ("instance_of", "out"): "model", ("instance_of", "in"): "instances",
     ("is_a", "out"): "is_a", ("is_a", "in"): "subtypes",
+    ("concerns", "out"): "concerns", ("concerns", "in"): "maintenance",
+    ("for_notification", "out"): "notification", ("for_notification", "in"): "work_orders",
+    ("related_to", "out"): "related_events", ("related_to", "in"): "related_notifications",
 }
 
 
@@ -114,7 +118,7 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        e = queries.entity(conn, fid, _date(as_of), per_group=50)
+        e = queries.entity(conn, fid, _date(as_of), per_group=50, pack=PACK)
 
     values = {}
     for field, g in e["golden"].items():
@@ -248,6 +252,18 @@ def list_members(ref: str, kind: Literal["tag", "equipment"] | None = None, limi
         if err:
             return err
         return _plain({"of": fid, **queries.members(conn, fid, kind, min(limit, 500), offset)})
+
+
+@server.tool(annotations=READ_ONLY)
+def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """SAP notifications and work orders for a tag, a piece of equipment, every instance of a model, or a
+    whole class (e.g. "ISO14224:PU.CE"), newest first, with counts by ISO 14224 failure mode. since is a
+    date (YYYY-MM-DD). Use it for failure history and "what usually goes wrong with this model"."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"for": fid, **queries.maintenance(conn, fid, since, min(limit, 200))})
 
 
 @server.tool(annotations=READ_ONLY)

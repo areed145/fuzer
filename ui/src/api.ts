@@ -148,6 +148,22 @@ export interface FuzerEvent {
   log: { id: string; label: string | null; text: string | null } | null;
 }
 
+export interface Maintenance {
+  total: number;
+  failure_modes: { code: string | null; name: string | null; count: number }[];
+  recent: {
+    id: string;
+    label: string | null;
+    created: string | null;
+    type: string | null;
+    failure_mode: string | null;
+    failure_mode_name: string | null;
+    failure_mechanism_name: string | null;
+    text: string | null;
+    work_orders: { id: string; label: string | null; activity: string | null; start: string | null; cost: string | null }[];
+  }[];
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -182,6 +198,8 @@ export const api = {
   trace: (id: string, direction: "up" | "down", asOf?: string) =>
     request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf }),
   events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
+  maintenance: (id: string) =>
+    request<Maintenance>("GET", `/entities/${encodeURIComponent(id)}/maintenance`, { limit: 25 }),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
