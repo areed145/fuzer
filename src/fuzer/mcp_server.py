@@ -70,6 +70,7 @@ REL_LABELS = {
     ("applies_to", "out"): "applies_to", ("applies_to", "in"): "documents",
     ("supersedes", "out"): "supersedes", ("supersedes", "in"): "superseded_by",
     ("uses_part", "out"): "spare_parts", ("uses_part", "in"): "used_by",
+    ("pipes_to", "out"): "pipes_to", ("pipes_to", "in"): "piped_from",
 }
 
 
@@ -165,18 +166,20 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
 
 @server.tool(annotations=READ_ONLY)
 def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None,
-               max_depth: int = 10) -> dict[str, Any]:
+               max_depth: int = 10, network: Literal["allocation", "piping"] = "allocation") -> dict[str, Any]:
     """Follow the production / allocation network from an entity.
 
     direction "up" finds what feeds it (e.g. wells feeding a separator); "down" finds where it goes
     (e.g. separator -> surge drum -> fiscal meter -> sales point). as_of (YYYY-MM-DD) uses the routing
-    valid on that day; without it, all routings past and present are included.
+    valid on that day; without it, all routings past and present are included. network "piping" follows
+    process lines from the P&IDs instead of the Energy Components allocation network.
     """
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        rows = graph.trace(conn, fid, "flows_to", direction, _date(as_of), min(max_depth, 25))
+        rel = "pipes_to" if network == "piping" else "flows_to"
+        rows = graph.trace(conn, fid, rel, direction, _date(as_of), min(max_depth, 25))
     return _plain({
         "start": fid, "direction": direction, **({"as_of": as_of} if as_of else {}),
         "path": [{"depth": r["depth"], "id": r["fuzer_id"], "label": r["label"], "kind": r["kind"],

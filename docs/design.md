@@ -240,7 +240,15 @@ over section text). Spares for a tag (via what's installed), equipment or model
 list each part with stock (zero flagged), bin, how many units use it and the
 manual sections naming it.
 
-### 17. Performance at full size
+### 17. Piping from P&IDs
+Smart P&IDs carry piping (DEXPI-style from / to / line number) and the Claude
+drawing reader returns connections read off scans; both become directional
+`pipes_to` links between tags, kept apart from Energy Components' `flows_to`
+(allocation). The Network page switches between the two, flow traces can
+follow either, and a comparison lists EC flows with no piping path on the P&IDs
+and piping between EC nodes with no EC flow path (API and a Dagster check).
+
+### 18. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).
@@ -313,7 +321,7 @@ disappear; Dagster jobs (per-source assets, export-folder sensor, hourly /
 daily schedules, opt-in nightly Claude run, data-quality checks, failure
 webhook).
 
-Not yet: P&ID line tracing, Entra ID login, Azure deployment.
+Not yet: Entra ID login, Azure deployment.
 
 ## Roadmap
 

@@ -223,6 +223,17 @@ def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
                                metadata={"count": len(rows), "examples": dg.MetadataValue.json([dict(r) for r in rows])})
 
 
+@dg.asset_check(asset=register, description="Energy Components flows are backed by P&ID piping between the same tags.")
+def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from . import queries
+    with fuzer.connect() as conn:
+        diff = queries.compare_networks(conn, limit=20)
+    gaps = len(diff["in_ec_not_on_pids"])
+    return dg.AssetCheckResult(passed=gaps == 0, severity=dg.AssetCheckSeverity.WARN,
+                               metadata={"in_ec_not_on_pids": gaps, "on_pids_not_in_ec": len(diff["on_pids_not_in_ec"]),
+                                         "examples": dg.MetadataValue.json([dict(r) for r in diff["in_ec_not_on_pids"]])})
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -277,7 +288,7 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
-                  document_revisions],
+                  document_revisions, flow_vs_piping],
     jobs=[refresh_all, refresh_logs, claude_reading],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],
