@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from . import db, golden, graph, llm_links, llm_pids
 from .extract import extract
 from .pack import Pack
-from . import taxonomy
+from . import incidents, taxonomy
 from .resolve import resolve, resolve_keyed, retire_unused
 
 
@@ -70,8 +70,16 @@ def rebuild(conn, pack: Pack) -> dict:
 
     stats |= graph.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
     stats["maintenance_event_links"] = graph.link_maintenance_to_events(conn)
-    retire_unused(conn, set(assigned.values()) | set(d_assigned.values()))
     lap("graph")
+
+    # Incidents group signals that are only linked once the graph exists.
+    i_cands, i_edges = incidents.derive(conn)
+    i_assigned, _ = resolve_keyed(conn, i_cands)
+    golden.append(conn, i_cands, i_assigned, [])
+    incidents.write_edges(conn, i_edges, i_assigned)
+    stats["incidents"] = len(i_cands)
+    retire_unused(conn, set(assigned.values()) | set(d_assigned.values()) | set(i_assigned.values()))
+    lap("incidents")
     conn.commit()
     lap("commit")
     stats["seconds"] = timings

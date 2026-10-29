@@ -180,7 +180,17 @@ reason. DAY001 daily reports become `daily_report` entities with their figures,
 reader covers operator logs, daily report comments and downtime comments, each
 cached per record.
 
-### 12. Rebuild performance
+### 12. Incidents
+Logged events (`involves`), downtime (`caused_by`) and notifications (`concerns`)
+are signals on a tag; instrument tags roll up to the equipment tag they're
+`part_of`. Signals on a unit within 3 days of each other form a group, and a
+group with downtime or at least two kinds of signal becomes an `incident`
+(`about` the unit, `includes` each signal) with lost oil, failure modes and
+event types. Similar past incidents come from the same unit or class, ranked by
+shared failure modes and event types. Teams threads (#22) will join as another
+signal kind.
+
+### 13. Rebuild performance
 Rebuilds write in bulk (`COPY`), keep only reviewer choices as stored
 assertions (what each source says is re-derived from an entity's own records when
 its page is opened), skip per-row foreign-key checks on the tables they rebuild
