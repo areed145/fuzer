@@ -462,6 +462,8 @@ def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 
 
 def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
     db.database_url()  # start embedded Postgres up front if it's in use
+    with db.connect() as conn:
+        db.init_schema(conn)  # an older database gets any newer tables
     if http:
         server.run("streamable-http", host=host, port=port)
     else:
