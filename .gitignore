@@ -8,3 +8,4 @@ node_modules/
 ui/dist/
 .dagster/
 .env
+fakeplant/data/

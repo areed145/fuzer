@@ -2,18 +2,22 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from . import lake, offshore
+
+# All fake output lives here, one folder per asset (git-ignored).
+DATA = Path(__file__).resolve().parents[2] / "data"
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="fakeplant", description="Fake source exports for Fuzer.")
     sub = p.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("generate", help="write fake source exports")
-    g.add_argument("--out", default="data/fake")
+    g.add_argument("--out", default=None, help="output folder (default: fakeplant/data/<asset>)")
     d = sub.add_parser("demo", help="reset the Fuzer database, generate, ingest and rebuild")
-    d.add_argument("--data", dest="out", default="data/fake")
+    d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/<asset>)")
     d.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK, or onshore_demo for --asset onshore)")
     for x in (g, d):
         x.add_argument("--seed", type=int, default=7)
@@ -28,6 +32,7 @@ def main(argv=None):
         x.add_argument("--format", choices=["csv", "parquet"], default="csv",
                        help="parquet writes each table as a lake-style folder of Parquet part files")
     args = p.parse_args(argv)
+    args.out = args.out or str(DATA / args.asset)
 
     if args.cmd == "generate":
         _print(generate(args))
@@ -41,6 +46,8 @@ def main(argv=None):
             _print({"generated": generate(args)})
             _print({"ingested": ingest.ingest(conn, args.out)})
             _print(pipeline.rebuild(conn, pack))
+        if Path(args.out).resolve() != Path(os.environ.get("FUZER_DATA_DIR") or "data").resolve():
+            print(f"\nPoint Fuzer at this data with FUZER_DATA_DIR={args.out} (in .env) for ingest, eval and jobs.")
 
 
 def generate(args) -> dict:

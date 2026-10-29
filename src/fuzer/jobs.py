@@ -11,7 +11,7 @@ Assets: one per source export (each loads only its own file, as a full snapshot)
 - Asset checks on the register flag data-quality problems; failed runs post to
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
-Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data/fake),
+Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data),
 FUZER_PACK, FUZER_TIMEZONE (default UTC), FUZER_LLM_MODEL / FUZER_LLM_EFFORT.
 """
 
@@ -29,7 +29,7 @@ from .pack import load_pack
 class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack to use."""
 
-    data_dir: str = os.environ.get("FUZER_DATA_DIR", "data/fake")
+    data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
     pack: str = os.environ.get("FUZER_PACK", "offshore_demo")
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
 
