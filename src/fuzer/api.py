@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import db, graph, pipeline, queries
+from . import db, graph, knowledge, pipeline, queries
 from .pack import load_pack
 
 app = FastAPI(title="Fuzer", version="0.1.0")
@@ -162,6 +162,22 @@ def document_file(fuzer_id: str, conn=Depends(get_conn)):
     media = {".pdf": "application/pdf", ".md": "text/markdown; charset=utf-8"}.get(Path(row["path"]).suffix.lower(),
                                                                                  "text/plain; charset=utf-8")
     return FileResponse(row["path"], media_type=media)
+
+
+@app.get("/knowledge/search")
+def knowledge_search(q: str, ref: str | None = None, limit: int = 10, include_superseded: bool = False,
+                     conn=Depends(get_conn)):
+    """Cited passages from manuals, guides, procedures and past incidents, optionally scoped to an
+    entity (a Fuzer ID or any tag / well name) and what it relates to."""
+    fid = queries.resolve_ref(conn, PACK, ref) if ref else None
+    if ref and not fid:
+        raise HTTPException(404, f"nothing found for {ref!r}")
+    return knowledge.search(conn, q, fid, min(limit, 50), include_superseded)
+
+
+@app.get("/entities/{fuzer_id}/documents")
+def entity_documents(fuzer_id: str, conn=Depends(get_conn)):
+    return knowledge.documents_for(conn, fuzer_id)
 
 
 @app.get("/ontology")

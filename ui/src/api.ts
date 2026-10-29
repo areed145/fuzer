@@ -220,6 +220,29 @@ export interface TimelineItem {
   lost_oil_sm3: number | null;
 }
 
+export interface Passage {
+  id: string;
+  kind: string;
+  score: number;
+  document: string | null;
+  document_label: string | null;
+  title: string | null;
+  doc_type: string | null;
+  heading: string | null;
+  page: number | null;
+  snippet: string;
+  why?: string;
+}
+
+export interface DocRef {
+  id: string;
+  label: string;
+  title: string | null;
+  doc_type: string | null;
+  revision: string | null;
+  why: string;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -268,6 +291,8 @@ export const api = {
   incidentTimeline: (id: string) => request<TimelineItem[]>("GET", `/incidents/${encodeURIComponent(id)}/timeline`),
   similarIncidents: (id: string) =>
     request<(Incident & { score: number; same_unit: boolean })[]>("GET", `/incidents/${encodeURIComponent(id)}/similar`),
+  knowledgeSearch: (q: string, ref?: string) => request<Passage[]>("GET", "/knowledge/search", { q, ref, limit: 8 }),
+  documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
