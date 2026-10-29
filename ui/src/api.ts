@@ -295,6 +295,9 @@ export const api = {
   incidentReading: (id: string) =>
     request<{ id: string; document_label: string | null; heading: string | null; page: number | null;
               failure_modes: string[] }[]>("GET", `/incidents/${encodeURIComponent(id)}/reading`),
+  history: (id: string) =>
+    request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
+      "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>

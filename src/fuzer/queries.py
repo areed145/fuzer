@@ -741,3 +741,38 @@ def documents_with_several_current_revisions(conn, limit: int = 50) -> list[dict
         """,
         (limit,),
     ).fetchall()
+
+
+
+def record_history(conn, pack: Pack, fuzer_id: str, limit: int = 50) -> list[dict]:
+    """How the source records behind an entity changed: per change, the source record, when, and the
+    fields that changed (from -> to), newest first."""
+    rows = conn.execute(
+        """
+        with recs as (
+            select source, record_type, source_key from crosswalk where fuzer_id = %(id)s
+        )
+        select h.source, h.record_type, h.source_key, h.payload, h.replaced_at as at, h.change, h.id
+        from source_record_history h join recs using (source, record_type, source_key)
+        union all
+        select r.source, r.record_type, r.source_key, r.payload, null, 'current', null
+        from source_record r join recs using (source, record_type, source_key)
+        order by source, record_type, source_key, at nulls last, id
+        """,
+        {"id": fuzer_id},
+    ).fetchall()
+    changes, prev = [], {}
+    for r in rows:
+        key = (r["source"], r["record_type"], r["source_key"])
+        if key in prev:
+            before, when, kind = prev[key]
+            fields = sorted(set(before) | set(r["payload"]))
+            diff = {f: {"from": before.get(f), "to": r["payload"].get(f)} for f in fields
+                    if before.get(f) != r["payload"].get(f)}
+            changes.append({"record": ":".join(key), "at": when, "change": kind, "fields": diff})
+        if r["change"] == "removed":
+            changes.append({"record": ":".join(key), "at": r["at"], "change": "removed", "fields": {}})
+            prev.pop(key, None)
+        elif r["change"] != "current":
+            prev[key] = (r["payload"], r["at"], r["change"])
+    return sorted(changes, key=lambda c: c["at"], reverse=True)[:limit]

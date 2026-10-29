@@ -98,26 +98,43 @@ def read_records(data_dir: Path, exports: list[str] | None = None):
 def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = True) -> dict:
     """Load exports from data_dir (all of them, or the named ones). With snapshot (the default),
     each file is a full export: records of that source and type that are no longer in it are
-    removed, and the next rebuild retires their entities."""
-    rows = [(s, rt, k, Jsonb(p)) for s, rt, k, p in read_records(Path(data_dir), exports)]
+    removed. Every update or removal keeps the previous version in source_record_history."""
+    from . import db
+
+    conn.execute("drop table if exists source_record_stage")
+    conn.execute("create temp table source_record_stage (source text, record_type text, source_key text, "
+                 "payload jsonb) on commit drop")
+    n = db.copy_rows(conn, "source_record_stage", ["source", "record_type", "source_key", "payload"],
+                     ((s, rt, k, Jsonb(p)) for s, rt, k, p in read_records(Path(data_dir), exports)))
+    conn.execute("analyze source_record_stage")
+    match = "r.source = s.source and r.record_type = s.record_type and r.source_key = s.source_key"
+    loaded = "(r.source, r.record_type) in (select distinct source, record_type from source_record_stage)"
     removed = 0
     if snapshot:
-        loaded: dict[tuple[str, str], list[str]] = {}
-        for s, rt, k, _ in rows:
-            loaded.setdefault((s, rt), []).append(k)
-        for (s, rt), keys in loaded.items():
-            removed += conn.execute("delete from source_record where source = %s and record_type = %s "
-                                    "and source_key <> all(%s)", (s, rt, keys)).rowcount
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            insert into source_record (source, record_type, source_key, payload)
-            values (%s, %s, %s, %s)
-            on conflict (source, record_type, source_key)
-            do update set payload = excluded.payload, last_seen = now()
-            where source_record.payload is distinct from excluded.payload
-            """,
-            rows,
-        )
+        conn.execute(f"""
+            insert into source_record_history (source, record_type, source_key, payload, first_seen, change)
+            select r.source, r.record_type, r.source_key, r.payload, r.first_seen, 'removed'
+            from source_record r
+            where {loaded} and not exists (select 1 from source_record_stage s where {match})
+        """)
+        removed = conn.execute(f"""
+            delete from source_record r
+            where {loaded} and not exists (select 1 from source_record_stage s where {match})
+        """).rowcount
+    updated = conn.execute(f"""
+        insert into source_record_history (source, record_type, source_key, payload, first_seen, change)
+        select r.source, r.record_type, r.source_key, r.payload, r.first_seen, 'updated'
+        from source_record r join source_record_stage s on {match}
+        where r.payload is distinct from s.payload
+    """).rowcount
+    conn.execute(f"""
+        update source_record r set payload = s.payload, last_seen = now()
+        from source_record_stage s where {match} and r.payload is distinct from s.payload
+    """)
+    inserted = conn.execute(f"""
+        insert into source_record (source, record_type, source_key, payload)
+        select s.source, s.record_type, s.source_key, s.payload from source_record_stage s
+        where not exists (select 1 from source_record r where {match})
+    """).rowcount
     conn.commit()
-    return {"records": len(rows), "removed": removed}
+    return {"records": n, "inserted": inserted, "updated": updated, "removed": removed}

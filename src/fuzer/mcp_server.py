@@ -363,6 +363,17 @@ def documents_for(ref: str) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
+    """How the source records behind an entity changed: which system, when, and each field's old and new
+    value (e.g. a manufacturer corrected in SAP, a description edited, a record removed from an export)."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"for": fid, "changes": queries.record_history(conn, PACK, fid, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with
