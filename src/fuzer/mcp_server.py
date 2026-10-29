@@ -28,7 +28,8 @@ item installed at a tag, identified by serial number; pumps get swapped, tags st
 centrifugal pumps), well (A-07, sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node,
 document (P&ID sheet), log_entry, event, notification and work_order (SAP PM, with ISO 14224 failure
 mode / mechanism and maintenance activity), downtime (EC deferment: affects a well or the facility,
-caused_by tags, lost oil), daily_report (EC DAY001).
+caused_by tags, lost oil), daily_report (EC DAY001), incident (an upset on one unit: about the unit,
+includes its events, downtime and notifications).
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
 flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
@@ -62,6 +63,8 @@ REL_LABELS = {
     ("affects", "out"): "affects", ("affects", "in"): "downtime",
     ("caused_by", "out"): "caused_by", ("caused_by", "in"): "downtime_caused",
     ("reports_on", "out"): "reports_on", ("reports_on", "in"): "daily_reports",
+    ("about", "out"): "about", ("about", "in"): "incidents",
+    ("includes", "out"): "includes", ("includes", "in"): "in_incident",
 }
 
 
@@ -289,6 +292,33 @@ def downtime(ref: str | None = None, since: str | None = None, until: str | None
             if err:
                 return err
         return _plain({"for": fid or "facility", **queries.downtime(conn, fid, since, until, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
+def get_incidents(ref: str | None = None, since: str | None = None, until: str | None = None,
+                  limit: int = 20) -> dict[str, Any]:
+    """Incidents: logged events, downtime and SAP notifications on one piece of plant within a few days of
+    each other, grouped into one upset with lost oil, failure modes and event types. ref limits to a tag,
+    equipment, model or class (omit for the whole facility); since / until are dates."""
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain({"for": fid or "facility", **queries.incidents(conn, fid, since, until, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
+def incident_detail(ref: str) -> dict[str, Any]:
+    """One incident's timeline (every event, downtime record and notification in it, in order) and the
+    most similar past incidents on the same unit or equipment class: how those went is often the best clue."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"incident": fid, "timeline": queries.incident_timeline(conn, fid),
+                       "similar": queries.similar_incidents(conn, fid, 10)})
 
 
 @server.tool(annotations=READ_ONLY)

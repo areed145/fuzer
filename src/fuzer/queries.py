@@ -596,3 +596,110 @@ def downtime_reason_checks(conn, limit: int = 100) -> list[dict]:
         """,
         (limit,),
     ).fetchall()
+
+
+def incidents(conn, fuzer_id: str | None = None, since: str | None = None, until: str | None = None,
+              limit: int = 50) -> dict:
+    """Incidents facility-wide, or about a tag (an instrument counts toward its equipment), a piece of
+    equipment (via where it's installed), every instance of a model, or a class including subtypes."""
+    params = {"id": fuzer_id, "since": since, "until": until, "limit": limit}
+    rows = conn.execute(
+        """
+        with recursive classes(id) as (
+            select %(id)s::text
+            union
+            select e.src from edge e join classes c on e.dst = c.id
+            where e.rel = 'is_a' and e.src in (select fuzer_id from entity where kind = 'equipment_class')
+        ), base as (
+            select %(id)s::text as id
+            union select src from edge where rel = 'instance_of' and dst = %(id)s
+            union select src from edge where rel = 'classified_as' and dst in (select id from classes)
+        ), targets as (
+            select id from base
+            union select dst from edge where rel in ('installed_at', 'part_of') and src in (select id from base)
+        ), inc as (
+            select en.fuzer_id as id, jsonb_object_agg(g.field, g.value) as f
+            from entity en join golden g using (fuzer_id)
+            where en.kind = 'incident' and en.retired_at is null
+              and (%(id)s::text is null or en.fuzer_id in (
+                    select src from edge where rel = 'about' and dst in (select id from targets)))
+            group by en.fuzer_id
+        )
+        select inc.id, inc.f, count(*) over () as total from inc
+        where (%(since)s::text is null or inc.f->>'start' >= %(since)s)
+          and (%(until)s::text is null or inc.f->>'start' < %(until)s)
+        order by inc.f->>'start' desc, inc.id
+        limit %(limit)s
+        """,
+        params,
+    ).fetchall()
+    return {"total": rows[0]["total"] if rows else 0,
+            "items": [{"id": r["id"], **{k: v for k, v in r["f"].items() if k != "timestamp"}} for r in rows]}
+
+
+def incident_timeline(conn, fuzer_id: str) -> list[dict]:
+    """The signals in one incident, in time order."""
+    rows = conn.execute(
+        """
+        select s.fuzer_id as id, s.kind, l.label, jsonb_object_agg(g.field, g.value) as f
+        from edge e
+        join entity s on s.fuzer_id = e.dst
+        left join entity_label l on l.fuzer_id = s.fuzer_id
+        join golden g on g.fuzer_id = s.fuzer_id
+        where e.src = %s and e.rel = 'includes'
+        group by s.fuzer_id, s.kind, l.label
+        """,
+        (fuzer_id,),
+    ).fetchall()
+    out = []
+    for r in rows:
+        f = r["f"]
+        out.append({"id": r["id"], "kind": r["kind"], "label": r["label"],
+                    "at": f.get("timestamp") or f.get("start") or f.get("created"),
+                    "text": f.get("summary") or f.get("comment") or f.get("short_text") or f.get("description"),
+                    "detail": f.get("event_type") or f.get("reason") or f.get("failure_mode_name"),
+                    "lost_oil_sm3": f.get("lost_oil_sm3")})
+    return sorted(out, key=lambda x: (x["at"] or "", x["kind"]))
+
+
+def similar_incidents(conn, fuzer_id: str, limit: int = 10) -> list[dict]:
+    """Past incidents most like this one: same unit, same equipment class, shared failure modes and
+    event types. Candidates come only from incidents on units of the same class."""
+    me = conn.execute(
+        """
+        select a.dst as unit, c.dst as class, jsonb_object_agg(g.field, g.value) as f
+        from edge a
+        left join edge c on c.src = a.dst and c.rel = 'classified_as'
+        join golden g on g.fuzer_id = a.src
+        where a.src = %s and a.rel = 'about'
+        group by a.dst, c.dst
+        """,
+        (fuzer_id,),
+    ).fetchone()
+    if not me:
+        return []
+    rows = conn.execute(
+        """
+        select a.src as id, a.dst as unit, jsonb_object_agg(g.field, g.value) as f
+        from edge a
+        join golden g on g.fuzer_id = a.src
+        where a.rel = 'about' and a.src <> %(me)s
+          and (a.dst = %(unit)s or a.dst in (select src from edge where rel = 'classified_as' and dst = %(class)s))
+        group by a.src, a.dst
+        """,
+        {"me": fuzer_id, "unit": me["unit"], "class": me["class"]},
+    ).fetchall()
+
+    def jaccard(a, b):
+        a, b = set(a or []), set(b or [])
+        return len(a & b) / len(a | b) if a | b else 0.0
+
+    scored = []
+    for r in rows:
+        score = (1.0 if r["unit"] == me["unit"] else 0.0) + 0.5 \
+            + jaccard(me["f"].get("failure_modes"), r["f"].get("failure_modes")) \
+            + jaccard(me["f"].get("event_types"), r["f"].get("event_types"))
+        scored.append({"id": r["id"], "score": round(score, 2), "same_unit": r["unit"] == me["unit"],
+                       **{k: r["f"].get(k) for k in ("description", "start", "end", "lost_oil_sm3", "failure_modes",
+                                                    "event_types")}})
+    return sorted(scored, key=lambda x: (-x["score"], x["start"] or ""), reverse=False)[:limit]

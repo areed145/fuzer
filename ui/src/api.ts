@@ -195,6 +195,31 @@ export interface RankRow {
   hours: number;
 }
 
+export interface Incident {
+  id: string;
+  description: string;
+  unit: string;
+  start: string;
+  end: string;
+  signals: number;
+  events: number;
+  downtime_records: number;
+  notifications: number;
+  lost_oil_sm3: number;
+  failure_modes?: string[];
+  event_types?: string[];
+}
+
+export interface TimelineItem {
+  id: string;
+  kind: string;
+  label: string | null;
+  at: string | null;
+  text: string | null;
+  detail: string | null;
+  lost_oil_sm3: number | null;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -237,6 +262,12 @@ export const api = {
     request<RankRow[]>("GET", "/downtime/ranking", { by, since, limit: 15 }),
   reasonChecks: () =>
     request<{ fuzer_id: string; label: string; issue: string; start: string }[]>("GET", "/downtime/reason-checks"),
+  incidents: (id?: string) =>
+    request<{ total: number; items: Incident[] }>(
+      "GET", id ? `/entities/${encodeURIComponent(id)}/incidents` : "/incidents", { limit: 100 }),
+  incidentTimeline: (id: string) => request<TimelineItem[]>("GET", `/incidents/${encodeURIComponent(id)}/timeline`),
+  similarIncidents: (id: string) =>
+    request<(Incident & { score: number; same_unit: boolean })[]>("GET", `/incidents/${encodeURIComponent(id)}/similar`),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),

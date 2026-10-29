@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
+import { IncidentDetail, IncidentList } from "./Incidents";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -24,6 +25,8 @@ const REL_LABELS: Record<string, [string, string]> = {
   affects: ["Affects", "Downtime"],
   caused_by: ["Caused by", "Downtime caused"],
   reports_on: ["Reports on", "Daily reports"],
+  about: ["About", "Incidents"],
+  includes: ["Includes", "Part of incident"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
@@ -89,6 +92,10 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <MaintenanceCard id={e.fuzer_id} />
+          )}
+          {e.kind === "incident" && <IncidentDetail id={e.fuzer_id} />}
+          {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
+            <IncidentsCard id={e.fuzer_id} />
           )}
           {["tag", "equipment", "equipment_model", "equipment_class", "well", "facility"].includes(e.kind) && (
             <DowntimeCard id={e.fuzer_id} />
@@ -391,6 +398,19 @@ function DowntimeCard({ id }: { id: string }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function IncidentsCard({ id }: { id: string }) {
+  const d = useAsync(() => api.incidents(id), [id]);
+  if (!d.data?.total) return null;
+  return (
+    <section>
+      <h2>
+        Incidents <span className="muted small">{d.data.total.toLocaleString()}</span>
+      </h2>
+      <IncidentList items={d.data.items.slice(0, 8)} />
     </section>
   );
 }

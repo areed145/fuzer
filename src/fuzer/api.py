@@ -125,6 +125,27 @@ def entity_downtime(fuzer_id: str, since: str | None = None, until: str | None =
     return queries.downtime(conn, fuzer_id, since, until, min(limit, 1000))
 
 
+@app.get("/incidents")
+def all_incidents(since: str | None = None, until: str | None = None, limit: int = 50, conn=Depends(get_conn)):
+    return queries.incidents(conn, None, since, until, min(limit, 1000))
+
+
+@app.get("/entities/{fuzer_id}/incidents")
+def entity_incidents(fuzer_id: str, since: str | None = None, until: str | None = None, limit: int = 50,
+                     conn=Depends(get_conn)):
+    return queries.incidents(conn, fuzer_id, since, until, min(limit, 1000))
+
+
+@app.get("/incidents/{fuzer_id}/timeline")
+def incident_timeline(fuzer_id: str, conn=Depends(get_conn)):
+    return queries.incident_timeline(conn, fuzer_id)
+
+
+@app.get("/incidents/{fuzer_id}/similar")
+def similar_incidents(fuzer_id: str, limit: int = 10, conn=Depends(get_conn)):
+    return queries.similar_incidents(conn, fuzer_id, min(limit, 100))
+
+
 @app.get("/ontology")
 def ontology(conn=Depends(get_conn)):
     return queries.ontology(conn)
