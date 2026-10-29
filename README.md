@@ -23,6 +23,22 @@ uv run pytest              # always uses a throwaway embedded Postgres
 Without Docker, skip the first two lines and run `uv sync --extra local`;
 Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
 
+### Web UI
+
+Needs Node 20+.
+
+```sh
+cd ui && npm install && npm run build   # then `fuzer serve` shows the UI at /
+npm run dev                             # or: live-reload UI at :5173 (keep `fuzer serve` running)
+```
+
+Three screens: **Browse** (search everything), **entity detail** (chosen
+values and what each source says, source records, dated links, flow trace with
+an "as of" date) and **Review** (yes/no on possible matches, pick the right
+value when sources disagree).
+
+### API
+
 Try:
 
 ```sh
@@ -44,4 +60,5 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
 | `src/fuzer/golden.py` | Per-field survivorship and conflict review |
 | `src/fuzer/graph.py` | Dated edges and flow tracing |
-| `src/fuzer/api.py` | REST API |
+| `src/fuzer/api.py` | REST API (also serves the built UI) |
+| `ui/` | React + TypeScript web UI (Vite) |

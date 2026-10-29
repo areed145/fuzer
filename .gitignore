@@ -4,3 +4,5 @@ __pycache__/
 .fuzer/
 data/
 *.egg-info/
+node_modules/
+ui/dist/
