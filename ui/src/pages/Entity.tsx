@@ -26,6 +26,8 @@ const REL_LABELS: Record<string, [string, string]> = {
   caused_by: ["Caused by", "Downtime caused"],
   reports_on: ["Reports on", "Daily reports"],
   about: ["About", "Incidents"],
+  applies_to: ["Applies to", "Documents"],
+  supersedes: ["Supersedes", "Superseded by"],
   includes: ["Includes", "Part of incident"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
@@ -90,6 +92,33 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
           {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
+          {e.kind === "document" && e.golden.doc_type && (
+            <section className="card">
+              <div className="row spread">
+                <h2>
+                  {fmt(e.golden.title?.value)}{" "}
+                  <span className="muted small">
+                    {fmt(e.golden.doc_type.value).replace("_", " ")} · rev {fmt(e.golden.revision?.value)} ·{" "}
+                    {fmt(e.golden.status?.value)}
+                  </span>
+                </h2>
+                <a className="button" href={`/documents/${encodeURIComponent(e.fuzer_id)}/file`} target="_blank"
+                   rel="noreferrer">Open document</a>
+              </div>
+              {e.golden.status?.value === "superseded" && (
+                <p className="error small">This revision is superseded; see "Superseded by" below.</p>
+              )}
+            </section>
+          )}
+          {e.kind === "document_section" && (
+            <section className="card">
+              <h2>
+                {fmt(e.golden.heading?.value)}{" "}
+                {e.golden.page && <span className="muted small">page {fmt(e.golden.page.value)}</span>}
+              </h2>
+              <p className="section-text">{fmt(e.golden.text?.value)}</p>
+            </section>
+          )}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <MaintenanceCard id={e.fuzer_id} />
           )}

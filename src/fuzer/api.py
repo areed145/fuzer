@@ -146,6 +146,24 @@ def similar_incidents(fuzer_id: str, limit: int = 10, conn=Depends(get_conn)):
     return queries.similar_incidents(conn, fuzer_id, min(limit, 100))
 
 
+@app.get("/documents/{fuzer_id}/file", include_in_schema=False)
+def document_file(fuzer_id: str, conn=Depends(get_conn)):
+    """The file behind a document (manual, guide, procedure): PDF, Markdown or text."""
+    row = conn.execute(
+        """
+        select r.payload->>'file_path' as path
+        from crosswalk c join source_record r using (source, record_type, source_key)
+        where c.fuzer_id = %s and c.source = 'edms' and c.record_type = 'document'
+        """,
+        (fuzer_id,),
+    ).fetchone()
+    if not row or not row["path"] or not Path(row["path"]).is_file():
+        raise HTTPException(404, "no file for this document")
+    media = {".pdf": "application/pdf", ".md": "text/markdown; charset=utf-8"}.get(Path(row["path"]).suffix.lower(),
+                                                                                 "text/plain; charset=utf-8")
+    return FileResponse(row["path"], media_type=media)
+
+
 @app.get("/ontology")
 def ontology(conn=Depends(get_conn)):
     return queries.ontology(conn)

@@ -198,6 +198,15 @@ def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          "examples": dg.MetadataValue.json([dict(r) for r in rows])})
 
 
+@dg.asset_check(asset=register, description="Each document number has one current revision.")
+def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from . import queries
+    with fuzer.connect() as conn:
+        rows = queries.documents_with_several_current_revisions(conn)
+    return dg.AssetCheckResult(passed=not rows, severity=dg.AssetCheckSeverity.WARN,
+                               metadata={"count": len(rows), "examples": dg.MetadataValue.json([dict(r) for r in rows])})
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -251,7 +260,8 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 
 defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads],
-    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes],
+    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
+                  document_revisions],
     jobs=[refresh_all, refresh_logs, claude_reading],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],

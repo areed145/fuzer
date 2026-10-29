@@ -190,7 +190,18 @@ event types. Similar past incidents come from the same unit or class, ranked by
 shared failure modes and event types. Teams threads (#22) will join as another
 signal kind.
 
-### 13. Performance at full size
+### 13. Documents
+An EDMS-style export (manifest + files) is read into one `document` entity per
+revision (number, revision, type, status, effective date) and one
+`document_section` per section (heading, page, text), split on Markdown headings
+or numbered PDF headings with page numbers kept; PDFs without a text layer are
+flagged for OCR. Revisions link `supersedes`. EDMS metadata gives the first
+links: an OEM manual `applies_to` its equipment model (manufacturer spellings
+folded as for equipment), a procedure to its class, a guide to the tags it
+references; sections `mentions` the tags in their text. A SharePoint / EDMS
+connector replaces the folder later.
+
+### 14. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).

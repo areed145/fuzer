@@ -29,7 +29,9 @@ centrifugal pumps), well (A-07, sidetracks as "A-07 ST1"), timeseries (a PI poin
 document (P&ID sheet), log_entry, event, notification and work_order (SAP PM, with ISO 14224 failure
 mode / mechanism and maintenance activity), downtime (EC deferment: affects a well or the facility,
 caused_by tags, lost oil), daily_report (EC DAY001), incident (an upset on one unit: about the unit,
-includes its events, downtime and notifications).
+includes its events, downtime and notifications), document (P&ID sheet, OEM manual, troubleshooting
+guide or procedure revision; applies_to models / classes / tags; supersedes older revisions),
+document_section (a section of a document, part_of it, with heading, page and text).
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
 flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
@@ -65,6 +67,8 @@ REL_LABELS = {
     ("reports_on", "out"): "reports_on", ("reports_on", "in"): "daily_reports",
     ("about", "out"): "about", ("about", "in"): "incidents",
     ("includes", "out"): "includes", ("includes", "in"): "in_incident",
+    ("applies_to", "out"): "applies_to", ("applies_to", "in"): "documents",
+    ("supersedes", "out"): "supersedes", ("supersedes", "in"): "superseded_by",
 }
 
 

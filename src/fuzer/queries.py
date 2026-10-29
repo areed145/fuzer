@@ -723,3 +723,21 @@ def similar_incidents(conn, fuzer_id: str, limit: int = 10) -> list[dict]:
                        **{k: r["f"].get(k) for k in ("description", "start", "end", "lost_oil_sm3", "failure_modes",
                                                     "event_types")}})
     return sorted(scored, key=lambda x: (-x["score"], x["start"] or ""), reverse=False)[:limit]
+
+
+
+def documents_with_several_current_revisions(conn, limit: int = 50) -> list[dict]:
+    """Document numbers the EDMS lists as current in more than one revision."""
+    return conn.execute(
+        """
+        select n.value #>> '{}' as doc_number, array_agg(l.label order by l.label) as revisions
+        from golden n
+        join golden st on st.fuzer_id = n.fuzer_id and st.field = 'status' and st.value #>> '{}' = 'current'
+        join entity e on e.fuzer_id = n.fuzer_id and e.kind = 'document' and e.retired_at is null
+        left join entity_label l on l.fuzer_id = n.fuzer_id
+        where n.field = 'doc_number'
+        group by 1 having count(*) > 1
+        order by 1 limit %s
+        """,
+        (limit,),
+    ).fetchall()
