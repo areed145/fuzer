@@ -9,7 +9,7 @@ source is. Questions match on any of their words, so full sentences still find p
 
 from . import db
 
-AUTHORITY = {"oem_manual": 1.0, "procedure": 1.0, "troubleshooting_guide": 0.9, "incident": 0.7}
+AUTHORITY = {"oem_manual": 1.0, "procedure": 1.0, "troubleshooting_guide": 0.9, "lesson": 0.85, "incident": 0.7}
 COLS = ["fuzer_id", "kind", "document", "title", "doc_type", "status", "heading", "page", "body", "scope_ids",
         "failure_modes"]
 MODE_BOOST = 1.5  # a passage about the failure mode you're dealing with
@@ -52,7 +52,9 @@ def build(conn) -> dict:
         where i.kind = 'incident' and i.retired_at is null
         """
     ).fetchall()
-    return db.sync_table(conn, "knowledge_index", ["fuzer_id"], COLS[1:], [tuple(r[c] for c in COLS) for r in rows])
+    from . import lessons
+    items = [tuple(r[c] for c in COLS) for r in rows] + lessons.knowledge_rows(conn)
+    return db.sync_table(conn, "knowledge_index", ["fuzer_id"], COLS[1:], items)
 
 
 def scope(conn, fuzer_id: str) -> dict[str, tuple[float, str]]:

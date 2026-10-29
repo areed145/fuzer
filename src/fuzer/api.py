@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import db, graph, knowledge, pipeline, queries
+from . import db, graph, knowledge, lessons, pipeline, queries
 from .pack import load_pack
 
 app = FastAPI(title="Fuzer", version="0.1.0")
@@ -190,6 +190,26 @@ def knowledge_search(q: str, ref: str | None = None, limit: int = 10, include_su
 @app.get("/entities/{fuzer_id}/documents")
 def entity_documents(fuzer_id: str, conn=Depends(get_conn)):
     return knowledge.documents_for(conn, fuzer_id)
+
+
+@app.get("/lessons")
+def lesson_list(status: str | None = "suggested", limit: int = 100, conn=Depends(get_conn)):
+    return lessons.listing(conn, status if status != "all" else None, min(limit, 1000))
+
+
+class LessonDecision(BaseModel):
+    decision: Literal["approve", "reject", "edit"]
+    text: str | None = None
+    by: str = "anonymous"
+
+
+@app.post("/lessons/{lesson_id}")
+def lesson_decide(lesson_id: int, d: LessonDecision, conn=Depends(get_conn)):
+    if (row := lessons.decide(conn, lesson_id, d.decision, d.by, d.text)) is None:
+        raise HTTPException(404, "unknown lesson")
+    knowledge.build(conn)  # approved lessons appear in search straight away
+    conn.commit()
+    return row
 
 
 @app.get("/ontology")

@@ -222,7 +222,17 @@ sections in scope of its unit that cover its failure modes.
 Embeddings (pgvector) can be added beside full text once an embedding model is
 chosen (an external service).
 
-### 15. Performance at full size
+### 15. Lessons learned
+Per equipment model (or class) and ISO 14224 failure mode, incidents with
+corrective work orders draft a lesson: the corrective actions that were done,
+how many incidents it rests on, and how often the fix held for 30 days, with the
+incidents as evidence. Lessons live in their own table: engineers approve, edit
+or reject them on the Lessons page, and rebuilds refresh only a draft's evidence
+and numbers. Approved lessons join knowledge search (authority between site
+guides and past incidents), scoped to their model or class. Teams thread
+summaries (#22) will feed the same drafts.
+
+### 16. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).
