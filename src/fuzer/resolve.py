@@ -14,6 +14,7 @@ from itertools import combinations
 from psycopg.types.json import Jsonb
 from rapidfuzz import fuzz, utils
 
+from . import db
 from .model import Candidate
 from .pack import Pack
 
@@ -121,8 +122,7 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             partners[cl.find(a.ref)].add(cl.find(b.ref))
             partners[cl.find(b.ref)].add(cl.find(a.ref))
 
-    conn.execute("update review_item set status = 'stale' where kind = 'match' and status = 'open'")
-    n_review = 0
+    reviews = []
     for s, a, b, why in best.values():
         ambiguous = len(partners[cl.find(a.ref)]) > 1 or len(partners[cl.find(b.ref)]) > 1
         if s >= cfg["auto_accept"] and not ambiguous and cl.union(a.ref, b.ref):
@@ -132,9 +132,9 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             if ambiguous:
                 why += "; more than one possible match"
             left, right = sorted((a, b), key=lambda c: c.ref)
-            upsert_review(conn, "match", f"{left.ref}|{right.ref}",
-                           {"left": _summary(left), "right": _summary(right), "score": s, "why": why})
-            n_review += 1
+            reviews.append((f"{left.ref}|{right.ref}",
+                            {"left": _summary(left), "right": _summary(right), "score": s, "why": why}))
+    replace_open_reviews(conn, "match", reviews)
 
     assigned = _assign_ids(conn, cl.groups(), by_ref)
 
@@ -144,17 +144,21 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             c = by_ref[r]
             method, conf = methods.get(r, ("singleton", 1.0)) if len(g) > 1 else ("singleton", 1.0)
             crosswalk.append((c.source, c.record_type, c.source_key, assigned[r], method, conf))
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            insert into crosswalk (source, record_type, source_key, fuzer_id, method, confidence)
-            values (%s, %s, %s, %s, %s, %s)
-            on conflict (source, record_type, source_key) do update
-            set fuzer_id = excluded.fuzer_id, method = excluded.method,
-                confidence = excluded.confidence, updated_at = now()
-            """,
-            crosswalk,
-        )
+    # Upsert through a staging table: one COPY instead of one INSERT per record.
+    cols = ["source", "record_type", "source_key", "fuzer_id", "method", "confidence"]
+    conn.execute("create temp table crosswalk_new (like crosswalk including defaults) on commit drop")
+    db.copy_rows(conn, "crosswalk_new", cols, crosswalk)
+    conn.execute(
+        """
+        insert into crosswalk (source, record_type, source_key, fuzer_id, method, confidence)
+        select source, record_type, source_key, fuzer_id, method, confidence from crosswalk_new
+        on conflict (source, record_type, source_key) do update
+        set fuzer_id = excluded.fuzer_id, method = excluded.method,
+            confidence = excluded.confidence, updated_at = now()
+        where (crosswalk.fuzer_id, crosswalk.method, crosswalk.confidence)
+              is distinct from (excluded.fuzer_id, excluded.method, excluded.confidence)
+        """
+    )
 
     key_index = defaultdict(set)
     for c in cands:
@@ -163,15 +167,14 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             if c.kind == "tag":
                 key_index[("tag_noarea", c.key.split("-", 1)[1])].add(assigned[c.ref])
     conn.execute("delete from entity_key")
-    with conn.cursor() as cur:
-        cur.executemany("insert into entity_key (kind, key, fuzer_id) values (%s, %s, %s)",
-                        [(k, key, fid) for (k, key), fids in key_index.items() for fid in fids])
+    db.copy_rows(conn, "entity_key", ["kind", "key", "fuzer_id"],
+                 ((k, key, fid) for (k, key), fids in key_index.items() for fid in fids))
 
     stats = {
         "candidates": len(cands),
         "entities": len(set(assigned.values())),
         "merged_clusters": sum(1 for g in cl.groups() if len(g) > 1),
-        "match_reviews": n_review,
+        "match_reviews": len(reviews),
     }
     return assigned, key_index, stats
 
@@ -179,38 +182,54 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
 def _assign_ids(conn, groups, by_ref) -> dict[str, str]:
     existing = {r["ref"]: r["fuzer_id"] for r in conn.execute(
         "select source || ':' || record_type || ':' || source_key as ref, fuzer_id from crosswalk")}
-    assigned, taken = {}, set()
+    assigned, taken, minted, events = {}, set(), [], []
     for g in sorted(groups, key=len, reverse=True):
         votes = Counter(existing[r] for r in g if r in existing)
         fid = next((f for f, _ in votes.most_common() if f not in taken), None)
         if fid is None:
             kind = by_ref[next(iter(g))].kind
             fid = f"fz-{kind}-{uuid.uuid4().hex[:12]}"
-            conn.execute("insert into entity (fuzer_id, kind) values (%s, %s)", (fid, kind))
+            minted.append((fid, kind))
             if votes:
-                conn.execute("insert into id_event (event, fuzer_id, other_id) values ('split', %s, %s)",
-                             (fid, votes.most_common(1)[0][0]))
+                events.append(("split", fid, votes.most_common(1)[0][0]))
         taken.add(fid)
         for r in g:
             assigned[r] = fid
+    db.copy_rows(conn, "entity", ["fuzer_id", "kind"], minted)
 
-    conn.execute("update entity set merged_into = null where fuzer_id = any(%s)", (list(taken),))
-    for old in set(existing.values()) - taken:
-        winners = Counter(assigned[r] for r, f in existing.items() if f == old and r in assigned)
+    conn.execute("update entity set merged_into = null where merged_into is not null and fuzer_id = any(%s)",
+                 (list(taken),))
+    refs_by_old = defaultdict(list)
+    for r, f in existing.items():
+        refs_by_old[f].append(r)
+    merges = []
+    for old in set(refs_by_old) - taken:
+        winners = Counter(assigned[r] for r in refs_by_old[old] if r in assigned)
         if winners:
-            new = winners.most_common(1)[0][0]
-            conn.execute("update entity set merged_into = %s where fuzer_id = %s", (new, old))
-            conn.execute("insert into id_event (event, fuzer_id, other_id) values ('merge', %s, %s)", (old, new))
+            merges.append((winners.most_common(1)[0][0], old))
+            events.append(("merge", old, merges[-1][0]))
+    # Entities no record maps to any more are retired, not deleted, and revived if a record returns.
+    conn.execute("update entity set retired_at = null where retired_at is not null and fuzer_id = any(%s)",
+                 (list(taken),))
+    conn.execute("update entity set retired_at = now() where retired_at is null and merged_into is null "
+                 "and fuzer_id <> all(%s)", (list(taken),))
+    with conn.cursor() as cur:
+        cur.executemany("update entity set merged_into = %s where fuzer_id = %s", merges)
+        cur.executemany("insert into id_event (event, fuzer_id, other_id) values (%s, %s, %s)", events)
     return assigned
 
 
-def upsert_review(conn, kind: str, subject: str, payload: dict) -> None:
-    conn.execute(
-        """
-        insert into review_item (kind, subject, payload) values (%s, %s, %s)
-        on conflict (kind, subject) do update
-        set payload = excluded.payload,
-            status = case when review_item.status = 'stale' then 'open' else review_item.status end
-        """,
-        (kind, subject, Jsonb(payload)),
-    )
+def replace_open_reviews(conn, kind: str, items: list[tuple[str, dict]]) -> None:
+    """Refresh the open review questions of one kind. Questions not raised again go stale;
+    decided questions keep their decision."""
+    conn.execute("update review_item set status = 'stale' where kind = %s and status = 'open'", (kind,))
+    with conn.cursor() as cur:
+        cur.executemany(
+            """
+            insert into review_item (kind, subject, payload) values (%s, %s, %s)
+            on conflict (kind, subject) do update
+            set payload = excluded.payload,
+                status = case when review_item.status = 'stale' then 'open' else review_item.status end
+            """,
+            [(kind, subject, Jsonb(payload)) for subject, payload in items],
+        )

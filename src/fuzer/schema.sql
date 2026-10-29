@@ -17,6 +17,9 @@ create table if not exists entity (
     merged_into text references entity (fuzer_id)
 );
 
+-- Set when no source record maps to an entity any more (the ID is kept and revived if one returns).
+alter table entity add column if not exists retired_at timestamptz;
+
 create table if not exists id_event (
     id       bigserial primary key,
     event    text not null check (event in ('merge', 'split')),
@@ -111,4 +114,30 @@ create table if not exists pinned_link (
     decided_by text,
     decided_at timestamptz not null default now(),
     primary key (left_ref, right_ref)
+);
+
+-- Fast "contains" search over values, keys and source keys when pg_trgm is available
+-- (Docker / Azure Postgres). Search still works without it, just slower.
+do $$
+begin
+    if exists (select 1 from pg_available_extensions where name = 'pg_trgm') then
+        create extension if not exists pg_trgm;
+        create index if not exists golden_value_trgm on golden using gin ((value::text) gin_trgm_ops);
+        create index if not exists entity_key_trgm on entity_key using gin (key gin_trgm_ops);
+        create index if not exists crosswalk_key_trgm on crosswalk using gin (source_key gin_trgm_ops);
+    end if;
+end
+$$;
+
+-- Cached Claude reads of free text (operator logs). Rebuilds use these and never call the model;
+-- an entry is re-read only when its text changes (or on request).
+create table if not exists llm_extraction (
+    source         text not null,
+    source_key     text not null,
+    text_hash      text not null,
+    model          text not null,
+    prompt_version text not null,
+    result         jsonb not null,
+    created_at     timestamptz not null default now(),
+    primary key (source, source_key)
 );

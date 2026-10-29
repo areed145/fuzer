@@ -13,6 +13,8 @@ const REL_LABELS: Record<string, [string, string]> = {
   flows_to: ["Flows to", "Fed by"],
   mentions: ["Mentions", "Mentioned in"],
   sidetrack_of: ["Sidetrack of", "Sidetracks"],
+  reports: ["Reports event", "Reported in"],
+  involves: ["Involves", "Events"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
@@ -75,6 +77,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <Records e={e} />
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
+          {e.kind !== "event" && <Events id={e.fuzer_id} />}
           <Links edges={e.edges} asOf={asOf} />
         </>
       )}
@@ -223,6 +226,48 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
             </a>
             <KindBadge kind={r.kind} />
             <Dates from={r.valid_from} to={r.valid_to} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Events({ id }: { id: string }) {
+  const evs = useAsync(() => api.events(id), [id]);
+  if (!evs.data?.length) return null;
+  return (
+    <section className="card">
+      <h2>
+        Events <span className="muted small">{evs.data.length} from operator logs, read by Claude</span>
+      </h2>
+      <ul className="timeline">
+        {evs.data.map((ev) => (
+          <li key={ev.id}>
+            <span className="when">{ev.timestamp?.slice(0, 10) ?? "—"}</span>
+            <div className="what">
+              <div className="row">
+                <span className="badge event-type">{(ev.type ?? "event").replace("_", " ")}</span>
+                <a href={entityHref(ev.id)}>{ev.summary}</a>
+              </div>
+              {ev.involves.length > 0 && (
+                <div className="row small">
+                  {ev.involves.map((x) => (
+                    <span key={`${x.id}-${x.role}`}>
+                      <a href={entityHref(x.id)} className="mono">
+                        {x.label ?? x.id}
+                      </a>
+                      {x.role && x.role !== "subject" && <span className="muted"> ({x.role})</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {ev.log && (
+                <div className="quote">
+                  <a href={entityHref(ev.log.id)}>{ev.log.label}</a>: “{ev.log.text}”
+                </div>
+              )}
+            </div>
           </li>
         ))}
       </ul>

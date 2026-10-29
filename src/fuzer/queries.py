@@ -15,7 +15,7 @@ class AmbiguousRef(LookupError):
 
 def stats(conn, pack: Pack) -> dict:
     kinds = conn.execute(
-        "select kind, count(*) as n from entity where merged_into is null group by kind order by n desc"
+        "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind order by n desc"
     ).fetchall()
     reviews = conn.execute(
         "select kind, count(*) as n from review_item where status = 'open' group by kind"
@@ -31,6 +31,8 @@ def stats(conn, pack: Pack) -> dict:
 
 
 def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
+    """Exact key matches first (any tag / well style), then anything whose key, source key or
+    any field value contains the text."""
     keys = [q.upper()]
     if tag := pack.tags.parse(q):
         keys.append(tag)
@@ -38,18 +40,26 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         keys.append(well)
     return conn.execute(
         """
-        select distinct e.fuzer_id, e.kind, l.label, g.value as description
+        with hits as (
+            select fuzer_id, 0 as rank from entity_key where key = any(%(keys)s)
+            union all
+            select fuzer_id, 1 from entity_key where %(q)s <> '' and key ilike %(like)s
+            union all
+            select fuzer_id, 1 from crosswalk where %(q)s <> '' and source_key ilike %(like)s
+            union all
+            select fuzer_id, 2 from golden where %(q)s <> '' and value::text ilike %(like)s
+        ), best as (
+            select fuzer_id, min(rank) as rank from hits group by fuzer_id
+        )
+        select e.fuzer_id, e.kind, l.label, g.value as description
         from entity e
+        left join best b using (fuzer_id)
         left join entity_label l using (fuzer_id)
         left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-        where e.merged_into is null
+        where e.merged_into is null and e.retired_at is null
           and (%(kind)s::text is null or e.kind = %(kind)s)
-          and (%(q)s = ''
-               or e.fuzer_id in (select fuzer_id from entity_key where key = any(%(keys)s))
-               or l.label ilike %(like)s
-               or g.value::text ilike %(like)s
-               or e.fuzer_id in (select fuzer_id from crosswalk where source_key ilike %(like)s))
-        order by l.label
+          and (%(q)s = '' or b.fuzer_id is not null)
+        order by b.rank nulls last, l.label
         limit %(limit)s
         """,
         {"q": q, "kind": kind, "keys": keys, "like": f"%{q}%", "limit": limit},
@@ -173,7 +183,7 @@ def ontology(conn) -> dict:
     """The data model as it actually exists: entity kinds, which link types join which kinds,
     which fields each kind carries and which sources feed it."""
     kinds = conn.execute(
-        "select kind, count(*) as n from entity where merged_into is null group by kind order by n desc"
+        "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind order by n desc"
     ).fetchall()
     relations = conn.execute(
         """
@@ -192,7 +202,7 @@ def ontology(conn) -> dict:
         """
         select en.kind, g.field, count(*) as n
         from golden g join entity en using (fuzer_id)
-        where en.merged_into is null
+        where en.merged_into is null and en.retired_at is null
         group by en.kind, g.field
         order by en.kind, n desc, g.field
         """
@@ -201,7 +211,7 @@ def ontology(conn) -> dict:
         """
         select en.kind, c.source, count(*) as n
         from crosswalk c join entity en using (fuzer_id)
-        where en.merged_into is null
+        where en.merged_into is null and en.retired_at is null
         group by en.kind, c.source
         order by en.kind, n desc
         """
@@ -289,3 +299,57 @@ def network(conn, rel: str = "flows_to", as_of: date | None = None, max_edges: i
     truncated = len(rows) > max_edges
     rows = rows[:max_edges]
     return {"nodes": _subgraph(conn, rows), "edges": rows, "truncated": truncated}
+
+
+def events(conn, fuzer_id: str | None = None, since: str | None = None, until: str | None = None,
+           event_type: str | None = None, limit: int = 100) -> list[dict]:
+    """Events read from the operator logs, newest first: facility-wide, or those involving one
+    entity (or reported by one log entry). since / until are ISO dates or timestamps."""
+    rows = conn.execute(
+        """
+        select * from (
+            select en.fuzer_id as id, jsonb_object_agg(g.field, g.value) as fields
+            from entity en join golden g using (fuzer_id)
+            where en.kind = 'event' and en.merged_into is null and en.retired_at is null
+              and (%(id)s::text is null or en.fuzer_id in (
+                    select src from edge where rel = 'involves' and dst = %(id)s
+                    union select dst from edge where rel = 'reports' and src = %(id)s))
+            group by en.fuzer_id
+        ) x
+        where (%(type)s::text is null or fields->>'event_type' = %(type)s)
+          and (%(since)s::text is null or fields->>'timestamp' >= %(since)s)
+          and (%(until)s::text is null or fields->>'timestamp' < %(until)s)
+        order by fields->>'timestamp' desc nulls last, id
+        limit %(limit)s
+        """,
+        {"id": fuzer_id, "type": event_type, "since": since, "until": until, "limit": limit},
+    ).fetchall()
+    ids = [r["id"] for r in rows]
+    links = conn.execute(
+        """
+        select e.rel, e.src, e.dst, e.props->>'role' as role,
+               o.fuzer_id as other, o.kind, l.label, g.value #>> '{}' as text
+        from edge e
+        join entity o on o.fuzer_id = case when e.rel = 'involves' then e.dst else e.src end
+        left join entity_label l on l.fuzer_id = o.fuzer_id
+        left join golden g on g.fuzer_id = o.fuzer_id and g.field = 'text'
+        where (e.rel = 'involves' and e.src = any(%(ids)s)) or (e.rel = 'reports' and e.dst = any(%(ids)s))
+        """,
+        {"ids": ids},
+    ).fetchall()
+    involves, logs = defaultdict(list), {}
+    for link in links:
+        if link["rel"] == "involves":
+            involves[link["src"]].append({"id": link["other"], "label": link["label"], "kind": link["kind"],
+                                          "role": link["role"]})
+        else:
+            logs[link["dst"]] = {"id": link["other"], "label": link["label"], "text": link["text"]}
+    out = []
+    for r in rows:
+        f = dict(r["fields"])
+        out.append({
+            "id": r["id"], "type": f.pop("event_type", None), "summary": f.pop("summary", None),
+            "timestamp": f.pop("timestamp", None), "details": {k: v for k, v in f.items() if k != "description"},
+            "involves": involves[r["id"]], "log": logs.get(r["id"]),
+        })
+    return out

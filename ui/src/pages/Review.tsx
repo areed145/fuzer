@@ -32,7 +32,11 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
   const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
     await api.decide(item.id, { ...d, by: name || "anonymous" });
     setDone((s) => new Set(s).add(item.id));
-    setToast(`Saved #${item.id}. Fuzer rebuilt with your answer.`);
+    setToast(
+      item.kind === "match"
+        ? `Saved #${item.id}. Fuzer is updating the records in the background.`
+        : `Saved #${item.id}. The chosen value is live.`,
+    );
     notifyChanged();
   };
 

@@ -20,6 +20,7 @@ export const KIND_COLORS: Record<string, string> = {
   allocation_node: "#c4a000",
   document: "#7b8794",
   log_entry: "#a0679b",
+  event: "#d6455d",
 };
 export const kindColor = (kind: string) => KIND_COLORS[kind] ?? "#8d98a7";
 
@@ -29,6 +30,7 @@ export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [
   { id: "flow", label: "Flow / allocation", rels: ["flows_to"] },
   { id: "data", label: "Data", rels: ["has_timeseries"] },
   { id: "documents", label: "Documents & logs", rels: ["mentions"] },
+  { id: "events", label: "Events", rels: ["reports", "involves"] },
 ];
 export const ALL_RELS = REL_VIEWS.flatMap((v) => v.rels);
 

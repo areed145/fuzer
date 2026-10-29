@@ -43,7 +43,7 @@ def test_tools_are_read_only():
             return (await client.list_tools()).tools
 
     tools = asyncio.run(_list())
-    assert {"search", "get_entity", "trace_flow", "equipment_history", "link_text"} <= {t.name for t in tools}
+    assert {"search", "get_entity", "trace_flow", "equipment_history", "link_text", "get_events"} <= {t.name for t in tools}
     assert all(t.annotations and t.annotations.read_only_hint for t in tools)
 
 
@@ -84,6 +84,10 @@ def test_link_text(call):
 def test_get_ontology(call):
     o = call("get_ontology")
     assert any(r["rel"] == "installed_at" and r["src_kind"] == "equipment" for r in o["relations"])
+
+
+def test_get_events_without_claude_results(call):
+    assert call("get_events", ref="20-P-1001B")["events"] == []  # nothing until `fuzer llm-link` runs
 
 
 def test_list_reviews(call):
