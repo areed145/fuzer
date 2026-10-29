@@ -1,5 +1,6 @@
 """REST API: search, entity detail, lookup, flow tracing and the review queue."""
 
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
@@ -13,7 +14,16 @@ from pydantic import BaseModel
 from . import db, graph, knowledge, lessons, pipeline, queries
 from .pack import load_pack
 
-app = FastAPI(title="Fuzer", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app):
+    # Bring an older database up to date (idempotent), as every CLI command does; otherwise pages
+    # that read newer tables fail on a database made by an earlier version.
+    with db.connect() as conn:
+        db.init_schema(conn)
+    yield
+
+
+app = FastAPI(title="Fuzer", version="0.1.0", lifespan=lifespan)
 PACK = load_pack()
 rebuilder = pipeline.BackgroundRebuild(PACK)
 UI_DIST = Path(__file__).resolve().parents[2] / "ui" / "dist"
