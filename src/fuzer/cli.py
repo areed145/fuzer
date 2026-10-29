@@ -50,6 +50,9 @@ def main(argv=None):
     m.add_argument("--host", default="127.0.0.1")
     m.add_argument("--port", type=int, default=8001)
 
+    j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors (needs the 'jobs' extra)")
+    j.add_argument("--port", type=int, default=3000)
+
     sub.add_parser("reset", help="drop and recreate all tables")
 
     args = p.parse_args(argv)
@@ -62,6 +65,17 @@ def main(argv=None):
 
         db.database_url()  # start embedded Postgres before uvicorn
         uvicorn.run("fuzer.api:app", host=args.host, port=args.port)
+    elif args.cmd == "jobs":
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
+        home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
+        db.database_url()  # with no FUZER_DATABASE_URL, start embedded Postgres before Dagster forks
+        os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
+        sys.exit(subprocess.call([sys.executable, "-m", "dagster", "dev", "-m", "fuzer.jobs", "-p", str(args.port)]))
     elif args.cmd == "mcp":
         from . import mcp_server
 
@@ -73,7 +87,7 @@ def main(argv=None):
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "ingest":
-                _print({"records": ingest.ingest(conn, args.data)})
+                _print(ingest.ingest(conn, args.data))
             elif args.cmd == "llm-link":
                 from . import llm_links, llm_pids
 

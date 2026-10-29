@@ -183,10 +183,11 @@ rebuilds after review answers; Claude reading operator logs into links and
 `event` entities, and reading tags off scanned P&IDs (tiled images, grammar +
 register check, findings for misreads and missing tags), all cached and never
 called during rebuilds; snapshot ingest that retires entities whose records
-disappear.
+disappear; Dagster jobs (per-source assets, export-folder sensor, hourly /
+daily schedules, opt-in nightly Claude run, data-quality checks, failure
+webhook).
 
-Not yet: Dagster orchestration,
-P&ID line tracing, Entra ID login, source record history.
+Not yet: P&ID line tracing, Entra ID login, source record history, Azure deployment.
 
 ## Roadmap
 

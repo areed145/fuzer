@@ -27,8 +27,8 @@ def database_url() -> str:
     return _server.get_uri()
 
 
-def connect(autocommit: bool = False) -> psycopg.Connection:
-    return psycopg.connect(database_url(), row_factory=dict_row, autocommit=autocommit)
+def connect(autocommit: bool = False, url: str | None = None) -> psycopg.Connection:
+    return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit)
 
 
 def init_schema(conn) -> None:
