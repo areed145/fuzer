@@ -69,6 +69,29 @@ with server-side refusal fallback on.
 Ingest treats each export file as a full snapshot: records no longer in it are
 removed and their entities retired (IDs are kept and revived if they return).
 
+### Scheduled jobs (Dagster)
+
+```sh
+uv sync --extra jobs
+export FUZER_DATA_DIR=data/fake    # the folder the exports land in
+uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C to stop)
+```
+
+- One asset per source export (each loads only its own file, as a full
+  snapshot), then `register` (the rebuild), then the Claude readers.
+- **`new_exports` sensor** (on): drop a changed export into the data folder and
+  that source is loaded and the register rebuilt, usually within a minute.
+- **Schedules**: `refresh_logs` hourly and `refresh_all` daily at 02:00 (on);
+  `claude_reading` nightly at 03:00 (**off**: it costs money; turn it on in the
+  UI). Scheduled Claude runs use the Batches API and cap each run at 2,000 log
+  entries and 200 drawings. Times are in `FUZER_TIMEZONE` (default UTC).
+- **Checks on the register** (warnings): review backlog under 5% of tags and
+  equipment, PI points attached to a tag or well, every tag present in SAP.
+- **Alerts**: failed runs are posted to `FUZER_ALERT_WEBHOOK` (Teams, Slack or any
+  JSON webhook) when it's set.
+- Run history lives in `.dagster/` locally; in Azure, Dagster's own storage
+  would go in Postgres (`dagster-postgres`).
+
 ### Web UI
 
 Needs Node 20+.
@@ -136,4 +159,5 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
 | `src/fuzer/llm_pids.py`, `fakepid.py` | Claude reads scanned P&IDs; fake drawing generator |
+| `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
 | `ui/` | React + TypeScript web UI (Vite) |
