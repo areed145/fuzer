@@ -63,6 +63,49 @@ def sap_work_order(key, p, pack):
     return [c], []
 
 
+def _num(v) -> float | None:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def ec_downtime(key, p, pack):
+    from datetime import datetime
+
+    reason = pack.downtime_reasons.get(p.get("reason_code"), {})
+    hours = (datetime.fromisoformat(p["end"]) - datetime.fromisoformat(p["start"])).total_seconds() / 3600
+    comment = p.get("comment", "")
+    fields = {**_pick(p, "start", "end", "reason_code", "comment"), "timestamp": p["start"],
+              "duration_h": round(hours, 1), "description": comment or reason.get("name", "Downtime"),
+              "lost_oil_sm3": _num(p.get("lost_oil_sm3")), "lost_gas_ksm3": _num(p.get("lost_gas_ksm3")),
+              **({"reason": reason["name"], "reason_category": reason["category"]} if reason else {})}
+    c = Candidate("ec", "downtime", key, "downtime", key, fields)
+    obj = p.get("object_code", "")
+    target = ("facility", obj) if obj == pack.facility else ("well", pack.wells.parse(obj))
+    c.edges.append(Edge(("ref", c.ref), "affects", target, "ec"))
+    # Equipment named in the comment is the likely cause; Claude adds what the rules can't place.
+    named = [m for m in nel.find_mentions(comment, pack) if m.kind in ("tag", "tag_noarea")]
+    for m in named:
+        c.edges.append(Edge(("ref", c.ref), "caused_by", (m.kind, m.key), "ec", confidence=m.confidence,
+                            props={"text": m.text, "method": "rules"}))
+    if named and reason and reason["category"] != "equipment":
+        fields["reason_check"] = f"comment names {named[0].text} but the reason is {reason['name'].lower()}"
+    return [c], []
+
+
+def ec_daily_report(key, p, pack):
+    fields = {**_pick(p, "report_date", "comments"), "timestamp": key, "description": f"Daily report {key}",
+              **{k: _num(p.get(k)) for k in ("oil_sm3", "gas_ksm3", "water_inj_sm3")}}
+    c = Candidate("ec", "daily_report", key, "daily_report", key, fields)
+    if p.get("facility"):
+        c.edges.append(Edge(("ref", c.ref), "reports_on", ("facility", p["facility"]), "ec"))
+    for m in nel.find_mentions(p.get("comments", ""), pack):
+        c.edges.append(Edge(("ref", c.ref), "mentions", (m.kind, m.key), "ec", confidence=m.confidence,
+                            props={"text": m.text, "method": m.method}))
+    return [c], []
+
+
 def _area_in(text: str | None) -> str | None:
     m = re.search(r"\b(\d{2})\b", text or "")
     return m.group(1) if m else None
@@ -207,6 +250,8 @@ EXTRACTORS = {
     ("pi", "point"): pi_point,
     ("ec", "node"): ec_node,
     ("ec", "edge"): ec_edge,
+    ("ec", "downtime"): ec_downtime,
+    ("ec", "daily_report"): ec_daily_report,
     ("pid", "sheet"): pid_sheet,
     ("oplog", "entry"): oplog_entry,
 }

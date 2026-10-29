@@ -78,14 +78,14 @@ def test_candidates_cover_ambiguous_tags_and_area_names(conn):
 
 def test_dry_run_calls_nothing(conn):
     fake = FakeClaude()
-    out = llm_links.run(conn, PACK, client=fake, dry_run=True)
+    out = llm_links.run(conn, PACK, client=fake, dry_run=True, sources=["oplog"])
     assert out["entries"] == 30 and out["requests"] == 2 and out["estimated_input_tokens"] > 0
     assert fake.requests == []
 
 
 def test_run_links_and_events_reach_the_graph(conn):
     fake = FakeClaude()
-    out = llm_links.run(conn, PACK, client=fake, workers=1)
+    out = llm_links.run(conn, PACK, client=fake, workers=1, sources=["oplog"])
     assert out["stored"] == 30 and out["failed_requests"] == 0
     assert out["unknown_candidate"] == 3  # the made-up c999, once per copy of that log entry
     pipeline.rebuild(conn, PACK)
@@ -109,7 +109,7 @@ def test_run_links_and_events_reach_the_graph(conn):
 
 def test_cached_results_are_not_requested_again(conn):
     fake = FakeClaude()
-    assert llm_links.run(conn, PACK, client=fake)["entries"] == 0
+    assert llm_links.run(conn, PACK, client=fake, sources=["oplog"])["entries"] == 0
     assert fake.requests == []
 
 
@@ -123,7 +123,7 @@ def test_changed_text_is_read_again(conn):
     )
     conn.commit()
     fake = FakeClaude()
-    assert llm_links.run(conn, PACK, client=fake)["entries"] == 1
+    assert llm_links.run(conn, PACK, client=fake, sources=["oplog"])["entries"] == 1
     assert len(fake.requests) == 1
 
 
@@ -132,7 +132,7 @@ def test_refusal_is_reported_not_stored(conn):
         def create(self, **kw):
             return SimpleNamespace(stop_reason="refusal", content=[], usage=None)
 
-    out = llm_links.run(conn, PACK, client=Refuses(), force=True, limit=5)
+    out = llm_links.run(conn, PACK, client=Refuses(), force=True, limit=5, sources=["oplog"])
     assert out["failed_requests"] == 1 and out["stored"] == 0 and "declined" in out["errors"][0]
 
 
@@ -142,3 +142,13 @@ def test_removed_results_retire_their_events(conn):
     pipeline.rebuild(conn, PACK)
     assert not any(k["kind"] == "event" for k in queries.ontology(conn)["kinds"])
     assert conn.execute("select count(*) as n from entity where kind = 'event' and retired_at is not null").fetchone()["n"] > 0
+
+
+def test_other_text_sources_are_read_and_cached_separately(conn):
+    fake = FakeClaude()
+    out = llm_links.run(conn, PACK, client=fake, sources=["ec_downtime", "ec_daily"], dry_run=True)
+    assert out["entries"] > 60  # 60 daily reports plus downtime comments
+    sent = llm_links.run(conn, PACK, client=fake, sources=["ec_downtime"], workers=1)
+    assert sent["stored"] == sent["entries"] > 0
+    names = {r["source"] for r in conn.execute("select distinct source from llm_extraction")}
+    assert "ec_downtime" in names

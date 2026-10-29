@@ -111,3 +111,13 @@ maintenance_codes:
     A03: "4"
     A04: "6"
     A05: "10"
+
+# Energy Components downtime / deferment reason codes -> name and category. "equipment" reasons
+# are expected to name the equipment in the comment; other categories are not.
+downtime_reasons:
+  EQ-FAIL: {name: Equipment failure, category: equipment}
+  PROC-TRIP: {name: Process trip, category: equipment}
+  PLAN-MAINT: {name: Planned maintenance, category: planned}
+  WELL-INT: {name: Well intervention, category: well}
+  WEATHER: {name: Weather, category: external}
+  EXPORT: {name: Export restriction, category: external}

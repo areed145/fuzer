@@ -164,6 +164,37 @@ export interface Maintenance {
   }[];
 }
 
+export interface DowntimeRow {
+  id: string;
+  label: string | null;
+  start: string | null;
+  end: string | null;
+  duration_h: number | null;
+  reason: string | null;
+  reason_category: string | null;
+  lost_oil_sm3: number | null;
+  comment: string | null;
+  reason_check: string | null;
+  affects: { id: string; label: string | null }[];
+  caused_by: { id: string; label: string | null }[];
+}
+
+export interface Downtime {
+  events: number;
+  lost_oil_sm3: number;
+  hours: number;
+  recent: DowntimeRow[];
+}
+
+export interface RankRow {
+  label: string | null;
+  description: string | null;
+  fuzer_id: string | null;
+  events: number;
+  lost_oil_sm3: number;
+  hours: number;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -200,6 +231,12 @@ export const api = {
   events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
   maintenance: (id: string) =>
     request<Maintenance>("GET", `/entities/${encodeURIComponent(id)}/maintenance`, { limit: 25 }),
+  downtime: (id?: string, since?: string) =>
+    request<Downtime>("GET", id ? `/entities/${encodeURIComponent(id)}/downtime` : "/downtime", { since, limit: 25 }),
+  downtimeRanking: (by: "tag" | "class" | "reason", since?: string) =>
+    request<RankRow[]>("GET", "/downtime/ranking", { by, since, limit: 15 }),
+  reasonChecks: () =>
+    request<{ fuzer_id: string; label: string; issue: string; start: string }[]>("GET", "/downtime/reason-checks"),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),

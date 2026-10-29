@@ -168,7 +168,19 @@ a tag within 3 days of a logged event on that tag is linked `related_to` it (one
 set-based statement). Failure history rolls up from a tag or piece of equipment
 to every instance of its model and every member of its class.
 
-### 11. Rebuild performance
+### 11. Downtime and daily reports (Energy Components)
+EC downtime / deferment records become `downtime` entities that `affects` a well
+or the facility and are `caused_by` the tags named in their comment (rules, then
+Claude), with duration and lost oil / gas. The pack maps EC reason codes to a
+name and category; a record whose comment names equipment but whose reason is in
+another category is flagged (`reason_check`, a Dagster check, a list in the UI).
+Lost oil is ranked by causing tag, by the class of the causing equipment and by
+reason. DAY001 daily reports become `daily_report` entities with their figures,
+`reports_on` the facility and `mentions` what their comments name. Claude's text
+reader covers operator logs, daily report comments and downtime comments, each
+cached per record.
+
+### 12. Rebuild performance
 Rebuilds write in bulk (`COPY`), keep only reviewer choices as stored
 assertions (what each source says is re-derived from an entity's own records when
 its page is opened), skip per-row foreign-key checks on the tables they rebuild

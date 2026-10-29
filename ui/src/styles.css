@@ -162,6 +162,8 @@ table.results tbody tr:hover { background: var(--accent-soft); }
 .card > p.small { margin: 0 0 10px; }
 .grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
 .grid > .card { margin-bottom: 0; }
+.grid.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 16px; }
+ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .grid + .card, .grid + section { margin-top: 16px; }
 
 /* entity */
@@ -269,6 +271,6 @@ a.button:hover { border-color: var(--accent); text-decoration: none; }
   main { padding: 16px; }
   .grid { grid-template-columns: 1fr; }
   .entity-head { flex-direction: column; }
-  .graph-layout { grid-template-columns: 1fr; }
+  .graph-layout, .grid.three { grid-template-columns: 1fr; }
   .graph-panel { max-height: none; }
 }

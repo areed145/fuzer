@@ -103,6 +103,28 @@ def document_image(fuzer_id: str, conn=Depends(get_conn)):
     return FileResponse(row["path"], media_type="image/png")
 
 
+@app.get("/downtime")
+def all_downtime(since: str | None = None, until: str | None = None, limit: int = 50, conn=Depends(get_conn)):
+    return queries.downtime(conn, None, since, until, min(limit, 1000))
+
+
+@app.get("/downtime/ranking")
+def downtime_ranking(by: Literal["tag", "class", "reason"] = "tag", since: str | None = None,
+                     until: str | None = None, limit: int = 20, conn=Depends(get_conn)):
+    return queries.downtime_ranking(conn, by, since, until, min(limit, 200))
+
+
+@app.get("/downtime/reason-checks")
+def downtime_reason_checks(limit: int = 100, conn=Depends(get_conn)):
+    return queries.downtime_reason_checks(conn, min(limit, 1000))
+
+
+@app.get("/entities/{fuzer_id}/downtime")
+def entity_downtime(fuzer_id: str, since: str | None = None, until: str | None = None, limit: int = 50,
+                    conn=Depends(get_conn)):
+    return queries.downtime(conn, fuzer_id, since, until, min(limit, 1000))
+
+
 @app.get("/ontology")
 def ontology(conn=Depends(get_conn)):
     return queries.ontology(conn)

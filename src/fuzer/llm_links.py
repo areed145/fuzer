@@ -1,4 +1,5 @@
-"""Claude reads operator log entries: links the plant they mention and pulls out events.
+"""Claude reads free text (operator logs, daily report and downtime comments): links the plant it
+mentions and pulls out events.
 
 `run()` calls Claude for entries without a current cached result and stores what it returns in
 llm_extraction (as canonical kind + key, so results survive ID merges). `cached_items()` turns
@@ -22,7 +23,15 @@ from . import nel
 from .model import Candidate, Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-28.1"
+PROMPT_VERSION = "2026-10-29.1"
+
+# Text Claude reads. cache name -> (record source, record type, text field, time field). The cache
+# name is what llm_extraction.source holds.
+TEXT_SOURCES = {
+    "oplog": ("oplog", "entry", "text", "timestamp"),
+    "ec_daily": ("ec", "daily_report", "comments", "report_date"),
+    "ec_downtime": ("ec", "downtime", "comment", "start"),
+}
 DEFAULT_MODEL = os.environ.get("FUZER_LLM_MODEL", "claude-opus-5-5")
 DEFAULT_EFFORT = os.environ.get("FUZER_LLM_EFFORT", "medium")
 MAX_CANDIDATES = 60
@@ -35,7 +44,8 @@ EVENT_TYPES = [
 ROLES = ["subject", "from", "to", "location"]
 
 SYSTEM_PROMPT = """\
-You read shift log entries from an offshore oil and gas platform and connect them to the asset register.
+You read operations text from an offshore oil and gas platform (shift log entries, daily production report
+comments, downtime comments) and connect it to the asset register.
 
 Each entry comes with a list of candidates: tags, wells and equipment positions it might refer to, each
 with an id (c1, c2, ...), its key and a description. Tags are written area-function-loop-suffix, so
@@ -172,12 +182,13 @@ def candidates_for(text: str, pack: Pack, reg: Register) -> list[tuple[str, str]
     return out[:MAX_CANDIDATES]
 
 
-def _entry_payload(sk: str, payload: dict, cands: list[tuple[str, str]], reg: Register) -> dict:
+def _entry_payload(entry_id: str, text: str, when: str | None, author: str | None,
+                   cands: list[tuple[str, str]], reg: Register) -> dict:
     return {
-        "entry_id": sk,
-        "timestamp": payload.get("timestamp"),
-        "author": payload.get("author"),
-        "text": payload.get("text", ""),
+        "entry_id": entry_id,
+        "timestamp": when,
+        "author": author,
+        "text": text,
         "candidates": [{"id": f"c{i + 1}", "kind": k, "key": key, "description": reg.known[(k, key)]}
                        for i, (k, key) in enumerate(cands)],
     }
@@ -255,7 +266,7 @@ def _store(conn, rows: list[tuple]) -> None:
         cur.executemany(
             """
             insert into llm_extraction (source, source_key, text_hash, model, prompt_version, result)
-            values ('oplog', %s, %s, %s, %s, %s)
+            values (%s, %s, %s, %s, %s, %s)
             on conflict (source, source_key) do update
             set text_hash = excluded.text_hash, model = excluded.model, prompt_version = excluded.prompt_version,
                 result = excluded.result, created_at = now()
@@ -267,23 +278,30 @@ def _store(conn, rows: list[tuple]) -> None:
 
 def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
         limit: int | None = None, per_request: int = 20, workers: int = 4, batch: bool = False,
-        force: bool = False, dry_run: bool = False, poll_seconds: int = 30) -> dict:
-    """Read log entries that have no current cached result. Needs a rebuilt register first."""
-    rows = conn.execute(
-        """
-        select r.source_key, r.payload, x.text_hash, x.prompt_version
-        from source_record r
-        left join llm_extraction x on x.source = r.source and x.source_key = r.source_key
-        where r.source = 'oplog' and r.record_type = 'entry'
-        order by r.source_key
-        """
-    ).fetchall()
-    todo = [r for r in rows if force or r["text_hash"] != text_hash(r["payload"].get("text", ""))
-            or r["prompt_version"] != PROMPT_VERSION][:limit]
+        force: bool = False, dry_run: bool = False, poll_seconds: int = 30,
+        sources: list[str] | None = None) -> dict:
+    """Read text records that have no current cached result. Needs a rebuilt register first."""
+    rows = []
+    for name in sources or TEXT_SOURCES:
+        rsrc, rtype, text_field, time_field = TEXT_SOURCES[name]
+        for r in conn.execute(
+            """
+            select r.source_key, r.payload, x.text_hash, x.prompt_version
+            from source_record r
+            left join llm_extraction x on x.source = %s and x.source_key = r.source_key
+            where r.source = %s and r.record_type = %s and coalesce(r.payload->>%s, '') <> ''
+            order by r.source_key
+            """,
+            (name, rsrc, rtype, text_field),
+        ):
+            text = r["payload"][text_field]
+            rows.append({**r, "name": name, "text": text, "when": r["payload"].get(time_field),
+                         "hash": text_hash(text)})
+    todo = [r for r in rows if force or r["text_hash"] != r["hash"] or r["prompt_version"] != PROMPT_VERSION][:limit]
 
     reg = load_register(conn)
-    entries = [_entry_payload(r["source_key"], r["payload"], candidates_for(r["payload"].get("text", ""), pack, reg), reg)
-               for r in todo]
+    entries = [_entry_payload(f"{r['name']}|{r['source_key']}", r["text"], r["when"], r["payload"].get("author"),
+                              candidates_for(r["text"], pack, reg), reg) for r in todo]
     chunks = [entries[i:i + per_request] for i in range(0, len(entries), per_request)]
     stats = {"entries": len(entries), "requests": len(chunks), "model": model, "effort": effort,
              "already_cached": len(rows) - len(todo) if not force else 0}
@@ -297,7 +315,7 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
         import anthropic
 
         client = anthropic.Anthropic()
-    hashes = {r["source_key"]: text_hash(r["payload"].get("text", "")) for r in todo}
+    hashes = {f"{r['name']}|{r['source_key']}": r["hash"] for r in todo}
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
               "unknown_entry": 0, "unknown_candidate": 0, "failed_requests": 0, "stored": 0}
     errors: list[str] = []
@@ -306,7 +324,8 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
         results, dropped = _parse(message, chunk)
         for k, v in {**usage(message), **dropped}.items():
             totals[k] += v
-        _store(conn, [(sk, hashes[sk], model, PROMPT_VERSION, Jsonb(res)) for sk, res in results.items()])
+        _store(conn, [(*eid.split("|", 1), hashes[eid], model, PROMPT_VERSION, Jsonb(res))
+                      for eid, res in results.items()])
         totals["stored"] += len(results)
 
     if batch:
@@ -352,25 +371,29 @@ def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors
 
 # --- rebuild side -------------------------------------------------------------------------------
 
-def cached_items(conn, entries: dict[str, dict]) -> tuple[list[Candidate], list[Edge]]:
-    """Candidates (events) and edges from cached results whose entry text hasn't changed."""
+def cached_items(conn, texts: dict[str, dict[str, dict]]) -> tuple[list[Candidate], list[Edge]]:
+    """Candidates (events) and edges from cached results whose text hasn't changed.
+    texts: cache name -> source_key -> record payload."""
     cands, edges = [], []
-    for row in conn.execute("select source_key, text_hash, model, result from llm_extraction where source = 'oplog'"):
-        payload = entries.get(row["source_key"])
-        if payload is None or row["text_hash"] != text_hash(payload.get("text", "")):
+    for row in conn.execute("select source, source_key, text_hash, model, result from llm_extraction "
+                            "where source = any(%s)", (list(TEXT_SOURCES),)):
+        rsrc, rtype, text_field, time_field = TEXT_SOURCES[row["source"]]
+        payload = texts.get(row["source"], {}).get(row["source_key"])
+        if payload is None or row["text_hash"] != text_hash(payload.get(text_field) or ""):
             continue
-        log = ("ref", f"oplog:entry:{row['source_key']}")
+        log = ("ref", f"{rsrc}:{rtype}:{row['source_key']}")
         res = row["result"]
         for m in res["mentions"]:
             if m["key"]:
                 edges.append(Edge(log, "mentions", (m["kind"], m["key"]), "claude", confidence=m["confidence"],
                                   props={"text": m["text"], "note": m["note"], "method": row["model"]}))
         for i, ev in enumerate(res["events"]):
-            key = f"{row['source_key']}#{i + 1}"
+            # Operator-log event keys predate the other sources; keep them as they were.
+            key = f"{row['source_key']}#{i + 1}" if row["source"] == "oplog" else f"{row['source']}:{row['source_key']}#{i + 1}"
             fields = {"event_type": ev["type"], "summary": ev["summary"], "description": ev["summary"],
-                      **({"timestamp": payload["timestamp"]} if payload.get("timestamp") else {}),
+                      **({"timestamp": payload[time_field]} if payload.get(time_field) else {}),
                       **{re.sub(r"\W+", "_", k.lower()).strip("_"): v for k, v in ev["details"].items()}}
-            event = Candidate("oplog", "event", key, "event", key, fields)
+            event = Candidate(rsrc, "event", key, "event", key, fields)
             event.edges.append(Edge(log, "reports", ("ref", event.ref), "claude"))
             for inv in ev["involves"]:
                 event.edges.append(Edge(("ref", event.ref), "involves", (inv["kind"], inv["key"]), "claude",

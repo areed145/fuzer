@@ -21,6 +21,8 @@ CSV_FILES = {
     "oplogs.csv": ("oplog", "entry", "entry_id"),
     "sap_notifications.csv": ("sap", "notification", "qmnum"),
     "sap_work_orders.csv": ("sap", "work_order", "aufnr"),
+    "ec_downtime.csv": ("ec", "downtime", "event_id"),
+    "ec_day001.csv": ("ec", "daily_report", "report_date"),
 }
 
 
