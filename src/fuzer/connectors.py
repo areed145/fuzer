@@ -116,7 +116,8 @@ class ParquetTable:
 def find(data_dir: Path, name: str):
     """The connector for table `name` in data_dir, or None when it isn't there."""
     folder = data_dir / name
-    if folder.is_dir() and ((folder / "_delta_log").is_dir() or any(folder.rglob("*.parquet"))):
+    if folder.is_dir() and ((folder / "_delta_log").is_dir() or any(folder.glob("*.parquet")) or
+                            any(p.is_dir() and "=" in p.name for p in folder.iterdir())):  # key=value partitions
         return ParquetTable(folder)
     if (data_dir / f"{name}.parquet").is_file():
         return ParquetTable(data_dir / f"{name}.parquet")

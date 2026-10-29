@@ -248,3 +248,16 @@ create table if not exists dataset_state (
     rows        bigint not null default 0,
     loaded_at   timestamptz not null default now()
 );
+
+-- Mappings approved in the review queue (suggested for a new table, as is or edited). The latest
+-- version per source and record type is used, after the built-in files.
+create table if not exists mapping_version (
+    id          bigserial primary key,
+    source      text not null,
+    record_type text not null,
+    dataset     text,
+    yaml        text not null,
+    approved_by text,
+    approved_at timestamptz not null default now()
+);
+create index if not exists mapping_version_type on mapping_version (source, record_type, id desc);

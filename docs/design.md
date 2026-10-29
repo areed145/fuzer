@@ -361,6 +361,16 @@ records of the small, medium and onshore assets give identical candidates and
 links to the old extractors; medium eval and large entity / link counts are
 unchanged; large extraction 1.0 s -> 1.4 s.
 
+Suggested mappings (#59, `suggest.py`): profile a sample per column; rules name
+meanings from headers, value patterns (pack grammars, dates, units, known
+manufacturers) and values that are keys of records already held (ties between
+overlapping number ranges go to the target whose key column has the same
+name); Claude names columns rules could only call `code` or `other` (cached,
+never in rebuilds). Drafts are `mapping` review items; accepted versions live
+in `mapping_version` and load after the built-in files. Eval on 18 fake tables
+(12 built-in, 6 with messy headers): key 1.0, references 1.0, columns 0.99
+(rules), 1.0 with Claude on the opaque table.
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |

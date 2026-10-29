@@ -229,6 +229,7 @@ img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-r
 .section-text { white-space: pre-wrap; line-height: 1.6; }
 
 textarea.lesson-text { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 8px 0; }
+textarea.yaml { width: 100%; font-size: 12px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 8px 0; box-sizing: border-box; }
 
 /* trends */
 .trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }

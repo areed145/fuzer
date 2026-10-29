@@ -309,7 +309,24 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         raise HTTPException(404, "unknown review item")
     p = item["payload"]
 
-    if item["kind"] == "schema":
+    if item["kind"] == "mapping":
+        if d.decision != "reject":
+            import yaml
+
+            from . import mappings
+
+            text = p["yaml"] if d.decision == "accept" else d.value
+            try:
+                raw = yaml.safe_load(text or "")
+                m = mappings.Mapping(raw if isinstance(raw, dict) else {})
+            except (yaml.YAMLError, mappings.MappingError) as e:
+                raise HTTPException(400, f"mapping is not valid: {e}")
+            if m.dataset != p["dataset"]:
+                raise HTTPException(400, f"mapping must keep dataset: {p['dataset']}")
+            # A new version; the next ingest loads the table and rebuilds use it.
+            conn.execute("insert into mapping_version (source, record_type, dataset, yaml, approved_by) "
+                         "values (%s, %s, %s, %s, %s)", (m.source, m.record_type, m.dataset, text, d.by))
+    elif item["kind"] == "schema":
         if d.decision == "choose":
             raise HTTPException(400, "schema items take accept (load with the new columns) or reject (keep holding)")
         if d.decision == "accept":

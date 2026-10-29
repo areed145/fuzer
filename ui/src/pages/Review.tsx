@@ -3,6 +3,7 @@ import {
   api,
   type ConflictPayload,
   type Decision,
+  type MappingPayload,
   type MatchPayload,
   type ReviewItem,
   type ReviewKind,
@@ -23,7 +24,7 @@ function loadName(): string {
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
-  const kind: ReviewKind = asked === "conflict" || asked === "schema" ? asked : "match";
+  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = useState(loadName);
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -45,6 +46,10 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
     setToast(
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
+        : item.kind === "mapping"
+          ? d.decision === "reject"
+            ? `Saved #${item.id}. ${item.payload.dataset} stays unmapped.`
+            : `Saved #${item.id}. ${item.payload.dataset} loads with this mapping on the next ingest.`
         : item.kind === "schema"
           ? d.decision === "accept"
             ? `Saved #${item.id}. ${item.payload.dataset} loads with its new columns on the next ingest.`
@@ -69,6 +74,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "schema" ? "on" : ""} href={href("/review", { kind: "schema" })}>
             Schema changes <span className="muted">{stats?.open_reviews.schema ?? 0}</span>
           </a>
+          <a className={kind === "mapping" ? "on" : ""} href={href("/review", { kind: "mapping" })}>
+            New tables <span className="muted">{stats?.open_reviews.mapping ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -79,6 +87,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       <p className="muted">
         {kind === "match"
           ? "Fuzer thinks these records might be the same physical item, but isn't sure. Your answer is saved and kept on every rerun."
+          : kind === "mapping"
+            ? "Tables Fuzer has no mapping for. It guessed what each column means; check the meanings, edit the mapping if needed, and accept to load the table."
           : kind === "schema"
             ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
             : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
@@ -96,6 +106,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       {open.map((item) =>
         item.kind === "match" ? (
           <MatchCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "mapping" ? (
+          <MappingCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "schema" ? (
           <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
@@ -172,6 +184,78 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
         </button>
         <button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Different items
+        </button>
+        {error && <span className="error">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDecide: OnDecide }) {
+  const { busy, error, run } = useBusy(onDecide);
+  const [text, setText] = useState(p.yaml);
+  const s = p.suggestion;
+  return (
+    <div className="card review">
+      <div className="row spread">
+        <h3>
+          <span className="mono">{p.dataset}</span> <span className="muted small">#{id}</span>
+        </h3>
+        <span className="muted small">
+          {s.shape}
+          {s.kind ? ` of ${s.kind}` : ""} · key {s.key ? <span className="mono">{s.key}</span> : "none found"} · {p.connector}
+        </span>
+      </div>
+      <p className="muted small mono">{p.path}</p>
+      <table className="compare">
+        <thead>
+          <tr>
+            <th>column</th>
+            <th>meaning</th>
+            <th>why</th>
+            <th>filled</th>
+            <th>samples</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.profile.map((c) => {
+            const m = s.columns[c.name];
+            return (
+              <tr key={c.name} className={m?.meaning === "other" ? "diff" : ""}>
+                <th className="mono">
+                  {c.name}
+                  {c.name === s.key && <span className="muted small"> key</span>}
+                </th>
+                <td>
+                  {m?.meaning}
+                  {m?.ref && <span className="muted small"> → {m.ref}</span>}
+                  {m?.by === "claude" && <span className="muted small"> (Claude)</span>}
+                </td>
+                <td className="muted small">{m?.why}</td>
+                <td className="small">{Math.round(c.filled * 100)}%</td>
+                <td className="small mono">{c.samples.slice(0, 3).join(" · ")}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <textarea
+        className="mono yaml"
+        spellCheck={false}
+        rows={Math.min(30, text.split("\n").length + 1)}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="actions">
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => run(text === p.yaml ? { decision: "accept" } : { decision: "choose", value: text })}
+        >
+          {text === p.yaml ? "Accept mapping" : "Save edited mapping"}
+        </button>
+        <button disabled={busy} onClick={() => run({ decision: "reject" })}>
+          Not now
         </button>
         {error && <span className="error">{error}</span>}
       </div>

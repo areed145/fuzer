@@ -25,6 +25,11 @@ def main(argv=None):
 
     sub.add_parser("rebuild", help="rerun resolve / golden / graph")
 
+    sm = sub.add_parser("suggest-mappings", help="draft mappings for tables that have none (review queue)")
+    sm.add_argument("--data", default="data/fake")
+    sm.add_argument("--table", action="append", help="only this table (repeatable); default: every unmapped table")
+    sm.add_argument("--claude", action="store_true", help="ask Claude about columns rules can't name (costs money)")
+
     d = sub.add_parser("demo", help="reset, generate, ingest and rebuild")
     d.add_argument("--data", default="data/fake")
     d.add_argument("--seed", type=int, default=7)
@@ -92,6 +97,10 @@ def main(argv=None):
                 db.init_schema(conn)  # idempotent; picks up new tables without a reset
             if args.cmd == "reset":
                 db.reset(conn)
+            elif args.cmd == "suggest-mappings":
+                from . import suggest
+
+                _print(suggest.run(conn, pack, args.data, claude=args.claude, datasets=args.table))
             elif args.cmd == "ingest":
                 _print(ingest.ingest(conn, args.data, full=args.full))
             elif args.cmd == "llm-link":
