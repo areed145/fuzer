@@ -131,8 +131,10 @@ def resolve_ref(conn, pack: Pack, ref: str) -> str | None:
 def source_values(conn, pack: Pack, fuzer_id: str) -> dict[str, list[dict]]:
     """What each source says about one entity: its few records re-extracted on demand, plus
     reviewer choices and derived values. Nothing per-source is stored for the whole register."""
+    from . import mappings
     from .extract import extract
 
+    maps = mappings.load(conn)
     values = defaultdict(list)
     for rec in conn.execute(
         """
@@ -142,7 +144,7 @@ def source_values(conn, pack: Pack, fuzer_id: str) -> dict[str, list[dict]]:
         """,
         (fuzer_id,),
     ):
-        for cand in extract(rec, pack)[0]:
+        for cand in extract(rec, pack, maps)[0]:
             for field, value in cand.fields.items():
                 values[field].append({"source": cand.source, "source_key": cand.source_key, "value": value})
     for a in conn.execute(

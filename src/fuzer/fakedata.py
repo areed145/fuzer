@@ -298,6 +298,9 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
     if pid_truth:
         (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
+    from . import fakeincoming
+
+    fakeincoming.generate(out, equipment, floc, wells)
     return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
             "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),

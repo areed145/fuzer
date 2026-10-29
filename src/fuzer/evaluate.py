@@ -125,6 +125,59 @@ def matches(conn, pack: Pack, cases: list[dict]) -> dict:
     return {"pairs": len(cases), **_pr(tp, fp, fn), "wrong_merges": fp, "not_merged": pending}
 
 
+def schema(conn, pack: Pack, cases: list[dict], data_dir: Path) -> dict:
+    """Suggested mappings against known column meanings: key column, every column, and the columns
+    that refer to other things (what links depend on). Rules alone, and rules plus Claude where a
+    cached Claude reading exists. Built-in tables are scored as if unmapped."""
+    from . import connectors, mappings, suggest
+
+    tabs = mappings.tables()
+    runs = {"rules": [], "rules_and_claude": []}
+    used_claude = False
+    for case in cases:
+        c = connectors.find(data_dir / case["dir"], case["dataset"])
+        if c is None:
+            continue
+        m = tabs.get(case["dataset"]) if case["dir"] == "." else None
+        s = suggest.suggest_table(conn, pack, case["dataset"], c,
+                                  exclude={(m.source, m.record_type)} if m else frozenset())
+        runs["rules"].append((case, s["suggestion"]))
+        payload = suggest.claude_input(case["dataset"], s["profile"], s["suggestion"])
+        if (hit := suggest.cached_claude(conn, case["dataset"], payload)) is not None:
+            used_claude = True
+            runs["rules_and_claude"].append((case, suggest.apply_claude(s["suggestion"], hit)))
+        else:
+            runs["rules_and_claude"].append((case, s["suggestion"]))
+
+    def score(pairs):
+        keys = cols = refs = n_keys = n_cols = n_refs = 0
+        misses = []
+        for case, sug in pairs:
+            if case["key"] is not None:
+                n_keys += 1
+                keys += sug["key"] == case["key"]
+                if sug["key"] != case["key"]:
+                    misses.append({"table": case["dataset"], "column": "(key)", "got": sug["key"], "want": case["key"]})
+            for col, want in case["columns"].items():
+                want = want if isinstance(want, list) else [want]
+                got = sug["columns"].get(col, {}).get("meaning")
+                ok = got in want
+                n_cols += 1
+                cols += ok
+                if set(want) & suggest.REFERENCES:
+                    n_refs += 1
+                    refs += ok
+                if not ok:
+                    misses.append({"table": case["dataset"], "column": col, "got": got, "want": want})
+        return {"tables": len(pairs), "key": round(keys / max(n_keys, 1), 3), "columns": round(cols / max(n_cols, 1), 3),
+                "references": round(refs / max(n_refs, 1), 3), "misses": misses}
+
+    out = {"rules": score(runs["rules"])}
+    if used_claude:
+        out["rules_and_claude"] = score(runs["rules_and_claude"])
+    return out
+
+
 def run(conn, pack: Pack, keys_dir) -> dict:
     keys_dir = Path(keys_dir)
     load = lambda name: json.loads((keys_dir / name).read_text()) if (keys_dir / name).exists() else None
@@ -133,4 +186,6 @@ def run(conn, pack: Pack, keys_dir) -> dict:
                      ("logs.json", logs), ("matches.json", matches)]:
         if (cases := load(name)) is not None:
             out[name.removesuffix(".json")] = fn(conn, pack, cases)
+    if (cases := load("schema.json")) is not None:
+        out["schema"] = schema(conn, pack, cases, keys_dir.parent)
     return out

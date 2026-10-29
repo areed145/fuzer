@@ -17,9 +17,17 @@ from psycopg.types.json import Jsonb
 from . import connectors, mappings
 
 
-def tables() -> dict:
-    """Tabular datasets by name, from the mapping files (mappings.py)."""
-    return mappings.tables()
+def tables(conn=None) -> dict:
+    """Tabular datasets by name, from the mapping files and approved mappings (mappings.py)."""
+    return mappings.tables(conn)
+
+
+def unmapped(data_dir, conn=None) -> list[str]:
+    """Tables in data_dir (CSV, Parquet, lake folders, Delta) that no mapping covers."""
+    data_dir, known = Path(data_dir), set(tables(conn)) | set(FILES)
+    names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")}
+    names |= {p.name for p in data_dir.iterdir() if p.is_dir() and connectors.find(data_dir, p.name)}
+    return sorted(names - known)
 
 
 def _pi_af(path: Path):
@@ -73,8 +81,8 @@ FILES = {
 }
 
 
-def export_names() -> list[str]:
-    return [*tables(), *FILES]
+def export_names(conn=None) -> list[str]:
+    return [*tables(conn), *FILES]
 
 
 class _Manifest:
@@ -107,11 +115,11 @@ def dataset(data_dir: Path, name: str):
     return connectors.find(data_dir, name)
 
 
-def _records(name: str, conn_, since=None):
+def _records(name: str, conn_, since=None, tabs=None):
     if name in FILES:
         yield from conn_.load(conn_.path)
         return
-    m = tables()[name]
+    m = (tabs or tables())[name]
     source, record_type = m.source, m.record_type
     cols = m.key if isinstance(m.key, tuple) else (m.key,)
     for row in conn_.rows(since):
@@ -142,12 +150,13 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
     from . import db
 
     data_dir = Path(data_dir)
+    tabs = tables(conn)
     state = {r["dataset"]: r for r in conn.execute("select * from dataset_state")}
-    report = {"loaded": [], "unchanged": [], "held": []}
+    report = {"loaded": [], "unchanged": [], "held": [], "unmapped": unmapped(data_dir, conn) if not exports else []}
     loaded_state = []
 
     plan = []  # decide every dataset before COPY starts: nothing else may run on conn during it
-    for name in exports or export_names():
+    for name in exports or export_names(conn):
         if (c := dataset(data_dir, name)) is None:
             continue
         prev = state.get(name) or {}
@@ -165,11 +174,11 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
 
     def rows():
         for name, c, fp, schema, position in plan:
-            wm = (m.watermark if (m := tables().get(name)) else None) if c.watermarks else None
+            wm = (m.watermark if (m := tabs.get(name)) else None) if c.watermarks else None
             since = (wm, position) if wm and position is not None and not full else None
             top = since[1] if since else None
             n = 0
-            for source, record_type, key, payload in _records(name, c, since):
+            for source, record_type, key, payload in _records(name, c, since, tabs):
                 if wm and (v := payload.get(wm)) is not None and (top is None or str(v) > str(top)):
                     top = str(v)
                 n += 1

@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import db, golden, graph, llm_docs, llm_links, llm_pids
+from . import db, golden, graph, llm_docs, llm_links, llm_pids, mappings
 from .extract import extract, link_part_numbers
 from .pack import Pack
 from psycopg.types.json import Jsonb
@@ -38,8 +38,9 @@ def rebuild(conn, pack: Pack) -> dict:
     cands, extra, pid_sheets = [], [], {}
     text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
     texts: dict[str, dict[str, dict]] = {name: {} for name in llm_links.TEXT_SOURCES}
+    maps = mappings.load(conn)
     for rec in conn.execute("select source, record_type, source_key, payload from source_record"):
-        c, e = extract(rec, pack)
+        c, e = extract(rec, pack, maps)
         cands += c
         extra += e
         if name := text_kinds.get((rec["source"], rec["record_type"])):

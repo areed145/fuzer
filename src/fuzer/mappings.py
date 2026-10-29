@@ -1,7 +1,8 @@
 """Mappings: what each column of a dataset means, as YAML, read by one generic extractor.
 
-One file per source record type (src/fuzer/mappings/, plus any folders in $FUZER_MAPPINGS, later
-ones overriding earlier ones for the same source and record type):
+One file per source record type (src/fuzer/mappings/, plus any folders in $FUZER_MAPPINGS, plus
+mappings approved in the review queue and stored in mapping_version; later ones override earlier ones
+for the same source and record type):
 
     source: sap
     record_type: equipment
@@ -23,7 +24,8 @@ ones overriding earlier ones for the same source and record type):
         props: [text, span, method]
     hooks: [name]           # named Python for logic that truly is source-specific (extract.HOOKS)
 
-Values: a column name, `_key` (the record key), `_row` (the whole row), or
+A `ref` endpoint is a template ("sap:equipment:{equnr}") or a prefix with `from`
+({ref: "sap:equipment", from: equnr}). Values: a column name, `_key` (the record key), `_row` (the whole row), or
 {from, as, default, template, area_from, keep}; a default can itself be a value. `as` is a value transform (tag, well, serial, upper,
 number) or a resolver that returns both kind and key (floc, af_path, af_parent, ec_node,
 tag_or_well, facility_or_well; extract.RESOLVERS). Fields listed by name, or given as values, are
@@ -49,9 +51,28 @@ class MappingError(ValueError):
     pass
 
 
-def load() -> dict[tuple[str, str], "Mapping"]:
-    """Every mapping by (source, record_type)."""
-    return _load(os.environ.get("FUZER_MAPPINGS", ""))
+def load(conn=None) -> dict[tuple[str, str], "Mapping"]:
+    """Every mapping by (source, record_type): the built-in files, then $FUZER_MAPPINGS folders, then
+    (with a connection) the latest approved version of each mapping stored in mapping_version."""
+    extra = os.environ.get("FUZER_MAPPINGS", "")
+    files = _load(extra)
+    if conn is None or not conn.execute("select to_regclass('mapping_version') as t").fetchone()["t"]:
+        return files
+    ver = conn.execute("select coalesce(max(id), 0) as v from mapping_version").fetchone()["v"]
+    if not ver:
+        return files
+    if (extra, ver) not in _APPROVED:
+        merged = dict(files)
+        for r in conn.execute("select distinct on (source, record_type) yaml, id from mapping_version "
+                              "order by source, record_type, id desc"):
+            m = Mapping(yaml.safe_load(r["yaml"]))
+            merged[(m.source, m.record_type)] = m
+        _APPROVED.clear()
+        _APPROVED[(extra, ver)] = merged
+    return _APPROVED[(extra, ver)]
+
+
+_APPROVED: dict[tuple[str, int], dict] = {}
 
 
 @lru_cache(maxsize=8)
@@ -64,9 +85,9 @@ def _load(extra: str) -> dict[tuple[str, str], "Mapping"]:
     return out
 
 
-def tables() -> dict[str, "Mapping"]:
+def tables(conn=None) -> dict[str, "Mapping"]:
     """Mappings of tabular datasets by dataset name."""
-    return {m.dataset: m for m in load().values() if m.dataset}
+    return {m.dataset: m for m in load(conn).values() if m.dataset}
 
 
 SELF = object()  # endpoint: the record's own candidate
@@ -165,6 +186,9 @@ class Mapping:
             return SELF
         if "ref" in spec:
             tmpl = spec["ref"]
+            if "{" not in tmpl:  # {ref: "sap:equipment", from: equnr}
+                val = self._value(spec.get("from", "_key"))
+                return lambda k, r, p: ("ref", f"{tmpl}:{val(k, r, p)}")
             return lambda k, r, p: ("ref", tmpl.format(_key=k, **r))
         if (t := spec.get("as")) in ex.RESOLVERS:
             res, base = ex.RESOLVERS[t], self._value(spec.get("from", "_key"))

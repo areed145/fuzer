@@ -92,11 +92,33 @@ export interface SchemaPayload {
   retyped: { column: string; was: string; now: string }[];
 }
 
-export type ReviewKind = "match" | "conflict" | "schema";
+export interface ColumnProfile {
+  name: string;
+  filled: number;
+  distinct: number;
+  samples: string[];
+}
+
+export interface MappingPayload {
+  dataset: string;
+  connector: string;
+  path: string;
+  profile: ColumnProfile[];
+  suggestion: {
+    key: string | null;
+    shape: string;
+    kind: string | null;
+    columns: Record<string, { meaning: string; by: "rules" | "claude"; why: string; ref?: string }>;
+  };
+  yaml: string;
+}
+
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping";
 
 export type ReviewItem =
   | { id: number; kind: "match"; subject: string; status: string; label: null; payload: MatchPayload }
   | { id: number; kind: "schema"; subject: string; status: string; label: null; payload: SchemaPayload }
+  | { id: number; kind: "mapping"; subject: string; status: string; label: null; payload: MappingPayload }
   | {
       id: number;
       kind: "conflict";

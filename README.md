@@ -207,6 +207,24 @@ applicability, P&ID formats, ISO 14224 code lookups) is a named hook in
 [extract.py](src/fuzer/extract.py) that a mapping lists. The full syntax is at
 the top of [mappings.py](src/fuzer/mappings.py).
 
+### Suggested mappings for new tables
+
+Drop a table Fuzer doesn't know into a data folder and ask for a draft mapping:
+
+```sh
+uv run fuzer suggest-mappings --data data/fake/incoming            # rules only
+uv run fuzer suggest-mappings --data data/fake/incoming --claude   # Claude names what rules can't
+```
+
+Fuzer profiles a sample of each column and names its meaning: from the header,
+from values (tags, wells, plant locations, dates, units, known manufacturers),
+and from values that are keys of records it already holds (an equipment number
+in a work order). Each table becomes a **New tables** item in the review queue
+with the column meanings, why each was chosen, and an editable mapping. Accept
+(or edit and save) it and the next `fuzer ingest` loads the table; approved
+mappings are versioned in Postgres. `fuzer eval` scores the suggestions
+(`schema`) against answer keys for the built-in and incoming fake tables.
+
 ### Scheduled jobs (Dagster)
 
 ```sh

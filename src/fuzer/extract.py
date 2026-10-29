@@ -200,8 +200,10 @@ def link_part_numbers(cands: list[Candidate]) -> list[Edge]:
 
 
 
-def extract(record: dict, pack: Pack) -> tuple[list[Candidate], list[Edge]]:
-    m = mappings.load().get((record["source"], record["record_type"]))
+def extract(record: dict, pack: Pack, maps: dict | None = None) -> tuple[list[Candidate], list[Edge]]:
+    """Candidates and edges for one record, through its mapping (`maps` from mappings.load(conn), so
+    approved mappings count; built-in files only when not given)."""
+    m = (maps if maps is not None else mappings.load()).get((record["source"], record["record_type"]))
     if m is None:
         raise KeyError(f"no mapping for {record['source']} {record['record_type']}")
     return m.extract(record["source_key"], record["payload"], pack)
