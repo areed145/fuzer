@@ -13,12 +13,16 @@ Needs [uv](https://docs.astral.sh/uv/) and Docker.
 
 ```sh
 docker compose up -d       # Postgres 16 on localhost:5432
-export FUZER_DATABASE_URL=postgresql://fuzer:fuzer@localhost:5432/fuzer
+cp .env.example .env       # then set FUZER_DATABASE_URL (and ANTHROPIC_API_KEY for Claude)
 uv sync
 uv run fuzer demo          # fake data -> Postgres -> resolve -> golden -> graph
 uv run fuzer serve         # API on http://127.0.0.1:8000 (docs at /docs)
 uv run pytest              # always uses a throwaway embedded Postgres
 ```
+
+Settings come from `.env` in the current folder or any parent (or the file named
+by `FUZER_ENV_FILE`); variables already set in your shell win. `.env.example`
+lists every setting and its default. The `export ...` lines below work too.
 
 Without Docker, skip the first two lines and run `uv sync --extra local`;
 Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
