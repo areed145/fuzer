@@ -131,3 +131,29 @@ def test_review_choose_value_wins(conn, api):
     api.post(f"/review/{item['id']}", json={"decision": "choose", "value": "Flowserve", "by": "tester"}).raise_for_status()
     g = conn.execute("select value, source from golden where fuzer_id = %s and field = %s", (fz, field)).fetchone()
     assert (g["value"], g["source"]) == ("Flowserve", "review")
+
+
+def test_api_ontology(api):
+    o = api.get("/ontology").json()
+    kinds = {k["kind"]: k for k in o["kinds"]}
+    assert {"tag", "equipment", "well", "timeseries"} <= set(kinds)
+    assert {s["source"] for s in kinds["equipment"]["sources"]} >= {"sap", "jde"}
+    rels = {(r["src_kind"], r["rel"], r["dst_kind"]): r for r in o["relations"]}
+    assert rels[("equipment", "installed_at", "tag")]["dated"] == rels[("equipment", "installed_at", "tag")]["n"]
+    assert ("well", "flows_to", "allocation_node") in rels
+
+
+def test_api_neighborhood_and_network(api, conn):
+    sep = fid(conn, "tag", "20-V-2001")
+    one = api.get(f"/graph/{sep}").json()
+    two = api.get(f"/graph/{sep}", params={"depth": 2}).json()
+    assert one["root"] == sep and len(two["nodes"]) > len(one["nodes"])
+    ids = {n["id"] for n in two["nodes"]}
+    assert all(e["src"] in ids and e["dst"] in ids for e in two["edges"])
+    flow_only = api.get(f"/graph/{sep}", params={"rels": "flows_to"}).json()
+    assert {e["rel"] for e in flow_only["edges"]} == {"flows_to"}
+
+    labels = lambda g: {n["label"] for n in g["nodes"]}
+    everything = api.get("/network").json()
+    on_date = api.get("/network", params={"as_of": "2024-01-01"}).json()
+    assert "A-07" in labels(everything) and "A-07" not in labels(on_date)

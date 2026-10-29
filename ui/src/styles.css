@@ -213,9 +213,43 @@ ul.choices button { margin-left: auto; }
 }
 @keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 
+
+/* graphs */
+.graph-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+.graph-canvas {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.graph-surface { position: absolute; inset: 0; }
+.graph-fit { position: absolute; top: 10px; right: 10px; font-size: 12px; padding: 3px 10px; }
+.graph-panel { margin-bottom: 0; max-height: 640px; overflow: auto; }
+.graph-panel h3 { margin: 14px 0 6px; font-size: 13px; }
+.graph-panel p { margin: 6px 0; }
+.graph-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.graph-toolbar .chips { margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i, i.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+ul.coverage, ul.plain { list-style: none; padding: 0; margin: 0 0 12px; }
+ul.coverage li { display: grid; grid-template-columns: 1fr 90px 36px; align-items: center; gap: 8px; padding: 2px 0; font-size: 13px; text-transform: capitalize; }
+ul.coverage .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+ul.coverage .bar span { display: block; height: 100%; background: var(--accent); }
+ul.plain li { padding: 2px 0; }
+.page-tabs { margin-bottom: 16px; }
+a.button {
+  display: inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-weight: 500;
+}
+a.button:hover { border-color: var(--accent); text-decoration: none; }
+
 @media (max-width: 800px) {
   nav.top { padding: 10px 16px; gap: 12px; flex-wrap: wrap; }
   main { padding: 16px; }
   .grid { grid-template-columns: 1fr; }
   .entity-head { flex-direction: column; }
+  .graph-layout { grid-template-columns: 1fr; }
+  .graph-panel { max-height: none; }
 }

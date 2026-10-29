@@ -61,6 +61,24 @@ def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"]
     return graph.trace(conn, fuzer_id, rel, direction, as_of, depth)
 
 
+@app.get("/ontology")
+def ontology(conn=Depends(get_conn)):
+    return queries.ontology(conn)
+
+
+@app.get("/graph/{fuzer_id}")
+def neighborhood(fuzer_id: str, depth: int = 1, rels: str | None = None, as_of: date | None = None,
+                 max_nodes: int = 250, conn=Depends(get_conn)):
+    """Entities within `depth` links; `rels` is a comma-separated list of link types."""
+    rel_list = [r for r in rels.split(",") if r] if rels else None
+    return queries.neighborhood(conn, fuzer_id, min(depth, 3), rel_list, as_of, min(max_nodes, 1000))
+
+
+@app.get("/network")
+def network(rel: str = "flows_to", as_of: date | None = None, conn=Depends(get_conn)):
+    return queries.network(conn, rel, as_of)
+
+
 @app.get("/lookup")
 def lookup(source: str | None = None, key: str | None = None, text: str | None = None,
            conn=Depends(get_conn)):
