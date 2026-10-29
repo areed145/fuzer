@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { IncidentDetail, IncidentList } from "./Incidents";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
@@ -123,6 +123,9 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <MaintenanceCard id={e.fuzer_id} />
           )}
           {e.kind === "incident" && <IncidentDetail id={e.fuzer_id} />}
+          {["tag", "equipment", "equipment_model", "equipment_class", "area"].includes(e.kind) && (
+            <KnowledgeCard id={e.fuzer_id} />
+          )}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <IncidentsCard id={e.fuzer_id} />
           )}
@@ -440,6 +443,60 @@ function IncidentsCard({ id }: { id: string }) {
         Incidents <span className="muted small">{d.data.total.toLocaleString()}</span>
       </h2>
       <IncidentList items={d.data.items.slice(0, 8)} />
+    </section>
+  );
+}
+
+/** ts_headline marks matches with [[ ]]; render them bold without trusting any HTML in documents. */
+function Highlighted({ text }: { text: string }) {
+  const parts: ReactNode[] = text.split(/(\[\[.*?\]\])/g).map((p, i) =>
+    p.startsWith("[[") ? <b key={i}>{p.slice(2, -2)}</b> : p,
+  );
+  return <>{parts}</>;
+}
+
+function KnowledgeCard({ id }: { id: string }) {
+  const docs = useAsync(() => api.documentsFor(id), [id]);
+  const [q, setQ] = useState("");
+  const [asked, setAsked] = useState("");
+  const results = useAsync(() => (asked ? api.knowledgeSearch(asked, id) : Promise.resolve([])), [asked, id]);
+  if (!docs.data?.length) return null;
+  return (
+    <section className="card">
+      <h2>
+        Documents <span className="muted small">manuals, procedures and guides that apply here</span>
+      </h2>
+      <ul className="plain">
+        {docs.data.map((d) => (
+          <li key={d.id} className="small">
+            <a href={entityHref(d.id)}>{d.title ?? d.label}</a>{" "}
+            <span className="muted">
+              {d.doc_type?.replace("_", " ")} · rev {d.revision} · via {d.why}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form className="actions" onSubmit={(ev) => { ev.preventDefault(); setAsked(q.trim()); }}>
+        <input value={q} placeholder="Ask the documents, e.g. what causes high vibration?" onChange={(ev) => setQ(ev.target.value)} />
+        <button disabled={!q.trim()}>Search</button>
+      </form>
+      {asked && (
+        <ul className="timeline">
+          {results.data?.length === 0 && <li className="muted small">No passages found.</li>}
+          {results.data?.map((r) => (
+            <li key={r.id}>
+              <span className="when">{r.page ? `p. ${r.page}` : r.kind === "incident" ? "incident" : ""}</span>
+              <div className="what">
+                <a href={entityHref(r.id)}>
+                  {r.document_label ? `${r.document_label} · ${r.heading}` : r.title}
+                </a>
+                <span className="small"><Highlighted text={r.snippet} /></span>
+                {r.why && <span className="muted small">{r.why}</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

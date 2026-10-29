@@ -326,6 +326,38 @@ def incident_detail(ref: str) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
+                     include_superseded: bool = False) -> dict[str, Any]:
+    """Search OEM manuals, troubleshooting guides, procedures and past incidents, returning cited
+    passages (document, revision, page, section, snippet with [[matches]]).
+
+    ref scopes the search to what applies to one tag / equipment / well: the item itself, its model's
+    manuals, its class's procedures and its area's guides, ranked closest first. Always cite the document
+    and page you use. Superseded revisions are left out unless include_superseded is true."""
+    from . import knowledge
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain({"for": fid or "facility",
+                       "passages": knowledge.search(conn, question, fid, min(limit, 30), include_superseded)})
+
+
+@server.tool(annotations=READ_ONLY)
+def documents_for(ref: str) -> dict[str, Any]:
+    """Current documents that apply to a tag / equipment / model / class: its OEM manual (via model), class
+    procedures and area troubleshooting guides, closest first, with why each applies."""
+    from . import knowledge
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"for": fid, "documents": knowledge.documents_for(conn, fid)})
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with

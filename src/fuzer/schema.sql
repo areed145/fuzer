@@ -170,3 +170,23 @@ alter table edge drop constraint if exists edge_dst_fkey;
 alter table entity_key drop constraint if exists entity_key_fuzer_id_fkey;
 -- Older versions also stored every source value here; only reviewer choices are kept now.
 delete from assertion where source <> 'review';
+
+-- What the knowledge search reads: document sections and incidents, with the IDs each is linked to
+-- (what its document applies to, what it mentions, its unit) for scoping. Kept by every rebuild.
+create table if not exists knowledge_index (
+    fuzer_id  text primary key,
+    kind      text not null,
+    document  text,
+    title     text,
+    doc_type  text,
+    status    text,
+    heading   text,
+    page      int,
+    body      text not null,
+    scope_ids text[] not null default '{}',
+    tsv       tsvector generated always as (
+        setweight(to_tsvector('english', coalesce(title, '') || ' ' || coalesce(heading, '')), 'A')
+        || setweight(to_tsvector('english', body), 'B')) stored
+);
+create index if not exists knowledge_tsv on knowledge_index using gin (tsv);
+create index if not exists knowledge_scope on knowledge_index using gin (scope_ids);

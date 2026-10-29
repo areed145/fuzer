@@ -201,7 +201,20 @@ folded as for equipment), a procedure to its class, a guide to the tags it
 references; sections `mentions` the tags in their text. A SharePoint / EDMS
 connector replaces the folder later.
 
-### 14. Performance at full size
+### 14. Scoped knowledge search
+`knowledge_index` (kept by every rebuild) holds document sections and incidents
+with a weighted full-text vector (headings over body) and the IDs each is linked
+to. Searching "for" an entity works out its scope (the entity, the tag or
+equipment it's installed at, its model, its classes up the hierarchy, its parent
+tags and area) and keeps items linked to anything in it (one GIN array overlap).
+Score = text rank x closeness (this tag > model > class > area) x authority (OEM
+manual / procedure > site guide > past incident); questions match on any of
+their words. Results are cited passages (document, revision, page, section,
+snippet, why it applies). Superseded revisions are left out by default.
+Embeddings (pgvector) can be added beside full text once an embedding model is
+chosen (an external service).
+
+### 15. Performance at full size
 `fuzer generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
 orders, 20k log entries (~300k source records, 289k entities, 510k links).

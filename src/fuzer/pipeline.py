@@ -10,7 +10,7 @@ from .extract import extract
 from .pack import Pack
 from psycopg.types.json import Jsonb
 
-from . import incidents, queries, taxonomy
+from . import incidents, knowledge, queries, taxonomy
 from .resolve import resolve, resolve_keyed, retire_unused, sync_labels
 
 
@@ -92,6 +92,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["incidents"] = len(i_cands)
     retire_unused(conn, set(assigned.values()) | set(d_assigned.values()) | set(i_assigned.values()))
     lap("incidents")
+    stats["knowledge_changes"] = {k: v for k, v in knowledge.build(conn).items() if k != "rows"}
     conn.execute(
         """
         insert into register_summary (name, value, updated_at) values ('ontology', %s, now())
