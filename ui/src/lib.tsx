@@ -33,6 +33,11 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [state, setState] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: true });
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  // Any data change (a review answer, a finished background rebuild) refreshes every view.
+  useEffect(() => {
+    window.addEventListener(CHANGED, reload);
+    return () => window.removeEventListener(CHANGED, reload);
+  }, [reload]);
   useEffect(() => {
     let live = true;
     setState((s) => ({ ...s, loading: true, error: undefined }));

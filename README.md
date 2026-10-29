@@ -23,6 +23,38 @@ uv run pytest              # always uses a throwaway embedded Postgres
 Without Docker, skip the first two lines and run `uv sync --extra local`;
 Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
 
+### Bigger fake data
+
+```sh
+uv run fuzer demo --size medium   # ~1/10 of a real offshore asset: 60 areas, ~7.9k tags,
+                                  # ~17k PI points, ~2k equipment, 40 wells, 480 P&IDs, 3k log entries
+uv run fuzer generate --size medium --areas 90 --trains 10 --logs 10000   # or tune any part
+```
+
+`small` (the default) is the hand-checked asset the tests use. A full rebuild of
+`medium` takes about 4 s. Review answers return at once: a chosen value is
+applied immediately, and match answers queue one background rebuild (the UI
+shows "Updating…").
+
+### Claude reads the operator logs
+
+```sh
+export ANTHROPIC_API_KEY=...       # or `ant auth login`
+uv run fuzer llm-link --dry-run    # how many entries / requests / tokens, calls nothing
+uv run fuzer llm-link --limit 40   # try a small sample first
+uv run fuzer llm-link --batch      # everything, via the Batches API at half price (results within ~1 h)
+```
+
+For each log entry Claude gets a numbered list of candidates from the asset
+register (ambiguous short tags in every area, equipment in any area named in
+the text) and picks from it, or says it can't tell. It also pulls out events
+(trip, start, changeover, shut-in, choke change, alarm, leak, instrument fault,
+...) which become `event` entities linked to the log entry and to the tags and
+wells involved. Results are cached per entry; rebuilds never call the model,
+and an entry is only re-read when its text changes (`--force` re-reads all).
+Model defaults to `claude-opus-5-5` (`--model` or `FUZER_LLM_MODEL` to change),
+with server-side refusal fallback on.
+
 ### Web UI
 
 Needs Node 20+.
@@ -55,7 +87,7 @@ uv run fuzer mcp --http    # streamable HTTP on http://127.0.0.1:8001/mcp
 ```
 
 Claude Code picks it up from `.mcp.json` in this folder (approve it once when
-asked). Read-only tools: `get_ontology`, `search`, `get_entity`, `trace_flow`,
+asked). Read-only tools: `get_ontology`, `search`, `get_entity`, `get_events`, `trace_flow`,
 `equipment_history`, `equipment_changes`, `link_text`, `list_reviews`,
 `get_stats`. Anything that takes a `ref` accepts a tag in any style, a well,
 a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production
@@ -88,4 +120,5 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/queries.py` | Read queries shared by the API and MCP server |
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
+| `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
 | `ui/` | React + TypeScript web UI (Vite) |

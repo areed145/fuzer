@@ -27,7 +27,9 @@ item installed at a tag, identified by serial number; pumps get swapped, tags st
 sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node, document (P&ID sheet), log_entry.
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
-flow, dated), mentions (document or log -> entity), sidetrack_of. Dated links have from/to dates; pass
+flow, dated), mentions (document or log -> entity), sidetrack_of, reports (log entry -> event) and
+involves (event -> tag / well, with a role). Events (trips, starts, changeovers, shut-ins, choke changes,
+alarms, leaks, instrument faults, ...) were read from operator logs by Claude; each cites its log entry. Dated links have from/to dates; pass
 as_of=YYYY-MM-DD to see what was true on a day.
 
 Any tool taking `ref` accepts a Fuzer ID (fz-...), a tag in any style (20-PT-1001A, 20PT1001A), a well
@@ -44,6 +46,8 @@ REL_LABELS = {
     ("flows_to", "out"): "flows_to", ("flows_to", "in"): "fed_by",
     ("mentions", "out"): "mentions", ("mentions", "in"): "mentioned_in",
     ("sidetrack_of", "out"): "sidetrack_of", ("sidetrack_of", "in"): "sidetracks",
+    ("involves", "out"): "involves", ("involves", "in"): "events",
+    ("reports", "out"): "reports_event", ("reports", "in"): "reported_in",
 }
 
 
@@ -203,6 +207,27 @@ def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
             {"since": _date(since)},
         ).fetchall()
     return _plain(rows)
+
+
+@server.tool(annotations=READ_ONLY)
+def get_events(ref: str | None = None, since: str | None = None, until: str | None = None,
+               event_type: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """What happened, from the operator logs: trips, starts, stops, changeovers, shut-ins, choke changes,
+    alarms, leaks, maintenance, instrument faults. Newest first, each with the log entry it came from.
+
+    ref limits to events involving one tag / well (any naming style) or reported by one log entry;
+    omit it for the whole facility. since / until are dates (YYYY-MM-DD). event_type is one of
+    trip, start, stop, changeover, shut_in, bring_online, choke_change, alarm, leak, maintenance,
+    work_order, well_test, instrument_fault, other.
+    """
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        rows = queries.events(conn, fid, since, until, event_type, min(limit, 500))
+    return _plain({"for": fid or "facility", "events": rows})
 
 
 @server.tool(annotations=READ_ONLY)

@@ -1,7 +1,7 @@
-import { StrictMode, Suspense, lazy, useEffect } from "react";
+import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
-import { CHANGED, href, useAsync, useRoute } from "./lib";
+import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { Search } from "./pages/Search";
@@ -16,12 +16,21 @@ function App() {
   const stats = useAsync(() => api.stats(), []);
   const reload = stats.reload;
 
-  useEffect(() => {
-    window.addEventListener(CHANGED, reload);
-    return () => window.removeEventListener(CHANGED, reload);
-  }, [reload]);
-
   const s = stats.data;
+  const rebuilding = !!s?.rebuild.running;
+
+  // While a background rebuild runs, poll; when it finishes, tell every view to refresh.
+  const [wasRebuilding, setWasRebuilding] = useState(false);
+  useEffect(() => {
+    if (rebuilding) {
+      const t = setTimeout(reload, 1500);
+      return () => clearTimeout(t);
+    }
+  }, [rebuilding, s, reload]);
+  useEffect(() => {
+    if (wasRebuilding && !rebuilding) notifyChanged();
+    setWasRebuilding(rebuilding);
+  }, [rebuilding, wasRebuilding]);
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
 
@@ -44,6 +53,8 @@ function App() {
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
         <span className="spacer" />
+        {rebuilding && <span className="badge updating">Updating…</span>}
+        {s?.rebuild.last?.error && <span className="error small">Last update failed</span>}
         {s && (
           <span className="muted small">
             {s.facility} · {Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities ·{" "}

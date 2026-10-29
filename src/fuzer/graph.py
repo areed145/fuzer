@@ -5,6 +5,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
+from . import db
 from .model import Candidate, Edge
 
 
@@ -24,27 +25,28 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
             return next(iter(ids)), None
         return None, f"ambiguous {kind}" if ids else f"unknown {kind}"
 
-    rows, unresolved = [], Counter()
+    merged, unresolved = {}, Counter()
     for e in [e for c in cands for e in c.edges] + extra:
         (src, why_s), (dst, why_d) = endpoint(e.src), endpoint(e.dst)
-        if src and dst:
-            rows.append((src, e.rel, dst, _date(e.valid_from), _date(e.valid_to), [e.source],
-                         e.confidence, Jsonb(e.props) if e.props else None))
-        else:
+        if not (src and dst):
             unresolved[f"{e.rel}: {why_s or why_d}"] += 1
+            continue
+        # The same link stated by several sources becomes one edge listing all of them.
+        key = (src, e.rel, dst, _date(e.valid_from))
+        if key in merged:
+            row = merged[key]
+            row["sources"].add(e.source)
+            row["confidence"] = max(row["confidence"], e.confidence)
+        else:
+            merged[key] = {"valid_to": _date(e.valid_to), "sources": {e.source}, "confidence": e.confidence,
+                           "props": e.props}
 
+    rows = [(src, rel, dst, valid_from, r["valid_to"], sorted(r["sources"]), r["confidence"],
+             Jsonb(r["props"]) if r["props"] else None)
+            for (src, rel, dst, valid_from), r in merged.items()]
     conn.execute("delete from edge")
-    with conn.cursor() as cur:
-        cur.executemany(
-            """
-            insert into edge (src, rel, dst, valid_from, valid_to, sources, confidence, props)
-            values (%s, %s, %s, %s, %s, %s, %s, %s)
-            on conflict (src, rel, dst, valid_from) do update
-            set sources = array(select distinct unnest(edge.sources || excluded.sources)),
-                confidence = greatest(edge.confidence, excluded.confidence)
-            """,
-            rows,
-        )
+    db.copy_rows(conn, "edge", ["src", "rel", "dst", "valid_from", "valid_to", "sources", "confidence", "props"],
+                 rows)
     return {"edges": len(rows), "unresolved_edges": dict(unresolved)}
 
 

@@ -7,6 +7,7 @@ export interface Stats {
   open_reviews: Record<string, number>;
   records: number;
   edges: number;
+  rebuild: { running: boolean; pending: boolean; last: { finished?: string; error?: string } | null };
 }
 
 export interface SearchHit {
@@ -136,6 +137,16 @@ export interface Ontology {
   relations: OntologyRelation[];
 }
 
+export interface FuzerEvent {
+  id: string;
+  type: string | null;
+  summary: string | null;
+  timestamp: string | null;
+  details: Record<string, unknown>;
+  involves: { id: string; label: string | null; kind: string; role: string | null }[];
+  log: { id: string; label: string | null; text: string | null } | null;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -169,6 +180,7 @@ export const api = {
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
   trace: (id: string, direction: "up" | "down", asOf?: string) =>
     request<TraceRow[]>("GET", `/entities/${encodeURIComponent(id)}/trace`, { direction, as_of: asOf }),
+  events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),

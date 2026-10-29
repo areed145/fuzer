@@ -39,3 +39,13 @@ def init_schema(conn) -> None:
 def reset(conn) -> None:
     conn.execute("drop schema public cascade; create schema public;")
     init_schema(conn)
+
+
+def copy_rows(conn, table: str, columns: list[str], rows) -> int:
+    """Bulk insert with COPY; much faster than INSERT for tens of thousands of rows."""
+    n = 0
+    with conn.cursor() as cur, cur.copy(f"copy {table} ({', '.join(columns)}) from stdin") as cp:
+        for row in rows:
+            cp.write_row(row)
+            n += 1
+    return n

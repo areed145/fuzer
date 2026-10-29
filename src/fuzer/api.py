@@ -15,6 +15,7 @@ from .pack import load_pack
 
 app = FastAPI(title="Fuzer", version="0.1.0")
 PACK = load_pack()
+rebuilder = pipeline.BackgroundRebuild(PACK)
 UI_DIST = Path(__file__).resolve().parents[2] / "ui" / "dist"
 
 if (UI_DIST / "assets").is_dir():
@@ -40,7 +41,7 @@ def health():
 
 @app.get("/stats")
 def stats(conn=Depends(get_conn)):
-    return queries.stats(conn, PACK)
+    return {**queries.stats(conn, PACK), "rebuild": rebuilder.status()}
 
 
 @app.get("/entities")
@@ -59,6 +60,18 @@ def entity(fuzer_id: str, as_of: date | None = None, conn=Depends(get_conn)):
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):
     return graph.trace(conn, fuzer_id, rel, direction, as_of, depth)
+
+
+@app.get("/events")
+def all_events(since: str | None = None, until: str | None = None, type: str | None = None, limit: int = 100,
+               conn=Depends(get_conn)):
+    return queries.events(conn, None, since, until, type, min(limit, 1000))
+
+
+@app.get("/entities/{fuzer_id}/events")
+def entity_events(fuzer_id: str, since: str | None = None, until: str | None = None, type: str | None = None,
+                  limit: int = 100, conn=Depends(get_conn)):
+    return queries.events(conn, fuzer_id, since, until, type, min(limit, 1000))
 
 
 @app.get("/ontology")
@@ -132,6 +145,15 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
             "insert into assertion (fuzer_id, field, value, source, source_key) values (%s, %s, %s, 'review', %s)",
             (p["fuzer_id"], p["field"], Jsonb(value), d.by),
         )
+        # A chosen value only changes this one golden field, so apply it now; no rebuild needed.
+        conn.execute(
+            """
+            insert into golden (fuzer_id, field, value, source, rule) values (%s, %s, %s, 'review', 'review')
+            on conflict (fuzer_id, field) do update
+            set value = excluded.value, source = excluded.source, rule = excluded.rule
+            """,
+            (p["fuzer_id"], p["field"], Jsonb(value)),
+        )
 
     conn.execute(
         """
@@ -140,9 +162,19 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         """,
         (Jsonb(d.model_dump()), d.by, item_id),
     )
-    return {"decided": item_id, "rebuild": pipeline.rebuild(conn, PACK)}
+    conn.commit()
+    if item["kind"] == "match":
+        # Merging or splitting records touches IDs, links and values; do it in the background.
+        return {"decided": item_id, "rebuild": rebuilder.request()}
+    return {"decided": item_id}
 
 
 @app.post("/rebuild")
-def rebuild(conn=Depends(get_conn)):
-    return pipeline.rebuild(conn, PACK)
+def rebuild():
+    """Queue a rebuild; GET /rebuild for progress."""
+    return rebuilder.request()
+
+
+@app.get("/rebuild")
+def rebuild_status():
+    return rebuilder.status()

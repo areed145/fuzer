@@ -176,10 +176,13 @@ core code.
 - REST API: search, entity detail, lookup by source key or free text, dated
   flow tracing, review.
 
-Since added: React web UI (browse, entity detail, review) and a read-only MCP
-server for AI agents.
+Since added: React web UI (browse, entity detail with graph tab, ontology,
+flow network, review); a read-only MCP server for AI agents; a `medium` fake
+asset (~1/10 real size) with COPY-based rebuilds (~4 s) and background
+rebuilds after review answers; Claude reading operator logs into links and
+`event` entities (cached per entry, never called during rebuilds).
 
-Not yet: Dagster orchestration, Claude linking, OCR,
+Not yet: Dagster orchestration, OCR,
 P&ID line tracing, Entra ID login, source record history.
 
 ## Roadmap
@@ -187,7 +190,6 @@ P&ID line tracing, Entra ID login, source record history.
 1. **Slice (now):** everything above, on fake data.
 2. **Phase 1:** real exports for one area; Dagster jobs; React review/browse UI;
    Azure deploy (Container Apps + Azure Database for PostgreSQL).
-3. **Phase 2:** PI Web API and ADX connectors; Claude for operator
-   logs and P&ID images; OCR.
+3. **Phase 2:** PI Web API and ADX connectors; Claude for P&ID images; OCR.
 4. **Phase 3:** P&ID flow connectivity; second asset pack (onshore) to prove the
    core is general; graph DB read replica if traversal gets slow.

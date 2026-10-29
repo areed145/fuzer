@@ -114,14 +114,19 @@ def test_review_accept_match_survives_rebuild(conn, api):
     item = next(i for i in api.get("/review", params={"kind": "match"}).json()
                 if i["payload"]["left"]["block"] == "23-K-1001B")
     left, right = item["payload"]["left"]["ref"], item["payload"]["right"]["ref"]
-    api.post(f"/review/{item['id']}", json={"decision": "accept", "by": "tester"}).raise_for_status()
-    with db.connect() as c:
-        pipeline.rebuild(c, PACK)
+    res = api.post(f"/review/{item['id']}", json={"decision": "accept", "by": "tester"}).json()
+    assert res["rebuild"]["running"] or res["rebuild"]["last"]
+    from fuzer.api import rebuilder
+    rebuilder.wait()
+    assert "error" not in rebuilder.last
 
     def owner(ref):
         s, rt, k = ref.split(":", 2)
         return conn.execute("select fuzer_id from crosswalk where source = %s and record_type = %s "
                             "and source_key = %s", (s, rt, k)).fetchone()["fuzer_id"]
+    assert owner(left) == owner(right)
+    with db.connect() as c:  # and it stays merged on the next full rebuild
+        pipeline.rebuild(c, PACK)
     assert owner(left) == owner(right)
 
 
@@ -157,3 +162,10 @@ def test_api_neighborhood_and_network(api, conn):
     everything = api.get("/network").json()
     on_date = api.get("/network", params={"as_of": "2024-01-01"}).json()
     assert "A-07" in labels(everything) and "A-07" not in labels(on_date)
+
+
+def test_search_covers_all_fields(api):
+    maker = api.get("/entities", params={"q": "baker hughes", "kind": "equipment"}).json()
+    assert maker and all(h["kind"] == "equipment" for h in maker)
+    exact_first = api.get("/entities", params={"q": "20-V-2001"}).json()
+    assert exact_first[0]["label"] == "20-V-2001"

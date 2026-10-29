@@ -81,50 +81,110 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
         w.writerows(rows)
 
 
-def generate(out, seed: int = 7, scale: int = 1, n_wells: int = 12) -> dict:
+# Size presets. "small" is the hand-checked asset the tests use; bigger sizes clone the four
+# area types into more areas and add trains of equipment inside each area.
+SIZES = {
+    "small": {"areas": 4, "trains": 1, "wells": 12, "logs": 30, "extra_points": False},
+    "medium": {"areas": 60, "trains": 8, "wells": 40, "logs": 3000, "extra_points": True},
+}
+AREA_TYPES = list(AREAS)  # "20", "23", "27", "44": the template for every other area
+
+# Extra log styles used at bigger sizes, including the hard cases rules can't link.
+LOG_TEMPLATES = [
+    "{pump} tripped on high vibration, started {pump_alt}.",
+    "{pump_short} seal leak, isolated and drained.",
+    "Lined up {well} to test sep for well test.",
+    "{well} choke changed from {a} to {b}%.",
+    "{inst} reading erratic, WO raised.",
+    "{well} shut in for {reason}.",
+    "Swapped {pump} to {pump_alt} for planned maintenance.",
+    "{suffix} pump on {area_name} tripped again, operator restarted.",
+    "High level alarm on {vessel_desc}, drained back to normal.",
+    "{inst_short} spiking, suspect transmitter. Instrument tech called.",
+]
+REASONS = ["scale squeeze", "workover", "high water cut", "SSV leak test", "slickline"]
+
+
+def _area_plan(n_areas: int) -> dict[str, tuple[str, str]]:
+    """area code -> (template area code, display name)."""
+    if n_areas > 90:
+        raise ValueError("at most 90 two-digit areas")
+    spare = [f"{c:02d}" for c in range(10, 100) if f"{c:02d}" not in AREA_TYPES]
+    plan = {}
+    for i in range(n_areas):
+        tmpl = AREA_TYPES[i % len(AREA_TYPES)]
+        copy = i // len(AREA_TYPES) + 1
+        plan[AREA_TYPES[i] if i < len(AREA_TYPES) else spare[i - len(AREA_TYPES)]] = (
+            tmpl, AREAS[tmpl] + (f" {copy}" if copy > 1 else ""))
+    return plan
+
+
+def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
+    cfg = {**SIZES[size], **{k: v for k, v in overrides.items() if v is not None}}
+    if not 1 <= cfg["trains"] <= 10:
+        raise ValueError("trains must be 1-10 (loop numbers step by 100)")
     rng = random.Random(seed)
+    big = random.Random(seed + 1)  # only used beyond "small", so small stays identical
+    is_big = cfg["areas"] > len(AREA_TYPES) or cfg["trains"] > 1
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
 
+    plan = _area_plan(cfg["areas"])
     floc = [{"floc": FACILITY, "parent": "", "description": "Osprey Bravo Platform"}]
     af = [{"path": FACILITY, "template": "Facility", "attributes": []}]
     equipment, jde, maximo, points, sheets = [], [], [], [], []
-    area_tags: dict[str, list[Tag]] = {a: [] for a in AREAS}
+    sheet_tags: dict[tuple[str, int], list[Tag]] = {}
+    pumps, vessels, instruments = [], [], []  # for log text at bigger sizes
     serial = 40000
 
-    for area, items in EQUIPMENT.items():
+    for area, (tmpl, area_name) in plan.items():
         area_floc = f"{FACILITY}-{area}"
-        floc.append({"floc": area_floc, "parent": FACILITY, "description": f"Area {area} {AREAS[area]}"})
+        floc.append({"floc": area_floc, "parent": FACILITY, "description": f"Area {area} {area_name}"})
         af.append({"path": f"{FACILITY}\\Area {area}", "template": "Area", "attributes": []})
 
-        for func, base, suffixes, desc in items:
-            for i in range(scale):
+        for t in range(cfg["trains"]):
+            tags = sheet_tags.setdefault((area, t), [])
+            for func, base, suffixes, desc in EQUIPMENT[tmpl]:
                 for s in suffixes:
-                    eq = Tag(area, func, base + 10 * i, s)
+                    eq = Tag(area, func, base + 100 * t, s)
                     eq_floc = eq.fmt(f"{FACILITY}-{{a}}-{{f}}{{l}}{{s}}")
                     title = f"{desc} {s}".strip()
                     floc.append({"floc": eq_floc, "parent": area_floc, "description": title})
-                    area_tags[area].append(eq)
+                    tags.append(eq)
+                    if func == "P":
+                        pumps.append((eq, area_name))
+                    elif func == "V":
+                        vessels.append((eq, title))
 
                     attrs = []
                     for ifunc, idesc, uom in INSTRUMENTS[func]:
                         inst = Tag(area, ifunc, eq.loop, s)
-                        area_tags[area].append(inst)
+                        tags.append(inst)
+                        instruments.append(inst)
                         floc.append({"floc": inst.fmt(f"{FACILITY}-{{a}}-{{f}}{{l}}{{s}}"), "parent": eq_floc,
                                      "description": f"{title} {idesc}"})
-                        point = inst.fmt(PI_STYLE[area])
+                        point = inst.fmt(PI_STYLE[tmpl])
                         points.append({"tag": point, "descriptor": f"{title} {idesc}", "engunits": uom,
                                        "pointsource": "OPC"})
                         attrs.append({"name": idesc, "pi_point": point, "uom": uom})
+                        if cfg["extra_points"]:  # controller setpoint and output alongside the PV
+                            for kind in ("SP", "OP"):
+                                points.append({"tag": point[:-2] + kind, "descriptor": f"{title} {idesc} {kind}",
+                                               "engunits": uom if kind == "SP" else "%", "pointsource": "OPC"})
                     af.append({"path": f"{FACILITY}\\Area {area}\\{eq.canonical}", "template": TEMPLATES[func],
                                "attributes": attrs})
 
-                    # 20-P-1001B was swapped in 2023: two physical pumps, one tag.
-                    swapped = (area, func, s, i) == ("20", "P", "B", 0)
-                    installs = [("2018-01-01", "2023-06-01"), ("2023-06-01", "")] if swapped else [("2018-01-01", "")]
+                    # 20-P-1001B was swapped in 2023: two physical pumps, one tag. Bigger sizes add more swaps.
+                    if (area, func, s, t) == ("20", "P", "B", 0):
+                        swap = "2023-06-01"
+                    elif is_big and func in "PK" and big.random() < 0.05:
+                        swap = f"{big.randint(2019, 2025)}-{big.randint(1, 12):02d}-01"
+                    else:
+                        swap = None
+                    installs = [("2018-01-01", swap), (swap, "")] if swap else [("2018-01-01", "")]
                     maker = rng.choice(MAKERS[func])
                     model = f"{maker[:3].upper()}-{rng.randint(100, 999)}"
-                    for n, (valid_from, valid_to) in enumerate(installs):
+                    for valid_from, valid_to in installs:
                         serial += rng.randint(1, 900)
                         equipment.append({
                             "equnr": str(10000000 + len(equipment)), "description": desc, "manufacturer": maker,
@@ -132,7 +192,7 @@ def generate(out, seed: int = 7, scale: int = 1, n_wells: int = 12) -> dict:
                             "valid_from": valid_from, "valid_to": valid_to,
                         })
                         retired = bool(valid_to)
-                        _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, i, retired)
+                        _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, t, retired)
                         if not retired and rng.random() < 0.6:
                             maximo.append({
                                 "assetnum": f"MX-{len(maximo) + 1:05d}", "description": desc,
@@ -142,13 +202,13 @@ def generate(out, seed: int = 7, scale: int = 1, n_wells: int = 12) -> dict:
 
     m_area, m_func, m_loop, m_desc, m_uom = METER
     meter = Tag(m_area, m_func, m_loop, "")
-    area_tags[m_area].append(meter)
+    sheet_tags[(m_area, 0)].append(meter)
     floc.append({"floc": meter.fmt(f"{FACILITY}-{{a}}-{{f}}{{l}}{{s}}"), "parent": f"{FACILITY}-{m_area}",
                  "description": m_desc})
     points.append({"tag": meter.fmt(PI_STYLE[m_area]), "descriptor": m_desc, "engunits": m_uom,
                    "pointsource": "OPC"})
 
-    wells = [f"A{n:02d}" for n in range(1, n_wells + 1)]
+    wells = [f"A{n:02d}" for n in range(1, cfg["wells"] + 1)]
     for w in wells + ["A07A"]:
         label = f"Well {w[0]}-{w[1:3]}" + (" Sidetrack 1" if w.endswith("A") and len(w) == 4 else "")
         floc.append({"floc": f"{FACILITY}-WELL-{w}", "parent": FACILITY, "description": label})
@@ -158,24 +218,30 @@ def generate(out, seed: int = 7, scale: int = 1, n_wells: int = 12) -> dict:
             points.append({"tag": f"{FACILITY}.{w}.{code}", "descriptor": f"{w} {desc}", "engunits": uom,
                            "pointsource": "OPC"})
 
-    ec = _ec_network(wells)
+    ec = _ec_network(wells, big if is_big else None)
 
-    for area, tags in area_tags.items():
-        fmt = PID_FORMAT[area]
-        sheet = {"sheet": f"{FACILITY}-{area}-PID-001", "title": f"AREA {area} - {AREAS[area].upper()}",
+    for (area, t), tags in sheet_tags.items():
+        tmpl, area_name = plan[area]
+        fmt = PID_FORMAT[tmpl]
+        sheet = {"sheet": f"{FACILITY}-{area}-PID-{t + 1:03d}", "title": f"AREA {area} - {area_name.upper()}",
                  "revision": rng.choice("BCD"), "format": fmt}
         if fmt == "smart":
-            sheet["tags"] = [t.canonical for t in tags]
+            sheet["tags"] = [tag.canonical for tag in tags]
         elif fmt == "pdf_text":
-            bubbles = "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
-            sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-27-PID-002"
+            bubbles = "\n".join(tag.fmt("{f}\n{l}{s}") for tag in tags)
+            sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-{area}-PID-{t + 2:03d}"
         sheets.append(sheet)
 
     logs = []
-    for n in range(30):
+    for n in range(min(cfg["logs"], len(LOGS) * 3)):
         day = f"2024-{1 + n // 5:02d}-{1 + (n * 5) % 28:02d}"
         logs.append({"entry_id": f"LOG-{day}-{n:03d}", "timestamp": f"{day}T{rng.choice(['06', '18'])}:00:00",
                      "facility": FACILITY, "author": rng.choice(AUTHORS), "text": LOGS[n % len(LOGS)]})
+    for n in range(len(logs), cfg["logs"]):
+        day = f"{big.choice([2024, 2025])}-{big.randint(1, 12):02d}-{big.randint(1, 28):02d}"
+        logs.append({"entry_id": f"LOG-{day}-{n:05d}", "timestamp": f"{day}T{big.choice(['06', '18'])}:00:00",
+                     "facility": FACILITY, "author": big.choice(AUTHORS),
+                     "text": _log_text(big, pumps, vessels, instruments, wells)})
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_equipment.csv", equipment)
@@ -186,8 +252,22 @@ def generate(out, seed: int = 7, scale: int = 1, n_wells: int = 12) -> dict:
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps(ec, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
-    return {"flocs": len(floc), "equipment": len(equipment), "jde": len(jde), "maximo": len(maximo),
-            "pi_points": len(points), "af_elements": len(af), "pid_sheets": len(sheets), "logs": len(logs)}
+    return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
+            "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
+            "pid_sheets": len(sheets), "logs": len(logs)}
+
+
+def _log_text(rng, pumps, vessels, instruments, wells) -> str:
+    pump, area_name = rng.choice(pumps)
+    alt = Tag(pump.area, pump.func, pump.loop, "A" if pump.suffix != "A" else "B")
+    inst = rng.choice(instruments)
+    w = rng.choice(wells)
+    return rng.choice(LOG_TEMPLATES).format(
+        pump=pump.canonical, pump_alt=alt.canonical, pump_short=pump.fmt("{f}-{l}{s}"),
+        well=rng.choice([f"A-{w[1:]}", w, f"well {w}"]), a=rng.randint(10, 50), b=rng.randint(20, 80),
+        inst=inst.canonical, inst_short=inst.fmt("{f}-{l}{s}"), reason=rng.choice(REASONS),
+        suffix=pump.suffix or "A", area_name=area_name.lower(), vessel_desc=rng.choice(vessels)[1].lower(),
+    )
 
 
 def _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, i, retired):
@@ -210,7 +290,7 @@ def _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, i, retired
                 "manufacturer": mfr, "model": model, "serial": str(serial) if has_serial else ""})
 
 
-def _ec_network(wells: list[str]) -> dict:
+def _ec_network(wells: list[str], rng: random.Random | None = None) -> dict:
     nodes = [{"code": f"{FACILITY}_{w[0]}-{w[1:]}", "type": "well", "name": f"{w[0]}-{w[1:]}"} for w in wells]
     nodes += [
         {"code": f"{FACILITY}_A-07 ST1", "type": "well", "name": "A-07 ST1"},
@@ -233,6 +313,10 @@ def _ec_network(wells: list[str]) -> dict:
         elif w == "A07":  # original hole replaced by sidetrack
             edges += [{"from": code, "to": pm, "valid_from": "2018-01-01", "valid_to": "2022-09-01"},
                       {"from": f"{FACILITY}_A-07 ST1", "to": pm, "valid_from": "2022-09-01", "valid_to": ""}]
+        elif rng and int(w[1:]) > 12 and rng.random() < 0.15:  # spent time on test, then production
+            moved = f"{rng.randint(2019, 2025)}-{rng.randint(1, 12):02d}-01"
+            edges += [{"from": code, "to": tm, "valid_from": "2018-01-01", "valid_to": moved},
+                      {"from": code, "to": pm, "valid_from": moved, "valid_to": ""}]
         else:
             edges.append({"from": code, "to": pm, "valid_from": "2018-01-01", "valid_to": ""})
     for a, b in [(pm, "SEP-PROD"), (tm, "SEP-TEST"), ("SEP-PROD", "GAS-SCRUB"), ("SEP-PROD", "SURGE"),
