@@ -232,8 +232,14 @@ def neighborhood(fuzer_id: str, depth: int = 1, rels: str | None = None, as_of: 
 
 
 @app.get("/network")
-def network(rel: str = "flows_to", as_of: date | None = None, conn=Depends(get_conn)):
+def network(rel: Literal["flows_to", "pipes_to"] = "flows_to", as_of: date | None = None, conn=Depends(get_conn)):
+    """flows_to: production / allocation flow (Energy Components); pipes_to: piping from P&IDs."""
     return queries.network(conn, rel, as_of)
+
+
+@app.get("/network/compare")
+def network_compare(conn=Depends(get_conn)):
+    return queries.compare_networks(conn)
 
 
 @app.get("/lookup")

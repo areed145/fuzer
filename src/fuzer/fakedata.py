@@ -241,6 +241,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                  "revision": rng.choice("BCD"), "format": fmt}
         if fmt == "smart":
             sheet["tags"] = [tag.canonical for tag in tags]
+            sheet["connections"] = _pipe_connections(area, tags, t, len(sheets))
         elif fmt == "pdf_text":
             bubbles = "\n".join(tag.fmt("{f}\n{l}{s}") for tag in tags)
             sheet["text"] = f"{sheet['title']}\n{bubbles}\nNOTE 3: SEE DWG {FACILITY}-{area}-PID-{t + 2:03d}"
@@ -470,6 +471,20 @@ TEMPLATE_TRUTH = [  # aligned with LOG_TEMPLATES
     (lambda v: [v["vessel"]], ["alarm"]),
     (lambda v: [v["inst"]], ["instrument_fault"]),
 ]
+
+
+# Process lines that leave a sheet for another area (as on real P&IDs: off-page connectors). Planted gap:
+# EC routes the test separator 20-V-2002 to the surge drum 27-V-2001, but no P&ID shows that line.
+OFF_PAGE = {"20": [("20-V-2001", "23-V-2001"), ("20-V-2001", "27-V-2001")]}
+
+
+def _pipe_connections(area: str, tags: list, train: int, sheet_no: int) -> list[dict]:
+    """Piping on a smart P&ID (DEXPI-style): consecutive equipment on the sheet, plus off-page lines."""
+    equipment = [t.canonical for t in tags if t.func in ("P", "K", "E", "V")]
+    pairs = list(zip(equipment, equipment[1:]))
+    if train == 0:  # the first train's sheet carries the area's off-page lines
+        pairs += OFF_PAGE.get(area, [])
+    return [{"from": a, "to": b, "line": f'6"-P-{a[:2]}{100 + sheet_no * 10 + i}-A1'} for i, (a, b) in enumerate(pairs)]
 
 
 def _log_text(rng, pumps, vessels, instruments, wells) -> tuple[str, dict]:

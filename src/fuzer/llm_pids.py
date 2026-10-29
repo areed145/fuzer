@@ -25,7 +25,7 @@ from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
 from .model import Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-29.2"
+PROMPT_VERSION = "2026-10-29.3"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
@@ -41,6 +41,9 @@ Report every tag you can read:
 - line numbers on process lines, e.g. 6"-P-44123-A1. kind "line".
 - anything else that looks like an identifier: kind "other".
 
+Also report connections: each process line between two pieces of equipment, as from / to (the tags
+at each end, following the flow arrow) and the line number written on it.
+
 Write each tag exactly as drawn and don't add an area or prefix that isn't written. Report a tag once
 even if it appears on several tiles. If a character is unclear, give your best reading and a lower
 confidence (0 to 1). Also read the title block."""
@@ -48,7 +51,7 @@ confidence (0 to 1). Also read the title block."""
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["title_block", "tags"],
+    "required": ["title_block", "tags", "connections"],
     "properties": {
         "title_block": {
             "type": "object",
@@ -57,6 +60,10 @@ SCHEMA = {
             "properties": {"drawing_number": {"type": "string"}, "title": {"type": "string"},
                            "revision": {"type": "string"}},
         },
+        "connections": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["from", "to", "line"],
+            "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "line": {"type": "string"}},
+        }},
         "tags": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
@@ -128,12 +135,19 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str]) -> dict
         elif key not in seen:
             seen.add(key)
             mentions.append({"text": t["text"], "kind": "tag", "key": key, "confidence": t["confidence"]})
+    connections = []
+    for c in data.get("connections", []):
+        a, b = pack.tags.parse(c["from"], default_area=area), pack.tags.parse(c["to"], default_area=area)
+        if a in known_tags and b in known_tags and a != b:
+            connections.append({"from": a, "to": b, "line": c["line"]})
+        else:
+            findings.append({"text": f"{c['from']} -> {c['to']}", "kind": "connection", "issue": "end not in register"})
     tb = data["title_block"]
     if tb["drawing_number"] and tb["drawing_number"].replace(" ", "") != sheet["sheet"]:
         findings.append({"text": tb["drawing_number"], "kind": "title_block", "issue": "drawing number differs from register"})
     if tb["revision"] and sheet.get("revision") and tb["revision"].strip().upper() != str(sheet["revision"]).upper():
         findings.append({"text": tb["revision"], "kind": "title_block", "issue": "revision differs from register"})
-    return {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines}
+    return {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines, "connections": connections}
 
 
 def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
@@ -220,6 +234,9 @@ def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:
         for m in row["result"]["mentions"]:
             edges.append(Edge(("ref", f"pid:sheet:{row['source_key']}"), "mentions", ("tag", m["key"]), "claude",
                               confidence=m["confidence"], props={"text": m["text"], "method": row["model"]}))
+        for c in row["result"].get("connections", []):
+            edges.append(Edge(("tag", c["from"]), "pipes_to", ("tag", c["to"]), "claude",
+                              props={"line": c["line"], "sheet": row["source_key"], "method": row["model"]}))
     return edges
 
 

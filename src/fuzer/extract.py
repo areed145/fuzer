@@ -286,6 +286,10 @@ def ec_edge(key, p, pack):
 def pid_sheet(key, p, pack):
     c = Candidate("pid", "sheet", key, "document", key, _pick(p, "title", "revision", "format"))
     area = _area_in(p.get("title"))
+    for conn_ in p.get("connections", []):  # piping from smart P&IDs (DEXPI-style)
+        c.edges.append(Edge(("tag", pack.tags.parse(conn_["from"], area)), "pipes_to",
+                            ("tag", pack.tags.parse(conn_["to"], area)), "pid",
+                            props={"line": conn_.get("line"), "sheet": key}))
     if p["format"] == "smart":
         for t in p.get("tags", []):
             c.edges.append(Edge(("ref", c.ref), "mentions", ("tag", pack.tags.parse(t, area)), "pid",

@@ -810,3 +810,36 @@ def spares(conn, fuzer_id: str) -> list[dict]:
         """,
         {"id": fuzer_id},
     ).fetchall()
+
+
+
+def compare_networks(conn, depth: int = 6, limit: int = 100) -> dict:
+    """Energy Components' flow (flows_to) vs. P&ID piping (pipes_to), between tags both know:
+    EC flows with no piping path on the P&IDs, and piping between EC nodes with no EC flow path."""
+    def missing(rel_a, rel_b):
+        return conn.execute(
+            f"""
+            with recursive pairs as (
+                select a.src, a.dst from edge a
+                join entity s on s.fuzer_id = a.src and s.kind = 'tag'
+                join entity d on d.fuzer_id = a.dst and d.kind = 'tag'
+                where a.rel = '{rel_a}'
+                  and exists (select 1 from edge x where x.rel = '{rel_b}' and (x.src = a.src or x.dst = a.src))
+                  and exists (select 1 from edge x where x.rel = '{rel_b}' and (x.src = a.dst or x.dst = a.dst))
+            ), walk(start, goal, at, n) as (
+                select src, dst, src, 0 from pairs
+                union
+                select w.start, w.goal, e.dst, w.n + 1 from walk w
+                join edge e on e.src = w.at and e.rel = '{rel_b}'
+                where w.n < %(depth)s and w.at <> w.goal
+            )
+            select p.src, p.dst, ls.label as from_label, ld.label as to_label
+            from pairs p
+            left join entity_label ls on ls.fuzer_id = p.src
+            left join entity_label ld on ld.fuzer_id = p.dst
+            where not exists (select 1 from walk w where w.start = p.src and w.goal = p.dst and w.at = p.dst)
+            order by 3, 4 limit %(limit)s
+            """,
+            {"depth": depth, "limit": limit},
+        ).fetchall()
+    return {"in_ec_not_on_pids": missing("flows_to", "pipes_to"), "on_pids_not_in_ec": missing("pipes_to", "flows_to")}
