@@ -26,6 +26,10 @@ TROUBLESHOOTING = {
                                       "displacer calibration."),
           ("Internal leak", "Check weir and internals at the next entry; review carry-over in downstream samples.")],
 }
+# Troubleshooting symptom -> ISO 14224 failure mode (answer key for section tagging).
+SYMPTOM_MODES = {"High vibration": "VIB", "Seal leakage": "ELP", "Fails to start": "FTS",
+                 "Low discharge pressure": "LOO", "High discharge temperature": "OHE", "Trips on start": "FTS",
+                 "High outlet temperature": "OHE", "Internal leak": "INL", "Level indication faulty": "AIR"}
 TYPE_NAMES = {"P": "centrifugal pump", "K": "centrifugal compressor", "E": "shell and tube heat exchanger",
               "V": "pressure vessel"}
 CLASS_CODES = {"P": "PU.CE", "K": "CO.CE", "E": "HE.ST", "V": "VE"}
@@ -163,4 +167,44 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
                          "equipment_class": CLASS_CODES[func]})
 
     (out / "documents.json").write_text(json.dumps(manifest, indent=1))
+    _answer_keys(out, manifest, equipment, guides)
     return manifest
+
+
+def _answer_keys(out: Path, manifest: list[dict], equipment: list[dict], guides: dict) -> None:
+    """What correct linking and search should find, for `fuzer eval`."""
+    keys = out / "answer_keys"
+    keys.mkdir(exist_ok=True)
+    tag_of = lambda floc: re.sub(r"^[A-Z]+-(\d{2})-([A-Z]+)(\d+)([A-Z]?)$", r"\1-\2-\3\4", floc)
+    installed = {}
+    for e in equipment:
+        if not e["valid_to"]:
+            installed.setdefault((e["manufacturer"], e["model"]), tag_of(e["floc"]))
+    linking, modes, search = [], [], []
+    for d in manifest:
+        if d["status"] != "current":
+            continue
+        doc = f"{d['doc_number']} rev {d['revision']}"
+        if d["doc_type"] == "oem_manual":
+            linking.append({"document": doc, "applies_to": [f"{d['manufacturer'].upper()} {d['model'].upper()}"]})
+            func = next(f for f, n in TYPE_NAMES.items() if n in d["title"])
+            symptoms = [sym for sym, _ in TROUBLESHOOTING[func]]
+            expected = sorted({SYMPTOM_MODES[sym] for sym in symptoms} | ({"VIB"} if d["revision"] == "B" else set()))
+            modes.append({"document": doc, "heading_contains": "Troubleshooting", "failure_modes": expected})
+            if tag := installed.get((d["manufacturer"], d["model"])):
+                for sym in symptoms[:2]:
+                    search.append({"question": f"what to do about {sym.lower()}", "ref": tag,
+                                   "expected": {"document": doc, "heading_contains": "Troubleshooting"}})
+        elif d["doc_type"] == "procedure":
+            linking.append({"document": doc, "applies_to": [f"ISO14224:{d['equipment_class']}"]})
+        elif d["doc_type"] == "troubleshooting_guide":
+            linking.append({"document": doc, "applies_to": d["tags"]})
+            area = d["doc_number"].split("-")[1]
+            for step in guides[area][2]:
+                tag = next((t for t in d["tags"] if t in step), d["tags"][0])
+                words = " ".join(re.sub(r"\b\d{2}-[A-Z]+-\d+[A-Z]?\b", "", step).replace(":", " ").split()[:14])
+                search.append({"question": words.strip(" .,"), "ref": tag,
+                               "expected": {"document": doc, "heading_contains": "Symptoms"}})
+    (keys / "linking.json").write_text(json.dumps(linking, indent=1))
+    (keys / "section_modes.json").write_text(json.dumps(modes, indent=1))
+    (keys / "search.json").write_text(json.dumps(search, indent=1))

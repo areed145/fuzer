@@ -54,6 +54,8 @@ def main(argv=None):
     j.add_argument("--port", type=int, default=3000)
 
     sub.add_parser("bench", help="time the main read queries against the current database")
+    ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
+    ev.add_argument("--keys", default="data/fake/answer_keys", help="folder of answer-key JSON files")
 
     sub.add_parser("reset", help="drop and recreate all tables")
 
@@ -113,6 +115,9 @@ def main(argv=None):
                 from . import llm_pids
 
                 _print(llm_pids.score(conn, _json.loads(open(args.truth).read())))
+            elif args.cmd == "eval":
+                from . import evaluate
+                _print(evaluate.run(conn, pack, args.keys))
             elif args.cmd == "bench":
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":

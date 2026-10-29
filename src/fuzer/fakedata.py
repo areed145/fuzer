@@ -249,21 +249,27 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
             pid_truth[sheet["sheet"]] = fakepid.draw(out / sheet["image"], sheet, tags, titles, drawing_rng)
         sheets.append(sheet)
 
-    logs = []
+    logs, log_truth = [], []
     for n in range(min(cfg["logs"], len(LOGS) * 3)):
         day = f"2024-{1 + n // 5:02d}-{1 + (n * 5) % 28:02d}"
         logs.append({"entry_id": f"LOG-{day}-{n:03d}", "timestamp": f"{day}T{rng.choice(['06', '18'])}:00:00",
                      "facility": FACILITY, "author": rng.choice(AUTHORS), "text": LOGS[n % len(LOGS)]})
+        keys, events = LOG_TRUTH[n % len(LOGS)]
+        log_truth.append({"entry_id": logs[-1]["entry_id"], "mentions": keys, "event_types": events})
     for n in range(len(logs), cfg["logs"]):
         day = f"{big.choice([2024, 2025])}-{big.randint(1, 12):02d}-{big.randint(1, 28):02d}"
-        logs.append({"entry_id": f"LOG-{day}-{n:05d}", "timestamp": f"{day}T{big.choice(['06', '18'])}:00:00",
-                     "facility": FACILITY, "author": big.choice(AUTHORS),
-                     "text": _log_text(big, pumps, vessels, instruments, wells)})
+        entry = {"entry_id": f"LOG-{day}-{n:05d}", "timestamp": f"{day}T{big.choice(['06', '18'])}:00:00",
+                 "facility": FACILITY, "author": big.choice(AUTHORS)}
+        entry["text"], truth = _log_text(big, pumps, vessels, instruments, wells)
+        logs.append(entry)
+        log_truth.append({"entry_id": entry["entry_id"], **truth})
 
     notifications, work_orders = _maintenance(random.Random(seed + 3), equipment)
     downtime = _downtime(random.Random(seed + 4), notifications, wells)
     daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
     documents = fakedocs.generate(out, equipment, plan, FACILITY)
+    (out / "answer_keys").mkdir(exist_ok=True)
+    (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_notifications.csv", notifications)
@@ -405,17 +411,53 @@ def _add_days(day: str, n: int) -> str:
     return (date.fromisoformat(day) + timedelta(days=n)).isoformat()
 
 
-def _log_text(rng, pumps, vessels, instruments, wells) -> str:
+# What a correct reading of each log line finds: mentioned keys and event types (answer key).
+LOG_TRUTH = [
+    (["20-P-1001B", "20-P-1001A", "20-VT-1001B"], ["trip", "start"]),
+    (["A-03", "20-V-2002"], ["well_test"]),
+    (["A-07 ST1"], ["choke_change"]),
+    (["20-PT-2001", "20-V-2001"], ["instrument_fault"]),
+    (["27-P-1001A", "27-P-1001C"], ["changeover"]),
+    (["20-LT-2002", "20-V-2002"], ["instrument_fault"]),
+    (["23-K-1001A"], ["trip"]),
+    (["44-P-1001B"], ["leak"]),
+    (["20-E-3001"], ["alarm"]),
+    (["A-11"], ["shut_in"]),
+]
+TEMPLATE_TRUTH = [  # aligned with LOG_TEMPLATES
+    (lambda v: [v["pump"], v["alt"]], ["trip", "start"]),
+    (lambda v: [v["pump"]], ["leak"]),
+    (lambda v: [v["well"], "20-V-2002"], ["well_test"]),
+    (lambda v: [v["well"]], ["choke_change"]),
+    (lambda v: [v["inst"]], ["instrument_fault"]),
+    (lambda v: [v["well"]], ["shut_in"]),
+    (lambda v: [v["pump"], v["alt"]], ["changeover"]),
+    (lambda v: [v["pump"]], ["trip"]),
+    (lambda v: [v["vessel"]], ["alarm"]),
+    (lambda v: [v["inst"]], ["instrument_fault"]),
+]
+
+
+def _log_text(rng, pumps, vessels, instruments, wells) -> tuple[str, dict]:
+    # Random draws stay in the order the original single expression made them, so data doesn't change.
     pump, area_name = rng.choice(pumps)
     alt = Tag(pump.area, pump.func, pump.loop, "A" if pump.suffix != "A" else "B")
     inst = rng.choice(instruments)
     w = rng.choice(wells)
-    return rng.choice(LOG_TEMPLATES).format(
-        pump=pump.canonical, pump_alt=alt.canonical, pump_short=pump.fmt("{f}-{l}{s}"),
-        well=rng.choice([f"A-{w[1:]}", w, f"well {w}"]), a=rng.randint(10, 50), b=rng.randint(20, 80),
-        inst=inst.canonical, inst_short=inst.fmt("{f}-{l}{s}"), reason=rng.choice(REASONS),
-        suffix=pump.suffix or "A", area_name=area_name.lower(), vessel_desc=rng.choice(vessels)[1].lower(),
+    template = rng.choice(LOG_TEMPLATES)
+    well_text = rng.choice([f"A-{w[1:]}", w, f"well {w}"])
+    a, b = rng.randint(10, 50), rng.randint(20, 80)
+    reason = rng.choice(REASONS)
+    vessel, vessel_title = rng.choice(vessels)
+    text = template.format(
+        pump=pump.canonical, pump_alt=alt.canonical, pump_short=pump.fmt("{f}-{l}{s}"), well=well_text, a=a, b=b,
+        inst=inst.canonical, inst_short=inst.fmt("{f}-{l}{s}"), reason=reason, suffix=pump.suffix or "A",
+        area_name=area_name.lower(), vessel_desc=vessel_title.lower(),
     )
+    keys, events = TEMPLATE_TRUTH[LOG_TEMPLATES.index(template)]
+    names = {"pump": pump.canonical, "alt": alt.canonical, "inst": inst.canonical, "well": f"A-{w[1:]}",
+             "vessel": vessel.canonical}
+    return text, {"mentions": keys(names), "event_types": events}
 
 
 def _add_jde(rng, jde, eq, desc, maker, model, serial, area, func, s, i, retired):
