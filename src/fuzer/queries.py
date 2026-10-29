@@ -491,3 +491,108 @@ def maintenance(conn, fuzer_id: str, since: str | None = None, limit: int = 50) 
                     "failure_mechanism_name": r["f"].get("failure_mechanism_name"),
                     "text": r["f"].get("short_text"), "work_orders": orders[r["id"]]} for r in recent],
     }
+
+
+
+_DOWNTIME = """
+    with recursive classes(id) as (
+        select %(id)s::text
+        union
+        select e.src from edge e join classes c on e.dst = c.id
+        where e.rel = 'is_a' and e.src in (select fuzer_id from entity where kind = 'equipment_class')
+    ), targets as (
+        select %(id)s::text as id
+        union select src from edge where rel = 'instance_of' and dst = %(id)s
+        union select src from edge where rel = 'classified_as' and dst in (select id from classes)
+    ), scoped as (
+        select en.fuzer_id as id from entity en
+        where en.kind = 'downtime' and en.retired_at is null
+          and (%(id)s::text is null or exists (
+                select 1 from edge e where e.src = en.fuzer_id and e.rel in ('affects', 'caused_by')
+                  and e.dst in (select id from targets)))
+    ), d as (
+        select s.id, jsonb_object_agg(g.field, g.value) as f
+        from scoped s join golden g on g.fuzer_id = s.id
+        group by s.id
+    ), dd as (
+        select * from d
+        where (%(since)s::text is null or f->>'start' >= %(since)s)
+          and (%(until)s::text is null or f->>'start' < %(until)s)
+    )
+"""
+
+
+def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until: str | None = None,
+             limit: int = 50) -> dict:
+    """Downtime affecting a well or the facility, or caused by a tag / equipment / model / class."""
+    params = {"id": fuzer_id, "since": since, "until": until, "limit": limit}
+    totals = conn.execute(_DOWNTIME + """
+        select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
+               coalesce(sum((f->>'duration_h')::numeric), 0) as hours
+        from dd
+    """, params).fetchone()
+    rows = conn.execute(_DOWNTIME + """
+        select dd.id, dd.f, l.label from dd left join entity_label l on l.fuzer_id = dd.id
+        order by dd.f->>'start' desc, dd.id limit %(limit)s
+    """, params).fetchall()
+    ids = [r["id"] for r in rows]
+    links = defaultdict(lambda: {"affects": [], "caused_by": []})
+    for r in conn.execute(
+        """
+        select e.src, e.rel, e.dst, l.label from edge e left join entity_label l on l.fuzer_id = e.dst
+        where e.src = any(%s) and e.rel in ('affects', 'caused_by')
+        """,
+        (ids,),
+    ):
+        links[r["src"]][r["rel"]].append({"id": r["dst"], "label": r["label"]})
+    return {
+        "events": totals["events"], "lost_oil_sm3": float(totals["lost_oil_sm3"]), "hours": float(totals["hours"]),
+        "recent": [{"id": r["id"], "label": r["label"], **{k: r["f"].get(k) for k in (
+            "start", "end", "duration_h", "reason", "reason_category", "lost_oil_sm3", "comment", "reason_check")},
+                    **links[r["id"]]} for r in rows],
+    }
+
+
+def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str | None = None,
+                     limit: int = 20) -> list[dict]:
+    """Lost oil ranked by causing tag, by the class of the causing tag, or by reason."""
+    params = {"id": None, "since": since, "until": until, "limit": limit}
+    if by == "reason":
+        sql = """
+            select coalesce(f->>'reason', 'Unknown') as label, null::text as description, null::text as fuzer_id,
+                   count(*) as events, sum((f->>'lost_oil_sm3')::numeric) as lost_oil_sm3,
+                   sum((f->>'duration_h')::numeric) as hours
+            from dd group by 1 order by lost_oil_sm3 desc nulls last limit %(limit)s
+        """
+    elif by in ("tag", "class"):
+        via = ("join edge k on k.src = c.dst and k.rel = 'classified_as'" if by == "class" else "")
+        target = "k.dst" if by == "class" else "c.dst"
+        sql = f"""
+            select l.label, gd.value #>> '{{}}' as description, {target} as fuzer_id, count(distinct dd.id) as events,
+                   sum((dd.f->>'lost_oil_sm3')::numeric) as lost_oil_sm3, sum((dd.f->>'duration_h')::numeric) as hours
+            from dd
+            join edge c on c.src = dd.id and c.rel = 'caused_by'
+            {via}
+            left join entity_label l on l.fuzer_id = {target}
+            left join golden gd on gd.fuzer_id = {target} and gd.field = 'description'
+            group by l.label, gd.value, {target} order by lost_oil_sm3 desc nulls last limit %(limit)s
+        """
+    else:
+        raise ValueError("by must be tag, class or reason")
+    return [{**r, "lost_oil_sm3": float(r["lost_oil_sm3"] or 0), "hours": float(r["hours"] or 0)}
+            for r in conn.execute(_DOWNTIME + sql, params)]
+
+
+def downtime_reason_checks(conn, limit: int = 100) -> list[dict]:
+    """Downtime whose comment names failed equipment but whose reason code says otherwise."""
+    return conn.execute(
+        """
+        select g.fuzer_id, l.label, g.value #>> '{}' as issue, s.value #>> '{}' as start
+        from golden g
+        left join entity_label l using (fuzer_id)
+        left join golden s on s.fuzer_id = g.fuzer_id and s.field = 'start'
+        where g.field = 'reason_check'
+        order by start desc limit %s
+        """,
+        (limit,),
+    ).fetchall()

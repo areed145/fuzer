@@ -28,17 +28,19 @@ def rebuild(conn, pack: Pack) -> dict:
     conn.execute("select pg_advisory_xact_lock(%s)", (REBUILD_LOCK,))
     lap("wait_for_lock")
 
-    cands, extra, log_entries, pid_sheets = [], [], {}, {}
+    cands, extra, pid_sheets = [], [], {}
+    text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
+    texts: dict[str, dict[str, dict]] = {name: {} for name in llm_links.TEXT_SOURCES}
     for rec in conn.execute("select source, record_type, source_key, payload from source_record"):
         c, e = extract(rec, pack)
         cands += c
         extra += e
-        if rec["source"] == "oplog":
-            log_entries[rec["source_key"]] = rec["payload"]
+        if name := text_kinds.get((rec["source"], rec["record_type"])):
+            texts[name][rec["source_key"]] = rec["payload"]
         elif rec["source"] == "pid":
             pid_sheets[rec["source_key"]] = rec["payload"]
     # Claude's cached reads of logs and scanned drawings; never calls the model here.
-    c, e = llm_links.cached_items(conn, log_entries)
+    c, e = llm_links.cached_items(conn, texts)
     cands += c
     extra += e + llm_pids.cached_edges(conn, pid_sheets)
     lap("extract")

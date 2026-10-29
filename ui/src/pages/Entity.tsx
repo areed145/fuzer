@@ -21,6 +21,9 @@ const REL_LABELS: Record<string, [string, string]> = {
   concerns: ["Concerns", "Maintenance records"],
   for_notification: ["For notification", "Work orders"],
   related_to: ["Related events", "Related notifications"],
+  affects: ["Affects", "Downtime"],
+  caused_by: ["Caused by", "Downtime caused"],
+  reports_on: ["Reports on", "Daily reports"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
@@ -86,6 +89,9 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <MaintenanceCard id={e.fuzer_id} />
+          )}
+          {["tag", "equipment", "equipment_model", "equipment_class", "well", "facility"].includes(e.kind) && (
+            <DowntimeCard id={e.fuzer_id} />
           )}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
@@ -353,6 +359,38 @@ function MaintenanceCard({ id }: { id: string }) {
           </ul>
         </div>
       </div>
+    </section>
+  );
+}
+
+function DowntimeCard({ id }: { id: string }) {
+  const d = useAsync(() => api.downtime(id), [id]);
+  if (!d.data?.events) return null;
+  return (
+    <section className="card">
+      <h2>
+        Downtime{" "}
+        <span className="muted small">
+          {Math.round(d.data.lost_oil_sm3).toLocaleString()} Sm³ oil lost over {d.data.events} events
+        </span>
+      </h2>
+      <ul className="timeline">
+        {d.data.recent.slice(0, 8).map((r) => (
+          <li key={r.id}>
+            <span className="when">{r.start?.slice(0, 10)}</span>
+            <div className="what">
+              <div className="row">
+                <span className="badge event-type">{r.reason ?? "downtime"}</span>
+                <a href={entityHref(r.id)}>{r.comment}</a>
+              </div>
+              <div className="muted small">
+                {r.duration_h} h · {Math.round(r.lost_oil_sm3 ?? 0).toLocaleString()} Sm³
+                {r.reason_check && <span className="error"> · {r.reason_check}</span>}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

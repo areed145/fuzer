@@ -25,6 +25,8 @@ export const KIND_COLORS: Record<string, string> = {
   equipment_class: "#3f6e8c",
   notification: "#c0392b",
   work_order: "#7f8c3d",
+  downtime: "#e67e22",
+  daily_report: "#95a5a6",
 };
 export const kindColor = (kind: string) => KIND_COLORS[kind] ?? "#8d98a7";
 
@@ -37,6 +39,7 @@ export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [
   { id: "documents", label: "Documents & logs", rels: ["mentions"] },
   { id: "events", label: "Events", rels: ["reports", "involves", "related_to"] },
   { id: "maintenance", label: "Maintenance", rels: ["concerns", "for_notification"] },
+  { id: "production", label: "Downtime & reports", rels: ["affects", "caused_by", "reports_on"] },
 ];
 export const ALL_RELS = REL_VIEWS.flatMap((v) => v.rels);
 

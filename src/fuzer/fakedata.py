@@ -255,10 +255,14 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
                      "text": _log_text(big, pumps, vessels, instruments, wells)})
 
     notifications, work_orders = _maintenance(random.Random(seed + 3), equipment)
+    downtime = _downtime(random.Random(seed + 4), notifications, wells)
+    daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", work_orders)
+    _write_csv(out / "ec_downtime.csv", downtime)
+    _write_csv(out / "ec_day001.csv", daily)
     _write_csv(out / "sap_equipment.csv", equipment)
     _write_csv(out / "jde_assets.csv", jde)
     _write_csv(out / "maximo_assets.csv", maximo)
@@ -272,7 +276,8 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     return {"size": size, "areas": len(plan), "flocs": len(floc), "equipment": len(equipment), "jde": len(jde),
             "maximo": len(maximo), "pi_points": len(points), "af_elements": len(af), "wells": len(wells),
             "pid_sheets": len(sheets), "pid_images": len(pid_truth), "logs": len(logs),
-            "notifications": len(notifications), "work_orders": len(work_orders)}
+            "notifications": len(notifications), "work_orders": len(work_orders), "downtime": len(downtime),
+            "daily_reports": len(daily)}
 
 
 # SAP PM catalog codes per equipment type (mapped to ISO 14224 in the asset pack).
@@ -327,6 +332,65 @@ def _maintenance(rng: random.Random, equipment: list[dict]) -> tuple[list[dict],
     notifications.append(n)
     order(n, current, "2024-01-03", "A03", "PM01", "Realign pump and motor, check bearings")
     return notifications, orders
+
+
+def _downtime(rng: random.Random, notifications: list[dict], wells: list[str]) -> list[dict]:
+    """EC downtime / deferment records: failures of big rotating equipment take the facility down;
+    wells have interventions; plus planned shutdowns and weather (own random sequence)."""
+    rows = []
+
+    def add(obj, start, hours, reason, comment, rate):
+        end = _add_hours(start, hours)
+        rows.append({"event_id": f"DT-{len(rows) + 1:05d}", "object_code": obj, "start": start, "end": end,
+                     "reason_code": reason, "lost_oil_sm3": f"{rate * hours / 24:.0f}",
+                     "lost_gas_ksm3": f"{rate * hours / 24 * 0.12:.0f}", "comment": comment})
+
+    tag_of = lambda floc: re.sub(r"^[A-Z]+-(\d{2})-([A-Z]+)(\d+)([A-Z]?)$", r"\1-\2-\3\4", floc)
+    for n in notifications:
+        if n["damage_code"] in ("D01", "D03", "D09", "D10") and ("-K" in n["floc"] or "-27-P" in n["floc"]) \
+                and rng.random() < 0.3:
+            tag = tag_of(n["floc"])
+            hours = rng.choice([2, 4, 6, 12, 24])
+            add(FACILITY, f"{n['created']}T{rng.randint(0, 23):02d}:00", hours, rng.choice(["EQ-FAIL", "PROC-TRIP"]),
+                f"{tag} {n['short_text'].lower()}; wells choked back, restarted after {hours}h", 9000)
+    for year in range(2019, 2026):
+        add(FACILITY, f"{year}-0{rng.randint(5, 8)}-0{rng.randint(1, 9)}T06:00", rng.choice([72, 96, 120]),
+            "PLAN-MAINT", "Planned annual shutdown", 9000)
+        for _ in range(rng.randint(1, 3)):
+            add(FACILITY, f"{year}-{rng.choice(['01', '02', '11', '12'])}-{rng.randint(10, 28)}T00:00",
+                rng.choice([6, 12, 24]), "WEATHER", "Export tanker disconnected, high seas", 9000)
+        for w in rng.sample(wells, k=min(len(wells), 3)):
+            add(f"{FACILITY}_{w[0]}-{w[1:]}", f"{year}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}T08:00",
+                rng.choice([24, 48, 96]), "WELL-INT", f"{w} shut in for {rng.choice(REASONS)}", 400)
+    # Planted mismatches: the comment names failed equipment but the reason code says weather.
+    add(FACILITY, "2024-02-03T14:00", 2, "WEATHER", "23-K-1001A tripped on high discharge temp, restarted after 2h", 9000)
+    add(f"{FACILITY}_A-11", "2024-02-18T08:00", 72, "WELL-INT", "A-11 shut in for scale squeeze", 400)
+    return rows
+
+
+def _daily_reports(rng: random.Random, downtime: list[dict], days: int) -> list[dict]:
+    """EC DAY001: one report a day with production figures and a comment that mentions that day's downtime."""
+    from datetime import date, timedelta
+    by_day: dict[str, list[dict]] = {}
+    for d in downtime:
+        by_day.setdefault(d["start"][:10], []).append(d)
+    rows, oil = [], 40000.0
+    for i in range(days):
+        day = (date(2024, 1, 1) + timedelta(days=i)).isoformat()
+        oil = max(25000.0, min(52000.0, oil + rng.uniform(-900, 900)))
+        events = by_day.get(day, [])
+        lost = sum(float(d["lost_oil_sm3"]) for d in events)
+        notes = [d["comment"] for d in events] or [rng.choice(["Steady production.", "All wells online.",
+                                                               "Routine operations, no upsets."])]
+        rows.append({"report_date": day, "facility": FACILITY, "oil_sm3": f"{oil - lost:.0f}",
+                     "gas_ksm3": f"{(oil - lost) * 0.12:.0f}", "water_inj_sm3": f"{rng.uniform(30000, 45000):.0f}",
+                     "comments": " ".join(notes)})
+    return rows
+
+
+def _add_hours(when: str, n: int) -> str:
+    from datetime import datetime, timedelta
+    return (datetime.fromisoformat(when) + timedelta(hours=n)).isoformat(timespec="minutes")
 
 
 def _add_days(day: str, n: int) -> str:

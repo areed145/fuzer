@@ -27,7 +27,8 @@ item installed at a tag, identified by serial number; pumps get swapped, tags st
 (manufacturer + model), equipment_class (ISO 14224 category / class / type, e.g. ISO14224:PU.CE =
 centrifugal pumps), well (A-07, sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node,
 document (P&ID sheet), log_entry, event, notification and work_order (SAP PM, with ISO 14224 failure
-mode / mechanism and maintenance activity).
+mode / mechanism and maintenance activity), downtime (EC deferment: affects a well or the facility,
+caused_by tags, lost oil), daily_report (EC DAY001).
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
 flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
@@ -58,6 +59,9 @@ REL_LABELS = {
     ("concerns", "out"): "concerns", ("concerns", "in"): "maintenance",
     ("for_notification", "out"): "notification", ("for_notification", "in"): "work_orders",
     ("related_to", "out"): "related_events", ("related_to", "in"): "related_notifications",
+    ("affects", "out"): "affects", ("affects", "in"): "downtime",
+    ("caused_by", "out"): "caused_by", ("caused_by", "in"): "downtime_caused",
+    ("reports_on", "out"): "reports_on", ("reports_on", "in"): "daily_reports",
 }
 
 
@@ -264,6 +268,27 @@ def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> 
         if err:
             return err
         return _plain({"for": fid, **queries.maintenance(conn, fid, since, min(limit, 200))})
+
+
+@server.tool(annotations=READ_ONLY)
+def downtime(ref: str | None = None, since: str | None = None, until: str | None = None,
+             rank_by: Literal["tag", "class", "reason"] | None = None, limit: int = 20) -> dict[str, Any]:
+    """Production downtime and deferment from Energy Components, with lost oil (Sm3) and hours.
+
+    rank_by ranks lost oil by causing tag, by class of the causing equipment, or by reason (for "what
+    costs us most?"). Otherwise lists downtime affecting a well / the facility, or caused by a tag,
+    equipment, model or class (ref); omit ref for the whole facility. since / until are dates.
+    """
+    with db.connect() as conn:
+        if rank_by:
+            return _plain({"rank_by": rank_by, "ranking": queries.downtime_ranking(conn, rank_by, since, until,
+                                                                                   min(limit, 200))})
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain({"for": fid or "facility", **queries.downtime(conn, fid, since, until, min(limit, 200))})
 
 
 @server.tool(annotations=READ_ONLY)

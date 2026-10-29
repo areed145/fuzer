@@ -4,6 +4,7 @@ import { api } from "./api";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
+import { DowntimePage } from "./pages/Downtime";
 import { Search } from "./pages/Search";
 import "./styles.css";
 
@@ -49,6 +50,9 @@ function App() {
         <a className={section === "network" ? "on" : ""} href={href("/network")}>
           Network
         </a>
+        <a className={section === "downtime" ? "on" : ""} href={href("/downtime")}>
+          Downtime
+        </a>
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
@@ -71,6 +75,8 @@ function App() {
             <Ontology />
           ) : section === "network" ? (
             <Network />
+          ) : section === "downtime" ? (
+            <DowntimePage />
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (

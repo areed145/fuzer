@@ -187,6 +187,17 @@ def tags_missing_from_sap(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          "examples": dg.MetadataValue.json([dict(r) for r in rows[:20]])})
 
 
+@dg.asset_check(asset=register, description="Downtime reason codes agree with what the comments say.")
+def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from . import queries
+    with fuzer.connect() as conn:
+        rows = queries.downtime_reason_checks(conn, 20)
+        total = _scalar(conn, "select count(*) as n from golden where field = 'reason_check'")
+    return dg.AssetCheckResult(passed=total == 0, severity=dg.AssetCheckSeverity.WARN,
+                               metadata={"mismatches": int(total),
+                                         "examples": dg.MetadataValue.json([dict(r) for r in rows])})
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -240,7 +251,7 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 
 defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads],
-    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap],
+    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes],
     jobs=[refresh_all, refresh_logs, claude_reading],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],
