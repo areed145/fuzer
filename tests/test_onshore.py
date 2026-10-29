@@ -5,7 +5,8 @@ import tempfile
 
 import pytest
 
-from fuzer import db, fakeonshore, ingest, pipeline, queries
+from fakeplant import onshore
+from fuzer import db, ingest, pipeline, queries
 from fuzer.pack import load_pack
 
 PACK = load_pack("onshore_demo")
@@ -16,7 +17,7 @@ def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = tempfile.mkdtemp(prefix="fzdata")
-    fakeonshore.generate(data, pads=6, wells_per_pad=8, logs=200)
+    onshore.generate(data, pads=6, wells_per_pad=8, logs=200)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)

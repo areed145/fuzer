@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from fuzer import db, fakedata, incidents, ingest, llm_links, pipeline, queries
+from fakeplant import offshore
+from fuzer import db, incidents, ingest, llm_links, pipeline, queries
 from fuzer.pack import load_pack
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -21,7 +22,7 @@ def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = tempfile.mkdtemp(prefix="fzdata")
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)

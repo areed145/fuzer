@@ -7,7 +7,8 @@ from pathlib import Path
 import dagster as dg
 import pytest
 
-from fuzer import db, fakedata, jobs
+from fakeplant import offshore
+from fuzer import db, jobs
 
 
 @pytest.fixture(scope="module")
@@ -15,7 +16,7 @@ def fuzer():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
     return jobs.Fuzer(data_dir=str(data), database_url=db.database_url())

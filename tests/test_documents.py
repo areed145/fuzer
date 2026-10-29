@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from fuzer import db, fakedata, ingest, pipeline, queries
+from fakeplant import offshore
+from fuzer import db, ingest, pipeline, queries
 from fuzer.documents import sections
 from fuzer.pack import load_pack
 
@@ -20,7 +21,7 @@ def setup():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)

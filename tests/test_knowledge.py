@@ -5,7 +5,8 @@ import tempfile
 
 import pytest
 
-from fuzer import db, fakedata, ingest, knowledge, pipeline, queries
+from fakeplant import offshore
+from fuzer import db, ingest, knowledge, pipeline, queries
 from fuzer.pack import load_pack
 
 PACK = load_pack()
@@ -16,7 +17,7 @@ def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = tempfile.mkdtemp(prefix="fzdata")
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)

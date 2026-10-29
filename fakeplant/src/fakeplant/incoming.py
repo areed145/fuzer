@@ -9,7 +9,7 @@ import random
 import re
 from pathlib import Path
 
-from .fakedata import _write_csv
+from .offshore import _write_csv
 
 ROLES = ["Day CRO", "Night CRO", "OIM", "Production Tech", "Maintenance Lead"]
 UNITS = ["barg", "degC", "mm/s", "%", "m3/h"]
@@ -92,7 +92,7 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
     for name, rows in tables.items():
         _write_csv(inc / f"{name}.csv", rows)
     # One lake-style table among them.
-    from .connectors import write_parquet
+    from .lake import write_parquet
 
     write_parquet(inc / "well_tests.csv", inc / "well_tests")
     (inc / "well_tests.csv").unlink()

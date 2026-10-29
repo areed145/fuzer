@@ -32,7 +32,13 @@ jobs = [
 fuzer = "fuzer.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "httpx>=0.27", "pgserver>=0.1.4"]
+dev = ["pytest>=8", "httpx>=0.27", "pgserver>=0.1.4", "fuzer-fakeplant"]
+
+[tool.uv.workspace]
+members = ["fakeplant"]
+
+[tool.uv.sources]
+fuzer-fakeplant = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

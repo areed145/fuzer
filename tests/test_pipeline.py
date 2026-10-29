@@ -7,7 +7,8 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from fuzer import db, fakedata, graph, ingest, pipeline
+from fakeplant import offshore
+from fuzer import db, graph, ingest, pipeline
 from fuzer.pack import load_pack
 
 PACK = load_pack()
@@ -18,7 +19,7 @@ def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")  # short path: socket length limit
     data = tempfile.mkdtemp(prefix="fzdata")
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)
@@ -174,7 +175,7 @@ def test_search_covers_all_fields(api):
 def test_snapshot_ingest_removes_and_retires(tmp_path):
     from fuzer.pack import load_pack
     data = tmp_path / "d"
-    fakedata.generate(data)
+    offshore.generate(data)
     lines = (data / "oplogs.csv").read_text().splitlines()
     (data / "oplogs.csv").write_text("\n".join(lines[:-1]) + "\n")  # last log entry dropped from the export
     with db.connect() as c:

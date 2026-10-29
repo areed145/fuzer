@@ -13,7 +13,9 @@ import pyarrow.parquet as pq
 import pytest
 from fastapi.testclient import TestClient
 
-from fuzer import connectors, db, fakedata, ingest
+from fakeplant import offshore
+from fakeplant.lake import write_parquet
+from fuzer import connectors, db, ingest
 
 
 @pytest.fixture(scope="module")
@@ -21,7 +23,7 @@ def exports():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    fakedata.generate(data)
+    offshore.generate(data)
     return data
 
 
@@ -38,7 +40,7 @@ def as_lake(exports: Path) -> Path:
     shutil.copytree(exports, lake, dirs_exist_ok=True)
     for name in ingest.tables():
         if (lake / f"{name}.csv").exists():
-            connectors.write_parquet(lake / f"{name}.csv", lake / name, rows_per_file=25)
+            write_parquet(lake / f"{name}.csv", lake / name, rows_per_file=25)
             (lake / f"{name}.csv").unlink()
     return lake
 

@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from fuzer import db, evaluate, fakedata, ingest, pipeline
+from fakeplant import offshore
+from fuzer import db, evaluate, ingest, pipeline
 from fuzer.pack import load_pack
 
 PACK = load_pack()
@@ -17,7 +18,7 @@ def scores():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    fakedata.generate(data)
+    offshore.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)

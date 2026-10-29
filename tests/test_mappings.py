@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from fuzer import db, fakedata, ingest, mappings, pipeline
+from fakeplant import offshore
+from fuzer import db, ingest, mappings, pipeline
 from fuzer.pack import load_pack
 
 PACK = load_pack()
@@ -46,7 +47,7 @@ def test_new_source_from_a_mapping_file_only(extra_mapping):
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    fakedata.generate(data)
+    offshore.generate(data)
     with (data / "instrument_index.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["tag_no", "service", "range_high", "unit", "vendor", "equipment"])

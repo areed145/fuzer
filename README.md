@@ -76,7 +76,7 @@ Needs [uv](https://docs.astral.sh/uv/) and Docker.
 docker compose up -d       # Postgres 16 on localhost:5432
 cp .env.example .env       # then set FUZER_DATABASE_URL (and ANTHROPIC_API_KEY for Claude)
 uv sync
-uv run fuzer demo          # fake data -> Postgres -> resolve -> golden -> graph
+uv run fakeplant demo      # fake data -> Postgres -> resolve -> golden -> graph
 uv run fuzer serve         # API on http://127.0.0.1:8000 (docs at /docs)
 uv run pytest              # always uses a throwaway embedded Postgres
 ```
@@ -109,16 +109,16 @@ field shows a very different asset running on the same core:
 
 ```sh
 export FUZER_PACK=onshore_demo
-uv run fuzer demo --asset onshore   # 40 pads, 480 wells on ESPs, pad separators / tanks / LACTs
+uv run fakeplant demo --asset onshore   # 40 pads, 480 wells on ESPs, pad separators / tanks / LACTs
 ```
 
 ### Bigger fake data
 
 ```sh
-uv run fuzer demo --size medium   # ~1/10 of a real offshore asset: 60 areas, ~7.9k tags,
+uv run fakeplant demo --size medium   # ~1/10 of a real offshore asset: 60 areas, ~7.9k tags,
                                   # ~17k PI points, ~2k equipment, 40 wells, 480 P&IDs, 3k log entries
-uv run fuzer generate --size medium --areas 90 --trains 10 --logs 10000   # or tune any part
-uv run fuzer demo --size large    # close to a real asset: 58k tags, 163k PI points, ~300k records
+uv run fakeplant generate --size medium --areas 90 --trains 10 --logs 10000   # or tune any part
+uv run fakeplant demo --size large    # close to a real asset: 58k tags, 163k PI points, ~300k records
 uv run fuzer bench                # time the main queries on whatever is loaded
 ```
 
@@ -167,7 +167,7 @@ Parquet part files or a Delta table (`uv sync --extra delta`), found by name in
 the data folder (`sap_equipment/`, `sap_equipment.parquet`, `sap_equipment.csv`).
 
 ```sh
-uv run fuzer generate --size medium --format parquet --out data/lake
+uv run fakeplant generate --size medium --format parquet --out data/lake
 uv run fuzer ingest --data data/lake     # unchanged tables are skipped; --full reads all
 ```
 
@@ -303,9 +303,10 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | Path | What |
 |---|---|
 | `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
-| `src/fuzer/fakedata.py` | Messy fake offshore asset for all sources |
 | `src/fuzer/ingest.py` | Land source exports into `source_record` |
-| `src/fuzer/extract.py` | Per-source extractors → candidates and edges |
+| `src/fuzer/connectors.py` | CSV / Parquet / Delta connectors |
+| `src/fuzer/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
+| `src/fuzer/extract.py` | Transforms, resolvers and hooks the mappings name |
 | `src/fuzer/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
 | `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
 | `src/fuzer/golden.py` | Per-field survivorship and conflict review |
@@ -314,6 +315,7 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
-| `src/fuzer/llm_pids.py`, `fakepid.py` | Claude reads scanned P&IDs; fake drawing generator |
+| `src/fuzer/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
 | `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
 | `ui/` | React + TypeScript web UI (Vite) |
+| `fakeplant/` | Fake plants (separate package, not imported by Fuzer): exports, drawings, documents, answer keys |

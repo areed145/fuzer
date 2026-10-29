@@ -8,7 +8,7 @@ import json
 import random
 from pathlib import Path
 
-from .fakedata import _add_days, _write_csv
+from .offshore import _add_days, _write_csv
 
 FACILITY = "RBF"
 MAKERS = {"ESP": ["Apex Lift", "Canyon Pumps"], "SEP": ["Plains Fab"], "TK": ["Plains Fab"], "LACT": ["Meterco"]}
