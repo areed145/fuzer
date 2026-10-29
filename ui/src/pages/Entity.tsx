@@ -134,6 +134,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           )}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
+          <HistoryCard id={e.fuzer_id} />
         </>
       )}
     </article>
@@ -497,6 +498,36 @@ function KnowledgeCard({ id }: { id: string }) {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function HistoryCard({ id }: { id: string }) {
+  const h = useAsync(() => api.history(id), [id]);
+  if (!h.data?.length) return null;
+  return (
+    <section className="card">
+      <h2>
+        Change history <span className="muted small">how the source records behind this changed</span>
+      </h2>
+      <ul className="timeline">
+        {h.data.map((c, i) => (
+          <li key={i}>
+            <span className="when">{c.at?.slice(0, 16).replace("T", " ")}</span>
+            <div className="what">
+              <span className="small">
+                <span className="badge source">{c.record.split(":")[0]}</span> {c.record.split(":").slice(2).join(":")}{" "}
+                <span className="muted">{c.change}</span>
+              </span>
+              {Object.entries(c.fields).map(([f, v]) => (
+                <span key={f} className="small">
+                  <b>{f}</b>: <span className="muted">{fmt(v.from)}</span> → {fmt(v.to)}
+                </span>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

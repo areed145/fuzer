@@ -69,6 +69,12 @@ def entity_maintenance(fuzer_id: str, since: str | None = None, limit: int = 50,
     return queries.maintenance(conn, fuzer_id, since, min(limit, 500))
 
 
+@app.get("/entities/{fuzer_id}/history")
+def entity_history(fuzer_id: str, limit: int = 50, conn=Depends(get_conn)):
+    """How the source records behind this entity changed over time."""
+    return queries.record_history(conn, PACK, fuzer_id, min(limit, 500))
+
+
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):

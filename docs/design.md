@@ -245,6 +245,7 @@ orders, 20k log entries (~300k source records, 289k entities, 510k links).
 | Table | What it holds |
 |---|---|
 | `source_record` | Raw records exactly as received (JSON), keyed by source + type + key |
+| `source_record_history` | Previous versions of changed or removed source records |
 | `entity` | One row per Fuzer ID, with kind and `merged_into` |
 | `crosswalk` | Source record → Fuzer ID, with how it was matched |
 | `entity_key` | Canonical keys (tag key, serial, well key) → Fuzer ID |
@@ -291,7 +292,7 @@ disappear; Dagster jobs (per-source assets, export-folder sensor, hourly /
 daily schedules, opt-in nightly Claude run, data-quality checks, failure
 webhook).
 
-Not yet: P&ID line tracing, Entra ID login, source record history, Azure deployment.
+Not yet: P&ID line tracing, Entra ID login, Azure deployment.
 
 ## Roadmap
 

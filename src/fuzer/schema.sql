@@ -192,3 +192,16 @@ create index if not exists knowledge_tsv on knowledge_index using gin (tsv);
 create index if not exists knowledge_scope on knowledge_index using gin (scope_ids);
 alter table knowledge_index add column if not exists failure_modes text[] not null default '{}';
 create index if not exists knowledge_modes on knowledge_index using gin (failure_modes);
+
+-- Earlier versions of source records: written by ingest when a record changes or disappears.
+create table if not exists source_record_history (
+    id          bigserial primary key,
+    source      text not null,
+    record_type text not null,
+    source_key  text not null,
+    payload     jsonb not null,
+    first_seen  timestamptz not null,
+    replaced_at timestamptz not null default now(),
+    change      text not null check (change in ('updated', 'removed'))
+);
+create index if not exists source_record_history_key on source_record_history (source, record_type, source_key, replaced_at);
