@@ -44,7 +44,7 @@ def test_brief_for_the_vibration_incident(conn):
     assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
     assert len(b["spares"]) == 3 and b["documents"]
     assert b["suggested_checks"] and all(c["from"] for c in b["suggested_checks"])
-    assert "not connected" in b["process_values"]
+    assert b["process_values"]["series"] and b["process_values"]["provider"] == "synthetic"
 
 
 def test_brief_for_a_tag_uses_its_latest_incident(conn):

@@ -55,5 +55,13 @@ def brief(conn, pack: Pack, fuzer_id: str) -> dict:
         "spares": [{k: p[k] for k in ("fuzer_id", "label", "description", "mpn", "stock", "bin")}
                    for p in queries.spares(conn, unit)],
         "suggested_checks": checks[:8],
-        "process_values": "not connected yet: needs the PI Web API / ADX connectors (#15, #16, #17)",
+        "process_values": _values(conn, incident or unit),
     }
+
+
+def _values(conn, fuzer_id: str) -> dict:
+    from . import timeseries
+    out = timeseries.around(conn, fuzer_id, hours_before=24, hours_after=6)
+    return {k: v for k, v in out.items() if k != "series"} | {
+        "series": [{k: v for k, v in s.items() if k != "values"} for s in out.get("series", [])],
+        "note": "synthetic values until the PI / ADX connectors exist" if out.get("provider") == "synthetic" else None}

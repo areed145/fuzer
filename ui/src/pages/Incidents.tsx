@@ -1,5 +1,6 @@
 import { api, type Incident } from "../api";
 import { KindBadge, Status, entityHref, useAsync } from "../lib";
+import { TrendGrid } from "../Trend";
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
@@ -48,6 +49,24 @@ export function IncidentList({ items }: { items: Incident[] }) {
 }
 
 export function IncidentDetail({ id }: { id: string }) {
+  const values = useAsync(() => api.values(id), [id]);
+  return (
+    <>
+      <IncidentPanels id={id} />
+      {values.data && values.data.series.length > 0 && (
+        <section className="card">
+          <h2>
+            Process values <span className="muted small">48 h before to 24 h after the start; shaded: the 12 h leading
+            into each incident{values.data.provider === "synthetic" && " · synthetic values until PI / ADX are connected"}</span>
+          </h2>
+          <TrendGrid series={values.data.series} upsets={values.data.upsets} />
+        </section>
+      )}
+    </>
+  );
+}
+
+function IncidentPanels({ id }: { id: string }) {
   const timeline = useAsync(() => api.incidentTimeline(id), [id]);
   const similar = useAsync(() => api.similarIncidents(id), [id]);
   const reading = useAsync(() => api.incidentReading(id), [id]);
