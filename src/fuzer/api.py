@@ -309,7 +309,13 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         raise HTTPException(404, "unknown review item")
     p = item["payload"]
 
-    if item["kind"] == "match":
+    if item["kind"] == "schema":
+        if d.decision == "choose":
+            raise HTTPException(400, "schema items take accept (load with the new columns) or reject (keep holding)")
+        if d.decision == "accept":
+            # The new columns become the expected ones; the next ingest loads the dataset.
+            conn.execute("update dataset_state set schema = %s where dataset = %s", (Jsonb(p["new"]), p["dataset"]))
+    elif item["kind"] == "match":
         if d.decision == "choose":
             raise HTTPException(400, "match items take accept or reject")
         rule = "must" if d.decision == "accept" else "cannot"

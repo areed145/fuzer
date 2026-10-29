@@ -344,6 +344,14 @@ for review instead of failing quietly.
 | Messages | Teams, operator logs | Incremental by timestamp |
 | Standard exchange file | DEXPI (smart P&IDs), CFIHOS handover, WITSML / PRODML, PODS, GeoPackage | Parsed by a standard reader into the shapes below, no Claude needed |
 
+Built so far (#57): CSV, Parquet (file or folder of part files) and Delta
+connectors behind one interface; `dataset_state` keeps each dataset's
+fingerprint, columns and watermark, so unchanged datasets are skipped (large
+asset re-ingest 2.4 s -> 0.4 s), added columns load, removed or retyped columns
+hold the dataset behind a `schema` review item, and watermarked lake tables read
+only new rows. Medium asset from Parquet: same records and eval scores as CSV;
+large first load 3.6 s either way.
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |

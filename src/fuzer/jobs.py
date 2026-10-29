@@ -15,7 +15,6 @@ Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default 
 FUZER_PACK, FUZER_TIMEZONE (default UTC), FUZER_LLM_MODEL / FUZER_LLM_EFFORT.
 """
 
-import hashlib
 import json
 import os
 import urllib.request
@@ -51,32 +50,29 @@ class ClaudeSettings(dg.ConfigurableResource):
 
 
 def export_signature(data_dir: Path, name: str) -> str | None:
-    """Cheap change marker for one export: size and modification time of its file (and, for
-    P&IDs, of the scanned images next to it). None when the file isn't there."""
-    file, _ = ingest.EXPORTS[name]
-    path = data_dir / file
-    if not path.exists():
-        return None
-    parts = [f"{path.stat().st_size}:{path.stat().st_mtime_ns}"]
-    if name == "pid_sheets" and (images := data_dir / "pid").is_dir():
-        parts += [f"{p.name}:{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in sorted(images.iterdir())]
-    return parts[0] if len(parts) == 1 else hashlib.sha1("|".join(parts).encode()).hexdigest()
+    """Cheap change marker for one dataset (its connector's fingerprint: file sizes and times, the
+    files a manifest names, or a Delta version). None when the dataset isn't there."""
+    c = ingest.dataset(data_dir, name)
+    return c.fingerprint() if c else None
 
 
-def _source_asset(name: str, file: str):
-    @dg.asset(name=name, group_name="sources", description=f"Loads {file} as a full snapshot of this source.")
+def _source_asset(name: str):
+    @dg.asset(name=name, group_name="sources", description=f"Loads the {name} dataset (CSV, Parquet or Delta).")
     def load(context: dg.AssetExecutionContext, fuzer: Fuzer) -> dg.MaterializeResult:
-        path = Path(fuzer.data_dir) / file
-        if not path.exists():
-            context.log.warning(f"{path} not found; nothing loaded")
-            return dg.MaterializeResult(metadata={"file": str(path), "records": 0, "missing": True})
+        if (c := ingest.dataset(Path(fuzer.data_dir), name)) is None:
+            context.log.warning(f"{name} not found in {fuzer.data_dir}; nothing loaded")
+            return dg.MaterializeResult(metadata={"dataset": name, "records": 0, "missing": True})
         with fuzer.connect() as conn:
             stats = ingest.ingest(conn, fuzer.data_dir, [name])
-        return dg.MaterializeResult(metadata={"file": str(path), **stats})
+        if stats["held"]:
+            context.log.warning(f"{name} changed schema; held until the schema review is answered")
+        return dg.MaterializeResult(metadata={"dataset": name, "connector": c.kind, "path": str(c.path),
+                                              **{k: v for k, v in stats.items() if not isinstance(v, list)},
+                                              "held": bool(stats["held"])})
     return load
 
 
-SOURCES = [_source_asset(name, file) for name, (file, _) in ingest.EXPORTS.items()]
+SOURCES = [_source_asset(name) for name in ingest.EXPORTS]
 
 
 @dg.asset(group_name="register", deps=SOURCES,
