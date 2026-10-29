@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fuzer": {
+      "command": "uv",
+      "args": ["run", "fuzer", "mcp"],
+      "env": {
+        "FUZER_DATABASE_URL": "postgresql://fuzer:fuzer@localhost:5432/fuzer"
+      }
+    }
+  }
+}

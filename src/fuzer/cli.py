@@ -29,6 +29,11 @@ def main(argv=None):
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
 
+    m = sub.add_parser("mcp", help="run the MCP server for AI agents (stdio by default)")
+    m.add_argument("--http", action="store_true", help="serve streamable HTTP instead of stdio")
+    m.add_argument("--host", default="127.0.0.1")
+    m.add_argument("--port", type=int, default=8001)
+
     sub.add_parser("reset", help="drop and recreate all tables")
 
     args = p.parse_args(argv)
@@ -41,6 +46,10 @@ def main(argv=None):
 
         db.database_url()  # start embedded Postgres before uvicorn
         uvicorn.run("fuzer.api:app", host=args.host, port=args.port)
+    elif args.cmd == "mcp":
+        from . import mcp_server
+
+        mcp_server.main(http=args.http, host=args.host, port=args.port)
     else:
         with db.connect() as conn:
             if args.cmd == "reset":

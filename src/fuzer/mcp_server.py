@@ -1,0 +1,222 @@
+"""MCP server: lets AI agents query the Fuzer asset graph.
+
+All tools are read-only. Review decisions stay with people in the web UI.
+Run with `fuzer mcp` (stdio) or `fuzer mcp --http` (streamable HTTP).
+"""
+
+import json
+from datetime import date
+from typing import Any, Literal
+
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
+
+from . import db, graph, queries
+from .pack import load_pack
+
+PACK = load_pack()
+READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
+
+INSTRUCTIONS = f"""\
+Fuzer is the asset data graph for facility {PACK.facility} (oil & gas). It merges records from SAP, JDE,
+Maximo, PI / PI AF, Energy Components (allocation network), P&IDs and operator logs into one entity per
+real-world thing, and links them.
+
+Entity kinds: facility, area, tag (a functional position such as 20-P-1001B), equipment (the physical
+item installed at a tag, identified by serial number; pumps get swapped, tags stay), well (A-07,
+sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node, document (P&ID sheet), log_entry.
+
+Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
+flow, dated), mentions (document or log -> entity), sidetrack_of. Dated links have from/to dates; pass
+as_of=YYYY-MM-DD to see what was true on a day.
+
+Any tool taking `ref` accepts a Fuzer ID (fz-...), a tag in any style (20-PT-1001A, 20PT1001A), a well
+name, a PI point name or a source record key. Every value carries the source it came from; cite sources
+when you answer. If a ref is ambiguous the tool returns candidates; pick one or ask the user.
+"""
+
+server = MCPServer(name="fuzer", title="Fuzer asset graph", version="0.1.0", instructions=INSTRUCTIONS)
+
+REL_LABELS = {
+    ("part_of", "out"): "part_of", ("part_of", "in"): "contains",
+    ("installed_at", "out"): "installed_at", ("installed_at", "in"): "equipment_installed_here",
+    ("has_timeseries", "out"): "timeseries", ("has_timeseries", "in"): "measures",
+    ("flows_to", "out"): "flows_to", ("flows_to", "in"): "fed_by",
+    ("mentions", "out"): "mentions", ("mentions", "in"): "mentioned_in",
+    ("sidetrack_of", "out"): "sidetrack_of", ("sidetrack_of", "in"): "sidetracks",
+}
+
+
+def _plain(obj: Any) -> Any:
+    """Dates and other DB types -> JSON-safe values."""
+    return json.loads(json.dumps(obj, default=str))
+
+
+def _resolve(conn, ref: str) -> tuple[str | None, dict | None]:
+    """Fuzer ID for ref, or an error payload for the agent."""
+    try:
+        fid = queries.resolve_ref(conn, PACK, ref)
+    except queries.AmbiguousRef as e:
+        return None, {"error": f"{ref!r} is ambiguous", "candidates": _plain(e.candidates)}
+    if fid is None:
+        return None, {"error": f"nothing found for {ref!r}; try the search tool"}
+    return fid, None
+
+
+def _date(s: str | None) -> date | None:
+    return date.fromisoformat(s) if s else None
+
+
+@server.tool(annotations=READ_ONLY)
+def get_stats() -> dict[str, Any]:
+    """Counts of entities by kind, links, source records and open review items."""
+    with db.connect() as conn:
+        return queries.stats(conn, PACK)
+
+
+@server.tool(annotations=READ_ONLY)
+def search(query: str, kind: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    """Find entities by tag, well, PI point, serial number, source key or description text.
+
+    kind optionally filters to one entity kind (tag, equipment, well, timeseries, ...).
+    """
+    with db.connect() as conn:
+        return _plain(queries.search(conn, PACK, query, kind, min(limit, 200)))
+
+
+@server.tool(annotations=READ_ONLY)
+def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
+    """Everything Fuzer knows about one entity: chosen values (with source and any disagreeing
+    sources), the source records merged into it, and its links grouped by relationship.
+
+    as_of (YYYY-MM-DD) limits dated links to those valid on that day.
+    """
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        e = queries.entity(conn, fid, _date(as_of))
+
+    values = {}
+    for field, g in e["golden"].items():
+        others = [{"source": v["source"], "value": v["value"]}
+                  for v in e["values"].get(field, []) if v["value"] != g["value"]]
+        values[field] = {"value": g["value"], "source": g["source"],
+                         **({"reviewed": True} if g["rule"] == "review" else {}),
+                         **({"other_sources_say": others} if others else {})}
+
+    links: dict[str, list] = {}
+    for x in e["edges"]:
+        item = {"id": x["other"], "label": x["other_label"], "kind": x["other_kind"]}
+        if x["other_description"]:
+            item["description"] = x["other_description"]
+        if x["valid_from"] or x["valid_to"]:
+            item["from"], item["to"] = x["valid_from"], x["valid_to"] or "now"
+        if x["props"] and x["props"].get("text"):
+            item["text"] = x["props"]["text"]
+        item["sources"] = x["sources"]
+        links.setdefault(REL_LABELS.get((x["rel"], x["direction"]), x["rel"]), []).append(item)
+
+    return _plain({
+        "fuzer_id": e["fuzer_id"], "kind": e["kind"], "label": e["label"],
+        "values": values,
+        "source_records": [f"{r['source']}:{r['record_type']}:{r['source_key']}" for r in e["records"]],
+        "links": links,
+        **({"as_of": as_of} if as_of else {}),
+    })
+
+
+@server.tool(annotations=READ_ONLY)
+def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None,
+               max_depth: int = 10) -> dict[str, Any]:
+    """Follow the production / allocation network from an entity.
+
+    direction "up" finds what feeds it (e.g. wells feeding a separator); "down" finds where it goes
+    (e.g. separator -> surge drum -> fiscal meter -> sales point). as_of (YYYY-MM-DD) uses the routing
+    valid on that day; without it, all routings past and present are included.
+    """
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        rows = graph.trace(conn, fid, "flows_to", direction, _date(as_of), min(max_depth, 25))
+    return _plain({
+        "start": fid, "direction": direction, **({"as_of": as_of} if as_of else {}),
+        "path": [{"depth": r["depth"], "id": r["fuzer_id"], "label": r["label"], "kind": r["kind"],
+                  **({"from": r["valid_from"], "to": r["valid_to"] or "now"}
+                     if r["valid_from"] or r["valid_to"] else {})} for r in rows],
+    })
+
+
+@server.tool(annotations=READ_ONLY)
+def equipment_history(tag: str) -> dict[str, Any]:
+    """Physical equipment installed at a tag over time (serial, manufacturer, model, install dates).
+    Use it to answer questions like "when was 20-P-1001B swapped and what replaced it?"."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, tag)
+        if err:
+            return err
+        rows = conn.execute(
+            """
+            select e.src as id, l.label, e.valid_from, e.valid_to,
+                   jsonb_object_agg(g.field, g.value) filter (where g.field is not null) as fields
+            from edge e
+            left join entity_label l on l.fuzer_id = e.src
+            left join golden g on g.fuzer_id = e.src
+            where e.dst = %s and e.rel = 'installed_at'
+            group by e.src, l.label, e.valid_from, e.valid_to
+            order by e.valid_from nulls first
+            """,
+            (fid,),
+        ).fetchall()
+    return _plain({"tag": fid, "installs": [
+        {"id": r["id"], "label": r["label"], "from": r["valid_from"], "to": r["valid_to"] or "now",
+         **(r["fields"] or {})} for r in rows]})
+
+
+@server.tool(annotations=READ_ONLY)
+def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
+    """Equipment removals and installs (swaps) across the facility, newest first.
+    since (YYYY-MM-DD) limits to changes on or after that date."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            select tl.label as tag, e.dst as tag_id, el.label as equipment, e.src as equipment_id,
+                   e.valid_from as installed, e.valid_to as removed
+            from edge e
+            left join entity_label tl on tl.fuzer_id = e.dst
+            left join entity_label el on el.fuzer_id = e.src
+            where e.rel = 'installed_at'
+              and e.dst in (select dst from edge where rel = 'installed_at' and valid_to is not null)
+              and (%(since)s::date is null or greatest(e.valid_from, e.valid_to) >= %(since)s::date)
+            order by coalesce(e.valid_to, e.valid_from) desc, tl.label
+            """,
+            {"since": _date(since)},
+        ).fetchall()
+    return _plain(rows)
+
+
+@server.tool(annotations=READ_ONLY)
+def link_text(text: str) -> list[dict[str, Any]]:
+    """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
+    Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with
+    candidates instead of one fuzer_id."""
+    with db.connect() as conn:
+        return _plain(queries.link_text(conn, PACK, text))
+
+
+@server.tool(annotations=READ_ONLY)
+def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    """Open questions waiting for a person: possible duplicate records ("match") and sources that
+    disagree on a value ("conflict"). Decisions are made by people in the Fuzer web UI."""
+    with db.connect() as conn:
+        rows = queries.reviews(conn, "open", kind, min(limit, 200))
+    return _plain([{"id": r["id"], "kind": r["kind"], "entity": r["label"], **r["payload"]} for r in rows])
+
+
+def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
+    db.database_url()  # start embedded Postgres up front if it's in use
+    if http:
+        server.run("streamable-http", host=host, port=port)
+    else:
+        server.run()
