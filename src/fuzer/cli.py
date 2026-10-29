@@ -53,6 +53,8 @@ def main(argv=None):
     j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors (needs the 'jobs' extra)")
     j.add_argument("--port", type=int, default=3000)
 
+    sub.add_parser("bench", help="time the main read queries against the current database")
+
     sub.add_parser("reset", help="drop and recreate all tables")
 
     args = p.parse_args(argv)
@@ -108,6 +110,8 @@ def main(argv=None):
                 from . import llm_pids
 
                 _print(llm_pids.score(conn, _json.loads(open(args.truth).read())))
+            elif args.cmd == "bench":
+                _print(_bench(conn, pack))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "demo":
@@ -128,6 +132,44 @@ def _size_args(p):
 
 def _size_kwargs(args) -> dict:
     return {"size": args.size, "areas": args.areas, "trains": args.trains, "wells": args.wells, "logs": args.logs}
+
+
+def _bench(conn, pack) -> dict:
+    """Best of three timings (ms) for the queries the UI and agents use most, on whatever is loaded."""
+    import time
+
+    from . import graph, queries
+
+    def best(fn):
+        times = []
+        for _ in range(3):
+            t = time.perf_counter()
+            fn()
+            times.append((time.perf_counter() - t) * 1000)
+        return round(min(times), 1)
+
+    big = conn.execute("select e.dst as id from edge e group by e.dst order by count(*) desc limit 1").fetchone()
+    tag = conn.execute("select fuzer_id from entity where kind = 'tag' limit 1").fetchone()
+    pumps = queries.resolve_ref(conn, pack, "ISO14224:PU")
+    sizes = {r["kind"]: r["n"] for r in conn.execute(
+        "select kind, count(*) as n from entity where retired_at is null group by kind")}
+    out = {"entities": sum(sizes.values()), "edges": conn.execute("select count(*) as n from edge").fetchone()["n"]}
+    checks = {
+        "search_common_word": lambda: queries.search(conn, pack, "pump"),
+        "search_tag": lambda: queries.search(conn, pack, "20-P-1001B"),
+        "entity_hub": lambda: queries.entity(conn, big["id"], pack=pack),
+        "entity_tag": lambda: queries.entity(conn, tag["fuzer_id"], pack=pack),
+        "neighborhood_depth_2": lambda: queries.neighborhood(conn, tag["fuzer_id"], depth=2),
+        "trace_flow": lambda: graph.trace(conn, tag["fuzer_id"]),
+        "ontology": lambda: queries.ontology(conn),
+        "incidents": lambda: queries.incidents(conn),
+        "review_list": lambda: queries.reviews(conn, limit=500),
+    }
+    if pumps:
+        checks |= {"members_class": lambda: queries.members(conn, pumps),
+                   "maintenance_class": lambda: queries.maintenance(conn, pumps)}
+    out["ms"] = {name: best(fn) for name, fn in checks.items()}
+    return out
 
 
 def _print(obj):

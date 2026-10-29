@@ -30,40 +30,58 @@ def stats(conn, pack: Pack) -> dict:
     }
 
 
+SEARCH_FIELDS = ("description", "manufacturer", "model", "serial", "short_text", "text", "title", "summary")
+
+
 def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
-    """Exact key matches first (any tag / well style), then anything whose key, source key or
-    any field value contains the text."""
+    """Exact key matches first (any tag / well style), then anything whose label, source key or
+    searchable field contains the text. Each part stops early, so common words stay fast on large
+    registers."""
+    params = {"kind": kind, "limit": limit}
+    if not q:
+        return conn.execute(
+            """
+            select e.fuzer_id, e.kind, l.label, g.value as description
+            from entity_label l
+            join entity e on e.fuzer_id = l.fuzer_id
+            left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
+            where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
+            order by l.label limit %(limit)s
+            """,
+            params,
+        ).fetchall()
     keys = [q.upper()]
     if tag := pack.tags.parse(q):
         keys.append(tag)
     if well := pack.wells.parse(q):
         keys.append(well)
+    params |= {"keys": keys, "like": f"%{q}%", "fields": list(SEARCH_FIELDS), "probe": limit * 10}
+    # With a kind filter, filter before the early stop so it can't fill up on other kinds.
+    kf = "and fuzer_id in (select fuzer_id from entity where kind = %(kind)s)" if kind else ""
     return conn.execute(
-        """
+        f"""
         with hits as (
-            select fuzer_id, 0 as rank from entity_key where key = any(%(keys)s)
+            (select fuzer_id, 0 as rank from entity_key where key = any(%(keys)s))
             union all
-            select fuzer_id, 1 from entity_key where %(q)s <> '' and key ilike %(like)s
+            (select fuzer_id, 1 from entity_label where label ilike %(like)s {kf} limit %(probe)s)
             union all
-            select fuzer_id, 1 from crosswalk where %(q)s <> '' and source_key ilike %(like)s
+            (select fuzer_id, 1 from crosswalk where source_key ilike %(like)s {kf} limit %(probe)s)
             union all
-            select fuzer_id, 2 from golden where %(q)s <> '' and value::text ilike %(like)s
-              and field in ('description', 'manufacturer', 'model', 'serial', 'short_text', 'text', 'title', 'summary')
+            (select fuzer_id, 2 from golden where field = any(%(fields)s) and value::text ilike %(like)s {kf}
+             limit %(probe)s)
         ), best as (
             select fuzer_id, min(rank) as rank from hits group by fuzer_id
         )
         select e.fuzer_id, e.kind, l.label, g.value as description
-        from entity e
-        left join best b using (fuzer_id)
-        left join entity_label l using (fuzer_id)
+        from best b
+        join entity e on e.fuzer_id = b.fuzer_id
+        left join entity_label l on l.fuzer_id = e.fuzer_id
         left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-        where e.merged_into is null and e.retired_at is null
-          and (%(kind)s::text is null or e.kind = %(kind)s)
-          and (%(q)s = '' or b.fuzer_id is not null)
-        order by b.rank nulls last, l.label
+        where e.merged_into is null and e.retired_at is null and (%(kind)s::text is null or e.kind = %(kind)s)
+        order by b.rank, l.label
         limit %(limit)s
         """,
-        {"q": q, "kind": kind, "keys": keys, "like": f"%{q}%", "limit": limit},
+        params,
     ).fetchall()
 
 
@@ -220,9 +238,11 @@ def reviews(conn, status: str = "open", kind: str | None = None, limit: int = 10
     ).fetchall()
 
 
-def ontology(conn) -> dict:
+def ontology(conn, cached: bool = True) -> dict:
     """The data model as it actually exists: entity kinds, which link types join which kinds,
-    which fields each kind carries and which sources feed it."""
+    which fields each kind carries and which sources feed it. Computed once per rebuild."""
+    if cached and (row := conn.execute("select value from register_summary where name = 'ontology'").fetchone()):
+        return row["value"]
     kinds = conn.execute(
         "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind order by n desc"
     ).fetchall()

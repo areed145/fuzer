@@ -152,9 +152,8 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             key_index[(c.kind, c.key)].add(assigned[c.ref])
             if c.kind == "tag":
                 key_index[("tag_noarea", c.key.split("-", 1)[1])].add(assigned[c.ref])
-    conn.execute("delete from entity_key")
-    db.copy_rows(conn, "entity_key", ["kind", "key", "fuzer_id"],
-                 ((k, key, fid) for (k, key), fids in key_index.items() for fid in fids))
+    db.sync_table(conn, "entity_key", ["kind", "key", "fuzer_id"], [],
+                  ((k, key, fid) for (k, key), fids in key_index.items() for fid in fids))
 
     stats = {
         "candidates": len(cands),
@@ -198,6 +197,27 @@ def _assign_ids(conn, groups, by_ref) -> dict[str, str]:
         cur.executemany("update entity set merged_into = %s where fuzer_id = %s", merges)
         cur.executemany("insert into id_event (event, fuzer_id, other_id) values (%s, %s, %s)", events)
     return assigned
+
+
+def label_for(kind: str, key: str) -> str:
+    if kind == "equipment":
+        return f"S/N {key}"
+    if kind == "equipment_model":
+        return key.replace("|", " ")
+    return key
+
+
+def sync_labels(conn, key_index: dict) -> dict:
+    """One label per entity (the smallest of its keys, as written for display)."""
+    labels: dict[str, str] = {}
+    for (kind, key), fids in key_index.items():
+        if kind == "tag_noarea":
+            continue
+        label = label_for(kind, key)
+        for fid in fids:
+            if fid not in labels or label < labels[fid]:
+                labels[fid] = label
+    return db.sync_table(conn, "entity_label", ["fuzer_id"], ["label"], labels.items())
 
 
 def retire_unused(conn, live: set[str]) -> None:
