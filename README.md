@@ -7,6 +7,67 @@ logs.
 
 Design and decisions: [docs/design.md](docs/design.md).
 
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph SRC["Sources (fake exports today)"]
+    direction TB
+    ERP["SAP S/4, JDE, Maximo<br/>assets, notifications, work orders, materials"]
+    PI["PI points, PI AF"]
+    EC["Energy Components<br/>network, downtime, DAY001"]
+    PID["P&ID sheets<br/>smart, text PDF, scans"]
+    TXT["Operator logs"]
+    DOC["Manuals, guides, procedures"]
+  end
+
+  subgraph PG["Postgres"]
+    direction TB
+    RAW[("source_record<br/>+ history")]
+    LLM[("llm_extraction<br/>cached Claude readings")]
+    REG[("entity, crosswalk, golden,<br/>edge, knowledge_index, lesson")]
+    REV[("review_item, pinned_link,<br/>feedback")]
+  end
+
+  subgraph RB["Rebuild (no model calls)"]
+    direction TB
+    EXT["Extract<br/>pack grammars"] --> RES["Resolve<br/>match, stable IDs"]
+    RES --> GOLD["Golden records"] --> TAX["ISO 14224 classes<br/>and models"]
+    TAX --> GR["Graph links"] --> INC["Incidents"]
+    INC --> KN["Knowledge index<br/>and lessons"]
+  end
+
+  SRC -->|"ingest (COPY)"| RAW
+  RAW --> EXT
+  LLM --> EXT
+  KN --> REG
+  REV <--> RES
+
+  CL["Claude readers<br/>logs, comments, P&IDs, sections"]
+  RAW -.->|"fuzer llm-link"| CL -.-> LLM
+
+  TS["Time-series provider<br/>synthetic now, PI / ADX later"]
+
+  subgraph OUT["Users"]
+    direction TB
+    API["FastAPI"] --> UI["React web UI"]
+    MCP["MCP server<br/>AI agents"]
+  end
+  REG --> API & MCP
+  REV <--> API
+  TS --> API & MCP
+
+  DAG["Dagster<br/>sensor, schedules, checks"] -.->|"runs"| SRC
+  DAG -.-> RB
+  DAG -.-> CL
+  PACK["Asset pack (YAML)<br/>+ ISO 14224 standard"] -.-> RB
+```
+
+Raw records, cached Claude readings and reviewer decisions are kept apart, so the
+whole register can be rebuilt from them at any time (about 25 s at full size)
+without calling Claude. Solid arrows are data, dotted arrows are runs and
+configuration. More in [docs/design.md](docs/design.md).
+
 ## Quick start
 
 Needs [uv](https://docs.astral.sh/uv/) and Docker.
