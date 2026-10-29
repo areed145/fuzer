@@ -13,7 +13,7 @@ dependencies = [
     "mcp>=2.3",
     "anthropic>=2.3",
     "pillow>=12.3,<13",
-    "pypdf>=6.20,<6.21",
+    "pypdf>=6.20,<6.22",
     "python-dotenv>=1.2",
     "pyarrow>=25.0,<26",
 ]
