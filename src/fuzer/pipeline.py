@@ -4,7 +4,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import db, golden, graph, llm_links
+from . import db, golden, graph, llm_links, llm_pids
 from .extract import extract
 from .pack import Pack
 from .resolve import resolve
@@ -27,17 +27,19 @@ def rebuild(conn, pack: Pack) -> dict:
     conn.execute("select pg_advisory_xact_lock(%s)", (REBUILD_LOCK,))
     lap("wait_for_lock")
 
-    cands, extra, log_entries = [], [], {}
+    cands, extra, log_entries, pid_sheets = [], [], {}, {}
     for rec in conn.execute("select source, record_type, source_key, payload from source_record"):
         c, e = extract(rec, pack)
         cands += c
         extra += e
         if rec["source"] == "oplog":
             log_entries[rec["source_key"]] = rec["payload"]
-    # Claude's cached reads of the logs (events, extra links); never calls the model here.
+        elif rec["source"] == "pid":
+            pid_sheets[rec["source_key"]] = rec["payload"]
+    # Claude's cached reads of logs and scanned drawings; never calls the model here.
     c, e = llm_links.cached_items(conn, log_entries)
     cands += c
-    extra += e
+    extra += e + llm_pids.cached_edges(conn, pid_sheets)
     lap("extract")
 
     assigned, key_index, stats = resolve(conn, cands, pack)

@@ -12,6 +12,7 @@ dependencies = [
     "rapidfuzz>=3.9",
     "mcp>=2.3",
     "anthropic>=2.3",
+    "pillow>=12.3,<13",
 ]
 
 [project.optional-dependencies]

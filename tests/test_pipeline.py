@@ -169,3 +169,16 @@ def test_search_covers_all_fields(api):
     assert maker and all(h["kind"] == "equipment" for h in maker)
     exact_first = api.get("/entities", params={"q": "20-V-2001"}).json()
     assert exact_first[0]["label"] == "20-V-2001"
+
+
+def test_snapshot_ingest_removes_and_retires(tmp_path):
+    from fuzer.pack import load_pack
+    data = tmp_path / "d"
+    fakedata.generate(data)
+    lines = (data / "oplogs.csv").read_text().splitlines()
+    (data / "oplogs.csv").write_text("\n".join(lines[:-1]) + "\n")  # last log entry dropped from the export
+    with db.connect() as c:
+        ingest.ingest(c, data)
+        stats = pipeline.rebuild(c, load_pack())
+        assert c.execute("select count(*) as n from source_record where source = 'oplog'").fetchone()["n"] == 29
+        assert c.execute("select count(*) as n from entity where kind = 'log_entry' and retired_at is not null").fetchone()["n"] >= 1

@@ -218,6 +218,8 @@ ul.choices button { margin-left: auto; }
 @keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 
 
+img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+
 /* events */
 ul.timeline { list-style: none; padding: 0; margin: 8px 0 0; }
 ul.timeline li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }

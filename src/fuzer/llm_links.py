@@ -235,15 +235,16 @@ def _parse(message, entries: list[dict]) -> tuple[dict[str, dict], dict]:
     return results, dropped
 
 
-def _call(client, model: str, effort: str, entries: list[dict]):
+def call(client, params: dict):
+    """One synchronous request with server-side refusal fallback."""
     return client.beta.messages.create(
-        **_request(model, effort, entries),
+        **params,
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",  # if the model declines, the API retries on a fallback model
     )
 
 
-def _usage(message) -> dict:
+def usage(message) -> dict:
     u = message.usage
     return {"input_tokens": u.input_tokens or 0, "output_tokens": u.output_tokens or 0,
             "cache_read_tokens": getattr(u, "cache_read_input_tokens", 0) or 0}
@@ -303,16 +304,18 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
 
     def handle(chunk, message):
         results, dropped = _parse(message, chunk)
-        for k, v in {**_usage(message), **dropped}.items():
+        for k, v in {**usage(message), **dropped}.items():
             totals[k] += v
         _store(conn, [(sk, hashes[sk], model, PROMPT_VERSION, Jsonb(res)) for sk, res in results.items()])
         totals["stored"] += len(results)
 
     if batch:
-        _run_batch(client, model, effort, chunks, handle, totals, errors, poll_seconds)
+        by_id = {f"chunk-{i}": chunk for i, chunk in enumerate(chunks)}
+        run_batch(client, {cid: _request(model, effort, chunk) for cid, chunk in by_id.items()},
+                  lambda cid, message: handle(by_id[cid], message), totals, errors, poll_seconds)
     else:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(_call, client, model, effort, chunk): chunk for chunk in chunks}
+            futures = {pool.submit(call, client, _request(model, effort, chunk)): chunk for chunk in chunks}
             for fut in as_completed(futures):
                 try:
                     handle(futures[fut], fut.result())
@@ -322,24 +325,23 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
     return {**stats, **totals, "errors": errors[:5]}
 
 
-def _run_batch(client, model, effort, chunks, handle, totals, errors, poll_seconds):
-    """Half-price asynchronous run through the Message Batches API (usually done within an hour)."""
+def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors: list, poll_seconds: int = 30):
+    """Half-price asynchronous run through the Message Batches API (usually done within an hour).
+    requests maps custom_id -> request params; on_result(custom_id, message) handles each success."""
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
     from anthropic.types.messages.batch_create_params import Request
 
-    by_id = {f"chunk-{i}": chunk for i, chunk in enumerate(chunks)}
     created = client.messages.batches.create(requests=[
-        Request(custom_id=cid, params=MessageCreateParamsNonStreaming(**_request(model, effort, chunk)))
-        for cid, chunk in by_id.items()
+        Request(custom_id=cid, params=MessageCreateParamsNonStreaming(**params)) for cid, params in requests.items()
     ])
-    print(f"batch {created.id}: {len(by_id)} requests submitted", flush=True)
+    print(f"batch {created.id}: {len(requests)} requests submitted", flush=True)
     while (b := client.messages.batches.retrieve(created.id)).processing_status != "ended":
         print(f"batch {created.id}: {b.request_counts.processing} still processing", flush=True)
         time.sleep(poll_seconds)
     for result in client.messages.batches.results(created.id):
         if result.result.type == "succeeded":
             try:
-                handle(by_id[result.custom_id], result.result.message)
+                on_result(result.custom_id, result.result.message)
             except Exception as e:
                 totals["failed_requests"] += 1
                 errors.append(f"{result.custom_id}: {type(e).__name__}: {e}")

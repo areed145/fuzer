@@ -5,6 +5,7 @@ For now sources are local files. Later each loader is replaced by a connector
 """
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -44,11 +45,27 @@ def read_records(data_dir: Path):
 
     if (path := data_dir / "pid_sheets.json").exists():
         for s in json.loads(path.read_text()):
+            if image := s.get("image"):
+                # Keep where the scan is and a fingerprint of its content; the bytes stay on disk
+                # (later: blob storage), and the fingerprint tells us when a drawing was re-scanned.
+                file = (data_dir / image).resolve()
+                s = {**s, "image_path": str(file),
+                     "image_sha256": hashlib.sha256(file.read_bytes()).hexdigest() if file.exists() else None}
             yield "pid", "sheet", s["sheet"], s
 
 
-def ingest(conn, data_dir) -> int:
+def ingest(conn, data_dir, snapshot: bool = True) -> int:
+    """Load every export in data_dir. With snapshot (the default), each file is a full export:
+    records of that source and type that are no longer in it are removed, and the next rebuild
+    retires their entities."""
     rows = [(s, rt, k, Jsonb(p)) for s, rt, k, p in read_records(Path(data_dir))]
+    if snapshot:
+        loaded: dict[tuple[str, str], list[str]] = {}
+        for s, rt, k, _ in rows:
+            loaded.setdefault((s, rt), []).append(k)
+        for (s, rt), keys in loaded.items():
+            conn.execute("delete from source_record where source = %s and record_type = %s "
+                         "and source_key <> all(%s)", (s, rt, keys))
     with conn.cursor() as cur:
         cur.executemany(
             """
