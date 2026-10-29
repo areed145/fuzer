@@ -23,6 +23,18 @@ uv run pytest              # always uses a throwaway embedded Postgres
 Without Docker, skip the first two lines and run `uv sync --extra local`;
 Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
 
+### Measuring quality
+
+```sh
+uv run fuzer eval --keys data/fake/answer_keys
+```
+
+Scores the loaded register against answer keys: knowledge search (hit@1, hit@3,
+MRR), document links and section failure modes (precision / recall), and
+operator-log reading (mentions, and event types once Claude has run). The fake
+generator writes keys for its data; for a real asset, curate the same JSON
+files (format in `src/fuzer/evaluate.py`).
+
 ### Other assets
 
 Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
