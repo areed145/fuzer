@@ -121,6 +121,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .kind-well { background: #f1e9fb; color: #5b2f99; }
 .kind-document, .kind-log_entry { background: #eef0f3; color: #3c4653; }
 .kind-event { background: #fbe7ea; color: #9b1c31; }
+.kind-equipment_model { background: #f6ead9; color: #7a4310; }
+.kind-equipment_class { background: #e1ecf3; color: #24506b; }
 @media (prefers-color-scheme: dark) {
   .kind-tag { background: #15304f; color: #9cc8ff; }
   .kind-equipment { background: #3b2612; color: #f3bf8a; }
@@ -128,6 +130,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
   .kind-well { background: #2b1c45; color: #cbb0f5; }
   .kind-document, .kind-log_entry { background: #232932; color: #b5bfcc; }
   .kind-event { background: #3d1820; color: #f3a3b0; }
+  .kind-equipment_model { background: #3a2a17; color: #e8b98a; }
+  .kind-equipment_class { background: #182a36; color: #9cc5e0; }
 }
 
 /* search */

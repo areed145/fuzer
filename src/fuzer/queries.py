@@ -109,7 +109,7 @@ def resolve_ref(conn, pack: Pack, ref: str) -> str | None:
     return ids[0] if ids else None
 
 
-def entity(conn, fuzer_id: str, as_of: date | None = None) -> dict | None:
+def entity(conn, fuzer_id: str, as_of: date | None = None, per_group: int = 100) -> dict | None:
     ent = conn.execute("select * from entity where fuzer_id = %s", (fuzer_id,)).fetchone()
     if not ent:
         return None
@@ -127,27 +127,40 @@ def entity(conn, fuzer_id: str, as_of: date | None = None) -> dict | None:
         "select source, record_type, source_key, method, confidence from crosswalk where fuzer_id = %s",
         (fuzer_id,),
     ).fetchall()
+    # Hubs (a class, an area, the facility) can have tens of thousands of links: return the first
+    # `per_group` of each relationship and the true totals.
     edges = conn.execute(
         """
-        select case when e.src = %(id)s then 'out' else 'in' end as direction, e.rel,
-               case when e.src = %(id)s then e.dst else e.src end as other,
-               o.kind as other_kind, l.label as other_label, g.value as other_description,
-               e.valid_from, e.valid_to, e.sources, e.confidence, e.props
-        from edge e
-        join entity o on o.fuzer_id = case when e.src = %(id)s then e.dst else e.src end
-        left join entity_label l on l.fuzer_id = o.fuzer_id
-        left join golden g on g.fuzer_id = o.fuzer_id and g.field = 'description'
-        where (e.src = %(id)s or e.dst = %(id)s)
-          and (%(as_of)s::date is null
-               or ((e.valid_from is null or e.valid_from <= %(as_of)s::date)
-                   and (e.valid_to is null or e.valid_to > %(as_of)s::date)))
-        order by direction, e.rel, l.label
+        with e as (
+            select case when e.src = %(id)s then 'out' else 'in' end as direction, e.rel,
+                   case when e.src = %(id)s then e.dst else e.src end as other,
+                   e.valid_from, e.valid_to, e.sources, e.confidence, e.props
+            from edge e
+            where (e.src = %(id)s or e.dst = %(id)s)
+              and (%(as_of)s::date is null
+                   or ((e.valid_from is null or e.valid_from <= %(as_of)s::date)
+                       and (e.valid_to is null or e.valid_to > %(as_of)s::date)))
+        ), ranked as (
+            select e.*, l.label as other_label,
+                   row_number() over (partition by e.direction, e.rel order by l.label, e.other) as n,
+                   count(*) over (partition by e.direction, e.rel) as total
+            from e left join entity_label l on l.fuzer_id = e.other
+        )
+        select r.direction, r.rel, r.other, o.kind as other_kind, r.other_label, g.value as other_description,
+               r.valid_from, r.valid_to, r.sources, r.confidence, r.props, r.total
+        from ranked r
+        join entity o on o.fuzer_id = r.other
+        left join golden g on g.fuzer_id = r.other and g.field = 'description'
+        where r.n <= %(per_group)s
+        order by r.direction, r.rel, r.other_label
         """,
-        {"id": fuzer_id, "as_of": as_of},
+        {"id": fuzer_id, "as_of": as_of, "per_group": per_group},
     ).fetchall()
+    edge_counts = {f"{r['direction']}:{r['rel']}": r["total"] for r in edges}
     label = conn.execute("select label from entity_label where fuzer_id = %s", (fuzer_id,)).fetchone()
     return {"fuzer_id": fuzer_id, "kind": ent["kind"], "label": label["label"] if label else None,
-            "keys": keys, "golden": golden, "values": dict(values), "records": records, "edges": edges}
+            "keys": keys, "golden": golden, "values": dict(values), "records": records, "edges": edges,
+            "edge_counts": edge_counts}
 
 
 def link_text(conn, pack: Pack, text: str) -> list[dict]:
@@ -353,3 +366,33 @@ def events(conn, fuzer_id: str | None = None, since: str | None = None, until: s
             "involves": involves[r["id"]], "log": logs.get(r["id"]),
         })
     return out
+
+
+def members(conn, fuzer_id: str, kind: str | None = None, limit: int = 100, offset: int = 0) -> dict:
+    """Tags / equipment in a class (including its subtypes) or instances of a model, paged."""
+    rows = conn.execute(
+        """
+        with recursive classes(id) as (
+            select %(id)s::text
+            union
+            select e.src from edge e join classes c on e.dst = c.id
+            where e.rel = 'is_a' and e.src in (select fuzer_id from entity where kind = 'equipment_class')
+        ), hits as (
+            select distinct e.src as id from edge e
+            where (e.rel = 'classified_as' and e.dst in (select id from classes))
+               or (e.rel = 'instance_of' and e.dst = %(id)s)
+        )
+        select h.id as fuzer_id, en.kind, l.label, g.value #>> '{}' as description, count(*) over () as total
+        from hits h
+        join entity en on en.fuzer_id = h.id
+        left join entity_label l on l.fuzer_id = h.id
+        left join golden g on g.fuzer_id = h.id and g.field = 'description'
+        where en.merged_into is null and en.retired_at is null and (%(kind)s::text is null or en.kind = %(kind)s)
+        order by l.label
+        limit %(limit)s offset %(offset)s
+        """,
+        {"id": fuzer_id, "kind": kind, "limit": limit, "offset": offset},
+    ).fetchall()
+    total = rows[0]["total"] if rows else 0
+    return {"total": total, "offset": offset, "items": [{k: r[k] for k in ("fuzer_id", "kind", "label", "description")}
+                                                        for r in rows]}

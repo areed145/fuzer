@@ -144,21 +144,7 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
             c = by_ref[r]
             method, conf = methods.get(r, ("singleton", 1.0)) if len(g) > 1 else ("singleton", 1.0)
             crosswalk.append((c.source, c.record_type, c.source_key, assigned[r], method, conf))
-    # Upsert through a staging table: one COPY instead of one INSERT per record.
-    cols = ["source", "record_type", "source_key", "fuzer_id", "method", "confidence"]
-    conn.execute("create temp table crosswalk_new (like crosswalk including defaults) on commit drop")
-    db.copy_rows(conn, "crosswalk_new", cols, crosswalk)
-    conn.execute(
-        """
-        insert into crosswalk (source, record_type, source_key, fuzer_id, method, confidence)
-        select source, record_type, source_key, fuzer_id, method, confidence from crosswalk_new
-        on conflict (source, record_type, source_key) do update
-        set fuzer_id = excluded.fuzer_id, method = excluded.method,
-            confidence = excluded.confidence, updated_at = now()
-        where (crosswalk.fuzer_id, crosswalk.method, crosswalk.confidence)
-              is distinct from (excluded.fuzer_id, excluded.method, excluded.confidence)
-        """
-    )
+    _write_crosswalk(conn, crosswalk)
 
     key_index = defaultdict(set)
     for c in cands:
@@ -208,15 +194,55 @@ def _assign_ids(conn, groups, by_ref) -> dict[str, str]:
         if winners:
             merges.append((winners.most_common(1)[0][0], old))
             events.append(("merge", old, merges[-1][0]))
-    # Entities no record maps to any more are retired, not deleted, and revived if a record returns.
-    conn.execute("update entity set retired_at = null where retired_at is not null and fuzer_id = any(%s)",
-                 (list(taken),))
-    conn.execute("update entity set retired_at = now() where retired_at is null and merged_into is null "
-                 "and fuzer_id <> all(%s)", (list(taken),))
     with conn.cursor() as cur:
         cur.executemany("update entity set merged_into = %s where fuzer_id = %s", merges)
         cur.executemany("insert into id_event (event, fuzer_id, other_id) values (%s, %s, %s)", events)
     return assigned
+
+
+def retire_unused(conn, live: set[str]) -> None:
+    """Entities no record maps to any more are retired, not deleted, and revived if a record returns."""
+    conn.execute("update entity set retired_at = null where retired_at is not null and fuzer_id = any(%s)",
+                 (list(live),))
+    conn.execute("update entity set retired_at = now() where retired_at is null and merged_into is null "
+                 "and fuzer_id <> all(%s)", (list(live),))
+
+
+def _write_crosswalk(conn, rows: list[tuple]) -> None:
+    """Upsert through a staging table: one COPY instead of one INSERT per record."""
+    cols = ["source", "record_type", "source_key", "fuzer_id", "method", "confidence"]
+    conn.execute("create temp table if not exists crosswalk_new (like crosswalk including defaults) on commit drop")
+    conn.execute("truncate crosswalk_new")
+    db.copy_rows(conn, "crosswalk_new", cols, rows)
+    conn.execute(
+        """
+        insert into crosswalk (source, record_type, source_key, fuzer_id, method, confidence)
+        select source, record_type, source_key, fuzer_id, method, confidence from crosswalk_new
+        on conflict (source, record_type, source_key) do update
+        set fuzer_id = excluded.fuzer_id, method = excluded.method,
+            confidence = excluded.confidence, updated_at = now()
+        where (crosswalk.fuzer_id, crosswalk.method, crosswalk.confidence)
+              is distinct from (excluded.fuzer_id, excluded.method, excluded.confidence)
+        """
+    )
+
+
+def resolve_keyed(conn, cands: list[Candidate]) -> tuple[dict[str, str], dict]:
+    """Stable IDs for derived records (classes, models) that are identified by key alone.
+    Adds to entity_key; doesn't touch the matched records or the review queue."""
+    by_ref = {c.ref: c for c in cands}
+    groups: dict[tuple, set[str]] = defaultdict(set)
+    for c in cands:
+        groups[(c.kind, c.key) if c.key else ("ref", c.ref)].add(c.ref)
+    assigned = _assign_ids(conn, list(groups.values()), by_ref)
+    _write_crosswalk(conn, [(c.source, c.record_type, c.source_key, assigned[c.ref], "key", 1.0) for c in cands])
+    key_index = defaultdict(set)
+    for c in cands:
+        if c.key:
+            key_index[(c.kind, c.key)].add(assigned[c.ref])
+    db.copy_rows(conn, "entity_key", ["kind", "key", "fuzer_id"],
+                 ((k, key, fid) for (k, key), fids in key_index.items() for fid in fids))
+    return assigned, key_index
 
 
 def replace_open_reviews(conn, kind: str, items: list[tuple[str, dict]]) -> None:

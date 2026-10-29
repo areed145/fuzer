@@ -23,11 +23,14 @@ Maximo, PI / PI AF, Energy Components (allocation network), P&IDs and operator l
 real-world thing, and links them.
 
 Entity kinds: facility, area, tag (a functional position such as 20-P-1001B), equipment (the physical
-item installed at a tag, identified by serial number; pumps get swapped, tags stay), well (A-07,
-sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node, document (P&ID sheet), log_entry.
+item installed at a tag, identified by serial number; pumps get swapped, tags stay), equipment_model
+(manufacturer + model), equipment_class (ISO 14224 category / class / type, e.g. ISO14224:PU.CE =
+centrifugal pumps), well (A-07, sidetracks as "A-07 ST1"), timeseries (a PI point), allocation_node,
+document (P&ID sheet), log_entry, event.
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
-flow, dated), mentions (document or log -> entity), sidetrack_of, reports (log entry -> event) and
+flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
+class), instance_of (equipment -> model), is_a (model -> class, class -> parent), reports (log entry -> event) and
 involves (event -> tag / well, with a role). Events (trips, starts, changeovers, shut-ins, choke changes,
 alarms, leaks, instrument faults, ...) were read from operator logs by Claude; each cites its log entry. Dated links have from/to dates; pass
 as_of=YYYY-MM-DD to see what was true on a day.
@@ -48,6 +51,9 @@ REL_LABELS = {
     ("sidetrack_of", "out"): "sidetrack_of", ("sidetrack_of", "in"): "sidetracks",
     ("involves", "out"): "involves", ("involves", "in"): "events",
     ("reports", "out"): "reports_event", ("reports", "in"): "reported_in",
+    ("classified_as", "out"): "class", ("classified_as", "in"): "members",
+    ("instance_of", "out"): "model", ("instance_of", "in"): "instances",
+    ("is_a", "out"): "is_a", ("is_a", "in"): "subtypes",
 }
 
 
@@ -108,7 +114,7 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        e = queries.entity(conn, fid, _date(as_of))
+        e = queries.entity(conn, fid, _date(as_of), per_group=50)
 
     values = {}
     for field, g in e["golden"].items():
@@ -135,6 +141,8 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
         "values": values,
         "source_records": [f"{r['source']}:{r['record_type']}:{r['source_key']}" for r in e["records"]],
         "links": links,
+        "link_totals": {REL_LABELS.get(tuple(k.split(":")[::-1]), k): n for k, n in e["edge_counts"].items()
+                        if n > 50},  # groups cut to 50 here; use search / get_events to dig in
         **({"as_of": as_of} if as_of else {}),
     })
 
@@ -228,6 +236,18 @@ def get_events(ref: str | None = None, since: str | None = None, until: str | No
                 return err
         rows = queries.events(conn, fid, since, until, event_type, min(limit, 500))
     return _plain({"for": fid or "facility", "events": rows})
+
+
+@server.tool(annotations=READ_ONLY)
+def list_members(ref: str, kind: Literal["tag", "equipment"] | None = None, limit: int = 100,
+                 offset: int = 0) -> dict[str, Any]:
+    """Everything in an equipment class (including its subtypes), e.g. ref="ISO14224:PU" for all pumps or
+    "ISO14224:PU.CE" for centrifugal pumps, or every instance of an equipment model. Paged: use offset."""
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain({"of": fid, **queries.members(conn, fid, kind, min(limit, 500), offset)})
 
 
 @server.tool(annotations=READ_ONLY)

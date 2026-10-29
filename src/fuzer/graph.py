@@ -18,6 +18,8 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
         kind, key = ep
         if kind == "ref":
             return assigned.get(key), None
+        if kind == "id":  # already a Fuzer ID (derived links)
+            return key, None
         if key is None:
             return None, f"unreadable {kind}"
         ids = key_index.get((kind, key), set())

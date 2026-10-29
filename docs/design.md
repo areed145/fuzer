@@ -140,6 +140,24 @@ codes, area digits, well platforms, phrase aliases, matching thresholds and
 survivorship rules. A new onshore or downstream asset is a new pack, not new
 core code.
 
+### 9. Equipment classes and models (ISO 14224, CFIHOS)
+`standards/iso14224.yaml` holds the ISO 14224 categories, equipment classes and
+types, each with its CFIHOS class name (CFIHOS IDs to be filled from the RDL).
+The asset pack's `classification` rules map local signals onto it: ISA function
+letters, PI AF templates and description words to a class or type, plus
+manufacturer spellings to one name. Packs can add classes (e.g. fired heaters
+downstream) or point at another taxonomy file, without code changes.
+
+After golden values are chosen, each tag is `classified_as` a class; equipment
+takes the class of the position it's installed at and is an `instance_of` an
+`equipment_model` (manufacturer + model), which `is_a` class. Facility, area,
+tag and equipment carry their ISO 14224 taxonomy level and ISA-95 level. Models
+and classes are where manuals, procedures and failure history attach.
+
+Entity pages and agent tools return at most 100 (50 for agents) links per
+relationship with the true total, so hubs like "Pumps" stay fast; members of a
+class (including subtypes) or a model are listed with paging.
+
 ## Data model (Postgres)
 
 | Table | What it holds |

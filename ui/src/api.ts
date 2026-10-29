@@ -47,6 +47,7 @@ export interface EntityDetail {
   values: Record<string, SourceValue[]>;
   records: { source: string; record_type: string; source_key: string; method: string; confidence: number }[];
   edges: Edge[];
+  edge_counts: Record<string, number>;
 }
 
 export interface TraceRow {

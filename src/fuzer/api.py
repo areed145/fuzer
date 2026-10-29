@@ -50,10 +50,17 @@ def search(q: str = "", kind: str | None = None, limit: int = 50, conn=Depends(g
 
 
 @app.get("/entities/{fuzer_id}")
-def entity(fuzer_id: str, as_of: date | None = None, conn=Depends(get_conn)):
-    if (ent := queries.entity(conn, fuzer_id, as_of)) is None:
+def entity(fuzer_id: str, as_of: date | None = None, per_group: int = 100, conn=Depends(get_conn)):
+    if (ent := queries.entity(conn, fuzer_id, as_of, min(per_group, 1000))) is None:
         raise HTTPException(404, "unknown fuzer_id")
     return ent
+
+
+@app.get("/entities/{fuzer_id}/members")
+def entity_members(fuzer_id: str, kind: str | None = None, limit: int = 100, offset: int = 0,
+                   conn=Depends(get_conn)):
+    """Members of a class (including subtypes) or instances of a model."""
+    return queries.members(conn, fuzer_id, kind, min(limit, 1000), offset)
 
 
 @app.get("/entities/{fuzer_id}/trace")

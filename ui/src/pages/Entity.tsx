@@ -15,6 +15,9 @@ const REL_LABELS: Record<string, [string, string]> = {
   sidetrack_of: ["Sidetrack of", "Sidetracks"],
   reports: ["Reports event", "Reported in"],
   involves: ["Involves", "Events"],
+  classified_as: ["Class", "Members"],
+  instance_of: ["Model", "Instances"],
+  is_a: ["Is a", "Subtypes / models"],
 };
 const relLabel = (e: Edge) => REL_LABELS[e.rel]?.[e.direction === "out" ? 0 : 1] ?? `${e.rel} (${e.direction})`;
 
@@ -79,7 +82,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
           {e.kind === "document" && e.golden.format?.value === "image" && <Drawing id={e.fuzer_id} />}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
-          <Links edges={e.edges} asOf={asOf} />
+          <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
         </>
       )}
     </article>
@@ -160,7 +163,7 @@ function Records({ e }: { e: EntityDetail }) {
   );
 }
 
-function Links({ edges, asOf }: { edges: Edge[]; asOf: string }) {
+function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, number>; asOf: string }) {
   const groups = new Map<string, Edge[]>();
   for (const e of edges) groups.set(relLabel(e), [...(groups.get(relLabel(e)) ?? []), e]);
   return (
@@ -170,7 +173,15 @@ function Links({ edges, asOf }: { edges: Edge[]; asOf: string }) {
       {[...groups].map(([label, items]) => (
         <div key={label} className="link-group">
           <h3>
-            {label} <span className="muted">{items.length}</span>
+            {label}{" "}
+            <span className="muted">
+              {(() => {
+                const total = counts[`${items[0].direction}:${items[0].rel}`] ?? items.length;
+                return total > items.length
+                  ? `showing ${items.length} of ${total.toLocaleString()}`
+                  : items.length.toLocaleString();
+              })()}
+            </span>
           </h3>
           <ul>
             {items.map((x, i) => (

@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from . import db, golden, graph, llm_links, llm_pids
 from .extract import extract
 from .pack import Pack
-from .resolve import resolve
+from . import taxonomy
+from .resolve import resolve, resolve_keyed, retire_unused
 
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
@@ -44,9 +45,29 @@ def rebuild(conn, pack: Pack) -> dict:
 
     assigned, key_index, stats = resolve(conn, cands, pack)
     lap("resolve")
-    stats |= golden.build(conn, cands, assigned, pack)
+    golden_stats, values = golden.build(conn, cands, assigned, pack)
+    stats |= golden_stats
     lap("golden")
-    stats |= graph.build(conn, cands, extra, assigned, key_index)
+
+    # Classes and models come from golden values, so they're derived after survivorship.
+    kinds = {assigned[c.ref]: c.kind for c in cands}
+    tag_keys = {next(iter(fids)): key for (kind, key), fids in key_index.items() if kind == "tag" and len(fids) == 1}
+    equipment_tags: dict[str, set[str]] = {}
+    for c in cands:
+        if c.kind == "equipment" and c.block and len(key_index.get(("tag", c.block), ())) == 1:
+            equipment_tags.setdefault(assigned[c.ref], set()).add(next(iter(key_index[("tag", c.block)])))
+    d_cands, d_edges, d_fields = taxonomy.derive(pack, kinds, values, tag_keys,
+                                                 {k: list(v) for k, v in equipment_tags.items()})
+    d_assigned, d_keys = resolve_keyed(conn, d_cands)
+    golden.append(conn, d_cands, d_assigned, d_fields)
+    for k, v in d_keys.items():
+        key_index.setdefault(k, set()).update(v)
+    stats["classes"] = sum(1 for c in d_cands if c.kind == "equipment_class")
+    stats["models"] = sum(1 for c in d_cands if c.kind == "equipment_model")
+    lap("taxonomy")
+
+    stats |= graph.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
+    retire_unused(conn, set(assigned.values()) | set(d_assigned.values()))
     lap("graph")
     conn.commit()
     lap("commit")
