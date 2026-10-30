@@ -80,10 +80,12 @@ def provider() -> Provider:
 
 
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-           step_minutes: int = 30, max_points: int = 12, src: Provider | None = None) -> dict:
+           step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None) -> dict:
     """Values of the PI points on a unit (its own and its instruments') around a time. For an
     incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
-    day, and its unit is used. Each series has a summary for agents: min / max / mean / last, and
+    day, and its unit is used. For a timeseries, only that point, centred by default on the latest
+    incident on the tag or well it belongs to (else now). The step is chosen from the window (about
+    150 values) unless given. Each series has a summary for agents: min / max / mean / last, and
     `lead_in`: the mean before the last 12 h against the mean and peak in them."""
     row = conn.execute(
         """
@@ -96,13 +98,15 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     if not row:
         return {"error": "unknown entity"}
     unit = row["unit"] if row["kind"] == "incident" else fuzer_id
+    if row["kind"] == "timeseries":  # the tag or well it measures
+        unit = (conn.execute("select src from edge where dst = %s and rel = 'has_timeseries' order by src limit 1",
+                             (fuzer_id,)).fetchone() or {"src": fuzer_id})["src"]
     # equipment -> the position it's installed at
     unit = (conn.execute("select dst from edge where src = %s and rel = 'installed_at' and valid_to is null",
                          (unit,)).fetchone() or {"dst": unit})["dst"]
     if not at and row["kind"] == "incident":
         at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
-    centre = datetime.fromisoformat(at or row["start"] or datetime.now().isoformat()[:10])
-    upsets = [datetime.fromisoformat(r["start"]) for r in conn.execute(
+    upsets = sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(
         f"""
         select coalesce(({FIRST_TIMED.format(incident="a.src")}), g.value #>> '{{}}') as start
         from edge a join golden g on g.fuzer_id = a.src and g.field = 'start'
@@ -110,8 +114,45 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
         where a.dst = %s and a.rel = 'about'
         """,
         (unit,),
-    )]
-    points = conn.execute(
+    ))
+    if not at and row["kind"] == "timeseries" and upsets:
+        at = upsets[-1].isoformat()
+    centre = datetime.fromisoformat(at or row["start"] or datetime.now().isoformat(timespec="minutes"))
+    if row["kind"] == "timeseries":
+        points = [p for p in [_point(conn, fuzer_id)] if p]
+    else:
+        points = _unit_points(conn, unit, max_points)
+    start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
+    step_minutes = step_minutes or auto_step(hours_before + hours_after)
+    near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
+    src = src or provider()
+    series, errors = [], []
+    for p in points:
+        try:
+            vals = src.series({**p, "upsets": near}, start, end, step_minutes)
+        except Exception as e:  # one unreachable or unknown point shouldn't hide the others
+            errors.append(f"{p['point']}: {e}")
+            continue
+        if vals:
+            series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
+                           **summary(vals, centre)})
+    out = {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
+           "end": end.isoformat(timespec="minutes"), "step_minutes": step_minutes, "provider": src.name,
+           "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
+    return out | ({"errors": errors[:5]} if errors else {})
+
+
+STEPS = [5, 10, 15, 30, 60, 120, 240, 360, 720, 1440]
+
+
+def auto_step(hours: float, values: int = 144) -> int:
+    """The smallest round step (minutes) that keeps a window to about `values` values: 72 h -> 30 min."""
+    return next((s for s in STEPS if s * values >= hours * 60), STEPS[-1])
+
+
+def _unit_points(conn, unit: str, n: int) -> list[dict]:
+    """The PI points on a unit and its instruments, one of each kind of instrument first."""
+    return conn.execute(
         """
         with tags as (select %(u)s::text as id union select src from edge where rel = 'part_of' and dst = %(u)s),
         pts as (
@@ -132,25 +173,27 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
         -- one of each kind of instrument first ("... Pressure" before "... Pressure 2"), then the rest
         select * from pts order by coalesce(description, '') ~ ' [0-9]+$', point limit %(n)s
         """,
-        {"u": unit, "n": max_points},
+        {"u": unit, "n": n},
     ).fetchall()
-    start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
-    near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
-    src = src or provider()
-    series, errors = [], []
-    for p in points:
-        try:
-            vals = src.series({**p, "upsets": near}, start, end, step_minutes)
-        except Exception as e:  # one unreachable or unknown point shouldn't hide the others
-            errors.append(f"{p['point']}: {e}")
-            continue
-        if vals:
-            series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
-                           **summary(vals, centre)})
-    out = {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
-           "end": end.isoformat(timespec="minutes"), "provider": src.name,
-           "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
-    return out | ({"errors": errors[:5]} if errors else {})
+
+
+def _point(conn, fuzer_id: str) -> dict | None:
+    """One timeseries entity as a series to read: its PI point name, units and ADX pointer."""
+    row = conn.execute(
+        """
+        select e.fuzer_id as id, l.label as point,
+               max(g.value #>> '{}') filter (where g.field = 'description') as description,
+               max(g.value #>> '{}') filter (where g.field = 'uom') as uom,
+               max(g.value #>> '{}') filter (where g.field = 'adx_cluster') as adx_cluster,
+               max(g.value #>> '{}') filter (where g.field = 'adx_database') as adx_database,
+               max(g.value #>> '{}') filter (where g.field = 'adx_table') as adx_table,
+               max(g.value #>> '{}') filter (where g.field = 'adx_series_id') as adx_series_id
+        from entity e left join entity_label l using (fuzer_id) left join golden g using (fuzer_id)
+        where e.fuzer_id = %s group by e.fuzer_id, l.label
+        """,
+        (fuzer_id,),
+    ).fetchone()
+    return row if row and row["point"] else None
 
 
 def summary(vals: list[tuple[str, float]], centre: datetime) -> dict:

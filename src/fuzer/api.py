@@ -94,7 +94,8 @@ def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
 @app.get("/entities/{fuzer_id}/values")
 def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
                   conn=Depends(get_conn)):
-    """Process values on a unit (or an incident's unit) around a time, from the time-series provider."""
+    """Process values on a unit (or an incident's unit), or of one timeseries, around a time, from the
+    time-series provider."""
     from . import timeseries
     return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30))
 

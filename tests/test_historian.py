@@ -124,9 +124,11 @@ def test_live_ingest_loads_pi_and_adx_and_values_come_from_them(data, live):
 
         os.environ["FUZER_TIMESERIES"] = "adx"
         try:
+            one = timeseries.around(conn, vib)  # a timeseries entity's own page
             brief = assistant.brief(conn, PACK, inc["id"])
         finally:
             os.environ.pop("FUZER_TIMESERIES")
+        assert [s["point"] for s in one["series"]] == ["OSB.20VT1001B.PV"] and one["provider"] == "adx"
         pv = brief["process_values"]
         assert pv["provider"] == "adx" and pv["note"] is None
         assert any(s["lead_in"]["change_pct"] > 30 for s in pv["series"] if "lead_in" in s)

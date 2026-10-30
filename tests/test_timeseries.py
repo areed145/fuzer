@@ -54,3 +54,19 @@ def test_unknown_or_unconfigured_provider_is_explicit(monkeypatch):
     monkeypatch.delenv("FUZER_PI_WEB_API_URL", raising=False)
     with pytest.raises(ValueError, match="FUZER_PI_WEB_API_URL"):
         timeseries.provider()
+
+
+def test_values_of_one_timeseries(conn):
+    ts = conn.execute("select fuzer_id from entity_key where kind = 'timeseries' and key = 'OSB:23-TT-1001A.DACA.PV'"
+                      ).fetchone()["fuzer_id"]
+    out = timeseries.around(conn, ts)
+    assert [s["point"] for s in out["series"]] == ["OSB:23-TT-1001A.DACA.PV"]
+    # centred on the latest incident on the compressor it measures, shaded
+    latest = queries.incidents(conn, queries.resolve_ref(conn, PACK, "23-K-1001A"))["items"][0]
+    assert out["centre"][:10] == latest["start"] and out["centre"] in out["upsets"]
+    week = timeseries.around(conn, ts, "2024-02-03T14:00", hours_before=144, hours_after=24)
+    assert week["step_minutes"] == 120 and len(week["series"][0]["values"]) == 85
+
+
+def test_auto_step():
+    assert [timeseries.auto_step(h) for h in (24, 72, 168, 720)] == [10, 30, 120, 360]

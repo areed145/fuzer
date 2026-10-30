@@ -337,6 +337,18 @@ export interface LeadIn {
   change_pct: number | null;
 }
 
+export interface Values {
+  provider: string;
+  centre: string;
+  start: string;
+  end: string;
+  step_minutes: number;
+  upsets: string[];
+  series: import("./Trend").Series[];
+  errors?: string[];
+  error?: string;
+}
+
 export interface Brief {
   about: { id: string; label: string | null };
   suggested_checks: { step: string; from: string }[];
@@ -422,9 +434,9 @@ export const api = {
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
-  values: (id: string) =>
-    request<{ provider: string; centre: string; upsets: string[]; series: import("./Trend").Series[] }>(
-      "GET", `/entities/${encodeURIComponent(id)}/values`),
+  values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number) =>
+    request<Values>("GET", `/entities/${encodeURIComponent(id)}/values`,
+                    { at, hours_before: hoursBefore, hours_after: hoursAfter }),
   brief: (id: string) => request<Brief>("GET", `/entities/${encodeURIComponent(id)}/brief`),
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
