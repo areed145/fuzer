@@ -70,3 +70,13 @@ def test_values_of_one_timeseries(conn):
 
 def test_auto_step():
     assert [timeseries.auto_step(h) for h in (24, 72, 168, 720)] == [10, 30, 120, 360]
+
+
+def test_direct_points_of_a_tag(conn):
+    unit = queries.resolve_ref(conn, PACK, "23-K-1001A")
+    vt = queries.resolve_ref(conn, PACK, "23-TT-1001A")
+    whole = timeseries.around(conn, unit)
+    own = timeseries.around(conn, vt, direct=True)
+    assert {s["point"] for s in own["series"]} == {"OSB:23-TT-1001A.DACA.PV"}
+    assert len(whole["series"]) > 1
+    assert own["upsets"] and own["centre"] in own["upsets"]  # the latest incident on the compressor

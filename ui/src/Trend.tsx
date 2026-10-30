@@ -99,21 +99,22 @@ const WINDOWS = [24, 72, 168, 720]; // hours: 1 d, 3 d, 7 d, 30 d
 const label = (h: number) => `${h / 24} d`;
 const local = (iso: string) => iso.slice(0, 16);
 
-/** One PI point's trend on its own page: pick a window, step earlier / later, or jump to a time. The
- * default window is centred on the latest incident on the tag or well it measures. */
-export function TimeseriesTrend({ id }: { id: string }) {
+/** Trends on an entity's page: a timeseries' own values, or the points linked straight to a tag or well.
+ * Pick a window, step earlier / later, or jump to a time. The default window is centred on the latest
+ * incident on the tag or well. */
+export function TrendCard({ id, direct = false }: { id: string; direct?: boolean }) {
   const [hours, setHours] = useState(72);
   const [at, setAt] = useState<string | undefined>(undefined);
   const before = Math.round((hours * 2) / 3);
-  const v = useAsync(() => api.values(id, at, before, hours - before), [id, at, hours]);
+  const v = useAsync(() => api.values(id, at, before, hours - before, direct), [id, at, hours, direct]);
   const d = v.data;
-  const s = d?.series[0];
+  const one = d?.series.length === 1 ? d.series[0] : undefined;
   const shift = (sign: number) =>
     d && setAt(local(new Date(Date.parse(d.centre + "Z") + (sign * hours * 3600 * 1000) / 2).toISOString()));
   return (
     <section className="card">
       <h2>
-        Trend{" "}
+        {direct ? "Process values" : "Trend"}{" "}
         {d && (
           <span className="muted small">
             {d.provider === "synthetic" ? "synthetic values: no PI / ADX connection configured"
@@ -133,18 +134,19 @@ export function TimeseriesTrend({ id }: { id: string }) {
         <button onClick={() => shift(1)} disabled={!d}>Later →</button>
         <button className="link" onClick={() => setAt(undefined)} disabled={at === undefined}>Latest incident</button>
       </div>
-      <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && !s}>
-        No values for this point between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}
+      <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && d.series.length === 0}>
+        No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}
         {d?.errors?.length ? `: ${d.errors[0]}` : "."}
       </Status>
-      {s && (
+      {one && (
         <>
-          <Trend s={s} upsets={d!.upsets} wide />
+          <Trend s={one} upsets={d!.upsets} wide />
           <p className="muted small">
-            min {s.min} · max {s.max} · mean {s.mean} · last {s.last} {s.uom}
+            min {one.min} · max {one.max} · mean {one.mean} · last {one.last} {one.uom}
           </p>
         </>
       )}
+      {d && d.series.length > 1 && <TrendGrid series={d.series} upsets={d.upsets} />}
     </section>
   );
 }

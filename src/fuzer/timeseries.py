@@ -80,11 +80,13 @@ def provider() -> Provider:
 
 
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-           step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None) -> dict:
+           step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None,
+           direct: bool = False) -> dict:
     """Values of the PI points on a unit (its own and its instruments') around a time. For an
     incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
-    day, and its unit is used. For a timeseries, only that point, centred by default on the latest
-    incident on the tag or well it belongs to (else now). The step is chosen from the window (about
+    day, and its unit is used. For a timeseries, only that point; with `direct`, only the points linked
+    to the entity itself, not its instruments'. Anything but an incident is centred by default on the
+    latest incident on its tag or well (else now). The step is chosen from the window (about
     150 values) unless given. Each series has a summary for agents: min / max / mean / last, and
     `lead_in`: the mean before the last 12 h against the mean and peak in them."""
     row = conn.execute(
@@ -104,6 +106,12 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     # equipment -> the position it's installed at
     unit = (conn.execute("select dst from edge where src = %s and rel = 'installed_at' and valid_to is null",
                          (unit,)).fetchone() or {"dst": unit})["dst"]
+    # instrument tag -> the equipment tag it belongs to, which incidents are about (incidents.py)
+    unit = (conn.execute(
+        """
+        select p.dst from edge p join entity a on a.fuzer_id = p.src and a.kind = 'tag'
+        join entity b on b.fuzer_id = p.dst and b.kind = 'tag' where p.src = %s and p.rel = 'part_of' limit 1
+        """, (unit,)).fetchone() or {"dst": unit})["dst"]
     if not at and row["kind"] == "incident":
         at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
     upsets = sorted(datetime.fromisoformat(r["start"]) for r in conn.execute(
@@ -115,13 +123,13 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
         """,
         (unit,),
     ))
-    if not at and row["kind"] == "timeseries" and upsets:
+    if not at and row["kind"] != "incident" and upsets:
         at = upsets[-1].isoformat()
     centre = datetime.fromisoformat(at or row["start"] or datetime.now().isoformat(timespec="minutes"))
     if row["kind"] == "timeseries":
         points = [p for p in [_point(conn, fuzer_id)] if p]
     else:
-        points = _unit_points(conn, unit, max_points)
+        points = _unit_points(conn, fuzer_id if direct else unit, max_points, children=not direct)
     start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
     step_minutes = step_minutes or auto_step(hours_before + hours_after)
     near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
@@ -150,11 +158,12 @@ def auto_step(hours: float, values: int = 144) -> int:
     return next((s for s in STEPS if s * values >= hours * 60), STEPS[-1])
 
 
-def _unit_points(conn, unit: str, n: int) -> list[dict]:
-    """The PI points on a unit and its instruments, one of each kind of instrument first."""
+def _unit_points(conn, unit: str, n: int, children: bool = True) -> list[dict]:
+    """The PI points on a unit (and its instruments, with children), one of each kind of instrument first."""
     return conn.execute(
         """
-        with tags as (select %(u)s::text as id union select src from edge where rel = 'part_of' and dst = %(u)s),
+        with tags as (select %(u)s::text as id
+                      union select src from edge where %(children)s and rel = 'part_of' and dst = %(u)s),
         pts as (
             select distinct t.dst as id, l.label as point, gd.value #>> '{}' as description, gu.value #>> '{}' as uom,
                    ac.value #>> '{}' as adx_cluster, ad.value #>> '{}' as adx_database,
@@ -173,7 +182,7 @@ def _unit_points(conn, unit: str, n: int) -> list[dict]:
         -- one of each kind of instrument first ("... Pressure" before "... Pressure 2"), then the rest
         select * from pts order by coalesce(description, '') ~ ' [0-9]+$', point limit %(n)s
         """,
-        {"u": unit, "n": n},
+        {"u": unit, "n": n, "children": children},
     ).fetchall()
 
 

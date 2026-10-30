@@ -434,9 +434,9 @@ export const api = {
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
-  values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number) =>
+  values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, direct?: boolean) =>
     request<Values>("GET", `/entities/${encodeURIComponent(id)}/values`,
-                    { at, hours_before: hoursBefore, hours_after: hoursAfter }),
+                    { at, hours_before: hoursBefore, hours_after: hoursAfter, direct: direct ? "true" : undefined }),
   brief: (id: string) => request<Brief>("GET", `/entities/${encodeURIComponent(id)}/brief`),
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
