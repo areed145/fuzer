@@ -371,6 +371,15 @@ in `mapping_version` and load after the built-in files. Eval on 18 fake tables
 (12 built-in, 6 with messy headers): key 1.0, references 1.0, columns 0.99
 (rules), 1.0 with Claude on the opaque table.
 
+Geospatial (#60): GeoJSON connector and `geospatial` shape; `geo_index` (box,
+centre, geometry per located entity, rebuilt with the register) serves the map
+and nearby queries without PostGIS (100k features: field-sized box 5 ms, wider
+box 36 ms, entity map 12 ms). `spatial_links` rules in the pack link what GIS
+didn't carry as IDs by distance (wells to pads / jackets, legacy pipeline ends
+to facilities), scored by distance; eval on the Okan and onshore plants:
+precision 1.0, recall 1.0. PostGIS waits until polygons or exact geometry
+operations are needed (Azure Database for PostgreSQL supports it).
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |

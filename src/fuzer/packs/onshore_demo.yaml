@@ -58,6 +58,10 @@ maintenance_codes:
   cause: {C01: "2.4", C04: "3.3", C05: "5.2"}
   activity: {A01: "1", A02: "2", A04: "6"}
 
+# Wellhead locations from GIS -> the pad each stands on (wellheads are within ~60 m of their pad).
+spatial_links:
+  - {kind: well, to: [area], rel: located_at, max_m: 250}
+
 downtime_reasons:
   ESP-FAIL: {name: ESP failure, category: equipment}
   WORKOVER: {name: Workover, category: well}

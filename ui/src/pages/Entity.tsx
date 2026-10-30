@@ -1,6 +1,26 @@
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
+
+const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
+
+/** Where this thing is (or the place it belongs to) and the located things linked to it. */
+function EntityMap({ id }: { id: string }) {
+  const m = useAsync(() => api.entityMap(id), [id]);
+  if (!m.data?.features.length) return null;
+  const own = m.data.focus === id;
+  return (
+    <section className="card">
+      <h2>
+        Map{" "}
+        <span className="muted small">
+          {own ? "its location and what connects to it" : "where it sits, and what connects there"}
+        </span>
+      </h2>
+      <EntityMapView data={m.data} focus={m.data.focus} height="380px" />
+    </section>
+  );
+}
 import { IncidentDetail, IncidentList } from "./Incidents";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
 
@@ -93,6 +113,9 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <Records e={e} />
           </div>
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
+          <Suspense fallback={null}>
+            <EntityMap id={e.fuzer_id} />
+          </Suspense>
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={e.fuzer_id} />}
           {e.kind === "document" && e.golden.doc_type && (
             <section className="card">

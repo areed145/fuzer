@@ -255,6 +255,21 @@ with the column meanings, why each was chosen, and an editable mapping. Accept
 mappings are versioned in Postgres. `fuzer eval` scores the suggestions
 (`schema`) against answer keys for the built-in and incoming fake tables.
 
+### Map and GIS
+
+GIS exports load like any other table: a GeoJSON file in the data folder
+(`gis_facilities`, `gis_pipelines`, `gis_wells`, or your own with a mapping). The
+**Map** page shows everything with a location (platforms, jackets, pads, plants,
+pipelines and flowlines by service, wells); click anything to open it. Each
+entity page has a map of where it is, or the platform it belongs to, with the
+lines and wells connected there. The basemap is OpenStreetMap; untick it to work
+offline.
+
+GIS often lacks asset IDs, so an asset pack can add links by distance
+(`spatial_links`): a wellhead to the pad or jacket it stands on, the ends of a
+pipeline to the facilities it reaches. They're scored by distance and checked by
+`fuzer eval` (`spatial`) against the fake plants' answer keys.
+
 ### Scheduled jobs (Dagster)
 
 ```sh

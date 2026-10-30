@@ -1,0 +1,15 @@
+# GIS well surface locations.
+source: gis
+record_type: well
+shape: geospatial
+dataset: gis_wells
+key: well_name
+entity:
+  kind: well
+  key: {from: well_name, as: well}
+  fields:
+    - well_type
+    - lift_type
+    - [latitude, {from: latitude, as: number}]
+    - [longitude, {from: longitude, as: number}]
+    - geometry

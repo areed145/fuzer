@@ -113,6 +113,20 @@ export interface MappingPayload {
   yaml: string;
 }
 
+export interface GeoFeature {
+  type: "Feature";
+  id: string;
+  geometry: { type: string; coordinates: unknown };
+  properties: { id: string; kind: string; label: string | null; [field: string]: unknown };
+}
+
+export interface GeoCollection {
+  type: "FeatureCollection";
+  features: GeoFeature[];
+  truncated?: boolean;
+  focus?: string | null;
+}
+
 export type MarkStatus = "linked" | "not_in_register" | "not_a_tag" | "line";
 
 export interface DrawingMark {
@@ -381,6 +395,8 @@ export const api = {
   values: (id: string) =>
     request<{ provider: string; upsets: string[]; series: import("./Trend").Series[] }>(
       "GET", `/entities/${encodeURIComponent(id)}/values`),
+  map: () => request<GeoCollection>("GET", "/map"),
+  entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
