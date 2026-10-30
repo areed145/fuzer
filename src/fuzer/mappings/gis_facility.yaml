@@ -1,0 +1,16 @@
+# GIS facility locations (platforms, jackets, plants): the same places SAP knows, by their FLOC.
+source: gis
+record_type: facility
+shape: geospatial
+dataset: gis_facilities
+key: facility_id
+entity:
+  node: {from: floc, as: floc}
+  fields:
+    - [gis_name, name]
+    - [facility_type, type]
+    - [water_depth_m, {from: water_depth_m, as: number}]
+    - install_year
+    - [latitude, {from: latitude, as: number}]
+    - [longitude, {from: longitude, as: number}]
+    - geometry

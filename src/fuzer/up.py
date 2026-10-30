@@ -6,7 +6,8 @@
 4. Web UI: built when missing or older than its source.
 5. Serve on http://127.0.0.1:8000.
 
-`--fresh` starts over: empties the database and, for the fake plant, makes new data.
+`--fresh` starts over: empties the database and, for the fake plant, makes new data. `--demo okan`
+(or offshore, onshore) picks a fake plant and its asset pack.
 """
 
 import os
@@ -18,7 +19,7 @@ from . import db, ingest, pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
 UI = ROOT / "ui"
-MAX_AUTO_DRAWINGS = 5
+MAX_AUTO_DRAWINGS = 10
 
 
 def say(msg: str) -> None:
@@ -44,9 +45,9 @@ def data_folder(fresh: bool) -> Path:
         return folder
     if fake is None:
         raise SystemExit(f"No source exports found in {folder or 'data'}. Put exports there, or set FUZER_DATA_DIR.")
-    folder = folder or fake.DATA / "offshore"
-    say(f"Making a fake plant in {folder} ...")
-    asset = "onshore" if "onshore" in (os.environ.get("FUZER_PACK") or "") else "offshore"
+    asset = fake.ASSET_FOR_PACK.get(os.environ.get("FUZER_PACK") or "", "offshore")
+    folder = folder or fake.DATA / asset
+    say(f"Making the fake {asset} plant in {folder} ...")
     fake.make(folder, asset)
     return folder
 
@@ -105,8 +106,36 @@ def build_ui() -> None:
     subprocess.run([npm, "run", "build", "--silent"], cwd=UI, check=True, stdout=subprocess.DEVNULL)
 
 
-def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False) -> None:
-    print("Starting Fuzer", flush=True)
+def use_demo(name: str):
+    """Point everything at one fake plant: its asset pack and its data folder."""
+    from .pack import load_pack
+
+    fake = _fake_plant()
+    if fake is None or name not in fake.PACKS:
+        raise SystemExit(f"Unknown demo {name!r}" + (f"; one of {', '.join(fake.PACKS)}" if fake else
+                                                     " (the fakeplant package isn't installed)"))
+    os.environ["FUZER_PACK"] = fake.PACKS[name]
+    os.environ["FUZER_DATA_DIR"] = str(fake.DATA / name)
+    return load_pack(fake.PACKS[name])
+
+
+def other_asset(conn, pack) -> str | None:
+    """The field already loaded, when it isn't this pack's (two assets in one database get mixed up)."""
+    row = conn.execute("select source_key from source_record where source = 'sap' and record_type = 'floc' "
+                       "and coalesce(payload->>'parent', '') = '' limit 1").fetchone()
+    return row["source_key"] if row and row["source_key"] != pack.facility else None
+
+
+def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None) -> None:
+    print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
+    if demo:
+        pack = use_demo(demo)
+    if not fresh:
+        with db.connect() as conn:
+            db.init_schema(conn)
+            if loaded := other_asset(conn, pack):
+                raise SystemExit(f"The database holds another asset ({loaded}). Run with --fresh to replace it "
+                                 f"with {pack.facility}.")
     folder = data_folder(fresh)
     os.environ["FUZER_DATA_DIR"] = str(folder)
     with db.connect() as conn:

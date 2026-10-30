@@ -1,0 +1,108 @@
+"""The Okan field demo: every source loads with the okan pack and the stories hang together."""
+
+import json
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from fakeplant import okan
+from fuzer import db, graph, ingest, nel, pipeline, queries
+from fuzer.pack import load_pack
+
+PACK = load_pack("okan")
+
+
+@pytest.fixture(scope="module")
+def setup():
+    os.environ.pop("FUZER_DATABASE_URL", None)
+    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
+    data = Path(tempfile.mkdtemp(prefix="fzokan"))
+    stats = okan.generate(data)
+    with db.connect() as c:
+        db.reset(c)
+        loaded = ingest.ingest(c, data)
+        rebuilt = pipeline.rebuild(c, PACK)
+        yield c, data, stats, loaded, rebuilt
+
+
+def fid(conn, kind, key):
+    r = conn.execute("select fuzer_id from entity_key where kind = %s and key = %s", (kind, key)).fetchone()
+    return r["fuzer_id"] if r else None
+
+
+def test_every_source_loads(setup):
+    conn, data, stats, loaded, _ = setup
+    assert loaded["unmapped"] == [] and loaded["held"] == []
+    assert {"sap_floc", "sap_equipment", "pi_points", "oplogs", "ec_downtime", "ec_day001", "gis_pipelines",
+            "gis_facilities", "pi_af", "ec_network", "pid_sheets", "documents"} <= set(loaded["loaded"])
+    unread = conn.execute(
+        "select source, record_type, count(*) as n from source_record r where not exists "
+        "(select 1 from crosswalk c where c.source = r.source and c.record_type = r.record_type "
+        "and c.source_key = r.source_key) and r.record_type not in ('edge', 'bom') group by 1, 2").fetchall()
+    assert unread == [], unread  # every record became (part of) an entity
+
+
+def test_wells_and_facilities(setup):
+    conn, data, stats, _, _ = setup
+    wells = json.loads((data / "wells.json").read_text())
+    keys = {r["key"] for r in conn.execute("select key from entity_key where kind = 'well'")}
+    assert {w["name"] for w in wells} == keys and len(keys) == stats["wells"]
+    assert {"OK-NWP-G1", "OK-NWP-G2", "OK-NWP-G3"} <= keys
+    # A well's EC node, PI points and SAP location are one entity.
+    w = fid(conn, "well", "OK-J07-03")
+    sources = {r["source"] for r in conn.execute("select source from crosswalk where fuzer_id = %s", (w,))}
+    assert {"sap", "ec"} <= sources
+    assert conn.execute("select count(*) as n from edge where src = %s and rel = 'has_timeseries'", (w,)).fetchone()["n"] >= 3
+    assert {m.key for m in nel.find_mentions("Train B down on OK_GGCP, lift gas short to OKA_ST2", PACK)} >= {
+        "OKAN-20", "OKAN-40"}
+
+
+def test_gas_lift_and_export_network(setup):
+    conn, *_ = setup
+    # Gas producers flow to GGCP inlet separation, then (compressed or bypassing) to the lift gas header and EGP.
+    down = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-NWP-G2"), direction="down")}
+    assert {fid(conn, "tag", "20-V-2001"), fid(conn, "tag", "20-FT-3002"), fid(conn, "tag", "20-K-2300B")} <= down
+    egp = fid(conn, "allocation_node", "EGP")
+    assert egp in down
+    # Jacket oil reaches PP and the crude terminal.
+    oil = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-J18-02"), direction="down")}
+    assert {fid(conn, "tag", "40-V-2002"), fid(conn, "tag", "10-V-2001"), fid(conn, "allocation_node", "ESCRAVOS-TERM")} <= oil
+
+
+def test_gis_pipelines_connect_facilities(setup):
+    conn, _, stats, _, _ = setup
+    n = conn.execute("select count(*) as n from entity where kind = 'pipeline' and retired_at is null").fetchone()["n"]
+    assert n == stats["pipelines"]
+    pp = fid(conn, "area", "OKAN-10")
+    ends = conn.execute("select count(*) as n from edge where dst = %s and rel = 'ends_at'", (pp,)).fetchone()["n"]
+    assert ends >= 10  # PP jackets' flowlines and the satellite trunklines
+    egp = fid(conn, "facility", "EGP")
+    assert egp and conn.execute("select count(*) as n from edge where dst = %s and rel = 'ends_at'", (egp,)).fetchone()["n"] == 2
+    geom = conn.execute("select g.value from golden g join entity e using (fuzer_id) where e.kind = 'pipeline' "
+                        "and g.field = 'geometry' limit 1").fetchone()["value"]
+    assert geom["type"] == "LineString" and len(geom["coordinates"]) >= 2
+
+
+def test_train_b_story(setup):
+    conn, *_ = setup
+    k = fid(conn, "tag", "20-K-2200B")
+    incidents = queries.incidents(conn, k, limit=20)["items"]
+    march = [i for i in incidents if str(i.get("start", "")).startswith("2024-03")]
+    assert march, incidents
+    m = queries.maintenance(conn, k, limit=20)
+    assert any("bearing" in (w["text"] or "").lower() for r in m["recent"] for w in r["work_orders"])
+
+
+def test_drawings_and_guides(setup):
+    conn, data, stats, _, _ = setup
+    truth = json.loads((data / "pid_truth.json").read_text())
+    assert len(truth) == stats["pid_sheets"] == 9
+    assert any(t["key"] == "20-GT-2000B" and t["kind"] == "equipment" for t in truth["OKAN-20-PID-005"]["tags"])
+    guide = conn.execute("select c.fuzer_id from crosswalk c where c.source = 'edms' and c.source_key = 'TG-20L-001 rev A'").fetchone()
+    assert guide
+    applies = {r["label"] for r in conn.execute(
+        "select l.label from edge e join entity_label l on l.fuzer_id = e.dst where e.src = %s and e.rel = 'applies_to'",
+        (guide["fuzer_id"],))}
+    assert "20-PT-3003" in applies

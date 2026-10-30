@@ -14,6 +14,9 @@ entity:
     - [oil_sm3, {from: oil_sm3, as: number, keep: true}]
     - [gas_ksm3, {from: gas_ksm3, as: number, keep: true}]
     - [water_inj_sm3, {from: water_inj_sm3, as: number, keep: true}]
+    - [gas_export_ksm3, {from: gas_export_ksm3, as: number}]
+    - [lift_gas_ksm3, {from: lift_gas_ksm3, as: number}]
+    - [flare_ksm3, {from: flare_ksm3, as: number}]
 links:
   - rel: reports_on
     when: facility

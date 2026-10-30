@@ -1,0 +1,24 @@
+# GIS pipelines and flowlines: route geometry and design data, from one facility to another.
+source: gis
+record_type: pipeline
+shape: geospatial
+dataset: gis_pipelines
+key: line_id
+entity:
+  kind: pipeline
+  fields:
+    - [description, name]
+    - service
+    - [diameter_in, {from: diameter_in, as: number}]
+    - [length_km, {from: length_km, as: number}]
+    - [mop_barg, {from: mop_barg, as: number}]
+    - install_year
+    - status
+    - geometry
+links:
+  - rel: starts_at
+    when: from_floc
+    to: {from: from_floc, as: floc}
+  - rel: ends_at
+    when: to_floc
+    to: {from: to_floc, as: floc}

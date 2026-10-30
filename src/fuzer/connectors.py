@@ -9,8 +9,8 @@ part files and a Delta table alike:
 - rows(since=None): the rows as plain dicts. Lake connectors can filter on a watermark column
   (`since=(column, value)`) so append-only tables read only rows at or after the last position.
 
-Lake tables are found by name in the data folder: `<name>/` (Delta if it has a `_delta_log`, else
-Parquet part files), `<name>.parquet` or `<name>.csv`, in that order. ADLS later: the same pyarrow
+Tables are found by name in the data folder: `<name>/` (Delta if it has a `_delta_log`, else
+Parquet part files), `<name>.parquet`, `<name>.csv` or `<name>.geojson` (GIS), in that order. ADLS later: the same pyarrow
 datasets over an fsspec filesystem.
 """
 
@@ -113,6 +113,38 @@ class ParquetTable:
                 yield {k: _jsonable(v) for k, v in row.items()}
 
 
+class GeoJsonTable:
+    """A GeoJSON FeatureCollection (a GIS export): one row per feature, its properties plus `geometry`
+    (the GeoJSON geometry, kept as is) and `geometry_type`. Always a full snapshot."""
+
+    kind = "geojson"
+    watermarks = False
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def _features(self) -> list[dict]:
+        import json
+
+        return json.loads(self.path.read_text()).get("features", [])
+
+    def fingerprint(self) -> str:
+        return _stat([self.path], self.path.parent)
+
+    def schema(self) -> list[list[str]]:
+        cols = {}
+        for f in self._features():
+            for k, v in (f.get("properties") or {}).items():
+                cols.setdefault(k, type(v).__name__ if v is not None else "null")
+        return [[k, "string" if v == "str" else v] for k, v in cols.items()] + [["geometry", "geometry"],
+                                                                                ["geometry_type", "string"]]
+
+    def rows(self, since=None) -> Iterator[dict]:
+        for f in self._features():
+            g = f.get("geometry") or {}
+            yield {**(f.get("properties") or {}), "geometry": g, "geometry_type": g.get("type")}
+
+
 def find(data_dir: Path, name: str):
     """The connector for table `name` in data_dir, or None when it isn't there."""
     folder = data_dir / name
@@ -123,6 +155,8 @@ def find(data_dir: Path, name: str):
         return ParquetTable(data_dir / f"{name}.parquet")
     if (data_dir / f"{name}.csv").is_file():
         return CsvTable(data_dir / f"{name}.csv")
+    if (data_dir / f"{name}.geojson").is_file():
+        return GeoJsonTable(data_dir / f"{name}.geojson")
     return None
 
 

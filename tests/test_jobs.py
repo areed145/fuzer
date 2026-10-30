@@ -52,7 +52,8 @@ def test_sensor_runs_only_changed_exports(fuzer):
     ctx = dg.build_sensor_context(resources={"fuzer": fuzer})
     first = jobs.new_exports(ctx)
     keys = {k.path[-1] for k in first.run_requests[0].asset_selection}
-    assert keys == set(jobs.ingest.export_names()) | {"register"}  # first look: everything is new
+    present = {n for n in jobs.ingest.export_names() if jobs.ingest.dataset(Path(fuzer.data_dir), n)}
+    assert keys == present | {"register"}  # first look: everything there is new
 
     ctx = dg.build_sensor_context(cursor=first.cursor, resources={"fuzer": fuzer})
     assert isinstance(jobs.new_exports(ctx), dg.SkipReason)  # nothing changed

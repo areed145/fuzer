@@ -1,0 +1,105 @@
+# Asset pack for the Okan field demo (NMA business unit, South Offshore area). Fake data made by
+# `fakeplant generate --asset okan`. Installations are two-digit areas of the field "OKAN":
+#   10 OKA_PP (production platform)    20 OK_GGCP (gas gathering and compression, trains A/B/C)
+#   30 OKA_ST1, 40 OKA_ST2 (satellites) 50 OKA_NWP (new wells platform)   61-84 jackets OKJ-01..24
+name: okan
+facility: OKAN
+
+tag_grammar:
+  area_digits: 2
+  loop_digits: [3, 5]
+  function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, FIC, LIC, PIC, TIC, XV, PSV, ZSC]
+
+# Wells by site and slot: OK-J07-03 (jacket 07, slot 03), OK-NWP-05, gas producer OK-NWP-G2.
+# Sources write them OKAN_J07_03 (EC), OK_J07_03.WHP (PI), OKAN-WELL-OKJ07-03 (SAP).
+well_grammar:
+  pattern: 'OK(?:AN)?[-_\s]?(?P<site>J\d{2}|NWP)[-_\s]?(?P<num>G\d|\d{2})'
+  key: 'OK-{site}-{num}'
+
+# Names people use instead of codes.
+aliases:
+  okan production platform: [area, OKAN-10]
+  oka_pp: [area, OKAN-10]
+  ok_ggcp: [area, OKAN-20]
+  ggcp: [area, OKAN-20]
+  oka_st1: [area, OKAN-30]
+  oka_st2: [area, OKAN-40]
+  oka_nwp: [area, OKAN-50]
+  new wells platform: [area, OKAN-50]
+  inlet separator: [tag, 20-V-2001]
+  lift gas header: [tag, 20-PT-3003]
+  compression bypass: [tag, 20-XV-3100]
+  escravos gas plant: [facility, EGP]
+  egp: [facility, EGP]
+
+matching:
+  equipment:
+    auto_accept: 0.90
+    review_min: 0.60
+
+survivorship:
+  default:
+    priority: [review, sap, pi_af, pi, ec, gis, pid, oplog]
+    review_on_conflict: false
+  fields:
+    manufacturer: {priority: [review, sap], review_on_conflict: true}
+    model: {priority: [review, sap], review_on_conflict: true}
+    description: {priority: [review, sap, pi_af, pi, ec, gis]}
+    uom: {priority: [review, pi, pi_af]}
+
+classification:
+  taxonomy: iso14224
+  tag_functions:
+    P: PU
+    K: CO
+    E: HE
+    V: VE
+    GT: GT
+    PT: IP.PR
+    TT: IP.TE
+    LT: IP.LE
+    FT: IP.FL
+    PDT: IP.DP
+    ST: IP.SP
+    VT: IP.VI
+    FIC: CL
+    LIC: CL
+    PIC: CL
+    TIC: CL
+    XV: VA.ES
+    PSV: VA.PS
+    ZSC: IP
+  templates:
+    Centrifugal Pump: PU.CE
+    Compressor: CO.CE
+    Heat Exchanger: HE.ST
+    Pressure Vessel: VE
+    Gas Turbine: GT
+  description_types:
+    separator: SE
+    scrubber: SC
+    drum: DR
+    cooler: ST
+  manufacturer_aliases:
+    solar: Solar Turbines
+    bhge: Baker Hughes
+    siemens: Siemens Energy
+    alfa-laval: Alfa Laval
+  extra_classes: {}
+
+maintenance_codes:
+  damage: {D01: VIB, D02: ELP, D03: FTS, D04: OHE, D05: LOO, D06: NOI, D07: AIR, D08: INL, D09: UST, D10: BRD}
+  cause: {C01: "2.4", C02: "1.2", C03: "2.2", C04: "3.3", C05: "5.2", C06: "1.3"}
+  activity: {A01: "1", A02: "2", A03: "4", A04: "6", A05: "10"}
+
+# EC downtime reasons. "equipment" reasons are expected to name the equipment in the comment.
+downtime_reasons:
+  EQ-FAIL: {name: Equipment failure, category: equipment}
+  PROC-TRIP: {name: Process trip, category: equipment}
+  LIFT-GAS: {name: Lift gas shortfall, category: equipment}
+  PLAN-MAINT: {name: Planned maintenance, category: planned}
+  EXT-EGP: {name: EGP export curtailment, category: external}
+  HYDRATE: {name: Hydrates, category: process}
+  GL-VALVE: {name: Gas lift valve failure, category: well}
+  WELL-INT: {name: Well intervention, category: well}
+  WEATHER: {name: Weather, category: external}

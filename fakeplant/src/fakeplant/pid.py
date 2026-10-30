@@ -12,8 +12,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 2200, 1500
-EQUIPMENT_FUNCS = ("P", "K", "V", "E")
+W, H = 2200, 1500  # sheets with more than two rows of equipment grow taller (ROW_H each)
+ROW_H = 520
+EQUIPMENT_FUNCS = ("P", "K", "V", "E", "GT")
 
 
 def _font(size: int):
@@ -37,6 +38,11 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
     elif func == "K":
         box = (cx - 60, cy - 50, cx + 60, cy + 50)
         d.polygon([(cx - 60, cy - 30), (cx + 60, cy - 50), (cx + 60, cy + 50), (cx - 60, cy + 30)], outline=0, width=3)
+    elif func == "GT":  # gas turbine: tapered casing with a combustor can
+        box = (cx - 70, cy - 45, cx + 70, cy + 45)
+        d.polygon([(cx - 70, cy - 25), (cx + 70, cy - 45), (cx + 70, cy + 45), (cx - 70, cy + 25)], outline=0, width=3)
+        d.rectangle([cx - 20, cy - 70, cx + 20, cy - 35], outline=0, width=3)
+        box = (box[0], cy - 70, box[2], box[3])
     elif func == "E":
         box = (cx - 50, cy - 50, cx + 50, cy + 50)
         d.ellipse(box, outline=0, width=3)
@@ -53,12 +59,14 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
          connections: list[dict] = (), scan: bool = True) -> dict:
     """Render one drawing. Returns {size, tags: [{key, kind, x, y}], lines: [{text, from, to, x, y}]}:
     what is drawn where (pixels), for scoring readings and checking overlays."""
-    img = Image.new("L", (W, H), 255)
+    n_groups = sum(t.func in EQUIPMENT_FUNCS for t in tags) + any(t.func not in EQUIPMENT_FUNCS for t in tags)
+    height = max(H, 320 + math.ceil(n_groups / 4) * ROW_H) if n_groups > 8 else H
+    img = Image.new("L", (W, height), 255)
     d = ImageDraw.Draw(img)
     f_tag, f_small, f_bubble = _font(26), _font(18), _font(20)
 
-    d.rectangle([20, 20, W - 20, H - 20], outline=0, width=4)
-    tb = (W - 640, H - 210, W - 20, H - 20)
+    d.rectangle([20, 20, W - 20, height - 20], outline=0, width=4)
+    tb = (W - 640, height - 210, W - 20, height - 20)
     d.rectangle(tb, outline=0, width=3)
     d.text((tb[0] + 20, tb[1] + 20), sheet["title"], font=f_tag, fill=0)
     d.text((tb[0] + 20, tb[1] + 75), f"DWG No. {sheet['sheet']}", font=f_tag, fill=0)
@@ -73,7 +81,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
 
     cols = min(len(groups), 4) or 1
     rows = math.ceil(len(groups) / cols) or 1
-    cell_w, cell_h = (W - 120) / cols, (H - 320) / rows
+    cell_w, cell_h = (W - 120) / cols, (height - 320) / rows
     drawn, boxes, at = [], {}, {}
     for i, (eq, insts) in enumerate(groups):
         cx = 60 + cell_w * (i % cols) + cell_w / 2
@@ -116,8 +124,8 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
         img = img.filter(ImageFilter.GaussianBlur(0.6))
         d = ImageDraw.Draw(img)
         for _ in range(2500):
-            x, y = rng.randrange(W), rng.randrange(H)
+            x, y = rng.randrange(W), rng.randrange(height)
             d.point((x, y), fill=rng.randrange(0, 160))
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path, optimize=True)
-    return {"size": [W, H], "tags": drawn, "lines": lines}
+    return {"size": [W, height], "tags": drawn, "lines": lines}
