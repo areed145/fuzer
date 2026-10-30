@@ -73,3 +73,13 @@ def test_feedback(conn):
     assert client.post("/feedback", json={"target": "brief:x", "useful": True, "by": "tester"}).status_code == 200
     summary = client.get("/feedback/summary").json()
     assert summary[0]["kind"] == "brief" and summary[0]["ratings"] >= 1
+
+    # the rating set: unrated incidents first; a rated one moves to the end with its count
+    first = client.get("/feedback/briefs").json()
+    assert first["incidents"] > 0 and first["items"][0]["ratings"] == 0
+    inc = first["items"][0]["id"]
+    client.post("/feedback", json={"target": f"brief:{inc}", "useful": False, "comment": "missing the seal checks"})
+    after = client.get("/feedback/briefs").json()
+    rated = next(i for i in after["items"] if i["id"] == inc)
+    assert rated["ratings"] == 1 and rated["useful"] == 0 and rated["last_comment"] == "missing the seal checks"
+    assert after["items"][-1]["id"] == inc or after["items"][-1]["ratings"] > 0

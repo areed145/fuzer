@@ -12,14 +12,18 @@ part files and a Delta table alike:
 Tables are found by name in the data folder: `<name>/` (Delta if it has a `_delta_log`, else
 Parquet part files), `<name>.parquet`, `<name>.csv` or `<name>.geojson` (GIS), in that order. ADLS later: the same pyarrow
 datasets over an fsspec filesystem.
+
+Some datasets can come from a live system instead (`live()`): with FUZER_PI_WEB_API_URL set, the PI
+point list and AF tree are read through PI Web API (pi_web_api.py); with FUZER_ADX_URL, the ADX
+series catalog (adx.py). They yield the same rows as the file exports, as a full snapshot.
 """
 
 import csv
 import datetime as dt
 import hashlib
+from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
-from typing import Iterator
 
 BATCH_ROWS = 50_000
 
@@ -143,6 +147,50 @@ class GeoJsonTable:
         for f in self._features():
             g = f.get("geometry") or {}
             yield {**(f.get("properties") or {}), "geometry": g, "geometry_type": g.get("type")}
+
+
+class LiveTable:
+    """A dataset read from a live system. There is no cheap change marker, so the first call reads
+    everything once (kept for the rows() that follows) and the fingerprint is a hash of the content."""
+
+    watermarks = False
+    live = True
+    kind = "live"
+    columns: list[str] = []
+
+    def __init__(self, path: str):
+        self.path = path  # the server URL, shown in reviews and job metadata
+        self._rows: list[dict] | None = None
+
+    def read(self) -> Iterator[dict]:
+        raise NotImplementedError
+
+    def _all(self) -> list[dict]:
+        if self._rows is None:
+            self._rows = list(self.read())
+        return self._rows
+
+    def fingerprint(self) -> str:
+        import json
+
+        return hashlib.sha1(json.dumps(self._all(), sort_keys=True, default=str).encode()).hexdigest()
+
+    def schema(self) -> list[list[str]] | None:
+        return [[c, "string"] for c in self.columns] if self.columns else None
+
+    def rows(self, since=None) -> Iterator[dict]:
+        yield from self._all()
+
+
+def live(name: str):
+    """The live connector for dataset `name` when its system is configured, else None."""
+    from . import adx, pi_web_api
+
+    if pi_web_api.configured() and name in pi_web_api.DATASETS:
+        return pi_web_api.DATASETS[name]()
+    if adx.configured() and name in adx.DATASETS:
+        return adx.DATASETS[name]()
+    return None
 
 
 def find(data_dir: Path, name: str):

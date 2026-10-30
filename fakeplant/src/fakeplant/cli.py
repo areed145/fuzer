@@ -1,4 +1,4 @@
-"""Command line: fakeplant generate | demo."""
+"""Command line: fakeplant generate | demo | historian."""
 
 import argparse
 import json
@@ -22,6 +22,11 @@ def main(argv=None):
     d = sub.add_parser("demo", help="reset the Fuzer database, generate, ingest and rebuild")
     d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/<asset>)")
     d.add_argument("--pack", default=None, help="asset pack (default: the asset's own pack)")
+    h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
+    h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/<asset>)")
+    h.add_argument("--asset", choices=ASSETS, default="offshore")
+    h.add_argument("--host", default="127.0.0.1")
+    h.add_argument("--port", type=int, default=8100)
     for x in (g, d):
         x.add_argument("--seed", type=int, default=7)
         x.add_argument("--asset", choices=ASSETS, default="offshore",
@@ -39,6 +44,12 @@ def main(argv=None):
 
     if args.cmd == "generate":
         _print(generate(args))
+    elif args.cmd == "historian":
+        from . import historian
+
+        if not Path(args.out).is_dir():
+            raise SystemExit(f"No exports in {args.out}; run `fakeplant generate --asset {args.asset}` first.")
+        historian.main(args.out, args.host, args.port)
     else:
         from fuzer import db, ingest, pipeline
         from fuzer.pack import load_pack

@@ -46,7 +46,7 @@ flowchart LR
   CL["Claude readers<br/>logs, comments, P&IDs, sections"]
   RAW -.->|"fuzer llm-link"| CL -.-> LLM
 
-  TS["Time-series provider<br/>synthetic now, PI / ADX later"]
+  TS["Time-series provider<br/>PI Web API, ADX or synthetic"]
 
   subgraph OUT["Users"]
     direction TB
@@ -109,6 +109,19 @@ Optional, in a `.env` file (copy `.env.example`):
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
 `uv run pytest` runs the tests on a throwaway database.
+
+### Live PI and ADX (fake)
+
+```sh
+uv run fakeplant historian --asset okan   # fake PI Web API + ADX on :8100
+```
+
+Then in `.env`: `FUZER_PI_WEB_API_URL=http://127.0.0.1:8100/piwebapi`,
+`FUZER_ADX_URL=http://127.0.0.1:8100`, `FUZER_ADX_DATABASE=OKAN` and
+`FUZER_TIMESERIES=adx` (or `pi`). `fuzer ingest` now reads the point list and AF
+tree from PI Web API and the series catalog from ADX, and trends and the
+troubleshooting brief read values from them. The same settings point at a real
+server.
 
 ### Measuring quality
 

@@ -1,10 +1,16 @@
 """Process values around a time, through a pluggable provider.
 
-Fuzer never copies time series: it asks a provider for values when needed. PI Web API and ADX
-providers (#15, #16) implement the same `values()` call; until then the synthetic provider makes
-deterministic, plausible signals from each PI point's units, with the asset's incidents showing up
-in them (vibration and temperature climb before a trip, pressure dips), so the UI, agents and the
-troubleshooting brief can be built and tested now. Choose with FUZER_TIMESERIES (default synthetic).
+Fuzer never copies time series: it asks a provider for values when needed. Choose with
+FUZER_TIMESERIES:
+
+- `synthetic` (default): deterministic, plausible signals from each PI point's units, with the
+  asset's incidents showing up in them (vibration and temperature climb before a trip, pressure
+  dips). Needs nothing running.
+- `pi`: interpolated values from PI Web API, by point name (pi_web_api.py).
+- `adx`: values from Azure Data Explorer through the pointer the series catalog put on each
+  timeseries entity (adx.py).
+
+`uv run fakeplant historian` serves a fake PI Web API and ADX over the fake plant to try `pi` / `adx`.
 """
 
 import hashlib
@@ -20,12 +26,29 @@ BASE = {"barg": 18.0, "bar": 1.2, "degC": 65.0, "mm/s": 2.5, "%": 50.0, "rpm": 3
 UPSET = {"mm/s": 3.5, "degC": 1.35, "degF": 1.3, "barg": 0.7, "psi": 0.75, "rpm": 0.9, "Hz": 0.9}
 
 
+LEAD_IN_HOURS = 12
+# An incident's first timed signal (log entry time or downtime start; notifications only have a day).
+FIRST_TIMED = """
+    select min(g.value #>> '{{}}') from edge inc
+    join golden g on g.fuzer_id = inc.dst and g.field in ('timestamp', 'start') and length(g.value #>> '{{}}') > 10
+    where inc.src = {incident} and inc.rel = 'includes'
+"""
+
+
 class Provider(Protocol):
-    def values(self, point: str, uom: str, start: datetime, end: datetime, step_minutes: int,
-               upsets: list[datetime]) -> list[tuple[str, float]]: ...
+    name: str
+
+    def series(self, s: dict, start: datetime, end: datetime, step_minutes: int) -> list[tuple[str, float]]:
+        """Values of one series (`point`, `uom`, ADX pointer fields, `upsets`) as (minute, value) pairs."""
+        ...
 
 
 class SyntheticProvider:
+    name = "synthetic"
+
+    def series(self, s, start, end, step_minutes):
+        return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"])
+
     def values(self, point, uom, start, end, step_minutes, upsets):
         seed = int(hashlib.sha1(point.encode()).hexdigest()[:8], 16)
         base = BASE.get(uom, 10.0) * (0.85 + (seed % 30) / 100)
@@ -47,13 +70,21 @@ def provider() -> Provider:
     name = os.environ.get("FUZER_TIMESERIES", "synthetic")
     if name == "synthetic":
         return SyntheticProvider()
-    raise ValueError(f"time-series provider {name!r} isn't available yet (PI Web API / ADX: #15, #16)")
+    if name == "pi":
+        from . import pi_web_api
+        return pi_web_api.Provider()
+    if name == "adx":
+        from . import adx
+        return adx.Provider()
+    raise ValueError(f"unknown time-series provider {name!r} (FUZER_TIMESERIES: synthetic, pi or adx)")
 
 
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-           step_minutes: int = 30, max_points: int = 12) -> dict:
+           step_minutes: int = 30, max_points: int = 12, src: Provider | None = None) -> dict:
     """Values of the PI points on a unit (its own and its instruments') around a time. For an
-    incident, `at` defaults to its start and its unit is used."""
+    incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
+    day, and its unit is used. Each series has a summary for agents: min / max / mean / last, and
+    `lead_in`: the mean before the last 12 h against the mean and peak in them."""
     row = conn.execute(
         """
         select e.kind, (select a.dst from edge a where a.src = e.fuzer_id and a.rel = 'about' limit 1) as unit,
@@ -68,10 +99,13 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     # equipment -> the position it's installed at
     unit = (conn.execute("select dst from edge where src = %s and rel = 'installed_at' and valid_to is null",
                          (unit,)).fetchone() or {"dst": unit})["dst"]
+    if not at and row["kind"] == "incident":
+        at = conn.execute(f"select ({FIRST_TIMED.format(incident='%s')}) as t", (fuzer_id,)).fetchone()["t"]
     centre = datetime.fromisoformat(at or row["start"] or datetime.now().isoformat()[:10])
     upsets = [datetime.fromisoformat(r["start"]) for r in conn.execute(
-        """
-        select g.value #>> '{}' as start from edge a join golden g on g.fuzer_id = a.src and g.field = 'start'
+        f"""
+        select coalesce(({FIRST_TIMED.format(incident="a.src")}), g.value #>> '{{}}') as start
+        from edge a join golden g on g.fuzer_id = a.src and g.field = 'start'
         join entity i on i.fuzer_id = a.src and i.kind = 'incident'
         where a.dst = %s and a.rel = 'about'
         """,
@@ -81,11 +115,17 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
         """
         with tags as (select %(u)s::text as id union select src from edge where rel = 'part_of' and dst = %(u)s),
         pts as (
-            select distinct t.dst as id, l.label as point, gd.value #>> '{}' as description, gu.value #>> '{}' as uom
+            select distinct t.dst as id, l.label as point, gd.value #>> '{}' as description, gu.value #>> '{}' as uom,
+                   ac.value #>> '{}' as adx_cluster, ad.value #>> '{}' as adx_database,
+                   atb.value #>> '{}' as adx_table, ai.value #>> '{}' as adx_series_id
             from edge t
             left join entity_label l on l.fuzer_id = t.dst
             left join golden gd on gd.fuzer_id = t.dst and gd.field = 'description'
             left join golden gu on gu.fuzer_id = t.dst and gu.field = 'uom'
+            left join golden ac on ac.fuzer_id = t.dst and ac.field = 'adx_cluster'
+            left join golden ad on ad.fuzer_id = t.dst and ad.field = 'adx_database'
+            left join golden atb on atb.fuzer_id = t.dst and atb.field = 'adx_table'
+            left join golden ai on ai.fuzer_id = t.dst and ai.field = 'adx_series_id'
             where t.rel = 'has_timeseries' and t.src in (select id from tags) and l.label not like '%%.SP'
               and l.label not like '%%.OP'
         )
@@ -96,14 +136,34 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     ).fetchall()
     start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
     near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
-    src = provider()
-    series = []
+    src = src or provider()
+    series, errors = [], []
     for p in points:
-        vals = src.values(p["point"], p["uom"] or "", start, end, step_minutes, near)
-        nums = [v for _, v in vals]
-        series.append({"id": p["id"], "point": p["point"], "description": p["description"], "uom": p["uom"],
-                       "values": vals, "min": min(nums), "max": max(nums), "mean": round(sum(nums) / len(nums), 3),
-                       "last": nums[-1]})
-    return {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
-            "end": end.isoformat(timespec="minutes"), "provider": os.environ.get("FUZER_TIMESERIES", "synthetic"),
-            "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
+        try:
+            vals = src.series({**p, "upsets": near}, start, end, step_minutes)
+        except Exception as e:  # one unreachable or unknown point shouldn't hide the others
+            errors.append(f"{p['point']}: {e}")
+            continue
+        if vals:
+            series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
+                           **summary(vals, centre)})
+    out = {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
+           "end": end.isoformat(timespec="minutes"), "provider": src.name,
+           "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
+    return out | ({"errors": errors[:5]} if errors else {})
+
+
+def summary(vals: list[tuple[str, float]], centre: datetime) -> dict:
+    """min / max / mean / last, and how the lead-in (the 12 h before the centre) compares with before."""
+    nums = [v for _, v in vals]
+    out = {"min": min(nums), "max": max(nums), "mean": round(sum(nums) / len(nums), 3), "last": nums[-1]}
+    cut, c = (centre - timedelta(hours=LEAD_IN_HOURS)).isoformat(timespec="minutes"), centre.isoformat(timespec="minutes")
+    before = [v for t, v in vals if t < cut]
+    lead = [v for t, v in vals if cut <= t <= c]
+    if before and lead:
+        base = sum(before) / len(before)
+        lead_mean = sum(lead) / len(lead)
+        peak = max(lead, key=lambda v: abs(v - base))
+        out["lead_in"] = {"baseline_mean": round(base, 3), "mean": round(lead_mean, 3), "extreme": peak,
+                          "change_pct": round((peak - base) / base * 100, 1) if base else None}
+    return out

@@ -287,6 +287,38 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
     return row
 
 
+@app.get("/feedback/briefs")
+def brief_ratings(limit: int = 200, conn=Depends(get_conn)):
+    """The rating set for troubleshooting briefs: past incidents with how engineers rated each brief,
+    not-yet-rated first, and the overall share rated useful."""
+    rows = conn.execute(
+        """
+        with r as (
+            select split_part(target, ':', 2) as id, count(*) as ratings,
+                   count(*) filter (where useful) as useful,
+                   (array_agg(comment order by created_at desc) filter (where comment <> ''))[1] as last_comment
+            from feedback where target like 'brief:%%' group by 1
+        )
+        select i.fuzer_id as id, gd.value #>> '{}' as description, gs.value #>> '{}' as start,
+               coalesce(r.ratings, 0) as ratings, coalesce(r.useful, 0) as useful, r.last_comment
+        from entity i
+        join golden gs on gs.fuzer_id = i.fuzer_id and gs.field = 'start'
+        left join golden gd on gd.fuzer_id = i.fuzer_id and gd.field = 'description'
+        left join r on r.id = i.fuzer_id
+        where i.kind = 'incident' and i.retired_at is null and i.merged_into is null
+        order by (r.ratings is not null), gs.value #>> '{}' desc
+        limit %s
+        """,
+        (min(limit, 2000),),
+    ).fetchall()
+    total = conn.execute("select count(*) filter (where kind = 'incident' and retired_at is null) as n from entity"
+                         ).fetchone()["n"]
+    s = conn.execute("select count(distinct target) as rated, count(*) as ratings, count(*) filter (where useful) as useful "
+                     "from feedback where target like 'brief:%'").fetchone()
+    return {"incidents": total, "rated": s["rated"], "ratings": s["ratings"],
+            "useful_share": round(s["useful"] / s["ratings"], 2) if s["ratings"] else None, "items": rows}
+
+
 @app.get("/feedback/summary")
 def feedback_summary(conn=Depends(get_conn)):
     return conn.execute(

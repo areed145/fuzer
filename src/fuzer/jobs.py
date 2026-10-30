@@ -51,13 +51,15 @@ class ClaudeSettings(dg.ConfigurableResource):
 
 def export_signature(data_dir: Path, name: str) -> str | None:
     """Cheap change marker for one dataset (its connector's fingerprint: file sizes and times, the
-    files a manifest names, or a Delta version). None when the dataset isn't there."""
+    files a manifest names, or a Delta version). None when the dataset isn't there, or comes from a live
+    system (PI Web API, ADX): those have no cheap marker and load on the daily schedule instead."""
     c = ingest.dataset(data_dir, name)
-    return c.fingerprint() if c else None
+    return c.fingerprint() if c and not getattr(c, "live", False) else None
 
 
 def _source_asset(name: str):
-    @dg.asset(name=name, group_name="sources", description=f"Loads the {name} dataset (CSV, Parquet or Delta).")
+    @dg.asset(name=name, group_name="sources", description=f"Loads the {name} dataset (CSV, Parquet, Delta, or a live "
+                                                                 "PI Web API / ADX connection).")
     def load(context: dg.AssetExecutionContext, fuzer: Fuzer) -> dg.MaterializeResult:
         if (c := ingest.dataset(Path(fuzer.data_dir), name)) is None:
             context.log.warning(f"{name} not found in {fuzer.data_dir}; nothing loaded")

@@ -1,0 +1,15 @@
+# ADX series catalog: where each PI point's values already sit in Azure Data Explorer. Fuzer keeps
+# this pointer on the timeseries entity and reads values through it; it never copies them.
+source: adx
+record_type: series
+shape: timeseries
+dataset: adx_series
+key: series_id
+entity:
+  kind: timeseries
+  key: {from: pi_point, as: upper}
+  fields:
+    - [adx_cluster, {from: cluster}]
+    - [adx_database, {from: database}]
+    - [adx_table, {from: values_table}]
+    - [adx_series_id, {from: series_id}]

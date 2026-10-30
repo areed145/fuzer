@@ -46,7 +46,11 @@ def test_values_around_an_incident(conn):
     assert all(len(s["values"]) == 145 for s in out["series"])  # 72 h at 30 min
 
 
-def test_unknown_provider_is_explicit(monkeypatch):
+def test_unknown_or_unconfigured_provider_is_explicit(monkeypatch):
+    monkeypatch.setenv("FUZER_TIMESERIES", "osisoft")
+    with pytest.raises(ValueError, match="synthetic, pi or adx"):
+        timeseries.provider()
     monkeypatch.setenv("FUZER_TIMESERIES", "pi")
-    with pytest.raises(ValueError, match="#15"):
+    monkeypatch.delenv("FUZER_PI_WEB_API_URL", raising=False)
+    with pytest.raises(ValueError, match="FUZER_PI_WEB_API_URL"):
         timeseries.provider()

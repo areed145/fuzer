@@ -333,3 +333,5 @@ iframe.doc-file { width: 100%; height: 75vh; border: 1px solid var(--line); bord
 .map-legend .chip.off { opacity: 0.45; }
 .map-legend .basemap { margin-left: auto; display: inline-flex; gap: 4px; align-items: center; }
 .leaflet-container { font: inherit; }
+.rate { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rate h3 { margin-top: 0; }
