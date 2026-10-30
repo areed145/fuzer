@@ -113,10 +113,17 @@ def main(argv=None):
 
                 from . import llm_pids
 
-                _print(llm_pids.score(conn, _json.loads(open(args.truth or data / "pid_truth.json").read())))
+                truth = Path(args.truth or data / "pid_truth.json")
+                if not truth.is_file():
+                    raise SystemExit(f"No P&ID answer key at {truth}. It comes with fake data "
+                                     "(uv run fakeplant generate); set FUZER_DATA_DIR or pass --truth.")
+                _print(llm_pids.score(conn, _json.loads(truth.read_text())))
             elif args.cmd == "eval":
                 from . import evaluate
-                _print(evaluate.run(conn, pack, args.keys or data / "answer_keys"))
+                keys = Path(args.keys or data / "answer_keys")
+                if not keys.is_dir():
+                    raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
+                _print(evaluate.run(conn, pack, keys))
             elif args.cmd == "bench":
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":

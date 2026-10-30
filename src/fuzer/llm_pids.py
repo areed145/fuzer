@@ -270,7 +270,11 @@ def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:
 
 def score(conn, truth: dict) -> dict:
     """Compare what was read from each drawing with the answer key {sheet: {tags: [{key}], lines:
-    [{from, to}]}} (or {sheet: [tag keys]}): tags linked, and piping read."""
+    [{from, to}]}} (or {sheet: [tag keys]}): tags linked, and piping read. Smart P&IDs aren't read by
+    Claude, so they aren't scored."""
+    formats = {r["source_key"]: r["f"] for r in conn.execute(
+        "select source_key, payload->>'format' as f from source_record where source = 'pid' and record_type = 'sheet'")}
+    truth = {s: k for s, k in truth.items() if formats.get(s, "image") != "smart"}
     found: dict[str, set[str]] = {}
     for r in conn.execute(
         """
@@ -296,8 +300,15 @@ def score(conn, truth: dict) -> dict:
         if isinstance(key, dict) and sheet in pipes:
             want, read = {(x["from"], x["to"]) for x in key.get("lines", [])}, pipes[sheet]
             ptp, pfp, pfn = ptp + len(want & read), pfp + len(read - want), pfn + len(want - read)
+    read = sum(1 for s in truth if s in found)
+    note = None
+    if not read:
+        loaded = conn.execute("select count(*) as n from source_record where source = 'pid' and payload ? 'image'").fetchone()["n"]
+        note = ("no drawings loaded: generate and ingest data with drawings (uv run fakeplant demo)" if not loaded
+                else "nothing read yet: uv run fuzer llm-link --source pids")
     return {
-        "sheets": len(truth), "sheets_read": sum(1 for s in truth if s in found),
+        **({"note": note} if note else {}),
+        "sheets": len(truth), "sheets_read": read,
         "recall": round(tp / (tp + fn), 3) if tp + fn else None,
         "precision": round(tp / (tp + fp), 3) if tp + fp else None,
         "piping": {"recall": round(ptp / (ptp + pfn), 3) if ptp + pfn else None,
