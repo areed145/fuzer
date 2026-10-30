@@ -326,6 +326,41 @@ loads them; an unchanged server is still skipped by content hash.
 over a fake plant's points, with upsets taken from the plant's own downtime and
 log records, for development and tests.
 
+### 18c. Operations assistant (Claude agents)
+A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), calling Claude
+through MAF's Anthropic client with the same key as the Claude readers (`src/fuzer/agents/`):
+
+- **Orchestrator.** Answers lookups itself and hands domain work to specialists as MAF
+  *background agents*, which run at the same time. It writes the final answer using its `answering`
+  skill: a source on every fact, units and dates, gaps stated, and next steps. It never gives
+  plant-operating instructions.
+- **Specialists**, split by the data they work from rather than one agent per topic:
+  - `troubleshooter`: one unit or incident.
+  - `production`: surveillance and optimisation, efficiency and deferment, constraints, wells.
+  - `maintenance`: reliability and inspection, work orders, turnarounds.
+
+  Each has its own tool subset and skills; it loads a skill's method only when it needs it.
+- **Tools** are the MCP server's functions called in-process, so outside MCP clients see the same
+  tool surface. They run in threads so concurrent specialists don't block each other. Asset-wide
+  questions use `operations.py`: production summary and PE, deferment Pareto, constraints with
+  trend and cascade causes, well-test performance, bad actors and MTBF, work order backlog, PM and
+  inspection compliance, and turnaround scope. All are read-only, compact, and dated from the data's
+  latest daily report.
+- **Claude settings.** `claude-opus-5-5`, effort `high` for the orchestrator and `medium` for the
+  specialists. Automatic prompt caching is on. The server-side refusal fallback is on
+  (`FUZER_AGENT_FALLBACKS=0` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
+  the older budget form, and Opus 5.5 thinks adaptively by default. Web search and file memory are
+  off. `agent-framework-anthropic` still declares `anthropic<2`, so a uv override keeps Fuzer's 2.x
+  SDK; the tests run the adapter against it.
+- **Surfaces.** `fuzer ask` / `fuzer chat`, and the Ask page. The page uses `/assistant/ask`, which
+  starts a background job, and polls `/assistant/jobs/{id}` to show which agent is calling which
+  tool. Every answer is stored in `assistant_answer` with its tools, tokens and cost, and engineers
+  rate it through `feedback` (`answer:<id>`).
+- **Quality.** `fuzer eval --agents` asks the questions in `answer_keys/assistant.json` (one per
+  domain plus one across domains, on Okan). It scores the facts each answer must name, citations,
+  absence of operating instructions, and routing to specialists, with cost and time per answer.
+  Tests drive the whole team with a scripted fake SDK client (no network).
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

@@ -32,6 +32,7 @@ from . import docs, pid
 from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
 
 FIELD = "OKAN"
+AS_OF = "2025-12-31"  # the demo's "today": open work, overdue plans and backlog ages count from here
 CENTRE = (4.985, 5.420)  # lon, lat
 EGP_AT, TERMINAL_AT = (5.180, 5.585), (5.150, 5.555)
 
@@ -101,6 +102,33 @@ DAMAGE = {"P": ["D01", "D02", "D03", "D05"], "K": ["D01", "D04", "D09", "D06"], 
           "E": ["D04", "D08"], "V": ["D07", "D08", "D02"], "XV": ["D03", "D08"], "FT": ["D07"], "PT": ["D07"]}
 FAILURE_RATE = {"P": 0.8, "K": 1.2, "GT": 0.9, "E": 0.3, "V": 0.2}
 AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor", "Field Operator"]
+
+
+# Questions for the operations assistant, one per domain plus one across domains, with what a good answer
+# must name (case-insensitive; a list means any of these) given the planted stories. `fuzer eval --agents` scores them (costs money).
+ASSISTANT_QUESTIONS = [
+    {"domain": "troubleshooting", "question": "Why did 20-K-2200B keep tripping in March 2024, and what should we "
+     "check if it happens again?", "must_mention": ["20-K-2200B", "bearing", "vibration"],
+     "specialists": ["troubleshooter"]},
+    {"domain": "production efficiency", "question": "What was our production efficiency in 2025, and what were "
+     "the biggest losses?", "must_mention": ["planned", "%"], "specialists": ["production"]},
+    {"domain": "production surveillance", "question": "How did oil production trend through 2025, and what "
+     "explains the changes?", "must_mention": ["Sm3", "planned"], "specialists": ["production"]},
+    {"domain": "constraint management", "question": "What has been limiting production over the last two years, "
+     "and how does it cascade through the field?", "must_mention": ["lift gas", "20-K-2200B"],
+     "specialists": ["production"]},
+    {"domain": "production engineering", "question": "Which wells lost the most oil rate in 2025, and why?",
+     "must_mention": ["OK-J03-02", "water"], "specialists": ["production"]},
+    {"domain": "reliability", "question": "Who are our bad actors over the last two years, and what are their "
+     "repeat failure modes?", "must_mention": ["20-K-2200B", "MTBF"], "specialists": ["maintenance"]},
+    {"domain": "work orders", "question": "What in the work order backlog should we tackle first?",
+     "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["maintenance"]},
+    {"domain": "turnarounds", "question": "What is planned for the next turnaround, and what is missing from "
+     "its scope?", "must_mention": ["OK-TAR-2026", "inspection"], "specialists": ["maintenance"]},
+    {"domain": "across domains", "question": "Why does lift gas keep running short, and what should go in the next "
+     "turnaround to fix it?", "must_mention": ["20-K-2200B", "OK-TAR-2026"],
+     "specialists": ["production", "maintenance"]},
+]
 
 
 def well_name(site: str, num: str) -> str:
@@ -203,6 +231,8 @@ def generate(out, seed: int = 11) -> dict:
             add_points(area, inst, f"{code} {desc}", uom, PI_STYLE["jacket"])
         for n in range(1, rng.randint(5, 10) + 1):
             lift = "GL" if rng.random() < 0.82 else "NF"
+            if (j, n) in ((7, 3), (7, 5), (12, 2)):  # the stories' gas lifted wells
+                lift = "GL"
             wells.append({"name": well_name(f"J{j:02d}", f"{n:02d}"), "site": f"J{j:02d}", "area": area,
                           "lift": lift, "type": "oil"})
     for n in range(1, 9):
@@ -248,12 +278,16 @@ def generate(out, seed: int = 11) -> dict:
         notifications.append(n)
         return n
 
-    def work(n: dict | None, tag: str, start: str, activity: str, kind: str, text: str, days: int | None = None):
+    def work(n: dict | None, tag: str, start: str, activity: str, kind: str, text: str, days: int | None = None,
+             status: str = "TECO", priority: str | None = None, due: str | None = None, revision: str = ""):
         e = eq_of(tag)
+        finish = _add_days(start, mrng.randint(0, 6) if days is None else days)
         orders.append({"aufnr": str(50000000 + len(orders)), "order_type": kind, "qmnum": n["qmnum"] if n else "",
                        "equnr": e["equnr"], "floc": e["floc"], "start": start,
-                       "finish": _add_days(start, mrng.randint(0, 6) if days is None else days),
-                       "activity_code": activity, "cost": f"{mrng.uniform(800, 60000):.0f}", "text": text})
+                       "finish": finish if status == "TECO" else "", "basic_finish": due or finish,
+                       "status": status, "priority": priority or (n["priority"] if n else "3"), "revision": revision,
+                       "activity_code": activity, "cost": f"{mrng.uniform(800, 60000):.0f}" if status == "TECO" else "",
+                       "text": text})
 
     def lost(obj: str, start: str, hours: float, reason: str, comment: str, oil_rate: float, gas_rate: float = 0):
         downtime.append({"event_id": f"OKDT-{len(downtime) + 1:05d}", "object_code": obj, "start": start,
@@ -308,6 +342,14 @@ def generate(out, seed: int = 11) -> dict:
              "lift gas reduced, restarted after 3h", 600, 150)
     n2 = notify("20-E-2350A", "2024-07-25", "D04", "High temperature on train A 3rd stage after-cooler", "C05")
     work(n2, "20-E-2350A", "2024-08-19", "A02", "PM01", "Clean cooler tubes, train A 3rd stage after-cooler", 3)
+    # ... and comes back the next summer: cleaning only buys a year, the bundle needs retubing at the TAR.
+    for when in ["2025-06-24T14:00", "2025-07-16T15:30"]:
+        log(f"{when}:00", "20-K-2300A tripped on high discharge temperature again, 20-TT-2300A 171 degC. "
+            "After-cooler 20-E-2350A fouled again, eddy current found thinned tubes.", "GGCP CRO")
+        lost(FIELD, when, 4, "PROC-TRIP", "20-K-2300A tripped on high discharge temp; after-cooler fouled, "
+             "restarted after 4h", 600, 150)
+    n2b = notify("20-E-2350A", "2025-07-17", "D04", "Repeat fouling, thinned tubes on train A 3rd stage after-cooler", "C05")
+    work(n2b, "20-E-2350A", "2025-07-28", "A02", "PM01", "Clean cooler tubes, train A 3rd stage after-cooler", 2)
 
     # Story 3: inlet separator level transmitter erratic -> liquid carryover -> train C scrubber trips.
     log("2024-11-04T02:00:00", "20-LT-2001 on GGCP inlet separator hunting, disagrees with gauge glass.", "Night Supervisor")
@@ -387,10 +429,98 @@ def generate(out, seed: int = 11) -> dict:
         notes = [d["comment"] for d in events] or [drng2.choice(["Steady production.", "All trains running.",
                                                                  "Routine operations, no upsets."])]
         daily.append({"report_date": day, "facility": FIELD, "oil_sm3": f"{oil - lost_oil:.0f}",
+                      "oil_potential_sm3": f"{oil:.0f}",
                       "gas_ksm3": f"{3100 - lost_gas * 0.5:.0f}", "water_inj_sm3": "0",
                       "gas_export_ksm3": f"{max(0, 1700 - lost_gas):.0f}", "lift_gas_ksm3": f"{1150 - lost_gas * 0.3:.0f}",
                       "flare_ksm3": f"{40 + (lost_gas * 0.4 if any(d['reason_code'] == 'EXT-EGP' for d in events) else 0):.0f}",
                       "comments": " ".join(notes)})
+
+    # ---- open work, maintenance plans, well tests (as of AS_OF) --------------------------------------
+    brng = random.Random(seed + 7)
+    has_order = {o["qmnum"] for o in orders if o["qmnum"]}
+    for n in notifications:  # recent notifications nobody has planned yet
+        if n["created"] >= "2025-09-01" and n["qmnum"] not in has_order:
+            n["status"] = "OSNO"
+    for e in brng.sample(equipment, k=min(32, len(equipment))):  # the running backlog
+        _, area, rest = e["floc"].split("-")
+        func = rest.rstrip("0123456789ABC")
+        tag = f"{area}-{func}-{rest[len(func):]}"
+        start = f"2025-{brng.randint(7, 12):02d}-{brng.randint(1, 28):02d}"
+        corrective = brng.random() < 0.5
+        n = notify(tag, start, brng.choice(DAMAGE[func]), "", prio=str(brng.randint(2, 4))) if corrective else None
+        if n:
+            n["short_text"] = DAMAGE_TEXT[n["damage_code"]].format(d=e["description"].lower())
+            n["status"] = "OSNO"
+        work(n, tag, start, brng.choice(["A01", "A02"]) if n else brng.choice(["A04", "A05"]),
+             "PM01" if n else "PM02", f"Investigate and repair: {n['short_text'].lower()}" if n
+             else f"Preventive maintenance {e['description'].lower()}",
+             status=brng.choice(["CRTD", "REL", "REL"]), priority=n["priority"] if n else str(brng.randint(3, 4)),
+             due=_add_days(start, brng.choice([14, 30, 60, 90])))
+    # Work that needs the plant down, flagged for the 2026 turnaround (SAP revision OK-TAR-2026).
+    tar = "OK-TAR-2026"
+    for tag, activity, text, prio in [
+        ("20-K-2200B", "A05", "Overhaul train B 2nd stage compressor: bearings, dry gas seals, impeller inspection", "2"),
+        ("20-E-2350A", "A01", "Retube train A 3rd stage after-cooler bundle (repeat fouling, thinned tubes)", "2"),
+        ("20-V-2001", "A06", "Internal inspection of GGCP inlet separator, replace level bridle and LT-2001", "2"),
+        ("10-V-2001", "A06", "Statutory internal inspection, PP HP production separator", "3"),
+        ("10-P-1001B", "A01", "Replace oil export pump B rotating element and seal plan 53B", "3"),
+    ]:
+        work(None, tag, "2026-04-06", activity, "PM03", text, status="CRTD", priority=prio, due="2026-04-30",
+             revision=tar)
+
+    plans = []
+    last_pm = {}
+    for o in orders:
+        if o["order_type"] == "PM02" and o["status"] == "TECO":
+            last_pm[o["equnr"]] = max(last_pm.get(o["equnr"], ""), o["finish"])
+    for e in equipment:
+        func = e["floc"].split("-")[2].rstrip("0123456789ABC")
+        interval = {"K": 180, "GT": 180, "P": 180}.get(func, 365)
+        done = last_pm.get(e["equnr"]) or "2024-06-01"
+        if done < _add_days(AS_OF, -2 * interval):  # plans get rescheduled; a few stay overdue below
+            done = _add_days(AS_OF, -brng.randint(10, int(interval * 1.25)))
+        plans.append({"plan": f"PM-{e['equnr']}", "kind": "PM", "equnr": e["equnr"], "floc": e["floc"],
+                      "task": f"{interval}-day preventive maintenance, {e['description'].lower()}",
+                      "interval_days": str(interval), "last_done": done, "next_due": _add_days(done, interval),
+                      "needs_shutdown": ""})
+        if func in ("V", "E"):  # pressure equipment: statutory internal inspection, needs the unit down
+            done = f"{brng.randint(2021, 2023)}-{brng.randint(1, 12):02d}-15"
+            if e["floc"].endswith("20-V2001"):
+                done = "2021-09-30"  # overdue: the carryover story's separator
+            plans.append({"plan": f"INSP-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
+                          "task": f"Statutory internal inspection, {e['description'].lower()}", "interval_days": "1461",
+                          "last_done": done, "next_due": _add_days(done, 1461), "needs_shutdown": "X"})
+        if func == "K":
+            done = _add_days(AS_OF, -brng.randint(5, 40))
+            plans.append({"plan": f"VIB-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
+                          "task": f"Vibration monitoring route, {e['description'].lower()}", "interval_days": "30",
+                          "last_done": done, "next_due": _add_days(done, 30), "needs_shutdown": ""})
+
+    tests = []
+    trng = random.Random(seed + 8)
+    for w in wells:
+        if w["type"] != "oil":
+            continue
+        rate, wc = trng.uniform(35, 95), trng.uniform(8, 45)
+        decline, wc_rise = trng.uniform(0.004, 0.015), trng.uniform(0.2, 0.9)
+        for m in range(24):
+            day = f"{2024 + m // 12}-{m % 12 + 1:02d}-{trng.randint(3, 26):02d}"
+            q = rate * (1 - decline) ** m
+            cut = min(95.0, wc + wc_rise * m)
+            if w["name"] in ("OK-J07-03", "OK-J07-05"):  # gas lift valve failures, fixed by slickline
+                failed = "2024-09-03" if w["name"] == "OK-J07-03" else "2025-04-15"
+                if failed <= day <= _add_days(failed, 75):
+                    q *= 0.55
+            if w["name"] == "OK-J03-02" and day >= "2025-06-01":  # water breakthrough
+                cut = min(95.0, 72 + (m - 17) * 2.5)
+                q *= 0.6
+            tests.append({"test_id": f"WT-{w['name']}-{day}", "well": w["name"], "test_date": day,
+                          "oil_sm3d": f"{q:.1f}", "water_cut_pct": f"{cut:.1f}",
+                          "gor_sm3_sm3": f"{trng.uniform(90, 160):.0f}",
+                          "lift_gas_ksm3d": f"{trng.uniform(8, 18):.1f}" if w["lift"] == "GL" else "0",
+                          "whp_barg": f"{trng.uniform(14, 26):.1f}"})
+    log("2025-06-12T10:00:00", "OK-J03-02 water cut up to 72% on test, oil rate down. Water breakthrough suspected.",
+        "Production Engineer")
 
     # ---- EC allocation network ------------------------------------------------------------------------
     nodes = [{"code": f"OKAN_{w['site']}_{w['name'].rsplit('-', 1)[1]}", "type": "well", "name": w["name"]}
@@ -548,6 +678,8 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "ec_day001.csv", daily)
+    _write_csv(out / "sap_maintenance_plans.csv", plans)
+    _write_csv(out / "ec_well_tests.csv", tests)
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps({"nodes": nodes, "edges": edges}, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
@@ -556,6 +688,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "gis_pipelines.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": lines}, indent=1))
     (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
+    (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),

@@ -295,6 +295,47 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
     return row
 
 
+class Question(BaseModel):
+    question: str
+    conversation_id: str | None = None
+    by: str = "anonymous"
+
+
+@app.post("/assistant/ask")
+async def assistant_ask(q: Question):
+    """Ask the operations assistant (Claude agents). Returns a job id at once; poll /assistant/jobs/{id}."""
+    from .agents import service
+    if not q.question.strip():
+        raise HTTPException(400, "empty question")
+    try:
+        return service.start(q.question.strip(), q.conversation_id, q.by)
+    except service.Unavailable as e:
+        raise HTTPException(503, str(e))
+
+
+@app.get("/assistant/jobs/{job_id}")
+def assistant_job(job_id: str):
+    """Progress (which agent is calling which tool) and, when done, the answer with its cost."""
+    from .agents import service
+    if (out := service.status(job_id)) is None:
+        raise HTTPException(404, "unknown job (the server may have restarted)")
+    return out
+
+
+@app.get("/assistant/answers")
+def assistant_answers(limit: int = 50, conn=Depends(get_conn)):
+    """Recent questions and answers with their ratings."""
+    return conn.execute(
+        """
+        select a.id, a.conversation_id, a.question, a.answer, a.error, a.specialists, a.usage, a.seconds,
+               a.by_user, a.created_at, count(f.id) as ratings, count(f.id) filter (where f.useful) as useful
+        from assistant_answer a left join feedback f on f.target = 'answer:' || a.id
+        group by a.id order by a.created_at desc limit %s
+        """,
+        (min(limit, 500),),
+    ).fetchall()
+
+
 @app.get("/feedback/briefs")
 def brief_ratings(limit: int = 200, conn=Depends(get_conn)):
     """The rating set for troubleshooting briefs: past incidents with how engineers rated each brief,

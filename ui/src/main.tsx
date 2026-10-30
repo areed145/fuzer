@@ -2,6 +2,7 @@ import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
+import { AskPage } from "./pages/Ask";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { DowntimePage } from "./pages/Downtime";
@@ -48,6 +49,9 @@ function App() {
         <a className={section === "" || section === "e" ? "on" : ""} href={href("/")}>
           Browse
         </a>
+        <a className={section === "ask" ? "on" : ""} href={href("/ask")}>
+          Ask
+        </a>
         <a className={section === "ontology" ? "on" : ""} href={href("/ontology")}>
           Ontology
         </a>
@@ -84,6 +88,8 @@ function App() {
         <Suspense fallback={<div className="status">Loading…</div>}>
           {section === "e" && path[1] ? (
             <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
+          ) : section === "ask" ? (
+            <AskPage />
           ) : section === "ontology" ? (
             <Ontology />
           ) : section === "network" ? (
