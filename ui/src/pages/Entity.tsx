@@ -118,6 +118,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <EntityMap id={e.fuzer_id} />
           </Suspense>
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={e.fuzer_id} />}
+          {e.kind !== "document" && <LinkedDrawings id={e.fuzer_id} />}
           {e.kind === "document" && e.golden.doc_type && (
             <section className="card">
               <div className="row spread">
@@ -175,6 +176,29 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
       )}
     </article>
   );
+}
+
+/** The P&ID sheets that show this entity, with its marks ringed; a picker when there are several. */
+function LinkedDrawings({ id }: { id: string }) {
+  const d = useAsync(() => api.entityDrawings(id), [id]);
+  const [pick, setPick] = useState<string>();
+  const sheets = d.data?.drawings ?? [];
+  if (sheets.length === 0) return null;
+  const sheet = sheets.find((x) => x.id === pick) ?? sheets[0];
+  const title = (
+    <>
+      On P&ID{" "}
+      {sheets.length > 1 ? (
+        <select value={sheet.id} onChange={(ev) => setPick(ev.target.value)} aria-label="P&ID sheet">
+          {sheets.map((x) => <option key={x.id} value={x.id}>{x.label}{x.title ? ` · ${x.title}` : ""}</option>)}
+        </select>
+      ) : (
+        <>{sheet.label}{sheet.title && <span className="muted"> · {sheet.title}</span>}</>
+      )}{" "}
+      <a className="small" href={entityHref(sheet.id)}>open</a>
+    </>
+  );
+  return <DrawingViewer key={sheet.id} id={sheet.id} highlight={d.data!.highlight} title={title} compact />;
 }
 
 function Fields({ e }: { e: EntityDetail }) {

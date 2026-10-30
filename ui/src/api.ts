@@ -443,6 +443,9 @@ export const api = {
   briefRatings: () => request<BriefRatings>("GET", "/feedback/briefs"),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
+  entityDrawings: (id: string) =>
+    request<{ highlight: string[]; drawings: { id: string; label: string | null; title: string | null }[] }>(
+      "GET", `/entities/${encodeURIComponent(id)}/drawings`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),

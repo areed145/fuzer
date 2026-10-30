@@ -139,6 +139,12 @@ def entity_map(fuzer_id: str, conn=Depends(get_conn)):
     return spatial.around(conn, fuzer_id)
 
 
+@app.get("/entities/{fuzer_id}/drawings")
+def entity_drawings(fuzer_id: str, conn=Depends(get_conn)):
+    """The P&ID sheets that show an entity, and the entity ids to highlight on them."""
+    return queries.drawings_for(conn, fuzer_id)
+
+
 @app.get("/documents/{fuzer_id}/drawing")
 def document_drawing(fuzer_id: str, conn=Depends(get_conn)):
     """A P&ID drawing with what was read from it placed on the sheet (tags, line numbers, piping)."""
