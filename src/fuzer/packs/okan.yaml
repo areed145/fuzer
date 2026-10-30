@@ -92,6 +92,12 @@ maintenance_codes:
   cause: {C01: "2.4", C02: "1.2", C03: "2.2", C04: "3.3", C05: "5.2", C06: "1.3"}
   activity: {A01: "1", A02: "2", A03: "4", A04: "6", A05: "10"}
 
+# Links GIS didn't carry as IDs, found by distance: wells to the jacket or platform they stand on,
+# and the ends of pipelines digitised without asset IDs to the facility they reach.
+spatial_links:
+  - {kind: well, to: [area], rel: located_at, max_m: 100}
+  - {kind: pipeline, to: [area, facility], ends: [starts_at, ends_at], max_m: 300, only_missing: true}
+
 # EC downtime reasons. "equipment" reasons are expected to name the equipment in the comment.
 downtime_reasons:
   EQ-FAIL: {name: Equipment failure, category: equipment}

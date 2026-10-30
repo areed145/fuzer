@@ -5,6 +5,7 @@ exercised too. Written in the same export formats as the offshore generator.
 """
 
 import json
+import math
 import random
 from pathlib import Path
 
@@ -104,6 +105,33 @@ def generate(out, seed: int = 11, pads: int = 40, wells_per_pad: int = 12, logs:
                                        esp=f"{pad}-ESP-3{rng.randint(1, 12):02d}")
         entries.append({"entry_id": f"RLOG-{day}-{i:05d}", "timestamp": f"{day}T07:00:00", "facility": FACILITY,
                         "author": rng.choice(["Lease operator", "Pumper", "Foreman"]), "text": text})
+
+    # GIS: pad and wellhead locations. Pads sit on a ~2 km grid; wellheads 10-60 m from their pad.
+    grng = random.Random(seed + 9)
+    origin = (-101.95, 31.92)
+    pad_at = {}
+    feats, well_feats, truth = [], [], []
+    for p in range(1, pads + 1):
+        pad = f"{p:02d}"
+        lon = round(origin[0] + ((p - 1) % 8) * 0.021 + grng.uniform(-0.002, 0.002), 6)
+        lat = round(origin[1] + ((p - 1) // 8) * 0.018 + grng.uniform(-0.002, 0.002), 6)
+        pad_at[pad] = (lon, lat)
+        feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                      "properties": {"facility_id": f"PAD-{pad}", "floc": f"{FACILITY}-{pad}", "name": f"Pad {pad}",
+                                     "type": "well pad", "latitude": lat, "longitude": lon}})
+    for pad, well in wells_all:
+        lon0, lat0 = pad_at[pad]
+        d, ang = grng.uniform(10, 60), grng.uniform(0, 6.283)
+        lon = round(lon0 + d * math.cos(ang) / 94_500, 6)
+        lat = round(lat0 + d * math.sin(ang) / 111_000, 6)
+        well_feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                           "properties": {"well_name": well, "well_type": "oil", "lift_type": "ESP",
+                                          "latitude": lat, "longitude": lon}})
+        truth.append({"src": well, "rel": "located_at", "dst": f"{FACILITY}-{pad}"})
+    (out / "gis_facilities.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, indent=1))
+    (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
+    (out / "answer_keys").mkdir(exist_ok=True)
+    (out / "answer_keys" / "spatial.json").write_text(json.dumps(truth, indent=1))
 
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_equipment.csv", equipment)

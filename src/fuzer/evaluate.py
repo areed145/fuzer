@@ -178,12 +178,30 @@ def schema(conn, pack: Pack, cases: list[dict], data_dir: Path) -> dict:
     return out
 
 
+def spatial(conn, pack: Pack, cases: list[dict]) -> dict:
+    """Links found by distance against the answer key [{src, rel, dst}] (entity labels): precision
+    over the spatial links of those relations, recall over the key."""
+    rels = sorted({c["rel"] for c in cases})
+    found = {(r["src"], r["rel"], r["dst"]) for r in conn.execute(
+        """
+        select ls.label as src, e.rel, ld.label as dst from edge e
+        join entity_label ls on ls.fuzer_id = e.src join entity_label ld on ld.fuzer_id = e.dst
+        where 'spatial' = any(e.sources) and e.rel = any(%s)
+        """, (rels,))}
+    want = {(c["src"], c["rel"], c["dst"]) for c in cases}
+    tp = len(found & want)
+    return {"links": len(want), "found": len(found), "precision": round(tp / len(found), 3) if found else None,
+            "recall": round(tp / len(want), 3) if want else None,
+            "missed": [dict(zip(("src", "rel", "dst"), x)) for x in sorted(want - found)][:10],
+            "wrong": [dict(zip(("src", "rel", "dst"), x)) for x in sorted(found - want)][:10]}
+
+
 def run(conn, pack: Pack, keys_dir) -> dict:
     keys_dir = Path(keys_dir)
     load = lambda name: json.loads((keys_dir / name).read_text()) if (keys_dir / name).exists() else None
     out = {}
     for name, fn in [("search.json", search), ("linking.json", linking), ("section_modes.json", section_modes),
-                     ("logs.json", logs), ("matches.json", matches)]:
+                     ("logs.json", logs), ("matches.json", matches), ("spatial.json", spatial)]:
         if (cases := load(name)) is not None:
             out[name.removesuffix(".json")] = fn(conn, pack, cases)
     if (cases := load("schema.json")) is not None:

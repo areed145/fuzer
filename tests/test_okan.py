@@ -106,3 +106,42 @@ def test_drawings_and_guides(setup):
         "select l.label from edge e join entity_label l on l.fuzer_id = e.dst where e.src = %s and e.rel = 'applies_to'",
         (guide["fuzer_id"],))}
     assert "20-PT-3003" in applies
+
+
+def test_spatial_links_and_map(setup):
+    conn, data, stats, _, rebuilt = setup
+    from fastapi.testclient import TestClient
+
+    from fuzer import evaluate
+    from fuzer.api import app
+
+    assert rebuilt["located"] == stats["gis_facilities"] + stats["pipelines"] + stats["gis_wells"]
+    truth = json.loads((data / "answer_keys" / "spatial.json").read_text())
+    s = evaluate.spatial(conn, PACK, truth)
+    assert s["precision"] == 1.0 and s["recall"] == 1.0 and s["links"] == stats["gis_wells"] + stats["unlabelled_pipeline_ends"]
+    # A legacy flowline without asset IDs now starts at its jacket and ends at its host, found by distance.
+    legacy = next(t for t in truth if t["rel"] == "starts_at")
+    e = conn.execute("select e.confidence, e.props from edge e join entity_label l on l.fuzer_id = e.src "
+                     "where l.label = %s and e.rel = 'starts_at'", (legacy["src"],)).fetchone()
+    assert e["props"]["method"] == "spatial" and e["props"]["distance_m"] < 30 and e["confidence"] > 0.9
+
+    client = TestClient(app)
+    everything = client.get("/map").json()
+    assert len(everything["features"]) == rebuilt["located"]
+    kinds = {f["properties"]["kind"] for f in everything["features"]}
+    assert kinds == {"area", "facility", "pipeline", "well"}
+    line = next(f for f in everything["features"] if f["properties"]["kind"] == "pipeline")
+    assert line["geometry"]["type"] == "LineString" and line["properties"]["service"]
+    near_pp = client.get("/map", params={"bbox": "4.97,5.41,5.0,5.43"}).json()["features"]
+    assert 0 < len(near_pp) < len(everything["features"])
+
+    # A compressor has no location of its own: its map shows the platform it is on, and the lines there.
+    k = fid(conn, "tag", "20-K-2200B")
+    m = client.get(f"/entities/{k}/map").json()
+    assert m["focus"] == fid(conn, "area", "OKAN-20")
+    assert any(f["properties"].get("service") == "gas export" for f in m["features"])
+    # A jacket's map has its wells and its flowline and gas lift line.
+    j = client.get(f"/entities/{fid(conn, 'area', 'OKAN-67')}/map").json()
+    services = {f["properties"].get("service") for f in j["features"]}
+    assert {"production flowline", "gas lift"} <= services
+    assert sum(f["properties"]["kind"] == "well" for f in j["features"]) >= 5

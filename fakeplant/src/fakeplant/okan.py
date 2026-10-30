@@ -456,15 +456,26 @@ def generate(out, seed: int = 11) -> dict:
                                      "water_depth_m": 0, "install_year": 1997, "longitude": at[0], "latitude": at[1]}})
     lines = []
 
+    spatial_truth = []
+
     def pipe(service: str, a: str, b: str, frm: list, to: list, dia: int, mop: int, year: int, status="in service"):
+        # Surveyed ends sit within ~15 m of the platform position.
+        jit = lambda p: [round(p[0] + rng.uniform(-1.2e-4, 1.2e-4), 6), round(p[1] + rng.uniform(-1.2e-4, 1.2e-4), 6)]  # noqa: E731
+        frm, to = jit(frm), jit(to)
         mid = [round((frm[0] + to[0]) / 2 + rng.uniform(-0.004, 0.004), 6),
                round((frm[1] + to[1]) / 2 + rng.uniform(-0.004, 0.004), 6)]
         coords = [frm, mid, to]
+        floc_of = lambda x: x if x in ("EGP", "ESCRAVOS") else f"{FIELD}-{x}"  # noqa: E731
+        line_id = f"OK-PL-{len(lines) + 1:03d}"
+        # Legacy (1998) jacket flowlines were digitised without asset IDs: only their route says where they go.
+        legacy = service == "production flowline" and year == 1998 and status == "in service"
+        if legacy:
+            spatial_truth.extend([{"src": line_id, "rel": "starts_at", "dst": floc_of(a)},
+                                  {"src": line_id, "rel": "ends_at", "dst": floc_of(b)}])
         lines.append({"type": "Feature", "geometry": {"type": "LineString", "coordinates": coords},
-                      "properties": {"line_id": f"OK-PL-{len(lines) + 1:03d}",
+                      "properties": {"line_id": line_id,
                                      "name": f'{dia}" {service} {a} to {b}', "service": service,
-                                     "from_floc": a if a in ("EGP", "ESCRAVOS") else f"{FIELD}-{a}",
-                                     "to_floc": b if b in ("EGP", "ESCRAVOS") else f"{FIELD}-{b}",
+                                     "from_floc": "" if legacy else floc_of(a), "to_floc": "" if legacy else floc_of(b),
                                      "diameter_in": dia, "length_km": round(_km(frm, mid) + _km(mid, to), 2),
                                      "mop_barg": mop, "install_year": year, "status": status}})
 
@@ -481,6 +492,18 @@ def generate(out, seed: int = 11) -> dict:
     pipe("oil export", "10", "ESCRAVOS", place["10"], list(TERMINAL_AT), 20, 60, 1998)
     # Replaced flowline behind the OK-J09-04 re-route.
     pipe("production flowline", "69", "30", place["69"], place["30"], 8, 70, 1998, status="abandoned")
+
+    # Well surface locations: slots a few metres apart around their jacket (or on NWP).
+    well_feats = []
+    for i, w in enumerate(wells):
+        x, y = place[w["area"]]
+        slot = int(w["name"].rsplit("-", 1)[1].lstrip("G") or 0)
+        ang = slot * 0.7 + (1.5 if w["type"] == "gas" else 0)
+        lon, lat = round(x + 3.0e-5 * math.cos(ang) * (1 + slot % 3), 6), round(y + 3.0e-5 * math.sin(ang) * (1 + slot % 3), 6)
+        well_feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                           "properties": {"well_name": w["name"], "well_type": w["type"], "lift_type": w["lift"],
+                                          "status": "producing", "latitude": lat, "longitude": lon}})
+        spatial_truth.append({"src": w["name"], "rel": "located_at", "dst": f"{FIELD}-{w['area']}"})
 
     # ---- P&ID drawings --------------------------------------------------------------------------------
     sheets, pid_truth = [], {}
@@ -531,13 +554,16 @@ def generate(out, seed: int = 11) -> dict:
     (out / "pid_truth.json").write_text(json.dumps(pid_truth, indent=1))
     (out / "gis_facilities.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, indent=1))
     (out / "gis_pipelines.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": lines}, indent=1))
+    (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
+    (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
             "gas_producers": len(gas_wells), "equipment": len(equipment), "flocs": len(floc), "pi_points": len(points),
             "notifications": len(notifications), "work_orders": len(orders), "downtime": len(downtime),
             "logs": len(logs), "daily_reports": len(daily), "pid_sheets": len(sheets), "documents": len(documents),
-            "pipelines": len(lines), "gis_facilities": len(feats)}
+            "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
+            "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at")}
 
 
 GUIDES = {

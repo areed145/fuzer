@@ -117,6 +117,26 @@ def entity_events(fuzer_id: str, since: str | None = None, until: str | None = N
     return queries.events(conn, fuzer_id, since, until, type, min(limit, 1000))
 
 
+@app.get("/map")
+def map_features(bbox: str | None = Query(None, description="min lon,min lat,max lon,max lat"),
+                 kind: list[str] | None = Query(None), limit: int = 20000, conn=Depends(get_conn)):
+    """Everything with a location, as GeoJSON (facilities, pipelines, wells, ...)."""
+    from . import spatial
+
+    box = tuple(float(x) for x in bbox.split(",")) if bbox else None
+    if box is not None and len(box) != 4:
+        raise HTTPException(400, "bbox is min lon,min lat,max lon,max lat")
+    return spatial.features(conn, box, kind, min(limit, 50000))
+
+
+@app.get("/entities/{fuzer_id}/map")
+def entity_map(fuzer_id: str, conn=Depends(get_conn)):
+    """An entity's location and the located things linked to it, as GeoJSON (`focus` is the place shown)."""
+    from . import spatial
+
+    return spatial.around(conn, fuzer_id)
+
+
 @app.get("/documents/{fuzer_id}/drawing")
 def document_drawing(fuzer_id: str, conn=Depends(get_conn)):
     """A P&ID drawing with what was read from it placed on the sheet (tags, line numbers, piping)."""

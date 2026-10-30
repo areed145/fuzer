@@ -22,6 +22,7 @@ def conn():
         db.reset(c)
         ingest.ingest(c, data)
         c.stats = pipeline.rebuild(c, PACK)
+        c.data = data
         yield c
 
 
@@ -56,3 +57,16 @@ def test_logs_link_onshore_names(conn):
 def test_optional_sources_absent(conn):
     sources = {r["source"] for r in conn.execute("select distinct source from source_record")}
     assert "jde" not in sources and "maximo" not in sources
+
+
+
+def test_wellheads_find_their_pads(conn):
+    import json
+    from pathlib import Path
+
+    from fuzer import evaluate
+
+    truth = json.loads((Path(conn.data) / "answer_keys" / "spatial.json").read_text())
+    assert len(truth) == 48 and conn.stats["spatial_links"] == {"well->area": 48}
+    s = evaluate.spatial(conn, PACK, truth)
+    assert s["recall"] == 1.0 and s["precision"] == 1.0

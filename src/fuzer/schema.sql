@@ -261,3 +261,20 @@ create table if not exists mapping_version (
     approved_at timestamptz not null default now()
 );
 create index if not exists mapping_version_type on mapping_version (source, record_type, id desc);
+
+-- Where things are: geometry of every entity that has one (GIS, latitude / longitude), with its
+-- bounding box and centre for map and nearby lookups. Rebuilt with the register.
+create table if not exists geo_index (
+    fuzer_id  text primary key,
+    kind      text not null,
+    geom_type text not null,
+    minx      double precision not null,
+    miny      double precision not null,
+    maxx      double precision not null,
+    maxy      double precision not null,
+    cx        double precision not null,
+    cy        double precision not null,
+    geometry  jsonb not null
+);
+create index if not exists geo_index_box on geo_index (minx, maxx, miny, maxy);
+create index if not exists geo_index_kind on geo_index (kind);

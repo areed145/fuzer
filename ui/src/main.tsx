@@ -13,6 +13,8 @@ import "./styles.css";
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
 const Network = lazy(() => import("./pages/Network").then((m) => ({ default: m.Network })));
+// The map pulls in Leaflet; load it only when opened.
+const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
 
 function App() {
   const { path, query } = useRoute();
@@ -52,6 +54,9 @@ function App() {
         <a className={section === "network" ? "on" : ""} href={href("/network")}>
           Network
         </a>
+        <a className={section === "map" ? "on" : ""} href={href("/map")}>
+          Map
+        </a>
         <a className={section === "downtime" ? "on" : ""} href={href("/downtime")}>
           Downtime
         </a>
@@ -83,6 +88,8 @@ function App() {
             <Ontology />
           ) : section === "network" ? (
             <Network />
+          ) : section === "map" ? (
+            <MapPage />
           ) : section === "downtime" ? (
             <DowntimePage />
           ) : section === "incidents" ? (

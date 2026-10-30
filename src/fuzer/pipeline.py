@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import db, golden, graph, llm_docs, llm_links, llm_pids, mappings
+from . import db, golden, graph, llm_docs, llm_links, llm_pids, mappings, spatial
 from .extract import extract, link_part_numbers
 from .pack import Pack
 from psycopg.types.json import Jsonb
@@ -82,6 +82,11 @@ def rebuild(conn, pack: Pack) -> dict:
     stats |= graph.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
     stats["maintenance_event_links"] = graph.link_maintenance_to_events(conn)
     lap("graph")
+
+    stats["located"] = spatial.index(conn)
+    if pack.spatial_links:
+        stats["spatial_links"] = spatial.link(conn, pack.spatial_links)
+    lap("spatial")
 
     # Incidents group signals that are only linked once the graph exists.
     i_cands, i_edges = incidents.derive(conn)
