@@ -13,8 +13,10 @@ their effects: deferment by reason, the units causing it, and the operator log.
 2. **Cascades.** A constraint in one system shows up as losses elsewhere. Examples to check:
    a compressor train trip cuts lift gas to gas-lifted wells (LIFT-GAS losses caused by a compressor
    tag); a gas producer hydrate cuts lift gas supply; export curtailment forces flaring or choke-backs.
-   `trace_flow(ref, "down")` from the constraining unit shows what it feeds; `get_events` around the
-   loss dates shows what operators did (bypass, prioritising lift gas, choking back).
+   `trace_flow(ref, "down")` from the constraining unit shows what it feeds (`network="lift_gas"` for
+   lift gas: compressor -> header -> jacket manifolds -> wells, including jackets fed through another
+   jacket, which lose lift first); `get_events` around the loss dates shows what operators did (bypass,
+   prioritising lift gas, choking back). Load the `gas-lift` skill for lift gas constraints.
 3. **Rank** by lost oil, then by trend: a worsening constraint outranks a bigger but improving one.
 4. **Debottleneck options** follow from the cause: reliability work on a tripping unit
    (hand to maintenance), spare capacity or redistribution (lift gas priority to the best responders,

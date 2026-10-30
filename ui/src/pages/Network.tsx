@@ -5,10 +5,10 @@ import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 
 export function Network() {
   const [asOf, setAsOf] = useState("");
-  const [rel, setRel] = useState<"flows_to" | "pipes_to">("flows_to");
+  const [rel, setRel] = useState<"flows_to" | "lift_gas_to" | "pipes_to">("flows_to");
   const [selected, setSelected] = useState<string | null>(null);
   const net = useAsync(() => api.network(asOf || undefined, rel), [asOf, rel]);
-  // Every link here is flows_to, so labels only add clutter; hover a link to see its dates.
+  // Every link here is the same kind, so labels only add clutter; hover a link to see its dates.
   const elements = useMemo(
     () => (net.data ? subgraphElements(net.data, undefined, false, !asOf) : []),
     [net.data, asOf],
@@ -21,13 +21,17 @@ export function Network() {
         <div>
           <h1>Flow network</h1>
           <p className="muted">
-            Production and allocation flow from Energy Components: wells → manifolds → separators → meters → sales.
+            {rel === "lift_gas_to"
+              ? "Gas lift from Energy Components: compression → lift gas headers → jacket gas lift manifolds (some through another jacket) → gas lifted wells."
+              : rel === "pipes_to" ? "Process piping read from the P&IDs."
+              : "Production and allocation flow from Energy Components: wells → manifolds (some through another jacket) → separators → meters → sales."}
             {!asOf && " Dashed lines are routings that have ended; pick a date to see the network as it was."} Hover a
             line for its dates.
           </p>
         </div>
         <div className="tabs">
           <button className={rel === "flows_to" ? "on" : ""} onClick={() => setRel("flows_to")}>Allocation (EC)</button>
+          <button className={rel === "lift_gas_to" ? "on" : ""} onClick={() => setRel("lift_gas_to")}>Gas lift (EC)</button>
           <button className={rel === "pipes_to" ? "on" : ""} onClick={() => setRel("pipes_to")}>Piping (P&IDs)</button>
         </div>
         <label className="asof">

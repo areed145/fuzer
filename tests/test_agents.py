@@ -82,9 +82,33 @@ def test_reliability_backlog_compliance_and_turnaround(conn):
     assert tar["shutdown_plans_not_in_scope"]  # inspections that need the unit down but aren't planned
 
 
+def test_gas_lift_network(conn):
+    g = operations.gas_lift_network(conn)
+    hdr = {h["description"]: h for h in g["headers"]}
+    assert set(hdr) == {"GGCP Lift Gas Header Flow", "ST1 Lift Gas Header Flow", "ST2 Lift Gas Header Flow"}
+    assert sum(h["gas_lifted_wells"] for h in hdr.values()) == g["gas_lifted_wells"] > 100
+    assert all(h["jackets"] and h["lift_gas_ksm3d"] > 0 for h in hdr.values())
+    assert sum(h["jackets_through_another_jacket"] for h in hdr.values()) >= 3
+    assert {"20-K-2300A", "20-V-2001"} <= set(hdr["GGCP Lift Gas Header Flow"]["fed_by"])
+    assert hdr["ST1 Lift Gas Header Flow"]["fed_by"] == ["20-FT-3002"]
+    # the gas lift valve failure: more gas, less oil -> the least responsive well
+    assert g["least_response"][0]["well"] == "OK-J07-05" and g["least_response"][0]["response_oil_per_extra_gas"] < 0
+    assert g["most_response"][0]["response_oil_per_extra_gas"] > 0.5
+    # one well: its supply path runs manifold(s) -> header -> compression
+    deep = next(w for w in g["most_response"] + g["least_response"] if w["through_jackets"]) if any(
+        w["through_jackets"] for w in g["most_response"] + g["least_response"]) else None
+    well = queries.resolve_ref(conn, PACK, deep["well"] if deep else "OK-J07-05")
+    one = operations.gas_lift_network(conn, well)
+    types = [p["type"] for p in one["supply_path"]]
+    assert types[0] == "manifold" and "header" in types and len(one["wells"]) == 1
+    if deep:
+        assert types[:2] == ["manifold", "manifold"]
+
+
 def test_operations_tools_over_mcp(conn, okan_pack):
     names = {t.name for t in asyncio.run(mcp_server.server.list_tools())}
-    assert {"production_summary", "deferment_pareto", "production_constraints", "well_performance", "bad_actors",
+    assert {"production_summary", "deferment_pareto", "production_constraints", "well_performance", "gas_lift_network",
+            "bad_actors",
             "work_order_backlog", "maintenance_compliance", "turnaround_scope"} <= names
     assert mcp_server.well_performance("OK-J03-02")["tests"]
     assert "error" in mcp_server.well_performance("no-such-well")
@@ -182,7 +206,7 @@ def test_skills_are_valid():
         provider = SkillsProvider.from_paths([agents.SKILLS / name], script_extensions=())
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
-    assert found == ["answering", "constraint-management", "production-efficiency", "production-engineering",
+    assert found == ["answering", "constraint-management", "gas-lift", "production-efficiency", "production-engineering",
                      "production-surveillance", "reliability", "troubleshooting", "turnarounds", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
@@ -245,4 +269,4 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
-    assert len(keys) == 9 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert len(keys) == 10 and all(k["must_mention"] and k["specialists"] for k in keys)

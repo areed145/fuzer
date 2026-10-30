@@ -61,11 +61,16 @@ def test_wells_and_facilities(setup):
 
 def test_gas_lift_and_export_network(setup):
     conn, *_ = setup
-    # Gas producers flow to GGCP inlet separation, then (compressed or bypassing) to the lift gas header and EGP.
+    # Gas producers flow to GGCP inlet separation, compression and EGP.
     down = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-NWP-G2"), direction="down")}
-    assert {fid(conn, "tag", "20-V-2001"), fid(conn, "tag", "20-FT-3002"), fid(conn, "tag", "20-K-2300B")} <= down
+    assert {fid(conn, "tag", "20-V-2001"), fid(conn, "tag", "20-K-2300B")} <= down
     egp = fid(conn, "allocation_node", "EGP")
     assert egp in down
+    # Lift gas is its own network: production traces never enter it.
+    assert fid(conn, "tag", "20-FT-3002") not in down
+    lift = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "tag", "20-K-2300B"), "lift_gas_to", "down", depth=12)}
+    assert {fid(conn, "tag", "20-FT-3002"), fid(conn, "tag", "30-FT-3002"), fid(conn, "tag", "40-FT-3002"),
+            fid(conn, "well", "OK-J07-05")} <= lift
     # Jacket oil reaches PP and the crude terminal.
     oil = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-J18-02"), direction="down")}
     assert {fid(conn, "tag", "40-V-2002"), fid(conn, "tag", "10-V-2001"), fid(conn, "allocation_node", "ESCRAVOS-TERM")} <= oil
@@ -77,7 +82,7 @@ def test_gis_pipelines_connect_facilities(setup):
     assert n == stats["pipelines"]
     pp = fid(conn, "area", "OKAN-10")
     ends = conn.execute("select count(*) as n from edge where dst = %s and rel = 'ends_at'", (pp,)).fetchone()["n"]
-    assert ends >= 10  # PP jackets' flowlines and the satellite trunklines
+    assert ends >= 6  # the PP-area jackets piped straight to PP, and the satellite trunklines
     egp = fid(conn, "facility", "EGP")
     assert egp and conn.execute("select count(*) as n from edge where dst = %s and rel = 'ends_at'", (egp,)).fetchone()["n"] == 2
     geom = conn.execute("select g.value from golden g join entity e using (fuzer_id) where e.kind = 'pipeline' "
@@ -145,3 +150,32 @@ def test_spatial_links_and_map(setup):
     services = {f["properties"].get("service") for f in j["features"]}
     assert {"production flowline", "gas lift"} <= services
     assert sum(f["properties"]["kind"] == "well" for f in j["features"]) >= 5
+
+
+def test_lift_gas_network_layout(setup):
+    conn, data, *_ = setup
+    net = json.loads((data / "ec_network.json").read_text())
+    lift = [e for e in net["edges"] if e.get("service") == "lift_gas"]
+    headers = {e["to"] for e in lift if e["to"].startswith("LG-HDR")} | {"LG-HDR-GGCP"}
+    assert headers == {"LG-HDR-GGCP", "LG-HDR-ST1", "LG-HDR-ST2"}
+    fed = {e["to"]: e["from"] for e in lift if e["to"].endswith("-GLM")}
+    assert len(fed) == 25  # 24 jackets and NWP
+    assert {fed[j] for j in fed if j.startswith("OKJ")} >= {"LG-HDR-GGCP", "LG-HDR-ST1", "LG-HDR-ST2"}
+    chained = [j for j, src in fed.items() if src.endswith("-GLM")]
+    assert len(chained) >= 3  # some jackets get lift gas through another jacket's manifold
+    prod = {e["from"]: e["to"] for e in net["edges"] if e["from"].endswith("-PM") and not e.get("service")}
+    assert all(prod[j.replace("GLM", "PM")].endswith("-PM") for j in chained)  # and send oil back the same way
+
+    # In the graph: every gas lifted well has lift gas from a manifold that sits on its jacket.
+    rows = conn.execute(
+        """
+        select w.fuzer_id, l.label, (select e.src from edge e where e.dst = w.fuzer_id and e.rel = 'lift_gas_to') as glm
+        from entity w join golden g on g.fuzer_id = w.fuzer_id and g.field = 'lift_type' and g.value #>> '{}' = 'GL'
+        left join entity_label l on l.fuzer_id = w.fuzer_id
+        where w.kind = 'well'
+        """).fetchall()
+    assert rows and all(r["glm"] for r in rows)
+    r = next(r for r in rows if r["label"] == "OK-J07-05")
+    at = conn.execute("select l.label from edge e join entity_label l on l.fuzer_id = e.dst "
+                      "where e.src = %s and e.rel = 'located_at'", (r["glm"],)).fetchone()["label"]
+    assert at == "OKAN-67"

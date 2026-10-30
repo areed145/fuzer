@@ -1,4 +1,5 @@
-# Energy Components allocation network nodes: wells, separators / meters (by tag), other nodes.
+# Energy Components network nodes: wells, separators / meters / headers (by tag), other nodes
+# (manifolds, sales points). `site` (a functional location) says where a node physically is.
 source: ec
 record_type: node
 shape: network
@@ -8,3 +9,7 @@ entity:
     - [ec_code, {from: code, keep: true}]
     - [ec_type, {from: type, keep: true}]
     - [description, name]
+links:
+  - rel: located_at
+    when: site
+    to: {from: site, as: floc}

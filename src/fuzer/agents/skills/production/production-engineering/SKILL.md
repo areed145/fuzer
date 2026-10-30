@@ -12,10 +12,13 @@ description: Production engineering for wells - well test trends (rate, water cu
    - sudden rate drop with water cut jump: water breakthrough (check the test dates and log entries).
    - sudden rate drop, then recovery after a slickline job: gas lift valve or downhole problem fixed.
    - lift gas steady but rate falling: poor lift efficiency, a candidate to re-optimise lift gas.
-3. **Context:** `get_entity(well)` for lift type and location, `get_events(well)` for choke changes,
+   - lift gas up while oil falls: a gas lift valve failed open or a tubing leak (load `gas-lift`).
+3. **Gas lifted wells:** `gas_lift_network(ref=well)` gives its supply path (manifold, any jacket it is
+   fed through, header, compression) and its response to more lift gas; load the `gas-lift` skill.
+4. **Context:** `get_entity(well)` for lift type and location, `get_events(well)` for choke changes,
    shut-ins, interventions and operator notes, `downtime(well)` for losses, `trace_flow(well, "down")`
    for its route to the separator and export.
-4. **Candidates:** wells with the largest recoverable loss: failed lift (restore), high water cut
+5. **Candidates:** wells with the largest recoverable loss: failed lift (restore), high water cut
    (water shut-off), big decline vs neighbours (stimulation / scale squeeze). Rank by Sm³/d at stake.
 
 Quote test dates and values; one test is not a trend, so say how many tests support a conclusion.

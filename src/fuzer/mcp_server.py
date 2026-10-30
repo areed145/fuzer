@@ -34,7 +34,9 @@ guide or procedure revision; applies_to models / classes / tags; supersedes olde
 document_section (a section of a document, part_of it, with heading, page and text).
 
 Links: part_of, installed_at (equipment -> tag, dated), has_timeseries, flows_to (production / allocation
-flow, dated), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
+flow, dated), lift_gas_to (gas lift network: compression -> lift gas headers -> jacket gas lift manifolds,
+sometimes through another jacket's manifold -> gas lifted wells, dated), located_at (manifolds, wells ->
+the jacket or platform they are on), mentions (document or log -> entity), sidetrack_of, classified_as (tag / equipment ->
 class), instance_of (equipment -> model), is_a (model -> class, class -> parent), reports (log entry -> event) and
 involves (event -> tag / well, with a role). Events (trips, starts, changeovers, shut-ins, choke changes,
 alarms, leaks, instrument faults, ...) were read from operator logs by Claude; each cites its log entry. Dated links have from/to dates; pass
@@ -72,6 +74,7 @@ REL_LABELS = {
     ("uses_part", "out"): "spare_parts", ("uses_part", "in"): "used_by",
     ("pipes_to", "out"): "pipes_to", ("pipes_to", "in"): "piped_from",
     ("tests", "out"): "tests", ("tests", "in"): "well_tests",
+    ("lift_gas_to", "out"): "supplies_lift_gas_to", ("lift_gas_to", "in"): "lift_gas_from",
 }
 
 
@@ -166,20 +169,22 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
-def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None,
-               max_depth: int = 10, network: Literal["allocation", "piping"] = "allocation") -> dict[str, Any]:
-    """Follow the production / allocation network from an entity.
+def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None, max_depth: int = 10,
+               network: Literal["allocation", "lift_gas", "piping"] = "allocation") -> dict[str, Any]:
+    """Follow a flow network from an entity.
 
-    direction "up" finds what feeds it (e.g. wells feeding a separator); "down" finds where it goes
-    (e.g. separator -> surge drum -> fiscal meter -> sales point). as_of (YYYY-MM-DD) uses the routing
-    valid on that day; without it, all routings past and present are included. network "piping" follows
-    process lines from the P&IDs instead of the Energy Components allocation network.
+    network "allocation" (default): production flow from Energy Components; "up" finds what feeds it
+    (wells -> jacket manifolds -> separator), "down" where it goes (separator -> meter -> sales point).
+    network "lift_gas": the gas lift network; "up" from a well finds its supply path (gas lift manifold,
+    any upstream jackets' manifolds, lift gas header, compression trains), "down" from a header or
+    compressor finds every manifold and well it supplies. network "piping": process lines from the P&IDs.
+    as_of (YYYY-MM-DD) uses the routing valid on that day; without it, all routings past and present.
     """
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        rel = "pipes_to" if network == "piping" else "flows_to"
+        rel = {"piping": "pipes_to", "lift_gas": "lift_gas_to"}.get(network, "flows_to")
         rows = graph.trace(conn, fid, rel, direction, _date(as_of), min(max_depth, 25))
     return _plain({
         "start": fid, "direction": direction, **({"as_of": as_of} if as_of else {}),
@@ -487,6 +492,23 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
             if err:
                 return err
         return _plain(operations.well_performance(conn, fid, since, min(limit, 100)))
+
+
+@server.tool(annotations=READ_ONLY)
+def gas_lift_network(ref: str | None = None, since: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through
+    another jacket) -> gas lifted wells. Per header: jackets, wells, lift gas and oil from latest tests. Per
+    well: lift gas, oil per lift gas and measured response to more lift gas (Sm3/d oil per extra kSm3/d),
+    least and most responsive wells, wells lifting mostly water. With ref (header, manifold, jacket,
+    compressor or well): only that part, plus its supply path. Default window: 12 months of tests."""
+    from . import operations
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain(operations.gas_lift_network(conn, fid, since, min(limit, 100)))
 
 
 @server.tool(annotations=READ_ONLY)

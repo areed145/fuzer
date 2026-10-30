@@ -16,8 +16,9 @@ description: Production surveillance and optimisation - how production is trendi
    by wells work). The daily report's potential vs actual shows deferment; well tests show decline.
 4. Confirm with the operator logs: `get_events` on the units or wells involved around the dates.
 
-**Optimisation levers to look for:** wells with lift gas but falling rate (lift gas better spent
-elsewhere), lift gas shortfalls when a compressor train is down (`production_constraints`), recurring
+**Optimisation levers to look for:** lift gas allocation (`gas_lift_network`: move gas from wells
+with little response to wells with a lot, same header; load `gas-lift`), wells with lift gas but
+falling rate, lift gas shortfalls when a compressor train is down (`production_constraints`), recurring
 trips on one unit (a reliability fix pays back in production), flaring during export curtailment,
 wells shut in for interventions longer than planned.
 

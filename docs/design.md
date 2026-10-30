@@ -326,6 +326,25 @@ loads them; an unchanged server is still skipped by content hash.
 over a fake plant's points, with upsets taken from the plant's own downtime and
 log records, for development and tests.
 
+### 18b2. Gas lift network
+Energy Components network edges carry a `service`. Lift gas edges become `lift_gas_to` links, separate
+from production `flows_to`, so a production trace never wanders into the lift gas system. The mapping
+language's `when` / `unless` can test a column's value for this. Network nodes with a `site` are
+`located_at` it (a jacket's production and gas lift manifolds sit on the jacket).
+- **Okan's layout.** GGCP compression feeds the GGCP lift gas header, which feeds the ST1 and ST2
+  headers and NWP. Each jacket belongs to its nearest hub. It is piped through a neighbouring jacket
+  when that saves a lot of pipe, so its lift gas and oil pass through that jacket's manifolds. Each gas
+  lift manifold feeds its jacket's gas lifted wells. Well tests follow a gas lift performance curve
+  per well, so each well's response to lift gas can be measured.
+- **What sees it.** `trace_flow(network="lift_gas")` and the Network page's Gas lift view.
+  `gas_lift_network` (operations.py, MCP) gives:
+  - per header: jackets, wells, lift gas and oil
+  - per well: supply path, oil per lift gas, and response to more gas (slope of rate on injection,
+    decline removed)
+  - least and most responsive wells, and wells lifting mostly water
+- **Agents.** The production specialist's `gas-lift` skill explains the method; the troubleshooting
+  skill traces a dead well's lift gas supply.
+
 ### 18c. Operations assistant (Claude agents)
 A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), calling Claude
 through MAF's Anthropic client with the same key as the Claude readers (`src/fuzer/agents/`):
