@@ -27,7 +27,7 @@ from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
 from .model import Edge
 from .pack import Pack
 
-PROMPT_VERSION = "2026-10-30.1"
+PROMPT_VERSION = "2026-10-30.2"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
@@ -48,7 +48,8 @@ at each end, following the flow arrow) and the line number written on it.
 
 Write each tag exactly as drawn and don't add an area or prefix that isn't written. Report a tag once
 even if it appears on several tiles, giving the tile number where it is clearest and the centre of
-the label within that tile as x and y from 0 (left / top) to 1000 (right / bottom). If a character is
+the label within that tile as x and y in that tile's pixels (each tile's size is given; 0, 0 is its
+top-left corner). If a character is
 unclear, give your best reading and a lower confidence (0 to 1). Also read the title block."""
 
 SCHEMA = {
@@ -108,7 +109,7 @@ def tiles(path: str) -> list[tuple[str, bytes, tuple[int, int, int, int]]]:
             tile.thumbnail((MAX_EDGE, MAX_EDGE))
         buf = io.BytesIO()
         tile.save(buf, format="PNG", optimize=True)
-        label = f"{i + 1} (row {i // cols + 1} of {rows}, column {i % cols + 1} of {cols})"
+        label = f"{i + 1} (row {i // cols + 1} of {rows}, column {i % cols + 1} of {cols}, {tile.size[0]} x {tile.size[1]} px)"
         out.append((label, buf.getvalue(), box))
     return out
 
@@ -136,7 +137,7 @@ def _area(sheet: dict) -> str | None:
 def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
               boxes: list[tuple[int, int, int, int]] | None = None) -> dict:
     """Claude's readings -> links to known tags, plus findings for everything else. With the tile
-    boxes, each reading gets its position on the sheet (pixels)."""
+    boxes, each reading's position in its tile (pixels as sent) becomes a position on the sheet."""
     area = _area(sheet)
     mentions, findings, lines, seen = [], [], [], set()
 
@@ -144,8 +145,10 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
         if not boxes or not isinstance(t.get("tile"), int) or not 1 <= t["tile"] <= len(boxes):
             return {}
         x0, y0, x1, y1 = boxes[t["tile"] - 1]
-        fx, fy = min(max(t.get("x", 500), 0), 1000) / 1000, min(max(t.get("y", 500), 0), 1000) / 1000
-        return {"x": round(x0 + fx * (x1 - x0)), "y": round(y0 + fy * (y1 - y0))}
+        scale = min(1.0, MAX_EDGE / max(x1 - x0, y1 - y0))  # tiles larger than MAX_EDGE were shrunk before sending
+        x = min(max(t.get("x", 0) / scale, 0), x1 - x0)
+        y = min(max(t.get("y", 0) / scale, 0), y1 - y0)
+        return {"x": round(x0 + x), "y": round(y0 + y)}
 
     for t in data["tags"]:
         if t["kind"] == "line":

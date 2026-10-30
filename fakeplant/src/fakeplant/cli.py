@@ -50,6 +50,12 @@ def main(argv=None):
             print(f"\nPoint Fuzer at this data with FUZER_DATA_DIR={args.out} (in .env) for ingest, eval and jobs.")
 
 
+def make(out, asset: str = "offshore", size: str = "small") -> dict:
+    """A fake plant in `out` with default settings (used by `fuzer up`)."""
+    return generate(argparse.Namespace(out=str(out), asset=asset, seed=7, size=size, areas=None, trains=None,
+                                       wells=None, logs=None, format="csv"))
+
+
 def generate(args) -> dict:
     out = Path(args.out)
     if args.asset == "onshore":

@@ -13,6 +13,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="fuzer")
     p.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK or offshore_demo)")
     sub = p.add_subparsers(dest="cmd", required=True)
+    u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
+    u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
+    u.add_argument("--port", type=int, default=8000)
+
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
     i.add_argument("--data", default=None, help="exports folder (default: $FUZER_DATA_DIR or data)")
@@ -61,7 +65,11 @@ def main(argv=None):
     pack = load_pack(args.pack)
     data = Path(getattr(args, "data", None) or data_dir())
 
-    if args.cmd == "serve":
+    if args.cmd == "up":
+        from . import up
+
+        up.up(pack, port=args.port, fresh=args.fresh)
+    elif args.cmd == "serve":
         import uvicorn
 
         db.database_url()  # start embedded Postgres before uvicorn
