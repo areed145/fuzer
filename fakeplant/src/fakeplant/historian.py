@@ -106,7 +106,8 @@ class Plant:
         near = [u for lp in loops(point) for u in self.upsets.get(lp, [])
                 if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
         return [(_time(t), v) for t, v in
-                self._signal.values(point, p.get("engunits") or "", start, end, step_minutes, near)]
+                self._signal.values(point, p.get("engunits") or "", start, end, step_minutes, near,
+                                    p.get("descriptor") or "")]
 
 
 def app(data_dir) -> FastAPI:

@@ -44,6 +44,8 @@ FACILITIES = {  # area -> (code, name, type, (east km, north km) from PP)
     "50": ("OKA_NWP", "Okan New Wells Platform", "wellhead platform", (1.4, 1.1)),
 }
 JACKETS = 24
+HUBS = ("10", "30", "40")  # where jackets send oil and get lift gas: PP / GGCP, ST1, ST2
+# Jackets were built around a host platform (their position); the hub they are piped to is the nearest.
 HOST = {**{j: "10" for j in range(1, 9)}, **{j: "30" for j in range(9, 17)}, **{j: "40" for j in range(17, 25)}}
 
 # area -> (function, loop, suffixes, description, AF template)
@@ -83,10 +85,12 @@ INSTRUMENTS = {
 # Single instruments and valves that aren't on an item: area -> (function, loop, description, uom)
 LOOSE = {
     "10": [("FT", 3001, "Oil Export Fiscal Meter", "Sm3/d")],
-    "20": [("FT", 3001, "EGP Gas Export Meter", "kSm3/d"), ("FT", 3002, "Lift Gas Header Flow", "kSm3/d"),
-           ("PT", 3003, "Lift Gas Header Pressure", "barg"), ("XV", 3100, "Compression Bypass Valve", "%")],
-    "30": [("FT", 3001, "ST1 Trunkline Meter", "Sm3/d")],
-    "40": [("FT", 3001, "ST2 Trunkline Meter", "Sm3/d")],
+    "20": [("FT", 3001, "EGP Gas Export Meter", "kSm3/d"), ("FT", 3002, "GGCP Lift Gas Header Flow", "kSm3/d"),
+           ("PT", 3003, "GGCP Lift Gas Header Pressure", "barg"), ("XV", 3100, "Compression Bypass Valve", "%")],
+    "30": [("FT", 3001, "ST1 Trunkline Meter", "Sm3/d"), ("FT", 3002, "ST1 Lift Gas Header Flow", "kSm3/d"),
+           ("PT", 3003, "ST1 Lift Gas Header Pressure", "barg")],
+    "40": [("FT", 3001, "ST2 Trunkline Meter", "Sm3/d"), ("FT", 3002, "ST2 Lift Gas Header Flow", "kSm3/d"),
+           ("PT", 3003, "ST2 Lift Gas Header Pressure", "barg")],
     "50": [("FT", 3001, "NWP Gas Export Meter", "kSm3/d"), ("XV", 3100, "NWP EGP Export ESDV", "%")],
 }
 JACKET_ITEMS = [("FT", 3001, "Gas Lift Supply Meter", "kSm3/d"), ("PT", 3002, "Production Header Pressure", "barg"),
@@ -125,6 +129,9 @@ ASSISTANT_QUESTIONS = [
      "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["maintenance"]},
     {"domain": "turnarounds", "question": "What is planned for the next turnaround, and what is missing from "
      "its scope?", "must_mention": ["OK-TAR-2026", "inspection"], "specialists": ["maintenance"]},
+    {"domain": "gas lift", "question": "How is lift gas distributed across the headers, and where would moving lift "
+     "gas between wells gain the most oil?", "must_mention": [["ST1", "30-FT-3002"], ["ST2", "40-FT-3002"], "kSm3"],
+     "specialists": ["production"]},
     {"domain": "across domains", "question": "Why does lift gas keep running short, and what should go in the next "
      "turnaround to fix it?", "must_mention": ["20-K-2200B", "OK-TAR-2026"],
      "specialists": ["production", "maintenance"]},
@@ -235,6 +242,21 @@ def generate(out, seed: int = 11) -> dict:
                 lift = "GL"
             wells.append({"name": well_name(f"J{j:02d}", f"{n:02d}"), "site": f"J{j:02d}", "area": area,
                           "lift": lift, "type": "oil"})
+    # Lift gas and production networks: each jacket belongs to the nearest hub (PP / GGCP, ST1 or ST2), and
+    # is piped through a neighbouring jacket on the way when that saves a lot of pipe (shared corridors),
+    # so some jackets' oil and lift gas pass through another jacket's manifolds. At most two jackets deep.
+    hub = {a: min(HUBS, key=lambda h: math.dist(xy, FACILITIES[h][3])) for a, xy in jacket_at.items()}
+    route, depth = {}, {}
+    for a in sorted(jacket_at, key=lambda a: math.dist(jacket_at[a], FACILITIES[hub[a]][3])):
+        home = FACILITIES[hub[a]][3]
+        direct = math.dist(jacket_at[a], home)
+        via = min((b for b in route if hub[b] == hub[a] and depth[b] < 2 and math.dist(jacket_at[b], home) < direct),
+                  key=lambda b: math.dist(jacket_at[a], jacket_at[b]), default=None)
+        if via and math.dist(jacket_at[a], jacket_at[via]) < 0.55 * direct:
+            route[a], depth[a] = via, depth[via] + 1
+        else:
+            route[a], depth[a] = hub[a], 0
+
     for n in range(1, 9):
         wells.append({"name": well_name("NWP", f"{n:02d}"), "site": "NWP", "area": "50",
                       "lift": "GL" if n % 3 else "NF", "type": "oil"})
@@ -431,7 +453,7 @@ def generate(out, seed: int = 11) -> dict:
         daily.append({"report_date": day, "facility": FIELD, "oil_sm3": f"{oil - lost_oil:.0f}",
                       "oil_potential_sm3": f"{oil:.0f}",
                       "gas_ksm3": f"{3100 - lost_gas * 0.5:.0f}", "water_inj_sm3": "0",
-                      "gas_export_ksm3": f"{max(0, 1700 - lost_gas):.0f}", "lift_gas_ksm3": f"{1150 - lost_gas * 0.3:.0f}",
+                      "gas_export_ksm3": f"{max(0, 1700 - lost_gas):.0f}", "lift_gas_ksm3": f"{1800 - lost_gas * 0.3:.0f}",
                       "flare_ksm3": f"{40 + (lost_gas * 0.4 if any(d['reason_code'] == 'EXT-EGP' for d in events) else 0):.0f}",
                       "comments": " ".join(notes)})
 
@@ -503,21 +525,27 @@ def generate(out, seed: int = 11) -> dict:
             continue
         rate, wc = trng.uniform(35, 95), trng.uniform(8, 45)
         decline, wc_rise = trng.uniform(0.004, 0.015), trng.uniform(0.2, 0.9)
+        # Gas lift performance curve: rate climbs with injection and flattens. A small `knee` means the
+        # well saturates early (extra lift gas buys little oil); a large one means it still responds.
+        knee = trng.uniform(2.5, 14)
         for m in range(24):
             day = f"{2024 + m // 12}-{m % 12 + 1:02d}-{trng.randint(3, 26):02d}"
             q = rate * (1 - decline) ** m
             cut = min(95.0, wc + wc_rise * m)
-            if w["name"] in ("OK-J07-03", "OK-J07-05"):  # gas lift valve failures, fixed by slickline
+            gas = trng.uniform(6, 20) if w["lift"] == "GL" else 0.0
+            if w["lift"] == "GL":
+                q *= (0.55 + 0.45 * (1 - math.exp(-gas / knee))) / (0.55 + 0.45 * (1 - math.exp(-12 / knee)))
+            if w["name"] in ("OK-J07-03", "OK-J07-05"):  # gas lift valve failed open, fixed by slickline:
                 failed = "2024-09-03" if w["name"] == "OK-J07-03" else "2025-04-15"
-                if failed <= day <= _add_days(failed, 75):
+                if failed <= day <= _add_days(failed, 75):  # more gas goes in, less oil comes out
                     q *= 0.55
+                    gas *= 1.45
             if w["name"] == "OK-J03-02" and day >= "2025-06-01":  # water breakthrough
                 cut = min(95.0, 72 + (m - 17) * 2.5)
                 q *= 0.6
             tests.append({"test_id": f"WT-{w['name']}-{day}", "well": w["name"], "test_date": day,
                           "oil_sm3d": f"{q:.1f}", "water_cut_pct": f"{cut:.1f}",
-                          "gor_sm3_sm3": f"{trng.uniform(90, 160):.0f}",
-                          "lift_gas_ksm3d": f"{trng.uniform(8, 18):.1f}" if w["lift"] == "GL" else "0",
+                          "gor_sm3_sm3": f"{trng.uniform(90, 160):.0f}", "lift_gas_ksm3d": f"{gas:.1f}",
                           "whp_barg": f"{trng.uniform(14, 26):.1f}"})
     log("2025-06-12T10:00:00", "OK-J03-02 water cut up to 72% on test, oil rate down. Water breakthrough suspected.",
         "Production Engineer")
@@ -537,15 +565,21 @@ def generate(out, seed: int = 11) -> dict:
         sep("20", "20V2001", "GGCP Inlet Separator", "GGCP-INLET"),
         {"code": "NWP-GASMTR", "type": "meter", "tag": "50FT3001", "name": "NWP Gas Export Meter"},
         {"code": "GGCP-EGPMTR", "type": "meter", "tag": "20FT3001", "name": "EGP Gas Export Meter"},
-        {"code": "LG-HDR", "type": "meter", "tag": "20FT3002", "name": "Lift Gas Header"},
+        {"code": "LG-HDR-GGCP", "type": "header", "tag": "20FT3002", "name": "GGCP Lift Gas Header"},
+        {"code": "LG-HDR-ST1", "type": "header", "tag": "30FT3002", "name": "ST1 Lift Gas Header"},
+        {"code": "LG-HDR-ST2", "type": "header", "tag": "40FT3002", "name": "ST2 Lift Gas Header"},
+        {"code": "NWP-GLM", "type": "manifold", "name": "OKA_NWP Gas Lift Manifold", "site": f"{FIELD}-50"},
         {"code": "EGP", "type": "sales_point", "name": "Escravos Gas Plant"},
     ] + [{"code": f"GGCP-TRAIN-{t}", "type": "compressor", "tag": f"20K2300{t}", "name": f"Compression Train {t}"}
-         for t in "ABC"] + [{"code": f"OKJ{j:02d}-PM", "type": "manifold", "name": f"OKJ-{j:02d} Production Manifold"}
-                            for j in range(1, JACKETS + 1)] + [
-        {"code": f"OKJ{j:02d}-GLM", "type": "manifold", "name": f"OKJ-{j:02d} Gas Lift Manifold"}
+         for t in "ABC"] + [{"code": f"OKJ{j:02d}-PM", "type": "manifold", "name": f"OKJ-{j:02d} Production Manifold",
+                             "site": f"{FIELD}-{60 + j}"} for j in range(1, JACKETS + 1)] + [
+        {"code": f"OKJ{j:02d}-GLM", "type": "manifold", "name": f"OKJ-{j:02d} Gas Lift Manifold", "site": f"{FIELD}-{60 + j}"}
         for j in range(1, JACKETS + 1)]
     edge = lambda a, b, frm="", to="": {"from": a, "to": b, "valid_from": frm, "valid_to": to}  # noqa: E731
+    lift = lambda a, b, frm="": {**edge(a, b, frm), "service": "lift_gas"}  # noqa: E731
     host_node = {"10": "PP-HPSEP", "30": "ST1-PRODSEP", "40": "ST2-PRODSEP"}
+    header = {"10": "LG-HDR-GGCP", "30": "LG-HDR-ST1", "40": "LG-HDR-ST2"}
+    jacket_code = lambda area: f"OKJ{int(area) - 60:02d}"  # noqa: E731
     edges = []
     for w in wells:
         code = f"OKAN_{w['site']}_{w['name'].rsplit('-', 1)[1]}"
@@ -557,15 +591,22 @@ def generate(out, seed: int = 11) -> dict:
             edges += [edge(code, "OKJ09-PM", "2009-06-01", "2024-08-01"), edge(code, "PP-HPSEP", "2024-08-01")]
         else:
             edges.append(edge(code, f"OKJ{int(w['site'][1:]):02d}-PM"))
-    for j in range(1, JACKETS + 1):
-        edges += [edge(f"OKJ{j:02d}-PM", host_node[HOST[j]]), edge("LG-HDR", f"OKJ{j:02d}-GLM")]
+        if w["lift"] == "GL":  # lift gas into the well's annulus from its manifold
+            edges.append(lift("NWP-GLM" if w["site"] == "NWP" else f"OKJ{int(w['site'][1:]):02d}-GLM", code))
+    for a, via in route.items():
+        j = jacket_code(a)
+        if via in HUBS:
+            edges += [edge(f"{j}-PM", host_node[via]), lift(header[via], f"{j}-GLM")]
+        else:  # through the neighbouring jacket's manifolds
+            edges += [edge(f"{j}-PM", f"{jacket_code(via)}-PM"), lift(f"{jacket_code(via)}-GLM", f"{j}-GLM")]
+    edges += [lift("LG-HDR-GGCP", "LG-HDR-ST1"), lift("LG-HDR-GGCP", "LG-HDR-ST2"), lift("LG-HDR-GGCP", "NWP-GLM"),
+              lift("GGCP-INLET", "LG-HDR-GGCP")]  # compression bypass: lift gas without compression
     edges += [edge("ST1-PRODSEP", "PP-HPSEP"), edge("ST2-PRODSEP", "PP-HPSEP"), edge("NWP-PRODSEP", "PP-HPSEP"),
               edge("PP-HPSEP", "PP-LPSEP"), edge("PP-LPSEP", "PP-OILMTR"), edge("PP-OILMTR", "ESCRAVOS-TERM"),
-              edge("PP-HPSEP", "GGCP-INLET"), edge("NWP-PRODSEP", "NWP-GASMTR"), edge("NWP-GASMTR", "EGP"),
-              edge("GGCP-INLET", "LG-HDR")]  # compression bypass: lift gas without compression
+              edge("PP-HPSEP", "GGCP-INLET"), edge("NWP-PRODSEP", "NWP-GASMTR"), edge("NWP-GASMTR", "EGP")]
     for t in "ABC":
         frm = "2022-03-01" if t == "C" else ""
-        edges += [edge("GGCP-INLET", f"GGCP-TRAIN-{t}", frm), edge(f"GGCP-TRAIN-{t}", "LG-HDR", frm),
+        edges += [edge("GGCP-INLET", f"GGCP-TRAIN-{t}", frm), lift(f"GGCP-TRAIN-{t}", "LG-HDR-GGCP", frm),
                   edge(f"GGCP-TRAIN-{t}", "GGCP-EGPMTR", frm)]
     edges.append(edge("GGCP-EGPMTR", "EGP"))
 
@@ -609,10 +650,14 @@ def generate(out, seed: int = 11) -> dict:
                                      "diameter_in": dia, "length_km": round(_km(frm, mid) + _km(mid, to), 2),
                                      "mop_barg": mop, "install_year": year, "status": status}})
 
-    for a, (jx, jy) in jacket_at.items():
-        host = HOST[int(a) - 60]
-        pipe("production flowline", a, host, place[a], place[host], rng.choice([6, 8, 10]), 70, rng.choice([1998, 2004, 2011]))
-        pipe("gas lift", "20", a, place["20"], place[a], rng.choice([4, 6]), 120, rng.choice([1998, 2004, 2011]))
+    for a in jacket_at:  # each jacket's flowline and gas lift line run to its hub, or to the jacket it routes through
+        via = route[a]
+        lg_from = "20" if via == "10" else via  # the PP hub's lift gas comes from the GGCP header
+        pipe("production flowline", a, via, place[a], place[via], rng.choice([6, 8, 10]), 70, rng.choice([1998, 2004, 2011]))
+        pipe("gas lift", lg_from, a, place[lg_from], place[a], rng.choice([4, 6]), 120, rng.choice([1998, 2004, 2011]))
+    pipe("gas lift", "20", "30", place["20"], place["30"], 10, 120, 1998)  # GGCP to the satellite lift gas headers
+    pipe("gas lift", "20", "40", place["20"], place["40"], 10, 120, 1999)
+    pipe("gas lift", "20", "50", place["20"], place["50"], 6, 120, 2022)
     pipe("production trunkline", "30", "10", place["30"], place["10"], 16, 70, 1998)
     pipe("production trunkline", "40", "10", place["40"], place["10"], 14, 70, 1999)
     pipe("production trunkline", "50", "10", place["50"], place["10"], 10, 70, 2022)

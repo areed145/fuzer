@@ -390,3 +390,148 @@ def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18) 
             "shutdown_plans_not_in_scope": [p for p in shutdown_plans if p["tag_id"] not in in_scope],
             "shutdown_plans_in_scope": [p for p in shutdown_plans if p["tag_id"] in in_scope],
             "bad_actors_not_in_scope": actors, "spares_out_of_stock": spares}
+
+
+# --- gas lift --------------------------------------------------------------------------------------
+
+def _response(tests: list[dict]) -> float | None:
+    """Oil gained per extra lift gas (Sm3/d oil per kSm3/d gas) from a well's tests: the slope of rate on
+    injection after taking out the time trend (decline), so months of decline don't read as no response."""
+    pts = [(i, _num(t["oil_sm3d"]), _num(t["lift_gas_ksm3d"])) for i, t in enumerate(tests) if t.get("oil_sm3d")]
+    if len(pts) < 5:
+        return None
+
+    def detrend(ys):
+        ts = [p[0] for p in pts]
+        mt, my = sum(ts) / len(ts), sum(ys) / len(ys)
+        vt = sum((t - mt) ** 2 for t in ts)
+        b = sum((t - mt) * (y - my) for t, y in zip(ts, ys)) / vt if vt else 0.0
+        return [y - my - b * (t - mt) for t, y in zip(ts, ys)]
+
+    q, g = detrend([p[1] for p in pts]), detrend([p[2] for p in pts])
+    vg = sum(x * x for x in g)
+    return round(sum(a * b for a, b in zip(q, g)) / vg, 2) if vg > 1e-6 else None
+
+
+def gas_lift_network(conn, ref_id: str | None = None, since: str | None = None, limit: int = 15) -> dict:
+    """The gas lift network as it stands: lift gas sources (compression trains, the bypass) -> headers ->
+    jacket gas lift manifolds (some fed through another jacket's manifold) -> gas lifted wells; per header
+    the jackets, wells, lift gas and oil from the latest well tests; per well its lift gas, oil per lift gas
+    and measured response to more lift gas (from its tests over the window, default 12 months).
+    With ref_id (a header, manifold, jacket, compressor or well): only the part of the network it is in."""
+    since, until = _window(conn, since, None)
+    rows = conn.execute(
+        """
+        select e.src, e.dst, ls.label as src_label, ld.label as dst_label, s.kind as src_kind, d.kind as dst_kind,
+               ts.value #>> '{}' as src_type, td.value #>> '{}' as dst_type,
+               ds.value #>> '{}' as src_desc, dd.value #>> '{}' as dst_desc
+        from edge e join entity s on s.fuzer_id = e.src join entity d on d.fuzer_id = e.dst
+        left join entity_label ls on ls.fuzer_id = e.src left join entity_label ld on ld.fuzer_id = e.dst
+        left join golden ts on ts.fuzer_id = e.src and ts.field = 'ec_type'
+        left join golden td on td.fuzer_id = e.dst and td.field = 'ec_type'
+        left join golden ds on ds.fuzer_id = e.src and ds.field = 'description'
+        left join golden dd on dd.fuzer_id = e.dst and dd.field = 'description'
+        where e.rel = 'lift_gas_to' and e.valid_to is null
+        """
+    ).fetchall()
+    if not rows:
+        return {"error": "no gas lift network in the data (Energy Components lift gas edges)"}
+    parents, children, info = defaultdict(list), defaultdict(list), {}
+    for r in rows:
+        parents[r["dst"]].append(r["src"])
+        children[r["src"]].append(r["dst"])
+        info[r["src"]] = {"label": r["src_label"], "kind": r["src_kind"], "type": r["src_type"], "description": r["src_desc"]}
+        info[r["dst"]] = {"label": r["dst_label"], "kind": r["dst_kind"], "type": r["dst_type"], "description": r["dst_desc"]}
+    sites = {r["src"]: {"id": r["dst"], "label": r["label"], "description": r["description"]} for r in conn.execute(
+        """
+        select e.src, e.dst, l.label, g.value #>> '{}' as description
+        from edge e left join entity_label l on l.fuzer_id = e.dst
+        left join golden g on g.fuzer_id = e.dst and g.field = 'description'
+        where e.rel = 'located_at' and e.src = any(%s)
+        """, (list(info),))}
+
+    def supply(node: str) -> list[str]:
+        """Upstream of a node: its manifolds (one feed each) up to its header, then everything feeding
+        that header (other headers, compression trains, the bypass), nearest first."""
+        path, seen, todo = [], {node}, [node]
+        while todo:
+            for p in parents.get(todo.pop(0), []):
+                if p not in seen:
+                    seen.add(p)
+                    path.append(p)
+                    todo.append(p)
+        return path
+
+    def own_header(node: str) -> str | None:
+        return next((n for n in supply(node) if info[n]["type"] == "header"), None)
+
+    def jacket(manifold: str) -> str:
+        s = sites.get(manifold) or {}
+        return f"{s['label']} ({s['description']})" if s.get("description") else s.get("label") or info[manifold]["label"]
+
+    def below(node: str) -> set[str]:
+        out, todo = set(), [node]
+        while todo:
+            for c in children.get(todo.pop(), []):
+                if c not in out:
+                    out.add(c)
+                    todo.append(c)
+        return out
+
+    wells = [n for n, i in info.items() if i["kind"] == "well"]
+    tests = defaultdict(list)
+    for r in conn.execute(
+        """
+        select t.dst as well, jsonb_object_agg(g.field, g.value) as f
+        from edge t join golden g on g.fuzer_id = t.src
+        where t.rel = 'tests' and t.dst = any(%s) group by t.src, t.dst
+        """, (wells,)):
+        if since <= (r["f"].get("test_date") or "") < until:
+            tests[r["well"]].append(r["f"])
+    per_well = []
+    for w in wells:
+        ts = sorted(tests[w], key=lambda t: t["test_date"])
+        path = supply(w)
+        manifolds = [n for n in path if info[n]["type"] == "manifold"]
+        header = own_header(w)
+        last = ts[-1] if ts else {}
+        gas, oil = _num(last.get("lift_gas_ksm3d")), _num(last.get("oil_sm3d"))
+        per_well.append({
+            "well": info[w]["label"], "id": w, "header": info[header]["label"] if header else None, "header_id": header,
+            "jacket": jacket(manifolds[0]) if manifolds else None,
+            "through_jackets": [jacket(m) for m in manifolds[1:]],
+            "latest_test": last.get("test_date"), "lift_gas_ksm3d": gas, "oil_sm3d": oil,
+            "water_cut_pct": _num(last.get("water_cut_pct")) if last else None,
+            "oil_per_lift_gas": round(oil / gas, 2) if gas else None,
+            "response_oil_per_extra_gas": _response(ts), "tests": len(ts)})
+    if ref_id:
+        scope = {ref_id} | below(ref_id) | set(supply(ref_id))
+        scope |= {m for m, s in sites.items() if s["id"] == ref_id}  # a jacket: its manifolds
+        scope |= {x for m in list(scope) if sites.get(m, {}).get("id") == ref_id for x in below(m)}
+        per_well = [w for w in per_well if w["id"] in scope]
+    headers = []
+    for h in sorted({w["header_id"] for w in per_well if w["header_id"]}, key=lambda h: info[h]["label"] or ""):
+        ws = [w for w in per_well if w["header_id"] == h]
+        manifolds = [n for n in below(h) if info[n]["type"] == "manifold" and own_header(n) == h]
+        gas = round(sum(w["lift_gas_ksm3d"] for w in ws), 1)
+        oil = round(sum(w["oil_sm3d"] for w in ws), 1)
+        headers.append({"header": info[h]["label"], "description": info[h]["description"], "id": h,
+                        "fed_by": [info[p]["label"] for p in parents.get(h, [])],
+                        "jackets": sorted(jacket(m) for m in manifolds),
+                        "jackets_through_another_jacket": sum(1 for m in manifolds if info[parents[m][0]]["type"] == "manifold"),
+                        "gas_lifted_wells": len(ws), "lift_gas_ksm3d": gas, "oil_sm3d": oil,
+                        "oil_per_lift_gas": round(oil / gas, 2) if gas else None})
+    rated = [w for w in per_well if w["response_oil_per_extra_gas"] is not None and w["lift_gas_ksm3d"]]
+    out = {"since": since, "until": until, "source": "EC lift gas network and well tests",
+           "headers": headers, "gas_lifted_wells": len(per_well),
+           "lift_gas_ksm3d": round(sum(w["lift_gas_ksm3d"] for w in per_well), 1),
+           "least_response": sorted(rated, key=lambda w: w["response_oil_per_extra_gas"])[:limit],
+           "most_response": sorted(rated, key=lambda w: -w["response_oil_per_extra_gas"])[:limit],
+           "lifting_mostly_water": sorted((w for w in per_well if (w["water_cut_pct"] or 0) >= 70),
+                                          key=lambda w: -(w["water_cut_pct"] or 0))[:limit]}
+    if ref_id:
+        out["supply_path"] = [{"id": n, "label": info[n]["label"], "description": info[n]["description"],
+                               "type": info[n]["type"], "located_at": (sites.get(n) or {}).get("label")}
+                              for n in supply(ref_id)]
+        out["wells"] = per_well
+    return out
