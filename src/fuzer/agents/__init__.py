@@ -1,6 +1,5 @@
 """The operations assistant: a team of Claude agents on Microsoft Agent Framework's harness agent.
 
-    uv sync --extra agents
     uv run fuzer ask "Why does lift gas keep running short, and what should go in the next turnaround?"
 
 An orchestrator talks to the user, answers simple lookups itself and hands domain work to three
@@ -15,9 +14,10 @@ all read-only) and its skills (`skills/<agent>/*/SKILL.md`: names and descriptio
 body loaded when the agent needs it).
 Nothing here can act on the plant.
 
-Settings: ANTHROPIC_API_KEY (the same key `fuzer llm-link` uses), FUZER_AGENT_MODEL (default
-claude-opus-5-5), FUZER_AGENT_EFFORT (orchestrator, default high), FUZER_AGENT_SPECIALIST_EFFORT
-(default medium), FUZER_AGENT_FALLBACKS=0 to turn off Claude's server-side refusal fallback.
+Settings: ANTHROPIC_API_KEY (the same key `fuzer llm-link` uses), FUZER_AGENT_MODEL (the orchestrator,
+default claude-opus-5-5), FUZER_AGENT_SPECIALIST_MODEL (default: the orchestrator's), FUZER_AGENT_EFFORT
+(orchestrator, default high), FUZER_AGENT_SPECIALIST_EFFORT (default medium), FUZER_AGENT_FALLBACKS=0 to
+turn off Claude's server-side refusal fallback. Every answer reports its calls, tokens and cost per model.
 """
 
 import asyncio
@@ -33,10 +33,6 @@ SKILLS = Path(__file__).parent / "skills"
 DEFAULT_MODEL = "claude-opus-5-5"
 MAX_OUTPUT_TOKENS = 16_000  # under the SDK's non-streaming limit; answers are a few thousand at most
 CONTEXT_WINDOW = 1_000_000
-
-# $ per million tokens: input, output, cache read, cache write (5 min). For the cost line on each answer.
-PRICES = {"claude-opus-5-5": (4.0, 20.0, 0.20, 5.0), "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.5),
-          "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125)}
 
 # What one question did, across every agent working on it (asyncio copies context into the
 # specialists' tasks, so their tool calls and model calls land here too).
@@ -140,14 +136,26 @@ def _metered(anthropic_client):
 
 
 def usage(trace: list[dict]) -> dict:
-    """Token totals and cost for one question."""
+    """Token totals and cost for one question, overall and per model (the model the API says served
+    each call, so a fallback or a misconfigured model shows up)."""
+    from ..pricing import cost
+
     calls = [t for t in trace if t["kind"] == "model"]
-    total = {k: sum(c[k] for c in calls) for k in ("input", "output", "cache_read", "cache_write")}
-    cost = 0.0
+    keys = ("input", "output", "cache_read", "cache_write")
+    models: dict[str, dict] = {}
     for c in calls:
-        p = PRICES.get(c["model"], PRICES[DEFAULT_MODEL])
-        cost += (c["input"] * p[0] + c["output"] * p[1] + c["cache_read"] * p[2] + c["cache_write"] * p[3]) / 1e6
-    return {"model_calls": len(calls), **total, "cost_usd": round(cost, 4)}
+        m = models.setdefault(c["model"], {"calls": 0, **{k: 0 for k in keys}, "cost_usd": 0.0})
+        m["calls"] += 1
+        for k in keys:
+            m[k] += c[k]
+        usd, known = cost(c["model"], c["input"], c["output"], c["cache_read"], c["cache_write"])
+        m["cost_usd"] += usd
+        if not known:
+            m["unpriced"] = True  # priced as Claude Opus 5.5; add the model to pricing.PRICES
+    for m in models.values():
+        m["cost_usd"] = round(m["cost_usd"], 4)
+    return {"model_calls": len(calls), **{k: sum(c[k] for c in calls) for k in keys},
+            "cost_usd": round(sum(m["cost_usd"] for m in models.values()), 4), "models": models}
 
 
 def client(model: str | None = None, anthropic_client=None):
@@ -175,17 +183,20 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
         default_options=_options(effort), **kw)
 
 
-def team(chat=None, effort: str | None = None, specialist_effort: str | None = None):
-    """The orchestrator agent, with the specialists as its background agents."""
+def team(chat=None, effort: str | None = None, specialist_effort: str | None = None, specialist_chat=None):
+    """The orchestrator agent, with the specialists as its background agents. The specialists use their
+    own model when FUZER_AGENT_SPECIALIST_MODEL is set (or specialist_chat is given)."""
     from agent_framework._feature_stage import ExperimentalWarning
 
     warnings.filterwarnings("ignore", category=ExperimentalWarning)  # background agents: pinned MAF version
     for name in ("agent_framework", "httpx", "httpx2"):  # every tool call and request is logged at INFO
         logging.getLogger(name).setLevel(logging.WARNING)
     chat = chat or client()
+    specialist_model = os.environ.get("FUZER_AGENT_SPECIALIST_MODEL")
+    specialist_chat = specialist_chat or (client(specialist_model) if specialist_model else chat)
     effort = effort or os.environ.get("FUZER_AGENT_EFFORT", "high")
     specialist_effort = specialist_effort or os.environ.get("FUZER_AGENT_SPECIALIST_EFFORT", "medium")
-    specialists = [_agent(chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description)
+    specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description)
                    for name, (description, instructions) in SPECIALISTS.items()]
     return _agent(chat, "orchestrator", ORCHESTRATOR, effort, "Fuzer operations assistant",
                   background_agents=specialists, background_agents_wait_timeout_seconds=600)

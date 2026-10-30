@@ -346,11 +346,13 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   trend and cascade causes, well-test performance, bad actors and MTBF, work order backlog, PM and
   inspection compliance, and turnaround scope. All are read-only, compact, and dated from the data's
   latest daily report.
-- **Claude settings.** `claude-opus-5-5`, effort `high` for the orchestrator and `medium` for the
-  specialists. Automatic prompt caching is on. The server-side refusal fallback is on
-  (`FUZER_AGENT_FALLBACKS=0` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
+- **Claude settings.** `claude-opus-5-5` by default (`FUZER_AGENT_MODEL` for the orchestrator,
+  `FUZER_AGENT_SPECIALIST_MODEL` for the specialists), effort `high` for the orchestrator and `medium`
+  for the specialists. Each answer reports calls, tokens and cost per model, as the API reports the
+  serving model; a model missing from `pricing.py` is flagged as unpriced. Automatic prompt caching
+  is on. The server-side refusal fallback is on (`FUZER_AGENT_FALLBACKS=0` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
   the older budget form, and Opus 5.5 thinks adaptively by default. Web search and file memory are
-  off. `agent-framework-anthropic` still declares `anthropic<2`, so a uv override keeps Fuzer's 2.x
+  off. The agent framework is a core dependency. `agent-framework-anthropic` still declares `anthropic<2`, so a uv override keeps Fuzer's 2.x
   SDK; the tests run the adapter against it.
 - **Surfaces.** `fuzer ask` / `fuzer chat`, and the Ask page. The page uses `/assistant/ask`, which
   starts a background job, and polls `/assistant/jobs/{id}` to show which agent is calling which
