@@ -12,6 +12,7 @@ entity:
     - [timestamp, {from: _key, keep: true}]
     - [description, {template: "Daily report {_key}", keep: true}]
     - [oil_sm3, {from: oil_sm3, as: number, keep: true}]
+    - [oil_potential_sm3, {from: oil_potential_sm3, as: number}]
     - [gas_ksm3, {from: gas_ksm3, as: number, keep: true}]
     - [water_inj_sm3, {from: water_inj_sm3, as: number, keep: true}]
     - [gas_export_ksm3, {from: gas_export_ksm3, as: number}]

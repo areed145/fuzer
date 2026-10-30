@@ -52,10 +52,11 @@ flowchart LR
     direction TB
     API["FastAPI"] --> UI["React web UI"]
     MCP["MCP server<br/>AI agents"]
+    AG["Operations assistant<br/>Claude agents on MAF"] --> UI
   end
-  REG --> API & MCP
+  REG --> API & MCP & AG
   REV <--> API
-  TS --> API & MCP
+  TS --> API & MCP & AG
 
   DAG["Dagster<br/>sensor, schedules, checks"] -.->|"runs"| SRC
   DAG -.-> RB
@@ -95,7 +96,9 @@ downtime and DAY001, operator logs, P&ID drawings, manuals and troubleshooting
 guides, and GIS pipelines and facilities. Planted stories to troubleshoot: train
 B bearing trips and the lift gas shortfalls they cause, train A after-cooler
 fouling, inlet separator carryover, NWP gas producer hydrates, EGP curtailment,
-gas lift valve failures and an export pump seal leak. Details in
+gas lift valve failures, an export pump seal leak and a water breakthrough. It also
+has an open work order backlog, maintenance and inspection plans (some overdue),
+a 2026 turnaround (OK-TAR-2026) and monthly well tests. Details in
 [fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
 
 Optional, in a `.env` file (copy `.env.example`):
@@ -109,6 +112,27 @@ Optional, in a `.env` file (copy `.env.example`):
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
 `uv run pytest` runs the tests on a throwaway database.
+
+### Operations assistant (Claude agents)
+
+```sh
+uv sync --extra agents
+uv run fuzer ask "Why does lift gas keep running short, and what should go in the next turnaround to fix it?"
+uv run fuzer chat          # a conversation; or the Ask page in the web UI
+```
+
+A team of Claude agents on Microsoft Agent Framework answers questions across
+everything Fuzer links: troubleshooting, production surveillance and
+efficiency, constraints, wells, reliability and inspection, work orders and
+turnarounds. An orchestrator answers simple lookups itself and hands domain
+work to three specialists (troubleshooter, production, maintenance), running
+them at the same time when a question spans domains. Each agent has its own
+read-only Fuzer tools and skills (`src/fuzer/agents/skills/`); every fact in an
+answer cites the record it came from, and it never tells anyone to operate the
+plant. Needs `ANTHROPIC_API_KEY`. A cross-domain answer on Okan takes one to
+two minutes and costs about a dollar on Claude Opus 5.5 (shown under each
+answer). `uv run fuzer eval --agents` scores it per domain against
+`answer_keys/assistant.json`.
 
 ### Live PI and ADX (fake)
 
@@ -338,9 +362,12 @@ uv run fuzer mcp --http    # streamable HTTP on http://127.0.0.1:8001/mcp
 ```
 
 Claude Code picks it up from `.mcp.json` in this folder (approve it once when
-asked). Read-only tools: `get_ontology`, `search`, `get_entity`, `get_events`, `trace_flow`,
-`equipment_history`, `equipment_changes`, `link_text`, `list_reviews`,
-`get_stats`. Anything that takes a `ref` accepts a tag in any style, a well,
+asked). 30 read-only tools: the graph (`get_ontology`, `search`, `get_entity`, `get_events`,
+`trace_flow`, `equipment_history`, ...), troubleshooting (`troubleshooting_brief`,
+`process_values`, `lessons_learned`, ...) and asset-wide operations
+(`production_summary`, `deferment_pareto`, `production_constraints`,
+`well_performance`, `bad_actors`, `work_order_backlog`, `maintenance_compliance`,
+`turnaround_scope`). Anything that takes a `ref` accepts a tag in any style, a well,
 a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production
 separator on 2024-01-01, and what changed after?"* or *"Which pumps were
 swapped, and what replaced them?"*
@@ -362,6 +389,8 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 |---|---|
 | `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
 | `src/fuzer/ingest.py` | Land source exports into `source_record` |
+| `src/fuzer/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
+| `src/fuzer/agents/` | The operations assistant: agent team, skills, API service |
 | `src/fuzer/connectors.py` | CSV / Parquet / Delta connectors |
 | `src/fuzer/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
 | `src/fuzer/extract.py` | Transforms, resolvers and hooks the mappings name |

@@ -71,6 +71,7 @@ REL_LABELS = {
     ("supersedes", "out"): "supersedes", ("supersedes", "in"): "superseded_by",
     ("uses_part", "out"): "spare_parts", ("uses_part", "in"): "used_by",
     ("pipes_to", "out"): "pipes_to", ("pipes_to", "in"): "piped_from",
+    ("tests", "out"): "tests", ("tests", "in"): "well_tests",
 }
 
 
@@ -440,6 +441,89 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
     if "series" in out:
         out["series"] = [{k: v for k, v in s.items() if k != "values"} for s in out["series"]]
     return _plain(out)
+
+
+# --- asset-wide operations (operations.py): dates default to the latest daily report ("today") ----
+
+@server.tool(annotations=READ_ONLY)
+def production_summary(since: str | None = None, until: str | None = None,
+                       by: Literal["month", "week"] = "month") -> dict[str, Any]:
+    """Oil actual vs potential (production efficiency %), gas export, lift gas and flare per month or
+    week, with deferred oil by reason. Default: the last 12 months. Dates YYYY-MM-DD."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.production_summary(conn, since, until, by))
+
+
+@server.tool(annotations=READ_ONLY)
+def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] = "reason",
+                     since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
+    or affected well, with each one's share. Default: the last 12 months."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
+
+
+@server.tool(annotations=READ_ONLY)
+def production_constraints(since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """What has been limiting production: losses by reason with the units that cause them, frequency,
+    last occurrence and trend (worse / steady / better). Default: the last 12 months."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.constraints(conn, since, until))
+
+
+@server.tool(annotations=READ_ONLY)
+def well_performance(ref: str | None = None, since: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
+    wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
+    Default window: 12 months."""
+    from . import operations
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain(operations.well_performance(conn, fid, since, min(limit, 100)))
+
+
+@server.tool(annotations=READ_ONLY)
+def bad_actors(since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure
+    modes, with MTBF per unit and per class. Default window: 2 years."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.bad_actors(conn, since, until, min(limit, 100)))
+
+
+@server.tool(annotations=READ_ONLY)
+def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest;
+    open notifications with no order planned yet."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
+
+
+@server.tool(annotations=READ_ONLY)
+def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, limit: int = 25) -> dict[str, Any]:
+    """Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks
+    due within the horizon; tasks that need a shutdown are marked."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.maintenance_compliance(conn, as_of, min(horizon_days, 1100), min(limit, 200)))
+
+
+@server.tool(annotations=READ_ONLY)
+def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
+    """Turnaround (shutdown) scope: work orders planned for the revision (default: the next one), plans
+    that need the unit down and aren't in scope yet, bad actors not in scope, and spares for scoped
+    units that are out of stock (order long-lead items now)."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.turnaround_scope(conn, revision))
 
 
 @server.tool(annotations=READ_ONLY)

@@ -278,3 +278,19 @@ create table if not exists geo_index (
 );
 create index if not exists geo_index_box on geo_index (minx, maxx, miny, maxy);
 create index if not exists geo_index_kind on geo_index (kind);
+
+-- Questions to the operations assistant and its answers, kept so engineers can rate them (feedback
+-- target answer:<id>) and the answers can be reviewed against the data later.
+create table if not exists assistant_answer (
+    id              text primary key,
+    conversation_id text not null,
+    question        text not null,
+    answer          text,
+    error           text,
+    specialists     text[] not null default '{}',
+    tools           jsonb not null default '[]',
+    usage           jsonb not null default '{}',
+    seconds         numeric,
+    by_user         text not null default 'anonymous',
+    created_at      timestamptz not null default now()
+);

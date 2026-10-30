@@ -1,0 +1,20 @@
+# Energy Components well tests: rate, water cut, GOR, lift gas and wellhead pressure on the test separator.
+source: ec
+record_type: well_test
+shape: events
+dataset: ec_well_tests
+key: test_id
+entity:
+  kind: well_test
+  fields:
+    - test_date
+    - [timestamp, {from: test_date, keep: true}]
+    - [oil_sm3d, {from: oil_sm3d, as: number}]
+    - [water_cut_pct, {from: water_cut_pct, as: number}]
+    - [gor_sm3_sm3, {from: gor_sm3_sm3, as: number}]
+    - [lift_gas_ksm3d, {from: lift_gas_ksm3d, as: number}]
+    - [whp_barg, {from: whp_barg, as: number}]
+    - [description, {template: "Well test {well} {test_date}", keep: true}]
+links:
+  - rel: tests
+    to: {kind: well, from: well, as: well}

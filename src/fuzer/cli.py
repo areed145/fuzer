@@ -56,9 +56,22 @@ def main(argv=None):
     j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors (needs the 'jobs' extra)")
     j.add_argument("--port", type=int, default=3000)
 
+    for name, text in (("ask", "ask the operations assistant one question (Claude agents; needs the 'agents' extra)"),
+                       ("chat", "talk to the operations assistant (follow-up questions keep the context)")):
+        a = sub.add_parser(name, help=text)
+        if name == "ask":
+            a.add_argument("question")
+        a.add_argument("--model", default=None, help="Claude model (default claude-opus-5-5 or $FUZER_AGENT_MODEL)")
+        a.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
+                       help="orchestrator effort (default high); specialists use $FUZER_AGENT_SPECIALIST_EFFORT")
+        a.add_argument("--json", action="store_true", help="print the answer, tools used and cost as JSON")
+
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
+    ev.add_argument("--agents", action="store_true",
+                    help="also ask the operations assistant the questions in assistant.json (Claude; costs money)")
+    ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
 
     sub.add_parser("reset", help="drop and recreate all tables")
 
@@ -84,6 +97,8 @@ def main(argv=None):
         db.database_url()  # with no FUZER_DATABASE_URL, start embedded Postgres before Dagster forks
         os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
         sys.exit(subprocess.call([sys.executable, "-m", "dagster", "dev", "-m", "fuzer.jobs", "-p", str(args.port)]))
+    elif args.cmd in ("ask", "chat"):
+        _assistant(args)
     elif args.cmd == "mcp":
         from . import mcp_server
 
@@ -132,11 +147,55 @@ def main(argv=None):
                 keys = Path(args.keys or data / "answer_keys")
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
-                _print(evaluate.run(conn, pack, keys))
+                if args.agents:
+                    if not (keys / "assistant.json").is_file():
+                        raise SystemExit(f"No assistant.json in {keys}.")
+                    res = evaluate.assistant(json.loads((keys / "assistant.json").read_text()))
+                    if args.out:
+                        Path(args.out).write_text(json.dumps(res, indent=2, default=str))
+                    _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})
+                else:
+                    _print(evaluate.run(conn, pack, keys))
             elif args.cmd == "bench":
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
+
+
+def _assistant(args) -> None:
+    import asyncio
+
+    try:
+        from . import agents
+    except ImportError:
+        raise SystemExit("The operations assistant needs the 'agents' extra: uv sync --extra agents")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise SystemExit("Set ANTHROPIC_API_KEY (in .env) for the operations assistant.")
+    db.database_url()  # start embedded Postgres up front if it's in use
+    with db.connect() as conn:
+        db.init_schema(conn)
+    team = agents.team(agents.client(args.model), effort=args.effort)
+
+    def show(out: dict) -> None:
+        if args.json:
+            print(json.dumps({k: v for k, v in out.items() if k != "session"}, indent=2, default=str))
+            return
+        print(out["answer"])
+        u = out["usage"]
+        print(f"\n— {out['seconds']} s · {u['model_calls']} model calls · ${u['cost_usd']:.2f}"
+              + (f" · specialists: {', '.join(out['specialists'])}" if out["specialists"] else ""))
+
+    async def run():
+        if args.cmd == "ask":
+            show(await agents.ask(args.question, team))
+            return
+        session = team.create_session()
+        print("Operations assistant. Ask about the plant; an empty line quits.\n")
+        while (q := (await asyncio.to_thread(input, "> ")).strip()):
+            show(await agents.ask(q, team, session))
+            print()
+
+    asyncio.run(run())
 
 
 def data_dir() -> str:

@@ -90,7 +90,7 @@ classification:
 maintenance_codes:
   damage: {D01: VIB, D02: ELP, D03: FTS, D04: OHE, D05: LOO, D06: NOI, D07: AIR, D08: INL, D09: UST, D10: BRD}
   cause: {C01: "2.4", C02: "1.2", C03: "2.2", C04: "3.3", C05: "5.2", C06: "1.3"}
-  activity: {A01: "1", A02: "2", A03: "4", A04: "6", A05: "10"}
+  activity: {A01: "1", A02: "2", A03: "4", A04: "6", A05: "10", A06: "9"}
 
 # Links GIS didn't carry as IDs, found by distance: wells to the jacket or platform they stand on,
 # and the ends of pipelines digitised without asset IDs to the facility they reach.

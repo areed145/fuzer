@@ -1,0 +1,24 @@
+# SAP maintenance plans and inspection plans (statutory inspections, vibration routes): what is due when.
+# needs_shutdown "X": the task can only be done with the unit down, so it belongs in a turnaround.
+source: sap
+record_type: maintenance_plan
+shape: records
+dataset: sap_maintenance_plans
+key: plan
+entity:
+  kind: maintenance_plan
+  fields:
+    - kind
+    - task
+    - [interval_days, {from: interval_days, as: number}]
+    - last_done
+    - next_due
+    - needs_shutdown
+    - [description, {from: task, default: "", keep: true}]
+links:
+  - rel: concerns
+    when: equnr
+    to: {ref: "sap:equipment:{equnr}"}
+  - rel: concerns
+    when: floc
+    to: {from: floc, as: floc}

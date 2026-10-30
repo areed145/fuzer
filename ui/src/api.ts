@@ -372,6 +372,32 @@ export interface BriefRatings {
            last_comment: string | null }[];
 }
 
+export interface AssistantJob {
+  id: string;
+  conversation_id: string;
+  question: string;
+  status: "running" | "done" | "error";
+  answer: string | null;
+  error: string | null;
+  seconds?: number;
+  specialists?: string[];
+  usage?: { model_calls: number; input: number; output: number; cache_read: number; cache_write: number; cost_usd: number };
+  steps: { agent: string; tool: string; args: Record<string, unknown> }[];
+  model_calls: number;
+}
+
+export interface AssistantAnswer {
+  id: string;
+  question: string;
+  answer: string | null;
+  by_user: string;
+  created_at: string;
+  specialists: string[];
+  usage: { cost_usd?: number };
+  ratings: number;
+  useful: number;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -441,6 +467,11 @@ export const api = {
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
   briefRatings: () => request<BriefRatings>("GET", "/feedback/briefs"),
+  ask: (question: string, conversationId: string | undefined, by: string) =>
+    request<{ job_id: string; conversation_id: string }>("POST", "/assistant/ask", undefined,
+                                                         { question, conversation_id: conversationId, by }),
+  assistantJob: (id: string) => request<AssistantJob>("GET", `/assistant/jobs/${encodeURIComponent(id)}`),
+  assistantAnswers: () => request<AssistantAnswer[]>("GET", "/assistant/answers", { limit: 20 }),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
   entityDrawings: (id: string) =>
