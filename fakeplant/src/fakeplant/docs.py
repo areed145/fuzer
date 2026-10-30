@@ -22,6 +22,11 @@ TROUBLESHOOTING = {
           ("Trips on start", "Check lube oil pressure permissive and seal gas supply.")],
     "E": [("High outlet temperature", "Check cooling or heating medium flow and fouling; check bypass valve position."),
           ("Internal leak", "Compare process and utility side pressures; plan a pressure test of the tube bundle.")],
+    "GT": [("Fails to start", "Check fuel gas pressure, igniters and the starter motor; review the start sequence log."),
+           ("High exhaust temperature", "Check exhaust thermocouple spread, inlet filter differential pressure and "
+                                        "compressor washing interval."),
+           ("High vibration", "Check bearing temperatures, alignment to the driven compressor and the anti-surge "
+                              "controller.")],
     "V": [("Level indication faulty", "Compare level transmitters with the gauge glass; check impulse lines and "
                                       "displacer calibration."),
           ("Internal leak", "Check weir and internals at the next entry; review carry-over in downstream samples.")],
@@ -29,10 +34,11 @@ TROUBLESHOOTING = {
 # Troubleshooting symptom -> ISO 14224 failure mode (answer key for section tagging).
 SYMPTOM_MODES = {"High vibration": "VIB", "Seal leakage": "ELP", "Fails to start": "FTS",
                  "Low discharge pressure": "LOO", "High discharge temperature": "OHE", "Trips on start": "FTS",
-                 "High outlet temperature": "OHE", "Internal leak": "INL", "Level indication faulty": "AIR"}
+                 "High outlet temperature": "OHE", "Internal leak": "INL", "Level indication faulty": "AIR",
+                 "High exhaust temperature": "OHE"}
 TYPE_NAMES = {"P": "centrifugal pump", "K": "centrifugal compressor", "E": "shell and tube heat exchanger",
-              "V": "pressure vessel"}
-CLASS_CODES = {"P": "PU.CE", "K": "CO.CE", "E": "HE.ST", "V": "VE"}
+              "V": "pressure vessel", "GT": "gas turbine"}
+CLASS_CODES = {"P": "PU.CE", "K": "CO.CE", "E": "HE.ST", "V": "VE", "GT": "GT"}
 
 
 def write_pdf(path: Path, pages: list[list[str]]) -> None:
@@ -88,8 +94,11 @@ def _wrap(text: str, width: int = 95) -> list[str]:
     return lines + ([line] if line else [])
 
 
-def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]], facility: str) -> list[dict]:
-    """Write documents under out/documents and return the manifest rows."""
+def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]], facility: str,
+             guides: dict | None = None) -> list[dict]:
+    """Write documents under out/documents and return the manifest rows. `guides` (guide id -> (title,
+    tags, steps)) replaces the offshore demo's site troubleshooting guides; a guide id starts with
+    its area code."""
     docs_dir = out / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
     manifest = []
@@ -125,7 +134,8 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
                              "model": model, **({"supersedes": revisions[r - 1]} if r else {})})
 
     # Site troubleshooting guides: one per template area, naming its tags.
-    guides = {
+    own_guides = guides is not None
+    guides = guides or {
         "20": ("Separation train troubleshooting", ["20-V-2001", "20-LT-2001", "20-PT-2001", "20-V-2002", "20-LT-2002"],
                ["If 20-LT-2001 disagrees with the gauge glass, switch control to the healthy transmitter and raise a "
                 "work order.", "High pressure on 20-V-2001: check the gas outlet valve and the flare header."]),
@@ -140,11 +150,11 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
                 "Low level in deaerator 44-V-2001 trips the pumps: check the level control valve."]),
     }
     for area, (title, tags, steps) in guides.items():
-        if area not in areas:
+        if area not in areas and not own_guides:
             continue
         number = f"TG-{area}-001"
-        file = _write(docs_dir, number, f"{facility} area {area}: {title}",
-                      [("Purpose", [f"Troubleshooting guide for area {area} ({areas[area][1]})."]),
+        file = _write(docs_dir, number, f"{facility} area {area[:2]}: {title}",
+                      [("Purpose", [f"Troubleshooting guide for area {area[:2]} ({areas.get(area[:2], ('', title))[1]})."]),
                        ("Symptoms and actions", steps), ("Escalation", ["Call the duty engineer if unresolved."])],
                       pdf=False)
         manifest.append({"doc_number": number, "revision": "A", "doc_type": "troubleshooting_guide", "title": title,

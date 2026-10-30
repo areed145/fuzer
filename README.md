@@ -81,6 +81,23 @@ uv run fuzer up          # then open http://127.0.0.1:8000
 register and the web UI, and starts the server. Later starts are quick: it only
 reloads what changed. `uv run fuzer up --fresh` starts over with a clean database.
 
+### Okan field demo
+
+```sh
+uv run fuzer up --demo okan --fresh     # later starts: uv run fuzer up --demo okan
+```
+
+The Okan field (NMA South Offshore) as fake data for the troubleshooting
+assistant: OKA_PP, OK_GGCP with compression trains A/B/C, OKA_ST1, OKA_ST2,
+OKA_NWP with its gas producers, 24 jackets and 177 wells (mostly gas lifted),
+gas lift and EGP export, with every source: SAP, PI / AF, EC network,
+downtime and DAY001, operator logs, P&ID drawings, manuals and troubleshooting
+guides, and GIS pipelines and facilities. Planted stories to troubleshoot: train
+B bearing trips and the lift gas shortfalls they cause, train A after-cooler
+fouling, inlet separator carryover, NWP gas producer hydrates, EGP curtailment,
+gas lift valve failures and an export pump seal leak. Details in
+[fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
+
 Optional, in a `.env` file (copy `.env.example`):
 
 - `ANTHROPIC_API_KEY=...` and `fuzer up` also has Claude read the P&ID drawings

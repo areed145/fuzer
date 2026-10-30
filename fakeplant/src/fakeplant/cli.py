@@ -9,6 +9,9 @@ from . import lake, offshore
 
 # All fake output lives here, one folder per asset (git-ignored).
 DATA = Path(__file__).resolve().parents[2] / "data"
+ASSETS = ["offshore", "onshore", "okan"]
+PACKS = {"offshore": "offshore_demo", "onshore": "onshore_demo", "okan": "okan"}  # asset -> Fuzer asset pack
+ASSET_FOR_PACK = {pack: asset for asset, pack in PACKS.items()}
 
 
 def main(argv=None):
@@ -18,11 +21,11 @@ def main(argv=None):
     g.add_argument("--out", default=None, help="output folder (default: fakeplant/data/<asset>)")
     d = sub.add_parser("demo", help="reset the Fuzer database, generate, ingest and rebuild")
     d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/<asset>)")
-    d.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK, or onshore_demo for --asset onshore)")
+    d.add_argument("--pack", default=None, help="asset pack (default: the asset's own pack)")
     for x in (g, d):
         x.add_argument("--seed", type=int, default=7)
-        x.add_argument("--asset", choices=["offshore", "onshore"], default="offshore",
-                       help="which fake asset to make (onshore pairs with the onshore_demo pack)")
+        x.add_argument("--asset", choices=ASSETS, default="offshore",
+                       help="offshore: the small test platform; onshore: an ESP field; okan: the Okan field demo")
         x.add_argument("--size", choices=list(offshore.SIZES), default="small",
                        help="small: hand-checked test asset; medium: about 1/10 of a real offshore asset")
         x.add_argument("--areas", type=int, help="override number of process areas (max 90)")
@@ -40,7 +43,7 @@ def main(argv=None):
         from fuzer import db, ingest, pipeline
         from fuzer.pack import load_pack
 
-        pack = load_pack(args.pack or ("onshore_demo" if args.asset == "onshore" else None))
+        pack = load_pack(args.pack or PACKS[args.asset])
         with db.connect() as conn:
             db.reset(conn)
             _print({"generated": generate(args)})
@@ -62,6 +65,10 @@ def generate(args) -> dict:
         from . import onshore
 
         stats = onshore.generate(out)
+    elif args.asset == "okan":
+        from . import okan
+
+        stats = okan.generate(out)
     else:
         stats = offshore.generate(out, args.seed, size=args.size, areas=args.areas, trains=args.trains,
                                   wells=args.wells, logs=args.logs)

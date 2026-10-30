@@ -16,6 +16,7 @@ def main(argv=None):
     u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
     u.add_argument("--port", type=int, default=8000)
+    u.add_argument("--demo", help="a fake plant to run: okan (the Okan field), offshore or onshore")
 
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
@@ -68,7 +69,7 @@ def main(argv=None):
     if args.cmd == "up":
         from . import up
 
-        up.up(pack, port=args.port, fresh=args.fresh)
+        up.up(pack, port=args.port, fresh=args.fresh, demo=args.demo)
     elif args.cmd == "serve":
         import uvicorn
 

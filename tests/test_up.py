@@ -40,3 +40,21 @@ def test_up_without_data_or_fake_plant_says_what_to_do(monkeypatch):
         assert "No source exports found" in str(e)
     else:
         raise AssertionError("expected SystemExit")
+
+
+def test_demo_picks_pack_and_folder(monkeypatch):
+    for k in ("FUZER_PACK", "FUZER_DATA_DIR"):
+        monkeypatch.delenv(k, raising=False)
+    pack = up.use_demo("okan")
+    assert pack.facility == "OKAN" and os.environ["FUZER_PACK"] == "okan"
+    assert os.environ["FUZER_DATA_DIR"].endswith("fakeplant/data/okan")
+
+
+def test_refuses_to_mix_assets():
+    with db.connect() as conn:
+        db.reset(conn)
+        conn.execute("insert into source_record (source, record_type, source_key, payload) "
+                     "values ('sap', 'floc', 'OSB', '{\"parent\": \"\"}')")
+        conn.commit()
+        assert up.other_asset(conn, load_pack("okan")) == "OSB"
+        assert up.other_asset(conn, load_pack("offshore_demo")) is None

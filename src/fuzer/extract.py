@@ -66,7 +66,7 @@ def _af(parts: list[str], pack: Pack):
 def _ec_node(node: dict, pack: Pack):
     if node["type"] == "well":
         return "well", pack.wells.parse(node["code"])
-    if node["type"] in ("separator", "meter"):
+    if node.get("tag"):  # separators, meters, compressors: EC names the equipment tag
         return "tag", pack.tags.parse(node["tag"])
     return "allocation_node", node["code"]
 

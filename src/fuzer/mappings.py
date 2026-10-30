@@ -6,7 +6,7 @@ for the same source and record type):
 
     source: sap
     record_type: equipment
-    shape: records          # records | hierarchy | network | timeseries | events | documents | reference
+    shape: records          # records | hierarchy | network | timeseries | events | documents | reference | geospatial
     dataset: sap_equipment  # tables only: the name it has in the data folder
     key: equnr              # tables only: record key column, or a list joined by ">"
     watermark: timestamp    # optional: append-only lake tables read rows at or after the last value
@@ -44,7 +44,7 @@ from . import nel
 from .model import Candidate, Edge
 
 DEFAULT_DIR = Path(__file__).parent / "mappings"
-SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference"}
+SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial"}
 
 
 class MappingError(ValueError):
