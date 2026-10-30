@@ -70,23 +70,28 @@ configuration. More in [docs/design.md](docs/design.md).
 
 ## Quick start
 
-Needs [uv](https://docs.astral.sh/uv/) and Docker.
+Needs [uv](https://docs.astral.sh/uv/) and Node.js (for the web UI). One command:
 
 ```sh
-docker compose up -d       # Postgres 16 on localhost:5432
-cp .env.example .env       # then set FUZER_DATABASE_URL, FUZER_DATA_DIR (and ANTHROPIC_API_KEY)
 uv sync
-uv run fakeplant demo      # fake data -> Postgres -> resolve -> golden -> graph
-uv run fuzer serve         # API on http://127.0.0.1:8000 (docs at /docs)
-uv run pytest              # always uses a throwaway embedded Postgres
+uv run fuzer up          # then open http://127.0.0.1:8000
 ```
 
-Settings come from `.env` in the current folder or any parent (or the file named
-by `FUZER_ENV_FILE`); variables already set in your shell win. `.env.example`
-lists every setting and its default. The `export ...` lines below work too.
+`fuzer up` makes a small fake plant the first time, loads it, builds the
+register and the web UI, and starts the server. Later starts are quick: it only
+reloads what changed. `uv run fuzer up --fresh` starts over with a clean database.
 
-Without Docker, skip the first two lines and run `uv sync --extra local`;
-Fuzer then starts an embedded Postgres under `.fuzer/pgdata`.
+Optional, in a `.env` file (copy `.env.example`):
+
+- `ANTHROPIC_API_KEY=...` and `fuzer up` also has Claude read the P&ID drawings
+  (a few cents on the small plant).
+- `FUZER_DATABASE_URL=...` to use your own Postgres (`docker compose up -d` gives
+  one on localhost:5432); without it Fuzer runs a built-in one in `.fuzer/pgdata`.
+- `FUZER_DATA_DIR=...` to load your own exports instead of the fake plant.
+
+Everything below is optional detail: each step `fuzer up` runs is also its own
+command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
+`uv run pytest` runs the tests on a throwaway database.
 
 ### Measuring quality
 

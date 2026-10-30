@@ -39,7 +39,7 @@ class FakeVision:
             return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                    usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
         tags = []
-        # Positions as Claude gives them: a tile number and 0-1000 within that tile.
+        # Positions as Claude gives them: a tile number and pixels within that tile (tiles here aren't shrunk).
         where = {x["key"]: x for x in truth["tags"]}
         for key in where:
             if key == "44-TT-2001":
@@ -52,9 +52,9 @@ class FakeVision:
             tile = next(i for i, b in enumerate(boxes, 1) if b[0] <= x < b[2] and b[1] <= y < b[3])
             box = boxes[tile - 1]
             tags.append({"text": text, "kind": "equipment" if text == key else "instrument", "confidence": 0.9,
-                         "tile": tile, "x": (x - box[0]) / (box[2] - box[0]) * 1000, "y": (y - box[1]) / (box[3] - box[1]) * 1000})
-        tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 500, "y": 500},
-                 {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 500, "y": 500}]
+                         "tile": tile, "x": x - box[0], "y": y - box[1]})
+        tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300},
+                 {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300}]
         data = {"title_block": {"drawing_number": SHEET, "title": "AREA 44 - WATER INJECTION", "revision": "D"},
                 "tags": tags, "connections": [{"from": ln["from"], "to": ln["to"], "line": ln["text"]}
                                               for ln in truth["lines"]]}
