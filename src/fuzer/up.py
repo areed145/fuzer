@@ -1,13 +1,15 @@
 """`fuzer up`: one command from nothing to the web UI.
 
-1. Data: the exports in $FUZER_DATA_DIR. With none there and the fake plant installed, it makes one.
+1. Data: the exports in $FUZER_DATA_DIR. With nothing configured, the Okan field demo (made if needed).
 2. Load: ingest, and rebuild only when something changed (a second start is quick).
-3. Drawings: with ANTHROPIC_API_KEY set, Claude reads up to MAX_AUTO_DRAWINGS new drawings.
+3. Claude: with ANTHROPIC_API_KEY set, Claude reads whatever it hasn't read yet (operator logs,
+   P&ID drawings, document sections), then the register is rebuilt with what it found.
 4. Web UI: built when missing or older than its source.
 5. Serve on http://127.0.0.1:8000.
 
-`--fresh` starts over: empties the database and, for the fake plant, makes new data. `--demo okan`
-(or offshore, onshore) picks a fake plant and its asset pack.
+`--fresh` starts over: empties the database and, for the fake plant, makes new data. Claude's
+readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
+same logs and drawings again. `--demo okan` (or offshore, onshore) picks a fake plant and its pack.
 """
 
 import os
@@ -19,7 +21,7 @@ from . import db, ingest, pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
 UI = ROOT / "ui"
-MAX_AUTO_DRAWINGS = 10
+DEFAULT_DEMO = "okan"
 
 
 def say(msg: str) -> None:
@@ -54,8 +56,15 @@ def data_folder(fresh: bool) -> Path:
 
 def load(conn, pack, folder: Path, fresh: bool) -> None:
     if fresh:
-        say("Emptying the database ...")
+        say("Emptying the database (Claude's readings are kept) ...")
+        kept = conn.execute("select to_regclass('llm_extraction') as t").fetchone()["t"]
+        if kept:
+            conn.execute("create temp table keep_llm as select * from llm_extraction")
         db.reset(conn)
+        if kept:
+            conn.execute("insert into llm_extraction select * from keep_llm on conflict do nothing")
+            conn.execute("drop table keep_llm")
+            conn.commit()
     db.init_schema(conn)
     stats = ingest.ingest(conn, folder)
     changed = stats["inserted"] + stats["updated"] + stats["removed"]
@@ -69,26 +78,35 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
         say(f"Register: {r['entities']:,} entities, {r['edges']:,} links")
 
 
-def read_drawings(conn, pack) -> None:
-    from . import llm_pids
+def read_with_claude(conn, pack) -> None:
+    """Have Claude read everything it hasn't read yet: operator logs (links and events), P&ID drawings
+    (tags and piping) and document sections (failure modes); then rebuild once with what it found.
+    Readings are cached by the text they read, so only new or changed records cost anything."""
+    from . import llm_docs, llm_links, llm_pids
+    from .pricing import cost
 
-    todo = llm_pids.run(conn, pack, dry_run=True)["sheets"]
+    readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),
+               ("document sections", "sections", llm_docs.run)]
+    todo = [(label, key, run, n) for label, key, run in readers if (n := run(conn, pack, dry_run=True)[key])]
     if not todo:
         return
+    what = ", ".join(f"{n:,} {label}" for label, _, _, n in todo)
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        say(f"{todo} drawing(s) not read yet: add ANTHROPIC_API_KEY to .env and run fuzer up again.")
+        say(f"Not read by Claude yet: {what}. Add ANTHROPIC_API_KEY to .env and run fuzer up again.")
         return
-    if todo > MAX_AUTO_DRAWINGS:
-        say(f"{todo} drawings not read yet; that's more than fuzer up reads on its own. "
-            "Run fuzer llm-link --source pids --dry-run to see the cost.")
-        return
-    say(f"Claude is reading {todo} drawing(s) ...")
-    out = llm_pids.run(conn, pack)
-    if out.get("stored"):
-        say(f"Read {out['stored']}: {out['tags_linked']} tags linked, {out['findings']} findings")
+    say(f"Claude ({llm_links.DEFAULT_MODEL}) is reading {what}. This can take a few minutes ...")
+    stored, spent = 0, 0.0
+    for label, _, run, _ in todo:
+        out = run(conn, pack)
+        stored += out.get("stored", 0)
+        spent += cost(out.get("model", llm_links.DEFAULT_MODEL), out.get("input_tokens", 0),
+                      out.get("output_tokens", 0), out.get("cache_read_tokens", 0))[0]
+        for err in out.get("errors", [])[:3]:
+            say(f"Could not read some {label}: {err}")
+    say(f"Claude read {stored:,} item(s) for about ${spent:.2f}")
+    if stored:
+        say("Rebuilding the register with what Claude found ...")
         pipeline.rebuild(conn, pack)
-    for err in out.get("errors", []):
-        say(f"Could not read: {err}")
 
 
 def build_ui() -> None:
@@ -127,6 +145,8 @@ def other_asset(conn, pack) -> str | None:
 
 
 def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None) -> None:
+    if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PACK") and _fake_plant():
+        demo = DEFAULT_DEMO  # nothing configured: the Okan field demo
     print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
     if demo:
         pack = use_demo(demo)
@@ -140,7 +160,7 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
     os.environ["FUZER_DATA_DIR"] = str(folder)
     with db.connect() as conn:
         load(conn, pack, folder, fresh)
-        read_drawings(conn, pack)
+        read_with_claude(conn, pack)
     build_ui()
     print(f"\nFuzer is running: http://{host}:{port}   (Ctrl+C to stop)\n", flush=True)
     import uvicorn

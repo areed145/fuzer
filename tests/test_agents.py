@@ -92,11 +92,11 @@ def test_operations_tools_over_mcp(conn, okan_pack):
 
 # --- the agent team, on a scripted fake Claude ----------------------------------------------------
 
-def _message(content: list[dict], stop: str):
+def _message(content: list[dict], stop: str, model: str = "claude-opus-5-5"):
     from anthropic.types.beta import BetaMessage
 
     return BetaMessage.model_validate({
-        "id": "msg_fake", "type": "message", "role": "assistant", "model": "claude-opus-5-5", "content": content,
+        "id": "msg_fake", "type": "message", "role": "assistant", "model": model, "content": content,
         "stop_reason": stop, "stop_sequence": None,
         "usage": {"input_tokens": 1000, "output_tokens": 100, "cache_read_input_tokens": 5000,
                   "cache_creation_input_tokens": 0}})
@@ -108,7 +108,8 @@ class FakeClaude:
 
     base_url = "https://fake.invalid"
 
-    def __init__(self):
+    def __init__(self, model: str = "claude-opus-5-5"):
+        self.model = model
         self.requests = []
         self.beta = type("B", (), {})()
         self.beta.messages = type("M", (), {})()
@@ -123,7 +124,8 @@ class FakeClaude:
                 for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"]
 
     def _call(self, name: str, args: dict, n: int):
-        return _message([{"type": "tool_use", "id": f"tu_{n}_{name}", "name": name, "input": args}], "tool_use")
+        return _message([{"type": "tool_use", "id": f"tu_{n}_{name}", "name": name, "input": args}], "tool_use",
+                        self.model)
 
     async def create(self, **kw):
         self.requests.append(kw)
@@ -136,7 +138,7 @@ class FakeClaude:
                 return self._call(*steps[n], n)
             scope = json.loads(done[-1])
             tags = ", ".join(w["tag"] for w in scope["scoped_work"])
-            return _message([{"type": "text", "text": f"{scope['revision']} scope: {tags}."}], "end_turn")
+            return _message([{"type": "text", "text": f"{scope['revision']} scope: {tags}."}], "end_turn", self.model)
         steps = [("background_agents_start_task", {"agent_name": "maintenance", "input": "Turnaround scope?",
                                                    "description": "TAR scope"}),
                  ("background_agents_wait_for_first_completion", {"task_ids": [1]}),
@@ -145,7 +147,8 @@ class FakeClaude:
         if n < len(steps):
             return self._call(*steps[n], n)
         report = next(r for r in done if "OK-TAR-2026" in r)
-        return _message([{"type": "text", "text": f"From the maintenance specialist: {report}"}], "end_turn")
+        return _message([{"type": "text", "text": f"From the maintenance specialist: {report}"}], "end_turn",
+                        self.model)
 
 
 def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
@@ -172,6 +175,36 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
     specialist = next(r for r in fake.requests if "maintenance and reliability" in json.dumps(r["system"]))
     tools = {t["name"] for t in specialist["tools"]}
     assert {"turnaround_scope", "work_order_backlog", "load_skill"} <= tools and "production_summary" not in tools
+
+
+def test_specialists_on_their_own_model_and_cost_per_model(conn, okan_pack, monkeypatch):
+    agents = pytest.importorskip("fuzer.agents")
+    lead, worker = FakeClaude("claude-opus-5-5"), FakeClaude("claude-sonnet-5-5")
+    team = agents.team(agents.client(anthropic_client=lead), specialist_chat=agents.client(anthropic_client=worker))
+    out = asyncio.run(agents.ask("What's in the next turnaround?", team))
+    assert "OK-TAR-2026" in out["answer"]
+    assert all("operations assistant" in json.dumps(r["system"]) for r in lead.requests)
+    assert worker.requests and all("maintenance" in json.dumps(r["system"]) for r in worker.requests)
+    models = out["usage"]["models"]
+    assert set(models) == {"claude-opus-5-5", "claude-sonnet-5-5"}
+    assert models["claude-opus-5-5"]["calls"] == len(lead.requests)
+    assert models["claude-sonnet-5-5"]["calls"] == len(worker.requests)
+    # sonnet costs half of opus for the same tokens
+    per_call = {m: v["cost_usd"] / v["calls"] for m, v in models.items()}
+    assert abs(per_call["claude-sonnet-5-5"] * 2 - per_call["claude-opus-5-5"]) < 1e-3
+    assert abs(sum(v["cost_usd"] for v in models.values()) - out["usage"]["cost_usd"]) < 1e-3
+
+    # the setting does the same thing
+    monkeypatch.setenv("FUZER_AGENT_SPECIALIST_MODEL", "claude-sonnet-5-5")
+    t = agents.team(agents.client(anthropic_client=FakeClaude()))
+    assert t.name == "orchestrator"
+
+
+def test_unknown_model_is_flagged():
+    agents = pytest.importorskip("fuzer.agents")
+    u = agents.usage([{"kind": "model", "model": "claude-mystery-9", "input": 1000, "output": 100,
+                       "cache_read": 0, "cache_write": 0}])
+    assert u["models"]["claude-mystery-9"]["unpriced"] and u["cost_usd"] > 0
 
 
 def test_skills_are_valid():

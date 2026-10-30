@@ -692,6 +692,8 @@ name = "fuzer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "agent-framework-anthropic" },
+    { name = "agent-framework-core" },
     { name = "anthropic" },
     { name = "fastapi" },
     { name = "mcp" },
@@ -706,10 +708,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-agents = [
-    { name = "agent-framework-anthropic" },
-    { name = "agent-framework-core" },
-]
 delta = [
     { name = "deltalake" },
 ]
@@ -731,8 +729,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agent-framework-anthropic", marker = "extra == 'agents'", specifier = "==1.0.0b261022" },
-    { name = "agent-framework-core", marker = "extra == 'agents'", specifier = "==1.23.0" },
+    { name = "agent-framework-anthropic", specifier = "==1.0.0b261022" },
+    { name = "agent-framework-core", specifier = "==1.23.0" },
     { name = "anthropic", specifier = ">=2.3" },
     { name = "dagster", marker = "extra == 'jobs'", specifier = "==1.13.26" },
     { name = "dagster-webserver", marker = "extra == 'jobs'", specifier = "==1.13.26" },
@@ -749,7 +747,7 @@ requires-dist = [
     { name = "rapidfuzz", specifier = ">=3.9" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["local", "delta", "agents", "jobs"]
+provides-extras = ["local", "delta", "jobs"]
 
 [package.metadata.requires-dev]
 dev = [

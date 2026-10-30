@@ -71,22 +71,22 @@ configuration. More in [docs/design.md](docs/design.md).
 
 ## Quick start
 
-Needs [uv](https://docs.astral.sh/uv/) and Node.js (for the web UI). One command:
+Needs [uv](https://docs.astral.sh/uv/) and Node.js (for the web UI). Put your Anthropic key in `.env`
+(`ANTHROPIC_API_KEY=...`), then:
 
 ```sh
 uv sync
 uv run fuzer up          # then open http://127.0.0.1:8000
 ```
 
-`fuzer up` makes a small fake plant the first time, loads it, builds the
-register and the web UI, and starts the server. Later starts are quick: it only
-reloads what changed. `uv run fuzer up --fresh` starts over with a clean database.
+The first time, `fuzer up` makes the Okan field demo, loads it, has Claude read the operator logs,
+P&ID drawings and document sections, builds the register and the web UI, and starts the server
+(the Ask page is the operations assistant). Later starts are quick: only what changed is reloaded
+or read. `uv run fuzer up --fresh` starts over with a clean database; Claude's readings are kept, so
+it doesn't pay to read the same text twice. Without a key everything runs except Claude's reading
+and the assistant.
 
 ### Okan field demo
-
-```sh
-uv run fuzer up --demo okan --fresh     # later starts: uv run fuzer up --demo okan
-```
 
 The Okan field (NMA South Offshore) as fake data for the troubleshooting
 assistant: OKA_PP, OK_GGCP with compression trains A/B/C, OKA_ST1, OKA_ST2,
@@ -101,13 +101,12 @@ has an open work order backlog, maintenance and inspection plans (some overdue),
 a 2026 turnaround (OK-TAR-2026) and monthly well tests. Details in
 [fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
 
-Optional, in a `.env` file (copy `.env.example`):
+Optional, in `.env` (see `.env.example`):
 
-- `ANTHROPIC_API_KEY=...` and `fuzer up` also has Claude read the P&ID drawings
-  (a few cents on the small plant).
 - `FUZER_DATABASE_URL=...` to use your own Postgres (`docker compose up -d` gives
   one on localhost:5432); without it Fuzer runs a built-in one in `.fuzer/pgdata`.
-- `FUZER_DATA_DIR=...` to load your own exports instead of the fake plant.
+- `FUZER_DATA_DIR=...` to load your own exports instead of the fake plant, or
+  `uv run fuzer up --demo offshore` / `--demo onshore` for the other fake plants.
 
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
@@ -116,7 +115,6 @@ command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
 ### Operations assistant (Claude agents)
 
 ```sh
-uv sync --extra agents
 uv run fuzer ask "Why does lift gas keep running short, and what should go in the next turnaround to fix it?"
 uv run fuzer chat          # a conversation; or the Ask page in the web UI
 ```
@@ -130,8 +128,9 @@ them at the same time when a question spans domains. Each agent has its own
 read-only Fuzer tools and skills (`src/fuzer/agents/skills/`); every fact in an
 answer cites the record it came from, and it never tells anyone to operate the
 plant. Needs `ANTHROPIC_API_KEY`. A cross-domain answer on Okan takes one to
-two minutes and costs about a dollar on Claude Opus 5.5 (shown under each
-answer). `uv run fuzer eval --agents` scores it per domain against
+two minutes and costs about a dollar on Claude Opus 5.5; each answer shows its
+cost per model. `FUZER_AGENT_SPECIALIST_MODEL=claude-sonnet-5-5` runs the
+specialists on Sonnet (the orchestrator stays on `FUZER_AGENT_MODEL`). `uv run fuzer eval --agents` scores it per domain against
 `answer_keys/assistant.json`.
 
 ### Live PI and ADX (fake)

@@ -145,7 +145,13 @@ function TurnView({ turn }: { turn: Turn }) {
             <Markdown text={j.answer} />
             <div className="row small muted answer-meta">
               {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map((s) => AGENT_LABEL[s] ?? s).join(", ")}</span>}
-              <span>{steps.length} tool calls · {j.usage?.model_calls} model calls · {j.seconds} s · ${j.usage?.cost_usd.toFixed(2)}</span>
+              <span>{steps.length} tool calls · {j.seconds} s · ${j.usage?.cost_usd.toFixed(2)}</span>
+              {j.usage && (
+                <span title="Calls and cost per model, as reported by the API">
+                  {Object.entries(j.usage.models).map(([m, x]) =>
+                    `${m.replace("claude-", "")}: ${x.calls} calls $${x.cost_usd.toFixed(2)}${x.unpriced ? " (unpriced)" : ""}`).join(" · ")}
+                </span>
+              )}
               <span className="spacer" />
               <Rate id={j.id} />
             </div>
