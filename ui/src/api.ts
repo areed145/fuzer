@@ -330,6 +330,48 @@ export interface Lesson {
   decided_by: string | null;
 }
 
+export interface LeadIn {
+  baseline_mean: number;
+  mean: number;
+  extreme: number;
+  change_pct: number | null;
+}
+
+export interface Values {
+  provider: string;
+  centre: string;
+  start: string;
+  end: string;
+  step_minutes: number;
+  upsets: string[];
+  series: import("./Trend").Series[];
+  errors?: string[];
+  error?: string;
+}
+
+export interface Brief {
+  about: { id: string; label: string | null };
+  suggested_checks: { step: string; from: string }[];
+  lessons: { approved: { id: number; title: string }[]; drafts_not_yet_reviewed: { id: number; title: string }[] };
+  spares: { fuzer_id: string; label: string; description: string; stock: number; bin: string }[];
+  process_values: {
+    provider: string;
+    centre: string;
+    note: string | null;
+    errors?: string[];
+    series: { id: string; point: string; description: string | null; uom: string | null; lead_in?: LeadIn }[];
+  };
+}
+
+export interface BriefRatings {
+  incidents: number;
+  rated: number;
+  ratings: number;
+  useful_share: number | null;
+  items: { id: string; description: string | null; start: string; ratings: number; useful: number;
+           last_comment: string | null }[];
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -392,11 +434,18 @@ export const api = {
     request<{ fuzer_id: string; label: string; description: string; mpn: string; stock: number; bin: string;
               used_by: number; documents: { id: string; label: string }[] }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/spares`),
-  values: (id: string) =>
-    request<{ provider: string; upsets: string[]; series: import("./Trend").Series[] }>(
-      "GET", `/entities/${encodeURIComponent(id)}/values`),
+  values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, direct?: boolean) =>
+    request<Values>("GET", `/entities/${encodeURIComponent(id)}/values`,
+                    { at, hours_before: hoursBefore, hours_after: hoursAfter, direct: direct ? "true" : undefined }),
+  brief: (id: string) => request<Brief>("GET", `/entities/${encodeURIComponent(id)}/brief`),
+  feedback: (target: string, useful: boolean, by: string, comment?: string) =>
+    request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
+  briefRatings: () => request<BriefRatings>("GET", "/feedback/briefs"),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
+  entityDrawings: (id: string) =>
+    request<{ highlight: string[]; drawings: { id: string; label: string | null; title: string | null }[] }>(
+      "GET", `/entities/${encodeURIComponent(id)}/drawings`),
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),

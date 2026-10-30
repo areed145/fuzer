@@ -848,6 +848,28 @@ def compare_networks(conn, depth: int = 6, limit: int = 100) -> dict:
     return {"in_ec_not_on_pids": missing("flows_to", "pipes_to"), "on_pids_not_in_ec": missing("pipes_to", "flows_to")}
 
 
+def drawings_for(conn, fuzer_id: str, limit: int = 10) -> dict:
+    """The P&ID sheets that show an entity (for equipment, the tag it's installed at now), and which
+    entity ids to highlight on them."""
+    ids = [fuzer_id] + [r["dst"] for r in conn.execute(
+        "select dst from edge where src = %s and rel = 'installed_at' and valid_to is null", (fuzer_id,))]
+    rows = conn.execute(
+        """
+        select d.fuzer_id as id, l.label, gt.value #>> '{}' as title, max(m.confidence) as confidence
+        from edge m
+        join entity d on d.fuzer_id = m.src and d.kind = 'document' and d.retired_at is null
+        join crosswalk c on c.fuzer_id = d.fuzer_id and c.source = 'pid' and c.record_type = 'sheet'
+        left join entity_label l on l.fuzer_id = d.fuzer_id
+        left join golden gt on gt.fuzer_id = d.fuzer_id and gt.field = 'title'
+        where m.rel = 'mentions' and m.dst = any(%s)
+        group by d.fuzer_id, l.label, gt.value
+        order by l.label limit %s
+        """,
+        (ids, limit),
+    ).fetchall()
+    return {"highlight": ids, "drawings": rows}
+
+
 def drawing(conn, fuzer_id: str) -> dict | None:
     """A P&ID drawing and what was read from it, placed on the sheet: each tag (linked to its entity,
     not in the register, or not a tag) and line number, the piping, and findings. From Claude's cached

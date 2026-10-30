@@ -4,7 +4,8 @@ For an incident (or a tag / equipment, using its latest incident if any): what h
 incidents and how they ended, reviewed lessons for its model or class, the manual / guide sections
 that cover its failure modes, maintenance history, downtime, spares in stock, and suggested checks.
 Every item carries the entity it came from, so an agent or engineer can cite and open it. Nothing
-here acts on the plant. Live process values join when the PI / ADX connectors exist (#17).
+here acts on the plant. Process values come from the configured time-series provider (PI Web API,
+ADX or synthetic; timeseries.py), summarised per point with how the lead-in differs from before.
 """
 
 from . import knowledge, lessons, queries
@@ -64,4 +65,5 @@ def _values(conn, fuzer_id: str) -> dict:
     out = timeseries.around(conn, fuzer_id, hours_before=24, hours_after=6)
     return {k: v for k, v in out.items() if k != "series"} | {
         "series": [{k: v for k, v in s.items() if k != "values"} for s in out.get("series", [])],
-        "note": "synthetic values until the PI / ADX connectors exist" if out.get("provider") == "synthetic" else None}
+        "note": "synthetic values: no PI / ADX connection is configured (FUZER_TIMESERIES)"
+        if out.get("provider") == "synthetic" else None}

@@ -142,6 +142,24 @@ def test_drawing_endpoint_places_readings(setup):
     assert s["read_by"] == "smart file" and s["marks"] and all("x" in m for m in s["marks"])
 
 
+def test_drawings_for_an_entity(setup):
+    conn, _ = setup
+    from fuzer import queries
+    from fuzer.api import app
+    client = TestClient(app)
+    sheet = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
+    tag = queries.resolve_ref(conn, PACK, "44-P-1001A")
+    d = client.get(f"/entities/{tag}/drawings").json()
+    assert sheet in [x["id"] for x in d["drawings"]] and d["highlight"] == [tag]
+    marks = client.get(f"/documents/{sheet}/drawing").json()["marks"]
+    assert any(m.get("id") == tag and "x" in m for m in marks)  # the mark the page rings
+    # equipment: the sheets showing the tag it's installed at
+    eq = conn.execute("select src from edge where dst = %s and rel = 'installed_at' and valid_to is null", (tag,)).fetchone()
+    if eq:
+        e = client.get(f"/entities/{eq['src']}/drawings").json()
+        assert tag in e["highlight"] and sheet in [x["id"] for x in e["drawings"]]
+
+
 def test_cached_until_the_scan_changes(setup):
     conn, truth = setup
     fake = FakeVision(truth)

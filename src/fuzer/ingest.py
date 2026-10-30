@@ -106,9 +106,15 @@ class _Manifest:
     def schema(self):
         return None
 
+    def records(self):
+        return self.load(self.path)
+
 
 def dataset(data_dir: Path, name: str):
-    """The connector for one export in data_dir, or None when it isn't there."""
+    """The connector for one dataset: a live system when one is configured for it (connectors.live),
+    else the export in data_dir, or None when it isn't there."""
+    if (live := connectors.live(name)) is not None:
+        return live
     if name in FILES:
         file, ref, load = FILES[name]
         return _Manifest(data_dir / file, ref, load) if (data_dir / file).is_file() else None
@@ -117,7 +123,7 @@ def dataset(data_dir: Path, name: str):
 
 def _records(name: str, conn_, since=None, tabs=None):
     if name in FILES:
-        yield from conn_.load(conn_.path)
+        yield from conn_.records()
         return
     m = (tabs or tables())[name]
     source, record_type = m.source, m.record_type

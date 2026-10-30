@@ -64,7 +64,7 @@ flowchart LR
   CL["Claude readers<br/>logs, comments, P&IDs, sections"]
   RAW -.->|"fuzer llm-link"| CL -.-> LLM
 
-  TS["Time-series provider<br/>synthetic now, PI / ADX later"]
+  TS["Time-series provider<br/>PI Web API, ADX or synthetic"]
 
   subgraph OUT["Users"]
     direction TB
@@ -297,11 +297,34 @@ cite everything and never instruct anyone to operate plant directly. Engineers'
 ratings go to a `feedback` table.
 
 Process values come through a pluggable time-series provider (`FUZER_TIMESERIES`):
-Fuzer asks for values when needed and never copies them. Until the PI Web API /
-ADX connectors (#15, #16) exist, a deterministic synthetic provider makes
-plausible signals per PI point with the asset's incidents in them. Values around
-an incident (one of each instrument type first) show as small-multiple trend
-charts on incident pages, in the MCP `process_values` tool and in the brief.
+Fuzer asks for values when needed and never copies them. `pi` reads interpolated
+values from PI Web API by point name; `adx` reads them from Azure Data Explorer
+through the pointer the series catalog put on each timeseries entity (ADX bins
+them); `synthetic` (the default, needs nothing) makes plausible signals per PI
+point with the asset's incidents in them. Values around an incident centre on
+its first timed signal (log entry or downtime start) and show as small-multiple
+trend charts on incident pages, in the MCP `process_values` tool and in the
+brief. Each series carries a summary for agents: min / max / mean / last and
+`lead_in`, the 12 h before the centre against the hours before that, so "what
+moved" needs no chart.
+
+The incident page shows the brief (checks, what moved, lessons, spares) with a
+Useful / Not useful rating and comment; the Incidents page shows how many past
+incidents have been rated and the next ones to rate (`/feedback/briefs`).
+
+### 18b. PI Web API and ADX connectors
+With `FUZER_PI_WEB_API_URL` set, the `pi_points` and `pi_af` datasets load from
+PI Web API instead of files (`pi_web_api.py`): the point list paged, point and
+element attributes through `/batch`, yielding the same rows as the file exports,
+so mappings don't change. With `FUZER_ADX_URL` set, `adx_series` reads the series
+catalog (`adx.py`) and the `adx_series.yaml` mapping merges cluster, database,
+table and series id onto the PI point's timeseries entity. Live datasets have no
+cheap change marker, so the file sensor skips them and the daily `refresh_all`
+loads them; an unchanged server is still skipped by content hash.
+
+`uv run fakeplant historian` serves a fake PI Web API and ADX (a small KQL subset)
+over a fake plant's points, with upsets taken from the plant's own downtime and
+log records, for development and tests.
 
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
@@ -443,8 +466,8 @@ identities, history, review and the graph stay as they are.
 |---|---|---|
 | SAP S/4 | CSV export of FLOCs and equipment | OData / CDS views |
 | JDE, Maximo | CSV export | Scheduled DB extracts until retired |
-| PI AF | JSON export of element tree + attributes | PI Web API |
-| PI points | CSV point list | PI Web API / ADX |
+| PI AF | JSON export of element tree + attributes, or PI Web API | |
+| PI points | CSV point list, or PI Web API; ADX series catalog | |
 | Energy Components | JSON of network nodes and dated edges | EC database views |
 | P&IDs | Smart: tag list. Text PDF: extracted text. Image: flagged `needs_ocr` | DEXPI parsing, OCR (Azure Document Intelligence), Claude vision, line tracing |
 | Operator logs | CSV of entries | Claude for hard mentions and event extraction |

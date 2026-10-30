@@ -333,3 +333,14 @@ iframe.doc-file { width: 100%; height: 75vh; border: 1px solid var(--line); bord
 .map-legend .chip.off { opacity: 0.45; }
 .map-legend .basemap { margin-left: auto; display: inline-flex; gap: 4px; align-items: center; }
 .leaflet-container { font: inherit; }
+.rate { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rate h3 { margin-top: 0; }
+.trend.wide .trend-plot { height: 260px; }
+.trend-controls { flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.trend-controls input { font: inherit; }
+.trend-controls .spacer { flex: 1; }
+.viewer .mark .hl-ring { fill: none; stroke: var(--accent); stroke-width: 10; opacity: 0.85; animation: hl-pulse 1.6s ease-in-out infinite; }
+.viewer .mark.hl text { fill: var(--accent); }
+@keyframes hl-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .viewer .mark .hl-ring { animation: none; } }
+h2 select { font: inherit; font-size: 15px; }

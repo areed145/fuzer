@@ -93,10 +93,12 @@ def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
 
 @app.get("/entities/{fuzer_id}/values")
 def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
-                  conn=Depends(get_conn)):
-    """Process values on a unit (or an incident's unit) around a time, from the time-series provider."""
+                  direct: bool = False, conn=Depends(get_conn)):
+    """Process values on a unit (or an incident's unit), or of one timeseries, around a time, from the
+    time-series provider. `direct`: only the entity's own points, not its instruments'."""
     from . import timeseries
-    return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30))
+    return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
+                             direct=direct)
 
 
 @app.get("/entities/{fuzer_id}/trace")
@@ -135,6 +137,12 @@ def entity_map(fuzer_id: str, conn=Depends(get_conn)):
     from . import spatial
 
     return spatial.around(conn, fuzer_id)
+
+
+@app.get("/entities/{fuzer_id}/drawings")
+def entity_drawings(fuzer_id: str, conn=Depends(get_conn)):
+    """The P&ID sheets that show an entity, and the entity ids to highlight on them."""
+    return queries.drawings_for(conn, fuzer_id)
 
 
 @app.get("/documents/{fuzer_id}/drawing")
@@ -285,6 +293,38 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
                        (f.target, f.useful, f.comment, f.by)).fetchone()
     conn.commit()
     return row
+
+
+@app.get("/feedback/briefs")
+def brief_ratings(limit: int = 200, conn=Depends(get_conn)):
+    """The rating set for troubleshooting briefs: past incidents with how engineers rated each brief,
+    not-yet-rated first, and the overall share rated useful."""
+    rows = conn.execute(
+        """
+        with r as (
+            select split_part(target, ':', 2) as id, count(*) as ratings,
+                   count(*) filter (where useful) as useful,
+                   (array_agg(comment order by created_at desc) filter (where comment <> ''))[1] as last_comment
+            from feedback where target like 'brief:%%' group by 1
+        )
+        select i.fuzer_id as id, gd.value #>> '{}' as description, gs.value #>> '{}' as start,
+               coalesce(r.ratings, 0) as ratings, coalesce(r.useful, 0) as useful, r.last_comment
+        from entity i
+        join golden gs on gs.fuzer_id = i.fuzer_id and gs.field = 'start'
+        left join golden gd on gd.fuzer_id = i.fuzer_id and gd.field = 'description'
+        left join r on r.id = i.fuzer_id
+        where i.kind = 'incident' and i.retired_at is null and i.merged_into is null
+        order by (r.ratings is not null), gs.value #>> '{}' desc
+        limit %s
+        """,
+        (min(limit, 2000),),
+    ).fetchall()
+    total = conn.execute("select count(*) filter (where kind = 'incident' and retired_at is null) as n from entity"
+                         ).fetchone()["n"]
+    s = conn.execute("select count(distinct target) as rated, count(*) as ratings, count(*) filter (where useful) as useful "
+                     "from feedback where target like 'brief:%'").fetchone()
+    return {"incidents": total, "rated": s["rated"], "ratings": s["ratings"],
+            "useful_share": round(s["useful"] / s["ratings"], 2) if s["ratings"] else None, "items": rows}
 
 
 @app.get("/feedback/summary")
