@@ -22,9 +22,10 @@ def test_up_makes_data_loads_and_skips_unchanged(monkeypatch, capsys):
         db.reset(conn)
         up.load(conn, PACK, folder, fresh=False)
         assert conn.execute("select count(*) as n from entity").fetchone()["n"] > 100
-        up.read_drawings(conn, PACK)
+        up.read_with_claude(conn, PACK)
         out = capsys.readouterr().out
-        assert "Building the register" in out and "add ANTHROPIC_API_KEY" in out
+        assert "Building the register" in out and "Add ANTHROPIC_API_KEY" in out
+        assert "operator log entries" in out and "drawings" in out
 
         up.load(conn, PACK, folder, fresh=False)  # nothing changed: no rebuild
         out = capsys.readouterr().out
@@ -58,3 +59,36 @@ def test_refuses_to_mix_assets():
         conn.commit()
         assert up.other_asset(conn, load_pack("okan")) == "OSB"
         assert up.other_asset(conn, load_pack("offshore_demo")) is None
+
+
+def test_fresh_keeps_claude_readings(monkeypatch):
+    os.environ.pop("FUZER_DATABASE_URL", None)
+    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
+    folder = Path(tempfile.mkdtemp(prefix="fzup")) / "plant"
+    monkeypatch.setenv("FUZER_DATA_DIR", str(folder))
+    up.data_folder(fresh=False)
+    with db.connect() as conn:
+        db.reset(conn)
+        conn.execute("insert into llm_extraction (source, source_key, text_hash, model, prompt_version, result) "
+                     "values ('oplog', 'LOG-1', 'h', 'claude-sonnet-5-5', 'v1', '{}')")
+        conn.commit()
+        up.load(conn, PACK, folder, fresh=True)
+        assert conn.execute("select count(*) as n from llm_extraction").fetchone()["n"] == 1
+        assert conn.execute("select count(*) as n from entity").fetchone()["n"] > 100
+
+
+def test_nothing_configured_means_the_okan_demo(monkeypatch):
+    monkeypatch.delenv("FUZER_DATA_DIR", raising=False)
+    monkeypatch.delenv("FUZER_PACK", raising=False)
+    seen = []
+
+    def use_demo(name):
+        seen.append(name)
+        raise SystemExit  # stop before loading anything
+
+    monkeypatch.setattr(up, "use_demo", use_demo)
+    try:
+        up.up(PACK)
+    except SystemExit:
+        pass
+    assert seen == ["okan"]

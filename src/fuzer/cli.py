@@ -56,12 +56,13 @@ def main(argv=None):
     j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors (needs the 'jobs' extra)")
     j.add_argument("--port", type=int, default=3000)
 
-    for name, text in (("ask", "ask the operations assistant one question (Claude agents; needs the 'agents' extra)"),
+    for name, text in (("ask", "ask the operations assistant one question (Claude agents)"),
                        ("chat", "talk to the operations assistant (follow-up questions keep the context)")):
         a = sub.add_parser(name, help=text)
         if name == "ask":
             a.add_argument("question")
-        a.add_argument("--model", default=None, help="Claude model (default claude-opus-5-5 or $FUZER_AGENT_MODEL)")
+        a.add_argument("--model", default=None, help="orchestrator model (default $FUZER_AGENT_MODEL or claude-opus-5-5); "
+                       "specialists use $FUZER_AGENT_SPECIALIST_MODEL")
         a.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
                        help="orchestrator effort (default high); specialists use $FUZER_AGENT_SPECIALIST_EFFORT")
         a.add_argument("--json", action="store_true", help="print the answer, tools used and cost as JSON")
@@ -165,10 +166,7 @@ def main(argv=None):
 def _assistant(args) -> None:
     import asyncio
 
-    try:
-        from . import agents
-    except ImportError:
-        raise SystemExit("The operations assistant needs the 'agents' extra: uv sync --extra agents")
+    from . import agents
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise SystemExit("Set ANTHROPIC_API_KEY (in .env) for the operations assistant.")
     db.database_url()  # start embedded Postgres up front if it's in use
@@ -184,6 +182,9 @@ def _assistant(args) -> None:
         u = out["usage"]
         print(f"\n— {out['seconds']} s · {u['model_calls']} model calls · ${u['cost_usd']:.2f}"
               + (f" · specialists: {', '.join(out['specialists'])}" if out["specialists"] else ""))
+        print("  " + " · ".join(f"{name}: {m['calls']} calls ${m['cost_usd']:.2f}"
+                                + (" (unpriced: shown at Opus 5.5 rates)" if m.get("unpriced") else "")
+                                for name, m in u["models"].items()))
 
     async def run():
         if args.cmd == "ask":

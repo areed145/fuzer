@@ -381,7 +381,8 @@ export interface AssistantJob {
   error: string | null;
   seconds?: number;
   specialists?: string[];
-  usage?: { model_calls: number; input: number; output: number; cache_read: number; cache_write: number; cost_usd: number };
+  usage?: { model_calls: number; input: number; output: number; cache_read: number; cache_write: number; cost_usd: number;
+            models: Record<string, { calls: number; cost_usd: number; unpriced?: boolean }> };
   steps: { agent: string; tool: string; args: Record<string, unknown> }[];
   model_calls: number;
 }

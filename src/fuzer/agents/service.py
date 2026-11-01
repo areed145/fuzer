@@ -24,12 +24,8 @@ class Unavailable(RuntimeError):
 def team():
     global _team
     if _team is None:
-        try:
-            import agent_framework  # noqa: F401
+        from . import team as make_team
 
-            from . import team as make_team
-        except ImportError as e:
-            raise Unavailable("The operations assistant needs the 'agents' extra: uv sync --extra agents") from e
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise Unavailable("Set ANTHROPIC_API_KEY (in .env) to use the operations assistant.")
         _team = make_team()
