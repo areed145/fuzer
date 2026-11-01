@@ -232,7 +232,7 @@ removed and their entities retired (IDs are kept and revived if they return).
 ### Lake tables (Parquet / Delta)
 
 Each table can be a CSV export, a `.parquet` file, or a lake-style folder of
-Parquet part files or a Delta table (`uv sync --extra delta`), found by name in
+Parquet part files or a Delta table, found by name in
 the data folder (`sap_equipment/`, `sap_equipment.parquet`, `sap_equipment.csv`).
 
 ```sh
