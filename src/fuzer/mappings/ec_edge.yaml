@@ -1,9 +1,18 @@
-# Energy Components allocation network edges, dated.
+# Energy Components network edges, dated. Production / allocation flow is flows_to; edges with
+# service "lift_gas" are the gas lift network (compressors -> headers -> gas lift manifolds -> wells),
+# kept as lift_gas_to so a production trace never wanders into it.
 source: ec
 record_type: edge
 shape: network
 links:
   - rel: flows_to
+    unless: {service: lift_gas}
+    from: {from: from, as: ec_node}
+    to: {from: to, as: ec_node}
+    valid_from: valid_from
+    valid_to: valid_to
+  - rel: lift_gas_to
+    when: {service: lift_gas}
     from: {from: from, as: ec_node}
     to: {from: to, as: ec_node}
     valid_from: valid_from

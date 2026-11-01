@@ -21,6 +21,12 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds
    the unit (separator carryover into a compressor scrubber, lost gas supply into lift gas).
+   For a gas lifted well that lost rate or died, trace its lift gas supply:
+   `trace_flow(well, "up", network="lift_gas")` (manifold, any jacket it is fed through, header,
+   compression) and `gas_lift_network(ref=well)`; then check the header pressure (`process_values`
+   on 20-/30-/40-PT-3003) and the well's injection rate and casing pressure (GLIR, CASP) around the
+   time. Header pressure falling = supply problem (compression trip, bypass); header fine but GLIR up,
+   CASP down, oil down = the well's gas lift valve failed open.
    `get_events` on those units around the same time confirms or rules it out.
 6. **Checks.** Recommend checks in order of likelihood and cost, each tied to the evidence and to a
    lesson or manual section where one exists (cite the section id and page). Include spares: say if
