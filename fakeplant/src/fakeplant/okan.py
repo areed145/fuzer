@@ -28,7 +28,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import docs, pid
+from . import docs, measurements, pid
 from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
 
 FIELD = "OKAN"
@@ -711,6 +711,31 @@ def generate(out, seed: int = 11) -> dict:
     documents = docs.generate(out, equipment, areas, FIELD, guides=GUIDES)
     materials, bom = _spares(equipment)
 
+    # ---- lab results and wall thickness --------------------------------------------------------------
+    # Story: after OK-J03-02's water breakthrough (June 2025) its chloride climbs, the PP HP separator's
+    # produced water carries more oil, and J03's flowline, now wetter, loses wall several times faster.
+    j0302 = next(w for w in wells if w["name"].endswith("J03-02"))
+    breakthrough = date(2025, 6, 15)
+    lab = measurements.lab_results(random.Random(seed + 12), [
+        {"tag": "10-V-2001", "sample_point": "HP separator oil outlet", "kind": "oil",
+         "step": {"bsw": (breakthrough, 1.8)}},
+        {"tag": "10-V-2001", "sample_point": "HP separator water outlet", "kind": "water",
+         "step": {"oil_in_water": (breakthrough, 2.6)}},
+        {"tag": "10-V-2004", "sample_point": "Export oil", "kind": "oil"},
+        {"tag": "30-V-2002", "sample_point": "ST1 separator water outlet", "kind": "water"},
+        {"tag": "20-V-2001", "sample_point": "GGCP inlet gas", "kind": "gas"},
+        {"tag": "20-V-2400", "sample_point": "Glycol contactor dry gas", "kind": "gas"},
+        {"well": j0302["name"], "sample_point": "Wellhead", "kind": "well",
+         "step": {"chloride": (breakthrough, 1.9), "bsw": (breakthrough, 2.7)}},
+    ], date(2024, 1, 2), date.fromisoformat(AS_OF) - timedelta(days=1))
+    wetter = f'production flowline {j0302["area"]} to'
+    walls = [{"line_id": f["properties"]["line_id"], "nominal_mm": measurements.nominal_wall_mm(f["properties"]["diameter_in"]),
+              "cmls": 4, **({"rate_mm_y": 0.55} if wetter in f["properties"]["name"] else {})}
+             for f in lines if f["properties"]["status"] == "in service"]
+    walls += [{"tag": f"{area}-V-{loop}", "nominal_mm": 22.0, "cmls": 3}
+              for area, items in EQUIPMENT.items() for func, loop, _, _, _ in items if func == "V"]
+    readings = measurements.thickness_readings(random.Random(seed + 13), walls, [2019, 2021, 2023, 2025])
+
     # ---- write ----------------------------------------------------------------------------------------
     (out / "answer_keys").mkdir(exist_ok=True)
     _write_csv(out / "sap_floc.csv", floc)
@@ -725,6 +750,8 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ec_day001.csv", daily)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
     _write_csv(out / "ec_well_tests.csv", tests)
+    _write_csv(out / "lims_results.csv", lab)
+    _write_csv(out / "inspection_readings.csv", readings)
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps({"nodes": nodes, "edges": edges}, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
@@ -741,7 +768,8 @@ def generate(out, seed: int = 11) -> dict:
             "notifications": len(notifications), "work_orders": len(orders), "downtime": len(downtime),
             "logs": len(logs), "daily_reports": len(daily), "pid_sheets": len(sheets), "documents": len(documents),
             "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
-            "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at")}
+            "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at"),
+            "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings)}
 
 
 GUIDES = {

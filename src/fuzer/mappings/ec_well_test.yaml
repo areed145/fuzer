@@ -18,3 +18,13 @@ entity:
 links:
   - rel: tests
     to: {kind: well, from: well, as: well}
+measurements:
+  of: {kind: well, from: well, as: well}
+  at: test_date
+  method: well test
+  values:
+    - {quantity: oil_rate, from: oil_sm3d, unit: Sm3/d}
+    - {quantity: water_cut, from: water_cut_pct, unit: "%"}
+    - {quantity: gor, from: gor_sm3_sm3, unit: Sm3/Sm3}
+    - {quantity: lift_gas_rate, from: lift_gas_ksm3d, unit: kSm3/d}
+    - {quantity: wellhead_pressure, from: whp_barg, unit: barg}

@@ -198,6 +198,23 @@ function BriefCard({ id }: { id: string }) {
             <Moved pv={b.process_values} />
           </div>
           <div>
+            {b.measurements.length > 0 && (
+              <>
+                <h3>Measurements <span className="muted small">latest, not in PI</span></h3>
+                <ul className="plain small">
+                  {b.measurements.slice(0, 6).map((m) => (
+                    <li key={`${m.quantity}|${m.location}|${m.of.id}`}>
+                      {m.quantity.replaceAll("_", " ")}{m.location && <span className="muted"> {m.location}</span>}:{" "}
+                      <span className="mono">{m.latest.qualifier ?? ""}{m.latest.value} {m.unit}</span>{" "}
+                      <span className="muted">
+                        {m.latest.at.slice(0, 10)}
+                        {m.per_year !== null && ` · ${m.per_year > 0 ? "+" : ""}${m.per_year}/year`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             {b.lessons.approved.length > 0 && (
               <>
                 <h3>Lessons</h3>

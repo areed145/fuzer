@@ -337,6 +337,21 @@ export interface LeadIn {
   change_pct: number | null;
 }
 
+export interface MeasurementSeries {
+  quantity: string;
+  location: string | null;
+  of: { id: string; label: string | null };
+  unit: string | null;
+  count: number;
+  first: string;
+  min: number;
+  max: number;
+  latest: { at: string; value: number; qualifier: string | null; method: string | null; record: string };
+  per_year: number | null;
+  values?: { at: string; value: number; qualifier: string | null; reported: string | null; method: string | null;
+             record: string }[];
+}
+
 export interface Values {
   provider: string;
   centre: string;
@@ -361,6 +376,7 @@ export interface Brief {
     errors?: string[];
     series: { id: string; point: string; description: string | null; uom: string | null; lead_in?: LeadIn }[];
   };
+  measurements: MeasurementSeries[];
 }
 
 export interface BriefRatings {
@@ -464,6 +480,9 @@ export const api = {
   values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, direct?: boolean) =>
     request<Values>("GET", `/entities/${encodeURIComponent(id)}/values`,
                     { at, hours_before: hoursBefore, hours_after: hoursAfter, direct: direct ? "true" : undefined }),
+  measurements: (id: string, quantity?: string) =>
+    request<{ id: string; series: MeasurementSeries[]; truncated: boolean }>(
+      "GET", `/entities/${encodeURIComponent(id)}/measurements`, { quantity }),
   brief: (id: string) => request<Brief>("GET", `/entities/${encodeURIComponent(id)}/brief`),
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),

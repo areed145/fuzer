@@ -1,0 +1,54 @@
+# Units of measure: the unit each measurement is stored in, the spellings sources use for it, and
+# units converted into it (value * factor + offset). Reference data: add a site's spellings here.
+mm:
+  aliases: [millimetre, millimeter, millimetres, millimeters]
+  from:
+    in: {factor: 25.4, aliases: [inch, inches, '"']}
+    mils: {factor: 0.0254, aliases: [mil, thou]}
+mm/y:
+  aliases: [mm/yr, mm/year, mmpy]
+  from:
+    mpy: {factor: 0.0254, aliases: [mils/yr, mil/y]}
+barg:
+  aliases: [bar g, bar(g), barG]
+  from:
+    psig: {factor: 0.0689476, aliases: [psi g, psi(g)]}
+    kPag: {factor: 0.01, aliases: [kpag, kPa(g)]}
+Sm3/d:
+  aliases: [sm3/d, Sm3/day, SM3/D, m3/d]
+  from:
+    bbl/d: {factor: 0.158987, aliases: [bpd, bbl/day, BOPD, bopd, BWPD, bwpd]}
+kSm3/d:
+  aliases: [ksm3/d, 1000 Sm3/d, kSm3/day, E3Sm3/d]
+  from:
+    MMscf/d: {factor: 28.3168, aliases: [mmscfd, MMSCFD]}
+Sm3/Sm3:
+  aliases: [sm3/sm3, m3/m3]
+  from:
+    scf/bbl: {factor: 0.178108, aliases: [scf/stb, SCF/BBL]}
+"%":
+  aliases: [pct, percent, vol%, "% vol", wt%]
+  from:
+    fraction: {factor: 100}
+degC:
+  aliases: [°C, C, deg C, celsius]
+  from:
+    degF: {factor: 0.5555556, offset: -17.7777778, aliases: [°F, F, deg F, fahrenheit]}
+mg/L:
+  aliases: [mg/l, ppmw, ppm(w)]
+ppmv:
+  aliases: [ppm(v), ppm v, ppm]
+mg/Sm3:
+  aliases: [mg/sm3, mg/m3]
+g/cm3:
+  aliases: [g/cc, g/ml]
+  from:
+    kg/m3: {factor: 0.001}
+mm/s:
+  aliases: [mm/sec]
+  from:
+    in/s: {factor: 25.4, aliases: [ips, in/sec]}
+ptb:
+  aliases: [PTB, lb/1000 bbl]
+"1":
+  aliases: [count, "-", ratio]

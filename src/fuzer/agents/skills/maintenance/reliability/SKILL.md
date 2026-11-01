@@ -18,7 +18,13 @@ A repeat failure is the same failure mode on the same unit more than once in the
 3. **Compliance:** `maintenance_compliance(as_of, horizon_days)` gives on-time % for PM and INSP plans,
    overdue tasks (statutory inspections are the serious ones) and what is due soon. Tasks marked
    `needs_shutdown` can only be done in a turnaround.
-4. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
+4. **Wall thickness:** `measurements(ref, "wall_thickness")` on a vessel, piping tag or pipeline gives
+   each CML's readings (mm; older surveys were converted from inches) and `per_year`, the fitted wall
+   change per year (negative = loss). Compare CMLs on the same item and items in the same service: one
+   losing several times faster than its neighbours points at a changed condition (water, sand, flow
+   regime) worth tying to well tests or lab results. Remaining life needs the minimum required
+   thickness from the design, which Fuzer doesn't hold; say so rather than guessing it.
+5. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
 
 Report: the top bad actors with failures, MTBF, downtime and repeat modes; the likely root cause per

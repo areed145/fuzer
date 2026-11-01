@@ -294,3 +294,21 @@ create table if not exists assistant_answer (
     by_user         text not null default 'anonymous',
     created_at      timestamptz not null default now()
 );
+
+-- Sparse, manual measurements landed from sources (well tests, lab samples, inspection thickness
+-- readings), unlike historian values, which stay in PI / ADX. Rebuilt from source records with the
+-- graph; values are in the units of units.yaml.
+create table if not exists measurement (
+    record     text not null,              -- source record: <source>:<record_type>:<key>
+    quantity   text not null,
+    fuzer_id   text not null,              -- what was measured
+    at         timestamp not null,
+    value      double precision not null,
+    unit       text,
+    qualifier  text,                       -- "<" / ">": beyond a detection limit
+    reported   text,                       -- as the source gave it, when converted
+    method     text,
+    location   text,                       -- where on it: a CML, a sample point
+    primary key (record, quantity)
+);
+create index if not exists measurement_of on measurement (fuzer_id, quantity, at);

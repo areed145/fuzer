@@ -101,6 +101,14 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                              direct=direct)
 
 
+@app.get("/entities/{fuzer_id}/measurements")
+def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str | None = None,
+                        until: str | None = None, conn=Depends(get_conn)):
+    """Landed measurements (well tests, lab results, wall thickness) on an entity, per quantity and location."""
+    from . import measurements
+    return measurements.for_entity(conn, fuzer_id, quantity, since, until)
+
+
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):

@@ -1,0 +1,16 @@
+# Laboratory (LIMS) results: one row per sample and analyte, taken at a sample point on a tag (a
+# separator outlet, the export line) or a well. Values may be below the detection limit ("<0.5").
+source: lims
+record_type: result
+shape: measurements
+dataset: lims_results
+key: [sample_id, analyte]
+measurements:
+  of:
+    - {kind: tag, from: tag, as: tag}
+    - {kind: well, from: well, as: well}
+  at: sampled_at
+  method: {from: method}
+  location: sample_point
+  values:
+    - {quantity: {from: analyte}, from: result, unit: {from: unit}}

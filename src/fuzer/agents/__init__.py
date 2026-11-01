@@ -50,13 +50,13 @@ TOOLS = {
     "troubleshooter": COMMON + ["troubleshooting_brief", "incident_detail", "get_incidents", "get_events",
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
                                 "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
-                                "gas_lift_network", "well_performance"],
+                                "gas_lift_network", "well_performance", "measurements"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
-                            "trace_flow"],
+                            "measurements", "trace_flow"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
-                             "list_members", "get_incidents", "deferment_pareto"],
+                             "list_members", "get_incidents", "deferment_pareto", "measurements"],
 }
 
 ORCHESTRATOR = """\
