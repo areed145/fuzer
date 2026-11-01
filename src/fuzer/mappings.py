@@ -29,7 +29,8 @@ A `ref` endpoint is a template ("sap:equipment:{equnr}") or a prefix with `from`
 {from, as, default, template, area_from, keep}; a default can itself be a value. `as` is a value transform (tag, well, serial, upper,
 number) or a resolver that returns both kind and key (floc, af_path, af_parent, ec_node,
 tag_or_well, facility_or_well; extract.RESOLVERS). Fields listed by name, or given as values, are
-dropped when empty unless `keep: true`. A link is skipped when `when` names an empty column or a
+dropped when empty unless `keep: true`. A link is skipped when `when` names an empty column (or, as
+{column: value}, a column without that value), when `unless: {column: value}` matches, or when a
 resolver finds nothing. Order of work: entity and fields, links, mentions, hooks.
 """
 
@@ -202,7 +203,18 @@ class Mapping:
         if not link.get("rel"):
             raise MappingError(f"link without rel{self._where}")
         props = {name: self._value(v) for name, v in (link.get("props") or {}).items()} or None
-        return (link["rel"], link.get("when"), link.get("each"), self._endpoint(link.get("from")),
+        when, unless = link.get("when"), link.get("unless") or {}
+        if not isinstance(unless, dict) or (when is not None and not isinstance(when, (str, dict))):
+            raise MappingError(f"`when` is a column or {{column: value}}, `unless` is {{column: value}}{self._where}")
+
+        def applies(row: dict) -> bool:
+            if isinstance(when, str) and row.get(when) in (None, ""):
+                return False
+            if isinstance(when, dict) and any(row.get(k) != v for k, v in when.items()):
+                return False
+            return not (unless and all(row.get(k) == v for k, v in unless.items()))
+
+        return (link["rel"], applies, link.get("each"), self._endpoint(link.get("from")),
                 self._endpoint(link.get("to")), link.get("confidence", 1.0),
                 self._value(link["valid_from"]) if link.get("valid_from") else None,
                 self._value(link["valid_to"]) if link.get("valid_to") else None, props)
@@ -223,8 +235,8 @@ class Mapping:
                           block=block(key, row, pack) if block else None)
         edges = c.edges if c else []
         me = ("ref", c.ref) if c else None
-        for rel, when, each, src_f, dst_f, conf, vf, vt, props in self._links:
-            if when and row.get(when) in (None, ""):
+        for rel, applies, each, src_f, dst_f, conf, vf, vt, props in self._links:
+            if not applies(row):
                 continue
             for item in (row.get(each) or []) if each else (row,):
                 src = me if src_f is SELF else src_f(key, item, pack)

@@ -98,3 +98,20 @@ def test_every_built_in_table_has_a_mapping():
 def test_bad_mappings_fail_clearly(raw, message):
     with pytest.raises(mappings.MappingError, match=message):
         mappings.Mapping(raw)
+
+
+def test_when_and_unless_test_values():
+    from fuzer.pack import load_pack
+
+    pack = load_pack("okan")
+    m = mappings.Mapping({"source": "ec", "record_type": "edge", "shape": "network", "links": [
+        {"rel": "flows_to", "unless": {"service": "lift_gas"}, "from": {"kind": "well", "from": "a"},
+         "to": {"kind": "well", "from": "b"}},
+        {"rel": "lift_gas_to", "when": {"service": "lift_gas"}, "from": {"kind": "well", "from": "a"},
+         "to": {"kind": "well", "from": "b"}}]})
+    rels = lambda row: [e.rel for e in m.extract("k", row, pack)[1]]  # noqa: E731
+    assert rels({"a": "x", "b": "y"}) == ["flows_to"]
+    assert rels({"a": "x", "b": "y", "service": "lift_gas"}) == ["lift_gas_to"]
+    with pytest.raises(mappings.MappingError, match="unless"):
+        mappings.Mapping({"source": "s", "record_type": "r", "shape": "network",
+                          "links": [{"rel": "x", "unless": "service", "to": {"kind": "well", "from": "b"}}]})

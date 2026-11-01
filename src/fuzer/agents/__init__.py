@@ -53,9 +53,11 @@ TOOLS = {
     "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow"],
     "troubleshooter": COMMON + ["troubleshooting_brief", "incident_detail", "get_incidents", "get_events",
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
-                                "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history"],
+                                "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
+                                "gas_lift_network", "well_performance"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
-                            "downtime", "get_events", "get_incidents", "process_values", "trace_flow"],
+                            "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
+                            "trace_flow"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
                              "list_members", "get_incidents", "deferment_pareto"],
@@ -71,7 +73,8 @@ Answer simple lookups (what is X, where is it, what's connected to it) yourself.
 your specialists, and when a question spans domains, start them together and combine their findings
 into one answer:
 - troubleshooter: a unit or incident: what happened, what the trends did, causes, checks to make.
-- production: production and efficiency, deferment, what limits throughput, well performance.
+- production: production and efficiency, deferment, what limits throughput, well performance, gas lift
+  (the lift gas network, allocation between wells, shortfalls).
 - maintenance: bad actors and failure modes, inspections and PM compliance, work order backlog,
   turnaround scope and long-lead spares.
 Give a specialist a self-contained task: the question, the entities and dates you already know.
@@ -84,10 +87,10 @@ SPECIALISTS = {
                        "You troubleshoot one unit or incident on an oil and gas asset using Fuzer's tools. Load the "
                        "`troubleshooting` skill first."),
     "production": ("Production surveillance and optimisation, production efficiency and deferment, constraints, "
-                   "and production engineering (wells, well tests, gas lift).",
+                   "production engineering (wells, well tests) and gas lift (network, allocation, shortfalls).",
                    "You are a production engineer for an oil and gas asset, working from Fuzer's tools. Load the "
                    "skill that fits the task first: production-surveillance, production-efficiency, "
-                   "constraint-management or production-engineering."),
+                   "constraint-management, production-engineering or gas-lift."),
     "maintenance": ("Reliability, maintenance and inspection: bad actors, MTBF, failure modes, PM and inspection "
                     "compliance, work order backlog, turnaround scope and spares.",
                     "You are a maintenance and reliability engineer for an oil and gas asset, working from Fuzer's "

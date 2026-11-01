@@ -91,7 +91,10 @@ uv run fuzer up --demo okan --fresh     # later starts: uv run fuzer up --demo o
 The Okan field (NMA South Offshore) as fake data for the troubleshooting
 assistant: OKA_PP, OK_GGCP with compression trains A/B/C, OKA_ST1, OKA_ST2,
 OKA_NWP with its gas producers, 24 jackets and 177 wells (mostly gas lifted),
-gas lift and EGP export, with every source: SAP, PI / AF, EC network,
+EGP export, and a gas lift network: GGCP compression feeds three lift gas headers
+(GGCP, ST1, ST2), each supplying the jackets nearest it, some through another
+jacket's manifold, down to each jacket's gas lift manifold and its wells (the
+Network page's Gas lift view), with every source: SAP, PI / AF, EC network,
 downtime and DAY001, operator logs, P&ID drawings, manuals and troubleshooting
 guides, and GIS pipelines and facilities. Planted stories to troubleshoot: train
 B bearing trips and the lift gas shortfalls they cause, train A after-cooler

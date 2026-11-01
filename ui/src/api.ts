@@ -482,7 +482,7 @@ export const api = {
   ontology: () => request<Ontology>("GET", "/ontology"),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
-  network: (asOf?: string, rel: "flows_to" | "pipes_to" = "flows_to") =>
+  network: (asOf?: string, rel: "flows_to" | "lift_gas_to" | "pipes_to" = "flows_to") =>
     request<Subgraph>("GET", "/network", { as_of: asOf, rel }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),

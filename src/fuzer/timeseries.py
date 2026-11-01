@@ -22,6 +22,17 @@ from typing import Protocol
 
 BASE = {"barg": 18.0, "bar": 1.2, "degC": 65.0, "mm/s": 2.5, "%": 50.0, "rpm": 3600.0, "Sm3/d": 6500.0,
         "psi": 250.0, "degF": 180.0, "Hz": 55.0, "bbl/d": 400.0, "ft": 8.0}
+# Typical levels by what a point measures (its description), ahead of the unit default above.
+BASE_BY_DESCRIPTION = [("Lift Gas Header Pressure", 88.0), ("GGCP Lift Gas Header Flow", 1800.0),
+                       ("ST1 Lift Gas Header Flow", 720.0), ("ST2 Lift Gas Header Flow", 440.0),
+                       ("Gas Lift Supply Meter", 75.0), ("Gas Lift Injection Rate", 12.5), ("Casing Pressure", 72.0),
+                       ("Gas Export Meter", 1700.0), ("Gas Rate", 600.0)]
+
+
+def base_level(uom: str, description: str = "") -> float:
+    return next((v for k, v in BASE_BY_DESCRIPTION if k in (description or "")), BASE.get(uom, 10.0))
+
+
 # How an upset shows in each kind of signal: multiplier at the peak, just before the incident.
 UPSET = {"mm/s": 3.5, "degC": 1.35, "degF": 1.3, "barg": 0.7, "psi": 0.75, "rpm": 0.9, "Hz": 0.9}
 
@@ -47,11 +58,11 @@ class SyntheticProvider:
     name = "synthetic"
 
     def series(self, s, start, end, step_minutes):
-        return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"])
+        return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
 
-    def values(self, point, uom, start, end, step_minutes, upsets):
+    def values(self, point, uom, start, end, step_minutes, upsets, description=""):
         seed = int(hashlib.sha1(point.encode()).hexdigest()[:8], 16)
-        base = BASE.get(uom, 10.0) * (0.85 + (seed % 30) / 100)
+        base = base_level(uom, description) * (0.85 + (seed % 30) / 100)
         out, t = [], start
         while t <= end:
             rng = random.Random(seed ^ int(t.timestamp() // 60))
