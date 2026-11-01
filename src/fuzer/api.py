@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
@@ -303,20 +303,40 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
     return row
 
 
+class Image(BaseModel):
+    media_type: Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
+    data: str  # base64
+
+
 class Question(BaseModel):
     question: str
     conversation_id: str | None = None
     by: str = "anonymous"
+    images: list[Image] = []  # screenshots, photos, datasheet pages the user attaches
+
+
+MAX_IMAGES, MAX_IMAGE_BYTES = 4, 5 * 1024 * 1024
 
 
 @app.post("/assistant/ask")
 async def assistant_ask(q: Question):
     """Ask the operations assistant (Claude agents). Returns a job id at once; poll /assistant/jobs/{id}."""
     from .agents import service
+    import base64
+    import binascii
+
     if not q.question.strip():
         raise HTTPException(400, "empty question")
+    if len(q.images) > MAX_IMAGES:
+        raise HTTPException(400, f"at most {MAX_IMAGES} images")
     try:
-        return service.start(q.question.strip(), q.conversation_id, q.by)
+        images = [(i.media_type, base64.b64decode(i.data, validate=True)) for i in q.images]
+    except binascii.Error:
+        raise HTTPException(400, "images must be base64")
+    if any(len(b) > MAX_IMAGE_BYTES for _, b in images):
+        raise HTTPException(400, "each image at most 5 MB")
+    try:
+        return service.start(q.question.strip(), q.conversation_id, q.by, images)
     except service.Unavailable as e:
         raise HTTPException(503, str(e))
 
@@ -328,6 +348,33 @@ def assistant_job(job_id: str):
     if (out := service.status(job_id)) is None:
         raise HTTPException(404, "unknown job (the server may have restarted)")
     return out
+
+
+@app.get("/figures/{figure_id}.html", include_in_schema=False)
+def figure_page(figure_id: str, conn=Depends(get_conn)):
+    """One chart as a page of its own (for sharing and for MCP clients)."""
+    from . import plots
+    if (row := plots.get(conn, figure_id)) is None:
+        raise HTTPException(404, "unknown figure")
+    return HTMLResponse(plots.html(row["id"], row["title"], row["spec"]))
+
+
+@app.get("/figures/{figure_id}.png", include_in_schema=False)
+def figure_png(figure_id: str, conn=Depends(get_conn)):
+    """A plain image of a chart (what look_at_figure shows the assistant)."""
+    from . import plots
+    if (row := plots.get(conn, figure_id)) is None:
+        raise HTTPException(404, "unknown figure")
+    return Response(plots.png(row["spec"]), media_type="image/png")
+
+
+@app.get("/figures/{figure_id}")
+def figure(figure_id: str, conn=Depends(get_conn)):
+    """A chart the assistant made: the Plotly figure, its summary and sources."""
+    from . import plots
+    if (row := plots.get(conn, figure_id)) is None:
+        raise HTTPException(404, "unknown figure")
+    return {k: row[k] for k in ("id", "kind", "title", "spec", "summary", "sources", "by_source", "created_at")}
 
 
 @app.get("/assistant/answers")

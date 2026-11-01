@@ -388,6 +388,25 @@ export interface BriefRatings {
            last_comment: string | null }[];
 }
 
+export interface FigureData {
+  id: string;
+  kind: string;
+  title: string;
+  spec: { data: any[]; layout: Record<string, any> };
+  summary: Record<string, unknown>;
+  sources: string[];
+  by_source: "fuzer" | "assistant";
+  created_at: string;
+}
+
+/** An image attached to a question: base64 data, plus a local URL for the preview. */
+export interface Attachment {
+  name: string;
+  media_type: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  data: string;
+  url: string;
+}
+
 export interface AssistantJob {
   id: string;
   conversation_id: string;
@@ -487,9 +506,12 @@ export const api = {
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
   briefRatings: () => request<BriefRatings>("GET", "/feedback/briefs"),
-  ask: (question: string, conversationId: string | undefined, by: string) =>
-    request<{ job_id: string; conversation_id: string }>("POST", "/assistant/ask", undefined,
-                                                         { question, conversation_id: conversationId, by }),
+  ask: (question: string, conversationId: string | undefined, by: string, images: Attachment[] = []) =>
+    request<{ job_id: string; conversation_id: string }>("POST", "/assistant/ask", undefined, {
+      question, conversation_id: conversationId, by,
+      images: images.map(({ media_type, data }) => ({ media_type, data })),
+    }),
+  figure: (id: string) => request<FigureData>("GET", `/figures/${encodeURIComponent(id)}`),
   assistantJob: (id: string) => request<AssistantJob>("GET", `/assistant/jobs/${encodeURIComponent(id)}`),
   assistantAnswers: () => request<AssistantAnswer[]>("GET", "/assistant/answers", { limit: 20 }),
   map: () => request<GeoCollection>("GET", "/map"),

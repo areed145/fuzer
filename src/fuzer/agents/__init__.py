@@ -45,18 +45,24 @@ def note(kind: str, **data) -> None:
 
 
 COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge"]
+CHARTS = ["plot_trend", "plot_measurements", "plot_xy", "plot_bar", "plot_distribution", "plot_custom", "look_at_figure"]
 TOOLS = {
-    "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow"],
+    "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow", "plot_bar", "plot_measurements",
+                              "plot_custom", "look_at_figure"],
     "troubleshooter": COMMON + ["troubleshooting_brief", "incident_detail", "get_incidents", "get_events",
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
                                 "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
-                                "gas_lift_network", "well_performance", "measurements"],
+                                "gas_lift_network", "well_performance", "measurements",
+                                *CHARTS, "plot_incident", "plot_correlation", "plot_vibration"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
-                            "measurements", "trace_flow"],
+                            "measurements", "trace_flow",
+                            *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
+                            "plot_gas_lift_allocation"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
-                             "list_members", "get_incidents", "deferment_pareto", "measurements"],
+                             "list_members", "get_incidents", "deferment_pareto", "measurements",
+                             *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration"],
 }
 
 ORCHESTRATOR = """\
@@ -74,6 +80,14 @@ into one answer:
 - maintenance: bad actors and failure modes, inspections and PM compliance, work order backlog,
   turnaround scope and long-lead spares.
 Give a specialist a self-contained task: the question, the entities and dates you already know.
+
+Specialists can make interactive charts and return their `[[figure:<id>]]` markers. Keep the markers
+that help the reader in your answer, each on its own line next to the text about it; drop the rest.
+Ask for a chart when one would answer faster than words (a decline, a trend, a ranking).
+
+The user may attach images (a PI Vision screenshot, a photo of a vibration spectrum, a datasheet page).
+Read them yourself and pass what matters to a specialist in words. Values read off an image are
+approximate: say which ones came from the image, and check them against Fuzer's data where it has any.
 
 Load the `answering` skill before writing your final answer."""
 
@@ -93,7 +107,8 @@ SPECIALISTS = {
                     "tools. Load the skill that fits the task first: reliability, work-orders or turnarounds."),
 }
 REPORT = ("Report back to the orchestrator, not the end user: findings first, with numbers, dates and the Fuzer id "
-          "or source record behind each fact, then what you could not find. Keep it under 400 words.")
+          "or source record behind each fact, then what you could not find. Keep it under 400 words. If you made "
+          "charts, include each `[[figure:<id>]]` marker on its own line with one sentence on what it shows.")
 
 
 def _tool(name: str, agent: str):
@@ -108,9 +123,20 @@ def _tool(name: str, agent: str):
     @functools.wraps(fn)
     async def run(**kwargs):
         note("tool", agent=agent, tool=name, args={k: v for k, v in kwargs.items() if v is not None})
-        return await asyncio.to_thread(fn, **kwargs)
+        return _content(await asyncio.to_thread(fn, **kwargs))
 
     return tool(run, name=name, description=fn.__doc__, approval_mode="never_require")
+
+
+def _content(result):
+    """MCP images (look_at_figure) as image content Claude sees; anything else as it is."""
+    from agent_framework import Content
+    from mcp.server.mcpserver.utilities.types import Image
+
+    if isinstance(result, list) and any(isinstance(x, Image) for x in result):
+        return [Content.from_data(x.data, x._mime_type) if isinstance(x, Image) else Content.from_text(str(x))
+                for x in result]
+    return result
 
 
 def _options(effort: str) -> dict:
@@ -176,7 +202,8 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
     from agent_framework import SkillsProvider, create_harness_agent
 
     # Our own markdown skills (no scripts), so loading them needs no approval.
-    skills = SkillsProvider.from_paths([SKILLS / name], script_extensions=(), disable_load_skill_approval=True,
+    skills = SkillsProvider.from_paths([SKILLS / name, SKILLS / "shared"], script_extensions=(),
+                                       disable_load_skill_approval=True,
                                        disable_read_skill_resource_approval=True)
     return create_harness_agent(
         chat, name=name, description=description, agent_instructions=instructions,
@@ -227,16 +254,22 @@ async def _forget_tasks(agent, session) -> None:
                 state["tasks"] = []
 
 
-async def ask(question: str, agent=None, session=None, trace: list | None = None) -> dict:
+async def ask(question: str, agent=None, session=None, trace: list | None = None,
+              images: list[tuple[str, bytes]] | None = None) -> dict:
     """One question to the team: the answer, what each agent did (tools, specialist tasks, model calls)
     and the tokens and cost across all of them. Pass `session` to continue a conversation and `trace`
-    (a list) to watch progress while it runs."""
+    (a list) to watch progress while it runs; `images` (media type, bytes) go with the question."""
     agent = agent or team()
     session = session or agent.create_session()
     trace = [] if trace is None else trace
     token = _trace.set(trace)
     started = time.time()
     try:
+        if images:  # a screenshot, a photo of a spectrum, a datasheet page: Claude reads them with the question
+            from agent_framework import Content, Message
+
+            question = Message(role="user", contents=[Content.from_text(question), *(
+                Content.from_data(data, media_type) for media_type, data in images)])
         response = await agent.run(question, session=session)
     finally:
         _trace.reset(token)

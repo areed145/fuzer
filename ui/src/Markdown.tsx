@@ -1,7 +1,9 @@
 // A small Markdown renderer for assistant answers: headings, paragraphs, lists, tables, bold, inline
-// code. Builds React elements (never raw HTML), and turns Fuzer ids (fz-tag-0123456789ab) into links.
+// code. Builds React elements (never raw HTML), turns Fuzer ids (fz-tag-0123456789ab) into links and
+// chart markers ([[figure:f_...]]) into interactive charts.
 
 import type { ReactNode } from "react";
+import { FigureView } from "./Figure";
 import { entityHref } from "./lib";
 
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|fz-[a-z_]+-[0-9a-f]{12})/g;
@@ -21,8 +23,11 @@ function inline(text: string): ReactNode[] {
 
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 
+const FIGURE = /\[\[figure:(f_[0-9a-f]+)\]\]/g;
+
 export function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/\r/g, "").split("\n");
+  // Chart markers ([[figure:f_...]]) become charts on lines of their own.
+  const lines = text.replace(/\r/g, "").replace(FIGURE, "\n$&\n").split("\n");
   const out: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -31,8 +36,12 @@ export function Markdown({ text }: { text: string }) {
       i++;
       continue;
     }
+    const fig = line.trim().match(/^\[\[figure:(f_[0-9a-f]+)\]\]$/);
     const h = line.match(/^(#{1,4})\s+(.*)/);
-    if (h) {
+    if (fig) {
+      out.push(<FigureView key={i} id={fig[1]} />);
+      i++;
+    } else if (h) {
       const level = Math.min(4, h[1].length + 2);
       const Tag = `h${level}` as "h3" | "h4";
       out.push(<Tag key={i}>{inline(h[2])}</Tag>);
@@ -64,7 +73,7 @@ export function Markdown({ text }: { text: string }) {
       out.push(<List key={i}>{items.map((t, j) => <li key={j}>{inline(t)}</li>)}</List>);
     } else {
       const para: string[] = [];
-      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s)/.test(lines[i])) {
+      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[figure:)/.test(lines[i])) {
         para.push(lines[i++].trim());
       }
       if (para.length === 0) para.push(lines[i++].trim());

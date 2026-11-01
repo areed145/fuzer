@@ -381,6 +381,23 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   domain plus one across domains, on Okan). It scores the facts each answer must name, citations,
   absence of operating instructions, and routing to specialists, with cost and time per answer.
   Tests drive the whole team with a scripted fake SDK client (no network).
+- **Charts (#89).** Each chart is a tool (`plot_*`, `src/fuzer/plots/`): the server reads the data
+  (measurements, the time-series provider, operations queries), runs any fit (Arps decline after the
+  last step change, the gas lift curve with decline taken out and failed-valve tests left out, CML
+  loss rates, Weibull by median ranks, Crow-AMSAA, Pearson and lagged correlation) and stores a Plotly
+  figure in `assistant_figure`. The agent gets an id, a `[[figure:<id>]]` marker and a summary of a few
+  hundred tokens with the exact numbers, never the arrays; specialists pass markers up and the
+  orchestrator keeps the useful ones. Specs come only from server code, from allow-listed trace types,
+  and are checked again before storing (no HTML beyond plain formatting, no images, scripts or links;
+  20k points at most). The browser loads plotly.js (cartesian bundle, its own 1.4 MB chunk) only when
+  an answer has a chart and applies the page theme. `plot_custom` takes small inline data the agent
+  worked out, labelled as assistant-entered. `look_at_figure` renders a stored figure to PNG
+  (matplotlib, no browser) as an image in the tool result, only when the summary isn't enough; the eval
+  counts how often it's used. Users can attach up to four images to a question; values read off them
+  are reported as approximate. Not yet: pump curves (no OEM curve data), choke Cv (no choke
+  characteristics), vibration spectra (no condition-monitoring source), and process values that move
+  together in the synthetic historian, so correlation and XY charts on the demo show how the
+  generator shapes upsets rather than plant physics.
 
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k

@@ -260,10 +260,10 @@ def test_skills_are_valid():
     from agent_framework import SkillsProvider
 
     for name in agents.TOOLS:
-        provider = SkillsProvider.from_paths([agents.SKILLS / name], script_extensions=())
+        provider = SkillsProvider.from_paths([agents.SKILLS / name, agents.SKILLS / "shared"], script_extensions=())
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
-    assert found == ["answering", "constraint-management", "gas-lift", "production-efficiency", "production-engineering",
+    assert found == ["answering", "charts", "constraint-management", "gas-lift", "production-efficiency", "production-engineering",
                      "production-surveillance", "reliability", "troubleshooting", "turnarounds", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
@@ -326,4 +326,5 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
-    assert len(keys) == 10 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert len(keys) == 12 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness"}

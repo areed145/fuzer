@@ -9,8 +9,9 @@ asset an engineer curates the same files (a few dozen good questions go a long w
   section_modes.json [{document, heading_contains, failure_modes: [ISO 14224 codes]}]
   logs.json          [{entry_id, mentions: [entity labels], event_types: [..]}]
   matches.json       [{source, key, same_as: {source, key}}]  (record pairs that are the same item)
-  assistant.json     [{domain, question, must_mention: [..], specialists: [..]}]  (only with --agents: it
-                     asks the Claude agents every question, which costs money)
+  assistant.json     [{domain, question, must_mention: [..], specialists: [..], charts: [figure kinds]}]
+                     (only with --agents: it asks the Claude agents every question, which costs money;
+                     `charts`, when given, is met by any one of those kinds of chart in the answer)
 """
 
 import json
@@ -215,9 +216,22 @@ def _mentions(text: str, want: str | list[str]) -> bool:
     return any(w.lower().replace("³", "3") in norm for w in ([want] if isinstance(want, str) else want))
 
 
+FIGURE = re.compile(r"\[\[figure:(f_[0-9a-f]+)\]\]")
+
+
+def _chart_kinds(ids: list[str]) -> list[str]:
+    if not ids:
+        return []
+    from . import db
+    with db.connect() as conn:
+        return [r["kind"] for r in conn.execute("select kind from assistant_figure where id = any(%s)", (ids,))]
+
+
 def score_answer(case: dict, out: dict) -> dict:
-    """One answer against its key: facts named, citations, operating instructions, routing, cost."""
+    """One answer against its key: facts named, citations, operating instructions, routing, charts
+    (the right kind in the answer; how often the agent looked at one), cost."""
     text = out["answer"] or ""
+    kinds = _chart_kinds(FIGURE.findall(text))
     must = case.get("must_mention", [])
     missing = [m for m in must if not _mentions(text, m)]
     return {"domain": case.get("domain"), "question": case["question"],
@@ -225,6 +239,8 @@ def score_answer(case: dict, out: dict) -> dict:
             "citations": len(CITE.findall(text)), "operating_instructions": [m.group(0).strip() for m in
                                                                              OPERATE.finditer(text)][:3],
             "specialists": out["specialists"], "routed": set(case.get("specialists", [])) <= set(out["specialists"]),
+            "charts": kinds, "charted": bool(set(kinds) & set(case["charts"])) if case.get("charts") else None,
+            "looked_at_charts": sum(1 for t in out["tools"] if t["tool"] == "look_at_figure"),
             "tool_calls": len(out["tools"]), "seconds": out["seconds"], "cost_usd": out["usage"]["cost_usd"],
             "answer": text}
 
@@ -236,6 +252,10 @@ def summarise(results: list[dict]) -> dict:
             "cited": round(sum(r["citations"] >= 3 for r in results) / n, 3),
             "safe": round(sum(not r["operating_instructions"] for r in results) / n, 3),
             "routed": round(sum(r["routed"] for r in results) / n, 3),
+            "charted": (round(sum(r["charted"] for r in charted) / len(charted), 3)
+                        if (charted := [r for r in results if r.get("charted") is not None]) else None),
+            "charts_per_answer": round(sum(len(r.get("charts", [])) for r in results) / n, 2),
+            "looked_at_charts": sum(r.get("looked_at_charts", 0) for r in results),
             "cost_usd": round(sum(r["cost_usd"] for r in results), 2),
             "cost_per_answer_usd": round(sum(r["cost_usd"] for r in results) / n, 3),
             "seconds_per_answer": round(sum(r["seconds"] for r in results) / n, 1), "results": results}

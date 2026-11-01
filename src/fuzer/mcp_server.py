@@ -45,6 +45,10 @@ as_of=YYYY-MM-DD to see what was true on a day.
 Measurements that aren't in PI (well tests, lab results at sample points, wall thickness at CMLs) are
 landed and kept: `measurements(ref)` returns them per quantity and location next to process values.
 
+Charts: the plot_* tools build interactive charts from Fuzer data and return a figure id, a
+`[[figure:<id>]]` marker and a summary of what the chart shows (never the plotted arrays); the chart
+opens at the returned link. `look_at_figure` shows one as an image when the summary isn't enough.
+
 Any tool taking `ref` accepts a Fuzer ID (fz-...), a tag in any style (20-PT-1001A, 20PT1001A), a well
 name, a PI point name or a source record key. Every value carries the source it came from; cite sources
 when you answer. If a ref is ambiguous the tool returns candidates; pick one or ask the user.
@@ -590,6 +594,200 @@ def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 
         rows = queries.reviews(conn, "open", kind, min(limit, 200))
     return _plain([{"id": r["id"], "kind": r["kind"], "entity": r["label"], **r["payload"]} for r in rows])
 
+
+
+# --- charts (plots/): built here from Fuzer data; the agent gets an id, a marker and a summary -------
+
+# Read-only like every other tool: a chart is kept (assistant_figure) so the answer can show it, but no
+# plant or register data changes, and clients shouldn't ask for approval per chart.
+CHART = READ_ONLY
+
+
+def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve refs, build and store a chart; the result is what the agent sees (never the arrays)."""
+    from . import plots
+    with db.connect() as conn:
+        args = dict(params)
+        for k, ref in (refs or {}).items():
+            if ref is None:
+                args[k] = None
+                continue
+            ids = []
+            for r in ref if isinstance(ref, list) else [ref]:
+                fid, err = _resolve(conn, r)
+                if err:
+                    return err
+                ids.append(fid)
+            args[k] = ids if isinstance(ref, list) else ids[0]
+        try:
+            fig = build(conn, **args)
+        except plots.ChartError as e:
+            return {"error": str(e)}
+        return _plain(plots.store(conn, fig, _plain({"chart": fig.kind, **params, **(refs or {})})))
+
+
+@server.tool(annotations=CHART)
+def plot_trend(refs: list[str], at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
+    """Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded.
+    refs: tags, wells or PI points (a tag gives its instruments' points; up to 6 series). at: the
+    centre (default: the first ref's latest incident)."""
+    from .plots import general
+    return _chart(general.trend, {"at": at, "hours_before": min(hours_before, 720), "hours_after": min(hours_after, 720)},
+                  {"ids": refs})
+
+
+@server.tool(annotations=CHART)
+def plot_measurements(ref: str, quantity: str | None = None, since: str | None = None,
+                      until: str | None = None) -> dict[str, Any]:
+    """Chart landed measurements over time on a well, tag, equipment or pipeline (well tests, lab
+    results, wall thickness): a panel per quantity, a line per location. Hollow points are below the
+    detection limit."""
+    from .plots import general
+    return _chart(general.measurements, {"quantity": quantity, "since": since, "until": until}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_xy(x: str, y: str, at: str | None = None, hours_before: int = 72, hours_after: int = 24) -> dict[str, Any]:
+    """Chart one PI point against another at the same times (operating envelope), coloured by time, with
+    a straight-line fit and r. x and y are PI points (timeseries)."""
+    from .plots import general
+    return _chart(general.xy, {"at": at, "hours_before": min(hours_before, 720), "hours_after": min(hours_after, 720)},
+                  {"x_id": x, "y_id": y})
+
+
+@server.tool(annotations=CHART)
+def plot_bar(dataset: Literal["deferment_by_reason", "deferment_by_well", "deferment_by_tag", "deferment_by_class",
+                              "failures_by_tag", "oil_change_by_well"],
+             since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """Chart a ranking as bars: deferred oil by reason / well / tag / class (Pareto with the cumulative
+    share), failures by unit, or oil rate change by well. Dates YYYY-MM-DD."""
+    from .plots import general
+    return _chart(general.bar, {"dataset": dataset, "since": since, "until": until, "limit": min(limit, 40)})
+
+
+@server.tool(annotations=CHART)
+def plot_distribution(ref: str, split_at: str, hours_before: int = 168, hours_after: int = 168) -> dict[str, Any]:
+    """Chart one PI point before and after a moment (a repair, a setpoint change) as two boxes, with
+    medians and spread in the summary."""
+    from .plots import general
+    return _chart(general.distribution, {"split_at": split_at, "hours_before": min(hours_before, 2160),
+                                         "hours_after": min(hours_after, 2160)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_custom(title: str, traces: list[dict[str, Any]], x_title: str | None = None,
+                y_title: str | None = None) -> dict[str, Any]:
+    """Chart numbers you worked out yourself, when no other chart covers them: up to 8 traces
+    [{name, x, y, kind: line | markers | bar}], 500 points in all. Labelled as assistant-entered data;
+    prefer the other chart tools, which read the data themselves."""
+    from .plots import general
+    return _chart(lambda conn, **kw: general.custom(**kw), {"title": title, "traces": traces, "x_title": x_title,
+                                                           "y_title": y_title})
+
+
+@server.tool(annotations=CHART)
+def plot_incident(ref: str) -> dict[str, Any]:
+    """Chart an incident on one page (an incident, or a unit's latest): the process values that moved
+    most in the lead-in, stacked, with its log events, trips, notifications and downtime as markers."""
+    from .plots import troubleshooting
+    return _chart(troubleshooting.incident, {}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_correlation(ref: str, at: str | None = None, hours_before: int = 72, hours_after: int = 12,
+                     upstream: bool = True, target: str | None = None) -> dict[str, Any]:
+    """Chart how the process values on a unit (and on what feeds it) move together, as a correlation
+    heatmap. target: a PI point (e.g. the one that tripped); the summary then gives, for each other
+    point, the lag at which it best matches the target: what moved first."""
+    from .plots import troubleshooting
+    return _chart(troubleshooting.correlation, {"at": at, "hours_before": min(hours_before, 720),
+                                                "hours_after": min(hours_after, 720), "upstream": upstream},
+                  {"fid": ref, "target": target})
+
+
+@server.tool(annotations=CHART)
+def plot_vibration(ref: str, at: str | None = None, days: int = 30) -> dict[str, Any]:
+    """Chart a machine's overall vibration against ISO 20816 zones A-D, with temperature on a second
+    axis and incident lead-ins shaded. ref: a pump or compressor tag."""
+    from .plots import troubleshooting
+    return _chart(troubleshooting.vibration, {"at": at, "days": min(days, 120)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_decline(well: str, model: Literal["auto", "exponential", "hyperbolic", "harmonic"] = "auto",
+                 forecast_months: int = 12) -> dict[str, Any]:
+    """Chart a well's oil rate decline from its tests (log scale) with an Arps fit after the last step
+    change (valve failure, breakthrough, repair), and a forecast. The summary has qi, b, the decline
+    per year, step changes and the forecast oil."""
+    from .plots import production
+    return _chart(production.decline, {"model": model, "forecast_months": min(forecast_months, 60)}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_water_diagnostic(well: str) -> dict[str, Any]:
+    """Chart a well's water diagnostic: water cut against cumulative oil, and WOR and its derivative on
+    log scales (Chan). Rising derivative = channelling; falling then rising = coning; a step = breakthrough."""
+    from .plots import production
+    return _chart(production.water_diagnostic, {}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
+    """Chart a gas lifted well's performance curve: oil against lift gas from its tests (decline taken
+    out), the current point, the marginal response there, and the optimum where one more kSm3/d of gas
+    gains `breakeven` Sm3/d of oil. Tests far below the curve (valve failed open) are shown apart."""
+    from .plots import production
+    return _chart(production.gas_lift_curve, {"breakeven": breakeven}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
+    """Chart every gas lifted well's marginal response (oil per extra lift gas) grouped by lift gas
+    header, with suggested gas moves. ref: a header, jacket or manifold to narrow it; default all."""
+    from .plots import production
+    return _chart(production.gas_lift_allocation, {}, {"ref": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_wall_thickness(ref: str | None = None, kind: Literal["pipeline", "tag"] | None = None,
+                        min_required_mm: float | None = None) -> dict[str, Any]:
+    """Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss
+    rates (and retirement dates if min_required_mm is given); without ref, the items losing wall
+    fastest across the asset (kind narrows to pipelines or tags)."""
+    from .plots import maintenance
+    return _chart(maintenance.wall_thickness, {"kind": kind, "min_required_mm": min_required_mm}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_reliability(ref: str, method: Literal["weibull", "crow_amsaa"] = "weibull") -> dict[str, Any]:
+    """Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of
+    times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up)."""
+    from .plots import maintenance
+    return _chart(maintenance.reliability, {"method": method}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_bad_actors(since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """Chart bad actors as bubbles: failures against oil lost to the downtime they caused, size =
+    downtime events, colour = ISO 14224 class. Default window: 2 years."""
+    from .plots import maintenance
+    return _chart(maintenance.bad_actors, {"since": since, "until": until})
+
+
+@server.tool(annotations=READ_ONLY)
+def look_at_figure(figure: str) -> list[Any]:
+    """See a chart you made, as an image. Only when its summary leaves you unsure how it reads (a fit
+    that may miss the late points, an outlier that may set the scale, a chart that may be empty) or the
+    user asks how it looks; not for every chart. If it looks wrong, change the options or say so."""
+    from mcp.server.mcpserver.utilities.types import Image
+
+    from . import plots
+    with db.connect() as conn:
+        row = plots.get(conn, figure.removeprefix("[[figure:").removesuffix("]]"))
+    if row is None:
+        return [json.dumps({"error": f"no figure {figure!r}"})]
+    return [json.dumps(_plain({"figure": row["id"], "title": row["title"], "summary": row["summary"]})),
+            Image(data=plots.png(row["spec"]), format="png")]
 
 def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
     db.database_url()  # start embedded Postgres up front if it's in use
