@@ -43,6 +43,17 @@ def short(s: dict, n: int = 28) -> str:
     return f"{title} ({s['uom'] or ''})"
 
 
+def synthetic_note(provider: str, series: list[dict]) -> dict:
+    """What the reader should know about synthetic values: from the fake plant's process model (they move
+    together as the plant would), or drawn per point (only the timing of upsets means anything)."""
+    if provider != "synthetic":
+        return {}
+    if series and all(s.get("modelled") for s in series):
+        return {"note": "synthetic values from the fake plant's process model, not plant data"}
+    return {"note": "synthetic values, not plant data; points outside the process model are drawn one by one, "
+                    "so only the timing of upsets in them means anything"}
+
+
 def _summ(s: dict) -> dict:
     return {"point": s["point"], "description": s["description"], "uom": s["uom"], "min": s["min"],
             "max": s["max"], "mean": s["mean"], "last": s["last"], "lead_in": s.get("lead_in")}
@@ -66,8 +77,7 @@ def trend(conn, ids: list[str], at: str | None = None, hours_before: int = 48, h
     return Figure("trend", lay["title"]["text"], data, lay,
                   {"provider": out["provider"], "window": [out["start"], out["end"]], "step_minutes": out["step_minutes"],
                    "incidents_in_window": upsets, "series": [_summ(s) for s in series],
-                   **({"note": "synthetic values, not plant data"} if out["provider"] == "synthetic" else {})},
-                  [s["id"] for s in series])
+                   **synthetic_note(out["provider"], series)}, [s["id"] for s in series])
 
 
 def measurements(conn, fid: str, quantity: str | None = None, since: str | None = None,
@@ -121,7 +131,8 @@ def xy(conn, x_id: str, y_id: str, at: str | None = None, hours_before: int = 72
                         "colorbar": {"title": {"text": "time"}, "tickvals": [0, len(pts) - 1],
                                      "ticktext": [pts[0][0][:16], pts[-1][0][:16]]}},
              "hovertemplate": "%{x:.3g}, %{y:.3g}<br>%{text}<extra></extra>"}]
-    summary = {"n": len(pts), "x": _summ(sx), "y": _summ(sy), "provider": out["provider"]}
+    summary = {"n": len(pts), "x": _summ(sx), "y": _summ(sy), "provider": out["provider"],
+               **synthetic_note(out["provider"], [sx, sy])}
     if fit:
         mx, my = sum(xs) / len(xs), sum(yv) / len(yv)
         sxx = sum((x - mx) ** 2 for x in xs)

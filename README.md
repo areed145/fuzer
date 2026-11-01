@@ -161,6 +161,13 @@ tree from PI Web API and the series catalog from ADX, and trends and the
 troubleshooting brief read values from them. The same settings point at a real
 server.
 
+On Okan, the fake values come from a small process model of the plant
+(`process_model.json`, written with the demo data; `src/fuzer/process_model.py`):
+compressor trains, lift gas headers, wells with chokes and gas lift, separators,
+pumps and meters, linked by simple relations with time lags. Values move
+together the way the plant would: vibration rises before temperature, a train
+trip drops the lift gas header, and the gas lifted wells and oil export follow.
+
 ### Measuring quality
 
 ```sh

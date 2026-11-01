@@ -2,7 +2,7 @@
 moved first), and vibration against ISO 20816 zones."""
 
 from . import ChartError, Figure, axis, layout, rnd, stacked, thin
-from .general import _shade_upsets, _summ, _window, short
+from .general import _shade_upsets, _summ, _window, short, synthetic_note
 
 
 def incident(conn, fid: str, hours_before: int = 36, hours_after: int = 12, max_series: int = 5) -> Figure:
@@ -107,8 +107,7 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
             lags.append({"point": names[k], "r": rnd(best[1], 2), "leads_by_minutes": best[0] * out["step_minutes"]})
         lags.sort(key=lambda r: -abs(r["r"] or 0))
         summary["against_target"] = {"target": names[tgt], "best_lag": lags[:8]}
-    if out["provider"] == "synthetic":
-        summary["note"] = "synthetic values: correlations show how the generator shapes upsets, not plant physics"
+    summary |= synthetic_note(out["provider"], series)
     return Figure("correlation", lay["title"]["text"], data, lay, summary, [s["id"] for s in series])
 
 
@@ -159,5 +158,4 @@ def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
         "machine_size": "large (>300 kW)" if big else "medium (15-300 kW)", "zone_limits_mm_s": [ab, bc, cd],
         "latest": v["last"], "latest_zone": zone(v["last"]), "peak": v["max"], "peak_zone": zone(v["max"]),
         "lead_in": v.get("lead_in"), "incidents_in_window": upsets, "provider": out["provider"],
-        **({"note": "synthetic values, not plant data"} if out["provider"] == "synthetic" else {})},
-        [fid, v["id"]])
+        **synthetic_note(out["provider"], series)}, [fid, v["id"]])

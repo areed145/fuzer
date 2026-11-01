@@ -26,6 +26,8 @@ dependencies = [
     "pgserver>=0.1.4",
     # Delta Lake tables in the lake connector.
     "deltalake>=1.6.6,<1.7",
+    # Coupled synthetic process values (process_model.py).
+    "numpy>=2.0",
     # Chart images for the assistant to look at (look_at_figure).
     "matplotlib>=3.10,<4",
 ]

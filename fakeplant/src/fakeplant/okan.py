@@ -28,7 +28,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import docs, measurements, pid
+from . import docs, measurements, pid, process
 from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
 
 FIELD = "OKAN"
@@ -523,7 +523,7 @@ def generate(out, seed: int = 11) -> dict:
                           "task": f"Vibration monitoring route, {e['description'].lower()}", "interval_days": "30",
                           "last_done": done, "next_due": _add_days(done, 30), "needs_shutdown": ""})
 
-    tests = []
+    tests, wparams = [], {}
     trng = random.Random(seed + 8)
     for w in wells:
         if w["type"] != "oil":
@@ -533,6 +533,7 @@ def generate(out, seed: int = 11) -> dict:
         # Gas lift performance curve: rate climbs with injection and flattens. A small `knee` means the
         # well saturates early (extra lift gas buys little oil); a large one means it still responds.
         knee = trng.uniform(2.5, 14)
+        wparams[w["name"]] = {"rate": rate, "knee": knee}
         for m in range(24):
             day = f"{2024 + m // 12}-{m % 12 + 1:02d}-{trng.randint(3, 26):02d}"
             q = rate * (1 - decline) ** m
@@ -767,6 +768,9 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
+    # How the fake historian makes process values move together (fuzer.process_model); not a source.
+    (out / "process_model.json").write_text(json.dumps(
+        process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs)))
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
             "gas_producers": len(gas_wells), "equipment": len(equipment), "flocs": len(floc), "pi_points": len(points),

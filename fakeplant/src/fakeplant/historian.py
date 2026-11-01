@@ -87,7 +87,7 @@ class Plant:
         self.point_ids = {p: i for i, p in enumerate(self.points, 1)}
         self.series_ids = {p: str(uuid.uuid5(uuid.NAMESPACE_URL, f"adx:{p}")) for p in self.points}
         self.by_series = {s: p for p, s in self.series_ids.items()}
-        self._signal = SyntheticProvider()
+        self._signal = SyntheticProvider(data_dir)
 
     def _upsets(self, data_dir: Path) -> dict[tuple[str, str], list[datetime]]:
         out = defaultdict(set)
