@@ -326,6 +326,24 @@ loads them; an unchanged server is still skipped by content hash.
 over a fake plant's points, with upsets taken from the plant's own downtime and
 log records, for development and tests.
 
+Coupled synthetic values (#91): a fake plant can ship a process model
+(`process_model.json`). It lists its units (compressor trains, compressors,
+coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves), which
+PI point measures which variable, and its stories as timed events taken from the
+same downtime and log records. `process_model.py` evaluates it with numpy on a
+fixed 5-minute grid in absolute time: inputs are stateless, lags are truncated
+convolutions with 12 h of warm-up, and values are interpolated to the requested
+times. A timestamp therefore reads the same value from any window or step, and
+the fake PI / ADX serve the same numbers. Relations: compressor discharge
+pressure and temperature by stage, heat from a failing bearing after a lag, a
+trip taking a train's capacity out of the lift gas header, header pressure
+setting wells' injection rate and casing pressure, oil from lift gas by each
+well's performance curve, wellhead pressure through an equal-percentage choke,
+pump head and power from a quadratic curve, a hunting level transmitter, and
+liquid carryover between vessels. On Okan, 998 points are modelled; the rest,
+and the offshore asset, keep the per-point signals. A month of 12 points reads
+in about 20 ms.
+
 ### 18b2. Gas lift network
 Energy Components network edges carry a `service`. Lift gas edges become `lift_gas_to` links, separate
 from production `flows_to`, so a production trace never wanders into the lift gas system. The mapping

@@ -3,9 +3,10 @@
 Fuzer never copies time series: it asks a provider for values when needed. Choose with
 FUZER_TIMESERIES:
 
-- `synthetic` (default): deterministic, plausible signals from each PI point's units, with the
-  asset's incidents showing up in them (vibration and temperature climb before a trip, pressure
-  dips). Needs nothing running.
+- `synthetic` (default): deterministic, plausible signals. A fake plant with a process model
+  (process_model.json; process_model.py) gets values that move together the way the plant does
+  (vibration before bearing temperature, a compressor trip before the lift gas header falls); other
+  points follow their units, with the asset's incidents showing up in them. Needs nothing running.
 - `pi`: interpolated values from PI Web API, by point name (pi_web_api.py).
 - `adx`: values from Azure Data Explorer through the pointer the series catalog put on each
   timeseries entity (adx.py).
@@ -55,12 +56,21 @@ class Provider(Protocol):
 
 
 class SyntheticProvider:
+    """Points a fake plant's process model covers (process_model.json in its data folder) come from
+    that model, so they move together; the rest are drawn per point, shaped around upsets."""
+
     name = "synthetic"
+
+    def __init__(self, data_dir=None):
+        from . import process_model
+        self.model = process_model.load(data_dir or os.environ.get("FUZER_DATA_DIR"))
 
     def series(self, s, start, end, step_minutes):
         return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
 
     def values(self, point, uom, start, end, step_minutes, upsets, description=""):
+        if self.model and self.model.covers(point):
+            return self.model.values(point, start, end, step_minutes)
         seed = int(hashlib.sha1(point.encode()).hexdigest()[:8], 16)
         base = base_level(uom, description) * (0.85 + (seed % 30) / 100)
         out, t = [], start
@@ -153,8 +163,9 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
             errors.append(f"{p['point']}: {e}")
             continue
         if vals:
+            modelled = bool(getattr(src, "model", None) and src.model.covers(p["point"]))
             series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
-                           **summary(vals, centre)})
+                           **summary(vals, centre), **({"modelled": True} if modelled else {})})
     out = {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
            "end": end.isoformat(timespec="minutes"), "step_minutes": step_minutes, "provider": src.name,
            "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
