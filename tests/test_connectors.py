@@ -136,7 +136,7 @@ def test_watermark_reads_only_new_log_rows(exports, conn):
 
 
 def test_delta_table(exports, conn):
-    from deltalake import write_deltalake
+    write_deltalake = pytest.importorskip("deltalake", reason="Delta tables need the 'delta' extra").write_deltalake
 
     lake = Path(tempfile.mkdtemp(prefix="fzdelta"))
     t = pq.read_table(as_lake(exports) / "sap_materials")

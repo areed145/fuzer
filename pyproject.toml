@@ -19,6 +19,9 @@ dependencies = [
     # The operations assistant (fuzer ask / chat, the Ask page): Microsoft Agent Framework on Claude.
     "agent-framework-core==1.23.0",
     "agent-framework-anthropic==1.0.0b261022",
+    # Scheduled loads, rebuilds and Claude reading (fuzer jobs).
+    "dagster==1.13.26",
+    "dagster-webserver==1.13.26",
 ]
 
 [project.optional-dependencies]
@@ -26,10 +29,6 @@ dependencies = [
 local = ["pgserver>=0.1.4"]
 # Delta Lake tables in the lake connector (plain Parquet needs only pyarrow).
 delta = ["deltalake>=1.6.6,<1.7"]
-jobs = [
-    "dagster==1.13.26",
-    "dagster-webserver==1.13.26",
-]
 
 [project.scripts]
 fuzer = "fuzer.cli:main"

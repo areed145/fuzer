@@ -695,6 +695,8 @@ dependencies = [
     { name = "agent-framework-anthropic" },
     { name = "agent-framework-core" },
     { name = "anthropic" },
+    { name = "dagster" },
+    { name = "dagster-webserver" },
     { name = "fastapi" },
     { name = "mcp" },
     { name = "pillow" },
@@ -710,10 +712,6 @@ dependencies = [
 [package.optional-dependencies]
 delta = [
     { name = "deltalake" },
-]
-jobs = [
-    { name = "dagster" },
-    { name = "dagster-webserver" },
 ]
 local = [
     { name = "pgserver" },
@@ -732,8 +730,8 @@ requires-dist = [
     { name = "agent-framework-anthropic", specifier = "==1.0.0b261022" },
     { name = "agent-framework-core", specifier = "==1.23.0" },
     { name = "anthropic", specifier = ">=2.3" },
-    { name = "dagster", marker = "extra == 'jobs'", specifier = "==1.13.26" },
-    { name = "dagster-webserver", marker = "extra == 'jobs'", specifier = "==1.13.26" },
+    { name = "dagster", specifier = "==1.13.26" },
+    { name = "dagster-webserver", specifier = "==1.13.26" },
     { name = "deltalake", marker = "extra == 'delta'", specifier = ">=1.6.6,<1.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "mcp", specifier = ">=2.3" },
@@ -747,7 +745,7 @@ requires-dist = [
     { name = "rapidfuzz", specifier = ">=3.9" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["local", "delta", "jobs"]
+provides-extras = ["local", "delta"]
 
 [package.metadata.requires-dev]
 dev = [
