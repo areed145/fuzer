@@ -312,8 +312,7 @@ pipeline to the facilities it reaches. They're scored by distance and checked by
 ### Scheduled jobs (Dagster)
 
 ```sh
-uv sync --extra jobs
-export FUZER_DATA_DIR=fakeplant/data/offshore    # the folder the exports land in
+export FUZER_DATA_DIR=fakeplant/data/okan FUZER_PACK=okan   # the folder the exports land in, and its pack
 uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C to stop)
 ```
 

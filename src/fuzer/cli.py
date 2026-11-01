@@ -53,7 +53,7 @@ def main(argv=None):
     m.add_argument("--host", default="127.0.0.1")
     m.add_argument("--port", type=int, default=8001)
 
-    j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors (needs the 'jobs' extra)")
+    j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors")
     j.add_argument("--port", type=int, default=3000)
 
     for name, text in (("ask", "ask the operations assistant one question (Claude agents)"),
