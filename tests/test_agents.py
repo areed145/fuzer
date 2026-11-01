@@ -201,6 +201,30 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
     assert {"turnaround_scope", "work_order_backlog", "load_skill"} <= tools and "production_summary" not in tools
 
 
+class ThinkingClaude(FakeClaude):
+    """FakeClaude that thinks before each reply, as Claude does on these models."""
+
+    async def create(self, **kw):
+        reply = (await super().create(**kw)).model_dump()
+        thinking = {"type": "thinking", "thinking": "...", "signature": f"sig{len(self.requests)}"}
+        return _message([thinking, *reply["content"]], reply["stop_reason"], self.model)
+
+
+def test_follow_up_keeps_the_history_as_it_was(conn, okan_pack):
+    # Claude rejects a thinking block once the conversation before it changes, so a follow-up must send
+    # the first turn exactly as before (no task status put ahead of it).
+    agents = pytest.importorskip("fuzer.agents")
+    fake = ThinkingClaude()
+    team = agents.team(agents.client(anthropic_client=fake))
+    session = team.create_session()
+    asyncio.run(agents.ask("What's in the next turnaround?", team, session))
+    before = fake.requests[-1]["messages"]  # the orchestrator's last call
+    asyncio.run(agents.ask("And the one after?", team, session))
+    follow_up = fake.requests[-1]["messages"]
+    assert follow_up[:len(before)] == before
+    assert follow_up[-1]["content"][0]["text"] == "And the one after?"
+
+
 def test_specialists_on_their_own_model_and_cost_per_model(conn, okan_pack, monkeypatch):
     agents = pytest.importorskip("fuzer.agents")
     lead, worker = FakeClaude("claude-opus-5-5"), FakeClaude("claude-sonnet-5-5")
