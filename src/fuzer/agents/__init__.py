@@ -214,6 +214,19 @@ def final_text(response) -> str:
     return "\n\n".join(m.text for m in tail if str(m.role) == "assistant" and m.text).strip() or response.text
 
 
+async def _forget_tasks(agent, session) -> None:
+    """Drop the specialists' tasks once a question is answered (their reports are already in the history).
+    MAF otherwise lists them in a status message it puts ahead of the history on the next turn, and Claude
+    rejects the history's thinking blocks once anything comes before them."""
+    from agent_framework import BackgroundAgentsProvider
+
+    for p in agent.context_providers:
+        if isinstance(p, BackgroundAgentsProvider):
+            await p.release_session(session)
+            if state := session.state.get(p.source_id):
+                state["tasks"] = []
+
+
 async def ask(question: str, agent=None, session=None, trace: list | None = None) -> dict:
     """One question to the team: the answer, what each agent did (tools, specialist tasks, model calls)
     and the tokens and cost across all of them. Pass `session` to continue a conversation and `trace`
@@ -227,6 +240,7 @@ async def ask(question: str, agent=None, session=None, trace: list | None = None
         response = await agent.run(question, session=session)
     finally:
         _trace.reset(token)
+        await _forget_tasks(agent, session)
     return {"answer": final_text(response), "seconds": round(time.time() - started, 1), "usage": usage(trace),
             "specialists": sorted({t["agent"] for t in trace if t["kind"] == "tool" and t["agent"] != "orchestrator"}),
             "tools": [{k: t[k] for k in ("agent", "tool", "args")} for t in trace if t["kind"] == "tool"],
