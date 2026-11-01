@@ -22,6 +22,10 @@ engineer sees an interactive chart there (zoom, hover, click a point to open its
 - Wells: `plot_decline` (Arps fit after the last step change, forecast), `plot_water_diagnostic`
   (WOR and derivative: channelling, coning, breakthrough), `plot_gas_lift_curve` (where the well sits
   on its curve, marginal response, optimum), `plot_gas_lift_allocation` (moving gas between wells).
+- Equipment against its OEM curve: `plot_pump_curve` (operating points on the head curve; head below
+  the curve at the same flow = wear rings / impeller; time away from the BEP), `plot_choke` (effective Cv
+  against the choke's characteristic; above = eroded trim, below = restriction). When the model has no
+  curve yet, the error names the datasheet waiting to be read or reviewed: say so.
 - Equipment and inspection: `plot_wall_thickness` (one item's CMLs, or without a ref the fastest wall
   loss across the asset), `plot_reliability` (Weibull of times between failures, or Crow-AMSAA),
   `plot_bad_actors`, `plot_bar` (deferment Pareto, failures, oil change by well).

@@ -399,3 +399,8 @@ h2 select { font: inherit; font-size: 15px; }
 .question-images { display: flex; gap: 6px; margin-top: 6px; }
 .question-images img { height: 80px; border-radius: var(--radius); border: 1px solid var(--line); }
 label.button { cursor: pointer; }
+
+/* Datasheet curves in the review queue */
+.mini-curves { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.mini-curve { margin: 0; width: 260px; }
+.mini-curve svg { width: 260px; height: 120px; border: 1px solid var(--line); border-radius: var(--radius); }

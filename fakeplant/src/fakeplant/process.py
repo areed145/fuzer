@@ -3,8 +3,11 @@ values, and the stories as timed events, written to process_model.json for fuzer
 evaluate. Stories are taken from the same downtime and log records the generator wrote, so the process
 values agree with what the operators logged."""
 
+import math
 import re
 from datetime import datetime, timedelta
+
+from . import curves
 
 VARS = {"Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bearing_temperature",
         "Vibration": "vibration", "Discharge Temperature": "discharge_temperature", "Speed": "speed",
@@ -29,8 +32,22 @@ def _days(t: str, d: float) -> str:
     return _hours(t, 24 * d)
 
 
+SG = 0.9  # produced liquid through the choke
+P_RES, C_GAS = 120.0, 40 / 600  # gas producers: reservoir pressure (barg) and drawdown per kSm3/d
+
+
+def choke_opening(c: dict, cv: float) -> float:
+    """The opening at which a choke passes `cv`."""
+    if c["trim"] == "linear":
+        o = 100 * cv / c["cv_max"]
+    else:
+        o = 100 * (1 + math.log(max(cv, 1e-6) / c["cv_max"]) / math.log(30))
+    return round(min(85.0, max(12.0, o)), 1)
+
+
 def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list[dict], wparams: dict,
-               hub: dict, downtime: list[dict], logs: list[dict]) -> dict:
+               hub: dict, downtime: list[dict], logs: list[dict], oem: dict | None = None,
+               chokes: list[dict] | None = None, tests: list[dict] | None = None) -> dict:
     units: dict[str, dict] = {}
     pts: dict[str, list[str]] = {}
     events: list[dict] = []
@@ -62,8 +79,10 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
             p, lvl = VESSELS.get(tag, (13.0, 50))
             units[tag] = {"type": "vessel", "pressure": p, "level": lvl}
         elif func == "P":
+            c = (oem or {}).get(next(e["model"] for e in equipment if e["floc"].endswith(f"-{area}-P{loop}{s}")), {})
             units[tag] = {"type": "pump", "group": "oil_export", "meter": "meter:oil_export", "duty": s != "C",
-                          "q_bep": 190.0, "h_bep": 430.0, "h0": 520.0, "p_suction": 3.0, "vibration": 1.8}
+                          "q_bep": c.get("q_bep", 190.0), "h_bep": c.get("h_bep", 430.0), "h0": c.get("h0", 520.0),
+                          "eff_bep": c.get("eff_bep", 0.78), "p_suction": 3.0, "vibration": 1.8}
 
     # ---- field: headers, meters, valves ----
     gas_share = {"OK-NWP-G1": 0.08, "OK-NWP-G2": 0.23, "OK-NWP-G3": 0.08}
@@ -87,15 +106,31 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
              "NWP EGP Export ESDV": ("valve:50-XV-3100", "position")}
 
     # ---- wells and jackets ----
+    choke_of = {c["well"]: c for c in (chokes or []) if not c.get("valid_to")}
+    liquid: dict[str, list] = {}
+    for t in tests or []:  # each well's liquid rate between tests follows its tests
+        cut = min(float(t["water_cut_pct"]), 98.0)
+        liquid.setdefault(t["well"], []).append([f"{t['test_date']}T12:00", round(float(t["oil_sm3d"]) / (1 - cut / 100), 2)])
     for w in wells:
         jacket = f"jacket:{w['area']}" if w["site"].startswith("J") else None
         p = wparams.get(w["name"], {})
         q = p.get("rate", 60.0) * 1.6  # liquid through the choke
-        choke0 = 50.0
+        ch = (oem or {}).get(choke_of[w["name"]]["model"]) if w["name"] in choke_of else None
+        ch = ch or {"cv_max": 12.0, "trim": "equal_percentage"}
+        if w["type"] == "gas":
+            choke0 = 45.0
+            cv0 = curves.cv_at(ch, choke0) if "series" in ch else ch["cv_max"] * 0.45
+            k = 600.0 / (cv0 * (P_RES - C_GAS * 600 + 1.013))
+        else:
+            dp = 8.0  # bar across the choke at the normal rate
+            choke0 = choke_opening(ch, q / 24 * 4.403 * math.sqrt(SG / (dp * 14.5038)))
+            k = None
         units[w["name"]] = {"type": "well", "kind": w["type"], "lift": w["lift"], "jacket": jacket,
                             "header": HEADER[hub.get(w["area"], "50")] if w["site"].startswith("J") else "header:20",
                             "q_ref": q, "knee": p.get("knee", 8.0), "glir0": 12.5, "choke0": choke0,
-                            "cvmax": round(q / (2.8 * 30 ** (choke0 / 100 - 1)), 2), "qgas0": 600.0}
+                            "choke": {"cv_max": ch["cv_max"], "trim": ch["trim"]}, "sg": SG, "qgas0": 600.0,
+                            "p_res": P_RES, "c_gas": C_GAS, **({"k_gas": round(k, 5)} if k else {}),
+                            **({"liquid_path": sorted(liquid[w["name"]])} if w["name"] in liquid else {})}
         if jacket:
             j = units.setdefault(jacket, {"type": "jacket", "wells": [], "gl_wells": []})
             j["wells"].append(w["name"])
@@ -124,6 +159,8 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
             continue
         m = TAG.search(name)
         item = tags.get((m.group(1), m.group(3), m.group(4))) if m else None
+        if m and not item and desc.endswith("Suction Pressure"):  # a pump's suction transmitter: next loop up
+            item = tags.get((m.group(1), str(int(m.group(3)) - 10), m.group(4)))
         var = next((v for k, v in VARS.items() if desc.endswith(k)), None)
         if item and var and item[0] in units:
             pts[name] = [item[0], var]
@@ -198,4 +235,21 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                        {"unit": "10-P-1001C", "kind": "covering", "start": t, "end": _hours(t, 8)}]
     events += [{"unit": "10-P-1001B", "kind": "stopped", "start": "2025-05-20T11:00", "end": "2025-05-23T12:00"},
                {"unit": "10-P-1001C", "kind": "covering", "start": "2025-05-20T11:05", "end": "2025-05-23T12:00"}]
+
+    # Oil export pump A: wear rings open up through 2025, head falls at the same flow; new rings on 18 Sep.
+    events.append({"unit": "10-P-1001A", "kind": "head_loss", "points": [
+        ["2025-01-01T00:00", 0], ["2025-09-10T00:00", 0.08], ["2025-09-19T00:00", 0.085], ["2025-09-20T12:00", 0]]})
+    # OK-J12-02's choke erodes (the operators trim it back to hold the rate) until replaced on 15 Oct;
+    # OK-NWP-G3's choke plugs with scale over August until the bean change on 12 Sep.
+    events.append({"unit": "OK-J12-02", "kind": "choke_wear", "points": [
+        ["2025-01-15T00:00", 0], ["2025-09-28T00:00", 0.6], ["2025-10-15T06:00", 0.62], ["2025-10-15T08:00", 0]]})
+    j = units.get("OK-J12-02")
+    if j:
+        for month in range(2, 11):
+            wear = 0.6 * (month - 1) / 8.5
+            events.append({"unit": "OK-J12-02", "kind": "choke", "at": f"2025-{month:02d}-01T08:00",
+                           "to": round(max(12.0, j["choke0"] - 100 * math.log(1 + min(wear, 0.6)) / math.log(30)), 1)})
+        events.append({"unit": "OK-J12-02", "kind": "choke", "at": "2025-10-15T08:00", "to": j["choke0"]})
+    events.append({"unit": "OK-NWP-G3", "kind": "choke_wear", "points": [
+        ["2025-08-01T00:00", 0], ["2025-09-03T00:00", -0.35], ["2025-09-12T10:00", -0.36], ["2025-09-12T12:00", 0]]})
     return {"version": 1, "seed": seed, "points": pts, "units": units, "events": events}

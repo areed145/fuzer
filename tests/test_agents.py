@@ -326,5 +326,6 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
-    assert len(keys) == 12 and all(k["must_mention"] and k["specialists"] for k in keys)
-    assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness"}
+    assert len(keys) == 14 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness", "pump_curve",
+                                                             "choke"}

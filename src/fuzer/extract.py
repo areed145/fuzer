@@ -40,7 +40,17 @@ TRANSFORMS = {
     "serial": lambda v, pack, area: norm_serial(v),
     "upper": lambda v, pack, area: v.upper() if isinstance(v, str) else v,
     "number": lambda v, pack, area: _num(v),
+    "model_key": lambda v, pack, area: model_key(v, pack),
 }
+
+
+def model_key(v, pack) -> str | None:
+    """"Manufacturer|model" as the equipment_model key the taxonomy derives (canonical maker, normalised model)."""
+    from .taxonomy import Taxonomy, normalise_model
+
+    mfr, _, model = str(v or "").partition("|")
+    mfr, model = Taxonomy(pack).manufacturer(mfr, []), normalise_model(model)
+    return f"{mfr.upper()}|{model}" if mfr and model else None
 
 
 # ---- resolvers: (value, pack) -> (kind, key), or None when the value names nothing

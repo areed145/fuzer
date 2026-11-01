@@ -103,7 +103,11 @@ gas lift valve failures, an export pump seal leak and a water breakthrough. It a
 has an open work order backlog, maintenance and inspection plans (some overdue),
 a 2026 turnaround (OK-TAR-2026), monthly well tests, lab results (separators,
 gas plant, a wellhead) and wall thickness surveys at CMLs on every pipeline and
-vessel. Details in
+vessel, production chokes on every well, and OEM pump curves and choke
+characteristics as vendor CSVs and datasheets (some scanned, some only a drawn
+curve) that Claude reads into the review queue. More stories: an export pump
+losing head to worn wear rings, an eroding choke on OK-J12-02 and a plugging one
+on OK-NWP-G3. Details in
 [fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
 
 Optional, in `.env` (see `.env.example`):

@@ -80,13 +80,14 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
 
 def read_with_claude(conn, pack) -> None:
     """Have Claude read everything it hasn't read yet: operator logs (links and events), P&ID drawings
-    (tags and piping) and document sections (failure modes); then rebuild once with what it found.
+    (tags and piping), document sections (failure modes) and OEM datasheets (curves, for review); then
+    rebuild once with what it found.
     Readings are cached by the text they read, so only new or changed records cost anything."""
-    from . import llm_docs, llm_links, llm_pids
+    from . import llm_curves, llm_docs, llm_links, llm_pids
     from .pricing import cost
 
     readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),
-               ("document sections", "sections", llm_docs.run)]
+               ("document sections", "sections", llm_docs.run), ("datasheets", "datasheets", llm_curves.run)]
     todo = [(label, key, run, n) for label, key, run in readers if (n := run(conn, pack, dry_run=True)[key])]
     if not todo:
         return

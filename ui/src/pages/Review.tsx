@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   api,
   type ConflictPayload,
+  type CurvePayload,
   type Decision,
   type MappingPayload,
   type MatchPayload,
@@ -24,7 +25,7 @@ function loadName(): string {
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
-  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" ? asked : "match";
+  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = useState(loadName);
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -50,6 +51,10 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           ? d.decision === "reject"
             ? `Saved #${item.id}. ${item.payload.dataset} stays unmapped.`
             : `Saved #${item.id}. ${item.payload.dataset} loads with this mapping on the next ingest.`
+        : item.kind === "curve"
+          ? d.decision === "reject"
+            ? `Saved #${item.id}. ${item.payload.doc_number} is not used.`
+            : `Saved #${item.id}. The ${item.payload.model} curve is used from the next rebuild (running now).`
         : item.kind === "schema"
           ? d.decision === "accept"
             ? `Saved #${item.id}. ${item.payload.dataset} loads with its new columns on the next ingest.`
@@ -77,6 +82,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "mapping" ? "on" : ""} href={href("/review", { kind: "mapping" })}>
             New tables <span className="muted">{stats?.open_reviews.mapping ?? 0}</span>
           </a>
+          <a className={kind === "curve" ? "on" : ""} href={href("/review", { kind: "curve" })}>
+            Datasheet curves <span className="muted">{stats?.open_reviews.curve ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -89,6 +97,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           ? "Fuzer thinks these records might be the same physical item, but isn't sure. Your answer is saved and kept on every rerun."
           : kind === "mapping"
             ? "Tables Fuzer has no mapping for. It guessed what each column means; check the meanings, edit the mapping if needed, and accept to load the table."
+          : kind === "curve"
+            ? "Curves Claude read off OEM datasheets. Compare its reading with the sheet; accept, correct, or reject. Only accepted curves are used in charts."
           : kind === "schema"
             ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
             : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
@@ -108,6 +118,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <MatchCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "mapping" ? (
           <MappingCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "curve" ? (
+          <CurveCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "schema" ? (
           <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
@@ -374,5 +386,72 @@ function Score({ value }: { value: number }) {
       </span>
       {value.toFixed(2)}
     </span>
+  );
+}
+
+/** One series as a small line chart (points marked), for checking against the sheet. */
+function MiniCurve({ name, unit, xUnit, pts }: { name: string; unit?: string; xUnit?: string; pts: [number, number][] }) {
+  const W = 260, H = 120;
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(0, ...ys), Math.max(...ys)];
+  const x = (v: number) => 4 + ((v - x0) / (x1 - x0 || 1)) * (W - 8);
+  const y = (v: number) => H - 4 - ((v - y0) / (y1 - y0 || 1)) * (H - 8);
+  return (
+    <figure className="mini-curve">
+      <figcaption className="small"><b>{name}</b> <span className="muted">({unit}) against {xUnit}</span></figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${name}: ${pts.length} points`}>
+        <polyline className="trend-line" fill="none" points={pts.map((p) => `${x(p[0])},${y(p[1])}`).join(" ")} />
+        {pts.map((p, i) => <circle key={i} className="trend-dot" cx={x(p[0])} cy={y(p[1])} r={2.5} />)}
+      </svg>
+      <div className="muted small">{x0}–{x1} {xUnit} · {Math.min(...ys)}–{y1} {unit}</div>
+    </figure>
+  );
+}
+
+function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide: OnDecide }) {
+  const { busy, error, run } = useBusy(onDecide);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(() => JSON.stringify(p.reading, null, 1));
+  const r = p.reading;
+  return (
+    <div className="card review">
+      <div className="row spread">
+        <h3>
+          {p.manufacturer} {p.model} <span className="muted small">#{id}</span>
+        </h3>
+        <span className="muted small">
+          {p.document ? <a href={`/documents/${encodeURIComponent(p.document)}/file`} target="_blank" rel="noreferrer">
+            {p.doc_number}</a> : p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
+        </span>
+      </div>
+      <p className="muted small">{p.title}{r.notes && ` · ${r.notes}`}</p>
+      <div className="mini-curves">
+        {Object.entries(r.series).map(([name, pts]) => (
+          <MiniCurve key={name} name={name} unit={r.units[name]} xUnit={r.units.x} pts={pts} />
+        ))}
+      </div>
+      {Object.keys(r.ratings).length > 0 && (
+        <p className="small">
+          {Object.entries(r.ratings).map(([k, [a, b]]) => `${k.replaceAll("_", " ")} ${a}${b ? ` / ${b}` : ""}`).join(" · ")}
+        </p>
+      )}
+      {editing && <textarea className="mono small" rows={14} value={text} onChange={(e) => setText(e.target.value)} />}
+      <div className="actions">
+        {editing ? (
+          <button className="primary" disabled={busy} onClick={() => {
+            try {
+              run({ decision: "choose", value: JSON.parse(text) });
+            } catch {
+              run({ decision: "choose", value: "not json" });
+            }
+          }}>Save corrected curve</button>
+        ) : (
+          <button className="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>Matches the sheet, use it</button>
+        )}
+        <button disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Cancel" : "Correct values"}</button>
+        <button disabled={busy} onClick={() => run({ decision: "reject" })}>Wrong, don't use</button>
+        {error && <span className="error">{error}</span>}
+      </div>
+    </div>
   );
 }

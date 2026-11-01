@@ -1,0 +1,13 @@
+# OEM curve exports: one row per point of a pump curve (head, efficiency, NPSHr, power against flow) or
+# choke characteristic (Cv against opening), plus rating figures (BEP, operating regions, max Cv, ...).
+source: oem
+record_type: curve_point
+shape: curves
+dataset: oem_curves
+key: [manufacturer, model, series, x]
+curves:
+  of: {kind: equipment_model, template: "{manufacturer}|{model}", as: model_key}
+  curve: {from: curve}
+  series: {from: series}
+  x: x
+  y: y

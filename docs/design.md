@@ -417,6 +417,32 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   together in the synthetic historian, so correlation and XY charts on the demo show how the
   generator shapes upsets rather than plant physics.
 
+### 18d. OEM curves (#92)
+
+Pump curves (head, efficiency, NPSHr, power against flow) and choke characteristics (Cv against
+opening) are reference data per equipment model, in `equipment_curve`, so every pump or choke of a model
+gets its curve through `instance_of`. They arrive two ways:
+
+- **Vendor exports:** CSV rows through a mapping with a `curves` block (`oem_curve.yaml`: of the
+  model by `"{manufacturer}|{model}"` as `model_key`, series, x, y, units), plus rating figures (BEP,
+  minimum continuous stable flow, preferred / allowable operating regions, max Cv, trim, xT).
+- **Datasheets:** `llm_curves.py` sends each current datasheet once, with its page images and any text
+  layer, and gets structured output back. Results are cached by file hash and become `curve` review
+  items. Only accepted readings (`curve_digitised`, as read or corrected) land on the next rebuild.
+  `fuzer eval` scores readings against the fake plant's true curves, per series the sheet shows. Live
+  on Okan (Sonnet 5.5, $0.04 for 5 sheets): a text PDF with a table, a scan with a table, and three
+  scans with only a drawn curve were all within 3% (curve-only head error 0.2-0.3%, efficiency
+  0.5-0.8%).
+
+Charts: `plot_pump_curve` puts PI operating points (head from discharge minus suction pressure) on the
+OEM curve, with head against the curve month by month. `plot_choke` computes effective Cv (oil wells:
+the test's liquid rate and the pressure drop to the jacket header; gas wells: PI rate against upstream
+pressure, scaled on the early points) against the characteristic, with replacements as new series.
+Without a curve, the chart says which datasheet is waiting. On Okan the process model follows the same
+curves, so the stories read off the charts: export pump A down 8% of head by August 2025 until new wear
+rings; OK-J12-02's choke passing 1.6x its curve until replaced on 15 October 2025; OK-NWP-G3's choke
+restricted by about 35% in August until the bean change.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

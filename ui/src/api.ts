@@ -152,12 +152,31 @@ export interface Drawing {
   findings: { text: string; kind: string; issue: string }[];
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve";
+
+export interface CurveReading {
+  curve: "pump" | "choke";
+  read_from: string;
+  notes: string;
+  units: Record<string, string>;
+  series: Record<string, [number, number][]>;
+  ratings: Record<string, [number, number | null]>;
+}
+
+export interface CurvePayload {
+  document: string | null;
+  doc_number: string;
+  title: string;
+  manufacturer: string;
+  model: string;
+  reading: CurveReading;
+}
 
 export type ReviewItem =
   | { id: number; kind: "match"; subject: string; status: string; label: null; payload: MatchPayload }
   | { id: number; kind: "schema"; subject: string; status: string; label: null; payload: SchemaPayload }
   | { id: number; kind: "mapping"; subject: string; status: string; label: null; payload: MappingPayload }
+  | { id: number; kind: "curve"; subject: string; status: string; label: null; payload: CurvePayload }
   | {
       id: number;
       kind: "conflict";

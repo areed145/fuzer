@@ -774,6 +774,41 @@ def plot_bad_actors(since: str | None = None, until: str | None = None) -> dict[
     return _chart(maintenance.bad_actors, {"since": since, "until": until})
 
 
+@server.tool(annotations=CHART)
+def plot_pump_curve(ref: str, days: int = 365) -> dict[str, Any]:
+    """Chart a pump against its OEM curve: operating points from PI (head from discharge minus suction
+    pressure, flow) coloured by time over the head and efficiency curves, with the BEP and preferred
+    operating region. The summary gives head against the curve month by month (falling = wear rings /
+    impeller) and the share of time in the preferred region. ref: a pump tag or equipment."""
+    from .plots import maintenance
+    return _chart(maintenance.pump_curve, {"days": min(days, 1100)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
+    """Chart a well's production choke against its OEM characteristic: effective Cv at each well test
+    (oil wells) or from PI rates (gas wells) against the opening. Above the curve = eroded trim; below =
+    restricted (scale, hydrate). The summary gives Cv against the curve by quarter and replacements.
+    ref: a well or its choke tag. Says which datasheet is waiting when the model has no curve yet."""
+    from .plots import production
+    return _chart(production.choke, {"days": min(days, 1100)}, {"fid": ref})
+
+
+@server.tool(annotations=READ_ONLY)
+def equipment_curves(ref: str) -> dict[str, Any]:
+    """The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening)
+    and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment
+    item or tag, and where they came from (vendor export or an accepted datasheet reading)."""
+    from . import curves
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        model = curves.model_of(conn, fid)
+        out = curves.for_model(conn, model) if model else None
+        return _plain(out or {"model_id": model, "series": {}, "waiting": curves.waiting(conn, model) if model else []})
+
+
 @server.tool(annotations=READ_ONLY)
 def look_at_figure(figure: str) -> list[Any]:
     """See a chart you made, as an image. Only when its summary leaves you unsure how it reads (a fit
