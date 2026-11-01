@@ -11,6 +11,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from deltalake import write_deltalake
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
@@ -136,8 +137,6 @@ def test_watermark_reads_only_new_log_rows(exports, conn):
 
 
 def test_delta_table(exports, conn):
-    write_deltalake = pytest.importorskip("deltalake", reason="Delta tables need the 'delta' extra").write_deltalake
-
     lake = Path(tempfile.mkdtemp(prefix="fzdelta"))
     t = pq.read_table(as_lake(exports) / "sap_materials")
     write_deltalake(str(lake / "sap_materials"), t)

@@ -22,19 +22,17 @@ dependencies = [
     # Scheduled loads, rebuilds and Claude reading (fuzer jobs).
     "dagster==1.13.26",
     "dagster-webserver==1.13.26",
+    # Embedded Postgres for local runs when FUZER_DATABASE_URL is not set.
+    "pgserver>=0.1.4",
+    # Delta Lake tables in the lake connector.
+    "deltalake>=1.6.6,<1.7",
 ]
-
-[project.optional-dependencies]
-# Embedded Postgres for local runs when FUZER_DATABASE_URL is not set.
-local = ["pgserver>=0.1.4"]
-# Delta Lake tables in the lake connector (plain Parquet needs only pyarrow).
-delta = ["deltalake>=1.6.6,<1.7"]
 
 [project.scripts]
 fuzer = "fuzer.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "httpx>=0.27", "pgserver>=0.1.4", "fuzer-fakeplant"]
+dev = ["pytest>=8", "httpx>=0.27", "fuzer-fakeplant"]
 
 [tool.uv]
 # agent-framework-anthropic still declares anthropic<2; it runs on the 2.x SDK Fuzer uses (tests/test_agents.py).

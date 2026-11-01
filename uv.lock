@@ -697,8 +697,10 @@ dependencies = [
     { name = "anthropic" },
     { name = "dagster" },
     { name = "dagster-webserver" },
+    { name = "deltalake" },
     { name = "fastapi" },
     { name = "mcp" },
+    { name = "pgserver" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
@@ -709,19 +711,10 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
-[package.optional-dependencies]
-delta = [
-    { name = "deltalake" },
-]
-local = [
-    { name = "pgserver" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "fuzer-fakeplant" },
     { name = "httpx" },
-    { name = "pgserver" },
     { name = "pytest" },
 ]
 
@@ -732,10 +725,10 @@ requires-dist = [
     { name = "anthropic", specifier = ">=2.3" },
     { name = "dagster", specifier = "==1.13.26" },
     { name = "dagster-webserver", specifier = "==1.13.26" },
-    { name = "deltalake", marker = "extra == 'delta'", specifier = ">=1.6.6,<1.7" },
+    { name = "deltalake", specifier = ">=1.6.6,<1.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "mcp", specifier = ">=2.3" },
-    { name = "pgserver", marker = "extra == 'local'", specifier = ">=0.1.4" },
+    { name = "pgserver", specifier = ">=0.1.4" },
     { name = "pillow", specifier = ">=12.3,<13" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pyarrow", specifier = ">=25.0,<26" },
@@ -745,13 +738,11 @@ requires-dist = [
     { name = "rapidfuzz", specifier = ">=3.9" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["local", "delta"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "fuzer-fakeplant", editable = "fakeplant" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pgserver", specifier = ">=0.1.4" },
     { name = "pytest", specifier = ">=8" },
 ]
 
