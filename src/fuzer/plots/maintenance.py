@@ -2,7 +2,7 @@
 asset), reliability (Weibull or Crow-AMSAA) from failure notifications, and bad actors."""
 
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import ChartError, Figure, layout, rnd
 
@@ -184,3 +184,108 @@ def bad_actors(conn, since: str | None = None, until: str | None = None, limit: 
         "since": out["since"], "until": out["until"],
         "top": [{k: i[k] for k in ("tag", "class", "failures", "mtbf_days", "lost_oil_sm3", "downtime_events",
                                     "repeat_failure_modes")} for i in items[:6]]}, [i["id"] for i in items])
+
+
+def _window_of(conn, days: int) -> tuple[datetime, datetime]:
+    from .. import operations
+
+    end = datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1)
+    return end - timedelta(days=days), end
+
+
+def _read(points: dict[str, dict], start: datetime, end: datetime, step: int) -> dict[str, dict[str, float]]:
+    """Values of several points on one time grid: {name: {time: value}}."""
+    from .. import timeseries
+
+    src = timeseries.provider()
+    return {k: dict(src.series({**p, "upsets": []}, start, end, step)) for k, p in points.items()}
+
+
+def _curve_or_why(conn, model: str | None, what: str) -> dict:
+    from .. import curves
+
+    if model is None:
+        raise ChartError(f"no equipment model known for that {what}")
+    c = curves.for_model(conn, model)
+    if c:
+        return c
+    label = conn.execute("select label from entity_label where fuzer_id = %s", (model,)).fetchone()
+    wait = curves.waiting(conn, model)
+    why = "; ".join(f"datasheet {w['label']} " + ("waiting for review" if w["status"] == "open" else
+                                                  "not read yet" if w["status"] is None else w["status"]) for w in wait)
+    raise ChartError(f"no OEM curve for {label['label'] if label else model}" + (f" ({why})" if why else
+                                                                                   " and no datasheet for it"))
+
+
+def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
+    """A pump's OEM head and efficiency curves, with its operating points from PI (head from discharge
+    minus suction pressure) coloured by time, the BEP and the preferred / allowable operating regions.
+    Points falling below the curve at the same flow mean lost head (wear rings, impeller)."""
+    from .. import curves, timeseries
+
+    tag = fid
+    if conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"] == "equipment":
+        r = conn.execute("select dst from edge where rel = 'installed_at' and src = %s and valid_to is null", (fid,)).fetchone()
+        tag = r["dst"] if r else fid
+    c = _curve_or_why(conn, curves.model_of(conn, tag), "pump")
+    if c["curve"] != "pump" or "head" not in c["series"]:
+        raise ChartError("that model's curve isn't a pump curve")
+    pts = timeseries._unit_points(conn, tag, 20)
+    need = {k: next((p for p in pts if (p["description"] or "").endswith(end)), None)
+            for k, end in (("flow", " Flow"), ("suction", "Suction Pressure"), ("discharge", "Discharge Pressure"))}
+    if None in need.values():
+        raise ChartError("the pump needs flow, suction and discharge pressure points in PI")
+    start, end = _window_of(conn, days)
+    v = _read(need, start, end, 360)
+    times = sorted(set(v["flow"]) & set(v["suction"]) & set(v["discharge"]))
+    bep = c["ratings"].get("bep", [None, None])
+    mcsf = (c["ratings"].get("mcsf") or [0])[0] or 0.3 * (bep[0] or 100)
+    ops = [(t, v["flow"][t], (v["discharge"][t] - v["suction"][t]) * 1e5 / (rho * 9.81)) for t in times
+           if v["flow"][t] > 0.5 * mcsf]
+    if len(ops) < 10:
+        raise ChartError("the pump hardly ran in that window")
+    head = c["series"]["head"]
+    t0 = datetime.fromisoformat(ops[0][0])
+    data = [{"type": "scatter", "mode": "lines", "name": "OEM head curve", "x": [p[0] for p in head], "y": [p[1] for p in head],
+             "line": {"width": 3}},
+            {"type": "scatter", "mode": "markers", "name": "operating points (PI)", "x": [o[1] for o in ops],
+             "y": [round(o[2], 1) for o in ops], "text": [o[0][:16] for o in ops], "meta": {"entity": tag},
+             "marker": {"size": 5, "opacity": 0.6, "color": [(datetime.fromisoformat(o[0]) - t0).days for o in ops],
+                        "colorscale": "Viridis", "colorbar": {"title": {"text": f"days since {ops[0][0][:10]}"}}},
+             "hovertemplate": "%{x:.0f} m3/h, %{y:.0f} m<br>%{text}<extra></extra>"}]
+    if bep[0]:
+        data.append({"type": "scatter", "mode": "markers", "name": "BEP", "x": [bep[0]], "y": [bep[1]],
+                     "marker": {"size": 14, "symbol": "star"}})
+    if "efficiency" in c["series"]:
+        e = c["series"]["efficiency"]
+        data.append({"type": "scatter", "mode": "lines", "name": "OEM efficiency (%)", "x": [p[0] for p in e],
+                     "y": [p[1] for p in e], "yaxis": "y2", "line": {"dash": "dash"}})
+    label = conn.execute("select label from entity_label where fuzer_id = %s", (tag,)).fetchone()["label"]
+    lay = layout(f"{label} against its pump curve", "flow (m3/h)", "head (m)")
+    lay["yaxis2"] = {"overlaying": "y", "side": "right", "range": [0, 100], "title": {"text": "efficiency (%)"}}
+    lay["shapes"] = []
+    if por := c["ratings"].get("por"):
+        lay["shapes"].append({"type": "rect", "xref": "x", "yref": "paper", "x0": por[0], "x1": por[1], "y0": 0, "y1": 1,
+                              "fillcolor": "rgba(60,170,90,0.10)", "line": {"width": 0}, "layer": "below"})
+    if aor := c["ratings"].get("aor"):
+        lay["shapes"] += [{"type": "line", "xref": "x", "yref": "paper", "x0": x, "x1": x, "y0": 0, "y1": 1,
+                           "line": {"dash": "dot", "width": 1}} for x in aor if x]
+    # head against the curve at the same flow, month by month
+    months: dict[str, list[float]] = {}
+    for t, q, h in ops:
+        hc = curves.at(head, q)
+        if hc:
+            months.setdefault(t[:7], []).append((h - hc) / hc * 100)
+    deficit = [{"month": m, "head_vs_curve_pct": round(sorted(x)[len(x) // 2], 1)} for m, x in sorted(months.items())]
+    in_por = sum(1 for _, q, _ in ops if por and por[0] <= q <= por[1]) / len(ops) if por else None
+    worst = min(deficit, key=lambda d: d["head_vs_curve_pct"]) if deficit else None
+    qs = sorted(o[1] for o in ops)
+    return Figure("pump_curve", lay["title"]["text"], data, lay, {
+        "pump": label, "curve_source": c["source"], "window": [start.date().isoformat(), end.date().isoformat()],
+        "running_readings": len(ops), "bep": {"flow_m3h": bep[0], "head_m": bep[1]},
+        "median_flow_m3h": round(qs[len(qs) // 2], 1), "median_flow_vs_bep_pct": round(qs[len(qs) // 2] / bep[0] * 100)
+        if bep[0] else None, "share_in_preferred_region": round(in_por, 3) if in_por is not None else None,
+        "head_vs_curve_by_month": deficit, "worst_month": worst,
+        "latest": {"at": ops[-1][0][:16], "flow_m3h": round(ops[-1][1], 1), "head_m": round(ops[-1][2], 1)},
+        "note": "head from discharge minus suction pressure at SG 0.85; points below the curve at the same flow "
+                "mean lost head"}, [tag, c["model_id"]])

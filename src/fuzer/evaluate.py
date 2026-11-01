@@ -9,6 +9,8 @@ asset an engineer curates the same files (a few dozen good questions go a long w
   section_modes.json [{document, heading_contains, failure_modes: [ISO 14224 codes]}]
   logs.json          [{entry_id, mentions: [entity labels], event_types: [..]}]
   matches.json       [{source, key, same_as: {source, key}}]  (record pairs that are the same item)
+  curves.json        [{model, kind, series: {name: [[x, y]]}, delivered_as, datasheet, on_sheet}]  (true curves;
+                     scores the datasheet readings already cached, calls nothing)
   assistant.json     [{domain, question, must_mention: [..], specialists: [..], charts: [figure kinds]}]
                      (only with --agents: it asks the Claude agents every question, which costs money;
                      `charts`, when given, is met by any one of those kinds of chart in the answer)
@@ -279,6 +281,9 @@ def run(conn, pack: Pack, keys_dir) -> dict:
                      ("logs.json", logs), ("matches.json", matches), ("spatial.json", spatial)]:
         if (cases := load(name)) is not None:
             out[name.removesuffix(".json")] = fn(conn, pack, cases)
+    if (cases := load("curves.json")) is not None:  # datasheets Claude read, against the true curves
+        from . import llm_curves
+        out["curves"] = llm_curves.score(conn, cases)
     if (cases := load("schema.json")) is not None:
         out["schema"] = schema(conn, pack, cases, keys_dir.parent)
     return out

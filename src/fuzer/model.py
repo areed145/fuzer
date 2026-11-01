@@ -38,6 +38,21 @@ class Candidate:
 
 
 @dataclass
+class CurvePoint:
+    """One point of a reference curve for an equipment model (a pump's head at a flow, a choke's Cv at an
+    opening), or a rating figure (series "bep", "cv_max", ...) with x and, for pairs, y."""
+
+    record: str
+    of: Endpoint
+    curve: str  # pump | choke
+    series: str
+    x: float
+    y: float | None
+    x_unit: str | None = None
+    y_unit: str | None = None
+
+
+@dataclass
 class Measurement:
     """One reading of one quantity on one thing: a well test's oil rate, a lab result at a sample point,
     a wall thickness at a CML. Landed and kept, unlike historian values."""

@@ -109,6 +109,15 @@ def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str |
     return measurements.for_entity(conn, fuzer_id, quantity, since, until)
 
 
+@app.get("/entities/{fuzer_id}/curves")
+def entity_curves(fuzer_id: str, conn=Depends(get_conn)):
+    """The OEM curves for an equipment model, or for the model of an equipment item or tag."""
+    from . import curves
+    model = curves.model_of(conn, fuzer_id)
+    return (curves.for_model(conn, model) if model else None) or {"model_id": model, "series": {},
+                                                                  "waiting": curves.waiting(conn, model) if model else []}
+
+
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):
@@ -509,6 +518,12 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         if d.decision == "accept":
             # The new columns become the expected ones; the next ingest loads the dataset.
             conn.execute("update dataset_state set schema = %s where dataset = %s", (Jsonb(p["new"]), p["dataset"]))
+    elif item["kind"] == "curve":  # a datasheet Claude read: accept as read, or choose with corrections
+        if d.decision != "reject":
+            from . import llm_curves
+            if d.decision == "choose" and not isinstance(d.value, dict):
+                raise HTTPException(400, "choose needs the corrected reading")
+            llm_curves.accept(conn, item, d.by, d.value if d.decision == "choose" else None)
     elif item["kind"] == "match":
         if d.decision == "choose":
             raise HTTPException(400, "match items take accept or reject")
@@ -551,8 +566,9 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         (Jsonb(d.model_dump()), d.by, item_id),
     )
     conn.commit()
-    if item["kind"] == "match":
-        # Merging or splitting records touches IDs, links and values; do it in the background.
+    if item["kind"] == "match" or (item["kind"] == "curve" and d.decision != "reject"):
+        # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
+        # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": rebuilder.request()}
     return {"decided": item_id}
 

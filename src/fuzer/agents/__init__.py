@@ -53,16 +53,18 @@ TOOLS = {
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
                                 "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
                                 "gas_lift_network", "well_performance", "measurements",
-                                *CHARTS, "plot_incident", "plot_correlation", "plot_vibration"],
+                                *CHARTS, "plot_incident", "plot_correlation", "plot_vibration", "plot_pump_curve",
+                                "plot_choke", "equipment_curves"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
                             "measurements", "trace_flow",
                             *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
-                            "plot_gas_lift_allocation"],
+                            "plot_gas_lift_allocation", "plot_choke", "equipment_curves"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
                              "list_members", "get_incidents", "deferment_pareto", "measurements",
-                             *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration"],
+                             *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration",
+                             "plot_pump_curve", "plot_choke", "equipment_curves"],
 }
 
 ORCHESTRATOR = """\

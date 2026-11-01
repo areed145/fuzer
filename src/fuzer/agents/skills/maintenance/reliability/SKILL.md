@@ -24,7 +24,12 @@ A repeat failure is the same failure mode on the same unit more than once in the
    losing several times faster than its neighbours points at a changed condition (water, sand, flow
    regime) worth tying to well tests or lab results. Remaining life needs the minimum required
    thickness from the design, which Fuzer doesn't hold; say so rather than guessing it.
-5. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
+5. **Pumps against their curve:** `plot_pump_curve(ref)` puts PI operating points on the OEM curve.
+   Head falling below the curve month by month at the same flow means internal wear (wear rings,
+   impeller): quote `head_vs_curve_by_month` and the month it started. Running far from the BEP
+   (outside the preferred region) shortens seal and bearing life; say how much time was spent there.
+   `equipment_curves(ref)` gives the curve itself.
+6. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
 
 Report: the top bad actors with failures, MTBF, downtime and repeat modes; the likely root cause per

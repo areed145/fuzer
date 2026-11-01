@@ -28,7 +28,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import docs, measurements, pid, process
+from . import curves, docs, measurements, pid, process
 from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
 
 FIELD = "OKAN"
@@ -76,7 +76,9 @@ TRAIN = [  # per train A/B/C on GGCP: 3 stages of scrubber, compressor and after
     ("E", 2350, "3rd Stage After-cooler", "Heat Exchanger"),
 ]
 INSTRUMENTS = {
-    "P": [("PT", "Discharge Pressure", "barg"), ("TT", "Bearing Temperature", "degC"), ("VT", "Vibration", "mm/s")],
+    # (function, description, units[, loop offset]): a pump's suction transmitter is the next loop up
+    "P": [("PT", "Discharge Pressure", "barg"), ("TT", "Bearing Temperature", "degC"), ("VT", "Vibration", "mm/s"),
+          ("FT", "Flow", "m3/h"), ("PT", "Suction Pressure", "barg", 10), ("JT", "Motor Power", "kW")],
     "K": [("PT", "Discharge Pressure", "barg"), ("TT", "Discharge Temperature", "degC"), ("VT", "Vibration", "mm/s")],
     "GT": [("ST", "Speed", "rpm"), ("TT", "Exhaust Temperature", "degC")],
     "V": [("PT", "Vessel Pressure", "barg"), ("LT", "Liquid Level", "%")],
@@ -95,6 +97,10 @@ LOOSE = {
 }
 JACKET_ITEMS = [("FT", 3001, "Gas Lift Supply Meter", "kSm3/d"), ("PT", 3002, "Production Header Pressure", "barg"),
                 ("XV", 3100, "Jacket ESDV", "%")]
+# Production choke models (manufacturer, model): two for oil wells by slot, one for the gas producers.
+CHOKES = [("Master Flo", "P2-12"), ("Cameron", "CC30"), ("Mokveld", "MCV-40")]
+CHOKE_CURVES = {"P2-12": (12.0, "equal_percentage", 1.5), "CC30": (22.0, "equal_percentage", 2.0),
+                "MCV-40": (40.0, "linear", 3.0)}
 MAKERS = {"P": ["Flowserve", "Sulzer"], "K": ["Solar Turbines", "Baker Hughes", "Siemens Energy"],
           "GT": ["Solar Turbines"], "V": ["Kanfa", "Sembcorp"], "E": ["Alfa Laval", "Kelvion"]}
 MODEL = {"Solar Turbines": {"K": "C40", "GT": "Taurus 60"}, "Baker Hughes": {"K": "BCL-406"},
@@ -111,6 +117,10 @@ AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor
 # Questions for the operations assistant, one per domain plus one across domains, with what a good answer
 # must name (case-insensitive; a list means any of these) given the planted stories. `fuzer eval --agents` scores them (costs money).
 ASSISTANT_QUESTIONS = [
+    {"domain": "curves", "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
+     "must_mention": ["10-P-1001A", "wear ring", "head"], "specialists": ["maintenance"], "charts": ["pump_curve"]},
+    {"domain": "curves", "question": "Why did OK-J12-02's choke stop controlling the rate in 2025?",
+     "must_mention": ["OK-J12-02", "eroded", "replaced"], "specialists": ["production"], "charts": ["choke"]},
     {"domain": "charts", "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
      "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["production"], "charts": ["decline"]},
     {"domain": "charts", "question": "Which pipelines are losing wall thickness fastest, and why?",
@@ -186,8 +196,8 @@ def generate(out, seed: int = 11) -> dict:
         titles[eq.canonical] = title
         sheet_tags.setdefault(sheet, []).append(eq)
         attrs = []
-        for ifunc, idesc, uom in INSTRUMENTS[func]:
-            inst = Tag(area, ifunc, loop, s)
+        for ifunc, idesc, uom, *offset in INSTRUMENTS[func]:
+            inst = Tag(area, ifunc, loop + (offset[0] if offset else 0), s)
             sheet_tags[sheet].append(inst)
             floc.append({"floc": inst.fmt(f"{FIELD}-{{a}}-{{f}}{{l}}{{s}}"), "parent": eq_floc,
                          "description": f"{title} {idesc}"})
@@ -268,11 +278,20 @@ def generate(out, seed: int = 11) -> dict:
     for n in range(1, 4):
         wells.append({"name": well_name("NWP", f"G{n}"), "site": "NWP", "area": "50", "lift": "NF", "type": "gas"})
 
+    chokes = []  # production chokes: SAP equipment on each well, added to the register at the end
     for w in wells:
         site, num = w["site"], w["name"].rsplit("-", 1)[1]
         kind = "gas producer" if w["type"] == "gas" else f"{w['lift']} oil producer"
         floc.append({"floc": f"{FIELD}-WELL-OK{site}-{num}", "parent": f"{FIELD}-{w['area']}",
                      "description": f"Well {w['name']} ({kind})"})
+        loop = (1200 if w["type"] == "gas" else 1100 if site == "NWP" else 1000) + int(num.lstrip("G"))
+        maker, model = CHOKES[2] if w["type"] == "gas" else CHOKES[int(num.lstrip("G")) % 2]
+        ch = {"equnr": str(30090000 + len(chokes)), "description": "Production Choke", "manufacturer": maker,
+              "model": model, "serial": f"CH{51000 + 37 * len(chokes)}", "floc": f"{FIELD}-{w['area']}-HCV{loop}",
+              "valid_from": "2022-03-01" if site == "NWP" else "2009-06-01", "valid_to": "", "well": w["name"]}
+        chokes.append(ch)
+        floc.append({"floc": ch["floc"], "parent": f"{FIELD}-WELL-OK{site}-{num}",
+                     "description": f"{w['name']} Production Choke"})
         stem = f"OK_{site}_{num}"
         codes = [("WHP", "Wellhead Pressure", "barg"), ("WHT", "Wellhead Temperature", "degC"),
                  ("CHOKE", "Choke Position", "%")]
@@ -288,7 +307,7 @@ def generate(out, seed: int = 11) -> dict:
     gas_wells = [w for w in wells if w["type"] == "gas"]
 
     # ---- maintenance, stories, downtime, logs, daily reports ------------------------------------------
-    by_tag = {e["floc"].split("-", 1)[1]: e for e in equipment}  # "20-K2200B" -> equipment
+    by_tag = {e["floc"].split("-", 1)[1]: e for e in equipment + chokes}  # "20-K2200B" -> equipment
 
     def eq_of(tag: str) -> dict:
         area, rest = tag.split("-", 1)
@@ -407,6 +426,32 @@ def generate(out, seed: int = 11) -> dict:
     for when, w in [("2024-09-03T10:00", "OK-J07-03"), ("2025-04-15T09:00", "OK-J07-05")]:
         log(f"{when}:00", f"{w} casing heading, GL valve suspected failed open. Unloading not stable.", "Production Engineer")
         lost(w, when, 96, "GL-VALVE", f"{w} gas lift valve failure, well shut in for slickline valve change", 45)
+
+    # Story 8: oil export pump A loses head as its wear rings open up (discharge pressure low at normal flow);
+    # new wear rings in September 2025 restore it. Reading it needs the pump's OEM curve.
+    log("2025-09-10T09:00:00", "10-P-1001A discharge pressure 3 bar low at normal export rate; pump curve check "
+        "suggests worn wear rings.", "Production Engineer")
+    n8 = notify("10-P-1001A", "2025-09-11", "D05", "Low output from oil export pump A, head below curve", "C01")
+    work(n8, "10-P-1001A", "2025-09-18", "A02", "PM01", "Replace wear rings and inspect impeller, oil export pump A", 2)
+    # Story 9: OK-J12-02's choke trim erodes (sand): the same opening passes more and more flow, until the
+    # trim is replaced in October 2025.
+    j1202 = next(c for c in chokes if c["well"] == "OK-J12-02")
+    tag_j1202 = f"{j1202['floc'].split('-')[1]}-HCV-{j1202['floc'][-4:]}"
+    log("2025-09-28T07:00:00", f"OK-J12-02 choke {tag_j1202} at 22% but rate as at 35%. Can't trim back, choke "
+        "eroded? Sand seen at the test separator.", "Production Engineer")
+    n9 = notify(tag_j1202, "2025-09-29", "D08", "Production choke on OK-J12-02 eroded, flow above characteristic", "C03")
+    work(n9, tag_j1202, "2025-10-15", "A01", "PM01", "Replace choke trim and body, OK-J12-02", 1)
+    j1202["valid_to"] = "2025-10-15"
+    chokes.append({**j1202, "equnr": str(30090000 + len(chokes)), "serial": "CH59911", "valid_from": "2025-10-15",
+                   "valid_to": ""})
+    # Story 10: OK-NWP-G3's choke plugs with scale over August 2025: less gas at the same opening and
+    # wellhead pressure, cleared by a choke bean change.
+    g3 = next(c for c in chokes if c["well"] == "OK-NWP-G3")
+    tag_g3 = f"50-HCV-{g3['floc'][-4:]}"
+    log("2025-09-04T10:00:00", f"OK-NWP-G3 gas rate down 30% at the same choke opening; {tag_g3} suspected "
+        "partly plugged with scale.", "Production Engineer")
+    n10 = notify(tag_g3, "2025-09-04", "D05", "Production choke on OK-NWP-G3 restricted, flow below characteristic", "C03")
+    work(n10, tag_g3, "2025-09-12", "A01", "PM01", "Change choke bean and descale, OK-NWP-G3", 1)
 
     # Story 7: export pump seal leak.
     log("2025-05-20T11:00:00", "Seal leak on 10-P-1001B oil export pump, started 10-P-1001C, isolated B.", "PP CRO")
@@ -717,6 +762,36 @@ def generate(out, seed: int = 11) -> dict:
     documents = docs.generate(out, equipment, areas, FIELD, guides=GUIDES)
     materials, bom = _spares(equipment)
 
+    # ---- OEM curves: vendor CSVs, datasheets with a table, scanned datasheets ---------------------------
+    oem = {}
+    for e in equipment:
+        if "-P" in e["floc"][4:]:
+            oem.setdefault(e["model"], curves.pump(e["manufacturer"], e["model"], q_bep=190.0, h_bep=430.0))
+    for maker, model in CHOKES:
+        cv_max, trim, size = CHOKE_CURVES[model]
+        oem[model] = curves.choke(maker, model, cv_max, trim, size)
+    # How each model's curve reaches us: the pumps' vendors sent a CSV and an old scanned datasheet (curve
+    # only); Master Flo a CSV; Cameron a datasheet PDF with its table; Mokveld only a scan (with its table).
+    delivery = {m: ("csv", "scan") if c["kind"] == "pump" else
+                {"P2-12": ("csv",), "CC30": ("pdf",), "MCV-40": ("scan",)}[m] for m, c in oem.items()}
+    curve_rows, sheets_meta = [], []
+    for m, c in sorted(oem.items()):
+        if "csv" in delivery[m]:
+            curve_rows += curves.csv_rows(c)
+        for form in ("pdf", "scan"):
+            if form in delivery[m]:
+                number = f"DS-{m}"
+                # pump scans are old sheets with only the drawn curve; the choke sheets carry their table
+                curves.datasheet(c, out / "documents" / f"{number}.pdf", form == "scan", number,
+                                 table=c["kind"] == "choke")
+                sheets_meta.append({"doc_number": number, "revision": "A", "doc_type": "datasheet",
+                                    "title": f"{c['manufacturer']} {m} {'performance curve' if c['kind'] == 'pump' else 'flow characteristic'} datasheet",
+                                    "status": "current", "effective_date": "2019-03-01" if form == "scan" else "2021-06-01",
+                                    "file": f"documents/{number}.pdf", "manufacturer": c["manufacturer"], "model": m})
+    documents = documents + sheets_meta
+    (out / "documents.json").write_text(json.dumps(documents, indent=1))
+    equipment += [{k: v for k, v in c.items() if k != "well"} for c in chokes]
+
     # ---- lab results and wall thickness --------------------------------------------------------------
     # Story: after OK-J03-02's water breakthrough (June 2025) its chloride climbs, the PP HP separator's
     # produced water carries more oil, and J03's flowline, now wetter, loses wall several times faster.
@@ -758,6 +833,7 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ec_well_tests.csv", tests)
     _write_csv(out / "lims_results.csv", lab)
     _write_csv(out / "inspection_readings.csv", readings)
+    _write_csv(out / "oem_curves.csv", curve_rows)
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps({"nodes": nodes, "edges": edges}, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
@@ -770,7 +846,13 @@ def generate(out, seed: int = 11) -> dict:
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.process_model); not a source.
     (out / "process_model.json").write_text(json.dumps(
-        process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs)))
+        process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)))
+    (out / "answer_keys" / "curves.json").write_text(json.dumps(
+        [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",
+          # what the datasheet shows: a pump sheet without its table draws only head and efficiency
+          "on_sheet": ["head", "efficiency"] if c["kind"] == "pump" else list(c["series"])}
+         for m, c in sorted(oem.items())],
+        indent=1))
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
             "gas_producers": len(gas_wells), "equipment": len(equipment), "flocs": len(floc), "pi_points": len(points),

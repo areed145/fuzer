@@ -326,3 +326,29 @@ create table if not exists assistant_figure (
     by_source   text not null default 'fuzer',  -- 'assistant' when the agent supplied the numbers
     created_at  timestamptz not null default now()
 );
+
+-- Reference curves per equipment model (OEM pump curves, choke characteristics): from vendor CSV
+-- exports, and from datasheets Claude read once an engineer accepted them (curve_digitised). Rebuilt
+-- with the graph.
+create table if not exists equipment_curve (
+    model_id  text not null,              -- equipment_model entity
+    source    text not null,              -- 'oem' (vendor export) or 'datasheet:<doc number>'
+    curve     text,                       -- pump | choke
+    series    text not null,              -- head, efficiency, npshr, power, cv, or a rating (bep, por, cv_max, ...)
+    x         double precision not null,
+    y         double precision,
+    x_unit    text,
+    y_unit    text,
+    record    text,
+    primary key (model_id, source, series, x)
+);
+
+-- Curves Claude read off datasheets, accepted in the review queue; the rebuild lands them in equipment_curve.
+create table if not exists curve_digitised (
+    document_key text primary key,        -- the datasheet's source record key
+    doc_number   text not null,
+    model_key    text not null,           -- MANUFACTURER|MODEL
+    result       jsonb not null,          -- {curve, series: {name: [[x, y]]}, ratings: {name: [x, y]}, units}
+    accepted_by  text not null,
+    accepted_at  timestamptz not null default now()
+);

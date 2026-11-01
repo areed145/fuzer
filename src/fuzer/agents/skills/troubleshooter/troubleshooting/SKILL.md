@@ -21,6 +21,8 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    sample points (oil in water, BS&W, H2S, dewpoint), well tests, wall thickness. A lab result that
    stepped up weeks before the incident (more oil in the water, a wetter crude) often explains it;
    `measurements(ref, quantity, history=true)` gives the full record.
+   For a pump or a well's choke, compare it with its OEM curve: `plot_pump_curve` (lost head, running
+   off the BEP), `plot_choke` (eroded or restricted trim).
 4. **History repeats.** Similar incidents with the same failure mode on the same unit mean the earlier
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds

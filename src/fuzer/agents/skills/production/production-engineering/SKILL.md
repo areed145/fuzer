@@ -24,3 +24,10 @@ description: Production engineering for wells - well test trends (rate, water cu
    (water shut-off), big decline vs neighbours (stimulation / scale squeeze). Rank by Sm³/d at stake.
 
 Quote test dates and values; one test is not a trend, so say how many tests support a conclusion.
+
+**Chokes.** `plot_choke(well)` compares the well's choke with its OEM characteristic (effective Cv
+against opening, from each test's liquid rate and the pressure drop to the header; for gas wells from
+PI rates). Cv above the curve and climbing = trim eroding (sand; operators trim the choke back to hold
+rate); below = restriction (scale, hydrate, debris). A replacement shows as a new series back on the
+curve. Quote `cv_vs_curve_by_quarter` and the replacement date. If the model has no curve, say which
+datasheet is waiting to be read or reviewed.

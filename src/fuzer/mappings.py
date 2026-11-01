@@ -24,6 +24,12 @@ for the same source and record type):
       - from: text
         props: [text, span, method]
     hooks: [name]           # named Python for logic that truly is source-specific (extract.HOOKS)
+    curves:                 # reference curves landed in equipment_curve (OEM pump curves, choke characteristics)
+      of: {kind: equipment_model, template: "{manufacturer}|{model}", as: model_key}
+      curve: {from: curve}  # pump | choke; series, x, y, x_unit, y_unit likewise (text or a value)
+      series: {from: series}
+      x: x
+      y: y
     measurements:           # readings landed in the measurement table (shape: measurements)
       of: {kind: well, from: well, as: well}   # what was measured; a list is tried in order; self
       at: test_date
@@ -53,11 +59,11 @@ import yaml
 
 from . import extract as ex
 from . import nel, units
-from .model import Candidate, Edge, Measurement
+from .model import Candidate, CurvePoint, Edge, Measurement
 
 DEFAULT_DIR = Path(__file__).parent / "mappings"
 SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial",
-          "measurements"}
+          "measurements", "curves"}
 
 
 class MappingError(ValueError):
@@ -145,6 +151,7 @@ class Mapping:
                            m.get("rel", "mentions"), m.get("confidence"), m.get("props", ["text", "method"]))
                           for m in raw.get("mentions") or []]
         self.measures = self._measurements(raw["measurements"]) if raw.get("measurements") else None
+        self.curve_spec = self._curves(raw["curves"]) if raw.get("curves") else None
         self._hooks = []
         for h in raw.get("hooks") or []:
             h = h if isinstance(h, dict) else {"name": h}
@@ -165,11 +172,15 @@ class Mapping:
         if "const" in expr:
             c = expr["const"]
             return lambda k, r, p: c
-        if "template" in expr:
+        if "template" in expr and not expr.get("as"):
             tmpl = expr["template"]
             f = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
         else:
-            base = self._value(expr.get("from", "_key"))
+            if "template" in expr:  # a template, then a transform (e.g. "{manufacturer}|{model}" as model_key)
+                tmpl = expr["template"]
+                base = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
+            else:
+                base = self._value(expr.get("from", "_key"))
             t = expr.get("as")
             if t is None:
                 f = base
@@ -247,7 +258,28 @@ class Mapping:
         return ([self._endpoint(o) for o in of], self._value(spec["at"]), text(spec.get("method")),
                 self._value(spec["location"]) if spec.get("location") else None, values)
 
+    def _curves(self, spec):
+        if not (spec.get("of") and spec.get("series") and "x" in spec):
+            raise MappingError(f"curves need of, series and x{self._where}")
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        return (self._endpoint(spec["of"]), text(spec.get("curve")), text(spec["series"]), self._value(spec["x"]),
+                self._value(spec["y"]) if spec.get("y") else (lambda k, r, p: None),
+                text(spec.get("x_unit", {"from": "x_unit"})), text(spec.get("y_unit", {"from": "y_unit"})))
+
     # ---- run
+
+    def curve_points(self, key: str, row: dict, pack) -> list[CurvePoint]:
+        """The curve point (or rating figure) in one row; rows without a number for x are skipped."""
+        if not self.curve_spec:
+            return []
+        of_f, curve_f, series_f, x_f, y_f, xu_f, yu_f = self.curve_spec
+        of = of_f(key, row, pack)
+        x, y = units.reading(x_f(key, row, pack)), units.reading(y_f(key, row, pack))
+        if not of or not of[1] or x is None:
+            return []
+        return [CurvePoint(f"{self.source}:{self.record_type}:{key}", of, str(curve_f(key, row, pack) or ""),
+                           str(series_f(key, row, pack)), x[0], y[0] if y else None,
+                           xu_f(key, row, pack) or None, yu_f(key, row, pack) or None)]
 
     def measure(self, key: str, row: dict, pack) -> list[Measurement]:
         """The readings in one row, in stored units; values that aren't numbers are skipped."""

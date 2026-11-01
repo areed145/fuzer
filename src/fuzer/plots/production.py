@@ -3,7 +3,7 @@ diagnostic (WOR and its derivative), a gas lifted well's performance curve, and 
 across a header."""
 
 import math
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from . import ChartError, Figure, layout, rnd, stacked
 
@@ -307,3 +307,121 @@ def gas_lift_allocation(conn, ref: str | None = None) -> Figure:
         "note": "response is a slope from tests over the window; check against a step-rate test before moving gas"},
         [w["id"] for w in wells])
 
+
+
+SG = 0.9  # produced liquid through a choke
+
+
+def choke(conn, fid: str, days: int = 730, sg: float = SG) -> Figure:
+    """A well's production choke against its characteristic: effective Cv at each well test (oil wells:
+    liquid rate from the test, pressure drop from wellhead to the jacket header in PI) or from PI rates
+    (gas wells), against the opening. Above the curve = more flow than the trim should pass (erosion);
+    below = restriction (scale, hydrate, debris). A replacement starts a new series."""
+    from .. import curves
+    from .maintenance import _curve_or_why, _read, _window_of
+
+    kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"]
+    if kind == "well":
+        well = fid
+        tag = conn.execute("select e.src from edge e join entity_label l on l.fuzer_id = e.src "
+                           "where e.rel = 'part_of' and e.dst = %s and l.label like '%%-HCV-%%' limit 1", (fid,)).fetchone()
+        if tag is None:
+            raise ChartError("no production choke recorded on that well")
+        tag = tag["src"]
+    else:
+        tag = fid
+        w = conn.execute("select e.dst from edge e join entity x on x.fuzer_id = e.dst and x.kind = 'well' "
+                         "where e.rel = 'part_of' and e.src = %s", (fid,)).fetchone()
+        if w is None:
+            raise ChartError("that isn't a well's production choke")
+        well = w["dst"]
+    c = _curve_or_why(conn, curves.model_of(conn, tag), "choke")
+    if "cv" not in c["series"]:
+        raise ChartError("that model's curve isn't a choke characteristic")
+    label = lambda f: conn.execute("select label from entity_label where fuzer_id = %s", (f,)).fetchone()["label"]  # noqa: E731
+    wl, tl = label(well), label(tag)
+    pts = list(conn.execute(
+        """
+        select t.dst as id, l.label as point, gd.value #>> '{}' as description, gu.value #>> '{}' as uom
+        from edge t join entity_label l on l.fuzer_id = t.dst
+        left join golden gd on gd.fuzer_id = t.dst and gd.field = 'description'
+        left join golden gu on gu.fuzer_id = t.dst and gu.field = 'uom'
+        where t.rel = 'has_timeseries' and t.src = %s
+        """, (well,)))
+    by_end = {k: next((p for p in pts if (p["description"] or "").endswith(end)), None)
+              for k, end in (("whp", "Wellhead Pressure"), ("opening", "Choke Position"), ("qgas", "Gas Rate"))}
+    if not by_end["whp"] or not by_end["opening"]:
+        raise ChartError("the well needs wellhead pressure and choke position points in PI")
+    start, end = _window_of(conn, days)
+    installs = [r["valid_from"].isoformat() for r in conn.execute(
+        "select valid_from from edge where rel = 'installed_at' and dst = %s and valid_from is not null "
+        "order by valid_from", (tag,)) if r["valid_from"] > start.date()]
+    cv_curve = c["series"]["cv"]
+    rows = []  # (time, opening, effective Cv)
+    note = None
+    if by_end["qgas"]:  # gas: rate against upstream pressure (critical flow), scaled on the early points
+        v = _read({k: by_end[k] for k in ("whp", "opening", "qgas")}, start, end, 360)
+        typical = sorted(v["qgas"].values())[len(v["qgas"]) // 2]
+        raw = [(t, v["opening"][t], v["qgas"][t] / (v["whp"][t] + 1.013)) for t in sorted(v["qgas"])
+               if v["qgas"][t] > 0.3 * typical and v["opening"][t] > 2 and t in v["whp"]]  # flowing, not ramping
+        if len(raw) < 10:
+            raise ChartError("the gas well hardly flowed in that window")
+        early = sorted(x / cv for t, o, x in raw[: max(5, len(raw) // 4)] if (cv := curves.at(cv_curve, o)))
+        k = early[len(early) // 2]
+        rows = [(t, o, x / k) for t, o, x in raw]
+        note = ("gas: flow against upstream pressure assuming critical flow; scaled so the first quarter of the window "
+                "sits on the characteristic, so the chart shows change, not absolute Cv")
+    else:  # oil: liquid from each well test, pressure drop to the jacket production header
+        tests: dict = {}
+        for r in conn.execute("select record, at, quantity, value from measurement where fuzer_id = %s and "
+                              "quantity in ('oil_rate', 'water_cut') and at >= %s and at < %s", (well, start, end)):
+            tests.setdefault(r["record"], {"at": r["at"]})[r["quantity"]] = r["value"]
+        area = tl.split("-")[0]
+        back = conn.execute("select t.dst as id, l.label as point, null as description, 'barg' as uom from entity_label h "
+                            "join edge t on t.src = h.fuzer_id and t.rel = 'has_timeseries' "
+                            "join entity_label l on l.fuzer_id = t.dst where h.label = %s", (f"{area}-PT-3002",)).fetchone()
+        need = {"whp": by_end["whp"], "opening": by_end["opening"], **({"back": back} if back else {})}
+        v = _read(need, start, end, 60)
+        for t in sorted(tests.values(), key=lambda t: t["at"]):
+            when = (t["at"].replace(hour=12, minute=0)).isoformat(timespec="minutes")
+            if "oil_rate" not in t or when not in v["whp"]:
+                continue
+            liquid = t["oil_rate"] / (1 - min(t.get("water_cut", 0), 98) / 100)
+            dp = v["whp"][when] - (v["back"][when] if back else 11.0)
+            if dp > 0.2 and v["opening"][when] > 2:
+                rows.append((when, v["opening"][when], liquid / 24 * 4.403 / math.sqrt(dp * 14.5038 / sg)))
+        if len(rows) < 4:
+            raise ChartError("fewer than four well tests with pressures in that window")
+        if not back:
+            note = "no production header transmitter: downstream pressure taken as 11 barg"
+    ratio = [(t, o, cv, cv / ref) for t, o, cv in rows if (ref := curves.at(cv_curve, o))]
+    cut = installs[-1] if installs else None
+    data = [{"type": "scatter", "mode": "lines", "name": f"characteristic ({c['source']})", "x": [p[0] for p in cv_curve],
+             "y": [p[1] for p in cv_curve], "line": {"width": 3}}]
+    t0 = datetime.fromisoformat(rows[0][0])
+    for name, part in (("before the choke was replaced", [r for r in ratio if cut and r[0] < cut]),
+                       (f"since new choke {cut}" if cut else "effective Cv", [r for r in ratio if not cut or r[0] >= cut])):
+        if part:
+            data.append({"type": "scatter", "mode": "markers", "name": name, "x": [round(r[1], 1) for r in part],
+                         "y": [round(r[2], 2) for r in part], "text": [f"{r[0][:10]}: {r[3]:.2f}x the curve" for r in part],
+                         "meta": {"entity": well},
+                         "marker": {"size": 7, "symbol": "circle" if name.startswith("since") or not cut else "x",
+                                    "color": [(datetime.fromisoformat(r[0]) - t0).days for r in part],
+                                    "colorscale": "Viridis"},
+                         "hovertemplate": "%{x:.0f}% open, Cv %{y:.2f}<br>%{text}<extra></extra>"})
+    lay = layout(f"{wl} production choke {tl} against its characteristic", "choke opening (%)", "Cv (US)")
+    quarters: dict[str, list[float]] = {}
+    for t, _, _, r in ratio:
+        quarters.setdefault(f"{t[:4]}-Q{(int(t[5:7]) - 1) // 3 + 1}", []).append(r)
+    by_q = [{"quarter": q, "cv_vs_curve": round(sorted(x)[len(x) // 2], 2)} for q, x in sorted(quarters.items())]
+    before = [r[3] for r in ratio if not cut or r[0] < cut]
+    peak = max(ratio, key=lambda r: abs(r[3] - 1))
+    drift = sorted(before[-max(3, len(before) // 6):])[len(before[-max(3, len(before) // 6):]) // 2] if before else 1.0
+    reading = ("eroded: passing more than the characteristic" if drift > 1.15 else
+               "restricted: passing less than the characteristic" if drift < 0.85 else "on its characteristic")
+    return Figure("choke", lay["title"]["text"], data, lay, {
+        "well": wl, "choke": tl, "curve_source": c["source"], "points": len(ratio),
+        "window": [start.date().isoformat(), end.date().isoformat()], "replaced": installs,
+        "cv_vs_curve_by_quarter": by_q, "before_replacement_latest": round(drift, 2), "reading": reading,
+        "furthest": {"at": peak[0][:10], "opening_pct": round(peak[1], 1), "cv_vs_curve": round(peak[3], 2)},
+        **({"note": note} if note else {})}, [well, tag, c["model_id"]])

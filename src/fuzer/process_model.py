@@ -291,33 +291,45 @@ class Window:
             hp = self.get(u["header"], "pressure")
             return self.lag(hp * (0.82 - 0.14 * failed) * (0.6 + 0.4 * self.get(unit, "flowing")), 15) + \
                 0.4 * self.noise(unit + "c", 20)
-        if var == "liquid":  # Sm3/d through the choke, from lift gas by the well's performance curve
+        if var == "cv":  # the choke's Cv at its opening (its characteristic), times wear: + eroded, - plugged
+            c, o = u["choke"], np.clip(self.get(unit, "choke"), 0, 100)
+            cv = c["cv_max"] * o / 100 if c["trim"] == "linear" else c["cv_max"] * 30 ** (o / 100 - 1)
+            wear = sum((self.path(e["points"]) for e in self.ev(unit, "choke_wear")), np.zeros_like(self.t))
+            return np.maximum(cv * (1 + wear), 1e-3)
+        if var == "liquid":  # Sm3/d through the choke: the rate the well tests show, moved by lift gas now
             if u.get("kind") == "gas":
                 return np.zeros_like(self.t)
+            if u.get("liquid_path"):  # tests already carry valve failures and breakthroughs
+                ts = [minutes(p[0]) for p in u["liquid_path"]]
+                base = np.interp(self.t, ts, [p[1] for p in u["liquid_path"]])
+                failed = 0.0
+            else:
+                base, failed = u["q_ref"], self.any_between(unit, "valve_failed_open")
             if u.get("lift") == "GL":
                 g = self.get(unit, "glir")
                 lift = (0.55 + 0.45 * (1 - np.exp(-g / u["knee"]))) / (0.55 + 0.45 * (1 - math.exp(-u["glir0"] / u["knee"])))
-                lift = lift * (1 - 0.45 * self.any_between(unit, "valve_failed_open"))
+                lift = lift * (1 - 0.45 * failed)
             else:
                 lift = 1.0
-            return u["q_ref"] * lift * self.get(unit, "flowing") * (1 + 0.03 * self.noise(unit + "q", 60))
-        if var == "qgas":
+            return base * lift * self.get(unit, "flowing") * (1 + 0.01 * self.noise(unit + "q", 60))
+        if var == "qgas":  # kSm3/d through the choke against the reservoir's drawdown
             if u.get("kind") != "gas":
                 return np.zeros_like(self.t)
             hyd = sum((self.path(e["points"]) for e in self.ev(unit, "restriction")), np.zeros_like(self.t))
-            return self.lag(u["qgas0"] * self.get(unit, "flowing") * (1 - np.clip(hyd, 0, 0.95)), 15) * \
-                (1 + 0.02 * self.noise(unit + "qg", 30))
+            kc = u["k_gas"] * self.get(unit, "cv")
+            q = kc * (u["p_res"] + 1.013) / (1 + kc * u["c_gas"])
+            return self.lag(q * self.get(unit, "flowing") * (1 - 0.95 * np.clip(hyd, 0, 1)), 15) * \
+                (1 + 0.01 * self.noise(unit + "qg", 30))
         if var == "whp":
-            back = self.get(u["jacket"], "production_header_pressure") if u.get("jacket") else 11.0
-            cv = u["cvmax"] * 30 ** (np.maximum(self.get(unit, "choke"), 1) / 100 - 1)  # equal-percentage trim
+            shut = 1 - self.get(unit, "flowing")
             if u.get("kind") == "gas":
                 hyd = sum((self.path(e["points"]) for e in self.ev(unit, "restriction")), np.zeros_like(self.t))
-                p = back + 35 + 30 * hyd  # a hydrate downstream backs pressure up to the wellhead
-            else:
-                q = self.get(unit, "liquid")
-                p = back + (q / cv) ** 2
-            shut = 1 - self.get(unit, "flowing")
-            return p * (1 - shut) + shut * u.get("shut_in_whp", 45) + 0.3 * self.noise(unit + "whp", 10)
+                p = u["p_res"] - u["c_gas"] * self.get(unit, "qgas") + 30 * hyd  # a hydrate backs pressure up
+                return p * (1 - shut) + shut * u["p_res"] + 0.2 * self.noise(unit + "whp", 10)
+            back = self.get(u["jacket"], "production_header_pressure") if u.get("jacket") else 11.0
+            gpm = self.get(unit, "liquid") / 24 * 4.403
+            p = back + u.get("sg", 0.9) * (gpm / self.get(unit, "cv")) ** 2 / 14.5038
+            return p * (1 - shut) + shut * u.get("shut_in_whp", 45) + 0.1 * self.noise(unit + "whp", 10)
         if var == "wht":
             if u.get("kind") == "gas":
                 flow = self.get(unit, "qgas") / u["qgas0"]
@@ -342,9 +354,10 @@ class Window:
             n = sum(self.get(p, "running") for p in group)
             total = self.get(u["meter"], "flow") / 24 if u.get("meter") else u["q_bep"] * 2
             return run * total / np.maximum(n, 0.5) * (1 + 0.01 * self.noise(unit + "q", 20))
-        if var == "head":  # m: a generic quadratic curve through shut-off head and the best efficiency point
+        if var == "head":  # m: the pump's curve through shut-off head and the best efficiency point, less wear
             q = self.get(unit, "flow")
-            return run * (u["h0"] - (u["h0"] - u["h_bep"]) * (q / u["q_bep"]) ** 2)
+            loss = sum((self.path(e["points"]) for e in self.ev(unit, "head_loss")), np.zeros_like(self.t))
+            return run * (u["h0"] - (u["h0"] - u["h_bep"]) * (q / u["q_bep"]) ** 2) * (1 - loss)
         if var == "suction_pressure":
             return u.get("p_suction", 3.0) * (1 + 0.01 * self.noise(unit + "ps", 20))
         if var == "discharge_pressure":
@@ -360,7 +373,8 @@ class Window:
             return self.lag(run * hot + (1 - run) * self.ambient(), 40) + 0.3 * self.noise(unit + "bt", 10)
         if var == "power":  # kW
             q = self.get(unit, "flow")
-            eff = np.clip(0.78 * (1 - (q / u["q_bep"] - 1) ** 2), 0.2, 0.8)
+            loss = sum((self.path(e["points"]) for e in self.ev(unit, "head_loss")), np.zeros_like(self.t))
+            eff = np.clip(u.get("eff_bep", 0.78) * (1 - (q / u["q_bep"] - 1) ** 2) * (1 - 0.6 * loss), 0.2, 0.85)
             return run * 850 * 9.81 * (q / 3600) * self.get(unit, "head") / eff / 1000
         raise KeyError(var)
 
