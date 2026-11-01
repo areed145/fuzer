@@ -12,6 +12,12 @@
   --warn: #a35f00;
   --warn-soft: #fff4d6;
   --danger: #c4302b;
+  --chart-1: #0b6bcb;
+  --chart-2: #d9770b;
+  --chart-3: #1a8f5a;
+  --chart-4: #8a4fd1;
+  --chart-5: #c4302b;
+  --chart-6: #0f8f9c;
   --radius: 8px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
@@ -32,6 +38,12 @@
     --warn: #f0b44c;
     --warn-soft: #2e2611;
     --danger: #ff6b66;
+    --chart-1: #4c9eff;
+    --chart-2: #f5a13d;
+    --chart-3: #4cc38a;
+    --chart-4: #b48cff;
+    --chart-5: #ff6b66;
+    --chart-6: #3fc6d4;
     color-scheme: dark;
   }
 }
@@ -287,11 +299,11 @@ ul.coverage .bar { height: 6px; background: var(--line); border-radius: 3px; ove
 ul.coverage .bar span { display: block; height: 100%; background: var(--accent); }
 ul.plain li { padding: 2px 0; }
 .page-tabs { margin-bottom: 16px; }
-a.button {
+a.button, label.button {
   display: inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel); color: var(--text); font-weight: 500;
 }
-a.button:hover { border-color: var(--accent); text-decoration: none; }
+a.button:hover, label.button:hover { border-color: var(--accent); text-decoration: none; }
 
 @media (max-width: 800px) {
   nav.top { padding: 10px 16px; gap: 12px; flex-wrap: wrap; }
@@ -372,3 +384,18 @@ h2 select { font: inherit; font-size: 15px; }
 .md h3, .md h4 { margin: 14px 0 6px; }
 .md code { font-size: 0.92em; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
 .md-table { overflow-x: auto; margin-bottom: 10px; }
+
+/* Charts in assistant answers (Figure.tsx) */
+.figure { margin: 12px 0; padding: 8px 12px; }
+.figure-plot { width: 100%; min-height: 300px; }
+.figure figcaption { gap: 12px; }
+.figure-data { max-height: 360px; overflow: auto; margin-top: 8px; }
+
+/* Images attached to a question (Ask.tsx) */
+.attachments { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.attachment { position: relative; }
+.attachment img { height: 64px; max-width: 120px; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius); display: block; }
+.attachment button { position: absolute; top: -6px; right: -6px; padding: 0 6px; border-radius: 999px; line-height: 18px; }
+.question-images { display: flex; gap: 6px; margin-top: 6px; }
+.question-images img { height: 80px; border-radius: var(--radius); border: 1px solid var(--line); }
+label.button { cursor: pointer; }

@@ -138,6 +138,16 @@ cost per model. `FUZER_AGENT_SPECIALIST_MODEL=claude-sonnet-5-5` runs the
 specialists on Sonnet (the orchestrator stays on `FUZER_AGENT_MODEL`). `uv run fuzer eval --agents` scores it per domain against
 `answer_keys/assistant.json`.
 
+Answers can include interactive charts (Plotly; `src/fuzer/plots/`): trends,
+incident timelines, correlation heatmaps, vibration against ISO 20816 zones,
+decline curves with Arps fits, water diagnostics, gas lift performance curves
+and allocation, wall thickness by CML, Weibull / Crow-AMSAA and bad actors.
+The server builds each chart from Fuzer data; the agent sees only a summary of
+it and places it with a `[[figure:<id>]]` marker. Click a point to open its
+record; `/figures/<id>.html` opens one on its own. On the Ask page you can also
+attach or paste images (a PI Vision screenshot, a spectrum photo, a datasheet
+page) for Claude to read.
+
 ### Live PI and ADX (fake)
 
 ```sh

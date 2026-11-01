@@ -32,15 +32,18 @@ def team():
     return _team
 
 
-def start(question: str, conversation_id: str | None = None, by: str = "anonymous") -> dict:
-    """Start answering in the background; returns the job id and conversation id at once."""
+def start(question: str, conversation_id: str | None = None, by: str = "anonymous",
+          images: list[tuple[str, bytes]] | None = None) -> dict:
+    """Start answering in the background; returns the job id and conversation id at once. `images`
+    (media type, bytes) go to Claude with the question."""
     from . import ask
 
     agent = team()
     conversation_id = conversation_id if conversation_id in _sessions else uuid.uuid4().hex
     session = _sessions.setdefault(conversation_id, agent.create_session())
     job_id = uuid.uuid4().hex[:16]
-    job = {"id": job_id, "conversation_id": conversation_id, "question": question, "status": "running",
+    job = {"id": job_id, "conversation_id": conversation_id, "status": "running",
+           "question": question + (f" [{len(images)} image(s) attached]" if images else ""),
            "trace": [], "answer": None, "error": None}
     _jobs[job_id] = job
     while len(_jobs) > MAX_JOBS:
@@ -48,7 +51,7 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
 
     async def run():
         try:
-            out = await ask(question, agent, session, job["trace"])
+            out = await ask(question, agent, session, job["trace"], images)
             job.update(status="done", answer=out["answer"], usage=out["usage"], seconds=out["seconds"],
                        specialists=out["specialists"], tools=out["tools"])
         except Exception as e:  # shown on the page; the conversation can carry on

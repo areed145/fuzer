@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type AssistantJob } from "../api";
+import { api, type AssistantJob, type Attachment } from "../api";
 import { Markdown } from "../Markdown";
 import { useAsync } from "../lib";
 
@@ -23,8 +23,26 @@ const asker = () => {
   }
 };
 
+const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+const MAX_IMAGES = 4;
+const MAX_BYTES = 5 * 1024 * 1024;
+
+/** An image file as an attachment (base64 for the API, an object URL for the preview). */
+function attach(file: File): Promise<Attachment> {
+  return new Promise((resolve, reject) => {
+    if (!TYPES.includes(file.type)) return reject(new Error(`${file.name}: PNG, JPEG, GIF or WebP only`));
+    if (file.size > MAX_BYTES) return reject(new Error(`${file.name}: larger than 5 MB`));
+    const r = new FileReader();
+    r.onload = () => resolve({ name: file.name, media_type: file.type as Attachment["media_type"],
+                               data: String(r.result).split(",")[1], url: URL.createObjectURL(file) });
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 interface Turn {
   question: string;
+  images?: Attachment[];
   job?: AssistantJob;
   jobId?: string;
   error?: string;
@@ -34,16 +52,29 @@ export function AskPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [conversation, setConversation] = useState<string>();
   const [text, setText] = useState("");
+  const [images, setImages] = useState<Attachment[]>([]);
+  const [attachError, setAttachError] = useState<string>();
+  const add = async (files: File[]) => {
+    setAttachError(undefined);
+    try {
+      const got = await Promise.all(files.slice(0, MAX_IMAGES - images.length).map(attach));
+      setImages((xs) => [...xs, ...got].slice(0, MAX_IMAGES));
+    } catch (e) {
+      setAttachError(String((e as Error).message ?? e));
+    }
+  };
   const busy = turns.some((t) => t.jobId && (!t.job || t.job.status === "running") && !t.error);
   const end = useRef<HTMLDivElement>(null);
 
   const ask = async (question: string) => {
     if (!question.trim() || busy) return;
+    const sent = images;
     setText("");
+    setImages([]);
     const n = turns.length;
-    setTurns((ts) => [...ts, { question }]);
+    setTurns((ts) => [...ts, { question, images: sent }]);
     try {
-      const started = await api.ask(question, conversation, asker());
+      const started = await api.ask(question, conversation, asker(), sent);
       setConversation(started.conversation_id);
       setTurns((ts) => ts.map((t, i) => (i === n ? { ...t, jobId: started.job_id } : t)));
     } catch (e) {
@@ -92,20 +123,44 @@ export function AskPage() {
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
         <textarea rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
+                  onPaste={(e) => {
+                    const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+                    if (files.length) {
+                      e.preventDefault();
+                      add(files);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       ask(text);
                     }
                   }} />
+        {images.length > 0 && (
+          <div className="attachments">
+            {images.map((im, k) => (
+              <span key={im.url} className="attachment">
+                <img src={im.url} alt={im.name} />
+                <button type="button" aria-label={`Remove ${im.name}`}
+                        onClick={() => setImages((xs) => xs.filter((_, j) => j !== k))}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+        {attachError && <div className="error small">{attachError}</div>}
         <div className="row">
           <button className="primary" type="submit" disabled={busy || !text.trim()}>{busy ? "Working…" : "Ask"}</button>
+          <label className="button" title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
+            Attach image
+            <input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
+                   onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+          </label>
           {turns.length > 0 && (
             <button type="button" className="link" disabled={busy}
                     onClick={() => { setTurns([]); setConversation(undefined); }}>New conversation</button>
           )}
           <span className="spacer" />
-          <span className="muted small">Enter to send · Shift+Enter for a new line</span>
+          <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
         </div>
       </form>
       <RecentAnswers />
@@ -122,7 +177,12 @@ function TurnView({ turn }: { turn: Turn }) {
   const steps = j?.steps ?? [];
   return (
     <div className="turn">
-      <div className="question">{turn.question}</div>
+      <div className="question">
+        {turn.question}
+        {turn.images && turn.images.length > 0 && (
+          <div className="question-images">{turn.images.map((im) => <img key={im.url} src={im.url} alt={im.name} />)}</div>
+        )}
+      </div>
       <div className="card answer">
         {turn.error && <div className="error small">{turn.error}</div>}
         {!turn.error && (!j || j.status === "running") && (

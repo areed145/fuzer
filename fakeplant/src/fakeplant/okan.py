@@ -111,6 +111,11 @@ AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor
 # Questions for the operations assistant, one per domain plus one across domains, with what a good answer
 # must name (case-insensitive; a list means any of these) given the planted stories. `fuzer eval --agents` scores them (costs money).
 ASSISTANT_QUESTIONS = [
+    {"domain": "charts", "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
+     "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["production"], "charts": ["decline"]},
+    {"domain": "charts", "question": "Which pipelines are losing wall thickness fastest, and why?",
+     "must_mention": ["flowline", "mm", "OK-J03-02"], "specialists": ["maintenance"],
+     "charts": ["wall_ranking", "wall_thickness"]},
     {"domain": "troubleshooting", "question": "Why did 20-K-2200B keep tripping in March 2024, and what should we "
      "check if it happens again?", "must_mention": ["20-K-2200B", "bearing", "vibration"],
      "specialists": ["troubleshooter"]},
