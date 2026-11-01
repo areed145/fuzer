@@ -6,7 +6,8 @@ for the same source and record type):
 
     source: sap
     record_type: equipment
-    shape: records          # records | hierarchy | network | timeseries | events | documents | reference | geospatial
+    shape: records          # records | hierarchy | network | timeseries | events | documents | reference |
+                            # geospatial | measurements
     dataset: sap_equipment  # tables only: the name it has in the data folder
     key: equnr              # tables only: record key column, or a list joined by ">"
     watermark: timestamp    # optional: append-only lake tables read rows at or after the last value
@@ -23,6 +24,14 @@ for the same source and record type):
       - from: text
         props: [text, span, method]
     hooks: [name]           # named Python for logic that truly is source-specific (extract.HOOKS)
+    measurements:           # readings landed in the measurement table (shape: measurements)
+      of: {kind: well, from: well, as: well}   # what was measured; a list is tried in order; self
+      at: test_date
+      method: well test     # quantity, unit and method: text as written, or a value ({from: column})
+      location: cml         # optional column: where on the thing
+      values:
+        - {quantity: oil_rate, from: oil_sm3d, unit: Sm3/d}
+        - {quantity: {from: analyte}, from: result, unit: {from: unit}}
 
 A `ref` endpoint is a template ("sap:equipment:{equnr}") or a prefix with `from`
 ({ref: "sap:equipment", from: equnr}). Values: a column name, `_key` (the record key), `_row` (the whole row), or
@@ -31,7 +40,9 @@ number) or a resolver that returns both kind and key (floc, af_path, af_parent, 
 tag_or_well, facility_or_well; extract.RESOLVERS). Fields listed by name, or given as values, are
 dropped when empty unless `keep: true`. A link is skipped when `when` names an empty column (or, as
 {column: value}, a column without that value), when `unless: {column: value}` matches, or when a
-resolver finds nothing. Order of work: entity and fields, links, mentions, hooks.
+resolver finds nothing. Order of work: entity and fields, links, mentions, hooks. Measurements are
+read separately (measure), after the graph is built, and their values converted to the units in
+units.yaml.
 """
 
 import os
@@ -41,11 +52,12 @@ from pathlib import Path
 import yaml
 
 from . import extract as ex
-from . import nel
-from .model import Candidate, Edge
+from . import nel, units
+from .model import Candidate, Edge, Measurement
 
 DEFAULT_DIR = Path(__file__).parent / "mappings"
-SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial"}
+SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial",
+          "measurements"}
 
 
 class MappingError(ValueError):
@@ -132,6 +144,7 @@ class Mapping:
         self._mentions = [(m["from"], m.get("area_from"), set(m.get("kinds") or ()), m.get("method"),
                            m.get("rel", "mentions"), m.get("confidence"), m.get("props", ["text", "method"]))
                           for m in raw.get("mentions") or []]
+        self.measures = self._measurements(raw["measurements"]) if raw.get("measurements") else None
         self._hooks = []
         for h in raw.get("hooks") or []:
             h = h if isinstance(h, dict) else {"name": h}
@@ -219,7 +232,49 @@ class Mapping:
                 self._value(link["valid_from"]) if link.get("valid_from") else None,
                 self._value(link["valid_to"]) if link.get("valid_to") else None, props)
 
+    def _measurements(self, spec):
+        if not (spec.get("of") and spec.get("at") and spec.get("values")):
+            raise MappingError(f"measurements need of, at and values{self._where}")
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
+        if any(o == "self" for o in of) and not self._entity:
+            raise MappingError(f"measurements of self need an entity{self._where}")
+        values = []
+        for v in spec["values"]:
+            if not (v.get("quantity") and v.get("from")):
+                raise MappingError(f"each measurement value needs a quantity and from{self._where}")
+            values.append((text(v["quantity"]), self._value(v["from"]), text(v.get("unit"))))
+        return ([self._endpoint(o) for o in of], self._value(spec["at"]), text(spec.get("method")),
+                self._value(spec["location"]) if spec.get("location") else None, values)
+
     # ---- run
+
+    def measure(self, key: str, row: dict, pack) -> list[Measurement]:
+        """The readings in one row, in stored units; values that aren't numbers are skipped."""
+        if not self.measures:
+            return []
+        of_f, at_f, method_f, loc_f, values = self.measures
+        at = at_f(key, row, pack)
+        if not at:
+            return []
+        me = ("ref", f"{self.source}:{self.record_type}:{key}")
+        of = [me if o is SELF else o(key, row, pack) for o in of_f]
+        of = [o for o in of if o and o[1]]
+        if not of:
+            return []
+        method, loc = method_f(key, row, pack), (loc_f(key, row, pack) or None) if loc_f else None
+        out = []
+        for quantity_f, value_f, unit_f in values:
+            raw, quantity, unit = value_f(key, row, pack), quantity_f(key, row, pack), unit_f(key, row, pack)
+            read = units.reading(raw)
+            if read is None or not quantity:
+                continue
+            value, stored = units.normalise(read[0], unit)
+            reported = f"{raw} {unit}".strip() if stored != unit else None
+            out.append(Measurement(me[1], of, str(quantity), str(at), round(value, 6), stored, read[1], reported,
+                                   method or None, str(loc) if loc else None))
+        return out
+
 
     def extract(self, key: str, row: dict, pack) -> tuple[list[Candidate], list[Edge]]:
         c = None

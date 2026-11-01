@@ -17,6 +17,10 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    discharge temperature climbing with a fouled cooler, suction pressure falling with a supply problem).
    For a wider or different window use `process_values(ref, at, hours_before, hours_after)`.
    Note the provider: `synthetic` values are not real plant data, so say so.
+   The brief's `measurements` are the sparse readings PI doesn't have: lab results at the unit's
+   sample points (oil in water, BS&W, H2S, dewpoint), well tests, wall thickness. A lab result that
+   stepped up weeks before the incident (more oil in the water, a wetter crude) often explains it;
+   `measurements(ref, quantity, history=true)` gives the full record.
 4. **History repeats.** Similar incidents with the same failure mode on the same unit mean the earlier
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds

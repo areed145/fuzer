@@ -2,8 +2,8 @@
 // recessive grid, shaded upset window, crosshair + tooltip on hover, and a table view.
 
 import { useState } from "react";
-import { api } from "./api";
-import { Status, useAsync } from "./lib";
+import { api, type MeasurementSeries } from "./api";
+import { entityHref, Status, useAsync } from "./lib";
 
 export interface Series {
   id: string;
@@ -148,5 +148,89 @@ export function TrendCard({ id, direct = false }: { id: string; direct?: boolean
       )}
       {d && d.series.length > 1 && <TrendGrid series={d.series} upsets={d.upsets} />}
     </section>
+  );
+}
+
+const quantityLabel = (q: string) => q.replaceAll("_", " ");
+const num = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(2));
+
+/** Measurements PI doesn't have (well tests, lab results, wall thickness at CMLs) on an entity, one small
+ * chart per quantity and location, placed in time (readings are irregular); grey dots are below the
+ * detection limit. Hidden when there are none. */
+export function MeasurementsCard({ id }: { id: string }) {
+  const m = useAsync(() => api.measurements(id), [id]);
+  const series = m.data?.series ?? [];
+  if (!m.loading && !m.error && series.length === 0) return null;
+  return (
+    <section className="card">
+      <h2>
+        Measurements{" "}
+        <span className="muted small">well tests, lab results and inspection readings, landed from their sources</span>
+      </h2>
+      <Status loading={m.loading && !m.data} error={m.error} />
+      <div className="trend-grid">
+        {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
+      </div>
+      {m.data?.truncated && <p className="muted small">Showing the latest readings only.</p>}
+    </section>
+  );
+}
+
+function MeasurementChart({ s, self }: { s: MeasurementSeries; self: string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const vals = s.values ?? [];
+  const ts = vals.map((v) => Date.parse(v.at));
+  const t0 = ts[0];
+  const t1 = ts[ts.length - 1];
+  const pad = (s.max - s.min) * 0.1 || Math.abs(s.max) * 0.05 || 1;
+  const lo = s.min - pad;
+  const hi = s.max + pad;
+  const x = (t: number) => (t1 > t0 ? ((t - t0) / (t1 - t0)) * (W - 12) + 6 : W / 2);
+  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
+  const path = vals.map((v, i) => `${i ? "L" : "M"}${x(ts[i]).toFixed(1)},${y(v.value).toFixed(1)}`).join("");
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const t = t0 + ((e.clientX - r.left) / r.width) * (t1 - t0);
+    let best = 0;
+    ts.forEach((ti, i) => { if (Math.abs(ti - t) < Math.abs(ts[best] - t)) best = i; });
+    setHover(best);
+  };
+  const h = hover !== null ? vals[hover] : null;
+  return (
+    <figure className="trend">
+      <figcaption>
+        <b className="small">{quantityLabel(s.quantity)}</b>{" "}
+        <span className="muted small">
+          {s.location}{s.of.id !== self && <> on <a href={entityHref(s.of.id)}>{s.of.label ?? s.of.id}</a></>}
+          {" "}· latest {s.latest.qualifier ?? ""}{num(s.latest.value)} {s.unit} ({s.latest.at.slice(0, 10)})
+          {s.per_year !== null && ` · ${s.per_year > 0 ? "+" : ""}${num(s.per_year)} ${s.unit}/year`}
+        </span>
+      </figcaption>
+      <div className="trend-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onMouseMove={onMove} onMouseLeave={() => setHover(null)}
+             role="img" aria-label={`${quantityLabel(s.quantity)}: ${s.count} readings from ${num(s.min)} to ${num(s.max)} ${s.unit ?? ""}`}>
+          {[0.25, 0.5, 0.75].map((f) => <line key={f} className="trend-grid-line" x1={0} x2={W} y1={H * f} y2={H * f} />)}
+          <path d={path} className="trend-line thin" />
+          {/* zero-length round-capped strokes: dots that stay round however the chart is stretched */}
+          {vals.map((v, i) => (
+            <path key={i} d={`M${x(ts[i]).toFixed(1)},${y(v.value).toFixed(1)}h0`}
+                  className={`trend-mark${v.qualifier ? " below-limit" : ""}${hover === i ? " on" : ""}`} />
+          ))}
+        </svg>
+        <span className="trend-axis top">{num(hi)}</span>
+        <span className="trend-axis bottom">{num(lo)}</span>
+        {h && (
+          <div className="trend-tip" style={{ left: `${(x(ts[hover!]) / W) * 100}%` }}>
+            <b>{h.qualifier ?? ""}{num(h.value)}</b> {s.unit}{h.reported && <span className="muted"> (reported {h.reported})</span>}
+            <div className="muted">{h.at.slice(0, 16).replace("T", " ")}{h.method && ` · ${h.method}`}</div>
+          </div>
+        )}
+      </div>
+      <div className="trend-x muted small">
+        <span>{s.first.slice(0, 10)}</span>
+        <span>{s.count} readings</span>
+        <span>{s.latest.at.slice(0, 10)}</span>
+      </div>
+    </figure>
   );
 }

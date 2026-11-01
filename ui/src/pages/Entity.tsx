@@ -22,7 +22,7 @@ function EntityMap({ id }: { id: string }) {
   );
 }
 import { IncidentDetail, IncidentList } from "./Incidents";
-import { TrendCard } from "../Trend";
+import { MeasurementsCard, TrendCard } from "../Trend";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -159,6 +159,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {e.kind !== "timeseries" && (e.edge_counts["out:has_timeseries"] ?? 0) > 0 && (
             <TrendCard id={e.fuzer_id} direct />
           )}
+          {!["timeseries", "document", "document_section", "log_entry"].includes(e.kind) && <MeasurementsCard id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class", "area"].includes(e.kind) && (
             <KnowledgeCard id={e.fuzer_id} />
           )}

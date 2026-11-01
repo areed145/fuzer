@@ -13,7 +13,8 @@ def _date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
 
 
-def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_index: dict) -> dict:
+def resolver(assigned: dict, key_index: dict):
+    """endpoint -> (Fuzer ID, None), or (None, why it didn't resolve)."""
     def endpoint(ep):
         kind, key = ep
         if kind == "ref":
@@ -27,6 +28,11 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
             return next(iter(ids)), None
         return None, f"ambiguous {kind}" if ids else f"unknown {kind}"
 
+    return endpoint
+
+
+def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_index: dict) -> dict:
+    endpoint = resolver(assigned, key_index)
     merged, unresolved = {}, Counter()
     for e in [e for c in cands for e in c.edges] + extra:
         (src, why_s), (dst, why_d) = endpoint(e.src), endpoint(e.dst)

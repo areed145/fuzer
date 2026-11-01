@@ -42,6 +42,9 @@ involves (event -> tag / well, with a role). Events (trips, starts, changeovers,
 alarms, leaks, instrument faults, ...) were read from operator logs by Claude; each cites its log entry. Dated links have from/to dates; pass
 as_of=YYYY-MM-DD to see what was true on a day.
 
+Measurements that aren't in PI (well tests, lab results at sample points, wall thickness at CMLs) are
+landed and kept: `measurements(ref)` returns them per quantity and location next to process values.
+
 Any tool taking `ref` accepts a Fuzer ID (fz-...), a tag in any style (20-PT-1001A, 20PT1001A), a well
 name, a PI point name or a source record key. Every value carries the source it came from; cite sources
 when you answer. If a ref is ambiguous the tool returns candidates; pick one or ask the user.
@@ -445,6 +448,28 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
         out = timeseries.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720))
     if "series" in out:
         out["series"] = [{k: v for k, v in s.items() if k != "values"} for s in out["series"]]
+    return _plain(out)
+
+
+@server.tool(annotations=READ_ONLY)
+def measurements(ref: str, quantity: str | None = None, since: str | None = None, until: str | None = None,
+                 history: bool = False) -> dict[str, Any]:
+    """Sparse measurements that aren't in PI, on a well, tag, equipment, pipeline or an incident's unit:
+    well tests (oil_rate, water_cut, gor, lift_gas_rate, wellhead_pressure), lab results at sample points
+    (bsw, salt, density, oil_in_water, h2s, co2, water_dewpoint, chloride) and wall thickness at CMLs
+    (wall_thickness, mm). One series per quantity and location with the latest value, min / max, the
+    change per year (wall loss rate, decline) and the last three readings; history=true returns every
+    reading. A qualifier "<" means below the detection limit. Dates YYYY-MM-DD."""
+    from . import measurements as m
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        if history:
+            return _plain(m.for_entity(conn, fid, quantity, since, until))
+        out = m.for_entity(conn, fid, quantity, since, until)
+    out["series"] = [{k: v for k, v in s.items() if k != "values"} | {"recent": s["values"][-3:]}
+                     for s in out["series"]]
     return _plain(out)
 
 

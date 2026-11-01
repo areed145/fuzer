@@ -459,6 +459,19 @@ to facilities), scored by distance; eval on the Okan and onshore plants:
 precision 1.0, recall 1.0. PostGIS waits until polygons or exact geometry
 operations are needed (Azure Database for PostgreSQL supports it).
 
+Measurements (#62): a `measurements` block in a mapping names what was measured
+(a list of endpoints tried in order: tag, well, pipeline or the record itself),
+when, how and where on it (a CML, a sample point), and one or more quantities
+per row (a well test gives five; a LIMS row names its analyte). The rebuild lands
+them in `measurement` against the resolved entity, after the graph. Units go
+through reference data (`units.yaml`: stored unit, spellings, conversions), so a
+2019 survey in inches is stored in mm with what the source said kept; "<5" is
+kept as a below-detection-limit qualifier. They appear on the entity page next
+to process values, in the troubleshooting brief and through the `measurements`
+MCP tool, one series per quantity and location with the change per year (wall
+loss, decline). Large asset: 89,710 readings on 1,190 entities; a well's test
+history 0.6 ms (4 ms cold).
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |
@@ -467,7 +480,7 @@ operations are needed (Azure Database for PostgreSQL supports it).
 | Hierarchy | FLOCs, PI AF | ISA-95 site / area / unit, ISO 14224 trees, org units |
 | Network (nodes + edges) | EC allocation, P&ID piping | Pipeline and gathering networks, electrical single-lines, cause & effect matrices and trip logic (input -> trips -> output) |
 | Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
-| Measurements (sparse, landed) | none | Lab / LIMS samples, well tests, inspection thickness readings (CMLs), vibration routes, emissions / LDAR surveys |
+| Measurements (sparse, landed) | Well tests, LIMS results, inspection thickness readings (CMLs) | Vibration routes, emissions / LDAR surveys |
 | Events (time + text + references) | Logs, downtime, notifications, DAY001 | Teams threads, alarm journals, trips |
 | Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |
 | Documents | Manuals, guides, procedures | Any PDF / Office file, datasheets, inspection reports |
@@ -512,6 +525,7 @@ identities, history, review and the graph stay as they are.
 | `assertion` | Reviewer choices (per-source values are re-derived from records on demand) |
 | `golden` | The chosen value per entity and field, and why |
 | `edge` | Typed links with dates, sources and confidence |
+| `measurement` | Landed readings (well tests, lab results, wall thickness) on the entity they were taken on, in stored units |
 | `review_item` | Open/decided match and conflict questions |
 | `pinned_link` | Reviewer must-link / cannot-link decisions |
 | `id_event` | Mint / merge / split history |

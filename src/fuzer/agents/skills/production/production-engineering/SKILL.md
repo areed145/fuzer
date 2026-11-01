@@ -7,7 +7,9 @@ description: Production engineering for wells - well test trends (rate, water cu
 
 1. **Asset view:** `well_performance()` ranks wells by oil rate change between the first and latest
    test in the window, lists water cut risers, and adds each well's deferment.
-2. **One well:** `well_performance(ref="OK-J07-03")` gives its test history. Read it as a trend:
+2. **One well:** `well_performance(ref="OK-J07-03")` gives its test history; `measurements(ref)` has the
+   same tests plus wellhead lab samples (chloride rising with water cut means formation water). Read it
+   as a trend:
    - steady decline: normal reservoir depletion; compare with the field.
    - sudden rate drop with water cut jump: water breakthrough (check the test dates and log entries).
    - sudden rate drop, then recovery after a slickline job: gas lift valve or downhole problem fixed.

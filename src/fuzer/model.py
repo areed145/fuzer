@@ -35,3 +35,20 @@ class Candidate:
     @property
     def ref(self) -> str:
         return f"{self.source}:{self.record_type}:{self.source_key}"
+
+
+@dataclass
+class Measurement:
+    """One reading of one quantity on one thing: a well test's oil rate, a lab result at a sample point,
+    a wall thickness at a CML. Landed and kept, unlike historian values."""
+
+    record: str  # the source record it came from (<source>:<record_type>:<key>)
+    of: list[Endpoint]  # what was measured: the first of these that resolves
+    quantity: str
+    at: str
+    value: float
+    unit: str | None
+    qualifier: str | None = None  # "<" / ">" for results beyond a detection limit
+    reported: str | None = None  # the value and unit as the source gave them, when converted
+    method: str | None = None
+    location: str | None = None  # where on the thing (a CML, a sample point)

@@ -1,0 +1,16 @@
+# Inspection thickness readings: wall thickness at a condition monitoring location (CML) on a vessel,
+# piping tag or pipeline, by ultrasonic (UT) or radiographic survey. Older surveys report in inches.
+source: inspection
+record_type: reading
+shape: measurements
+dataset: inspection_readings
+key: reading_id
+measurements:
+  of:
+    - {kind: tag, from: tag, as: tag}
+    - {kind: pipeline, from: line_id}
+  at: survey_date
+  method: {from: method}
+  location: cml
+  values:
+    - {quantity: wall_thickness, from: thickness, unit: {from: unit}}

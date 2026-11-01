@@ -40,8 +40,10 @@ def test_every_source_loads(setup):
     unread = conn.execute(
         "select source, record_type, count(*) as n from source_record r where not exists "
         "(select 1 from crosswalk c where c.source = r.source and c.record_type = r.record_type "
-        "and c.source_key = r.source_key) and r.record_type not in ('edge', 'bom') group by 1, 2").fetchall()
-    assert unread == [], unread  # every record became (part of) an entity
+        "and c.source_key = r.source_key) and r.record_type not in ('edge', 'bom') and not exists "
+        "(select 1 from measurement m where m.record = r.source || ':' || r.record_type || ':' || r.source_key) "
+        "group by 1, 2").fetchall()
+    assert unread == [], unread  # every record became (part of) an entity or measurements
 
 
 def test_wells_and_facilities(setup):

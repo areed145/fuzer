@@ -5,10 +5,11 @@ incidents and how they ended, reviewed lessons for its model or class, the manua
 that cover its failure modes, maintenance history, downtime, spares in stock, and suggested checks.
 Every item carries the entity it came from, so an agent or engineer can cite and open it. Nothing
 here acts on the plant. Process values come from the configured time-series provider (PI Web API,
-ADX or synthetic; timeseries.py), summarised per point with how the lead-in differs from before.
+ADX or synthetic; timeseries.py), summarised per point with how the lead-in differs from before;
+measurements PI doesn't have (lab results, well tests, wall thickness) come next to them.
 """
 
-from . import knowledge, lessons, queries
+from . import knowledge, lessons, measurements, queries
 from .pack import Pack
 
 
@@ -57,6 +58,7 @@ def brief(conn, pack: Pack, fuzer_id: str) -> dict:
                    for p in queries.spares(conn, unit)],
         "suggested_checks": checks[:8],
         "process_values": _values(conn, incident or unit),
+        "measurements": measurements.summary(conn, unit),
     }
 
 

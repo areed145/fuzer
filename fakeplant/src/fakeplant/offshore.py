@@ -15,9 +15,10 @@ import json
 import random
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
-from . import docs, pid
+from . import docs, measurements, pid
 
 FACILITY = "OSB"
 AREAS = {"20": "Separation", "23": "Gas Compression", "27": "Oil Export", "44": "Water Injection"}
@@ -282,6 +283,16 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     daily = _daily_reports(random.Random(seed + 5), downtime, days=60 if not is_big else 730)
     documents = docs.generate(out, equipment, plan, FACILITY)
     materials, bom = _spares(equipment)
+    # Well tests, lab results at the separators and wall thickness at every vessel's CMLs.
+    first = date(2023, 1, 1) if is_big else date(2025, 1, 1)
+    tests = measurements.well_tests(random.Random(seed + 6), wells, first, 36 if is_big else 12)
+    seps = [(t, title) for t, title in vessels if "Separator" in title]
+    lab = measurements.lab_results(random.Random(seed + 7), [
+        {"tag": t.canonical, "sample_point": f"{title} {side} outlet", "kind": side}
+        for t, title in seps for side in ("oil", "water")], first, date(2025, 12, 30), 14 if not is_big else 28)
+    readings = measurements.thickness_readings(
+        random.Random(seed + 8), [{"tag": t.canonical, "nominal_mm": 22.0, "cmls": 2} for t, _ in vessels],
+        [2019, 2021, 2023, 2025])
     (out / "answer_keys").mkdir(exist_ok=True)
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
     (out / "answer_keys" / "matches.json").write_text(json.dumps(match_truth, indent=1))
@@ -298,6 +309,9 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     _write_csv(out / "maximo_assets.csv", maximo)
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", logs)
+    _write_csv(out / "ec_well_tests.csv", tests)
+    _write_csv(out / "lims_results.csv", lab)
+    _write_csv(out / "inspection_readings.csv", readings)
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps(ec, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))

@@ -101,7 +101,9 @@ B bearing trips and the lift gas shortfalls they cause, train A after-cooler
 fouling, inlet separator carryover, NWP gas producer hydrates, EGP curtailment,
 gas lift valve failures, an export pump seal leak and a water breakthrough. It also
 has an open work order backlog, maintenance and inspection plans (some overdue),
-a 2026 turnaround (OK-TAR-2026) and monthly well tests. Details in
+a 2026 turnaround (OK-TAR-2026), monthly well tests, lab results (separators,
+gas plant, a wellhead) and wall thickness surveys at CMLs on every pipeline and
+vessel. Details in
 [fakeplant/src/fakeplant/okan.py](fakeplant/src/fakeplant/okan.py).
 
 Optional, in `.env` (see `.env.example`):
