@@ -182,6 +182,121 @@ def publish(conn, definition_id: int, by: str) -> dict:
     return {"id": definition_id, "state": "published", "version": row["version"]}
 
 
+def _definition_row(conn, definition_id: int, lock: bool = False) -> dict:
+    row = conn.execute(f"select * from work_definition where id = %s{' for update' if lock else ''}",
+                       (definition_id,)).fetchone()
+    if row is None:
+        raise NotFound("unknown definition")
+    return row
+
+
+@_op
+def draft(conn, process_key: str, by: str, from_id: int | None = None) -> dict:
+    """The version to edit in the modeler: the open draft newer than what is published, else a new draft
+    copied from `from_id` (default: the published version)."""
+    conn.execute("select pg_advisory_xact_lock(hashtext('work_definition:' || %s))", (process_key,))
+    row = conn.execute(
+        """
+        select id, process_key, version, name, state from work_definition d
+        where process_key = %(k)s and state in ('draft', 'checked')
+          and version > coalesce((select max(version) from work_definition where process_key = %(k)s
+                                  and state in ('published', 'superseded')), 0)
+        order by version desc limit 1
+        """, {"k": process_key}).fetchone()
+    if row and from_id is None:
+        return row
+    src = _definition_row(conn, from_id) if from_id is not None else _published(conn, process_key)
+    if src["process_key"] != process_key:
+        raise WorkError(f"definition {from_id} is a version of '{src['process_key']}', not '{process_key}'")
+    row = conn.execute(
+        """
+        insert into work_definition (process_key, version, name, xml, created_by)
+        values (%s, (select max(version) from work_definition where process_key = %s) + 1, %s, %s, %s)
+        returning id, process_key, version, name, state
+        """, (process_key, process_key, src["name"], src["xml"], by)).fetchone()
+    _event(conn, "draft_started", by, definition_id=row["id"],
+           data={"process_key": process_key, "version": row["version"], "from_version": src["version"]})
+    return row
+
+
+@_op
+def save_draft(conn, definition_id: int, xml: str, by: str) -> dict:
+    """Save the modeler's diagram over a draft. It goes back to `draft` until checked again; published and
+    superseded versions never change."""
+    row = _definition_row(conn, definition_id, lock=True)
+    if row["state"] not in ("draft", "checked"):
+        raise Conflict(f"v{row['version']} is {row['state']} and can't change; start a new draft from it")
+    try:
+        procs = bpmn.parse(xml)
+    except ValueError as e:
+        raise CheckFailed([bpmn.Problem(None, str(e))]) from e
+    if row["process_key"] not in procs:
+        raise CheckFailed([bpmn.Problem(None, f"the diagram has no process '{row['process_key']}'; a process "
+                                              "keeps its id across versions (import it as a new process instead)")])
+    conn.execute("update work_definition set xml = %s, name = %s, state = 'draft', problems = '[]' where id = %s",
+                 (xml, procs[row["process_key"]].name, definition_id))
+    _event(conn, "draft_saved", by, definition_id=definition_id,
+           data={"process_key": row["process_key"], "version": row["version"]})
+    return {"id": definition_id, "process_key": row["process_key"], "version": row["version"], "state": "draft"}
+
+
+def compare(conn, definition_id: int, against_id: int | None = None) -> dict:
+    """What a version changes against another (default: the published one, or for the published one the
+    version it replaced)."""
+    row = _definition_row(conn, definition_id)
+    if against_id is not None:
+        base = _definition_row(conn, against_id)
+        if base["process_key"] != row["process_key"]:
+            raise WorkError("both versions must be of the same process")
+    else:
+        base = conn.execute(
+            "select * from work_definition where process_key = %(k)s and id <> %(id)s and "
+            "(state = 'published' or (%(pub)s and state = 'superseded')) order by version desc limit 1",
+            {"k": row["process_key"], "id": definition_id, "pub": row["state"] == "published"}).fetchone()
+    against = {k: base[k] for k in ("id", "version", "state")} if base else None
+    return {"id": definition_id, "version": row["version"], "against": against,
+            "changes": bpmn.diff(base["xml"] if base else None, row["xml"], row["process_key"])}
+
+
+def monitor(conn, process_key: str, definition_id: int | None = None, days: int = 30,
+            now: datetime | None = None) -> dict:
+    """Where work is in a process: per element, steps waiting now (and how many are overdue, the oldest)
+    and steps finished in the last `days` with their median time; plus processes by version and outcome.
+    Boundary timers watching a step aren't counted as work waiting; steps that pass straight through
+    (start, gateways, ends) aren't counted as done (the outcomes say how processes ended)."""
+    now = now or utcnow()
+    since = now - timedelta(days=days)
+    args = {"k": process_key, "d": definition_id, "now": now, "since": since}
+    rows = conn.execute(
+        """
+        select t.element, max(t.name) as name,
+               count(*) filter (where t.state = 'waiting' and t.attached_to is null) as waiting,
+               count(*) filter (where t.state = 'waiting' and t.attached_to is null and t.due_at < %(now)s) as overdue,
+               min(t.created_at) filter (where t.state = 'waiting' and t.attached_to is null) as oldest,
+               count(*) filter (where t.state = 'done') as done,
+               percentile_cont(0.5) within group (order by extract(epoch from t.finished_at - t.created_at))
+                 filter (where t.state = 'done') as median_seconds
+        from work_token t join work_process p on p.id = t.process_id
+        where p.process_key = %(k)s and (%(d)s::bigint is null or p.definition_id = %(d)s)
+          and (t.state = 'waiting' or (t.state = 'done' and t.finished_at >= %(since)s and t.kind not in ('auto', 'end')))
+        group by t.element
+        """, args).fetchall()
+    procs = conn.execute(
+        """
+        select d.id as definition_id, d.version, p.state, p.outcome, count(*) as n
+        from work_process p join work_definition d on d.id = p.definition_id
+        where p.process_key = %(k)s and (%(d)s::bigint is null or p.definition_id = %(d)s)
+          and (p.state = 'running' or p.ended_at >= %(since)s)
+        group by d.id, d.version, p.state, p.outcome order by d.version desc, n desc
+        """, args).fetchall()
+    return {"process_key": process_key, "definition_id": definition_id, "days": days, "at": now,
+            "elements": {r.pop("element"): r for r in rows}, "processes": procs}
+
+
+def roles() -> dict:
+    return {"person": sorted(bpmn.PERSON_ROLES), "agent": sorted(bpmn.AGENT_ROLES)}
+
+
 def export_bpmn(conn, definition_id: int) -> str:
     row = conn.execute("select xml from work_definition where id = %s", (definition_id,)).fetchone()
     if row is None:

@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@bpmn-io/form-js-editor": "^2.1.1",
     "@bpmn-io/form-js-viewer": "^2.1.1",
     "bpmn-js": "^18.31.1",
     "cytoscape": "~3.34.3",

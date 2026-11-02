@@ -691,6 +691,12 @@ class WorkMessage(BaseModel):
     process_key: str | None = None
 
 
+class WorkDraft(BaseModel):
+    process_key: str
+    by: str
+    from_id: int | None = None  # copy this version (default: the published one) unless a draft is open
+
+
 class WorkMigrate(BaseModel):
     by: str
     definition_id: int
@@ -831,6 +837,36 @@ def work_definitions(process_key: str | None = None, conn=Depends(get_conn)):
 def work_definition_import(d: WorkDefinitionIn, conn=Depends(get_conn)):
     """Import a .bpmn file as draft versions (one per process in it)."""
     return work.import_bpmn(conn, d.xml, d.by)
+
+
+@app.post("/work/definitions/draft")
+def work_definition_draft(d: WorkDraft, conn=Depends(get_conn)):
+    """The draft to edit in the modeler: the open one, or a new one copied from a version."""
+    return work.draft(conn, d.process_key, d.by, d.from_id)
+
+
+@app.put("/work/definitions/{definition_id}")
+def work_definition_save(definition_id: int, d: WorkDefinitionIn, conn=Depends(get_conn)):
+    """Save the modeler's diagram over a draft (published versions never change)."""
+    return work.save_draft(conn, definition_id, d.xml, d.by)
+
+
+@app.get("/work/definitions/{definition_id}/compare")
+def work_definition_compare(definition_id: int, against: int | None = None, conn=Depends(get_conn)):
+    """Elements added, removed or changed against another version (default: the published one)."""
+    return work.compare(conn, definition_id, against)
+
+
+@app.get("/work/monitor/{process_key}")
+def work_monitor(process_key: str, definition_id: int | None = None, days: int = 30, conn=Depends(get_conn)):
+    """Steps waiting and finished at each element of a process, for the diagram overlay."""
+    return work.monitor(conn, process_key, definition_id, min(max(days, 1), 365))
+
+
+@app.get("/work/roles")
+def work_roles():
+    """The person roles and agent roles a process may name."""
+    return work.roles()
 
 
 @app.post("/work/definitions/{definition_id}/check")

@@ -33,7 +33,7 @@ export function usePerson(): [string, (name: string) => void] {
 
 const HOUR = 3600_000;
 
-function span(ms: number): string {
+export function span(ms: number): string {
   const h = Math.abs(ms) / HOUR;
   return h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
 }
