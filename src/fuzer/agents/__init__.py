@@ -53,7 +53,7 @@ TOOLS = {
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
                                 "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
                                 "gas_lift_network", "well_performance", "measurements", "limits",
-                                "calc", "instrument_health", "detect_changes", "detections",
+                                "calc", "instrument_health", "detect_changes", "detections", "get_upsets", "upset_detail",
                                 *CHARTS, "plot_incident", "plot_correlation", "plot_vibration", "plot_pump_curve",
                                 "plot_choke", "plot_instrument_health", "plot_changes", "equipment_curves"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",

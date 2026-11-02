@@ -1,11 +1,13 @@
 """Incidents: what happened to one piece of plant around one time, as one thing you can open.
 
-Signals are logged events (`involves` a tag), downtime records (`caused_by` a tag) and SAP
-notifications (`concerns` a tag). Instrument tags roll up to the equipment tag they're part of,
-so a vibration alarm on 20-VT-1001B and a trip of 20-P-1001B land on the same unit. Signals on a
+Signals are logged events (`involves` a tag), downtime records (`caused_by` a tag), SAP
+notifications (`concerns` a tag) and upsets the SRE detected in the process data (#96: on their
+first-cause unit), so what people log later lands on the upset already found. Instrument tags roll
+up to the equipment tag they're part of, so a vibration alarm on 20-VT-1001B and a trip of 20-P-1001B land on the same unit. Signals on a
 unit are grouped while each is within WINDOW_DAYS of the previous one; a group becomes an
-incident if it includes downtime or at least two kinds of signal (a lone notification is just
-maintenance). One sorted pass per unit, after the graph is built.
+incident if it includes downtime, an upset or at least two kinds of signal (a lone notification is
+just maintenance). An incident with an upset is `detected` until a log, downtime or notification
+confirms it. One sorted pass per unit, after the graph is built.
 """
 
 from collections import Counter, defaultdict
@@ -17,7 +19,7 @@ from .model import Candidate, Edge
 WINDOW_DAYS = 3
 SOURCE = "fuzer"
 KINDS = {"event": ("involves", "timestamp"), "downtime": ("caused_by", "start"), "notification": ("concerns", "created")}
-TITLE_PREFERENCE = ["downtime", "event", "notification"]
+TITLE_PREFERENCE = ["downtime", "event", "notification", "upset"]
 
 
 def _signals(conn) -> list[dict]:
@@ -57,11 +59,26 @@ def _signals(conn) -> list[dict]:
     ).fetchall()
 
 
+def _upsets(conn) -> list[dict]:
+    """Process upsets the SRE detected, as signals on their first-cause unit (an instrument's equipment)."""
+    return conn.execute(
+        """
+        select 'upset:' || u.id as id, 'upset' as kind, coalesce(p.dst, u.first_unit) as unit,
+               left(u.start::text, 10) as day, null::numeric as lost_oil, null as failure_mode, null as event_type,
+               'detected ' || d.key || ' on ' || coalesce(l.label, '?') as text
+        from upset u left join detection d on d.id = u.first_detection
+        left join entity_label l on l.fuzer_id = d.point_id
+        left join lateral (select p.dst from edge p join entity b on b.fuzer_id = p.dst and b.kind = 'tag'
+                           where p.src = u.first_unit and p.rel = 'part_of' limit 1) p on true
+        where u.kind = 'process' and u.status <> 'false_alarm' and u.first_unit is not null
+        """).fetchall()
+
+
 def derive(conn) -> tuple[list[Candidate], list[Edge]]:
     """Incident candidates (keyed `<unit>@<first day>`) and their edges."""
     by_unit: dict[str, list[dict]] = defaultdict(list)
     seen = set()
-    for s in _signals(conn):
+    for s in _signals(conn) + _upsets(conn):
         if s["day"] and (s["id"], s["unit"]) not in seen:
             seen.add((s["id"], s["unit"]))
             by_unit[s["unit"]].append(s)
@@ -76,13 +93,14 @@ def derive(conn) -> tuple[list[Candidate], list[Edge]]:
             if s and group and (date.fromisoformat(s["day"]) - date.fromisoformat(group[-1]["day"])).days <= WINDOW_DAYS:
                 group.append(s)
                 continue
-            if group and (any(g["kind"] == "downtime" for g in group) or len({g["kind"] for g in group}) >= 2):
+            if group and (any(g["kind"] in ("downtime", "upset") for g in group) or len({g["kind"] for g in group}) >= 2):
                 cands.append(_incident(unit, labels.get(unit) or unit, group))
             group = [s] if s else []
     for c in cands:
         edges.append(Edge(("ref", c.ref), "about", ("id", c.fields.pop("_unit")), SOURCE))
         for sid in c.fields.pop("_signals"):
-            edges.append(Edge(("ref", c.ref), "includes", ("id", sid), SOURCE))
+            if not sid.startswith("upset:"):  # upsets aren't entities: listed in the incident's fields
+                edges.append(Edge(("ref", c.ref), "includes", ("id", sid), SOURCE))
     return cands, edges
 
 
@@ -97,6 +115,8 @@ def _incident(unit: str, unit_label: str, group: list[dict]) -> Candidate:
         "unit": unit_label, "start": group[0]["day"], "end": group[-1]["day"], "timestamp": group[0]["day"],
         "signals": len(group), "events": kinds["event"], "downtime_records": kinds["downtime"],
         "notifications": kinds["notification"],
+        **({"upsets": sorted(int(g["id"].split(":")[1]) for g in group if g["kind"] == "upset"),
+            "status": "confirmed" if len(kinds) > 1 else "detected"} if kinds["upset"] else {}),
         "lost_oil_sm3": float(sum(g["lost_oil"] or 0 for g in group)),
         **({"failure_modes": modes} if modes else {}), **({"event_types": types} if types else {}),
         "_unit": unit, "_signals": [g["id"] for g in group],

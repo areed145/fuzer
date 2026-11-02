@@ -602,8 +602,30 @@ exactly as the schedule runs it:
 
 A run covers the time since the last one ended (`sre_run`), less an hour's overlap, in 6-hour windows,
 so a missed run catches up. Detections go to `detection`. One still going at the end of its window is
-extended by the next run rather than raised again. Grouping into upsets, diagnosis and hand-off follow
-(#96b, #96c).
+extended by the next run rather than raised again.
+
+**Grouping into upsets (#96b).** Detections become one upset when they start within 2 h of the upset's
+latest detection and their units are within 4 hops in the plant model. The links counted are:
+- `part_of`, `flows_to`, `lift_gas_to` and P&ID piping, both ways;
+- the machines and vessels of one compression train (same area, same trailing letter), because the
+  register doesn't link a train's stages;
+- a tag otherwise on its own, to the manifolds in its area and to its loop family there (20-PT-3003
+  with 20-FT-3002), which covers the header pressures and the jackets' gas lift meters.
+
+The earliest detection is the likely first cause; at the same minute, a stop comes before an excursion,
+and an excursion before a step. Bad instruments and slow findings (drifts, curves) are upsets of their
+own, one per unit and finding. After each scan the recent detections are regrouped. An upset keeps its
+id, and any status a person gave it, while most of its detections stay together.
+
+Process upsets are signals in `incidents.py`, on their first-cause unit. Downtime, log events and
+notifications on that unit within 3 days join the same incident: it is `detected` until one of them
+confirms it, and lists its `upsets`.
+
+On Okan, train C's trip on 5 November 2024 is one upset of about 1,100 detections, across the train,
+the lift gas headers, the jackets and the wells. Its first detection is 20-V-2001's high level at 04:10:
+the carryover that caused the 05:30 trip. The replay now also scores upsets: groups per trip (1 is
+right), whether a trip's group starts on the trip or on an upset that led to it, and false upsets a
+week. MCP: `get_upsets`, `upset_detail`.
 
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k

@@ -94,6 +94,12 @@ steps, and most of those are many points stepping together on one cause (every w
 08:00 on 9 January 2025). Steps are building blocks for grouping (#96b), which makes them one upset, so
 the next score counts upsets rather than detections.
 
+With grouping, replayed on the same periods (2026-11-02):
+- **4–10 Nov 2024:** each train C trip is one upset, starting from its cause (20-V-2001's high level),
+  with 1.2 false upsets a week. The one false upset is a single model detection.
+- **1–14 Jan 2025:** the 17 false-alarm detections, mostly the J03 steps, fall into upsets an event
+  explains, so no false upsets.
+
 ## Example: across domains
 
 > Why does lift gas keep running short, and what should go in the next turnaround to fix it?
