@@ -627,6 +627,22 @@ the carryover that caused the 05:30 trip. The replay now also scores upsets: gro
 right), whether a trip's group starts on the trip or on an upset that led to it, and false upsets a
 week. MCP: `get_upsets`, `upset_detail`.
 
+**Hand-off (#96c, `sre_handoff.py`).** After each scan, process upsets with 3 or more detections that
+haven't been handed off are handled highest priority first:
+- **Priority:** each is scored by #100 from its first-cause unit's oil lost per day to downtime,
+  criticality and failure rate. One still going is due now; a recovered one is scored as a repeat.
+- **Diagnosis:** while the run's cap allows (`ClaudeSettings.max_upset_diagnoses`, 10, and
+  `max_sre_usd`, $5), the operations assistant's troubleshooter diagnoses it. It returns likely causes
+  with confidence, the records that support each (a cause with none is marked uncited), what would
+  confirm or rule each out, and proposed actions for people. A JSON block at the end gives the fields.
+- **Work item:** each upset starts the `upset` process, or adds evidence to its open one. The work item
+  carries the priority breakdown and the diagnosis for the engineer's triage.
+
+An upset over the cap still gets its work item, and the workflow's troubleshooter step diagnoses it
+after triage. When an engineer triages one as a false alarm, the upset is marked and its first
+detection's pattern (point, detector, finding) goes in `sre_suppress`, so it isn't handed off again.
+`fuzer sre --handoff` does the same by hand.
+
 ### 18i. Correlation studies (#106, first part)
 
 `studies.py` answers what moves with what across hundreds of points, and what moved first.

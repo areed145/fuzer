@@ -91,3 +91,55 @@ def test_scan_carries_on_from_the_last_run(conn):
     got = mcp_server.detections("2024-11-05T00:00", "stops")
     n = conn.execute("select count(*) as n from detection where detector = 'stops'").fetchone()["n"]
     assert got["count"] == n and got["detections"][0]["unit"] and got["detections"][0]["point"]
+
+
+ANSWER = """Most likely liquid carryover from the inlet separator into train C's 1st stage scrubber.
+
+```json
+{"causes": [{"cause": "Liquid carryover from 20-V-2001 (level transmitter hunting, real level high)",
+             "confidence": 0.8, "evidence": ["ec:downtime:OKDT-00008"], "confirm_by": "compare 20-LT-2001 with a sight glass"},
+            {"cause": "Scrubber level control fault", "confidence": 0.2, "evidence": [], "confirm_by": "stroke the dump valve"}],
+ "actions": [{"action": "Raise a notification to check 20-LT-2001", "source": "fz-tag-0123456789ab"}]}
+```"""
+
+
+def test_handoff_prioritises_diagnoses_and_opens_work(conn):
+    """After the scans above: each upset of note gets a #100 priority, the troubleshooter's diagnosis (a
+    recorded answer here, within the cap) and an `upset` work item; a false alarm stops its pattern."""
+    from fuzer import sre_handoff
+    from fuzer.workflow import engine
+
+    engine.load_defaults(conn)
+    asked = []
+
+    def fake_ask(q):
+        asked.append(q)
+        return {"answer": ANSWER, "usage": {"cost_usd": 0.4}}
+
+    todo = sre_handoff.candidates(conn)
+    assert todo and all(u["detections"] >= sre_handoff.MIN_DETECTIONS for u in todo)
+    out = sre_handoff.handoff(conn, PACK, ask=fake_ask, max_diagnoses=1)
+    assert out["handed_off"] == len(todo) and out["diagnosed"] == 1 and len(asked) == 1 and out["claude_usd"] == 0.4
+    assert "likely first cause" in asked[0].lower() and "```json" in asked[0]
+    top = max(out["items"], key=lambda i: i["value_usd"])
+    assert top["diagnosed"] and out["items"][0] == top  # the highest priority gets the diagnosis
+    row = conn.execute("select * from upset where id = %s", (top["upset"],)).fetchone()
+    assert row["work_item_id"] == top["item_id"] and row["priority_usd"] == top["value_usd"]
+    causes = row["diagnosis"]["causes"]
+    assert [c["cited"] for c in causes] == [True, False] and row["diagnosis"]["actions"]
+    item = engine.item(conn, top["item_id"])
+    data = conn.execute("select data from work_process where item_id = %s", (top["item_id"],)).fetchone()["data"]
+    assert item["type"] == "upset" and data["priority"]["components"] and data["pre_diagnosis"]["causes"]
+    assert mcp_server.upset_detail(top["upset"])["diagnosis"]["causes"][0]["confidence"] == 0.8
+    assert sre_handoff.handoff(conn, PACK, ask=fake_ask)["candidates"] == 0  # handed off once
+
+    # an engineer triages one as a false alarm: its pattern isn't handed off again
+    other = out["items"][-1]
+    tok = conn.execute("select t.id from work_token t join work_process p on p.id = t.process_id "
+                       "where p.item_id = %s and t.element = 'triage' and t.state = 'waiting'", (other["item_id"],)).fetchone()
+    engine.set_person(conn, "alice", ["engineer"])
+    engine.complete(conn, tok["id"], "alice", {"triage": "false_alarm", "triage_note": "valve stroke test"})
+    conn.commit()
+    assert sre_handoff.sync_feedback(conn)["false_alarms"] == 1
+    conn.execute("update upset set status = 'detected', work_item_id = null where id = %s", (other["upset"],))
+    assert other["upset"] not in [u["id"] for u in sre_handoff.candidates(conn)]

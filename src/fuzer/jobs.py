@@ -47,6 +47,8 @@ class ClaudeSettings(dg.ConfigurableResource):
     batch: bool = True  # half price; a run waits for the batch (usually under an hour)
     max_log_entries: int = 2000
     max_drawings: int = 200
+    max_upset_diagnoses: int = 10  # per SRE run (#96); the rest are diagnosed in the workflow after triage
+    max_sre_usd: float = 5.0
 
 
 def export_signature(data_dir: Path, name: str) -> str | None:
@@ -245,13 +247,18 @@ def work_tick():
 
 
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
-def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
-    from . import sre
+def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
+    from . import sre, sre_handoff
+    from .workflow import engine
+    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
-        context.log.info(f"sre scan: {sre.scan(conn, load_pack(fuzer.pack))}")
+        context.log.info(f"sre scan: {sre.scan(conn, pack)}")
+        engine.load_defaults(conn)
+        out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
+        context.log.info(f"sre hand-off: {({k: v for k, v in out.items() if k != 'items'})}")
 
 
-@dg.job(description="SRE detection every 6 hours: trips, excursions, steps, drifts, bad instruments, curves.")
+@dg.job(description="SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off.")
 def sre_scan():
     sre_scan_op()
 
