@@ -815,6 +815,25 @@ An engineer accepts, rejects (a reason is required) or turns an opportunity into
 tests behind it) changes or its gain moves by half or more. One the data no longer supports is closed,
 with its work item. MCP: `opportunities`.
 
+### 18n. Equipment performance (#105 B)
+
+`equipment.py` adds three checks, each with a chart and listed in the reliability skill:
+- **`compressor_performance(stage)`:** a stage's polytropic efficiency,
+  ((k − 1)/k) ln(Pd/Ps) / ln(Td/Ts) with k 1.3, and head. The suction side is the scrubber before the
+  stage and the cooler before that. Hourly values while running are compared: the last 3 days against
+  the window's first week (`efficiency_drop`). There is no flow or OEM map, so no distance to surge, and
+  the check says so. On Okan, 20-K-2300A's efficiency falls from 0.81 to 0.67 as its recycle cooler fouls
+  through the summer and recovers after the clean; 20-K-2200B's falls with its bearing wear.
+- **`cooler_fouling(cooler)`:** daily median outlet temperature against the window's coolest tenth of
+  days (clean), the rate since the last drop (a clean), and when it reaches its high limit at that rate.
+  20-E-2350A is flagged both summers and is clear after its 19 August clean.
+- **`peers(ref)`:** the units of a class or model side by side (failures per year, MTBF, oil lost,
+  vibration). Outliers are a robust z of 3 or more; `class_wide_failures` is set when the median unit fails
+  1.5 times a year or more.
+
+They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
+degradation is the existing `calc("pump_curve")`.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

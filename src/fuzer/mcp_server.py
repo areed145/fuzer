@@ -496,7 +496,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 
 @server.tool(annotations=READ_ONLY)
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
-                       "dp_drift"], ref: str,
+                       "dp_drift", "compressor_performance", "cooler_fouling", "peers"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -510,7 +510,10 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     min_required_mm (retire_soon, localised). well_constraint (well): shut_in, choke (critical flow) or
     back_pressure (the header holds it back), from back / wellhead pressure. dp_drift (well): the wellhead to
     header pressure drop rising (dp_rising: a flowline waxing or scaling) since when. until (ISO) works it out
-    as of then. The plot_* chart of the same name shows the fit."""
+    as of then. compressor_performance (stage tag, e.g. 20-K-2300A): polytropic efficiency against its first
+    week (efficiency_drop). cooler_fouling (cooler tag): outlet temperature above its clean baseline, the rate
+    since the last clean and when it reaches its limit (fouling). peers (tag, class or model): the class's units
+    side by side, outliers or class_wide_failures. The plot_* chart of the same name shows the fit."""
     from . import calcs
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
@@ -1289,6 +1292,27 @@ def plot_debottleneck(at: str | None = None) -> dict[str, Any]:
     """Chart the debottleneck options ranked by oil gained, coloured by kind."""
     from .plots import production
     return _chart(lambda conn, **kw: production.debottleneck(conn, pack=PACK, **kw), {"at": at})
+
+
+@server.tool(annotations=CHART)
+def plot_compressor_performance(ref: str, days: int = 90) -> dict[str, Any]:
+    """Chart a compressor stage's daily polytropic efficiency against its first week (fouling, wear, hot recycle)."""
+    from .plots import maintenance
+    return _chart(maintenance.compressor_performance, {"days": min(days, 730)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_cooler_fouling(ref: str, days: int = 240) -> dict[str, Any]:
+    """Chart a cooler's daily outlet temperature against its clean baseline and its high limit."""
+    from .plots import maintenance
+    return _chart(maintenance.cooler_fouling, {"days": min(days, 730)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_peers(ref: str) -> dict[str, Any]:
+    """Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked."""
+    from .plots import maintenance
+    return _chart(maintenance.peers, {}, {"fid": ref})
 
 
 @server.tool(annotations=READ_ONLY)

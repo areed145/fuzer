@@ -597,6 +597,25 @@ CHECKS |= {
 }
 
 
+def _equipment(name):
+    def fn(conn, fid, **kw):
+        from . import equipment
+
+        return getattr(equipment, name)(conn, fid, **kw)
+    return fn
+
+
+CHECKS |= {
+    "compressor_performance": {"fn": lambda conn, fid, days=30, until=None: _equipment("compressor_performance")(
+        conn, fid, days=days, until=until), "ref": "compressor stage tag",
+        "used_by": {"person": "plot_compressor_performance", "agent": "calc"}},
+    "cooler_fouling": {"fn": lambda conn, fid, days=180, until=None: _equipment("cooler_fouling")(conn, fid, days=days, until=until),
+                       "ref": "cooler tag", "used_by": {"person": "plot_cooler_fouling", "agent": "calc"}},
+    "peers": {"fn": lambda conn, fid: _equipment("peers")(conn, fid), "ref": "tag, equipment class or model",
+              "used_by": {"person": "plot_peers", "agent": "calc"}},
+}
+
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes."""
     import inspect

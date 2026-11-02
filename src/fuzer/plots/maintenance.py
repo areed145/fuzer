@@ -189,3 +189,54 @@ def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
         "latest": {"at": ops[-1][0][:16], "flow_m3h": round(ops[-1][1], 1), "head_m": round(ops[-1][2], 1)},
         "note": "head from discharge minus suction pressure at SG 0.85; points below the curve at the same flow "
                 "mean lost head"}, [tag, c["model_id"]])
+
+
+# ---- equipment performance (#105 B) ----------------------------------------------------------------
+
+def compressor_performance(conn, fid: str, days: int = 90, until: str | None = None) -> Figure:
+    """A compressor stage's daily polytropic efficiency, against the window's first week."""
+    from .. import equipment
+
+    out = equipment.compressor_performance(conn, fid, days=days, until=until)
+    d = out["daily"]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "polytropic efficiency (daily median)",
+             "x": [x["day"] for x in d], "y": [x["efficiency"] for x in d]}]
+    lay = layout(f"{calcs._label(conn, fid)} polytropic efficiency", None, "efficiency")
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["expected"], "y1": out["expected"],
+                      "line": {"dash": "dash", "width": 1}}]
+    return Figure("compressor_performance", lay["title"]["text"], data, lay, {
+        k: out[k] for k in ("value", "expected", "deviation", "flag", "basis", "head_kj_kg", "note")}, out["sources"])
+
+
+def cooler_fouling(conn, fid: str, days: int = 240, until: str | None = None) -> Figure:
+    """A cooler's daily outlet temperature against its clean baseline and its high limit."""
+    from .. import equipment
+
+    out = equipment.cooler_fouling(conn, fid, days=days, until=until)
+    d = out["daily"]
+    data = [{"type": "scatter", "mode": "lines", "name": "outlet temperature (daily median)", "x": [x["day"] for x in d],
+             "y": [x["temp"] for x in d]}]
+    lay = layout(f"{calcs._label(conn, fid)} fouling: outlet temperature", None, "degC")
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["expected"], "y1": out["expected"],
+                      "line": {"dash": "dash", "width": 1}}]
+    if out["high_limit"] is not None:
+        lay["shapes"].append({"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["high_limit"],
+                              "y1": out["high_limit"], "line": {"color": "rgba(210,60,50,0.8)", "dash": "dot"}})
+    return Figure("cooler_fouling", lay["title"]["text"], data, lay, {
+        k: out[k] for k in ("value", "expected", "deviation", "flag", "rise_per_day", "since_clean", "high_limit",
+                            "reaches_limit", "basis")}, out["sources"])
+
+
+def peers(conn, fid: str) -> Figure:
+    """The units of one class side by side: failures per year, outliers marked."""
+    from .. import equipment
+
+    out = equipment.peers(conn, fid)
+    us = out["units"]
+    data = [{"type": "bar", "name": "failures per year", "x": [u["tag"] for u in us], "y": [u["failures_per_year"] for u in us],
+             "customdata": [u["id"] for u in us],
+             "marker": {"color": ["rgba(210,60,50,0.8)" if u in out["outliers"] else "rgba(90,110,140,0.7)" for u in us]}}]
+    lay = layout(f"Peers: {out['class_name']}", None, "failures per year")
+    lay["xaxis"] = {"tickangle": -60}
+    return Figure("peers", lay["title"]["text"], data, lay, {
+        k: out[k] for k in ("value", "flag", "class_name", "class_median_failures_per_year", "outliers", "basis")}, out["sources"])

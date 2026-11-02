@@ -75,7 +75,8 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
     refs = {"decline": fid(conn, "OK-J07-03"), "gas_lift": fid(conn, "OK-J07-03"), "pump_curve": fid(conn, "10-P-1001A"),
             "choke": fid(conn, "OK-J12-02"), "reliability": cls, "wall_loss": line["fuzer_id"]}
-    refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"]}
+    refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"], "compressor_performance": fid(conn, "20-K-2300A"),
+             "cooler_fouling": fid(conn, "20-E-2350A"), "peers": k}
     assert set(refs) == set(calcs.CHECKS)
     for check, ref in refs.items():
         out = calcs.run(conn, check, ref)
