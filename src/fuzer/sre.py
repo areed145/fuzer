@@ -37,6 +37,7 @@ DRIFT_DAYS, DRIFT_STEP = 30, 180  # a month at 3-hour steps: long enough for fou
 DRIFT_RISE = 0.05  # and up by at least this share of where it started
 DRIFTING = re.compile(r"Vibration|Bearing Temp|Discharge Temp|Outlet Temp|Differential Pressure", re.IGNORECASE)
 LEARNED_MINUTES = 60  # a learned-range excursion must last this long (no source set that limit)
+SPE_MINUTES = 120  # a multivariate anomaly lasts this long before it is raised
 MERGE = timedelta(minutes=30)  # the same finding again within this long carries on the one before
 
 
@@ -231,13 +232,44 @@ def hydraulics(conn, pack, since, until, src) -> list[dict]:
     return out
 
 
+def multivariate(conn, pack, since, until, src) -> list[dict]:
+    """Once a day: each process area's PCA model of the week before against the last day; a stretch the
+    model can't explain (squared prediction error past its 99.9th percentile for `SPE_MINUTES`) on the point
+    contributing most (#106)."""
+    if not _daily(since, until):
+        return []
+    from . import clusters
+
+    out = []
+    areas = conn.execute(
+        """
+        select a.fuzer_id, count(distinct t.dst) as n from entity a
+        join edge p on p.dst = a.fuzer_id and p.rel = 'part_of' join edge t on t.src = p.src and t.rel = 'has_timeseries'
+        where a.kind = 'area' group by a.fuzer_id having count(distinct t.dst) between 10 and 300
+        """).fetchall()
+    day0 = until - timedelta(days=1)
+    for a in areas:
+        try:
+            r = clusters.spe(conn, a["fuzer_id"], ((day0 - timedelta(days=7)).isoformat(), day0.isoformat()),
+                             (day0.isoformat(), until.isoformat()), src=src, min_minutes=SPE_MINUTES)
+        except calcs.CalcError:
+            continue
+        for x in r["anomalies"]:
+            top = x["top_points"][0]
+            out.append(_det({"point": top["point"], "id": top["point_id"]}, None, datetime.fromisoformat(x["start"]),
+                            datetime.fromisoformat(x["end"]), "spe", "multivariate", x["peak_spe"],
+                            {"area": a["fuzer_id"], "top_points": x["top_points"], "limit": r["limit"]}))
+    unit = limits.units(conn, [d["point_id"] for d in out])
+    return [d | {"unit_id": unit.get(d["point_id"])} for d in out]
+
+
 def _point_name(conn, pid: str) -> str:
     r = conn.execute("select label from entity_label where fuzer_id = %s", (pid,)).fetchone()
     return r["label"] if r else pid
 
 
 DETECTORS = {"excursions": excursions, "stops": stops, "steps": steps, "drifts": drifts, "instruments": instruments,
-             "models": models, "hydraulics": hydraulics}
+             "models": models, "hydraulics": hydraulics, "multivariate": multivariate}
 
 
 def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None) -> list[dict]:
@@ -259,26 +291,32 @@ def watermark(conn) -> datetime | None:
     return r["t"]
 
 
-def store(conn, found: list[dict], run_id: int) -> dict:
-    """Add detections, or extend the open one with the same point, detector and key."""
+def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime] | None = None) -> dict:
+    """Add detections, or extend the open one with the same point, detector and key that the window just
+    before saw (one left open by a scan that didn't reach this window isn't carried on)."""
     new = extended = 0
+    a, b = window or (None, None)
     for d in found:
         prev = conn.execute(
             """
             select id from detection where point_id = %s and detector = %s and key = %s
-              and ("end" is null or "end" >= %s) and start <= %s order by start desc limit 1
-            """, (d["point_id"], d["detector"], d["key"], d["start"] - MERGE, d["start"] + MERGE)).fetchone()
+              and ("end" is null or "end" >= %s) and start <= %s
+              and (%s::timestamp is null or seen_until is null or seen_until >= %s::timestamp)
+            order by start desc limit 1
+            """, (d["point_id"], d["detector"], d["key"], d["start"] - MERGE, d["start"] + MERGE, a,
+                  a - OVERLAP if a else None)).fetchone()
         if prev:
-            conn.execute('update detection set "end" = %s, last_run = %s, magnitude = coalesce(%s, magnitude) where id = %s',
-                         (d["end"], run_id, d["magnitude"], prev["id"]))
+            conn.execute('update detection set "end" = %s, last_run = %s, magnitude = coalesce(%s, magnitude), '
+                         "seen_until = %s where id = %s", (d["end"], run_id, d["magnitude"], b, prev["id"]))
             extended += 1
         else:
             conn.execute(
                 """
-                insert into detection (point_id, unit_id, detector, key, start, "end", magnitude, evidence, first_run, last_run)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into detection (point_id, unit_id, detector, key, start, "end", magnitude, evidence, first_run, last_run,
+                                       seen_until)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (d["point_id"], d["unit_id"], d["detector"], d["key"], d["start"], d["end"], d["magnitude"],
-                      Jsonb(_plain(d["evidence"])), run_id, run_id))
+                      Jsonb(_plain(d["evidence"])), run_id, run_id, b))
             new += 1
     return {"new": new, "extended": extended}
 
@@ -314,7 +352,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
         a = start
         while a < end:
             b = min(a + timedelta(hours=6), end)
-            for k, v in store(conn, detect(conn, pack, a, b, src), run_id).items():
+            for k, v in store(conn, detect(conn, pack, a, b, src), run_id, (a, b)).items():
                 totals[k] += v
             windows += 1
             a = b
@@ -349,7 +387,7 @@ GAP = timedelta(hours=2)  # a detection joins an upset starting within this long
 HOPS = 4  # and on a unit this close in the plant model (compressor -> header -> manifold -> well)
 LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
 TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
-SLOW = {"drifts", "models", "hydraulics"}  # days to months: one upset per unit and finding, never joined to others
+SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with the upsets they belong to  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
 
 
@@ -448,7 +486,9 @@ def group_detections(found: list[dict], adj: dict[str, set[str]]) -> list[dict]:
     for g in groups:
         ds = g["detections"]
         ends = [x["end"] for x in ds]
-        out.append({"kind": g["kind"], "detections": ds, "first": ds[0], "start": ds[0]["start"],
+        # a multivariate finding names its biggest contributor, not a cause: the first cause is the earliest other one
+        first = next((x for x in ds if x["detector"] != "multivariate"), ds[0])
+        out.append({"kind": g["kind"], "detections": ds, "first": first, "start": ds[0]["start"],
                     "end": None if any(e is None for e in ends) else max(ends),
                     "units": list(dict.fromkeys(x.get("unit_id") for x in ds if x.get("unit_id")))})
     return out
@@ -462,9 +502,12 @@ def regroup(conn, since: datetime) -> dict:
 
     rows = [dict(r) for r in conn.execute(
         """
+        with recent as (select * from detection where coalesce("end", 'infinity') >= %(s)s)
         select d.*, l.label as point from detection d left join entity_label l on l.fuzer_id = d.point_id
-        where coalesce(d."end", 'infinity') >= %s order by d.start
-        """, (since - timedelta(days=1),))]
+        where d.id in (select id from recent)
+           or d.upset_id in (select upset_id from recent where upset_id is not null)  -- all of each upset it touches
+        order by d.start
+        """, {"s": since - timedelta(days=1)})]
     groups = group_detections(rows, topology(conn))
     used: set[int] = set()
     for g in groups:

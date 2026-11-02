@@ -31,6 +31,7 @@ dependencies = [
     # Chart images for the assistant to look at (look_at_figure).
     "matplotlib>=3.10,<4",
     "scipy>=1.14",
+    "scikit-learn>=1.5",
 ]
 
 [project.scripts]
