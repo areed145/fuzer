@@ -35,8 +35,8 @@ STEP = timedelta(hours=6)
 LEAD = timedelta(hours=1)  # a detection this long before an event is still about it (lags, noise)
 TAIL = timedelta(hours=6)  # and this long after it ends (restart, settling)
 UPSETS = {"trip", "shutdown", "shut_in", "vibration", "fouling", "discharge_temperature", "level", "erratic",
-          "valve_failed_open", "restriction", "head_loss", "choke_wear"}
-ROUTINE = {"choke", "stopped", "covering", "open", "curtail", "down"}
+          "valve_failed_open", "restriction", "head_loss", "choke_wear", "flowline_restriction"}
+ROUTINE = {"choke", "stopped", "covering", "open", "curtail", "down", "setpoint", "reroute"}
 
 
 class Peek(BaseException):
@@ -165,7 +165,8 @@ def _only(*names):
 
 
 DETECTORS = {"limits": limits_detector, "sre": sre_detector,
-             **{f"sre:{n}": _only(n) for n in ("excursions", "stops", "steps", "drifts", "instruments", "models")}}
+             **{f"sre:{n}": _only(n) for n in ("excursions", "stops", "steps", "drifts", "instruments", "models",
+                                                       "hydraulics")}}
 
 
 # ---- replay -------------------------------------------------------------------------------------

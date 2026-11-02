@@ -132,7 +132,7 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                             "p_res": P_RES, "c_gas": C_GAS, **({"k_gas": round(k, 5)} if k else {}),
                             **({"liquid_path": sorted(liquid[w["name"]])} if w["name"] in liquid else {})}
         if jacket:
-            j = units.setdefault(jacket, {"type": "jacket", "wells": [], "gl_wells": []})
+            j = units.setdefault(jacket, {"type": "jacket", "wells": [], "gl_wells": [], "separator": "10-V-2001"})
             j["wells"].append(w["name"])
             if w["lift"] == "GL":
                 j["gl_wells"].append(w["name"])
@@ -252,4 +252,37 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
         events.append({"unit": "OK-J12-02", "kind": "choke", "at": "2025-10-15T08:00", "to": j["choke0"]})
     events.append({"unit": "OK-NWP-G3", "kind": "choke_wear", "points": [
         ["2025-08-01T00:00", 0], ["2025-09-03T00:00", -0.35], ["2025-09-12T10:00", -0.36], ["2025-09-12T12:00", 0]]})
+    # Back-pressure stories (#107): a flowline waxing up over seven weeks until it is pigged; the HP separator's
+    # setpoint lowered 2 bar; a well rerouted to another jacket's header.
+    plain = sorted(n for n, u in units.items() if u.get("type") == "well" and u.get("kind") != "gas" and u.get("jacket")
+                   and n not in STORY_WELLS)
+    if plain:
+        events.append({"unit": plain[len(plain) // 3], "kind": "flowline_restriction", "points": [
+            ["2025-10-01T00:00", 0], ["2025-11-18T00:00", 1.0], ["2025-11-18T06:00", 0]]})
+        if "10-V-2001" in units:
+            events.append({"unit": "10-V-2001", "kind": "setpoint", "at": "2025-11-25T08:00",
+                           "to": units["10-V-2001"].get("pressure", 12.0) - 2.0})
+        moved = plain[2 * len(plain) // 3]
+        other = next((j for j in sorted(u for u in units if u.startswith("jacket:")) if j != units[moved]["jacket"]), None)
+        if other:
+            events.append({"unit": moved, "kind": "reroute", "at": "2025-12-05T10:00", "to": other})
     return {"version": 1, "seed": seed, "points": pts, "units": units, "events": events}
+
+
+STORY_WELLS = {"OK-J07-03", "OK-J12-02", "OK-J03-02", "OK-NWP-G3"}
+
+
+def scale_tests(model: dict, tests: list[dict], since: str = "2025-10-01") -> list[dict]:
+    """Well tests after a back-pressure event as a test separator would measure them: the model's rate
+    factor at the test applied to oil (the model itself runs on the tests as generated)."""
+    from fuzer.process_model import ProcessModel
+
+    m = ProcessModel(model)
+    out = []
+    for t in tests:
+        if t["test_date"] >= since and t["well"] in model["units"] and model["units"][t["well"]].get("jacket"):
+            f = m.at(t["well"], "bp_factor", datetime.fromisoformat(f"{t['test_date']}T12:00"))
+            if abs(f - 1) > 1e-3:
+                t = {**t, "oil_sm3d": round(float(t["oil_sm3d"]) * f, 1)}
+        out.append(t)
+    return out
