@@ -355,13 +355,25 @@ uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C
 - Run history lives in `.dagster/` locally; in Azure, Dagster's own storage
   would go in Postgres (`dagster-postgres`).
 
+### Operating limits and IOWs
+
+Alarm limits (PI AF, DCS exports) and integrity operating windows land per PI point with the
+rebuild (#101), and show on trends and through the `limits` MCP tool. Learned normal ranges,
+checks and excursions are run on demand (the SRE will run them every 6 hours):
+
+```sh
+uv run fuzer limits learn    # normal ranges per point and operating mode, last 90 days
+uv run fuzer limits issues   # limits that look wrong or are missing
+uv run fuzer limits scan     # excursions in the last 6 hours; IOW breaches past their time open work
+```
+
 ### Work engine (BPMN)
 
 Moves work between agents and people (#97). Processes are BPMN 2.0 files, run by
 Fuzer's own engine for a subset of BPMN, with all state in Postgres: start and end
 events, user tasks (a person, by lane role) and service tasks with `fuzer:agent`
 (an agent), exclusive and parallel gateways, timer and message events, and call
-activities. The starting processes (`upset`, `daily_report`) are in
+activities. The starting processes (`upset`, `daily_report`, `iow_breach`) are in
 `src/fuzer/workflow/definitions/` and load when the API starts.
 
 ```sh

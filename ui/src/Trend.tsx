@@ -1,9 +1,22 @@
 // Small-multiple trend charts: one series per chart (the title names it, so no legend), 2px line,
-// recessive grid, shaded upset window, crosshair + tooltip on hover, and a table view.
+// recessive grid, shaded upset window, operating limits as labelled dashed lines, crosshair + tooltip on
+// hover, and a table view.
 
 import { useState } from "react";
 import { api, type MeasurementSeries } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
+
+/** One operating limit on a point (#101): an alarm limit from its source, one side of an integrity
+ * operating window, or the normal range learned from history when no source gives one. */
+export interface LimitLine {
+  type: "hihi" | "hi" | "lo" | "lolo";
+  value: number;
+  basis: "alarm" | "iow" | "learned";
+  source?: string;
+  level?: string;
+  iow?: string;
+  allowed_minutes?: number | null;
+}
 
 export interface Series {
   id: string;
@@ -15,7 +28,15 @@ export interface Series {
   max: number;
   mean: number;
   last: number;
+  limits?: LimitLine[];
 }
+
+const limitName = (l: LimitLine) =>
+  l.basis === "iow" ? `${l.iow ?? "IOW"} ${l.type === "hi" ? "high" : "low"}`
+    : `${l.basis === "learned" ? "learned " : ""}${l.type === "hihi" ? "HiHi" : l.type === "lolo" ? "LoLo" : l.type === "hi" ? "Hi" : "Lo"}`;
+const limitTitle = (l: LimitLine) =>
+  l.basis === "iow" ? `${l.level ?? ""} IOW${l.allowed_minutes ? `, ${l.allowed_minutes / 60} h allowed outside` : ""}`
+    : l.basis === "learned" ? "normal range learned from history while running" : `alarm limit from ${l.source}`;
 
 const W = 600;
 const H = 120;
@@ -33,9 +54,16 @@ export function TrendGrid({ series, upsets }: { series: Series[]; upsets: string
 function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const n = s.values.length;
-  const pad = (s.max - s.min) * 0.1 || 1;
-  const lo = s.min - pad;
-  const hi = s.max + pad;
+  // Limits near the values widen the scale so their line shows; ones far off are named in the caption.
+  const span = Math.max(s.max - s.min, Math.abs(s.mean) * 0.05, 1e-6);
+  const limits = s.limits ?? [];
+  const near = limits.filter((l) => l.value >= s.min - span && l.value <= s.max + span);
+  const far = limits.filter((l) => !near.includes(l));
+  const vmin = Math.min(s.min, ...near.map((l) => l.value));
+  const vmax = Math.max(s.max, ...near.map((l) => l.value));
+  const pad = (vmax - vmin) * 0.1 || 1;
+  const lo = vmin - pad;
+  const hi = vmax + pad;
   const x = (i: number) => (i / Math.max(1, n - 1)) * W;
   const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
   const t0 = Date.parse(s.values[0]?.[0]);
@@ -52,6 +80,9 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
     <figure className={wide ? "trend wide" : "trend"}>
       <figcaption>
         <span className="mono small">{s.point}</span> <span className="muted small">{s.description} ({s.uom})</span>
+        {far.length > 0 && (
+          <span className="muted small"> · off scale: {far.map((l) => `${limitName(l)} ${fmt(l.value)}`).join(", ")}</span>
+        )}
       </figcaption>
       <div className="trend-plot">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onMouseMove={onMove} onMouseLeave={() => setHover(null)}
@@ -59,6 +90,12 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
           {[0.25, 0.5, 0.75].map((f) => <line key={f} className="trend-grid-line" x1={0} x2={W} y1={H * f} y2={H * f} />)}
           {upsets.map((u) => (
             <rect key={u} className="trend-upset" x={Math.max(0, tx(u) - lead)} width={Math.min(lead, tx(u))} y={0} height={H} />
+          ))}
+          {near.map((l) => (
+            <line key={`${l.basis}${l.iow ?? ""}${l.type}`} className={`trend-limit ${l.basis} ${l.type}`}
+                  x1={0} x2={W} y1={y(l.value)} y2={y(l.value)}>
+              <title>{`${limitName(l)} ${fmt(l.value)} ${s.uom ?? ""}: ${limitTitle(l)}`}</title>
+            </line>
           ))}
           <path d={path} className="trend-line" />
           {hover !== null && (
@@ -70,6 +107,12 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
         </svg>
         <span className="trend-axis top">{fmt(hi)}</span>
         <span className="trend-axis bottom">{fmt(lo)}</span>
+        {near.map((l) => (
+          <span key={`${l.basis}${l.iow ?? ""}${l.type}`} className={`trend-limit-label ${l.basis} ${l.type}`}
+                style={{ top: `${(y(l.value) / H) * 100}%` }} title={limitTitle(l)}>
+            {limitName(l)} {fmt(l.value)}
+          </span>
+        ))}
         {hover !== null && (
           <div className="trend-tip" style={{ left: `${(hover / Math.max(1, n - 1)) * 100}%` }}>
             <b>{fmt(s.values[hover][1])}</b> {s.uom}

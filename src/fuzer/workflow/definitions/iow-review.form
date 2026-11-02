@@ -1,0 +1,15 @@
+{
+  "id": "iow-review",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "A process value stayed outside an integrity operating window longer than its register allows. Check the trend, the IOW's damage mechanism and the time outside, then decide whether the equipment needs inspecting or repairing."},
+    {"type": "radio", "id": "iow_decision", "key": "iow_decision", "label": "Action",
+     "values": [{"label": "Inspect or repair: raise a notification", "value": "notify"},
+                {"label": "No damage expected: close with a note", "value": "close"},
+                {"label": "The limit is wrong: close and ask for an IOW revision", "value": "limit_wrong"}],
+     "validate": {"required": true}},
+    {"type": "textarea", "id": "iow_note", "key": "iow_note", "label": "Why",
+     "validate": {"required": true}}
+  ]
+}

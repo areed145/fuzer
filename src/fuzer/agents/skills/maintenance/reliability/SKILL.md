@@ -24,6 +24,9 @@ A repeat failure is the same failure mode on the same unit more than once in the
    losing several times faster than its neighbours points at a changed condition (water, sand, flow
    regime) worth tying to well tests or lab results. Remaining life needs the minimum required
    thickness from the design, which Fuzer doesn't hold; say so rather than guessing it.
+   Integrity operating windows (IOWs) are the process side of this: `limits(ref)` lists a unit's IOWs
+   (class, limits, time allowed outside) and excursions past them; a breach past its allowed time
+   already has an `iow_breach` work item. Repeated breaches explain faster wall loss or seal damage.
 5. **Pumps against their curve:** `plot_pump_curve(ref)` puts PI operating points on the OEM curve.
    Head falling below the curve month by month at the same flow means internal wear (wear rings,
    impeller): quote `head_vs_curve_by_month` and the month it started. Running far from the BEP

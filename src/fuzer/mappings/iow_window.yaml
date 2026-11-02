@@ -1,0 +1,19 @@
+# Integrity operating window register (API RP 584): one row per IOW revision on an instrument tag, with
+# its class, low and high limits and the time allowed outside before it must be acted on.
+source: iow
+record_type: window
+shape: limits
+dataset: iow_register
+key: [iow_id, revision]
+limits:
+  of: {kind: tag, from: tag, as: tag}
+  basis: iow
+  unit: {from: unit}
+  level: {from: iow_class}
+  allowed: max_time_outside
+  valid_from: effective_date
+  valid_to: superseded_date
+  note: {template: "{iow_id} rev {revision}, {parameter}: {damage_mechanism}. Response: {response}"}
+  values:
+    - {type: lo, from: low_limit}
+    - {type: hi, from: high_limit}

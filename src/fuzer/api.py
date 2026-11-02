@@ -100,7 +100,29 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
     time-series provider. `direct`: only the entity's own points, not its instruments'."""
     from . import timeseries
     return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
-                             direct=direct)
+                             direct=direct, pack=PACK)
+
+
+@app.get("/entities/{fuzer_id}/limits")
+def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
+    """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned
+    normal range, checks that fail and the latest excursions (#101)."""
+    from . import limits
+    return limits.for_entity(conn, PACK, fuzer_id, at)
+
+
+@app.get("/limits/issues")
+def limit_issues(conn=Depends(get_conn)):
+    """Limits that look wrong or are missing across the asset (#101)."""
+    from . import limits
+    return limits.issues(conn, PACK)
+
+
+@app.get("/excursions")
+def excursions(since: str | None = None, basis: str | None = None, limit: int = 200, conn=Depends(get_conn)):
+    """Recorded excursions outside alarm limits, IOWs and learned ranges, newest first (#101)."""
+    from . import limits
+    return limits.recent(conn, since, basis, min(limit, 2000))
 
 
 @app.get("/entities/{fuzer_id}/measurements")

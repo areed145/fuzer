@@ -51,3 +51,21 @@ def reading(raw) -> tuple[float, str | None] | None:
         return float(raw), None
     m = NUMBER.match(str(raw).replace(",", ""))
     return (float(m.group(2)), m.group(1)) if m else None
+
+
+DURATION = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?)\s*$", re.I)
+PER = {"m": 1, "h": 60, "d": 1440}
+
+
+def minutes(raw) -> float | None:
+    """A duration as written in registers ("2 h", "4 hrs", "120 min", "1 day") in minutes; a bare
+    number is hours. None for blanks and text that isn't one."""
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw) * 60
+    m = DURATION.match(str(raw))
+    if not m:
+        r = reading(raw)
+        return r[0] * 60 if r else None
+    return float(m.group(1)) * PER[m.group(2)[0].lower()]

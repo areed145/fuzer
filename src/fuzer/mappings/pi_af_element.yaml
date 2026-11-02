@@ -12,3 +12,14 @@ links:
     each: attributes
     to: {kind: timeseries, from: pi_point, as: upper}
     props: {attribute: name}
+# AF limit traits on an attribute (Hi / HiHi / Lo / LoLo) are the point's alarm limits.
+limits:
+  each: attributes
+  of: {kind: timeseries, from: pi_point, as: upper}
+  basis: alarm
+  unit: {from: uom}
+  values:
+    - {type: hihi, from: HiHi}
+    - {type: hi, from: Hi}
+    - {type: lo, from: Lo}
+    - {type: lolo, from: LoLo}

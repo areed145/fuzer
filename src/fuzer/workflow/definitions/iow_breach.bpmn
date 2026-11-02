@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:fuzer="https://fuzer.dev/schema/bpmn" id="Definitions_iow_breach" targetNamespace="https://fuzer.dev/workflow">
+  <bpmn:collaboration id="Collaboration_iow_breach">
+    <bpmn:participant id="Participant_iow_breach" name="IOW breach" processRef="iow_breach" />
+  </bpmn:collaboration>
+  <bpmn:process id="iow_breach" name="IOW breach" isExecutable="true" fuzer:workItemType="integrity" fuzer:correlationKey="iow" fuzer:ownerRole="engineer">
+    <bpmn:laneSet id="LaneSet_iow_breach">
+      <bpmn:lane id="Lane_engineer" name="Integrity engineer" fuzer:role="engineer">
+        <bpmn:flowNodeRef>breached</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>decide</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>raise_notification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>closed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="breached" name="IOW breached past its time">
+      <bpmn:outgoing>f_start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="review" name="Review IOW breach" fuzer:requiresHuman="true" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="iow-review">
+      <bpmn:incoming>f_start</bpmn:incoming>
+      <bpmn:outgoing>f_reviewed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="decide" name="Action?" default="f_close">
+      <bpmn:incoming>f_reviewed</bpmn:incoming>
+      <bpmn:outgoing>f_notify</bpmn:outgoing>
+      <bpmn:outgoing>f_close</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="raise_notification" name="Raise notification" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:form="upset-notification">
+      <bpmn:incoming>f_notify</bpmn:incoming>
+      <bpmn:outgoing>f_raised</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="closed" name="Closed">
+      <bpmn:incoming>f_close</bpmn:incoming>
+      <bpmn:incoming>f_raised</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_start" sourceRef="breached" targetRef="review" />
+    <bpmn:sequenceFlow id="f_reviewed" sourceRef="review" targetRef="decide" />
+    <bpmn:sequenceFlow id="f_notify" name="Inspect or repair" sourceRef="decide" targetRef="raise_notification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">iow_decision == "notify"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_close" name="No damage expected" sourceRef="decide" targetRef="closed" />
+    <bpmn:sequenceFlow id="f_raised" sourceRef="raise_notification" targetRef="closed" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_iow_breach">
+    <bpmndi:BPMNPlane id="Plane_iow_breach" bpmnElement="Collaboration_iow_breach">
+      <bpmndi:BPMNShape id="Participant_iow_breach_di" bpmnElement="Participant_iow_breach" isHorizontal="true"><dc:Bounds x="0" y="60" width="860" height="220" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_engineer_di" bpmnElement="Lane_engineer" isHorizontal="true"><dc:Bounds x="30" y="60" width="830" height="220" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="breached_di" bpmnElement="breached"><dc:Bounds x="102" y="112" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="review_di" bpmnElement="review"><dc:Bounds x="200" y="90" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decide_di" bpmnElement="decide" isMarkerVisible="true"><dc:Bounds x="365" y="105" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="raise_notification_di" bpmnElement="raise_notification"><dc:Bounds x="500" y="180" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="closed_di" bpmnElement="closed"><dc:Bounds x="702" y="112" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="138" y="130" /><di:waypoint x="200" y="130" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_reviewed_di" bpmnElement="f_reviewed"><di:waypoint x="300" y="130" /><di:waypoint x="365" y="130" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_notify_di" bpmnElement="f_notify"><di:waypoint x="390" y="155" /><di:waypoint x="390" y="220" /><di:waypoint x="500" y="220" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_close_di" bpmnElement="f_close"><di:waypoint x="415" y="130" /><di:waypoint x="702" y="130" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_raised_di" bpmnElement="f_raised"><di:waypoint x="600" y="220" /><di:waypoint x="720" y="220" /><di:waypoint x="720" y="148" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

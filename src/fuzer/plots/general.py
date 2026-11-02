@@ -56,12 +56,31 @@ def synthetic_note(provider: str, series: list[dict]) -> dict:
 
 def _summ(s: dict) -> dict:
     return {"point": s["point"], "description": s["description"], "uom": s["uom"], "min": s["min"],
-            "max": s["max"], "mean": s["mean"], "last": s["last"], "lead_in": s.get("lead_in")}
+            "max": s["max"], "mean": s["mean"], "last": s["last"], "lead_in": s.get("lead_in"),
+            "limits": s.get("limits") or []}
+
+
+LIMIT_COLOURS = {"alarm": "rgba(190,120,0,0.9)", "iow": "rgba(200,50,45,0.9)", "learned": "rgba(110,120,135,0.8)"}
+
+
+def _limit_lines(s: dict, yref: str) -> list[dict]:
+    """A series' operating limits (#101) near its values as dashed lines on its panel (HiHi / LoLo and IOWs
+    red, learned ranges grey); ones far off scale are left to the summary."""
+    span = max(s["max"] - s["min"], abs(s["mean"]) * 0.05, 1e-6)
+    out = []
+    for lim in s.get("limits") or []:
+        if s["min"] - span <= lim["value"] <= s["max"] + span:
+            red = lim["basis"] == "iow" or lim["type"] in ("hihi", "lolo")
+            out.append({"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": yref, "y0": lim["value"],
+                        "y1": lim["value"], "layer": "below",
+                        "line": {"width": 1, "dash": "solid" if lim["basis"] == "iow" else "dash",
+                                 "color": LIMIT_COLOURS["iow"] if red else LIMIT_COLOURS[lim["basis"]]}})
+    return out
 
 
 def trend(conn, ids: list[str], at: str | None = None, hours_before: int = 48, hours_after: int = 24,
           max_series: int = 6) -> Figure:
-    """Process values on stacked panels sharing time, incident lead-ins shaded."""
+    """Process values on stacked panels sharing time, incident lead-ins shaded, operating limits drawn."""
     series, upsets, out = _window(conn, ids, at, hours_before, hours_after, max_series)
     series = series[:max_series]
     data, lay = [], layout(f"Process values around {out['centre'].replace('T', ' ')}", showlegend=False)
@@ -72,7 +91,7 @@ def trend(conn, ids: list[str], at: str | None = None, hours_before: int = 48, h
                      "meta": {"entity": s["id"]}, "hovertemplate": f"%{{y:.3g}} {s['uom'] or ''}<extra>{s['point']}</extra>"})
         lay[key] = {"domain": dom, "title": {"text": short(s), "font": {"size": 10}}}
     lay["xaxis"] = {"anchor": axis(len(series) - 1)[0]}
-    lay["shapes"] = _shade_upsets(upsets)
+    lay["shapes"] = _shade_upsets(upsets) + [ln for i, s in enumerate(series) for ln in _limit_lines(s, axis(i)[0])]
     lay["height"] = 160 + 130 * len(series)
     return Figure("trend", lay["title"]["text"], data, lay,
                   {"provider": out["provider"], "window": [out["start"], out["end"]], "step_minutes": out["step_minutes"],

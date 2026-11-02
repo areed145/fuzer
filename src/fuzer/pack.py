@@ -25,6 +25,7 @@ class Pack:
     downtime_reasons: dict
     spatial_links: list
     value: dict
+    limits: dict
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -49,4 +50,5 @@ def load_pack(name: str | None = None) -> Pack:
         downtime_reasons=raw.get("downtime_reasons", {}),
         spatial_links=raw.get("spatial_links", []),
         value=raw.get("value", {}),
+        limits=raw.get("limits", {}),
     )

@@ -1,0 +1,19 @@
+# DCS / SCADA alarm configuration export: one row per alarm on a point. The DCS names plant points by
+# their compact tag (20PT2300A) and well RTU points by the SCADA point itself (OK_J07_03.WHP).
+source: dcs
+record_type: alarm
+shape: limits
+dataset: dcs_alarms
+key: [tag, alarm]
+limits:
+  of:
+    - {kind: timeseries, from: tag, as: upper}
+    - {kind: tag, from: tag, as: tag}
+  basis: alarm
+  unit: {from: eu}
+  level: {from: priority}
+  enabled: enabled
+  valid_from: last_changed
+  types: {PVHH: hihi, PVHI: hi, PVLO: lo, PVLL: lolo}
+  values:
+    - {type: {from: alarm}, from: setpoint}
