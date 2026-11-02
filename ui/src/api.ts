@@ -652,6 +652,54 @@ export interface WorkTaskView {
 
 type Params = Record<string, string | number | undefined | null>;
 
+export interface BoardCard {
+  key: string;
+  kind: string;
+  title: string;
+  text: string | null;
+  unit_id: string | null;
+  unit: string | null;
+  area_id: string | null;
+  area: string | null;
+  owner: string;
+  records: string[];
+  value_usd: number | null;
+  effective_usd: number | null;
+  reason: string | null;
+  breakdown: {
+    components?: Record<string, { value_usd: number | null; status: string; [k: string]: unknown }>;
+    urgency?: { factor: number; [k: string]: unknown };
+    effort?: { value_usd: number | null; [k: string]: unknown };
+    unknown?: string[];
+    value_per_effort?: number | null;
+    [k: string]: unknown;
+  };
+  rank: number;
+  prev_rank: number | null;
+  moved: string | null;
+  pinned: boolean;
+  pin_reason: string | null;
+  pinned_by: string | null;
+  item_id: number | null;
+  first_seen: string;
+}
+
+export interface BoardPage {
+  total: number;
+  page: number;
+  per_page: number;
+  cards: BoardCard[];
+  facets?: { kind: Record<string, number>; owner: Record<string, number>; area: { id: string | null; label: string | null; n: number }[] };
+}
+
+export interface BoardFilter {
+  kind?: string;
+  area?: string;
+  owner?: string;
+  text?: string;
+  since?: string;
+}
+
 async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -705,6 +753,13 @@ export const api = {
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
+  board: (f: BoardFilter, page = 1) =>
+    request<BoardPage>("GET", "/board", { ...f, page, per_page: 50, facets: "true" }),
+  boardHistory: (key: string) => request<{ rank: number; value_usd: number | null; at: string }[]>("GET", "/board/history", { key }),
+  boardPin: (key: string, by: string, reason: string, rank?: number, value_usd?: number) =>
+    request<unknown>("POST", "/board/pins", undefined, { key, by, reason, rank: rank ?? null, value_usd: value_usd ?? null }),
+  boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
+    request<unknown>("POST", "/board/projects", undefined, p),
   workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),

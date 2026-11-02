@@ -178,6 +178,19 @@ def test_board_ranks_everything_once(conn):
     with pytest.raises(ValueError):
         board.pin(conn, low["key"], "bob", "", rank=2)
 
+    f = board.cards(conn, facets=True, per_page=5)["facets"]
+    assert sum(f["kind"].values()) == page["total"] and "unassigned" in f["owner"] and f["area"]
+    owner = next(k for k in f["owner"] if k != "unassigned")
+    mine = board.cards(conn, owner=owner, per_page=500)
+    assert mine["total"] == f["owner"][owner] and all(c["owner"] == owner for c in mine["cards"])
+    from fastapi.testclient import TestClient
+
+    from fuzer import api
+    client = TestClient(api.app)
+    got = client.get("/board", params={"kind": "project", "facets": "true"}).json()
+    assert got["cards"][0]["title"].startswith("Replace 20-LT-2001") and "facets" in got
+    assert client.post("/board/pins", json={"key": "project:1", "rank": 2}).status_code == 400  # a pin needs a reason
+
     train = mcp_server.board(unit="20-V-2001", limit=5)
     assert train["cards"] and all(c["unit"] == "20-V-2001" for c in train["cards"])
     steps = mcp_server.next_work("troubleshooter")

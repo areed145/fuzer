@@ -692,6 +692,17 @@ card moved ("up 4 places: value 12,000 -> 40,000", "pinned", "new"). The board r
 register build and every SRE run, and with `fuzer board refresh`. Pages are read in rank order from
 indexes on rank, area and unit.
 
+**Board page (#99b).** `#/board` in the UI has five views: ranked (the default), by owner (the person or
+role its work item is with), by area, by type, and new since the viewer's last visit. The views come from
+facet counts under the same filters. A viewer can save named filters and filter by words in the title.
+Each card shows its rank, why it moved, its value and owner, and any pin with its reason. "Why" opens:
+- the #100 breakdown (production, risk, compliance, urgency, effort, what isn't known);
+- its records, linked to their entities and work items;
+- its rank history;
+- a form to pin its rank or value (a reason is required) or unpin it.
+
+Projects can be added from the page. Saved filters and the last visit are kept in the viewer's browser.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

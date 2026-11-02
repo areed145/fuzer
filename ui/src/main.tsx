@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { api } from "./api";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
+import { BoardPage } from "./pages/Board";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { DowntimePage } from "./pages/Downtime";
@@ -79,6 +80,9 @@ function App() {
         <a className={section === "lessons" ? "on" : ""} href={href("/lessons")}>
           Lessons
         </a>
+        <a className={section === "board" ? "on" : ""} href={href("/board")}>
+          Board
+        </a>
         <a className={section === "work" ? "on" : ""} href={href("/work")}>
           Work {work > 0 && <span className="count">{work}</span>}
         </a>
@@ -124,6 +128,8 @@ function App() {
             <WorkItemPage id={Number(path[2])} />
           ) : section === "work" ? (
             <WorkPage query={query} />
+          ) : section === "board" ? (
+            <BoardPage query={query} />
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (

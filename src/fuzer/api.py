@@ -347,12 +347,14 @@ def value_ranking(kind: list[str] | None = Query(None), by: Literal["value", "pe
 
 @app.get("/board")
 def board_page(kind: str | None = None, area: str | None = None, unit: str | None = None, text: str | None = None,
-               since: str | None = None, page: int = 1, per_page: int = 50, conn=Depends(get_conn)):
-    """The work board (#99): every outstanding piece of work, ranked by value, one page at a time."""
+               since: str | None = None, owner: str | None = None, page: int = 1, per_page: int = 50,
+               facets: bool = False, conn=Depends(get_conn)):
+    """The work board (#99): every outstanding piece of work, ranked by value, one page at a time; with
+    `facets`, counts by kind, area and owner for the views."""
     from . import board
-    area_id = queries.resolve_ref(conn, PACK, area) if area else None
+    area_id = area if area and area.startswith("fz-") else queries.resolve_ref(conn, PACK, area) if area else None
     unit_id = queries.resolve_ref(conn, PACK, unit) if unit else None
-    return board.cards(conn, kind, area_id, unit_id, text, since, max(1, page), min(per_page, 200))
+    return board.cards(conn, kind, area_id, unit_id, text, since, max(1, page), min(per_page, 200), owner, facets)
 
 
 @app.get("/board/history")
