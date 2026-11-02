@@ -278,7 +278,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
     start = datetime.fromisoformat(since) if since else (mark - OVERLAP if mark else end - timedelta(days=1))
     start = max(start, end - timedelta(days=max_days))
     if start >= end:
-        return {"since": start.isoformat(), "until": end.isoformat(), "windows": 0, "new": 0, "extended": 0}
+        return {"since": start.isoformat(), "until": end.isoformat(), "windows": 0, "new": 0, "extended": 0, "upsets": 0}
     run_id = conn.execute("insert into sre_run (since, until, status) values (%s, %s, 'running') returning id",
                           (start, end)).fetchone()["id"]
     conn.commit()
@@ -291,6 +291,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
                 totals[k] += v
             windows += 1
             a = b
+        totals["upsets"] = regroup(conn, start)["upsets"]
         conn.execute("update sre_run set status = 'done', finished_at = now(), detections = %s, seconds = %s where id = %s",
                      (totals["new"], round(time.perf_counter() - t0, 1), run_id))
         conn.commit()
@@ -313,3 +314,179 @@ def recent(conn, since: str | None = None, detector: str | None = None, limit: i
           and (%(det)s::text is null or d.detector = %(det)s)
         order by d.start desc limit %(limit)s
         """, {"since": since, "det": detector, "limit": limit})]
+
+
+# ---- grouping into upsets (#96b) ------------------------------------------------------------------
+
+GAP = timedelta(hours=2)  # a detection joins an upset starting within this long of its latest detection
+HOPS = 4  # and on a unit this close in the plant model (compressor -> header -> manifold -> well)
+LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
+TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
+SLOW = {"drifts", "models"}  # days to months: one upset per unit and finding, never joined to others
+FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
+
+
+def topology(conn) -> dict[str, set[str]]:
+    """Units next to each other in the plant model: part_of (instrument -> equipment, choke -> well),
+    flows_to, lift_gas_to and P&ID piping, both ways; and the machines of one compression train (same
+    area, same trailing letter). Areas and the facility are left out, or everything would touch."""
+    adj: dict[str, set[str]] = {}
+    for r in conn.execute(
+        """
+        select e.src, e.dst from edge e join entity a on a.fuzer_id = e.src join entity b on b.fuzer_id = e.dst
+        where e.rel = any(%s) and a.kind in ('tag', 'well', 'allocation_node') and b.kind in ('tag', 'well', 'allocation_node')
+        """, (list(LINKS),)):
+        adj.setdefault(r["src"], set()).add(r["dst"])
+        adj.setdefault(r["dst"], set()).add(r["src"])
+    tags = conn.execute(
+        """
+        select l.fuzer_id, l.label, (select a.dst from edge a join entity x on x.fuzer_id = a.dst and x.kind = 'area'
+                                     where a.src = l.fuzer_id and a.rel = 'part_of' limit 1) as area,
+               exists (select 1 from edge p join entity x on x.fuzer_id = p.dst and x.kind = 'tag'
+                       where p.src = l.fuzer_id and p.rel = 'part_of') as instrument
+        from entity_label l join entity e using (fuzer_id) where e.kind = 'tag'
+        """).fetchall()
+    trains: dict[tuple, list[str]] = {}
+    for r in tags:
+        if not r["instrument"] and (m := TRAIN.match(r["label"] or "")):
+            trains.setdefault(m.groups(), []).append(r["fuzer_id"])
+    for members in trains.values():
+        if len(members) <= 20:  # a train's machines and vessels, not a whole lettered area
+            for u in members:
+                adj.setdefault(u, set()).update(x for x in members if x != u)
+    # A tag on its own (a header pressure, a jacket's gas lift meter) belongs with the manifolds in its area
+    # and with the tags of its loop family there (20-PT-3003 with 20-FT-3002).
+    nodes: dict[str, set[str]] = {}
+    for r in conn.execute("select e.src, e.dst from edge e join entity n on n.fuzer_id = e.src and n.kind = 'allocation_node' "
+                          "where e.rel = 'located_at'"):
+        nodes.setdefault(r["dst"], set()).add(r["src"])
+    family = lambda label: (label.split("-")[0], label.split("-")[-1][:2]) if label and label.count("-") >= 2 else None  # noqa: E731
+    linked = {}
+    for r in tags:
+        if not r["instrument"] and r["fuzer_id"] in adj:
+            linked.setdefault(family(r["label"]), set()).add(r["fuzer_id"])
+    for r in tags:
+        if r["instrument"] or r["fuzer_id"] in adj or not r["area"]:
+            continue
+        near = nodes.get(r["area"], set()) | linked.get(family(r["label"]), set())
+        for n in near:
+            adj.setdefault(r["fuzer_id"], set()).add(n)
+            adj.setdefault(n, set()).add(r["fuzer_id"])
+    return adj
+
+
+def _near(adj: dict, a: str | None, b: str | None, cache: dict) -> bool:
+    if a is None or b is None:
+        return False
+    if a == b:
+        return True
+    if a not in cache:
+        seen, frontier = {a}, {a}
+        for _ in range(HOPS):
+            frontier = {n for u in frontier for n in adj.get(u, ())} - seen
+            seen |= frontier
+        cache[a] = seen
+    return b in cache[a]
+
+
+def group_detections(found: list[dict], adj: dict[str, set[str]]) -> list[dict]:
+    """Detections into upsets: close in time (each joins while within GAP of the upset's latest start) and
+    connected in the plant model. Bad instruments and slow findings stay apart, one per unit and finding.
+    Each upset: {kind, detections, units, first (the earliest detection: its likely first cause), start,
+    end}."""
+    groups: list[dict] = []
+    open_: list[dict] = []
+    cache: dict = {}
+    keyed: dict[tuple, dict] = {}
+    for d in sorted(found, key=lambda d: (d["start"], FIRST.get(d["detector"], 9))):
+        if d["detector"] == "instruments" or d["detector"] in SLOW:
+            kind = "instrument" if d["detector"] == "instruments" else "slow"
+            k = (kind, d.get("unit_id") or d["point"], d["key"])
+            g = keyed.get(k)
+            if g is None:
+                g = keyed[k] = {"kind": kind, "detections": []}
+                groups.append(g)
+            g["detections"].append(d)
+            continue
+        open_ = [g for g in open_ if d["start"] - g["last"] <= GAP]
+        home = next((g for g in open_ if any(_near(adj, d.get("unit_id"), x.get("unit_id"), cache)
+                                             or d["point"] == x["point"] for x in g["detections"])), None)
+        if home is None:
+            home = {"kind": "process", "detections": [], "last": d["start"]}
+            groups.append(home)
+            open_.append(home)
+        home["detections"].append(d)
+        home["last"] = max(home["last"], d["start"])
+    out = []
+    for g in groups:
+        ds = g["detections"]
+        ends = [x["end"] for x in ds]
+        out.append({"kind": g["kind"], "detections": ds, "first": ds[0], "start": ds[0]["start"],
+                    "end": None if any(e is None for e in ends) else max(ends),
+                    "units": list(dict.fromkeys(x.get("unit_id") for x in ds if x.get("unit_id")))})
+    return out
+
+
+def regroup(conn, since: datetime) -> dict:
+    """Group the detections going on after `since` (less a day) into upsets. An upset keeps its id, and
+    the status a person gave it, when most of its detections stay together; upsets left with no
+    detections and no decision go."""
+    from collections import Counter
+
+    rows = [dict(r) for r in conn.execute(
+        """
+        select d.*, l.label as point from detection d left join entity_label l on l.fuzer_id = d.point_id
+        where coalesce(d."end", 'infinity') >= %s order by d.start
+        """, (since - timedelta(days=1),))]
+    groups = group_detections(rows, topology(conn))
+    used: set[int] = set()
+    for g in groups:
+        old = Counter(d["upset_id"] for d in g["detections"] if d["upset_id"] and d["upset_id"] not in used)
+        uid = old.most_common(1)[0][0] if old else None
+        vals = (g["kind"], g["start"], g["end"], g["first"]["id"], g["first"]["unit_id"], g["units"], len(g["detections"]))
+        if uid:
+            conn.execute('update upset set kind = %s, start = %s, "end" = %s, first_detection = %s, first_unit = %s, units = %s, '
+                         "detections = %s, updated_at = now() where id = %s", (*vals, uid))
+        else:
+            uid = conn.execute('insert into upset (kind, start, "end", first_detection, first_unit, units, detections) '
+                               "values (%s, %s, %s, %s, %s, %s, %s) returning id", vals).fetchone()["id"]
+        used.add(uid)
+        conn.execute("update detection set upset_id = %s where id = any(%s)", (uid, [d["id"] for d in g["detections"]]))
+    conn.execute("delete from upset u where status = 'detected' and not exists (select 1 from detection d where d.upset_id = u.id)")
+    conn.commit()
+    return {"upsets": len(groups), "process": sum(g["kind"] == "process" for g in groups)}
+
+
+def upsets(conn, since: str | None = None, status: str | None = None, kind: str | None = "process",
+           limit: int = 50, ids: list[int] | None = None) -> list[dict]:
+    """Upsets, newest first: first cause (unit and detection), units, size and status."""
+    return [_plain(dict(r)) for r in conn.execute(
+        """
+        select u.id, u.kind, u.status, u.start, u."end", u.detections, l.label as first_unit,
+               d.detector as first_detector, d.key as first_key, p.label as first_point,
+               (select array_agg(x.label order by x.label) from entity_label x where x.fuzer_id = any(u.units)) as units
+        from upset u left join entity_label l on l.fuzer_id = u.first_unit
+        left join detection d on d.id = u.first_detection left join entity_label p on p.fuzer_id = d.point_id
+        where (%(since)s::timestamp is null or coalesce(u."end", 'infinity') >= %(since)s::timestamp)
+          and (%(status)s::text is null or u.status = %(status)s) and (%(kind)s::text is null or u.kind = %(kind)s)
+          and (%(ids)s::bigint[] is null or u.id = any(%(ids)s))
+        order by u.start desc limit %(limit)s
+        """, {"since": since, "status": status, "kind": kind, "limit": limit, "ids": ids})]
+
+
+def upset_detail(conn, upset_id: int, limit: int = 60) -> dict | None:
+    """One upset: its detections in time order (the first is the likely first cause) and how many on
+    each unit."""
+    u = next(iter(upsets(conn, kind=None, ids=[upset_id])), None)
+    if u is None:
+        return None
+    dets = [_plain(dict(r)) for r in conn.execute(
+        """
+        select d.id, d.detector, d.key, d.start, d."end", d.magnitude, d.evidence, p.label as point, l.label as unit
+        from detection d left join entity_label p on p.fuzer_id = d.point_id left join entity_label l on l.fuzer_id = d.unit_id
+        where d.upset_id = %s order by d.start, d.id limit %s
+        """, (upset_id, limit))]
+    by_unit: dict[str, int] = {}
+    for d in dets:
+        by_unit[d["unit"]] = by_unit.get(d["unit"], 0) + 1
+    return {**u, "detections_shown": len(dets), "by_unit": by_unit, "timeline": dets}

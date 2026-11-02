@@ -309,10 +309,10 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
 
 
 def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = 5.0, until: str | None = None,
-               recent_days: int = 30, min_readings: int = 10) -> dict:
+               recent_days: int = 30, min_readings: int = 40) -> dict:
     """A pump's head against its OEM curve at the same flow, as the median over its last `recent_days` of
-    running (at least `min_readings`, so a standby pump's first hours don't count). Flags `head_loss` (wear
-    rings, impeller) at `tolerance_pct` or more below the curve."""
+    running: at least `min_readings` (about ten days at 6-hour readings), so a standby pump's starts and
+    stops don't count. Flags `head_loss` (wear rings, impeller) at `tolerance_pct` or more below the curve."""
     from . import curves
 
     p = pump_operation(conn, fid, days, until=until)

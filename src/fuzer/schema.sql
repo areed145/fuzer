@@ -594,3 +594,21 @@ create table if not exists detection (
 );
 create index if not exists detection_of on detection (point_id, detector, key, start);
 create index if not exists detection_recent on detection (start desc);
+
+-- Detections grouped by time and plant topology (#96b): one upset per cause, its earliest detection the
+-- likely first cause. Regrouped after each scan; an upset keeps its id (and status, once a person sets it)
+-- while its detections stay together.
+create table if not exists upset (
+    id              bigserial primary key,
+    kind            text not null,              -- process | instrument | slow
+    status          text not null default 'detected', -- detected | confirmed | resolved | false_alarm
+    start           timestamp not null,
+    "end"           timestamp,
+    first_detection bigint,
+    first_unit      text,
+    units           text[] not null default '{}',
+    detections      integer not null default 0,
+    updated_at      timestamptz not null default now()
+);
+alter table detection add column if not exists upset_id bigint;
+create index if not exists upset_recent on upset (start desc);

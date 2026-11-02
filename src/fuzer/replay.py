@@ -227,6 +227,10 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
                 db.copy_rows(conn, "point_normal", cols, [tuple(r[c] for c in cols) for r in saved])
             conn.commit()
     res = score(spec, found, a, b)
+    if found and "unit_id" in found[0]:  # the SRE's detections carry their unit: score its upsets too
+        from . import sre
+
+        res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn)), a, b)
     return {"detector": name, "since": since, "until": until, "windows": len(seconds),
             "seconds_per_window": round(statistics.mean(seconds), 2) if seconds else None,
             "learn_days": learn_days, "relearn_days": relearn_days if learn_days else None, **res}
@@ -276,6 +280,45 @@ def score(spec: dict, found: list[dict], since: datetime, until: datetime) -> di
             "precision": round(right / (right + len(false)), 3) if right + len(false) else None,
             "false_alarms_per_week": round(len(false) / weeks, 1), "by_kind": by_kind,
             "false_alarm_examples": [f"{d['point']} {d['key']} {d['start']:%Y-%m-%d %H:%M}" for d in false[:10]]}
+
+
+def score_groups(spec: dict, groups: list[dict], since: datetime, until: datetime) -> dict:
+    """Upsets (grouped detections) against the model's events: how many groups each found upset was
+    split into (1 is right), whether a trip's group starts on the trip or on an upset in it that began
+    before (its first cause), and groups that match nothing (false upsets)."""
+    events = truth(spec, since, until)
+    upsets = [e for e in events if e["upset"] and e["start"] >= since]
+    unit_of = {p: u for p, (u, _) in spec["points"].items()}
+
+    def hit(g, e, where):
+        return any(_hits(d, unit_of.get(d["point"]), e, where) for d in g["detections"])
+
+    right = [g for g in groups if any(hit(g, e, "own") for e in events if e["upset"])]
+    explained = [g for g in groups if g not in right and any(hit(g, e, "scope") for e in events)]
+    false = [g for g in groups if g not in right and g not in explained]
+    split = [sum(1 for g in groups if g["kind"] == "process" and hit(g, e, "own")) for e in upsets
+             if e["kind"] in ("trip", "shutdown")]
+    first = []  # the group's first detection is on the trip, or on an upset in it that began before (its cause)
+    for g in groups:
+        mine = [e for e in events if e["upset"] and hit(g, e, "own")]
+        for t in (e for e in mine if g["kind"] == "process" and e["kind"] in ("trip", "shutdown")):
+            first.append(any(_hits(g["first"], unit_of.get(g["first"]["point"]), e, "own") for e in mine
+                             if e["start"] <= t["start"]))
+    weeks = max((until - since).total_seconds() / 604800, 1 / 7)
+    return {"groups": len(groups), "by_kind": dict(statistics_counter(g["kind"] for g in groups)),
+            "right": len(right), "explained": len(explained), "false_upsets": len(false),
+            "false_upsets_per_week": round(len(false) / weeks, 1),
+            "groups_per_trip": round(statistics.mean(split), 1) if split else None,
+            "first_cause_right": round(sum(first) / len(first), 2) if first else None,
+            "false_upset_examples": [f"{g['first']['point']} {g['first']['key']} {g['start']:%Y-%m-%d %H:%M} "
+                                     f"({len(g['detections'])} detections)" for g in false[:8]]}
+
+
+def statistics_counter(items) -> dict:
+    out: dict = {}
+    for x in items:
+        out[x] = out.get(x, 0) + 1
+    return out
 
 
 # ---- stored runs --------------------------------------------------------------------------------
