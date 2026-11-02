@@ -405,6 +405,22 @@ def board_project(p: Project, conn=Depends(get_conn)):
     return out
 
 
+@app.get("/reports/daily")
+def daily_reports(limit: int = 30, conn=Depends(get_conn)):
+    """Days with a daily operations report, newest first (#98)."""
+    from . import daily_report
+    return daily_report.days(conn, min(limit, 365))
+
+
+@app.get("/reports/daily/{day}")
+def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn)):
+    from . import daily_report
+    out = daily_report.get(conn, day, version)
+    if out is None:
+        raise HTTPException(404, f"no report for {day}")
+    return out
+
+
 class Ranking(BaseModel):
     items: list[str]  # fuzer ids (or opportunity ids), most valuable first
     comment: str | None = None

@@ -688,6 +688,21 @@ def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def get_daily_ops_report(day: str | None = None, version: int | None = None) -> dict[str, Any]:
+    """The daily operations report for a production day (YYYY-MM-DD; default the latest): headline,
+    production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line
+    citing its records. With the checks (uncited lines, numbers not in the records) and what changed since
+    the previous version. For "what happened on the 28th?"."""
+    from . import daily_report
+    with db.connect() as conn:
+        if day is None:
+            got = daily_report.days(conn, 1)
+            day = got[0]["day"] if got else None
+        out = daily_report.get(conn, day, version) if day else None
+    return _plain(out) if out else {"error": f"no report for {day}" if day else "no reports yet"}
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,

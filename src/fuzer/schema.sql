@@ -684,3 +684,22 @@ create table if not exists board_project (
     created_by  text not null,
     created_at  timestamptz not null default now()
 );
+
+-- Daily operations reports (#98): one row per version of a production day's report. A new version when
+-- the day's facts change (late records), with what changed.
+create table if not exists daily_ops_report (
+    id          bigserial primary key,
+    day         date not null,
+    version     integer not null,
+    facts       jsonb not null,                 -- the outline as tools worked it out, each fact with its citations
+    fingerprint text not null,
+    markdown    text not null,
+    checks      jsonb not null default '{}',    -- uncited lines, citations and numbers not in the facts
+    drafted_by  text not null,                  -- template | claude
+    usage       jsonb,                          -- tokens and cost of Claude's draft
+    seconds     double precision,
+    changes     jsonb,                          -- against the previous version
+    item_id     bigint,
+    created_at  timestamptz not null default now(),
+    unique (day, version)
+);

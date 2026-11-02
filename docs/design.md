@@ -703,6 +703,35 @@ Each card shows its rank, why it moved, its value and owner, and any pin with it
 
 Projects can be added from the page. Saved filters and the last visit are kept in the viewer's browser.
 
+### 18k. Daily operations report (#98)
+
+`daily_report.py` writes what happened on a production day and what it means, with every line citing its
+records.
+- **Facts:** tools work out the day's facts, never Claude's arithmetic, in a fixed outline:
+  1. headline: production, the biggest loss with its status, the top board item;
+  2. production and deferment, against yesterday and the 7-day average (DAY001, EC downtime);
+  3. upsets and events (SRE upsets, incidents, log events);
+  4. wells (tests 10% or more from the well's previous test);
+  5. maintenance and integrity (notifications, work orders started and finished, IOW excursions,
+     plans that went overdue);
+  6. look-ahead and asks (plans due tomorrow, the top of the board).
+  
+  Each fact is a sentence with its numbers and the records it cites.
+- **Draft:** `render` writes the facts as cited lines. Claude rewrites them as a report (`redraft`, or the
+  reporter agent's `draft` step in the `daily_report` process), keeping every citation and using only
+  the facts' numbers. The ops lead's comments on a draft sent back go with the next draft. The cost and
+  time of each draft are kept.
+- **Checks:** `check` lists lines with no citation, citations not in the day's facts, and numbers not
+  in them. The reviewer sees them, and the eval counts them.
+- **Versions:** `close_day` stores a version only when the day's facts changed, with what changed by
+  section, and starts or updates the day's work item for the ops lead. The `day_close` job (07:00, or
+  `FUZER_DAY_CLOSE_CRON`) closes the latest day and re-checks the six before it for late records.
+
+Readers: the Reports page (`#/reports`: days, versions, checks, what changed), MCP
+`get_daily_ops_report(day)`, `GET /reports/daily/{day}`, and `fuzer report --day [--claude]`. On Okan, the
+day of train C's trip (5 November 2024) leads with "Biggest loss: Process trip, 146 Sm3 oil, back at
+10:30" and the trip's downtime record.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
