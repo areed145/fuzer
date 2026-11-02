@@ -1,18 +1,19 @@
-"""REST API: search, entity detail, lookup, flow tracing and the review queue."""
+"""REST API: search, entity detail, lookup, flow tracing, the review queue and the work engine."""
 
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
 from . import db, graph, knowledge, lessons, pipeline, queries
 from .pack import load_pack
+from .workflow import engine as work
 
 @asynccontextmanager
 async def lifespan(app):
@@ -20,6 +21,7 @@ async def lifespan(app):
     # that read newer tables fail on a database made by an earlier version.
     with db.connect() as conn:
         db.init_schema(conn)
+        work.load_defaults(conn)
     yield
 
 
@@ -613,3 +615,232 @@ def rebuild():
 @app.get("/rebuild")
 def rebuild_status():
     return rebuilder.status()
+
+
+# --- work engine (#97) ---------------------------------------------------------------------------
+
+@app.exception_handler(work.WorkError)
+def work_error(request, e: work.WorkError):
+    body = {"detail": str(e)}
+    if isinstance(e, work.CheckFailed):
+        body["problems"] = [vars(p) for p in e.problems]
+    return JSONResponse(body, status_code=e.status)
+
+
+class WorkBy(BaseModel):
+    by: str
+
+
+class WorkDefinitionIn(BaseModel):
+    xml: str
+    by: str
+
+
+class WorkStart(BaseModel):
+    process_key: str
+    by: str
+    data: dict[str, Any] = {}
+    title: str | None = None
+    subjects: list[str] | None = None
+    priority: float | None = None
+    correlation_key: str | None = None
+    correlate: bool = False   # send to the open process with the same correlation key instead, if there is one
+
+
+class WorkComplete(BaseModel):
+    by: str
+    data: dict[str, Any] = {}
+
+
+class WorkHandOff(BaseModel):
+    by: str
+    to: str                   # a person, role:<role> or agent:<role>
+    reason: str | None = None
+
+
+class WorkComment(BaseModel):
+    by: str
+    text: str
+    attachments: list[dict[str, Any]] = []
+
+
+class WorkTransition(BaseModel):
+    by: str
+    state: str
+    reason: str | None = None
+
+
+class WorkItemIn(BaseModel):
+    type: str
+    title: str
+    by: str
+    subjects: list[str] = []
+    priority: float | None = None
+    assignee: str | None = None
+    role: str | None = None
+    due: datetime | None = None
+    source: str | None = None
+    payload: dict[str, Any] = {}
+
+
+class WorkMessage(BaseModel):
+    name: str
+    correlation_key: str
+    by: str = work.SYSTEM
+    payload: dict[str, Any] = {}
+    process_key: str | None = None
+
+
+class WorkMigrate(BaseModel):
+    by: str
+    definition_id: int
+    mapping: dict[str, str] = {}
+
+
+class WorkPerson(BaseModel):
+    roles: list[str]
+    by: str = work.SYSTEM
+
+
+@app.get("/work/items")
+def work_items(state: str | None = "open", type: str | None = None, assignee: str | None = None,
+               role: list[str] | None = Query(None), subject: str | None = None, overdue: bool | None = None,
+               q: str | None = None, limit: int = 50, offset: int = 0, conn=Depends(get_conn)):
+    """Work items ranked by priority, with filters, the total and how many are overdue or due soon."""
+    return work.list_items(conn, None if state == "all" else state, type, assignee, role, subject, overdue, q,
+                           min(limit, 1000), offset)
+
+
+@app.post("/work/items")
+def work_item_create(i: WorkItemIn, conn=Depends(get_conn)):
+    """A work item without a process (a plain task with an owner, a due date and a history)."""
+    return work.create_item(conn, i.type, i.title, i.by, i.subjects, i.priority, i.assignee, i.role, i.due,
+                            i.source, i.payload)
+
+
+@app.get("/work/items/{item_id}")
+def work_item(item_id: int, conn=Depends(get_conn)):
+    """An item with its processes (path taken, open steps) and every event in its history."""
+    return work.item(conn, item_id)
+
+
+@app.post("/work/items/{item_id}/comment")
+def work_item_comment(item_id: int, c: WorkComment, conn=Depends(get_conn)):
+    return work.comment(conn, item_id, c.by, c.text, c.attachments)
+
+
+@app.post("/work/items/{item_id}/transition")
+def work_item_transition(item_id: int, t: WorkTransition, conn=Depends(get_conn)):
+    return work.transition(conn, item_id, t.state, t.by, t.reason)
+
+
+@app.post("/work/items/{item_id}/hand-off")
+def work_item_hand_off(item_id: int, h: WorkHandOff, conn=Depends(get_conn)):
+    return work.assign_item(conn, item_id, h.by, h.to, h.reason)
+
+
+@app.get("/work/inbox")
+def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(get_conn)):
+    """A person's tasks ('mine') and their roles' unclaimed queue, with overdue and due-soon counts.
+    Roles default to the ones the person holds."""
+    return work.my_work(conn, person, role)
+
+
+@app.get("/work/agents/{role}")
+def work_agent_queue(role: str, conn=Depends(get_conn)):
+    return work.agent_work(conn, role)
+
+
+@app.post("/work/tasks/{task_id}/claim")
+def work_claim(task_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.claim(conn, task_id, b.by)
+
+
+@app.post("/work/tasks/{task_id}/release")
+def work_release(task_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.release(conn, task_id, b.by)
+
+
+@app.post("/work/tasks/{task_id}/complete")
+def work_complete(task_id: int, c: WorkComplete, conn=Depends(get_conn)):
+    """Complete a step with its form data. A requiresHuman step refuses agents (403)."""
+    return work.complete(conn, task_id, c.by, c.data)
+
+
+@app.post("/work/tasks/{task_id}/hand-off")
+def work_task_hand_off(task_id: int, h: WorkHandOff, conn=Depends(get_conn)):
+    return work.hand_off(conn, task_id, h.by, h.to, h.reason)
+
+
+@app.post("/work/processes")
+def work_start(s: WorkStart, conn=Depends(get_conn)):
+    """Start a published process on a new work item (or, with `correlate`, add to the open one)."""
+    if s.correlate:
+        return work.start_or_correlate(conn, s.process_key, s.data, s.by, title=s.title, subjects=s.subjects,
+                                       priority=s.priority)
+    return work.start(conn, s.process_key, s.data, s.by, s.title, s.subjects, s.priority, s.correlation_key)
+
+
+@app.get("/work/processes/{process_id}")
+def work_process(process_id: int, conn=Depends(get_conn)):
+    return work.process(conn, process_id)
+
+
+@app.post("/work/processes/{process_id}/migrate")
+def work_migrate(process_id: int, m: WorkMigrate, conn=Depends(get_conn)):
+    """Move one running process to another published version (explicit, per process)."""
+    return work.migrate(conn, process_id, m.definition_id, m.by, m.mapping)
+
+
+@app.post("/work/processes/{process_id}/cancel")
+def work_cancel(process_id: int, t: WorkTransition, conn=Depends(get_conn)):
+    return work.cancel(conn, process_id, t.by, t.reason)
+
+
+@app.post("/work/messages")
+def work_message(m: WorkMessage, conn=Depends(get_conn)):
+    """Send a message (new evidence, a notification raised, a comment) to the open process with its correlation key."""
+    return work.send_message(conn, m.name, m.correlation_key, m.payload, m.by, m.process_key)
+
+
+@app.get("/work/definitions")
+def work_definitions(process_key: str | None = None, conn=Depends(get_conn)):
+    return work.definitions(conn, process_key)
+
+
+@app.post("/work/definitions")
+def work_definition_import(d: WorkDefinitionIn, conn=Depends(get_conn)):
+    """Import a .bpmn file as draft versions (one per process in it)."""
+    return work.import_bpmn(conn, d.xml, d.by)
+
+
+@app.post("/work/definitions/{definition_id}/check")
+def work_definition_check(definition_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.check_definition(conn, definition_id, b.by)
+
+
+@app.post("/work/definitions/{definition_id}/publish")
+def work_definition_publish(definition_id: int, b: WorkBy, conn=Depends(get_conn)):
+    """Publish a version (workflow_admin role). Refused with 422 and each problem's element if a check fails."""
+    return work.publish(conn, definition_id, b.by)
+
+
+@app.get("/work/definitions/{definition_id}/bpmn")
+def work_definition_export(definition_id: int, conn=Depends(get_conn)):
+    return Response(work.export_bpmn(conn, definition_id), media_type="application/xml")
+
+
+@app.get("/work/people")
+def work_people(conn=Depends(get_conn)):
+    return work.people(conn)
+
+
+@app.put("/work/people/{name}")
+def work_person(name: str, p: WorkPerson, conn=Depends(get_conn)):
+    return work.set_person(conn, name, p.roles, p.by)
+
+
+@app.post("/work/tick")
+def work_tick(conn=Depends(get_conn)):
+    """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes)."""
+    return work.tick(conn)

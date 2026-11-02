@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:fuzer="https://fuzer.dev/schema/bpmn" id="Definitions_daily_report" targetNamespace="https://fuzer.dev/workflow">
+  <bpmn:collaboration id="Collaboration_daily_report">
+    <bpmn:participant id="Participant_daily_report" name="Daily report" processRef="daily_report" />
+  </bpmn:collaboration>
+  <bpmn:process id="daily_report" name="Daily report" isExecutable="true" fuzer:workItemType="daily_report" fuzer:correlationKey="report_date" fuzer:ownerRole="ops_lead">
+    <bpmn:laneSet id="LaneSet_daily_report">
+      <bpmn:lane id="Lane_reporter" name="Reporter agent" fuzer:agent="reporter">
+        <bpmn:flowNodeRef>day_closed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>to_draft</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>draft</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ops_lead" name="Ops lead" fuzer:role="ops_lead">
+        <bpmn:flowNodeRef>review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>is_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>published</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="day_closed" name="Day closed" >
+      <bpmn:outgoing>f_start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="to_draft" name="" >
+      <bpmn:incoming>f_start</bpmn:incoming>
+      <bpmn:incoming>f_revise</bpmn:incoming>
+      <bpmn:outgoing>f_draft</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="draft" name="Draft report" fuzer:fallbackRole="ops_lead">
+      <bpmn:incoming>f_draft</bpmn:incoming>
+      <bpmn:outgoing>f_drafted</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="review" name="Review report" fuzer:requiresHuman="true" fuzer:sla="PT4H" fuzer:form="daily-report-review">
+      <bpmn:incoming>f_drafted</bpmn:incoming>
+      <bpmn:outgoing>f_reviewed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="is_ok" name="Publish?" default="f_publish">
+      <bpmn:incoming>f_reviewed</bpmn:incoming>
+      <bpmn:outgoing>f_revise</bpmn:outgoing>
+      <bpmn:outgoing>f_publish</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="published" name="Published" >
+      <bpmn:incoming>f_publish</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_start" sourceRef="day_closed" targetRef="to_draft" />
+    <bpmn:sequenceFlow id="f_draft" sourceRef="to_draft" targetRef="draft" />
+    <bpmn:sequenceFlow id="f_drafted" name="Drafted" sourceRef="draft" targetRef="review" />
+    <bpmn:sequenceFlow id="f_reviewed" sourceRef="review" targetRef="is_ok" />
+    <bpmn:sequenceFlow id="f_revise" name="Revise" sourceRef="is_ok" targetRef="to_draft">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">review_decision == "revise"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_publish" name="Publish" sourceRef="is_ok" targetRef="published" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_daily_report">
+    <bpmndi:BPMNPlane id="Plane_daily_report" bpmnElement="Collaboration_daily_report">
+      <bpmndi:BPMNShape id="Participant_daily_report_di" bpmnElement="Participant_daily_report" isHorizontal="true"><dc:Bounds x="0" y="60" width="1030" height="300" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_reporter_di" bpmnElement="Lane_reporter" isHorizontal="true"><dc:Bounds x="30" y="60" width="1000" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ops_lead_di" bpmnElement="Lane_ops_lead" isHorizontal="true"><dc:Bounds x="30" y="210" width="1000" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="day_closed_di" bpmnElement="day_closed"><dc:Bounds x="132" y="117" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="to_draft_di" bpmnElement="to_draft" isMarkerVisible="true"><dc:Bounds x="275" y="110" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="draft_di" bpmnElement="draft"><dc:Bounds x="400" y="95" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="review_di" bpmnElement="review"><dc:Bounds x="550" y="245" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="is_ok_di" bpmnElement="is_ok" isMarkerVisible="true"><dc:Bounds x="725" y="260" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="published_di" bpmnElement="published"><dc:Bounds x="882" y="267" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="168" y="135" /><di:waypoint x="275" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_draft_di" bpmnElement="f_draft"><di:waypoint x="325" y="135" /><di:waypoint x="400" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_drafted_di" bpmnElement="f_drafted"><di:waypoint x="500" y="135" /><di:waypoint x="525" y="135" /><di:waypoint x="525" y="285" /><di:waypoint x="550" y="285" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_reviewed_di" bpmnElement="f_reviewed"><di:waypoint x="650" y="285" /><di:waypoint x="725" y="285" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_revise_di" bpmnElement="f_revise"><di:waypoint x="750" y="310" /><di:waypoint x="750" y="335" /><di:waypoint x="300" y="335" /><di:waypoint x="300" y="160" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_publish_di" bpmnElement="f_publish"><di:waypoint x="775" y="285" /><di:waypoint x="882" y="285" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

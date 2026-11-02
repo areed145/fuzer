@@ -346,13 +346,41 @@ uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C
 - **Schedules**: `refresh_logs` hourly and `refresh_all` daily at 02:00 (on);
   `claude_reading` nightly at 03:00 (**off**: it costs money; turn it on in the
   UI). Scheduled Claude runs use the Batches API and cap each run at 2,000 log
-  entries and 200 drawings. Times are in `FUZER_TIMEZONE` (default UTC).
+  entries and 200 drawings. `work_tick` every 5 minutes (on) fires work-engine
+  timers and escalates overdue tasks. Times are in `FUZER_TIMEZONE` (default UTC).
 - **Checks on the register** (warnings): review backlog under 5% of tags and
   equipment, PI points attached to a tag or well, every tag present in SAP.
 - **Alerts**: failed runs are posted to `FUZER_ALERT_WEBHOOK` (Teams, Slack or any
   JSON webhook) when it's set.
 - Run history lives in `.dagster/` locally; in Azure, Dagster's own storage
   would go in Postgres (`dagster-postgres`).
+
+### Work engine (BPMN)
+
+Moves work between agents and people (#97). Processes are BPMN 2.0 files, run by
+Fuzer's own engine for a subset of BPMN, with all state in Postgres: start and end
+events, user tasks (a person, by lane role) and service tasks with `fuzer:agent`
+(an agent), exclusive and parallel gateways, timer and message events, and call
+activities. The starting processes (`upset`, `daily_report`) are in
+`src/fuzer/workflow/definitions/` and load when the API starts.
+
+```sh
+uv run fuzer work load      # import and publish the starting processes
+uv run fuzer work worker    # run agent steps with the assistant's specialists (Claude; costs money)
+uv run fuzer work tick      # fire due timers and escalate overdue tasks once (Dagster does it every 5 min)
+```
+
+- Definitions go draft -> checked -> published. Publishing needs the
+  `workflow_admin` role and is refused, with the element named, if a file uses
+  anything outside the subset, names an unknown role or agent, puts a
+  `requiresHuman` task in an agent lane, has an unreachable step or a gateway
+  branch without a condition, or gives a person's task no SLA.
+- Agents can't complete, claim or take over a `requiresHuman` step. An agent step
+  that keeps failing goes to a person; a step that can't go on becomes a task for
+  the process owner.
+- A second detection of the same incident is sent to the open process as new
+  evidence instead of starting another one (`correlate: true` on `POST /work/processes`).
+- Behaviour is checked against SpiffWorkflow on the files in `tests/bpmn/`.
 
 ### Web UI
 
@@ -406,6 +434,7 @@ curl "localhost:8000/entities?q=OSB.20PT1001A.PV"
 curl "localhost:8000/lookup?text=Lined%20up%20A-03%20to%20test%20sep"
 curl "localhost:8000/review"
 curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
+curl "localhost:8000/work/inbox?person=alice"
 ```
 
 ## Layout
@@ -429,5 +458,6 @@ curl "localhost:8000/entities/<fuzer_id>/trace?direction=up&as_of=2024-01-01"
 | `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
 | `src/fuzer/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
 | `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
+| `src/fuzer/workflow/` | Work engine: BPMN subset, publish checks, processes on Postgres, agent worker |
 | `ui/` | React + TypeScript web UI (Vite) |
 | `fakeplant/` | Fake plants (separate package, not imported by Fuzer): exports, drawings, documents, answer keys |

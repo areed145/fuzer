@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:fuzer="https://fuzer.dev/schema/bpmn" id="Definitions_upset" targetNamespace="https://fuzer.dev/workflow">
+  <bpmn:collaboration id="Collaboration_upset">
+    <bpmn:participant id="Participant_upset" name="Upset" processRef="upset" />
+  </bpmn:collaboration>
+  <bpmn:process id="upset" name="Upset" isExecutable="true" fuzer:workItemType="upset" fuzer:correlationKey="incident_id" fuzer:ownerRole="engineer">
+    <bpmn:laneSet id="LaneSet_upset">
+      <bpmn:lane id="Lane_engineer" name="Engineer" fuzer:role="engineer">
+        <bpmn:flowNodeRef>triage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>is_real</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>false_alarm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>is_approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>is_resolved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>resolved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_troubleshooter" name="Troubleshooter agent" fuzer:agent="troubleshooter">
+        <bpmn:flowNodeRef>detected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>to_diagnose</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>diagnose</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_maintenance" name="Maintenance agent" fuzer:agent="maintenance">
+        <bpmn:flowNodeRef>draft_notification</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_planner" name="Maintenance planner" fuzer:role="maintenance_planner">
+        <bpmn:flowNodeRef>raise_notification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>recheck</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="detected" name="Upset detected" >
+      <bpmn:outgoing>f_start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage">
+      <bpmn:incoming>f_start</bpmn:incoming>
+      <bpmn:outgoing>f_triaged</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="is_real" name="Real upset?" default="f_real">
+      <bpmn:incoming>f_triaged</bpmn:incoming>
+      <bpmn:outgoing>f_false</bpmn:outgoing>
+      <bpmn:outgoing>f_real</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="false_alarm" name="False alarm" >
+      <bpmn:incoming>f_false</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="to_diagnose" name="" >
+      <bpmn:incoming>f_real</bpmn:incoming>
+      <bpmn:incoming>f_rejected</bpmn:incoming>
+      <bpmn:incoming>f_still</bpmn:incoming>
+      <bpmn:outgoing>f_diagnose</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="diagnose" name="Diagnose" fuzer:fallbackRole="engineer">
+      <bpmn:incoming>f_diagnose</bpmn:incoming>
+      <bpmn:outgoing>f_proposed</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="approve" name="Approve proposed action" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:escalateTo="ops_lead" fuzer:form="upset-approve">
+      <bpmn:incoming>f_proposed</bpmn:incoming>
+      <bpmn:outgoing>f_decided</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="is_approved" name="Approved?" default="f_approved">
+      <bpmn:incoming>f_decided</bpmn:incoming>
+      <bpmn:outgoing>f_rejected</bpmn:outgoing>
+      <bpmn:outgoing>f_approved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="draft_notification" name="Draft SAP notification" fuzer:fallbackRole="maintenance_planner">
+      <bpmn:incoming>f_approved</bpmn:incoming>
+      <bpmn:outgoing>f_drafted</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="raise_notification" name="Raise notification" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:form="upset-notification">
+      <bpmn:incoming>f_drafted</bpmn:incoming>
+      <bpmn:outgoing>f_raised</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="recheck" name="Re-check in 6 h" >
+      <bpmn:incoming>f_raised</bpmn:incoming>
+      <bpmn:outgoing>f_rechecked</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="Timer_recheck"><bpmn:timeDuration>"PT6H"</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="confirm" name="Confirm resolved" fuzer:requiresHuman="true" fuzer:sla="P1D" fuzer:form="upset-confirm">
+      <bpmn:incoming>f_rechecked</bpmn:incoming>
+      <bpmn:outgoing>f_confirmed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="is_resolved" name="Resolved?" default="f_resolved">
+      <bpmn:incoming>f_confirmed</bpmn:incoming>
+      <bpmn:outgoing>f_still</bpmn:outgoing>
+      <bpmn:outgoing>f_resolved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="resolved" name="Resolved" >
+      <bpmn:incoming>f_resolved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_start" sourceRef="detected" targetRef="triage" />
+    <bpmn:sequenceFlow id="f_triaged" sourceRef="triage" targetRef="is_real" />
+    <bpmn:sequenceFlow id="f_false" name="False alarm" sourceRef="is_real" targetRef="false_alarm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">triage == "false_alarm"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_real" name="Real" sourceRef="is_real" targetRef="to_diagnose" />
+    <bpmn:sequenceFlow id="f_diagnose" sourceRef="to_diagnose" targetRef="diagnose" />
+    <bpmn:sequenceFlow id="f_proposed" name="Action proposed" sourceRef="diagnose" targetRef="approve" />
+    <bpmn:sequenceFlow id="f_decided" sourceRef="approve" targetRef="is_approved" />
+    <bpmn:sequenceFlow id="f_rejected" name="Rejected" sourceRef="is_approved" targetRef="to_diagnose">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">approval == "rejected"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_approved" name="Approved" sourceRef="is_approved" targetRef="draft_notification" />
+    <bpmn:sequenceFlow id="f_drafted" sourceRef="draft_notification" targetRef="raise_notification" />
+    <bpmn:sequenceFlow id="f_raised" name="Notification raised" sourceRef="raise_notification" targetRef="recheck" />
+    <bpmn:sequenceFlow id="f_rechecked" sourceRef="recheck" targetRef="confirm" />
+    <bpmn:sequenceFlow id="f_confirmed" sourceRef="confirm" targetRef="is_resolved" />
+    <bpmn:sequenceFlow id="f_still" name="Still upset" sourceRef="is_resolved" targetRef="to_diagnose">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">outcome == "still_upset"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_resolved" name="Resolved" sourceRef="is_resolved" targetRef="resolved" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_upset">
+    <bpmndi:BPMNPlane id="Plane_upset" bpmnElement="Collaboration_upset">
+      <bpmndi:BPMNShape id="Participant_upset_di" bpmnElement="Participant_upset" isHorizontal="true"><dc:Bounds x="0" y="60" width="2080" height="600" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_engineer_di" bpmnElement="Lane_engineer" isHorizontal="true"><dc:Bounds x="30" y="60" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_troubleshooter_di" bpmnElement="Lane_troubleshooter" isHorizontal="true"><dc:Bounds x="30" y="210" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_maintenance_di" bpmnElement="Lane_maintenance" isHorizontal="true"><dc:Bounds x="30" y="360" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_planner_di" bpmnElement="Lane_planner" isHorizontal="true"><dc:Bounds x="30" y="510" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="detected_di" bpmnElement="detected"><dc:Bounds x="132" y="267" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="triage_di" bpmnElement="triage"><dc:Bounds x="250" y="95" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="is_real_di" bpmnElement="is_real" isMarkerVisible="true"><dc:Bounds x="425" y="110" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="false_alarm_di" bpmnElement="false_alarm"><dc:Bounds x="582" y="117" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="to_diagnose_di" bpmnElement="to_diagnose" isMarkerVisible="true"><dc:Bounds x="575" y="260" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="diagnose_di" bpmnElement="diagnose"><dc:Bounds x="700" y="245" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approve_di" bpmnElement="approve"><dc:Bounds x="850" y="95" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="is_approved_di" bpmnElement="is_approved" isMarkerVisible="true"><dc:Bounds x="1025" y="110" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="draft_notification_di" bpmnElement="draft_notification"><dc:Bounds x="1150" y="395" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="raise_notification_di" bpmnElement="raise_notification"><dc:Bounds x="1300" y="545" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recheck_di" bpmnElement="recheck"><dc:Bounds x="1482" y="567" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="confirm_di" bpmnElement="confirm"><dc:Bounds x="1600" y="95" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="is_resolved_di" bpmnElement="is_resolved" isMarkerVisible="true"><dc:Bounds x="1775" y="110" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="resolved_di" bpmnElement="resolved"><dc:Bounds x="1932" y="117" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="168" y="285" /><di:waypoint x="209" y="285" /><di:waypoint x="209" y="135" /><di:waypoint x="250" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_triaged_di" bpmnElement="f_triaged"><di:waypoint x="350" y="135" /><di:waypoint x="425" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_false_di" bpmnElement="f_false"><di:waypoint x="475" y="135" /><di:waypoint x="582" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_real_di" bpmnElement="f_real"><di:waypoint x="475" y="135" /><di:waypoint x="525" y="135" /><di:waypoint x="525" y="285" /><di:waypoint x="575" y="285" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_diagnose_di" bpmnElement="f_diagnose"><di:waypoint x="625" y="285" /><di:waypoint x="700" y="285" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_proposed_di" bpmnElement="f_proposed"><di:waypoint x="800" y="285" /><di:waypoint x="825" y="285" /><di:waypoint x="825" y="135" /><di:waypoint x="850" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_decided_di" bpmnElement="f_decided"><di:waypoint x="950" y="135" /><di:waypoint x="1025" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_rejected_di" bpmnElement="f_rejected"><di:waypoint x="1050" y="160" /><di:waypoint x="1050" y="335" /><di:waypoint x="600" y="335" /><di:waypoint x="600" y="310" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_approved_di" bpmnElement="f_approved"><di:waypoint x="1075" y="135" /><di:waypoint x="1112" y="135" /><di:waypoint x="1112" y="435" /><di:waypoint x="1150" y="435" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_drafted_di" bpmnElement="f_drafted"><di:waypoint x="1250" y="435" /><di:waypoint x="1275" y="435" /><di:waypoint x="1275" y="585" /><di:waypoint x="1300" y="585" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_raised_di" bpmnElement="f_raised"><di:waypoint x="1400" y="585" /><di:waypoint x="1482" y="585" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_rechecked_di" bpmnElement="f_rechecked"><di:waypoint x="1518" y="585" /><di:waypoint x="1559" y="585" /><di:waypoint x="1559" y="135" /><di:waypoint x="1600" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_confirmed_di" bpmnElement="f_confirmed"><di:waypoint x="1700" y="135" /><di:waypoint x="1775" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_still_di" bpmnElement="f_still"><di:waypoint x="1800" y="160" /><di:waypoint x="1800" y="335" /><di:waypoint x="600" y="335" /><di:waypoint x="600" y="310" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_resolved_di" bpmnElement="f_resolved"><di:waypoint x="1825" y="135" /><di:waypoint x="1932" y="135" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

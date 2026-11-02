@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_reminders" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:userTask id="approve" name="Approve" fuzer:role="engineer" fuzer:sla="P1D" />
+    <bpmn:boundaryEvent id="remind" attachedToRef="approve" cancelActivity="false"><bpmn:timerEventDefinition><bpmn:timeCycle>"R2/PT1H"</bpmn:timeCycle></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:serviceTask id="nudge" name="Nudge" fuzer:agent="sre" />
+    <bpmn:endEvent id="end" />
+    <bpmn:endEvent id="end_nudge" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="approve" />
+    <bpmn:sequenceFlow id="f2" sourceRef="approve" targetRef="end" />
+    <bpmn:sequenceFlow id="f3" sourceRef="remind" targetRef="nudge" />
+    <bpmn:sequenceFlow id="f4" sourceRef="nudge" targetRef="end_nudge" />
+  </bpmn:process>
+</bpmn:definitions>

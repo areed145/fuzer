@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_terminate" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:parallelGateway id="fork" />
+    <bpmn:userTask id="close_out" name="Close out" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:userTask id="side" name="Side" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:endEvent id="stop"><bpmn:terminateEventDefinition /></bpmn:endEvent>
+    <bpmn:endEvent id="end_side" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="fork" />
+    <bpmn:sequenceFlow id="f2" sourceRef="fork" targetRef="close_out" />
+    <bpmn:sequenceFlow id="f3" sourceRef="fork" targetRef="side" />
+    <bpmn:sequenceFlow id="f4" sourceRef="close_out" targetRef="stop" />
+    <bpmn:sequenceFlow id="f5" sourceRef="side" targetRef="end_side" />
+  </bpmn:process>
+</bpmn:definitions>

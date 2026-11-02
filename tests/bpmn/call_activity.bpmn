@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_main" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:callActivity id="call_review" name="Review" calledElement="t_review" />
+    <bpmn:exclusiveGateway id="gw" default="f_no" />
+    <bpmn:userTask id="final" name="Final" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:endEvent id="end_yes" />
+    <bpmn:endEvent id="end_no" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="call_review" />
+    <bpmn:sequenceFlow id="f2" sourceRef="call_review" targetRef="gw" />
+    <bpmn:sequenceFlow id="f_yes" sourceRef="gw" targetRef="final"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">reviewed == True</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_no" sourceRef="gw" targetRef="end_no" />
+    <bpmn:sequenceFlow id="f3" sourceRef="final" targetRef="end_yes" />
+  </bpmn:process>
+  <bpmn:process id="t_review" isExecutable="true">
+    <bpmn:startEvent id="sub_start" />
+    <bpmn:serviceTask id="sub_draft" name="Draft" fuzer:agent="reporter" />
+    <bpmn:userTask id="sub_review" name="Sub review" fuzer:role="ops_lead" fuzer:sla="PT4H" />
+    <bpmn:endEvent id="sub_end" />
+    <bpmn:sequenceFlow id="s1" sourceRef="sub_start" targetRef="sub_draft" />
+    <bpmn:sequenceFlow id="s2" sourceRef="sub_draft" targetRef="sub_review" />
+    <bpmn:sequenceFlow id="s3" sourceRef="sub_review" targetRef="sub_end" />
+  </bpmn:process>
+</bpmn:definitions>

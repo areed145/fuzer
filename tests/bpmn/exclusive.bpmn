@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_exclusive" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:userTask id="assess" name="Assess" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:exclusiveGateway id="gw" default="f_low" />
+    <bpmn:userTask id="high" name="High" fuzer:role="ops_lead" fuzer:sla="PT1H" />
+    <bpmn:serviceTask id="low" name="Low" fuzer:agent="troubleshooter" />
+    <bpmn:endEvent id="end_high" />
+    <bpmn:endEvent id="end_low" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="assess" />
+    <bpmn:sequenceFlow id="f2" sourceRef="assess" targetRef="gw" />
+    <bpmn:sequenceFlow id="f_high" sourceRef="gw" targetRef="high"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">score &gt; 5 and kind in ["trip", "leak"]</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_low" sourceRef="gw" targetRef="low" />
+    <bpmn:sequenceFlow id="f3" sourceRef="high" targetRef="end_high" />
+    <bpmn:sequenceFlow id="f4" sourceRef="low" targetRef="end_low" />
+  </bpmn:process>
+</bpmn:definitions>

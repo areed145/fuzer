@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:message id="msg_evidence" name="evidence" />
+  <bpmn:message id="msg_withdrawn" name="withdrawn" />
+  <bpmn:message id="msg_comment" name="comment" />
+  <bpmn:process id="t_messages" isExecutable="true" fuzer:correlationKey="incident_id">
+    <bpmn:startEvent id="start" />
+    <bpmn:intermediateCatchEvent id="await_evidence"><bpmn:messageEventDefinition messageRef="msg_evidence" /></bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="gw" default="f_minor" />
+    <bpmn:userTask id="act" name="Act" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:boundaryEvent id="withdrawn" attachedToRef="act"><bpmn:messageEventDefinition messageRef="msg_withdrawn" /></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="commented" attachedToRef="act" cancelActivity="false"><bpmn:messageEventDefinition messageRef="msg_comment" /></bpmn:boundaryEvent>
+    <bpmn:serviceTask id="read_comment" name="Read comment" fuzer:agent="troubleshooter" />
+    <bpmn:endEvent id="end_minor" />
+    <bpmn:endEvent id="end_done" />
+    <bpmn:endEvent id="end_withdrawn" />
+    <bpmn:endEvent id="end_comment" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="await_evidence" />
+    <bpmn:sequenceFlow id="f2" sourceRef="await_evidence" targetRef="gw" />
+    <bpmn:sequenceFlow id="f_major" sourceRef="gw" targetRef="act"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">severity == "high"</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_minor" sourceRef="gw" targetRef="end_minor" />
+    <bpmn:sequenceFlow id="f3" sourceRef="act" targetRef="end_done" />
+    <bpmn:sequenceFlow id="f4" sourceRef="withdrawn" targetRef="end_withdrawn" />
+    <bpmn:sequenceFlow id="f5" sourceRef="commented" targetRef="read_comment" />
+    <bpmn:sequenceFlow id="f6" sourceRef="read_comment" targetRef="end_comment" />
+  </bpmn:process>
+</bpmn:definitions>

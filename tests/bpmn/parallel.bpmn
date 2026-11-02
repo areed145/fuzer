@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_parallel" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:parallelGateway id="fork" />
+    <bpmn:userTask id="check_values" name="Check values" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:serviceTask id="find_similar" name="Find similar" fuzer:agent="troubleshooter" />
+    <bpmn:serviceTask id="spares" name="Spares" fuzer:agent="maintenance" />
+    <bpmn:parallelGateway id="join" />
+    <bpmn:userTask id="decide" name="Decide" fuzer:role="engineer" fuzer:sla="PT4H" />
+    <bpmn:endEvent id="end" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="fork" />
+    <bpmn:sequenceFlow id="f2" sourceRef="fork" targetRef="check_values" />
+    <bpmn:sequenceFlow id="f3" sourceRef="fork" targetRef="find_similar" />
+    <bpmn:sequenceFlow id="f4" sourceRef="fork" targetRef="spares" />
+    <bpmn:sequenceFlow id="f5" sourceRef="check_values" targetRef="join" />
+    <bpmn:sequenceFlow id="f6" sourceRef="find_similar" targetRef="join" />
+    <bpmn:sequenceFlow id="f7" sourceRef="spares" targetRef="join" />
+    <bpmn:sequenceFlow id="f8" sourceRef="join" targetRef="decide" />
+    <bpmn:sequenceFlow id="f9" sourceRef="decide" targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>

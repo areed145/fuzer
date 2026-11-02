@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_loop" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:exclusiveGateway id="merge" />
+    <bpmn:serviceTask id="draft" name="Draft" fuzer:agent="reporter" />
+    <bpmn:userTask id="review" name="Review" fuzer:role="ops_lead" fuzer:requiresHuman="true" fuzer:sla="PT4H" />
+    <bpmn:exclusiveGateway id="ok" default="f_ok" />
+    <bpmn:endEvent id="end" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="merge" />
+    <bpmn:sequenceFlow id="f2" sourceRef="merge" targetRef="draft" />
+    <bpmn:sequenceFlow id="f3" sourceRef="draft" targetRef="review" />
+    <bpmn:sequenceFlow id="f4" sourceRef="review" targetRef="ok" />
+    <bpmn:sequenceFlow id="f_revise" sourceRef="ok" targetRef="merge"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">decision == "revise"</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_ok" sourceRef="ok" targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>
