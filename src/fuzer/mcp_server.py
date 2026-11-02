@@ -815,6 +815,40 @@ def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str,
 
 
 @server.tool(annotations=READ_ONLY)
+def compare_periods(ref: str, before_since: str, before_until: str, after_since: str, after_until: str) -> dict[str, Any]:
+    """Did the change work? Each point on a PI point or unit in two windows (before and after a choke move,
+    a repair, a swap): medians, the change, and whether it is significant (Welch's t with autocorrelation
+    taken into account). Use it to close the loop when a work item closes."""
+    from . import cases
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        try:
+            return _plain(cases.compare_periods(conn, fid, (before_since, before_until), (after_since, after_until)))
+        except cases.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
+def similar_cases(ref: str) -> dict[str, Any]:
+    """Past incidents like this one (an incident, "upset:<id>", or a tag or well's latest incident): same unit
+    or class, shared failure modes and event types, with the work orders done for each and whether the fix
+    held (no incident on the unit within 90 days)."""
+    from . import cases
+    with db.connect() as conn:
+        fid = ref
+        if not ref.startswith("upset:"):
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        try:
+            return _plain(cases.similar_cases(conn, fid))
+        except cases.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
@@ -1363,6 +1397,44 @@ def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, A
     from .plots import troubleshooting
     build = lambda conn, **kw: troubleshooting.alarms_chart(conn, pack=PACK, **kw)  # noqa: E731
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
+
+
+@server.tool(annotations=CHART)
+def plot_propagation(upset_id: int) -> dict[str, Any]:
+    """Chart an SRE upset on the plant model: units coloured by when each was first detected, plant model
+    links between them, the likely first cause marked."""
+    from .plots import troubleshooting
+    return _chart(troubleshooting.propagation, {"upset": upset_id})
+
+
+@server.tool(annotations=CHART)
+def plot_operating_window(ref: str, since: str, until: str) -> dict[str, Any]:
+    """Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day."""
+    from .plots import general
+    return _chart(lambda conn, **kw: general.operating_window(conn, pack=PACK, **kw), {"since": since, "until": until},
+                  {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_loss_waterfall(since: str, until: str) -> dict[str, Any]:
+    """Chart oil potential, planned losses, unplanned losses by reason and actual over a period, priced."""
+    from .plots import general
+    return _chart(lambda conn, **kw: general.loss_waterfall(conn, pack=PACK, **kw), {"since": since, "until": until})
+
+
+@server.tool(annotations=CHART)
+def plot_score_breakdown(ref: str) -> dict[str, Any]:
+    """Chart what makes up an item's value score (#100): production, risk and compliance at stake, urgency and
+    effort, to show why one card ranks above another. ref: a work order, plan, incident or tag."""
+    from .plots import general
+    return _chart(lambda conn, **kw: general.score_breakdown(conn, pack=PACK, **kw), {}, {"ref": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_flare(since: str, until: str) -> dict[str, Any]:
+    """Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate)."""
+    from .plots import general
+    return _chart(general.flare, {"since": since, "until": until})
 
 
 @server.tool(annotations=READ_ONLY)
