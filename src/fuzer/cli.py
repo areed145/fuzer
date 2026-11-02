@@ -106,6 +106,10 @@ def main(argv=None):
                     help="replay history through the operations detectors and score them against the fake "
                          "plant's injected events (exits 1 if recall fell since the last run of the same period)")
     ev.add_argument("--detector", default="limits", help="with --ops: the detector to replay (default: limits)")
+    ev.add_argument("--full", action="store_true",
+                    help="with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) "
+                         "and fail if a score is under its floor or fell since the last run")
+    ev.add_argument("--live", action="store_true", help="with --full: diagnose with the real Claude (costs money)")
     ev.add_argument("--since", default=None, help="with --ops: start (default: 28 days before --until)")
     ev.add_argument("--until", default=None, help="with --ops: end (default: the latest daily report)")
 
@@ -271,6 +275,20 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
 
     until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
     since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
+    if args.full:
+        from . import ops_eval
+
+        if not (data / "process_model.json").is_file():
+            raise SystemExit("no process_model.json: set FUZER_DATA_DIR to the fake plant's folder")
+        res = ops_eval.run(conn, pack, data, since, until.isoformat(timespec="minutes"), live=args.live)
+        prev = replay.store(conn, {"detector": "full" + ("-live" if args.live else ""), "since": since,
+                                   "until": until.isoformat(timespec="minutes"), "recall": res["sre"]["recall"],
+                                   "by_kind": res["sre"]["by_kind"], **res})
+        _print(res)
+        bad = ops_eval.gate(res) + [f"recall fell: {k}" for k in prev["recall_dropped"]]
+        if bad:
+            raise SystemExit("Ops eval failed: " + "; ".join(bad))
+        return
     try:
         res = replay.run(conn, pack, args.detector, since, until.isoformat(timespec="minutes"), data_dir=data)
     except ValueError as e:

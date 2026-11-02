@@ -192,7 +192,9 @@ Replays the operations detectors over a fake plant's history in 6-hour windows,
 without letting them see later data, and scores what they raise against the
 process model's injected upsets: recall and time to detect per kind, precision,
 false alarms per week. Runs are kept; it exits 1 if recall fell since the last
-run of the same period (design.md 18f).
+run of the same period (design.md 18f). With `--full` it scores everything scheduled: SRE detection and
+grouping, diagnosis (a scripted Claude unless `--live`), daily reports and the opportunity scan. It fails
+under each score's floor. CI runs it on the fake Okan plant.
 
 ### Other assets
 

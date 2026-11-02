@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync
+      - name: Tests (no network to Claude: agents and readers run on recorded answers)
+        run: uv run pytest -q -rf
+      - name: Ops eval (#103) on the fake plant with a scripted Claude; fails under its floors
+        run: |
+          uv run fakeplant demo --asset okan --seed 11 --data /tmp/okan
+          FUZER_DATA_DIR=/tmp/okan uv run fuzer --pack okan eval --ops --full --since 2024-11-04T00:00 --until 2024-11-10T00:00

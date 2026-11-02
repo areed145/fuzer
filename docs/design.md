@@ -523,7 +523,18 @@ false alarms per week, seconds per window. Each `fuzer eval --ops` run is kept i
 1 if overall or any kind's recall fell since the last run of the same detector and period.
 `tests/test_replay.py` is the CI check: it replays 3–13 November 2024 on Okan, with a scripted
 detector to test the scoring and the `limits` detector (the #101 excursions, standing in until #96).
-Grouping, diagnosis, daily reports and the opportunity scan are scored later.
+`fuzer eval --ops --full` (`ops_eval.py`) scores everything that runs on a schedule:
+- **SRE:** the replay of the period, with grouping.
+- **Diagnosis:** the period's upsets handed off. The likeliest cause must name a unit of the matching
+  injected event, and cite its records.
+- **Daily reports:** each day closed. Every line cited, a trip day led by the trip, no operating
+  instructions.
+- **Opportunities:** gas lift gains against a calculation by hand.
+
+It uses a scripted Claude by default (no network) and the real one with `--live`. Each run is kept, and
+it fails when a score is under its floor (`GATES`, `CEILINGS`) or recall fell since the last run. The
+GitHub workflow (`.github/workflows/ci.yml`) runs the tests and this eval on the fake Okan plant for
+4–10 November 2024.
 
 ### 18g. Diagnostic calcs that return numbers (#105)
 
