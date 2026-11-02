@@ -493,6 +493,38 @@ November 2024. Planted faults (answer key `limits.json`): AF Hi typed in psi, DC
 AF, alarms disabled, Hi above HiHi, a Lo inside the normal range, points with no limits, and an IOW on
 a tag that doesn't exist. The checks find all of them and nothing else (learning on a quiet quarter).
 
+### 18f. Replaying history to score the detectors (#103)
+
+The SRE (#96) runs unattended, so nobody checks each thing it raises. Before trusting it, and after
+every detector change, it is replayed over a fake plant's past, where the process model's events are
+the ground truth (`replay.py`, `fuzer eval --ops`).
+
+**Replay.** The period is walked in 6-hour windows, as the schedule runs. Each window's detector call
+gets a time-series source that refuses values after the window's end (`Peek`), so a detector can't
+use what happened later. Normal ranges are learned from the 90 days before the period and again every
+30 days, then put back. A detection still open at a window's end and picked up in the next is one
+detection, first seen at the end of the window that raised it.
+
+**Ground truth.** Upsets (trips, shutdowns, shut-ins, bearing wear, fouling, high discharge
+temperature, high level, a bad instrument, a gas lift valve failing open, hydrate restriction, pump
+head loss, choke wear) are what a detector should find. Routine events (choke moves, pump changeovers,
+planned downtime, curtailment, bypass opening) don't need finding but explain what they cause. A ramp
+runs from where it leaves zero to where it returns.
+
+**Matching.** An upset is found by a detection on its own unit (a train: any of its machines; a field
+shutdown: anything) starting from an hour before it to 6 hours after it ends. A detection that finds
+none is explained if it is on something an event affects at the time, downstream in the model: a trip
+reaches the lift gas headers, their child headers, the wells and jackets on them, the export meters
+and their pumps; a slow ramp only its own unit, else months of fouling would excuse every alarm. The
+rest are false alarms.
+
+**Scores.** Recall and median hours to detect per kind of upset (with the missed ones), precision,
+false alarms per week, seconds per window. Each `fuzer eval --ops` run is kept in `ops_eval`; it exits
+1 if overall or any kind's recall fell since the last run of the same detector and period.
+`tests/test_replay.py` is the CI check: it replays 3–13 November 2024 on Okan, with a scripted
+detector to test the scoring and the `limits` detector (the #101 excursions, standing in until #96).
+Grouping, diagnosis, daily reports and the opportunity scan are scored later.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

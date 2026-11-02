@@ -184,6 +184,16 @@ operator-log reading (mentions, and event types once Claude has run). The fake
 generator writes keys for its data; for a real asset, curate the same JSON
 files (format in `src/fuzer/evaluate.py`).
 
+```sh
+uv run fuzer --pack okan eval --ops --since 2024-11-03 --until 2024-11-13
+```
+
+Replays the operations detectors over a fake plant's history in 6-hour windows,
+without letting them see later data, and scores what they raise against the
+process model's injected upsets: recall and time to detect per kind, precision,
+false alarms per week. Runs are kept; it exits 1 if recall fell since the last
+run of the same period (design.md 18f).
+
 ### Other assets
 
 Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
