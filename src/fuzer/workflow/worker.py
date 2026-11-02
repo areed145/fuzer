@@ -58,8 +58,8 @@ Agent = Callable[[AgentCall], dict | None]
 
 
 def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | None = None,
-          lease: timedelta = LEASE) -> dict | None:
-    """Take the next agent step that is due and not held by a live lease."""
+          lease: timedelta = LEASE, task_id: int | None = None) -> dict | None:
+    """Take the next agent step that is due and not held by a live lease (or that one step, if free)."""
     now = now or engine.utcnow()
     row = conn.execute(
         """
@@ -68,9 +68,10 @@ def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | Non
             select id from work_token
             where state = 'waiting' and kind = 'agent' and run_after <= %(now)s
               and (lease_until is null or lease_until < %(now)s) and (%(roles)s::text[] is null or role = any(%(roles)s))
+              and (%(task)s::bigint is null or id = %(task)s)
             order by run_after, id limit 1 for update skip locked)
         returning *
-        """, {"w": worker, "until": now + lease, "now": now, "roles": roles}).fetchone()
+        """, {"w": worker, "until": now + lease, "now": now, "roles": roles, "task": task_id}).fetchone()
     if row:
         engine._event(conn, "claimed", f"agent:{row['role']}", row["item_id"], row["process_id"], row["id"],
                       element=row["element"], data={"worker": worker, "attempt": row["attempts"]}, at=now)

@@ -1,0 +1,14 @@
+{
+  "id": "upset-approve",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "The troubleshooter agent proposes the action in the evidence. Approving it lets the maintenance agent draft a SAP notification; nothing is sent until a planner raises it."},
+    {"type": "radio", "id": "approval", "key": "approval", "label": "Decision",
+     "values": [{"label": "Approve the proposed action", "value": "approved"}, {"label": "Reject: diagnose again", "value": "rejected"}],
+     "validate": {"required": true}},
+    {"type": "textarea", "id": "approval_reason", "key": "approval_reason", "label": "Reason",
+     "description": "Needed when you reject it; the agent reads it on its next try.",
+     "validate": {"required": true}, "conditional": {"hide": "=approval != \"rejected\""}}
+  ]
+}

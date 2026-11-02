@@ -697,6 +697,13 @@ class WorkMigrate(BaseModel):
     mapping: dict[str, str] = {}
 
 
+class WorkBulk(BaseModel):
+    by: str
+    task_ids: list[int]
+    action: str               # the label of a bulk action the tasks' form declares
+    reason: str | None = None
+
+
 class WorkPerson(BaseModel):
     roles: list[str]
     by: str = work.SYSTEM
@@ -749,6 +756,18 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
 @app.get("/work/agents/{role}")
 def work_agent_queue(role: str, conn=Depends(get_conn)):
     return work.agent_work(conn, role)
+
+
+@app.get("/work/tasks/{task_id}")
+def work_task(task_id: int, conn=Depends(get_conn)):
+    """One step with its item, process data, form-js form, bulk actions and evidence."""
+    return work.task(conn, task_id)
+
+
+@app.post("/work/tasks/bulk-complete")
+def work_bulk_complete(b: WorkBulk, conn=Depends(get_conn)):
+    """Complete several steps with a bulk action their form declares (never requiresHuman steps)."""
+    return work.bulk_complete(conn, b.task_ids, b.by, b.action, b.reason)
 
 
 @app.post("/work/tasks/{task_id}/claim")
@@ -828,6 +847,24 @@ def work_definition_publish(definition_id: int, b: WorkBy, conn=Depends(get_conn
 @app.get("/work/definitions/{definition_id}/bpmn")
 def work_definition_export(definition_id: int, conn=Depends(get_conn)):
     return Response(work.export_bpmn(conn, definition_id), media_type="application/xml")
+
+
+@app.get("/work/forms")
+def work_forms(conn=Depends(get_conn)):
+    return work.forms(conn)
+
+
+@app.get("/work/forms/{key}")
+def work_form(key: str, conn=Depends(get_conn)):
+    if (f := work.form(conn, key)) is None:
+        raise HTTPException(404, f"no form '{key}'")
+    return f
+
+
+@app.post("/work/forms")
+def work_form_import(schema: dict[str, Any], by: str, conn=Depends(get_conn)):
+    """A form-js schema as the next version of the form its `id` names."""
+    return work.import_form(conn, schema, by)
 
 
 @app.get("/work/people")
