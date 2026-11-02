@@ -495,7 +495,8 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 # --- diagnostics (calcs.py, signals.py): numbers with their basis, to cite as evidence -----------------
 
 @server.tool(annotations=READ_ONLY)
-def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss"], ref: str,
+def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
+                       "dp_drift"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -506,8 +507,10 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     or choke): effective Cv against the characteristic (eroded, restricted). reliability (tag, equipment or
     class; method weibull | crow_amsaa): beta against 1 (wear_out, early_life, failures_accelerating).
     wall_loss (vessel, piping, pipeline): fastest CML loss against the median, remaining life with
-    min_required_mm (retire_soon, localised). until (ISO) works it out as of then. The plot_* chart of the
-    same name shows the fit."""
+    min_required_mm (retire_soon, localised). well_constraint (well): shut_in, choke (critical flow) or
+    back_pressure (the header holds it back), from back / wellhead pressure. dp_drift (well): the wellhead to
+    header pressure drop rising (dp_rising: a flowline waxing or scaling) since when. until (ISO) works it out
+    as of then. The plot_* chart of the same name shows the fit."""
     from . import calcs
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
@@ -700,6 +703,51 @@ def get_daily_ops_report(day: str | None = None, version: int | None = None) -> 
             day = got[0]["day"] if got else None
         out = daily_report.get(conn, day, version) if day else None
     return _plain(out) if out else {"error": f"no report for {day}" if day else "no reports yet"}
+
+
+@server.tool(annotations=READ_ONLY)
+def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
+    """Pressure at each node from a well's wellhead down its flow path (jacket production header,
+    separator, compressor suction) and the drop across each segment: where the back-pressure comes from."""
+    from . import hydraulics
+    with db.connect() as conn:
+        fid, err = _resolve(conn, well)
+        if err:
+            return err
+        try:
+            return _plain(hydraulics.pressure_profile(conn, fid, at))
+        except hydraulics.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
+def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
+    """Oil gained per bar less back-pressure, for each back-pressure-limited well in scope (a well, a jacket
+    area or "facility") and summed per header: from the inflow and choke equations, and from the well's
+    tests against the header pressure at the time. Where the two disagree, say so."""
+    from . import hydraulics
+    with db.connect() as conn:
+        sc = scope
+        if scope != "facility":
+            sc, err = _resolve(conn, scope)
+            if err:
+                return err
+        return _plain(hydraulics.backpressure_sensitivity(conn, sc, at))
+
+
+@server.tool(annotations=READ_ONLY)
+def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
+    """How close each point on a unit (compressor, separator, pump) runs to its nearest limit (alarm, IOW or
+    learned range): what a debottleneck would run into next."""
+    from . import hydraulics
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        try:
+            return _plain(hydraulics.headroom(conn, PACK, fid, at))
+        except hydraulics.CalcError as e:
+            return {"error": str(e)}
 
 
 @server.tool(annotations=READ_ONLY)

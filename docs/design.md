@@ -732,6 +732,45 @@ Readers: the Reports page (`#/reports`: days, versions, checks, what changed), M
 day of train C's trip (5 November 2024) leads with "Biggest loss: Process trip, 146 Sm3 oil, back at
 10:30" and the trip's downtime record.
 
+### 18l. Back-pressure (#107, model coupling and calcs)
+
+**Process model.** An oil well on a jacket now feels the back-pressure.
+- **Inflow:** at the wellhead it delivers in proportion to its shut-in pressure less its flowing
+  wellhead pressure.
+- **Wellhead pressure:** the back-pressure plus the drop across the choke, plus a flowline drop when a
+  restriction builds (both ∝ rate²).
+- **Solve:** while the choke is subcritical, the rate solves that quadratic against the back-pressure.
+  At critical flow (back / wellhead pressure under 0.55) the back-pressure doesn't reach the well.
+- **Back-pressure:** the jacket production header, which follows the HP separator's setpoint. After a
+  reroute, it is the other header.
+
+The inflow constant is set so each well makes its tested rate against the back-pressure its tests were
+taken at, so without events nothing moves. Three new stories:
+- a flowline waxing up from 1 October to 18 November 2025, when it is pigged;
+- 10-V-2001's setpoint lowered 2 bar on 25 November;
+- a well rerouted to another jacket's header on 5 December.
+
+The generator scales the well tests after the first story by the model's rate factor, so test rates
+show the response.
+
+**Calcs (`hydraulics.py`).**
+- **`pressure_profile`:** pressures down the flow path and each segment's drop.
+- **`well_constraint`:** shut in, choke-limited or back-pressure-limited, from the pressure ratio, plus
+  lift-limited when the well's gas lift curve says more gas pays. It agrees with the model's mechanism
+  for 99% of wells.
+- **`backpressure_sensitivity`:** oil per bar for each back-pressure-limited well, two ways. The
+  model-based figure differentiates the same equations, using the shut-in pressure seen in PI. The
+  data-based figure regresses the well's tests on header pressure, with the decline taken out. Wells
+  where the two disagree are flagged.
+- **`dp_drift`:** the wellhead-to-header drop rising by at least 0.7 bar and 50% of where it started,
+  more than the rate's own wander between tests moves it. It finds the waxing flowline from about three
+  weeks into its seven-week build.
+- **`headroom`:** each point on a unit against its nearest #101 limit.
+
+`dp_drift` is also the SRE's daily `hydraulics` detector. MCP: `pressure_profile`,
+`backpressure_sensitivity`, `capacity_headroom`, and `calc("well_constraint" | "dp_drift")`. Debottleneck
+options, the charts and the skill come next (#107b).
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

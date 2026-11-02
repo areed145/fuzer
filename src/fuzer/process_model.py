@@ -57,6 +57,11 @@ class ProcessModel:
         self._windows: dict[tuple[int, int], Window] = {}
         self._lock = threading.Lock()
 
+    def at(self, unit: str, var: str, when: datetime) -> float:
+        """One variable of one unit at one time (the generator scales well tests with `bp_factor`)."""
+        w = self.window(when - timedelta(hours=1), when)
+        return float(np.interp(minutes(when), w.t, w.get(unit, var)))
+
     def covers(self, point: str) -> bool:
         p = self.points.get(point)
         return bool(p) and p[0] in self.units
@@ -221,9 +226,13 @@ class Window:
 
     def _vessel(self, unit, u, var):
         run = self.get(u["train"], "running") if u.get("train") else 1 - self.shutdown()
+        if var == "setpoint":  # its pressure controller's setpoint, moved by `setpoint` events
+            p = np.full_like(self.t, float(u.get("pressure", 12.0)))
+            for e in sorted(self.ev(unit, "setpoint"), key=lambda e: e["at"]):
+                p = np.where(self.t >= minutes(e["at"]), float(e["to"]), p)
+            return p
         if var == "vessel_pressure":
-            p = u.get("pressure", 12.0)
-            return self.lag(run * p + (1 - run) * 1.0, 15) * (1 + 0.01 * self.noise(unit + "p", 15))
+            return self.lag(run * self.get(unit, "setpoint") + (1 - run) * 1.0, 15) * (1 + 0.01 * self.noise(unit + "p", 15))
         if var in ("liquid_level", "true_level"):
             lvl = u.get("level", 45.0) + 4 * self.noise(unit + "l", 20)  # the level controller hunting a little
             lvl = lvl + sum((self.path(e["points"]) for e in self.ev(unit, "level")), np.zeros_like(self.t))
@@ -261,9 +270,13 @@ class Window:
         if var == "gas_lift_supply":
             return sum((self.get(w, "glir") for w in u["gl_wells"]), np.zeros_like(self.t)) * \
                 (1 + 0.01 * self.noise(unit + "gl", 20))
-        if var == "production_header_pressure":
-            q = sum((self.get(w, "liquid") for w in u["wells"]), np.zeros_like(self.t))
-            return 10.5 + 0.004 * q + 0.2 * self.noise(unit + "php", 20)
+        if var == "production_header_pressure0":  # at the separator's normal setpoint, from the wells' rates
+            q = sum((self.get(w, "liquid0") for w in u["wells"]), np.zeros_like(self.t))
+            return 10.5 + 0.004 * q
+        if var == "production_header_pressure":  # follows the separator it flows to when its setpoint moves
+            sep = u.get("separator")
+            offset = self.get(sep, "setpoint") - float(self.m.units[sep].get("pressure", 12.0)) if sep in self.m.units else 0.0
+            return self.get(unit, "production_header_pressure0") + offset + 0.2 * self.noise(unit + "php", 20)
         if var == "esdv":
             return 100 * (1 - self.shutdown())
         raise KeyError(var)
@@ -296,7 +309,39 @@ class Window:
             cv = c["cv_max"] * o / 100 if c["trim"] == "linear" else c["cv_max"] * 30 ** (o / 100 - 1)
             wear = sum((self.path(e["points"]) for e in self.ev(unit, "choke_wear")), np.zeros_like(self.t))
             return np.maximum(cv * (1 + wear), 1e-3)
-        if var == "liquid":  # Sm3/d through the choke: the rate the well tests show, moved by lift gas now
+        if var == "back":  # the header it flows into: its jacket's, or another one after a reroute
+            back = self.get(u["jacket"], "production_header_pressure") if u.get("jacket") else np.full_like(self.t, 11.0)
+            for e in sorted(self.ev(unit, "reroute"), key=lambda e: e["at"]):
+                other = self.get(e["to"], "production_header_pressure")
+                back = np.where(self.t >= minutes(e["at"]), other, back)
+            return back
+        if var == "back0":  # the back-pressure the well's tests were taken against
+            return self.get(u["jacket"], "production_header_pressure0") if u.get("jacket") else np.full_like(self.t, 11.0)
+        if var == "flowline":  # bar per (Sm3/d)^2 a restriction (wax, scale) adds downstream of the choke
+            r = sum((self.path(e["points"]) for e in self.ev(unit, "flowline_restriction")), np.zeros_like(self.t))
+            return 4.0 * np.clip(r, 0, None) / u["q_ref"] ** 2
+        if var in ("bp_factor", "limit"):
+            # Inflow at the wellhead: q = J (Psi - WHP), WHP = back + (choke + flowline) q^2 while the choke is
+            # subcritical; J is set so the well makes its tested rate against the back-pressure of its tests.
+            # At critical flow (back / WHP under 0.55) the back-pressure doesn't reach the well.
+            q0 = np.maximum(self.get(unit, "liquid0"), 1e-6)
+            c = u.get("sg", 0.9) * (4.403 / 24 / self.get(unit, "cv")) ** 2 / 14.5038
+            psi = float(u.get("shut_in_whp", 45.0))
+            pb0, pb = self.get(unit, "back0"), self.get(unit, "back")
+            whp0 = pb0 + c * q0 ** 2
+            crit0 = (pb0 + 1.013) / (whp0 + 1.013) < 0.55
+            ct = c + self.get(unit, "flowline")
+            room = np.maximum(psi - whp0, 1e-6)
+            J = q0 / room
+            d = np.maximum(psi - pb, 0.0)
+            q = np.where(J * ct > 0, (-1 + np.sqrt(1 + 4 * J * ct * J * d)) / (2 * J * ct), J * d)
+            crit = (pb + 1.013) / (pb + ct * np.minimum(q, q0) ** 2 + 1.013) < 0.55
+            f = np.where(crit0 & crit, 1.0, np.clip(q / q0, 0, 3))
+            if var == "bp_factor":
+                return np.where(u.get("kind") == "gas", 1.0, f)
+            flowing = self.get(unit, "flowing") > 0.5
+            return np.where(~flowing, 0.0, np.where(crit, 1.0, 2.0))  # 0 shut in, 1 choke-limited, 2 back-pressure
+        if var in ("liquid", "liquid0"):  # Sm3/d through the choke: the rate the well tests show, moved by lift gas now
             if u.get("kind") == "gas":
                 return np.zeros_like(self.t)
             if u.get("liquid_path"):  # tests already carry valve failures and breakthroughs
@@ -311,7 +356,8 @@ class Window:
                 lift = lift * (1 - 0.45 * failed)
             else:
                 lift = 1.0
-            return base * lift * self.get(unit, "flowing") * (1 + 0.01 * self.noise(unit + "q", 60))
+            q = base * lift * self.get(unit, "flowing") * (1 + 0.01 * self.noise(unit + "q", 60))
+            return q if var == "liquid0" or not u.get("jacket") else q * self.get(unit, "bp_factor")
         if var == "qgas":  # kSm3/d through the choke against the reservoir's drawdown
             if u.get("kind") != "gas":
                 return np.zeros_like(self.t)
@@ -326,9 +372,10 @@ class Window:
                 hyd = sum((self.path(e["points"]) for e in self.ev(unit, "restriction")), np.zeros_like(self.t))
                 p = u["p_res"] - u["c_gas"] * self.get(unit, "qgas") + 30 * hyd  # a hydrate backs pressure up
                 return p * (1 - shut) + shut * u["p_res"] + 0.2 * self.noise(unit + "whp", 10)
-            back = self.get(u["jacket"], "production_header_pressure") if u.get("jacket") else 11.0
-            gpm = self.get(unit, "liquid") / 24 * 4.403
-            p = back + u.get("sg", 0.9) * (gpm / self.get(unit, "cv")) ** 2 / 14.5038
+            q = self.get(unit, "liquid")
+            gpm = q / 24 * 4.403
+            p = self.get(unit, "back") + u.get("sg", 0.9) * (gpm / self.get(unit, "cv")) ** 2 / 14.5038 \
+                + self.get(unit, "flowline") * q ** 2
             return p * (1 - shut) + shut * u.get("shut_in_whp", 45) + 0.1 * self.noise(unit + "whp", 10)
         if var == "wht":
             if u.get("kind") == "gas":

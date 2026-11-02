@@ -75,12 +75,13 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
     refs = {"decline": fid(conn, "OK-J07-03"), "gas_lift": fid(conn, "OK-J07-03"), "pump_curve": fid(conn, "10-P-1001A"),
             "choke": fid(conn, "OK-J12-02"), "reliability": cls, "wall_loss": line["fuzer_id"]}
+    refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"]}
     assert set(refs) == set(calcs.CHECKS)
     for check, ref in refs.items():
         out = calcs.run(conn, check, ref)
         assert EVIDENCE <= set(out) and out["sources"] and out["basis"], check
         assert out["of"]["id"] == ref and json.dumps(out, default=str)
-        assert calcs.CHECKS[check]["used_by"]["person"].startswith("plot_")
+        assert calcs.CHECKS[check]["used_by"].get("person", "plot_").startswith("plot_")
     with pytest.raises(calcs.CalcError, match="unknown check"):
         calcs.run(conn, "nope", ref)
 

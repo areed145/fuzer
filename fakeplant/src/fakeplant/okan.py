@@ -840,12 +840,12 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "ec_day001.csv", daily)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
-    _write_csv(out / "ec_well_tests.csv", tests)
     _write_csv(out / "lims_results.csv", lab)
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "oem_curves.csv", curve_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.
     model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)
+    _write_csv(out / "ec_well_tests.csv", process.scale_tests(model, tests))  # what a test separator measures
     alarms, iows, limit_truth = limits.okan_limits(model, points, af, seed)
     _write_csv(out / "dcs_alarms.csv", alarms)
     _write_csv(out / "iow_register.csv", iows)

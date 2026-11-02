@@ -209,8 +209,35 @@ def models(conn, pack, since, until, src) -> list[dict]:
     return out
 
 
+def hydraulics(conn, pack, since, until, src) -> list[dict]:
+    """Once a day: each jacket well's wellhead-to-header pressure drop still rising (a flowline waxing
+    or scaling, #107)."""
+    if not _daily(since, until):
+        return []
+    from . import hydraulics as h
+
+    out = []
+    for r in conn.execute("select distinct e.src as well from edge e join entity w on w.fuzer_id = e.src and w.kind = 'well' "
+                          "join edge c on c.dst = e.src and c.rel = 'part_of' join entity_label l on l.fuzer_id = c.src "
+                          "and l.label like '%%-HCV-%%' where e.rel = 'part_of'"):
+        try:
+            d = h.dp_drift(conn, r["well"], 45, until.isoformat(timespec="minutes"), src)
+        except calcs.CalcError:
+            continue
+        if d["flag"] == "dp_rising":
+            p = {"point": _point_name(conn, d["sources"][1]), "id": d["sources"][1]}
+            out.append(_det(p, r["well"], since, None, "dp_rising", "hydraulics", d["deviation"],
+                            {"since": d["rising_since"], "dp_now": d["value"], "dp_before": d["expected"]}))
+    return out
+
+
+def _point_name(conn, pid: str) -> str:
+    r = conn.execute("select label from entity_label where fuzer_id = %s", (pid,)).fetchone()
+    return r["label"] if r else pid
+
+
 DETECTORS = {"excursions": excursions, "stops": stops, "steps": steps, "drifts": drifts, "instruments": instruments,
-             "models": models}
+             "models": models, "hydraulics": hydraulics}
 
 
 def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None) -> list[dict]:
@@ -322,7 +349,7 @@ GAP = timedelta(hours=2)  # a detection joins an upset starting within this long
 HOPS = 4  # and on a unit this close in the plant model (compressor -> header -> manifold -> well)
 LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
 TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
-SLOW = {"drifts", "models"}  # days to months: one upset per unit and finding, never joined to others
+SLOW = {"drifts", "models", "hydraulics"}  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
 
 

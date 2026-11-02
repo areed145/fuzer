@@ -580,6 +580,23 @@ CHECKS = {
 }
 
 
+def _hydraulics(name):
+    def fn(conn, fid, **kw):
+        from . import hydraulics
+
+        return getattr(hydraulics, name)(conn, fid, **kw)
+    fn.__name__ = name
+    return fn
+
+
+CHECKS |= {
+    "well_constraint": {"fn": lambda conn, fid, at=None: _hydraulics("well_constraint")(conn, fid, at=at),
+                        "ref": "well", "used_by": {"agent": "calc", "detector": None}},
+    "dp_drift": {"fn": lambda conn, fid, until=None, days=60: _hydraulics("dp_drift")(conn, fid, days=days, until=until),
+                 "ref": "well", "used_by": {"agent": "calc", "detector": "sre.hydraulics"}},
+}
+
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes."""
     import inspect
