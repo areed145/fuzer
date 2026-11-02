@@ -792,6 +792,29 @@ opportunities, and they appear on the work board.
 through these steps: classify the wells, find the drop, what a bar is worth, the next constraint, the
 options, and the uncertainty. `constraint-management` points to it.
 
+### 18m. Opportunity scan (#102)
+
+`opportunities.py` runs daily after the daily report (the day-close job). It looks for gains left on the
+table, so the board ranks optimisation against problems:
+- **gas lift reallocation per header:** gas moves from wells past their optimum (one more kSm3/d gains
+  less than 0.5 Sm3 oil) to wells short of theirs, from each well's curve. The gain is the gas moved times
+  the difference in marginal response, and the header's total gas is unchanged;
+- **wells below their decline**, and flowing wells with tests older than 90 days;
+- **units worth a permanent fix:** 4 or more failures that lost oil;
+- **wells shut in by downtime that hasn't ended.**
+
+Back-pressure options (#107) come in the same way.
+
+Each opportunity has a stable key in `opportunity` with its gain, basis, confidence, cited evidence and
+what would confirm it. It becomes an `opportunity` work item for the engineer role, valued by #100, and
+the board shows the scan item and its work item as one card. #100 reads the scan's open opportunities
+once it has run; before then, it uses its own simple gas lift moves.
+
+An engineer accepts, rejects (a reason is required) or turns an opportunity into a board project
+(`POST /opportunities/{key}/decision`). A decided opportunity isn't raised again unless its evidence (the
+tests behind it) changes or its gain moves by half or more. One the data no longer supports is closed,
+with its work item. MCP: `opportunities`.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

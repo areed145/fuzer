@@ -362,8 +362,22 @@ def _plans(conn, ctx: dict, today: str, horizon: int) -> list[Item]:
 
 
 def _opportunities(conn, ctx: dict) -> list[Item]:
-    """Gas lift moves: on each header, lift gas from the well that responds least to the one that responds
-    most (from well tests). The opportunity scan (#102) adds more kinds."""
+    """Open opportunities from the opportunity scan (#102), when it has run; else gas lift moves: on each
+    header, lift gas from the well that responds least to the one that responds most (from well tests).
+    Back-pressure options (#107) either way."""
+    scanned = conn.execute("select to_regclass('opportunity') is not null as x").fetchone()["x"] and \
+        conn.execute("select exists (select 1 from opportunity) as x").fetchone()["x"]
+    if scanned:
+        return [Item("opportunity", f"scan:{o['key']}", o["title"], o["detail"].get("basis"), None, o["target"],
+                     oil_sm3d=o["gain_sm3d"], risk_applies=False, time_to_consequence_days=0.0,
+                     sources={"oil_sm3d": f"opportunity scan: {o['detail'].get('basis')}",
+                              "time_to_consequence_days": "gain starts when it is done"},
+                     notes=[f"confidence {o['detail'].get('confidence')}", f"confirm by {o['detail'].get('confirm_by')}"])
+                for o in conn.execute("select * from opportunity where status = 'open'")] + _debottleneck(conn)
+    return _gas_lift_moves(conn, ctx) + _debottleneck(conn)
+
+
+def _gas_lift_moves(conn, ctx: dict) -> list[Item]:
     net = operations.gas_lift_network(conn, limit=100000)
     if "error" in net:
         return []
@@ -389,6 +403,11 @@ def _opportunities(conn, ctx: dict) -> list[Item]:
             sources={"oil_sm3d": f"EC well tests {net['since']} to {net['until']}: lift gas response",
                      "time_to_consequence_days": "gain starts when the move is made"},
             notes=[f"moves {share:.0%} of {lo['well']}'s lift gas"]))
+    return out
+
+
+def _debottleneck(conn) -> list[Item]:
+    out = []
     exists = conn.execute("select to_regclass('debottleneck_option') is not null as x").fetchone()["x"]
     for o in conn.execute("select * from debottleneck_option where gain_sm3d > 0 order by rank") if exists else []:
         d = o["detail"]

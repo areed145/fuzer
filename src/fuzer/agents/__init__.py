@@ -61,7 +61,7 @@ TOOLS = {
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
                             "measurements", "limits", "trace_flow", "calc", "detect_changes", "pressure_profile",
-                            "backpressure_sensitivity", "capacity_headroom", "debottleneck_options",
+                            "backpressure_sensitivity", "capacity_headroom", "debottleneck_options", "opportunities",
                             *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
                             "plot_gas_lift_allocation", "plot_choke", "equipment_curves", "plot_pressure_profile",
                             "plot_backpressure_sensitivity", "plot_choke_criticality", "plot_dp_drift", "plot_debottleneck"],
