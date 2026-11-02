@@ -586,6 +586,75 @@ def upset_detail(upset_id: int) -> dict[str, Any]:
     return _plain(out) if out else {"error": f"no upset {upset_id}"}
 
 
+def _resolve_point(conn, ref: str) -> tuple[str | None, dict | None]:
+    """A PI point: when a ref also matches a well or tag, the timeseries with exactly that name."""
+    fid, err = _resolve(conn, ref)
+    if err:
+        exact = [c for c in err.get("candidates", []) if c["kind"] == "timeseries" and c["label"] == ref]
+        if len(exact) == 1:
+            return exact[0]["fuzer_id"], None
+    return fid, err
+
+
+def _scope(conn, scope: str | list[str]) -> tuple[Any, dict | None]:
+    if scope == "facility":
+        return scope, None
+    out = []
+    for r in scope if isinstance(scope, list) else [scope]:
+        fid, err = _resolve(conn, r)
+        if err:
+            return None, err
+        out.append(fid)
+    return (out if isinstance(scope, list) else out[0]), None
+
+
+@server.tool(annotations=READ_ONLY)
+def correlate(target: str, scope: str | list[str] = "facility", since: str | None = None, until: str | None = None,
+              max_lag_minutes: int = 360, path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up",
+                                                        "lift_gas_to:down"] | None = None,
+              method: Literal["pearson", "spearman"] = "pearson", top: int = 15) -> dict[str, Any]:
+    """What moves with a PI point, and what moved first. Ranks every point in scope (a unit, an area, a list
+    of points, or "facility"; path adds what feeds or follows the unit) by the strongest correlation at any
+    lag up to max_lag_minutes either way. leads_by_minutes > 0: it moved first. `leaders`: the strongly
+    correlated points that moved first, earliest first, usually nearer the cause than the target's
+    siblings. `connected`: the plant model links the two (a strong correlation with no path is worth
+    checking). Rows where the plant was down are left out. Default window: the last 3 days."""
+    from . import signals, studies
+    with db.connect() as conn:
+        fid, err = _resolve_point(conn, target)
+        if err:
+            return err
+        sc, err = _scope(conn, scope)
+        if err:
+            return err
+        since, until = signals.window(conn, since, until, 3)
+        try:
+            return _plain(studies.correlate(conn, PACK, fid, sc, since, until, max_lag_minutes=min(max_lag_minutes, 1440),
+                                            method=method, top=min(top, 50), path=path))
+        except studies.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
+def correlation_matrix(scope: str | list[str], since: str | None = None, until: str | None = None,
+                       path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up", "lift_gas_to:down"] | None = None,
+                       method: Literal["pearson", "spearman"] = "pearson", top: int = 15) -> dict[str, Any]:
+    """Which points in a scope move together: the strongest pairs (r, and whether the plant model connects
+    them) and the points ordered so related groups sit together. plot_correlation draws a unit's heatmap.
+    Default window: the last 3 days."""
+    from . import signals, studies
+    with db.connect() as conn:
+        sc, err = _scope(conn, scope)
+        if err:
+            return err
+        since, until = signals.window(conn, since, until, 3)
+        try:
+            out = studies.correlation_matrix(conn, PACK, sc, since, until, method=method, top=min(top, 50), path=path)
+        except studies.CalcError as e:
+            return {"error": str(e)}
+    return _plain({k: v for k, v in out.items() if k not in ("matrix", "ids")} | {"order": out["order"][:60]})
+
+
 @server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work

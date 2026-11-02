@@ -30,6 +30,7 @@ dependencies = [
     "numpy>=2.0",
     # Chart images for the assistant to look at (look_at_figure).
     "matplotlib>=3.10,<4",
+    "scipy>=1.14",
 ]
 
 [project.scripts]
