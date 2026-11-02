@@ -38,7 +38,13 @@ A repeat failure is the same failure mode on the same unit more than once in the
    **Citing a fit:** `calc("reliability", ref, method="weibull" | "crow_amsaa")` returns beta against 1
    with its basis (`wear_out`, `early_life`, `failures_accelerating`); quote it rather than reading the
    number off a chart.
-6. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
+6. **Equipment performance.** `calc("compressor_performance", stage)` gives a stage's polytropic
+   efficiency against its first week (`efficiency_drop`: fouling, wear, recycle through a hot cooler);
+   `calc("cooler_fouling", cooler)` the outlet temperature above its clean baseline and when it reaches its
+   limit; `calc("peers", ref)` the class's units side by side, an outlier being a bad unit and
+   `class_wide_failures` a problem with the model or its service. Charts: `plot_compressor_performance`,
+   `plot_cooler_fouling`, `plot_peers`.
+7. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
 
 Report: the top bad actors with failures, MTBF, downtime and repeat modes; the likely root cause per
