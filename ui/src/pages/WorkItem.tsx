@@ -87,7 +87,7 @@ function ProcessCard({ p }: { p: WorkProcess }) {
     <div className="card">
       <div className="row spread">
         <h3>
-          {p.process_key} <span className="muted small">v{p.version} · {p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
+          <a href={href(`/work/processes/${p.process_key}`, { tab: "monitor" })}>{p.process_key}</a> <span className="muted small">v{p.version} · {p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
         </h3>
         <span className="small muted">
           {p.parent_token ? "called by another process · " : ""}

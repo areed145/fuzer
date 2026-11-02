@@ -345,6 +345,44 @@ def _syntax(element: str, expr: str) -> list[Problem]:
     return []
 
 
+# --- comparing versions ---------------------------------------------------------------------------
+
+def _facts(p: Process) -> dict[str, dict]:
+    """What the engine reads from each element, by id (layout left out), the process itself under its key."""
+    out = {p.key: {"type": "process", "name": p.name, **{f"fuzer:{k}": v for k, v in p.attrs.items()},
+                   **{f"threshold {k}": v for k, v in p.thresholds.items()}}}
+    for n in p.nodes.values():
+        lane = n.lane or {}
+        out[n.id] = {"type": n.type, "name": n.name, **{f"fuzer:{k}": v for k, v in n.attrs.items()},
+                     "lane role": lane.get("role"), "lane agent": lane.get("agent"), "event": n.event,
+                     "timer": " ".join(n.timer) if n.timer else None, "message": n.message,
+                     "attached to": n.attached_to, "interrupting": n.cancel if n.type == "boundaryEvent" else None,
+                     "default flow": n.default, "calls": n.called}
+    for f in p.flows.values():
+        out[f.id] = {"type": "sequenceFlow", "name": f.name, "from": f.source, "to": f.target, "condition": f.condition}
+    return {k: {f: v for f, v in d.items() if v is not None} for k, d in out.items()}
+
+
+def diff(old_xml: str | bytes | None, new_xml: str | bytes, process_key: str) -> list[dict]:
+    """Elements added, removed or changed between two versions of a process, with the fields that changed.
+    Moving shapes around isn't a change."""
+    old = _facts(parse(old_xml)[process_key]) if old_xml else {}
+    new = _facts(parse(new_xml)[process_key])
+    out = []
+    for eid in [*new, *(k for k in old if k not in new)]:
+        a, b = old.get(eid), new.get(eid)
+        if a == b:
+            continue
+        cur = b or a
+        row = {"element": eid, "type": cur["type"], "name": cur.get("name"),
+               "change": "added" if a is None else "removed" if b is None else "changed"}
+        if a and b:
+            row["fields"] = [{"field": f, "old": a.get(f), "new": b.get(f)}
+                             for f in [*b, *(k for k in a if k not in b)] if a.get(f) != b.get(f)]
+        out.append(row)
+    return out
+
+
 # --- expressions --------------------------------------------------------------------------------
 
 _BIN = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,

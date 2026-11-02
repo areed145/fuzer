@@ -19,6 +19,10 @@ const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m
 const Network = lazy(() => import("./pages/Network").then((m) => ({ default: m.Network })));
 // The map pulls in Leaflet; load it only when opened.
 const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
+// The modeler pages pull in bpmn-js's modeler and the form-js editor; load them only when opened.
+const ProcessesPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessesPage })));
+const ProcessPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessPage })));
+const FormPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.FormPage })));
 
 function App() {
   const { path, query } = useRoute();
@@ -110,6 +114,12 @@ function App() {
             <IncidentsPage />
           ) : section === "lessons" ? (
             <LessonsPage query={query} />
+          ) : section === "work" && path[1] === "processes" && path[2] ? (
+            <ProcessPage key={path[2]} processKey={path[2]} query={query} />
+          ) : section === "work" && path[1] === "processes" ? (
+            <ProcessesPage />
+          ) : section === "work" && path[1] === "forms" && path[2] ? (
+            <FormPage key={path[2]} formKey={path[2]} query={query} />
           ) : section === "work" && path[1] === "item" && path[2] ? (
             <WorkItemPage id={Number(path[2])} />
           ) : section === "work" ? (

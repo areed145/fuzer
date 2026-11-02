@@ -50,7 +50,8 @@ export function WorkPage({ query }: { query: URLSearchParams }) {
           <h1>Work</h1>
           <p className="muted">
             Steps waiting for you and for your roles' queues, from upsets, daily reports and other processes. Agents
-            propose; approvals and anything that reaches outside Fuzer wait for a person.
+            propose; approvals and anything that reaches outside Fuzer wait for a person.{" "}
+            <a href={href("/work/processes")}>Processes and forms</a>
           </p>
         </div>
         <label className="reviewer">

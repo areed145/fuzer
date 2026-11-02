@@ -461,6 +461,58 @@ export interface Decision {
 
 // --- work engine (#97) ---
 
+export interface WorkProblem {
+  element: string | null;
+  message: string;
+}
+
+export interface WorkDefinition {
+  id: number;
+  process_key: string;
+  version: number;
+  name: string | null;
+  state: "draft" | "checked" | "published" | "superseded";
+  problems: WorkProblem[];
+  created_by: string;
+  created_at: string;
+  published_by: string | null;
+  published_at: string | null;
+  running: number;
+}
+
+export interface WorkChange {
+  element: string;
+  type: string;
+  name: string | null;
+  change: "added" | "removed" | "changed";
+  fields?: { field: string; old: unknown; new: unknown }[];
+}
+
+export interface WorkCompare {
+  id: number;
+  version: number;
+  against: { id: number; version: number; state: string } | null;
+  changes: WorkChange[];
+}
+
+export interface WorkMonitorCell {
+  name: string | null;
+  waiting: number;
+  overdue: number;
+  oldest: string | null;
+  done: number;
+  median_seconds: number | null;
+}
+
+export interface WorkMonitor {
+  process_key: string;
+  definition_id: number | null;
+  days: number;
+  at: string;
+  elements: Record<string, WorkMonitorCell>;
+  processes: { definition_id: number; version: number; state: string; outcome: string | null; n: number }[];
+}
+
 export interface WorkCounts {
   total: number;
   overdue: number;
@@ -613,7 +665,7 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail ?? `${res.status} ${res.statusText}`);
+    throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail });
   }
   return res.json();
 }
@@ -658,6 +710,28 @@ export const api = {
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
+  workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
+  workRoles: () => request<{ person: string[]; agent: string[] }>("GET", "/work/roles"),
+  importDefinition: (xml: string, by: string) =>
+    request<{ id: number; process_key: string; version: number }[]>("POST", "/work/definitions", undefined, { xml, by }),
+  draftDefinition: (processKey: string, by: string, fromId?: number) =>
+    request<{ id: number; version: number; state: string }>(
+      "POST", "/work/definitions/draft", undefined, { process_key: processKey, by, from_id: fromId }),
+  saveDefinition: (id: number, xml: string, by: string) =>
+    request<{ id: number; state: string }>("PUT", `/work/definitions/${id}`, undefined, { xml, by }),
+  checkDefinition: (id: number, by: string) =>
+    request<{ id: number; state: string; problems: WorkProblem[] }>("POST", `/work/definitions/${id}/check`, undefined, { by }),
+  publishDefinition: (id: number, by: string) =>
+    request<{ id: number; state: string; version: number }>("POST", `/work/definitions/${id}/publish`, undefined, { by }),
+  compareDefinition: (id: number, against?: number) =>
+    request<WorkCompare>("GET", `/work/definitions/${id}/compare`, { against }),
+  workMonitor: (processKey: string, definitionId?: number, days = 30) =>
+    request<WorkMonitor>("GET", `/work/monitor/${encodeURIComponent(processKey)}`, { definition_id: definitionId, days }),
+  workForms: () => request<{ key: string; version: number; created_by: string; created_at: string }[]>("GET", "/work/forms"),
+  workForm: (key: string) =>
+    request<{ key: string; version: number; schema: Record<string, unknown> }>("GET", `/work/forms/${encodeURIComponent(key)}`),
+  saveForm: (schema: Record<string, unknown>, by: string) =>
+    request<{ key: string; version: number }>("POST", "/work/forms", { by }, schema),
   claim: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/claim`, undefined, { by }),
   release: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/release`, undefined, { by }),
   complete: (id: number, by: string, data: Record<string, unknown>) =>

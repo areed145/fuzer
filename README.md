@@ -385,6 +385,10 @@ uv run fuzer work tick      # fire due timers and escalate overdue tasks once (D
   `userTask` names a `.form` file in `definitions/` (loaded as versions in `work_form`). A form can
   declare bulk actions (`fuzer.bulk`, such as "Close as false alarm"); bulk never applies to a
   `requiresHuman` step.
+- The modeler's endpoints: `POST /work/definitions/draft` (the open draft, or a new one
+  copied from a version), `PUT /work/definitions/{id}` (save over a draft; published
+  versions never change), `GET /work/definitions/{id}/compare`, `GET /work/monitor/{process_key}`
+  and `GET /work/roles`.
 
 ### Web UI
 
@@ -414,6 +418,16 @@ Screens:
   the evidence (agent findings, messages, comments); bulk actions on low-risk
   steps. Each work item has a page with its process diagram (path taken and the
   step it waits on) and its full history.
+- **Processes** (from the Work page): the bpmn-js modeler, with the palette, append
+  buttons and wrench menu cut down to the subset the engine runs, and a Fuzer
+  properties panel (lane roles and agents, `requiresHuman`, SLA and escalation,
+  the task's form, gateway conditions and default, timers, messages, called
+  process, score thresholds). Edit a draft, check it (problems are listed and
+  marked on the diagram), compare it with the published version (changes listed
+  and marked; moving shapes isn't a change), and publish. **Monitor** draws the
+  steps waiting at each element (overdue in red) and those finished recently with
+  their median time, to show where work piles up. Task forms are edited in the
+  form-js editor; each save is a new version.
 
 ### MCP server (AI agents)
 
