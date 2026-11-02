@@ -446,6 +446,51 @@ def opportunity_decide(key: str, d: OpportunityDecision, conn=Depends(get_conn))
     return out
 
 
+class StudyIn(BaseModel):
+    kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"]
+    params: dict[str, Any]
+    by: str = "anonymous"
+    now: bool | None = None
+
+
+@app.post("/studies")
+def study_start(s: StudyIn, conn=Depends(get_conn)):
+    """Run a correlation or clustering study now when it is small, else queue it (#106)."""
+    from . import study
+    params = dict(s.params)
+    for k in ("target", "scope"):
+        if isinstance(params.get(k), str) and params[k] != "facility" and not params[k].startswith("fz-"):
+            params[k] = queries.resolve_ref(conn, PACK, params[k])
+    try:
+        return study.start(conn, PACK, s.kind, params, s.by, s.now)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.get("/studies")
+def study_list(limit: int = 50, conn=Depends(get_conn)):
+    from . import study
+    return study.listing(conn, min(limit, 200))
+
+
+@app.get("/studies/{sid}")
+def study_get(sid: int, conn=Depends(get_conn)):
+    from . import study
+    out = study.get(conn, sid)
+    if out is None:
+        raise HTTPException(404, f"no study {sid}")
+    return out
+
+
+@app.post("/studies/{sid}/rerun")
+def study_rerun(sid: int, by: str = "anonymous", conn=Depends(get_conn)):
+    from . import study
+    try:
+        return study.rerun(conn, PACK, sid, by)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 class Ranking(BaseModel):
     items: list[str]  # fuzer ids (or opportunity ids), most valuable first
     comment: str | None = None

@@ -5,6 +5,7 @@ import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
+import { StudiesPage } from "./pages/Studies";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
 import { DowntimePage } from "./pages/Downtime";
@@ -84,6 +85,9 @@ function App() {
         <a className={section === "reports" ? "on" : ""} href={href("/reports")}>
           Reports
         </a>
+        <a className={section === "studies" ? "on" : ""} href={href("/studies")}>
+          Studies
+        </a>
         <a className={section === "board" ? "on" : ""} href={href("/board")}>
           Board
         </a>
@@ -134,6 +138,8 @@ function App() {
             <WorkPage query={query} />
           ) : section === "reports" ? (
             <ReportsPage query={query} />
+          ) : section === "studies" ? (
+            <StudiesPage query={query} />
           ) : section === "board" ? (
             <BoardPage query={query} />
           ) : section === "review" ? (
