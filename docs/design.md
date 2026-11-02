@@ -627,6 +627,34 @@ the carryover that caused the 05:30 trip. The replay now also scores upsets: gro
 right), whether a trip's group starts on the trip or on an upset that led to it, and false upsets a
 week. MCP: `get_upsets`, `upset_detail`.
 
+### 18i. Correlation studies (#106, first part)
+
+`studies.py` answers what moves with what across hundreds of points, and what moved first.
+- **Loading:** points are picked by unit, area, plant path (`flows_to`, `lift_gas_to`), the facility or
+  a list, then read through the time-series provider in parallel onto one grid. The matrix is cached
+  as Parquet by points, window, step and provider (`FUZER_CACHE_DIR`).
+- **Cleaning:** drops points that don't move or are mostly missing, fills short gaps from the last
+  value, and leaves out rows where under 30% of the units with a run signal were running (unless asked
+  to keep them). It can also detrend or difference.
+- **`correlate(target, scope)`:** ranks every candidate by the strongest Pearson or Spearman r at any lag
+  within ±`max_lag`, each on its overlapping part. A positive lead means the candidate moved first.
+  Each candidate is marked as connected or not in the plant model (sre.topology, 4 hops).
+  - Points moving with the target at r = 1 are often its siblings (the other wells on a header), so
+    `leaders` lists the strongly correlated candidates (|r| ≥ 0.8 of the best) that moved first, earliest
+    first.
+  - On Okan, ranking the whole facility (1,007 points) against OK-J01-01's casing pressure across train
+    C's trip puts the lift gas header flows, train C's speed and vibration, and the header pressures at
+    the top of `leaders`, 10 to 20 minutes ahead.
+- **`correlation_matrix(scope)`:** all pairs, ordered by average linkage on 1 − |r|, with the strongest
+  pairs and whether the plant model connects each.
+- **Speed:** 500 points over 90 days at 10 minutes take 4 s for the matrix and 5 s for a lag ranking once
+  cached (the target is 60 s).
+- **Size cap:** an interactive request is capped at 15 million values; bigger studies go to the
+  background job (#106b).
+
+`plot_correlation` now uses the same `pearson` and `lagged`. Its charts on Okan are unchanged. MCP tools:
+`correlate` and `correlation_matrix`, which give agents only the top results.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

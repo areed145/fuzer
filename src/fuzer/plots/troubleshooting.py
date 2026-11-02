@@ -4,6 +4,8 @@ the changes found in them (signals.py)."""
 
 import math
 
+import numpy as np
+
 from . import ChartError, Figure, axis, layout, rnd, stacked, thin
 from .general import _shade_upsets, _summ, _window, short, synthetic_note
 
@@ -55,24 +57,12 @@ def incident(conn, fid: str, hours_before: int = 36, hours_after: int = 12, max_
         "moved_most": [_summ(s) for s in moved]}, [fid] + [s["id"] for s in moved])
 
 
-def _pearson(a: list[float], b: list[float]) -> float | None:
-    n = len(a)
-    if n < 5:
-        return None
-    ma, mb = sum(a) / n, sum(b) / n
-    va = sum((x - ma) ** 2 for x in a)
-    vb = sum((y - mb) ** 2 for y in b)
-    if not va or not vb:
-        return None
-    return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (va * vb) ** 0.5
-
-
 def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, hours_after: int = 12,
                 upstream: bool = True, target: str | None = None, max_points: int = 14) -> Figure:
     """Correlation of the process values on a unit (and on what feeds it) over a window, as a heatmap.
     With `target` (a timeseries, e.g. the vibration that tripped), also the lag at which each other
     point best matches it: a point that moves before the target is a lead to the cause."""
-    from .. import graph
+    from .. import graph, studies
 
     ids = [fid]
     if upstream:
@@ -85,7 +75,7 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
     times = sorted(set.intersection(*(set(t for t, _ in s["values"]) for s in series)))
     cols = [[dict(s["values"])[t] for t in times] for s in series]
     names = [s["point"] for s in series]
-    z = [[rnd(_pearson(a, b), 2) if i != j else 1.0 for j, b in enumerate(cols)] for i, a in enumerate(cols)]
+    z = [[rnd(studies.pearson(a, b), 2) if i != j else 1.0 for j, b in enumerate(cols)] for i, a in enumerate(cols)]
     data = [{"type": "heatmap", "x": names, "y": names, "z": z, "zmin": -1, "zmax": 1, "colorscale": "RdBu",
              "reversescale": True, "colorbar": {"title": {"text": "r"}},
              "hovertemplate": "%{y} vs %{x}: r = %{z}<extra></extra>"}]
@@ -101,13 +91,11 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
         tgt = next((k for k, s in enumerate(series) if s["id"] == target), None)
         if tgt is None:
             raise ChartError("target must be a timeseries with values in the window")
-        lags = []
-        for k, col in enumerate(cols):
-            if k == tgt:
-                continue
-            best = max(((lag, _pearson(col[:len(col) - lag] if lag else col, cols[tgt][lag:]))
-                        for lag in range(0, min(24, len(times) // 3))), key=lambda p: abs(p[1] or 0))
-            lags.append({"point": names[k], "r": rnd(best[1], 2), "leads_by_minutes": best[0] * out["step_minutes"]})
+        others = [k for k in range(len(cols)) if k != tgt]
+        _, lag, r = studies.lagged(np.array([cols[k] for k in others], float).T, np.array(cols[tgt], float),
+                                   range(0, min(24, len(times) // 3)))  # leads only, as before
+        lags = [{"point": names[k], "r": rnd(float(r[i]), 2), "leads_by_minutes": int(lag[i]) * out["step_minutes"]}
+                for i, k in enumerate(others)]
         lags.sort(key=lambda r: -abs(r["r"] or 0))
         summary["against_target"] = {"target": names[tgt], "best_lag": lags[:8]}
     summary |= synthetic_note(out["provider"], series)
