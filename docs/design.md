@@ -834,6 +834,28 @@ with its work item. MCP: `opportunities`.
 They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
 degradation is the existing `calc("pump_curve")`.
 
+### 18o. Alarms, trips and states (#105 D)
+
+`alarms.py` adds three analyses:
+- **`alarm_analysis`:** ISA-18.2 / EEMUA 191 measures. With no alarm journal yet, an alarm is a point
+  going past an enabled DCS / AF alarm limit while its unit runs (#101 excursions on the alarm basis). It
+  gives:
+  - alarms per hour against 6;
+  - floods (over 10 in 10 minutes);
+  - chattering (3 or more on one point, each within a minute of clearing);
+  - standing alarms (24 h or more);
+  - the top bad-actor points.
+  
+  On Okan's week of 4–11 November 2024, it finds floods at both train C trips, the failed gas lift valve's
+  low casing pressure standing all week, and the hunting level transmitter chattering.
+- **`trip_analysis`:** per unit with a run signal, stops, starts and failed starts (stopped again within
+  30 minutes), days between stops and the share of time running. There is no first-out alarm in the data.
+- **`states`:** each unit's state spans (running, startup, stopped, transition).
+
+The swimlane chart `plot_state_timeline` shows an upset spreading through a train; `plot_alarms` shows
+alarms per 10 minutes against the flood line. MCP: `alarm_analysis`, `trip_analysis`. The troubleshooting
+skill uses them for "how did it spread".
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

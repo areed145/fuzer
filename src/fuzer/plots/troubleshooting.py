@@ -222,3 +222,70 @@ def changes(conn, fid: str, since: str | None = None, until: str | None = None, 
         "window": [since, until], "step_minutes": out["step_minutes"], "points": out["points"], "found": out["found"],
         "changes": [{k: c.get(k) for k in ("point", "flag", "start", "end", "expected", "value", "deviation_pct", "score",
                                            "per_day")} for c in out["changes"][:20]]}, [s["id"] for s in series])
+
+
+# ---- alarms, trips and states (#105 D) ---------------------------------------------------------------
+
+STATE_COLOURS = {"running": "rgba(60,170,90,0.85)", "startup": "rgba(160,190,60,0.85)", "stopped": "rgba(210,60,50,0.85)",
+                 "transition": "rgba(230,150,30,0.85)", "unknown": "rgba(150,150,150,0.5)"}
+
+
+def state_timeline(conn, scope: str | None, since: str, until: str, pack=None, max_units: int = 25) -> Figure:
+    """Swimlanes: each unit's state (running, startup, stopped, transition) over the window; units that
+    changed state first."""
+    from datetime import datetime as dt
+
+    from .. import alarms
+
+    s = alarms.states(conn, pack, scope, since, until)
+    units = sorted(s["units"].items(), key=lambda kv: (len(kv[1]["spans"]) == 1, kv[0]))[:max_units]
+    data = []
+    for state, colour in STATE_COLOURS.items():
+        ys, base, x = [], [], []
+        for name, u in units:
+            for sp in u["spans"]:
+                if sp["state"] == state:
+                    ys.append(name)
+                    base.append(sp["start"])
+                    x.append((dt.fromisoformat(sp["end"]) - dt.fromisoformat(sp["start"])).total_seconds() * 1000)
+        if ys:
+            data.append({"type": "bar", "orientation": "h", "name": state, "y": ys, "x": x, "base": base,
+                         "marker": {"color": colour}, "hovertemplate": "%{y}: " + state + " from %{base}<extra></extra>"})
+    lay = layout(f"Unit states {since[:16].replace('T', ' ')} to {until[:16].replace('T', ' ')}", None, None, barmode="overlay")
+    lay["xaxis"] = {"type": "date"}
+    lay["yaxis"] = {"autorange": "reversed", "automargin": True}
+    lay["height"] = 200 + 24 * len(units)
+    changed = [n for n, u in units if len(u["spans"]) > 1]
+    return Figure("state_timeline", lay["title"]["text"], data, lay, {
+        "window": s["window"], "units": len(s["units"]), "changed_state": changed[:20],
+        "first_to_stop": min(((sp["start"], n) for n, u in units for sp in u["spans"] if sp["state"] == "stopped"), default=None)},
+        [u["id"] for _, u in units])
+
+
+def alarms_chart(conn, scope: str | None, since: str, until: str, pack=None) -> Figure:
+    """Alarms per 10 minutes over the window against the flood line, with the top bad-actor points."""
+    from datetime import datetime as dt
+    from datetime import timedelta as td
+
+    from .. import alarms, limits
+
+    out = alarms.alarm_analysis(conn, pack, scope, since, until)
+    a, b = dt.fromisoformat(since), dt.fromisoformat(until)
+    ex = [x for x in limits.excursions(conn, pack, alarms._scope_points(conn, scope), a, b, 10) if x["basis"] == "alarm"]
+    bins: dict[str, int] = {}
+    for x in ex:
+        k = x["start"].replace(minute=x["start"].minute // 10 * 10, second=0).isoformat(timespec="minutes")
+        bins[k] = bins.get(k, 0) + 1
+    t, xs, ys = a, [], []
+    while t <= b:
+        k = t.isoformat(timespec="minutes")
+        xs.append(k)
+        ys.append(bins.get(k, 0))
+        t += td(minutes=10)
+    data = [{"type": "bar", "name": "alarms per 10 min", "x": xs, "y": ys}]
+    lay = layout(f"Alarms per 10 minutes ({out['alarms']} in all)", None, "alarms")
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": alarms.FLOOD, "y1": alarms.FLOOD,
+                      "line": {"dash": "dash", "color": "rgba(210,60,50,0.8)"}}]
+    return Figure("alarms", lay["title"]["text"], data, lay, {
+        k: out[k] for k in ("value", "flag", "alarms", "points_alarming", "peak_10_min", "floods", "chattering", "standing",
+                            "bad_actors", "basis")}, out["sources"][:10])

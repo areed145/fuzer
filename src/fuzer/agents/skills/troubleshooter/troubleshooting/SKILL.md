@@ -39,6 +39,9 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    **When did it change?** `detect_changes(ref, since, until)` gives the steps, drifts and jitter changes
    on each point with their start times; the earliest change on the unit or upstream is usually nearer
    the cause than the trip. `plot_changes` / `plot_instrument_health` chart them.
+   **How it spread.** `plot_state_timeline(since, until, scope)` shows each unit's state as swimlanes: which
+   stopped first and what followed. `alarm_analysis` gives the alarm load (floods, chattering, standing
+   alarms, bad actors); `trip_analysis` the stops, starts and failed starts per unit.
 4. **History repeats.** Similar incidents with the same failure mode on the same unit mean the earlier
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds
