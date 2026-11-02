@@ -671,6 +671,27 @@ detection's pattern (point, detector, finding) goes in `sre_suppress`, so it isn
 `plot_correlation` now uses the same `pearson` and `lagged`. Its charts on Okan are unchanged. MCP tools:
 `correlate` and `correlation_matrix`, which give agents only the top results.
 
+### 18j. The work board (#99, backend)
+
+`board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and
+agents (MCP `board`, `next_work`). Cards come from what already exists:
+- the #100 items: incidents, open work orders, PM and inspection plans, opportunities;
+- SRE upsets with a priority;
+- open workflow items: an IOW breach is valued at the #100 IOW compliance rate for each day outside;
+- one card per open review queue (not valued);
+- projects added on the board (`POST /board/projects`).
+
+Records joined by an explicit link are one card, led by the highest-valued record. The links are an
+incident listing an upset (#96b), an upset's work item (#96c), and a work order raised for a
+notification an incident includes.
+
+Cards are ranked by value, highest first, with unvalued cards last. A person can pin a card's rank or
+value with a reason (`POST /board/pins`). Pins are kept by record key in `board_pin`, so they survive
+refreshes and register rebuilds. Each refresh records rank changes in `board_history` and says why a
+card moved ("up 4 places: value 12,000 -> 40,000", "pinned", "new"). The board refreshes after every
+register build and every SRE run, and with `fuzer board refresh`. Pages are read in rank order from
+indexes on rank, area and unit.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

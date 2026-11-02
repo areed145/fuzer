@@ -345,6 +345,64 @@ def value_ranking(kind: list[str] | None = Query(None), by: Literal["value", "pe
     return value.ranked(conn, PACK, tuple(kind or value.KINDS), as_of, by, fid, min(limit, 500))
 
 
+@app.get("/board")
+def board_page(kind: str | None = None, area: str | None = None, unit: str | None = None, text: str | None = None,
+               since: str | None = None, page: int = 1, per_page: int = 50, conn=Depends(get_conn)):
+    """The work board (#99): every outstanding piece of work, ranked by value, one page at a time."""
+    from . import board
+    area_id = queries.resolve_ref(conn, PACK, area) if area else None
+    unit_id = queries.resolve_ref(conn, PACK, unit) if unit else None
+    return board.cards(conn, kind, area_id, unit_id, text, since, max(1, page), min(per_page, 200))
+
+
+@app.get("/board/history")
+def board_history(key: str, conn=Depends(get_conn)):
+    from . import board
+    return board.history(conn, key)
+
+
+class Pin(BaseModel):
+    key: str
+    reason: str = ""
+    rank: int | None = None
+    value_usd: float | None = None
+    by: str = "anonymous"
+
+
+@app.post("/board/pins")
+def board_pin(p: Pin, conn=Depends(get_conn)):
+    """Pin a card's rank or value with a reason (both empty: unpin). Applied at the next refresh, which
+    this runs."""
+    from . import board
+    try:
+        out = board.pin(conn, p.key, p.by, p.reason, p.rank, p.value_usd)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    board.refresh(conn, PACK)
+    return out
+
+
+class Project(BaseModel):
+    title: str
+    unit: str | None = None
+    owner: str | None = None
+    due: str | None = None
+    benefit_usd: float | None = None
+    effort_usd: float | None = None
+    scope: str | None = None
+    by: str = "anonymous"
+
+
+@app.post("/board/projects")
+def board_project(p: Project, conn=Depends(get_conn)):
+    """Add a project to the board."""
+    from . import board
+    unit_id = queries.resolve_ref(conn, PACK, p.unit) if p.unit else None
+    out = board.add_project(conn, p.title, p.by, unit_id, p.owner, p.due, p.benefit_usd, p.effort_usd, p.scope)
+    board.refresh(conn, PACK)
+    return out
+
+
 class Ranking(BaseModel):
     items: list[str]  # fuzer ids (or opportunity ids), most valuable first
     comment: str | None = None

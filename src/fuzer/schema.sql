@@ -626,3 +626,61 @@ create table if not exists sre_suppress (
     created_at  timestamptz not null default now(),
     primary key (point_id, detector, key)
 );
+
+-- The work board (#99): every outstanding piece of work as one ranked card, rebuilt by board.refresh.
+create table if not exists board_card (
+    key           text primary key,               -- the leading record: incident:<id>, upset:<id>, work_item:<id>, ...
+    kind          text not null,
+    title         text not null,
+    text          text,
+    unit_id       text,
+    area_id       text,
+    records       text[] not null default '{}',   -- every record on the card (one piece of work, several systems)
+    value_usd     double precision,               -- #100 score; null when not valued
+    effective_usd double precision,               -- after any pinned value
+    reason        text,
+    breakdown     jsonb not null default '{}',
+    rank          integer not null,
+    prev_rank     integer,
+    moved         text,                           -- why it moved since the last refresh
+    pinned        boolean not null default false,
+    item_id       bigint,                         -- its workflow item, if any
+    first_seen    timestamp not null,
+    updated_at    timestamp not null
+);
+create index if not exists board_card_rank on board_card (rank);
+create index if not exists board_card_area on board_card (area_id, rank);
+create index if not exists board_card_unit on board_card (unit_id, rank);
+
+-- A person's pinned rank or value for a card, by record key: survives refreshes and rebuilds.
+create table if not exists board_pin (
+    key        text primary key,
+    rank       integer,
+    value_usd  double precision,
+    reason     text not null,
+    pinned_by  text not null,
+    pinned_at  timestamptz not null default now()
+);
+
+create table if not exists board_history (
+    key        text not null,
+    rank       integer not null,
+    value_usd  double precision,
+    at         timestamptz not null default now()
+);
+create index if not exists board_history_key on board_history (key, at);
+
+-- Projects created on the board, with scope, owner, dates and expected benefit.
+create table if not exists board_project (
+    id          bigserial primary key,
+    title       text not null,
+    unit_id     text,
+    owner       text,
+    due         date,
+    benefit_usd double precision,
+    effort_usd  double precision,
+    scope       text,
+    status      text not null default 'open',
+    created_by  text not null,
+    created_at  timestamptz not null default now()
+);

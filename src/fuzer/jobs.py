@@ -82,8 +82,11 @@ SOURCES = [_source_asset(name) for name in ingest.export_names()]
 @dg.asset(group_name="register", deps=SOURCES,
           description="Match records, choose golden values and rebuild the graph (full rebuild).")
 def register(fuzer: Fuzer) -> dg.MaterializeResult:
+    from . import board
+    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
-        stats = pipeline.rebuild(conn, load_pack(fuzer.pack))
+        stats = pipeline.rebuild(conn, pack)
+        board.refresh(conn, pack)  # the work board follows the register (#99)
     return dg.MaterializeResult(metadata={
         "entities": stats["entities"], "merged_clusters": stats["merged_clusters"], "edges": stats["edges"],
         "match_reviews": stats["match_reviews"], "conflict_reviews": stats["conflict_reviews"],
@@ -256,6 +259,8 @@ def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSett
         engine.load_defaults(conn)
         out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
         context.log.info(f"sre hand-off: {({k: v for k, v in out.items() if k != 'items'})}")
+        from . import board
+        context.log.info(f"board: {board.refresh(conn, pack)}")
 
 
 @dg.job(description="SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off.")

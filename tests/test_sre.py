@@ -143,3 +143,42 @@ def test_handoff_prioritises_diagnoses_and_opens_work(conn):
     assert sre_handoff.sync_feedback(conn)["false_alarms"] == 1
     conn.execute("update upset set status = 'detected', work_item_id = null where id = %s", (other["upset"],))
     assert other["upset"] not in [u["id"] for u in sre_handoff.candidates(conn)]
+
+
+def test_board_ranks_everything_once(conn):
+    """The work board (#99) after the hand-off: SAP backlog, plans, incidents, upsets, work items and a
+    project together, ranked; an upset, its incident and its work item one card; a pin survives a
+    rebuild."""
+    from fuzer import board
+
+    board.add_project(conn, "Replace 20-LT-2001 with a guided-wave radar", "alice", benefit_usd=250000.0, owner="alice")
+    out = board.refresh(conn, PACK)
+    kinds = set(out["by_kind"])
+    assert {"work_order", "maintenance_plan", "incident", "project"} <= kinds, out
+    page = board.cards(conn, per_page=500)
+    assert [c["rank"] for c in page["cards"]] == list(range(1, len(page["cards"]) + 1))
+    trip = conn.execute("select id, work_item_id from upset where work_item_id is not null order by priority_usd desc "
+                        "limit 1").fetchone()
+    holding = [c for c in page["cards"] if f"upset:{trip['id']}" in c["records"]]
+    assert len(holding) == 1 and f"work_item:{trip['work_item_id']}" in holding[0]["records"]
+    inc = conn.execute("select fuzer_id from golden where field = 'upsets' and value @> %s::jsonb",
+                       (f"[{trip['id']}]",)).fetchone()  # its incident is older than #100's lookback here,
+    keys = {f"incident:{inc['fuzer_id']}", f"upset:{trip['id']}"}  # so check the link that joins them
+    assert board._links(conn, keys) == [(f"incident:{inc['fuzer_id']}", f"upset:{trip['id']}")]
+    valued = [c["effective_usd"] for c in page["cards"] if c["effective_usd"] is not None]
+    assert valued == sorted(valued, reverse=True)
+
+    low = page["cards"][len(valued) - 1]
+    board.pin(conn, low["records"][-1], "bob", "the ops lead wants this first", rank=1)
+    pipeline.rebuild(conn, PACK)
+    board.refresh(conn, PACK)
+    top = board.cards(conn, per_page=3)["cards"][0]
+    assert top["key"] == low["key"] and top["pinned"] and top["pin_reason"] == "the ops lead wants this first"
+    assert top["moved"].startswith("up") and board.history(conn, top["key"])[-1]["rank"] == 1
+    with pytest.raises(ValueError):
+        board.pin(conn, low["key"], "bob", "", rank=2)
+
+    train = mcp_server.board(unit="20-V-2001", limit=5)
+    assert train["cards"] and all(c["unit"] == "20-V-2001" for c in train["cards"])
+    steps = mcp_server.next_work("troubleshooter")
+    assert [s["board_rank"] for s in steps["steps"]] == sorted(s["board_rank"] or 10 ** 9 for s in steps["steps"])
