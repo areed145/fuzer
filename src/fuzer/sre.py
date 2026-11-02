@@ -462,7 +462,8 @@ def upsets(conn, since: str | None = None, status: str | None = None, kind: str 
     """Upsets, newest first: first cause (unit and detection), units, size and status."""
     return [_plain(dict(r)) for r in conn.execute(
         """
-        select u.id, u.kind, u.status, u.start, u."end", u.detections, l.label as first_unit,
+        select u.id, u.kind, u.status, u.start, u."end", u.detections, u.work_item_id, u.priority_usd,
+               l.label as first_unit,
                d.detector as first_detector, d.key as first_key, p.label as first_point,
                (select array_agg(x.label order by x.label) from entity_label x where x.fuzer_id = any(u.units)) as units
         from upset u left join entity_label l on l.fuzer_id = u.first_unit
@@ -489,4 +490,6 @@ def upset_detail(conn, upset_id: int, limit: int = 60) -> dict | None:
     by_unit: dict[str, int] = {}
     for d in dets:
         by_unit[d["unit"]] = by_unit.get(d["unit"], 0) + 1
-    return {**u, "detections_shown": len(dets), "by_unit": by_unit, "timeline": dets}
+    diag = conn.execute("select diagnosis from upset where id = %s", (upset_id,)).fetchone()["diagnosis"]
+    return {**u, "detections_shown": len(dets), "by_unit": by_unit, "timeline": dets,
+            **({"diagnosis": {k: diag.get(k) for k in ("causes", "actions", "answer", "error")}} if diag else {})}

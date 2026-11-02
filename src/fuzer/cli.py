@@ -84,6 +84,9 @@ def main(argv=None):
     sr = sub.add_parser("sre", help="agentic SRE (#96): detect upsets in the process data since the last run")
     sr.add_argument("--since", default=None, help="start (default: where the last run ended, less an hour)")
     sr.add_argument("--until", default=None, help="end (default: now, or the end of a fake plant's data)")
+    sr.add_argument("--handoff", action="store_true",
+                    help="then prioritise, diagnose (Claude, capped) and hand off the new upsets to the workflow")
+    sr.add_argument("--max-diagnoses", type=int, default=10, help="Claude diagnoses per run (0: none)")
 
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
@@ -207,6 +210,12 @@ def main(argv=None):
                 from . import sre
 
                 _print(sre.scan(conn, pack, args.since, args.until))
+                if args.handoff:
+                    from . import sre_handoff
+                    from .workflow import engine
+
+                    engine.load_defaults(conn)
+                    _print(sre_handoff.handoff(conn, pack, max_diagnoses=args.max_diagnoses))
 
 
 def _limits(conn, pack, args) -> None:

@@ -9,7 +9,9 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    names an event ("train B tripped last night"), list the unit's incidents with `get_incidents` and pick
    the one that matches; give the date you picked. For "what happened since ..." without a unit, start
    with `what_changed(since)`: log events, notifications, work orders, downtime, incidents, equipment
-   swaps, limit changes and excursions in the window.
+   swaps, limit changes and excursions in the window. `get_upsets(since)` lists what the SRE found in
+   the process data itself, grouped by cause, and `upset_detail(id)` shows its detections in time order,
+   the first being the likely first cause.
 2. **One call for the picture:** `troubleshooting_brief(ref)` returns the incident timeline, similar past
    incidents and how they ended, approved lessons, manual / guide sections for the failure modes,
    maintenance history, downtime, spares in stock, suggested checks, and a process-value summary.
