@@ -87,6 +87,12 @@ def main(argv=None):
     ev.add_argument("--agents", action="store_true",
                     help="also ask the operations assistant the questions in assistant.json (Claude; costs money)")
     ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
+    ev.add_argument("--ops", action="store_true",
+                    help="replay history through the operations detectors and score them against the fake "
+                         "plant's injected events (exits 1 if recall fell since the last run of the same period)")
+    ev.add_argument("--detector", default="limits", help="with --ops: the detector to replay (default: limits)")
+    ev.add_argument("--since", default=None, help="with --ops: start (default: 28 days before --until)")
+    ev.add_argument("--until", default=None, help="with --ops: end (default: the latest daily report)")
 
     sub.add_parser("reset", help="drop and recreate all tables")
 
@@ -171,6 +177,8 @@ def main(argv=None):
                     raise SystemExit(f"No P&ID answer key at {truth}. It comes with fake data "
                                      "(uv run fakeplant generate); set FUZER_DATA_DIR or pass --truth.")
                 _print(llm_pids.score(conn, _json.loads(truth.read_text())))
+            elif args.cmd == "eval" and args.ops:
+                _ops_eval(conn, pack, args, data)
             elif args.cmd == "eval":
                 from . import evaluate
                 keys = Path(args.keys or data / "answer_keys")
@@ -212,6 +220,23 @@ def _limits(conn, pack, args) -> None:
 
         engine.load_defaults(conn)
         _print(limits.scan(conn, pack, since, until.isoformat(timespec="minutes"), args.step or 10))
+
+
+def _ops_eval(conn, pack, args, data: Path) -> None:
+    from datetime import datetime, timedelta
+
+    from . import operations, replay
+
+    until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
+    since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
+    try:
+        res = replay.run(conn, pack, args.detector, since, until.isoformat(timespec="minutes"), data_dir=data)
+    except ValueError as e:
+        raise SystemExit(f"{e}. Set FUZER_DATA_DIR to the fake plant's folder.")
+    check = replay.store(conn, res)
+    _print({**res, **check})
+    if check["recall_dropped"]:
+        raise SystemExit(f"Recall fell since the last run: {', '.join(check['recall_dropped'])}")
 
 
 def _assistant(args) -> None:
