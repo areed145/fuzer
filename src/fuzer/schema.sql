@@ -381,6 +381,16 @@ create table if not exists work_definition (
 );
 create index if not exists work_definition_published on work_definition (process_key, version desc) where state = 'published';
 
+-- form-js task forms, by the key a userTask names in fuzer:form, with versions. A task shows the latest.
+create table if not exists work_form (
+    key         text not null,
+    version     int not null,
+    schema      jsonb not null,                 -- the form-js schema (plus `fuzer.bulk`: bulk actions)
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    primary key (key, version)
+);
+
 -- People by name and the roles they hold (everyone sees everything; Entra groups later).
 create table if not exists work_person (
     name  text primary key,

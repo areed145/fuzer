@@ -381,6 +381,10 @@ uv run fuzer work tick      # fire due timers and escalate overdue tasks once (D
 - A second detection of the same incident is sent to the open process as new
   evidence instead of starting another one (`correlate: true` on `POST /work/processes`).
 - Behaviour is checked against SpiffWorkflow on the files in `tests/bpmn/`.
+- Person tasks use [form-js](https://bpmn.io/toolkit/form-js/) forms: the `fuzer:form` key on a
+  `userTask` names a `.form` file in `definitions/` (loaded as versions in `work_form`). A form can
+  declare bulk actions (`fuzer.bulk`, such as "Close as false alarm"); bulk never applies to a
+  `requiresHuman` step.
 
 ### Web UI
 
@@ -405,6 +409,11 @@ Screens:
   any date.
 - **Review**: yes/no on possible matches, pick the right value when sources
   disagree.
+- **Work**: the action inbox. Your tasks and your roles' queue with overdue and
+  due-soon counts and filters; claim, release and hand off; the task's form with
+  the evidence (agent findings, messages, comments); bulk actions on low-risk
+  steps. Each work item has a page with its process diagram (path taken and the
+  step it waits on) and its full history.
 
 ### MCP server (AI agents)
 
@@ -414,7 +423,9 @@ uv run fuzer mcp --http    # streamable HTTP on http://127.0.0.1:8001/mcp
 ```
 
 Claude Code picks it up from `.mcp.json` in this folder (approve it once when
-asked). 30 read-only tools: the graph (`get_ontology`, `search`, `get_entity`, `get_events`,
+asked). Five work tools let an agent take part in processes as its role, on the
+same engine paths as the API: `my_work`, `claim_work`, `complete_work`, `hand_off`
+and `send_evidence` (steps that need a person refuse them). The rest are read-only: the graph (`get_ontology`, `search`, `get_entity`, `get_events`,
 `trace_flow`, `equipment_history`, ...), troubleshooting (`troubleshooting_brief`,
 `process_values`, `lessons_learned`, ...) and asset-wide operations
 (`production_summary`, `deferment_pareto`, `production_constraints`,

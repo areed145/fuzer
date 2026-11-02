@@ -459,6 +459,145 @@ export interface Decision {
   by: string;
 }
 
+// --- work engine (#97) ---
+
+export interface WorkCounts {
+  total: number;
+  overdue: number;
+  due_soon: number;
+}
+
+/** A row in the inbox: a process step (task_id set) or a work item without a process. */
+export interface WorkRow {
+  task_id: number | null;
+  element: string | null;
+  name: string | null;
+  kind: string;
+  role: string | null;
+  assignee: string | null;
+  requires_human: boolean;
+  due_at: string | null;
+  escalated_at: string | null;
+  error: string | null;
+  created_at: string;
+  overdue: boolean | null;
+  claimed_by: string | null;
+  item_id: number;
+  type: string;
+  title: string;
+  priority: number | null;
+  subjects: string[];
+  process_id: number | null;
+  process_key: string | null;
+  bulk: string[];
+}
+
+export interface WorkInbox {
+  person: string;
+  roles: string[];
+  mine: WorkRow[];
+  queue: WorkRow[];
+  counts: { mine: WorkCounts; queue: WorkCounts };
+}
+
+export interface WorkEvent {
+  id: number;
+  kind: string;
+  actor: string;
+  element: string | null;
+  data: Record<string, any>;
+  at: string;
+  process_id?: number | null;
+  token_id?: number | null;
+}
+
+export interface WorkStep {
+  id: number;
+  process_id: number;
+  element: string;
+  name: string | null;
+  kind: string;
+  state: string;
+  flow: string | null;
+  role: string | null;
+  assignee: string | null;
+  requires_human: boolean;
+  due_at: string | null;
+  escalated_at: string | null;
+  attempts: number;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+  finished_by: string | null;
+}
+
+export interface WorkProcess {
+  id: number;
+  process_key: string;
+  version: number;
+  definition_id: number;
+  parent_token: number | null;
+  correlation_key: string | null;
+  state: string;
+  outcome: string | null;
+  data: Record<string, unknown>;
+  started_by: string;
+  started_at: string;
+  ended_at: string | null;
+  path: WorkStep[];
+  open: WorkStep[];
+}
+
+export interface WorkItem {
+  id: number;
+  type: string;
+  title: string;
+  subjects: string[];
+  state: string;
+  outcome: string | null;
+  step: string | null;
+  priority: number | null;
+  assignee: string | null;
+  role: string | null;
+  due: string | null;
+  created_by: string;
+  source: string | null;
+  created_at: string;
+  closed_at: string | null;
+  processes: WorkProcess[];
+  events: WorkEvent[];
+}
+
+export interface BulkAction {
+  label: string;
+  data: Record<string, unknown>;
+  reason_key?: string;
+}
+
+export interface WorkTaskView {
+  task: Omit<WorkStep, "id" | "flow" | "process_id"> & {
+    task_id: number;
+    claimed_by: string | null;
+    lease_until: string | null;
+    overdue: boolean | null;
+    process_id: number;
+    item_id: number;
+    process_key: string;
+    definition_id: number;
+    version: number;
+  };
+  item: Omit<WorkItem, "processes" | "events">;
+  data: Record<string, unknown>;
+  form: { key: string; version: number | null; schema: Record<string, unknown> | null } | null;
+  bulk: BulkAction[];
+  evidence: {
+    agents: WorkEvent[];
+    messages: WorkEvent[];
+    comments: WorkEvent[];
+    subjects: { fuzer_id: string; kind: string | null; label: string | null }[];
+  };
+}
+
 type Params = Record<string, string | number | undefined | null>;
 
 async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
@@ -477,6 +616,12 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
     throw new Error(detail?.detail ?? `${res.status} ${res.statusText}`);
   }
   return res.json();
+}
+
+async function requestText(path: string): Promise<string> {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.text();
 }
 
 export const api = {
@@ -508,6 +653,22 @@ export const api = {
   history: (id: string) =>
     request<{ record: string; at: string; change: string; fields: Record<string, { from: unknown; to: unknown }> }[]>(
       "GET", `/entities/${encodeURIComponent(id)}/history`, { limit: 20 }),
+  workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
+  inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
+  workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
+  workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
+  workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
+  claim: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/claim`, undefined, { by }),
+  release: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/release`, undefined, { by }),
+  complete: (id: number, by: string, data: Record<string, unknown>) =>
+    request<{ process_state: string }>("POST", `/work/tasks/${id}/complete`, undefined, { by, data }),
+  handOff: (id: number, by: string, to: string, reason?: string) =>
+    request<unknown>("POST", `/work/tasks/${id}/hand-off`, undefined, { by, to, reason }),
+  bulkComplete: (taskIds: number[], by: string, action: string, reason?: string) =>
+    request<{ done: number[]; refused: { task_id: number; error: string }[] }>(
+      "POST", "/work/tasks/bulk-complete", undefined, { by, task_ids: taskIds, action, reason }),
+  comment: (itemId: number, by: string, text: string) =>
+    request<unknown>("POST", `/work/items/${itemId}/comment`, undefined, { by, text }),
   lessons: (status: string) => request<Lesson[]>("GET", "/lessons", { status }),
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
     request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),

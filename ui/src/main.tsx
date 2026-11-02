@@ -9,6 +9,9 @@ import { DowntimePage } from "./pages/Downtime";
 import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
+import { WorkPage } from "./pages/Work";
+import { WorkItemPage } from "./pages/WorkItem";
+import { loadPerson } from "./work";
 import "./styles.css";
 
 // Graph views pull in Cytoscape; load them only when opened.
@@ -20,6 +23,7 @@ const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.M
 function App() {
   const { path, query } = useRoute();
   const stats = useAsync(() => api.stats(), []);
+  const inbox = useAsync(() => (loadPerson() ? api.inbox(loadPerson()) : Promise.resolve(undefined)), []);
   const reload = stats.reload;
 
   const s = stats.data;
@@ -39,6 +43,7 @@ function App() {
   }, [rebuilding, wasRebuilding]);
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
+  const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
 
   return (
     <>
@@ -69,6 +74,9 @@ function App() {
         </a>
         <a className={section === "lessons" ? "on" : ""} href={href("/lessons")}>
           Lessons
+        </a>
+        <a className={section === "work" ? "on" : ""} href={href("/work")}>
+          Work {work > 0 && <span className="count">{work}</span>}
         </a>
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
@@ -102,6 +110,10 @@ function App() {
             <IncidentsPage />
           ) : section === "lessons" ? (
             <LessonsPage query={query} />
+          ) : section === "work" && path[1] === "item" && path[2] ? (
+            <WorkItemPage id={Number(path[2])} />
+          ) : section === "work" ? (
+            <WorkPage query={query} />
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (

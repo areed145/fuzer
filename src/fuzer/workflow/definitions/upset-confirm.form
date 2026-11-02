@@ -1,0 +1,12 @@
+{
+  "id": "upset-confirm",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "Check the trends after the fix. If the upset is still there it goes back to diagnosis."},
+    {"type": "radio", "id": "outcome", "key": "outcome", "label": "Is it resolved?",
+     "values": [{"label": "Resolved", "value": "resolved"}, {"label": "Still upset: diagnose again", "value": "still_upset"}],
+     "validate": {"required": true}},
+    {"type": "textarea", "id": "outcome_note", "key": "outcome_note", "label": "Note"}
+  ]
+}

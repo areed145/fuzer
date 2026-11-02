@@ -16,6 +16,7 @@ branch matching) becomes a `fix` task for the process owner, never a silent stop
 Actors are a person's name, `agent:<role>` or `system`.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -200,7 +201,12 @@ def definitions(conn, process_key: str | None = None) -> list[dict]:
 
 
 def load_defaults(conn, directory: Path = DEFINITIONS_DIR) -> list[dict]:
-    """Import and publish the starting processes (definitions/*.bpmn) when they differ from what is published."""
+    """Import and publish the starting processes (definitions/*.bpmn) when they differ from what is published,
+    and their task forms (definitions/*.form) when they differ from the latest version."""
+    for f in sorted(directory.glob("*.form")):
+        schema = json.loads(f.read_text())
+        if (current := form(conn, schema["id"])) is None or current["schema"] != schema:
+            import_form(conn, schema, SYSTEM)
     out = []
     files = sorted(directory.glob("*.bpmn"))
     # Called processes first, so call activities find them published.
@@ -215,6 +221,33 @@ def load_defaults(conn, directory: Path = DEFINITIONS_DIR) -> list[dict]:
         for row in import_bpmn(conn, xml, SYSTEM):
             out.append(publish(conn, row["id"], SYSTEM) | {"process_key": row["process_key"]})
     return out
+
+
+# --- task forms ---------------------------------------------------------------------------------
+
+@_op
+def import_form(conn, schema: dict, by: str) -> dict:
+    """A form-js schema as the next version of the form named by its `id` (the key a userTask's
+    fuzer:form names). Bulk actions sit beside it as `fuzer.bulk`: [{label, data, reason_key}]."""
+    key = schema.get("id")
+    if not key or not isinstance(schema.get("components"), list):
+        raise WorkError("a form needs an id and a components list (a form-js schema)")
+    row = conn.execute(
+        "insert into work_form (key, version, schema, created_by) values "
+        "(%s, coalesce((select max(version) from work_form where key = %s), 0) + 1, %s, %s) returning key, version",
+        (key, key, Jsonb(schema), by)).fetchone()
+    _event(conn, "form_imported", by, data=dict(row))
+    return row
+
+
+def form(conn, key: str) -> dict | None:
+    return conn.execute("select key, version, schema, created_by, created_at from work_form where key = %s "
+                        "order by version desc limit 1", (key,)).fetchone()
+
+
+def forms(conn) -> list[dict]:
+    return conn.execute("select distinct on (key) key, version, created_by, created_at from work_form "
+                        "order by key, version desc").fetchall()
 
 
 # --- people -------------------------------------------------------------------------------------
@@ -593,6 +626,8 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
     if t["kind"] in ("user", "fix") and t["assignee"] and t["assignee"] != by:
         raise Conflict(f"step '{t['name'] or t['element']}' is claimed by {t['assignee']}")
     if t["kind"] == "agent":
+        if is_agent(by) and by != f"agent:{t['role']}":
+            raise Forbidden(f"step '{t['name'] or t['element']}' is for agent:{t['role']}, not {by}")
         live = t["claimed_by"] and t["lease_until"] and t["lease_until"] > run.now
         if worker is not None and t["claimed_by"] != worker:
             raise Conflict(f"worker {worker} no longer holds step {token_id} (claimed by {t['claimed_by']})")
@@ -973,8 +1008,8 @@ def list_items(conn, state: str | None = "open", type: str | None = None, assign
 
 _TASKS = """
     select t.id as task_id, t.element, t.name, t.kind, t.role, t.assignee, t.requires_human, t.due_at, t.escalated_at,
-           t.error, t.created_at, t.due_at < %(now)s as overdue,
-           i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key
+           t.error, t.created_at, t.due_at < %(now)s as overdue, t.claimed_by, t.lease_until,
+           i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id
     from work_token t join work_process p on p.id = t.process_id join work_item i on i.id = t.item_id
     where t.state = 'waiting' and t.kind = any(%(kinds)s) and {who}
     order by i.priority desc nulls last, t.due_at nulls last, t.id limit %(limit)s
@@ -982,8 +1017,8 @@ _TASKS = """
 _ITEMS = """
     select null::bigint as task_id, null as element, i.step as name, 'item' as kind, i.role, i.assignee,
            false as requires_human, i.due as due_at, null::timestamptz as escalated_at, null as error, i.created_at,
-           i.due < %(now)s as overdue, i.id as item_id, i.type, i.title, i.priority, i.subjects,
-           null::bigint as process_id, null as process_key
+           i.due < %(now)s as overdue, null as claimed_by, null::timestamptz as lease_until, i.id as item_id, i.type, i.title, i.priority, i.subjects,
+           null::bigint as process_id, null as process_key, null::bigint as definition_id
     from work_item i
     where i.closed_at is null and {who} and not exists (select 1 from work_process p where p.item_id = i.id)
     order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s
@@ -1000,6 +1035,7 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
     queue = conn.execute(_TASKS.format(who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall() + \
         conn.execute(_ITEMS.format(who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall()
     soon = now + DUE_SOON
+    _bulk_labels(conn, mine + queue)
 
     def counts(rows):
         return {"total": len(rows), "overdue": sum(bool(r["overdue"]) for r in rows),
@@ -1008,11 +1044,110 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
             "counts": {"mine": counts(mine), "queue": counts(queue)}}
 
 
+def _bulk_labels(conn, rows: list[dict]) -> None:
+    """Each person step's bulk actions (labels from its form), so the inbox knows which rows can be ticked."""
+    labels: dict[tuple, list[str]] = {}
+    for r in rows:
+        key = (r["definition_id"], r["element"])
+        if r["kind"] != "user" or r["requires_human"]:
+            r["bulk"] = []
+            continue
+        if key not in labels:
+            f = _definition(conn, r["definition_id"]).nodes[r["element"]].attrs.get("form")
+            schema = (form(conn, f) or {}).get("schema") or {} if f else {}
+            labels[key] = [b["label"] for b in schema.get("fuzer", {}).get("bulk", [])]
+        r["bulk"] = labels[key]
+
+
 def agent_work(conn, role: str, limit: int = 50, now: datetime | None = None) -> list[dict]:
     """Agent steps waiting for an agent role, claimed or not."""
     now = now or utcnow()
     return conn.execute(_TASKS.format(who="t.role = %(role)s"),
                         {"role": role, "now": now, "limit": limit, "kinds": ["agent"]}).fetchall()
+
+
+def agent_inbox(conn, role: str, limit: int = 50, now: datetime | None = None) -> dict:
+    """What an agent role has to do: its agent steps, person steps it claimed or was handed (not
+    requiresHuman ones, which it can't take), and items without a process in its queue."""
+    now = now or utcnow()
+    args = {"person": f"agent:{role}", "roles": [role], "now": now, "limit": limit, "kinds": ["user"]}
+    return {"agent": role, "steps": agent_work(conn, role, limit, now),
+            "tasks": conn.execute(_TASKS.format(who="t.assignee = %(person)s"), args).fetchall(),
+            "items": conn.execute(_ITEMS.format(who="(i.assignee = %(person)s or (i.assignee is null and "
+                                                   "i.role = any(%(roles)s)))"), args).fetchall()}
+
+
+def _form_of(conn, t: dict) -> dict | None:
+    proc = conn.execute("select definition_id from work_process where id = %s", (t["process_id"],)).fetchone()
+    key = _definition(conn, proc["definition_id"]).nodes[t["element"]].attrs.get("form")
+    return (form(conn, key) or {"key": key, "version": None, "schema": None}) if key else None
+
+
+def task(conn, token_id: int, now: datetime | None = None) -> dict:
+    """One step as the inbox shows it: the step, its item, the process data (the form's starting values),
+    the form-js form and its bulk actions, and the evidence so far: what agents found, messages that
+    reached the process, comments, and the entities it is about."""
+    now = now or utcnow()
+    t = conn.execute(
+        """
+        select t.id as task_id, t.element, t.name, t.kind, t.state, t.role, t.assignee, t.requires_human, t.due_at,
+               t.escalated_at, t.error, t.created_at, t.finished_at, t.finished_by, t.claimed_by, t.lease_until,
+               t.attempts, t.due_at < %s as overdue, t.process_id, t.item_id, p.process_key, p.definition_id,
+               d.version, p.data
+        from work_token t join work_process p on p.id = t.process_id join work_definition d on d.id = p.definition_id
+        where t.id = %s
+        """, (now, token_id)).fetchone()
+    if t is None:
+        raise NotFound("unknown task")
+    item = conn.execute("select id, type, title, subjects, state, outcome, step, priority, assignee, role, due, "
+                        "created_by, source, created_at from work_item where id = %s", (t["item_id"],)).fetchone()
+    f = _form_of(conn, {"process_id": t["process_id"], "element": t["element"]})
+    events = conn.execute("select id, kind, actor, element, data, at from work_event where item_id = %s "
+                          "and kind in ('agent_result', 'message', 'commented') order by id desc", (t["item_id"],)).fetchall()
+    subjects = conn.execute(
+        "select s.id as fuzer_id, e.kind, l.label from unnest(%s::text[]) with ordinality s(id, n) "
+        "left join entity e on e.fuzer_id = s.id left join entity_label l on l.fuzer_id = s.id order by s.n",
+        (item["subjects"],)).fetchall()
+    return {
+        "task": {k: v for k, v in t.items() if k != "data"}, "item": item, "data": t["data"],
+        "form": f and {"key": f["key"], "version": f["version"],
+                       "schema": f["schema"] and {k: v for k, v in f["schema"].items() if k != "fuzer"}},
+        "bulk": ((f or {}).get("schema") or {}).get("fuzer", {}).get("bulk", []),
+        "evidence": {"agents": [e for e in events if e["kind"] == "agent_result"],
+                     "messages": [e for e in events if e["kind"] == "message"],
+                     "comments": [e for e in events if e["kind"] == "commented"],
+                     "subjects": subjects},
+    }
+
+
+def bulk_complete(conn, token_ids: list[int], by: str, action: str, reason: str | None = None,
+                  now: datetime | None = None) -> dict:
+    """Complete several person steps with one of their forms' bulk actions (closing false alarms, say).
+    Only actions a step's form declares count, and never on a requiresHuman step: those stay one by one.
+    Each step is its own transaction; the ones refused say why."""
+    done, refused = [], []
+    for tid in token_ids:
+        try:
+            t = conn.execute("select * from work_token where id = %s", (tid,)).fetchone()
+            if t is None:
+                raise NotFound("unknown task")
+            conn.commit()
+            if t["requires_human"]:
+                raise Forbidden(f"step '{t['name'] or t['element']}' needs a decision of its own")
+            f = _form_of(conn, t) if t["kind"] == "user" else None
+            bulk = next((b for b in ((f or {}).get("schema") or {}).get("fuzer", {}).get("bulk", [])
+                         if b["label"] == action), None)
+            if bulk is None:
+                raise WorkError(f"step '{t['name'] or t['element']}' has no bulk action '{action}'")
+            data = dict(bulk["data"])
+            if reason and bulk.get("reason_key"):
+                data[bulk["reason_key"]] = reason
+            complete(conn, tid, by, data, now=now)
+            done.append(tid)
+        except WorkError as e:
+            conn.rollback()
+            refused.append({"task_id": tid, "error": str(e)})
+    return {"done": done, "refused": refused}
 
 
 def item(conn, item_id: int) -> dict:

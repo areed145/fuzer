@@ -36,7 +36,7 @@ def call():
     return lambda name, **args: asyncio.run(_call(name, args))
 
 
-def test_tools_are_read_only():
+def test_tools_are_read_only_except_work():
     from fuzer.mcp_server import server
 
     async def _list():
@@ -45,7 +45,10 @@ def test_tools_are_read_only():
 
     tools = asyncio.run(_list())
     assert {"search", "get_entity", "trace_flow", "equipment_history", "link_text", "get_events"} <= {t.name for t in tools}
-    assert all(t.annotations and t.annotations.read_only_hint for t in tools)
+    writes = {"claim_work", "complete_work", "hand_off", "send_evidence"}
+    assert all(t.annotations and t.annotations.read_only_hint for t in tools if t.name not in writes)
+    assert all(not t.annotations.read_only_hint and not t.annotations.destructive_hint
+               for t in tools if t.name in writes)
 
 
 def test_get_entity_accepts_any_tag_style(call):

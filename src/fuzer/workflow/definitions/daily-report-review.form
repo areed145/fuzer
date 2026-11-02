@@ -1,0 +1,13 @@
+{
+  "id": "daily-report-review",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "Read the drafted report in the evidence. Publish it, or send it back with what to change."},
+    {"type": "radio", "id": "review_decision", "key": "review_decision", "label": "Decision",
+     "values": [{"label": "Publish", "value": "publish"}, {"label": "Revise: redraft it", "value": "revise"}],
+     "validate": {"required": true}},
+    {"type": "textarea", "id": "review_comments", "key": "review_comments", "label": "What to change",
+     "validate": {"required": true}, "conditional": {"hide": "=review_decision != \"revise\""}}
+  ]
+}

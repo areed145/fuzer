@@ -1,0 +1,11 @@
+{
+  "id": "upset-notification",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "Raise the drafted notification in SAP, then record its number here. The upset is re-checked 6 hours later."},
+    {"type": "textfield", "id": "notification", "key": "notification", "label": "SAP notification number",
+     "validate": {"required": true, "pattern": "^[0-9]{6,12}$"}},
+    {"type": "textarea", "id": "notification_note", "key": "notification_note", "label": "Note"}
+  ]
+}
