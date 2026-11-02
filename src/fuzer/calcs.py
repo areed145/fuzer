@@ -308,19 +308,25 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
             "by_month": by_month, "need": [p["id"] for p in need.values()]}
 
 
-def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = 5.0, until: str | None = None) -> dict:
-    """A pump's head against its OEM curve at the same flow, as the latest month's median (%). Flags
-    `head_loss` (wear rings, impeller) at `tolerance_pct` or more below the curve."""
+def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = 5.0, until: str | None = None,
+               recent_days: int = 30, min_readings: int = 10) -> dict:
+    """A pump's head against its OEM curve at the same flow, as the median over its last `recent_days` of
+    running (at least `min_readings`, so a standby pump's first hours don't count). Flags `head_loss` (wear
+    rings, impeller) at `tolerance_pct` or more below the curve."""
+    from . import curves
+
     p = pump_operation(conn, fid, days, until=until)
-    if not p["by_month"]:
-        raise CalcError("no operating points within the OEM curve's flow range")
-    latest = p["by_month"][-1]
-    value = latest["head_vs_curve_pct"]
+    head = p["curve"]["series"]["head"]
+    cut = (datetime.fromisoformat(p["ops"][-1][0]) - timedelta(days=recent_days)).isoformat()
+    recent = sorted((h - hc) / hc * 100 for t, q, h in p["ops"] if t >= cut and (hc := curves.at(head, q)))
+    if len(recent) < min_readings:
+        raise CalcError(f"fewer than {min_readings} running readings in the pump's last {recent_days} days")
+    value = round(recent[len(recent) // 2], 1)
     return result(value, 0.0, "head_loss" if value <= -tolerance_pct else None,
                   f"head from discharge minus suction pressure at SG 0.85 against the {p['curve']['source']} head curve "
-                  f"at the same flow, median of {latest['month']}", [p["tag"], p["curve"]["model_id"], *p["need"]],
-                  unit="% of curve head", at=latest["month"], by_month=p["by_month"][-12:],
-                  worst_month=min(p["by_month"], key=lambda d: d["head_vs_curve_pct"]))
+                  f"at the same flow, median of {len(recent)} readings in the last {recent_days} days running",
+                  [p["tag"], p["curve"]["model_id"], *p["need"]], unit="% of curve head", at=p["ops"][-1][0][:10],
+                  by_month=p["by_month"][-12:], worst_month=min(p["by_month"], key=lambda d: d["head_vs_curve_pct"]))
 
 
 SG = 0.9  # produced liquid through a choke

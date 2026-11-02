@@ -579,6 +579,32 @@ times:
 It is the starting snapshot for each SRE run and daily report. Dates without a time (SAP) count on every
 window that overlaps their day. SAP notifications carry no closing date, so closed ones aren't listed.
 
+### 18h. SRE detection (#96, no Claude yet)
+
+`sre.py` finds upsets in the process data itself, every 6 hours (`sre_scan` in Dagster, `fuzer sre`).
+Each detector is a window function, so the replay (#103, `fuzer eval --ops --detector sre`) scores it
+exactly as the schedule runs it:
+
+- **excursions:** outside alarm limits, IOWs or the learned normal range while the unit runs (#101).
+  A learned-range excursion must last an hour: nobody set that limit, and brief wanders of
+  day-night-swinging wellhead temperatures were most of the baseline's false alarms.
+- **stops:** a unit with its own run signal going from running to stopped.
+- **steps:** `detect_changes` steps on running units, judged against how the point moved over the
+  day before the window.
+- **drifts** (once a day): a month of what wears and fouls (vibration, bearing, discharge and cooler
+  outlet temperatures, differential pressure) at 3-hour steps, still climbing at the end and up 5% or
+  more.
+- **instruments:** `signals.health`, skipping positions operators set (chokes, valves); this is
+  instrument work, not an upset.
+- **models** (once a day): pumps against their OEM curve over the last 30 days running, and gas lifted
+  wells below their curve (a valve failed open). Optimisation opportunities (more or less lift gas)
+  aren't upsets and go to the opportunity scan (#102).
+
+A run covers the time since the last one ended (`sre_run`), less an hour's overlap, in 6-hour windows,
+so a missed run catches up. Detections go to `detection`. One still going at the end of its window is
+extended by the next run rather than raised again. Grouping into upsets, diagnosis and hand-off follow
+(#96b, #96c).
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

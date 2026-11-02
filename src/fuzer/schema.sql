@@ -564,3 +564,33 @@ create table if not exists work_event (
 );
 create index if not exists work_event_item on work_event (item_id, id);
 create index if not exists work_event_process on work_event (process_id, id);
+
+-- Agentic SRE runs (#96): each scheduled scan's window; the next run starts where the last done one ended.
+create table if not exists sre_run (
+    id          bigserial primary key,
+    since       timestamp not null,
+    until       timestamp not null,
+    status      text not null,                  -- running | done | failed
+    detections  integer,
+    seconds     double precision,
+    started_at  timestamptz not null default now(),
+    finished_at timestamptz
+);
+
+-- What the SRE's detectors found in the process data (sre.py): an ongoing one is extended, not raised again.
+create table if not exists detection (
+    id          bigserial primary key,
+    point_id    text not null,
+    unit_id     text,
+    detector    text not null,                  -- excursions | stops | steps | drifts | instruments | models
+    key         text not null,                  -- what was found: alarm:hi, stopped, step, instrument:noisy, ...
+    start       timestamp not null,
+    "end"       timestamp,                      -- null while still going at the last run
+    magnitude   double precision,
+    evidence    jsonb not null default '{}',
+    first_run   bigint,
+    last_run    bigint,
+    found_at    timestamptz not null default now()
+);
+create index if not exists detection_of on detection (point_id, detector, key, start);
+create index if not exists detection_recent on detection (start desc);

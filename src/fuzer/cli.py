@@ -81,6 +81,10 @@ def main(argv=None):
     lm.add_argument("--until", default=None, help="end (default: the latest daily report, else today)")
     lm.add_argument("--step", type=int, default=None, help="minutes between values (default: learn 60, scan 10)")
 
+    sr = sub.add_parser("sre", help="agentic SRE (#96): detect upsets in the process data since the last run")
+    sr.add_argument("--since", default=None, help="start (default: where the last run ended, less an hour)")
+    sr.add_argument("--until", default=None, help="end (default: now, or the end of a fake plant's data)")
+
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
@@ -199,6 +203,10 @@ def main(argv=None):
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
+            elif args.cmd == "sre":
+                from . import sre
+
+                _print(sre.scan(conn, pack, args.since, args.until))
 
 
 def _limits(conn, pack, args) -> None:
