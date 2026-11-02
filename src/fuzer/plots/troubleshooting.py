@@ -289,3 +289,54 @@ def alarms_chart(conn, scope: str | None, since: str, until: str, pack=None) -> 
     return Figure("alarms", lay["title"]["text"], data, lay, {
         k: out[k] for k in ("value", "flag", "alarms", "points_alarming", "peak_10_min", "floods", "chattering", "standing",
                             "bad_actors", "basis")}, out["sources"][:10])
+
+
+def propagation(conn, upset: int) -> Figure:
+    """An upset on the plant model: its units as nodes coloured by when each was first detected, links where
+    the model connects them, the likely first cause marked."""
+    from datetime import datetime as dt
+
+    from .. import sre
+
+    d = sre.upset_detail(conn, upset, limit=2000)
+    if d is None:
+        raise ChartError(f"no upset {upset}")
+    first: dict[str, str] = {}
+    ids: dict[str, str] = {}
+    for x in d["timeline"]:
+        if x["unit"] and x["unit"] not in first:
+            first[x["unit"]] = x["start"]
+    rows = conn.execute("select fuzer_id, label from entity_label where label = any(%s)", (list(first),)).fetchall()
+    ids = {r["label"]: r["fuzer_id"] for r in rows}
+    t0 = dt.fromisoformat(d["start"])
+    order = sorted(first, key=lambda u: first[u])
+    mins = {u: (dt.fromisoformat(first[u]) - t0).total_seconds() / 60 for u in order}
+    # layered layout: x = minutes after the first detection, y spreads the units at about the same time
+    pos, lanes = {}, {}
+    for u in order:
+        b = int(mins[u] // 10)
+        lanes[b] = lanes.get(b, 0) + 1
+        pos[u] = (mins[u], lanes[b])
+    adj, cache = sre.topology(conn), {}
+    ex, ey = [], []
+    for i, u in enumerate(order):
+        for v in order[i + 1:]:
+            if ids.get(v) in adj.get(ids.get(u), ()):
+                ex += [pos[u][0], pos[v][0], None]
+                ey += [pos[u][1], pos[v][1], None]
+    data = [{"type": "scatter", "mode": "lines", "name": "plant model link", "x": ex, "y": ey,
+             "line": {"width": 1, "color": "rgba(140,140,140,0.5)"}, "hoverinfo": "skip"},
+            {"type": "scatter", "mode": "markers+text", "name": "units", "x": [pos[u][0] for u in order],
+             "y": [pos[u][1] for u in order], "text": order, "textposition": "top center",
+             "customdata": [ids.get(u) for u in order],
+             "marker": {"size": 12, "color": [mins[u] for u in order], "colorscale": "Viridis",
+                        "colorbar": {"title": {"text": "min after first"}}},
+             "hovertemplate": "%{text}: first detected %{x:.0f} min in<extra></extra>"},
+            {"type": "scatter", "mode": "markers", "name": "likely first cause", "x": [pos[order[0]][0]], "y": [pos[order[0]][1]],
+             "marker": {"size": 22, "symbol": "star-open", "line": {"width": 2}}}]
+    lay = layout(f"Upset {upset}: how it spread", "minutes after the first detection", None)
+    lay["yaxis"] = {"visible": False}
+    return Figure("propagation", lay["title"]["text"], data, lay, {
+        "upset": upset, "first_cause": d["first_unit"], "first_detection": f"{d['first_key']} on {d['first_point']}",
+        "units": len(order), "order": [{"unit": u, "minutes_after_first": round(mins[u])} for u in order[:15]],
+        "links_drawn": len(ex) // 3}, [i for i in ids.values()][:20])

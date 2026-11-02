@@ -253,3 +253,139 @@ def custom(title: str, traces: list[dict], x_title: str | None = None, y_title: 
     title = f"{title[:100]} (assistant-entered data)"
     return Figure("custom", title, data, layout(title, x_title, y_title), {"points": n, "note": "data entered by the assistant"},
                   by="assistant")
+
+
+# ---- views for agentic operations (#105 E) -------------------------------------------------------------
+
+def operating_window(conn, fid: str, since: str, until: str, pack=None) -> Figure:
+    """A point against its limits (#101): the value with each limit, time inside and outside, and the minutes
+    outside per day."""
+    from .. import calcs, limits
+    from ..timeseries import _point
+
+    p = _point(conn, fid)
+    if not p:
+        raise ChartError("that isn't a PI point")
+    a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
+    lines = limits.lines(limits.for_points(conn, pack, [fid], b)[fid])
+    if not lines:
+        raise ChartError("no limits on that point")
+    v = calcs.read({"v": p}, a, b, 10)["v"]
+    times, vals = list(v), list(v.values())
+    lo = max((x["value"] for x in lines if x["type"] in ("lo", "lolo")), default=None)
+    hi = min((x["value"] for x in lines if x["type"] in ("hi", "hihi")), default=None)
+    out = [(t, x) for t, x in zip(times, vals) if (hi is not None and x > hi) or (lo is not None and x < lo)]
+    per_day: dict[str, int] = {}
+    for t, _ in out:
+        per_day[t[:10]] = per_day.get(t[:10], 0) + 10
+    top, bottom = stacked(2, 0.1)
+    xs, ys = thin(times, vals)
+    data = [{"type": "scatter", "mode": "lines", "name": p["point"], "x": xs, "y": ys, "yaxis": "y"},
+            {"type": "bar", "name": "minutes outside per day", "x": list(per_day), "y": list(per_day.values()), "yaxis": "y2",
+             "xaxis": "x2"}]
+    lay = layout(f"{p['point']} against its operating window", showlegend=False)
+    lay["yaxis"] = {"domain": top, "title": {"text": p["uom"] or ""}}
+    lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "min outside"}}
+    lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": x["value"], "y1": x["value"],
+                      "line": {"dash": "dash", "width": 1, "color": "rgba(200,50,45,0.9)" if x["basis"] == "iow" else
+                               "rgba(190,120,0,0.9)" if x["basis"] == "alarm" else "rgba(110,120,135,0.8)"}} for x in lines]
+    share = len(out) / len(vals) if vals else 0
+    return Figure("operating_window", lay["title"]["text"], data, lay, {
+        "point": p["point"], "window": [since, until], "limits": lines, "share_outside": round(share, 4),
+        "minutes_outside": len(out) * 10, "days_outside": len(per_day),
+        "worst_day": max(per_day.items(), key=lambda kv: kv[1]) if per_day else None}, [fid])
+
+
+def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
+    """Oil potential, then planned losses, unplanned losses by reason, then actual, over a period (DAY001 and
+    EC downtime), priced with the pack's oil price."""
+    from .. import operations, value
+
+    days = operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+                            {"s": since, "u": until})
+    if not days:
+        raise ChartError("no DAY001 reports in that period")
+    pot = sum(operations._num(d["f"].get("oil_potential_sm3")) for d in days)
+    act = sum(operations._num(d["f"].get("oil_sm3")) for d in days)
+    planned, unplanned = 0.0, {}
+    for r in operations._rows(conn, "downtime", "f->>'start' >= %(s)s and f->>'start' < %(u)s", {"s": since, "u": until}):
+        f = r["f"]
+        lost = operations._num(f.get("lost_oil_sm3"))
+        if (f.get("reason_code") or "").startswith("PLAN") or f.get("reason_category") == "planned":
+            planned += lost
+        else:
+            unplanned[f.get("reason") or "unknown"] = unplanned.get(f.get("reason") or "unknown", 0) + lost
+    other = max(pot - act - planned - sum(unplanned.values()), 0.0)  # what downtime records don't explain
+    steps = [("potential", pot, 0.0)]
+    level = pot
+    for name, v in [("planned", planned), *sorted(unplanned.items(), key=lambda kv: -kv[1]), ("unexplained", other)]:
+        if v > 0:
+            level -= v
+            steps.append((name, -v, level))
+    steps.append(("actual", act, 0.0))
+    price = value.config(pack)["prices"]["oil_sm3"] if pack else value.DEFAULTS["prices"]["oil_sm3"]
+    data = [{"type": "bar", "name": "oil", "x": [s[0] for s in steps], "y": [abs(s[1]) for s in steps],
+             "base": [s[2] for s in steps], "text": [f"{abs(s[1]):,.0f} Sm3, ${abs(s[1]) * price:,.0f}" for s in steps],
+             "marker": {"color": ["rgba(90,110,140,0.8)" if s[1] >= 0 else "rgba(210,60,50,0.75)" for s in steps]},
+             "hovertemplate": "%{x}: %{text}<extra></extra>"}]
+    lay = layout(f"Production losses {since} to {until}", None, "oil (Sm3)", showlegend=False)
+    return Figure("loss_waterfall", lay["title"]["text"], data, lay, {
+        "potential_sm3": round(pot), "actual_sm3": round(act), "planned_sm3": round(planned),
+        "unplanned_sm3": {k: round(v) for k, v in sorted(unplanned.items(), key=lambda kv: -kv[1])},
+        "unexplained_sm3": round(other), "lost_usd": round((pot - act) * price), "oil_price_usd_sm3": price,
+        "efficiency_pct": round(act / pot * 100, 1) if pot else None}, [d["id"] for d in days][:5])
+
+
+def score_breakdown(conn, ref: str, pack=None) -> Figure:
+    """What makes up one item's #100 score: production, risk and compliance at stake, the urgency factor and
+    the effort, so people can see why one card ranks above another."""
+    from .. import value
+    from ..pack import load_pack
+
+    pack = pack or load_pack()
+    found = value.ranked(conn, pack, ref_id=ref, limit=5)["items"]
+    if not found:
+        raise ChartError("nothing on the value score for that ref")
+    s = found[0]
+    parts = [(k, p["value_usd"]) for k, p in s["components"].items()]
+    names = [k for k, _ in parts] + ["x urgency", "value", "effort"]
+    vals = [v or 0 for _, v in parts] + [s["value_usd"] - s["at_stake_usd"], s["value_usd"], s["effort"]["value_usd"] or 0]
+    data = [{"type": "bar", "x": names, "y": vals, "text": [("unknown" if (k in s["unknown"]) else f"${v:,.0f}") for k, v in
+                                                          zip(names, vals)], "hovertemplate": "%{x}: %{text}<extra></extra>"}]
+    lay = layout(f"Score breakdown: {s['label']}", None, "USD over the horizon", showlegend=False)
+    return Figure("score_breakdown", lay["title"]["text"], data, lay, {
+        "item": s["label"], "kind": s["kind"], "value_usd": s["value_usd"], "at_stake_usd": s["at_stake_usd"],
+        "urgency_factor": s["urgency"]["factor"], "effort_usd": s["effort"]["value_usd"], "unknown": s["unknown"],
+        "reason": s["reason"]}, [s["id"]])
+
+
+CO2_T_PER_KSM3_FLARED = 2.0  # tonnes CO2 per kSm3 gas flared (combustion of a typical associated gas); an estimate
+
+
+def flare(conn, since: str, until: str) -> Figure:
+    """Daily flare and lift gas from DAY001, and the flare's CO2 per barrel of oil (an estimate)."""
+    from .. import operations
+
+    days = sorted(operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+                                   {"s": since, "u": until}), key=lambda d: d["f"]["report_date"])
+    if not days:
+        raise ChartError("no DAY001 reports in that period")
+    x = [d["f"]["report_date"] for d in days]
+    fl = [operations._num(d["f"].get("flare_ksm3")) for d in days]
+    oil = [operations._num(d["f"].get("oil_sm3")) for d in days]
+    intensity = [round(f * CO2_T_PER_KSM3_FLARED * 1000 / (o * 6.2898), 2) if o > 0 else None for f, o in zip(fl, oil)]
+    top, bottom = stacked(2, 0.1)
+    data = [{"type": "bar", "name": "flare (kSm3/d)", "x": x, "y": fl, "yaxis": "y"},
+            {"type": "scatter", "mode": "lines", "name": "flare CO2 (kg per bbl oil)", "x": x, "y": intensity, "yaxis": "y2",
+             "xaxis": "x2"}]
+    lay = layout(f"Flare and its CO2 intensity {since} to {until}")
+    lay["yaxis"] = {"domain": top, "title": {"text": "kSm3/d"}}
+    lay["yaxis2"] = {"domain": bottom, "anchor": "x2", "title": {"text": "kg CO2 / bbl"}}
+    lay["xaxis2"] = {"anchor": "y2", "matches": "x"}
+    vals = [i for i in intensity if i is not None]
+    return Figure("flare", lay["title"]["text"], data, lay, {
+        "days": len(days), "flare_ksm3": round(sum(fl)), "co2_t": round(sum(fl) * CO2_T_PER_KSM3_FLARED),
+        "co2_kg_per_bbl_median": round(sorted(vals)[len(vals) // 2], 2) if vals else None,
+        "note": f"CO2 estimated at {CO2_T_PER_KSM3_FLARED} t per kSm3 flared; fuel gas and venting aren't in DAY001"},
+        [d["id"] for d in days][:5])

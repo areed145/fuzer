@@ -856,6 +856,27 @@ The swimlane chart `plot_state_timeline` shows an upset spreading through a trai
 alarms per 10 minutes against the flood line. MCP: `alarm_analysis`, `trip_analysis`. The troubleshooting
 skill uses them for "how did it spread".
 
+### 18p. Views and agent tools (#105 E, F)
+
+**Charts:**
+- `plot_propagation(upset)`: an SRE upset's units on a timeline of when each was first detected, with
+  the plant model's links between them and the likely first cause starred. Train C's trip starts at
+  20-V-2001.
+- `plot_operating_window(point)`: the value against each limit, and the minutes outside per day.
+- `plot_loss_waterfall(period)`: oil potential, then planned losses, unplanned losses by reason, losses
+  no downtime record explains, then actual, priced with the pack's oil price.
+- `plot_score_breakdown(ref)`: the #100 components, urgency and effort for one item.
+- `plot_flare(period)`: daily flare from DAY001 and its CO2 per barrel, estimated at 2 t CO2 per kSm3.
+  Fuel gas and venting aren't in DAY001.
+
+**Tools (`cases.py`):**
+- `compare_periods(ref, before, after)`: each point's median in two windows and the change. Welch's t,
+  with each window's sample cut to its effective size for autocorrelation, says whether it is
+  significant. It closes the loop on "did the fix work".
+- `similar_cases(ref)`: past incidents like this one (an incident, an upset's incident, or a unit's
+  latest), with the work orders done for each and whether the fix held (no incident on the unit within
+  90 days).
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
