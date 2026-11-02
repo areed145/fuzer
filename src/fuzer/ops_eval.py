@@ -33,8 +33,9 @@ def scripted_ask(question: str) -> dict:
     return {"answer": answer, "usage": {"cost_usd": 0.0}}
 
 
-def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_diagnoses: int = 5) -> dict:
-    """Score the scheduled jobs over [since, until] on the fake plant in `data_dir`."""
+def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_diagnoses: int = 5, say=None) -> dict:
+    """Score the scheduled jobs over [since, until] on the fake plant in `data_dir`. `say(msg)` gets progress
+    lines."""
     import json
     from pathlib import Path
 
@@ -42,17 +43,20 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
     from .workflow import engine
 
     spec = json.loads((Path(data_dir) / "process_model.json").read_text())
+    say = say or (lambda msg: None)
     t0 = time.perf_counter()
-    rep = replay.run(conn, pack, "sre", since, until, data_dir=data_dir)
+    say(f"ops eval {since} to {until}: 1/4 SRE replay")
+    rep = replay.run(conn, pack, "sre", since, until, data_dir=data_dir, say=say)
     out = {"since": since, "until": until, "sre": {k: rep[k] for k in (
         "upsets", "detected", "recall", "precision", "false_alarms_per_week", "seconds_per_window", "by_kind")},
         "grouping": rep.get("grouping")}
 
     # diagnosis: hand off the period's upsets (scan stores them) and check the cause named
+    say("2/4 diagnosis: scanning the period" + (" (live Claude)" if live else ""))
     engine.load_defaults(conn)
     sre.scan(conn, pack, since, until, max_days=400)
     ask = None if live else scripted_ask
-    h = sre_handoff.handoff(conn, pack, ask=ask, max_diagnoses=max_diagnoses)
+    h = sre_handoff.handoff(conn, pack, ask=ask, max_diagnoses=max_diagnoses, say=say)
     events = replay.truth(spec, datetime.fromisoformat(since), datetime.fromisoformat(until))
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute("select fuzer_id, label from entity_label")}
     right = scored = cited = 0
@@ -77,6 +81,7 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
                         "client": "live" if live else "scripted"}
 
     # daily reports over the period
+    say("3/4 daily reports")
     days, ok, trip_led, instructions = 0, 0, [], 0
     trip_days = {e["start"].date().isoformat() for e in events if e["kind"] == "trip"}
     d0 = datetime.fromisoformat(since).date()
@@ -89,6 +94,7 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
             continue
         r = daily_report.get(conn, day)
         days += 1
+        say(f"report {day}: {'ok' if r['checks']['ok'] else 'checks failed'}")
         ok += bool(r["checks"]["ok"])
         instructions += bool(INSTRUCTION.search(r["markdown"]))
         if day in trip_days:
@@ -101,6 +107,7 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
     # opportunity gains against a hand calculation from the wells' curves
     from . import calcs
 
+    say("4/4 opportunity scan")
     errs = []
     for o in opportunities.gas_lift_moves(conn, until):
         hand = 0.0

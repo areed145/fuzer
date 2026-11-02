@@ -130,8 +130,9 @@ def candidates(conn) -> list[dict]:
 
 
 def handoff(conn, pack, ask=None, max_diagnoses: int = MAX_DIAGNOSES, max_usd: float = MAX_USD,
-            today: str | None = None) -> dict:
-    """Prioritise, diagnose (within the caps) and hand off the upsets not handed off yet."""
+            today: str | None = None, say=None) -> dict:
+    """Prioritise, diagnose (within the caps) and hand off the upsets not handed off yet. `say(msg)`
+    gets progress lines."""
     from .workflow import engine
 
     sync_feedback(conn)
@@ -141,6 +142,8 @@ def handoff(conn, pack, ask=None, max_diagnoses: int = MAX_DIAGNOSES, max_usd: f
         u["text"] = f"Detected {u['key']} on {u['point']} at {u['start']:%Y-%m-%d %H:%M}, reaching {len(u['units'])} units"
         u["score"] = priority(conn, pack, u, today)
     ups.sort(key=lambda u: -u["score"]["value_usd"])
+    if say:
+        say(f"handoff: {len(ups)} upsets, diagnosing up to {min(len(ups), max_diagnoses)} (cap ${max_usd:g})")
     spent, diagnosed, started, out = 0.0, 0, 0, []
     for u in ups:
         diag = None
@@ -151,6 +154,9 @@ def handoff(conn, pack, ask=None, max_diagnoses: int = MAX_DIAGNOSES, max_usd: f
                 diag = {"error": str(e)}
             spent += float((diag.get("usage") or {}).get("cost_usd") or 0)
             diagnosed += 1
+            if say:
+                say(f"diagnosis {diagnosed}: {u['label']}: " + (f"failed ({diag['error'][:80]})" if diag.get("error") else
+                    f"${float((diag.get('usage') or {}).get('cost_usd') or 0):.2f}") + f", ${spent:.2f} so far")
         s = u["score"]
         data = {"incident_id": f"upset:{u['id']}", "upset_id": u["id"], "first_unit": u["unit_label"],
                 "first_point": u["point"], "first_detection": f"{u['detector']}:{u['key']}",

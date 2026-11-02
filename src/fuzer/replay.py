@@ -190,12 +190,12 @@ def _merge(found: list[dict], d: dict, a: datetime) -> None:
 
 
 def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, learn_days: int | None = 90,
-        relearn_days: int = 30, step: timedelta = STEP) -> dict:
+        relearn_days: int = 30, step: timedelta = STEP, say=None) -> dict:
     """Replay [since, until] in `step` windows with `detector` (a name in DETECTORS or a function) and score
     it. Normal ranges are learned from the `learn_days` before `since` and again every `relearn_days`, as
     the schedule would have had them, and put back afterwards; learn_days None keeps the ones in the
     database. (Learning reaches back before the data starts early in a fake plant's history, which leaves
-    the ranges too narrow: start a replay at least `learn_days` in.)"""
+    the ranges too narrow: start a replay at least `learn_days` in.) `say(msg)` gets progress lines."""
     from .timeseries import provider
 
     path = Path(data_dir or ".") / "process_model.json"
@@ -209,8 +209,10 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
     saved = conn.execute("select * from point_normal").fetchall() if learn_days else None
     found: list[dict] = []
     seconds, learned = [], None
+    n = len(list(_windows(a, b, step)))
+    t_start = time.perf_counter()
     try:
-        for w0, w1 in _windows(a, b, step):
+        for i, (w0, w1) in enumerate(_windows(a, b, step), 1):
             if learn_days and (learned is None or w0 - learned >= timedelta(days=relearn_days)):
                 limits.learn(conn, pack, (w0 - timedelta(days=learn_days)).isoformat(), w0.isoformat(), src=src)
                 learned = w0
@@ -220,6 +222,10 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
             for f in found:  # one picked up again keeps when it was first seen
                 f["detected_at"] = f["detected_at"] or w1
             seconds.append(time.perf_counter() - t0)
+            if say and (i == n or i % 4 == 0):  # about once a replayed day
+                left = (time.perf_counter() - t_start) / i * (n - i)
+                say(f"replay {name}: window {i}/{n} to {w1:%Y-%m-%d %H:%M}, {len(found)} detections, "
+                    f"about {left / 60:.0f} min left")
     finally:
         if saved is not None:
             conn.execute("delete from point_normal")

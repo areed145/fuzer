@@ -280,7 +280,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
 
         if not (data / "process_model.json").is_file():
             raise SystemExit("no process_model.json: set FUZER_DATA_DIR to the fake plant's folder")
-        res = ops_eval.run(conn, pack, data, since, until.isoformat(timespec="minutes"), live=args.live)
+        res = ops_eval.run(conn, pack, data, since, until.isoformat(timespec="minutes"), live=args.live, say=_say)
         prev = replay.store(conn, {"detector": "full" + ("-live" if args.live else ""), "since": since,
                                    "until": until.isoformat(timespec="minutes"), "recall": res["sre"]["recall"],
                                    "by_kind": res["sre"]["by_kind"], **res})
@@ -290,7 +290,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
             raise SystemExit("Ops eval failed: " + "; ".join(bad))
         return
     try:
-        res = replay.run(conn, pack, args.detector, since, until.isoformat(timespec="minutes"), data_dir=data)
+        res = replay.run(conn, pack, args.detector, since, until.isoformat(timespec="minutes"), data_dir=data, say=_say)
     except ValueError as e:
         raise SystemExit(f"{e}. Set FUZER_DATA_DIR to the fake plant's folder.")
     check = replay.store(conn, res)
@@ -376,6 +376,14 @@ def _bench(conn, pack) -> dict:
                    "maintenance_class": lambda: queries.maintenance(conn, pumps)}
     out["ms"] = {name: best(fn) for name, fn in checks.items()}
     return out
+
+
+def _say(msg: str) -> None:
+    """A progress line on stderr, so stdout stays the JSON result."""
+    import sys
+    from datetime import datetime
+
+    print(f"{datetime.now():%H:%M:%S} {msg}", file=sys.stderr, flush=True)
 
 
 def _print(obj):
