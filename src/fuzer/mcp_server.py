@@ -767,6 +767,19 @@ def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def opportunities(status: Literal["open", "rejected", "accepted", "project", "gone"] | None = "open",
+                  limit: int = 20) -> dict[str, Any]:
+    """Gains left on the table from the daily opportunity scan (#102): lift gas to reallocate between wells,
+    wells below their decline or with stale tests, units worth a permanent fix, shut-in wells that may be
+    recoverable. Each with its gain (Sm3/d oil), #100 value, basis, confidence, cited evidence and what would
+    confirm it. Proposals for engineers to accept or reject on the board."""
+    from . import opportunities as opp
+    with db.connect() as conn:
+        rows = opp.listing(conn, status, min(limit, 100))
+    return _plain({"opportunities": rows, "count": len(rows)})
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,

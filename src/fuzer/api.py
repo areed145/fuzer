@@ -421,6 +421,31 @@ def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn
     return out
 
 
+@app.get("/opportunities")
+def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends(get_conn)):
+    """Opportunities from the daily scan (#102)."""
+    from . import opportunities
+    return opportunities.listing(conn, status, min(limit, 500))
+
+
+class OpportunityDecision(BaseModel):
+    decision: Literal["accepted", "rejected", "project"]
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+@app.post("/opportunities/{key:path}/decision")
+def opportunity_decide(key: str, d: OpportunityDecision, conn=Depends(get_conn)):
+    """Accept, reject (a reason is required) or turn an opportunity into a board project."""
+    from . import board, opportunities
+    try:
+        out = opportunities.decide(conn, key, d.decision, d.by, d.reason)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    board.refresh(conn, PACK)
+    return out
+
+
 class Ranking(BaseModel):
     items: list[str]  # fuzer ids (or opportunity ids), most valuable first
     comment: str | None = None

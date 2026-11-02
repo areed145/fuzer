@@ -717,3 +717,22 @@ create table if not exists debottleneck_option (
     gain_sm3d  double precision not null,
     detail     jsonb not null
 );
+
+-- The opportunity scan (#102): gains left on the table, one row per opportunity under a stable key. A decided
+-- one (rejected, accepted, project) isn't raised again unless its evidence or gain changes materially.
+create table if not exists opportunity (
+    key         text primary key,
+    kind        text not null,
+    title       text not null,
+    target      text,
+    gain_sm3d   double precision,
+    value_usd   double precision,
+    detail      jsonb not null,
+    fingerprint text not null,
+    item_id     bigint,
+    status      text not null default 'open',    -- open | rejected | accepted | project | gone
+    reason      text,
+    decided_by  text,
+    decided_at  timestamptz,
+    scanned_at  timestamptz not null default now()
+);
