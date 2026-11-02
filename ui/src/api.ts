@@ -713,6 +713,19 @@ export interface DailyReport {
   item_id: number | null;
 }
 
+export interface Study {
+  id: number;
+  kind: string;
+  params: Record<string, unknown>;
+  status: string;
+  summary: string | null;
+  figure_id: string | null;
+  error: string | null;
+  created_by: string;
+  created_at: string;
+  result?: Record<string, unknown> | null;
+}
+
 async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -775,6 +788,11 @@ export const api = {
     request<unknown>("POST", "/board/projects", undefined, p),
   dailyReports: () => request<{ day: string; version: number; drafted_by: string; ok: boolean }[]>("GET", "/reports/daily"),
   dailyReport: (day: string, version?: number) => request<DailyReport>("GET", `/reports/daily/${day}`, { version }),
+  studies: () => request<Study[]>("GET", "/studies"),
+  study: (id: number) => request<Study>("GET", `/studies/${id}`),
+  startStudy: (kind: string, params: Record<string, unknown>, by: string) =>
+    request<Study>("POST", "/studies", undefined, { kind, params, by }),
+  rerunStudy: (id: number, by: string) => request<Study>("POST", `/studies/${id}/rerun`, { by }),
   workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),

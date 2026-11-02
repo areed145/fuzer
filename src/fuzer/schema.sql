@@ -737,3 +737,20 @@ create table if not exists opportunity (
     scanned_at  timestamptz not null default now()
 );
 alter table detection add column if not exists seen_until timestamp;  -- the end of the last window that saw it
+
+-- Studies (#106): a correlation or clustering run kept with its parameters, top results and figure, so people can
+-- re-run it, an agent can cite it and a work item can attach it. Big ones queue for the background job.
+create table if not exists study (
+    id          bigserial primary key,
+    kind        text not null,                  -- correlate | correlation_matrix | modes | entities | events | spe
+    params      jsonb not null,
+    status      text not null default 'queued', -- queued | running | done | failed
+    result      jsonb,
+    summary     text,
+    figure_id   text,
+    error       text,
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    finished_at timestamptz
+);
+create index if not exists study_queue on study (status, id);

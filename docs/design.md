@@ -903,8 +903,18 @@ Two SRE fixes:
   Before, a scan that skipped days carried an old open detection on and merged two trips.
 - Regrouping loads every detection of each upset it touches.
 
-MCP: `cluster_modes`, `cluster_entities`, `cluster_events`, `plot_modes`. Stored studies, the background
-job and the study page come next.
+MCP: `cluster_modes`, `cluster_entities`, `cluster_events`, `plot_modes`.
+
+**Stored studies (`study.py`).** A correlation or clustering run is kept as `study:<id>` with:
+- its parameters;
+- its top results (bulky arrays left out);
+- a one-line summary;
+- a chart where it has one.
+
+People can re-run a study from its saved parameters, an agent can cite it, and a work item can attach
+it. A small study runs at once; a facility scope or a long window queues for the `studies_job`, which
+runs every 5 minutes. API: `POST /studies`, `GET /studies[/{id}]`, `POST /studies/{id}/rerun`. MCP:
+`start_study`, `get_study`. The Studies page (`#/studies`) starts, lists and opens them.
 
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k

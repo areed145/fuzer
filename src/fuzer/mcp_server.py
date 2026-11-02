@@ -895,6 +895,45 @@ def cluster_events(since: str | None = None, until: str | None = None) -> dict[s
 
 
 @server.tool(annotations=READ_ONLY)
+def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"],
+                params: dict[str, Any], agent: str = "assistant") -> dict[str, Any]:
+    """Keep a correlation or clustering study (params as for correlate / correlation_matrix / cluster_modes /
+    cluster_entities / cluster_events, plus spe: scope, train_since, train_until, since, until). Small ones run
+    now and come back with a summary; big ones (a facility scope, long windows) queue for the background job:
+    check with get_study. Cite it as study:<id>."""
+    from . import study
+    with db.connect() as conn:
+        p = dict(params)
+        for k in ("target", "scope"):
+            if isinstance(p.get(k), str) and p[k] != "facility":
+                fid, err = _resolve(conn, p[k])
+                if err:
+                    return err
+                p[k] = fid
+        try:
+            out = study.start(conn, PACK, kind, p, f"agent:{agent}")
+        except ValueError as e:
+            return {"error": str(e)}
+    return _plain({k: v for k, v in out.items() if k != "result"} | {"result": _trim(out.get("result"))})
+
+
+@server.tool(annotations=READ_ONLY)
+def get_study(study_id: int) -> dict[str, Any]:
+    """A kept study: its parameters, status, summary, figure and (when done) its top results."""
+    from . import study
+    with db.connect() as conn:
+        out = study.get(conn, study_id)
+    return _plain({k: v for k, v in out.items() if k != "result"} | {"result": _trim(out.get("result"))}) if out else \
+        {"error": f"no study {study_id}"}
+
+
+def _trim(r):
+    if not isinstance(r, dict):
+        return r
+    return {k: (v[:15] if isinstance(v, list) else v) for k, v in r.items()}
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,

@@ -90,3 +90,32 @@ def test_tools_and_charts(conn, monkeypatch):
     area = conn.execute("select fuzer_id from entity_label where label = 'OKAN-20'").fetchone()["fuzer_id"]
     plots.check(troubleshooting.spe_chart(conn, area, "2024-10-28T00:00", "2024-11-04T00:00", "2024-11-04T12:00",
                                           "2024-11-05T12:00"))
+
+
+def test_stored_studies_run_queue_and_rerun(conn, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from fuzer import api, study
+
+    s = study.start(conn, PACK, "modes", {"scope": train_a(conn), "since": "2024-06-01T00:00", "until": "2024-09-30T00:00"},
+                    "alice")
+    assert s["status"] == "done" and "modes on" in s["summary"] and s["figure_id"] and "labels" not in s["result"]
+    again = study.rerun(conn, PACK, s["id"], "bob")
+    assert again["id"] != s["id"] and again["params"] == s["params"] and again["summary"] == s["summary"]
+
+    big = study.start(conn, PACK, "correlation_matrix", {"scope": "facility", "since": "2024-11-04T00:00",
+                                                         "until": "2024-11-05T00:00"}, "alice")
+    assert big["status"] == "queued"
+    assert study.run_queued(conn, PACK) == {"ran": 1, "done": 1, "failed": 0}
+    assert study.get(conn, big["id"])["status"] == "done"
+    bad = study.start(conn, PACK, "correlate", {"target": "fz-nope", "since": "2024-11-04T00:00", "until": "2024-11-05T00:00",
+                                                "scope": train_a(conn)}, "alice", now=True)
+    assert bad["status"] == "failed" and bad["error"]
+
+    monkeypatch.setattr(api, "PACK", PACK)
+    client = TestClient(api.app)
+    assert client.get(f"/studies/{s['id']}").json()["kind"] == "modes"
+    assert client.get("/studies").json()[0]["id"] == bad["id"]
+    monkeypatch.setattr(mcp_server, "PACK", PACK)
+    got = mcp_server.get_study(s["id"])
+    assert got["status"] == "done" and len(got["result"]["modes"]) <= 15
