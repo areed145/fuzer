@@ -244,6 +244,18 @@ def work_tick():
     work_tick_op()
 
 
+@dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
+def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from . import sre
+    with fuzer.connect() as conn:
+        context.log.info(f"sre scan: {sre.scan(conn, load_pack(fuzer.pack))}")
+
+
+@dg.job(description="SRE detection every 6 hours: trips, excursions, steps, drifts, bad instruments, curves.")
+def sre_scan():
+    sre_scan_op()
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -262,6 +274,8 @@ schedules = [
     dg.ScheduleDefinition(job=claude_reading, cron_schedule="0 3 * * *", execution_timezone=TZ,
                           default_status=dg.DefaultScheduleStatus.STOPPED),
     dg.ScheduleDefinition(job=work_tick, cron_schedule="*/5 * * * *", execution_timezone=TZ,
+                          default_status=dg.DefaultScheduleStatus.RUNNING),
+    dg.ScheduleDefinition(job=sre_scan, cron_schedule="0 */6 * * *", execution_timezone=TZ,
                           default_status=dg.DefaultScheduleStatus.RUNNING),
 ]
 
@@ -301,7 +315,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
                   document_revisions, flow_vs_piping],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

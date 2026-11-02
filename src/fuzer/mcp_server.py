@@ -551,6 +551,19 @@ def detect_changes(ref: str, since: str | None = None, until: str | None = None,
 
 
 @server.tool(annotations=READ_ONLY)
+def detections(since: str | None = None, detector: Literal["excursions", "stops", "steps", "drifts", "instruments",
+                                                           "models"] | None = None, limit: int = 100) -> dict[str, Any]:
+    """What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit,
+    detector (excursions outside limits, unit stops, steps, drifts, bad instruments, equipment against its
+    curve), what it found (key), start and end (null = still going) and evidence. since: ISO time; only
+    those going on after it."""
+    from . import sre
+    with db.connect() as conn:
+        rows = sre.recent(conn, since, detector, min(limit, 500))
+    return _plain({"detections": rows, "count": len(rows)})
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,

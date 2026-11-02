@@ -69,6 +69,31 @@ in. Most false alarms are learned-range alarms on wellhead temperatures swinging
 detectors should find the slow ones in hours to days from the calcs (pump and choke against their
 curves) and the signal checks (instrument health, drift).
 
+### SRE detectors (#96, before grouping)
+
+`uv run fuzer --pack okan eval --ops --detector sre --since 2025-01-01 --until 2025-10-01`, run 2026-11-02:
+all six detectors (`sre.py`) over nine months of Okan.
+
+| | SRE detectors | limits baseline (Apr 2024 – Dec 2025) |
+|---|---|---|
+| Upsets found | 21 of 21 | 39 of 41 |
+| Pump head loss found after | 12 h | 3,348 h |
+| Choke wear found after | 162 h | 225 h |
+| Trips found after (median) | 3.2 h | 3.0 h |
+| False alarms a week | 37.7 | 11.7 |
+| Precision | 0.65 | 0.57 |
+| Seconds per window | 2.5 | 0.5 |
+
+False alarms by detector, in two January 2025 weeks:
+- steps: 8 a week;
+- instruments: 0.5 a week;
+- excursions and stops: none.
+
+Over the nine months, drifts and models raise 1 false alarm between them. Almost all the false alarms are
+steps, and most of those are many points stepping together on one cause (every well on jacket J03 at
+08:00 on 9 January 2025). Steps are building blocks for grouping (#96b), which makes them one upset, so
+the next score counts upsets rather than detections.
+
 ## Example: across domains
 
 > Why does lift gas keep running short, and what should go in the next turnaround to fix it?

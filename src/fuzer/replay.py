@@ -151,7 +151,21 @@ def limits_detector(conn, pack, since: datetime, until: datetime, src) -> list[d
              "basis": x["basis"]} for x in limits.excursions(conn, pack, pids, since, until, src=src)]
 
 
-DETECTORS = {"limits": limits_detector}
+def sre_detector(conn, pack, since: datetime, until: datetime, src, only: list[str] | None = None) -> list[dict]:
+    """The SRE's own detectors (sre.py), all of them or `only` some."""
+    from . import sre
+
+    return sre.detect(conn, pack, since, until, src, only)
+
+
+def _only(*names):
+    fn = lambda conn, pack, since, until, src: sre_detector(conn, pack, since, until, src, list(names))  # noqa: E731
+    fn.__name__ = "sre:" + "+".join(names)
+    return fn
+
+
+DETECTORS = {"limits": limits_detector, "sre": sre_detector,
+             **{f"sre:{n}": _only(n) for n in ("excursions", "stops", "steps", "drifts", "instruments", "models")}}
 
 
 # ---- replay -------------------------------------------------------------------------------------
