@@ -268,6 +268,30 @@ def sre_scan():
     sre_scan_op()
 
 
+@dg.op(description="Daily operations report (#98): close yesterday (and re-check the week for late records).")
+def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from datetime import date, timedelta
+
+    from . import daily_report, operations
+    from .workflow import engine
+    pack = load_pack(fuzer.pack)
+    with fuzer.connect() as conn:
+        engine.load_defaults(conn)
+        last = date.fromisoformat(operations.as_of(conn))
+        for i in range(7):  # late records start a new version of the day they belong to
+            day = (last - timedelta(days=i)).isoformat()
+            try:
+                context.log.info(f"report {day}: {daily_report.close_day(conn, pack, day)}")
+            except ValueError as e:  # no DAY001 for that day yet
+                context.log.info(f"report {day}: {e}")
+
+
+@dg.job(description="Daily operations report: facts from the day's records, a new version when they change, the ops "
+                    "lead's review in the workflow (the reporter agent drafts it).")
+def day_close():
+    day_close_op()
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -289,6 +313,8 @@ schedules = [
                           default_status=dg.DefaultScheduleStatus.RUNNING),
     dg.ScheduleDefinition(job=sre_scan, cron_schedule="0 */6 * * *", execution_timezone=TZ,
                           default_status=dg.DefaultScheduleStatus.RUNNING),
+    dg.ScheduleDefinition(job=day_close, cron_schedule=os.environ.get("FUZER_DAY_CLOSE_CRON", "0 7 * * *"),
+                          execution_timezone=TZ, default_status=dg.DefaultScheduleStatus.RUNNING),
 ]
 
 
@@ -327,7 +353,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
                   document_revisions, flow_vs_piping],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan, day_close],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

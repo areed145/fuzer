@@ -143,4 +143,6 @@ def assistant_agents() -> dict[str, Agent]:
             answer = asyncio.run(agents.ask(prompt))
             return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}
         return run_step
-    return {role: specialist(role) for role in agents.SPECIALISTS}
+    from .. import daily_report
+
+    return {**{role: specialist(role) for role in agents.SPECIALISTS}, "reporter": daily_report.reporter_agent}

@@ -92,6 +92,10 @@ def main(argv=None):
     bd.add_argument("action", choices=["refresh", "show"])
     bd.add_argument("--limit", type=int, default=20)
 
+    rp = sub.add_parser("report", help="daily operations report (#98): close a day and draft it")
+    rp.add_argument("--day", default=None, help="the production day (default: the latest DAY001)")
+    rp.add_argument("--claude", action="store_true", help="have Claude draft it from the facts (costs money)")
+
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
@@ -210,6 +214,16 @@ def main(argv=None):
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
+            elif args.cmd == "report":
+                from . import daily_report, operations
+                from .workflow import engine
+
+                engine.load_defaults(conn)
+                day = args.day or operations.as_of(conn)
+                _print(daily_report.close_day(conn, pack, day))
+                if args.claude:
+                    _print(daily_report.redraft(conn, day))
+                print(daily_report.get(conn, day)["markdown"])
             elif args.cmd == "board":
                 from . import board
 
