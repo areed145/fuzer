@@ -43,8 +43,11 @@ def test_every_source_loads(setup):
         "and c.source_key = r.source_key) and r.record_type not in ('edge', 'bom') and not exists "
         "(select 1 from measurement m where m.record = r.source || ':' || r.record_type || ':' || r.source_key) "
         "and not exists (select 1 from equipment_curve m where m.record = r.source || ':' || r.record_type || ':' "
-        "|| r.source_key) group by 1, 2").fetchall()
-    assert unread == [], unread  # every record became (part of) an entity, measurements or curve points
+        "|| r.source_key) and not exists (select 1 from point_limit m where m.record = r.source || ':' || "
+        "r.record_type || ':' || r.source_key) group by 1, 2").fetchall()
+    # Every record became (part of) an entity, measurements, curve points or limits; but the IOW planted
+    # on a tag that doesn't exist.
+    assert unread == [{"source": "iow", "record_type": "window", "n": 1}], unread
 
 
 def test_wells_and_facilities(setup):

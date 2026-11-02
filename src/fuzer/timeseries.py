@@ -102,14 +102,15 @@ def provider() -> Provider:
 
 def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
            step_minutes: int | None = None, max_points: int = 12, src: Provider | None = None,
-           direct: bool = False) -> dict:
+           direct: bool = False, pack=None) -> dict:
     """Values of the PI points on a unit (its own and its instruments') around a time. For an
     incident, `at` defaults to its first timed signal (a log entry or downtime start), else its start
     day, and its unit is used. For a timeseries, only that point; with `direct`, only the points linked
     to the entity itself, not its instruments'. Anything but an incident is centred by default on the
     latest incident on its tag or well (else now). The step is chosen from the window (about
     150 values) unless given. Each series has a summary for agents: min / max / mean / last, and
-    `lead_in`: the mean before the last 12 h against the mean and peak in them."""
+    `lead_in`: the mean before the last 12 h against the mean and peak in them; and its `limits` at the
+    centre (alarm limits, IOWs, or the learned normal range; limits.lines)."""
     row = conn.execute(
         """
         select e.kind, (select a.dst from edge a where a.src = e.fuzer_id and a.rel = 'about' limit 1) as unit,
@@ -166,6 +167,11 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
             modelled = bool(getattr(src, "model", None) and src.model.covers(p["point"]))
             series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
                            **summary(vals, centre), **({"modelled": True} if modelled else {})})
+    if series:
+        from . import limits
+        found = limits.for_points(conn, pack, [s["id"] for s in series], centre)
+        for s in series:
+            s["limits"] = limits.lines(found[s["id"]])
     out = {"unit": unit, "centre": centre.isoformat(timespec="minutes"), "start": start.isoformat(timespec="minutes"),
            "end": end.isoformat(timespec="minutes"), "step_minutes": step_minutes, "provider": src.name,
            "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}

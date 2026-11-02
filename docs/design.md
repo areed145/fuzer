@@ -443,6 +443,56 @@ curves, so the stories read off the charts: export pump A down 8% of head by Aug
 rings; OK-J12-02's choke passing 1.6x its curve until replaced on 15 October 2025; OK-NWP-G3's choke
 restricted by about 35% in August until the bean change.
 
+### 18e. Operating limits, IOWs and excursions (#101)
+
+An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI
+point, dated and with their source record, in `point_limit`:
+
+- **Alarm limits** (HiHi / Hi / Lo / LoLo): PI AF limit traits on an attribute (`pi_af_element.yaml`,
+  a `limits` block over each attribute) and DCS / SCADA alarm exports (`dcs_alarm.yaml`: one row per
+  alarm, the DCS's names for the types mapped, enabled flag, priority, last change). When both give
+  one, the first source in the pack's `limits.priority` counts (Okan: the DCS, which actually alarms).
+- **Integrity operating windows** (API RP 584, `iow_window.yaml`): class (critical / standard /
+  informational), low and high limit, time allowed outside ("2 h", "24 hours"), damage mechanism and
+  response, effective and superseded dates. A register written against an instrument tag counts for
+  that tag's one point.
+- **Learned normal ranges** (`point_normal`, `fuzer limits learn`): the 1st, 50th and 99th percentile
+  of each point per operating mode of its unit over a window (default 90 days). A point with no
+  source limits uses the running range, with a margin, labelled learned. Positions operators set
+  (chokes, valves) are left out (`limits.not_learned`).
+
+**Operating mode.** A point's unit is the equipment tag its instrument belongs to, or the well. A unit
+runs when its run signal, the first of its points matching the pack's `limits.run_signals` (Okan:
+motor power, turbine speed, vibration, choke opening), is above a level; it is in `startup` for
+`settle_minutes` after it starts. Units without a signal (scrubbers, coolers) follow the units in the
+same area and train (the trailing letter of the tag), else the area. Excursions count only while
+running, so a stopped pump's low flow, or a standby pump, raises nothing.
+
+**Checks** (`limits.issues`, `fuzer limits issues`, `/limits/issues`): sources disagreeing (AF not
+updated after an MOC), out of order (Hi above HiHi), disabled, standing (inside the learned normal
+range), implausible (many times the normal value: often psi typed against barg), and missing (no
+alarm limits where most points measuring the same thing have some). Limits flagged standing,
+implausible or out of order aren't used for excursions.
+
+**Excursions** (`limits.scan`, `fuzer limits scan`, the `excursion` table): stretches outside a
+limit while running, with start, end (open while still outside), peak and minutes outside. An
+excursion ends only once the value is back inside by a 1% deadband, as an alarm's does, and back
+outside within 30 minutes is the same one. A scan extends an excursion still open from the last one.
+An IOW breach past its allowed time (critical or standard) starts an `iow_breach` work item (engineer
+review, `requiresHuman`, then a notification if inspection or repair is needed), one per IOW while open;
+later breaches go to it as evidence. The SRE (#96) will run the scan every 6 hours and group what it
+finds.
+
+Limits show on trends (dashed lines, IOWs solid, learned grey; off-scale ones named), on each series
+from `/entities/{id}/values`, in the troubleshooting brief, and through the `limits(ref)` MCP tool.
+
+Okan's limits are set from its process model run without the stories (choke moves kept), so the
+stories cross them: train A's fouled 3rd stage after-cooler breaches IOW-001 (critical, 144 degC, 2 h)
+on hot afternoons in summer 2025 and IOW-004 (standard) for weeks; the inlet separator's high level in
+November 2024. Planted faults (answer key `limits.json`): AF Hi typed in psi, DCS limits moved without
+AF, alarms disabled, Hi above HiHi, a Lo inside the normal range, points with no limits, and an IOW on
+a tag that doesn't exist. The checks find all of them and nothing else (learning on a quiet quarter).
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
@@ -542,6 +592,7 @@ history 0.6 ms (4 ms cold).
 | Network (nodes + edges) | EC allocation, P&ID piping | Pipeline and gathering networks, electrical single-lines, cause & effect matrices and trip logic (input -> trips -> output) |
 | Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
 | Measurements (sparse, landed) | Well tests, LIMS results, inspection thickness readings (CMLs) | Vibration routes, emissions / LDAR surveys |
+| Limits (per point, dated) | PI AF limit traits, DCS alarm exports, IOW registers | Safe operating limits, trip setpoints from cause & effect, equipment design envelopes |
 | Events (time + text + references) | Logs, downtime, notifications, DAY001 | Teams threads, alarm journals, trips |
 | Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |
 | Documents | Manuals, guides, procedures | Any PDF / Office file, datasheets, inspection reports |
@@ -587,6 +638,9 @@ identities, history, review and the graph stay as they are.
 | `golden` | The chosen value per entity and field, and why |
 | `edge` | Typed links with dates, sources and confidence |
 | `measurement` | Landed readings (well tests, lab results, wall thickness) on the entity they were taken on, in stored units |
+| `point_limit` | Alarm limits and IOWs per PI point, dated, from their source record, in stored units |
+| `point_normal` | Normal ranges learned per point and operating mode of its unit |
+| `excursion` | Times a point was outside a limit while its unit ran, and any work item opened for them |
 | `review_item` | Open/decided match and conflict questions |
 | `pinned_link` | Reviewer must-link / cannot-link decisions |
 | `id_event` | Mint / merge / split history |

@@ -1,8 +1,9 @@
-"""Command line: fuzer ingest | rebuild | serve | mcp | jobs | eval | reset ... (fake data: `fakeplant`)."""
+"""Command line: fuzer ingest | rebuild | serve | mcp | jobs | limits | eval | reset ... (fake data: `fakeplant`)."""
 
 import argparse
 import json
 import os
+from collections import Counter
 from pathlib import Path
 
 from . import db, ingest, pipeline
@@ -71,6 +72,14 @@ def main(argv=None):
     w.add_argument("action", choices=["load", "worker", "tick"],
                    help="load: import and publish definitions/*.bpmn; worker: run agent steps with the assistant's "
                         "specialists (Claude; costs money); tick: fire due timers and escalate overdue tasks once")
+
+    lm = sub.add_parser("limits", help="operating limits (#101): learn normal ranges, check limits, scan for excursions")
+    lm.add_argument("action", choices=["learn", "issues", "scan"],
+                    help="learn: normal ranges per point and operating mode from history; issues: limits that look "
+                         "wrong or are missing; scan: record excursions and open work for IOW breaches past their time")
+    lm.add_argument("--since", default=None, help="start (default: learn 90 days, scan 6 hours before --until)")
+    lm.add_argument("--until", default=None, help="end (default: the latest daily report, else today)")
+    lm.add_argument("--step", type=int, default=None, help="minutes between values (default: learn 60, scan 10)")
 
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
@@ -180,6 +189,29 @@ def main(argv=None):
                 _print(_bench(conn, pack))
             elif args.cmd == "rebuild":
                 _print(pipeline.rebuild(conn, pack))
+            elif args.cmd == "limits":
+                _limits(conn, pack, args)
+
+
+def _limits(conn, pack, args) -> None:
+    from datetime import datetime, timedelta
+
+    from . import limits, operations
+
+    if args.action == "issues":
+        found = limits.issues(conn, pack)
+        _print({"issues": len(found), "by_fault": dict(Counter(i["fault"] for i in found)), "items": found})
+        return
+    until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T23:59")
+    back = timedelta(days=90) if args.action == "learn" else timedelta(hours=6)
+    since = args.since or (until - back).isoformat(timespec="minutes")
+    if args.action == "learn":
+        _print(limits.learn(conn, pack, since, until.isoformat(timespec="minutes"), args.step or 60))
+    else:
+        from .workflow import engine
+
+        engine.load_defaults(conn)
+        _print(limits.scan(conn, pack, since, until.isoformat(timespec="minutes"), args.step or 10))
 
 
 def _assistant(args) -> None:

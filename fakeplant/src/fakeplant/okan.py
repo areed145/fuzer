@@ -28,7 +28,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import curves, docs, measurements, pid, process
+from . import curves, docs, limits, measurements, pid, process
 from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
 
 FIELD = "OKAN"
@@ -844,6 +844,12 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "lims_results.csv", lab)
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "oem_curves.csv", curve_rows)
+    # Limits are set from the process model without its stories; AF gets its limit traits before it's written.
+    model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)
+    alarms, iows, limit_truth = limits.okan_limits(model, points, af, seed)
+    _write_csv(out / "dcs_alarms.csv", alarms)
+    _write_csv(out / "iow_register.csv", iows)
+    (out / "answer_keys" / "limits.json").write_text(json.dumps(limit_truth, indent=1))
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
     (out / "ec_network.json").write_text(json.dumps({"nodes": nodes, "edges": edges}, indent=1))
     (out / "pid_sheets.json").write_text(json.dumps(sheets, indent=1))
@@ -855,8 +861,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.process_model); not a source.
-    (out / "process_model.json").write_text(json.dumps(
-        process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)))
+    (out / "process_model.json").write_text(json.dumps(model))
     (out / "answer_keys" / "curves.json").write_text(json.dumps(
         [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",
           # what the datasheet shows: a pump sheet without its table draws only head and efficiency
@@ -870,7 +875,8 @@ def generate(out, seed: int = 11) -> dict:
             "logs": len(logs), "daily_reports": len(daily), "pid_sheets": len(sheets), "documents": len(documents),
             "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
             "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at"),
-            "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings)}
+            "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings),
+            "dcs_alarms": len(alarms), "iows": len(iows)}
 
 
 GUIDES = {

@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from . import curves, db, golden, graph, llm_docs, llm_links, llm_pids, mappings, measurements, spatial
+from . import curves, db, golden, graph, limits, llm_docs, llm_links, llm_pids, mappings, measurements, spatial
 from .extract import extract, link_part_numbers
 from .pack import Pack
 from psycopg.types.json import Jsonb
@@ -85,6 +85,7 @@ def rebuild(conn, pack: Pack) -> dict:
     endpoint = graph.resolver({**assigned, **d_assigned}, key_index)
     stats |= measurements.build(conn, pack, maps, endpoint)
     stats |= curves.build(conn, pack, maps, endpoint)
+    stats |= limits.build(conn, pack, maps, endpoint)
     lap("measurements")
 
     stats["located"] = spatial.index(conn)

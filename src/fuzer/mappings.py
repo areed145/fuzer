@@ -7,7 +7,7 @@ for the same source and record type):
     source: sap
     record_type: equipment
     shape: records          # records | hierarchy | network | timeseries | events | documents | reference |
-                            # geospatial | measurements
+                            # geospatial | measurements | curves | limits
     dataset: sap_equipment  # tables only: the name it has in the data folder
     key: equnr              # tables only: record key column, or a list joined by ">"
     watermark: timestamp    # optional: append-only lake tables read rows at or after the last value
@@ -38,6 +38,20 @@ for the same source and record type):
       values:
         - {quantity: oil_rate, from: oil_sm3d, unit: Sm3/d}
         - {quantity: {from: analyte}, from: result, unit: {from: unit}}
+    limits:                 # operating limits per PI point, landed in point_limit (alarms, IOWs)
+      each: attributes      # optional: a list in the record, one item per point (AF attributes)
+      of: {kind: timeseries, from: pi_point, as: upper}   # a list is tried in order; a tag with one point does
+      basis: alarm          # alarm | iow; basis, unit, level and note: text or a value
+      unit: {from: uom}
+      level: {from: priority}
+      allowed: max_time_outside   # optional column: time allowed outside ("2 h"), stored in minutes
+      enabled: enabled      # optional column: N / no / false / 0 is disabled
+      valid_from: effective_date
+      valid_to: superseded_date
+      types: {PVHH: hihi, PVHI: hi}   # optional: the source's names for the limit types
+      values:
+        - {type: hihi, from: HiHi}
+        - {type: {from: alarm}, from: setpoint}
 
 A `ref` endpoint is a template ("sap:equipment:{equnr}") or a prefix with `from`
 ({ref: "sap:equipment", from: equnr}). Values: a column name, `_key` (the record key), `_row` (the whole row), or
@@ -59,11 +73,11 @@ import yaml
 
 from . import extract as ex
 from . import nel, units
-from .model import Candidate, CurvePoint, Edge, Measurement
+from .model import Candidate, CurvePoint, Edge, Limit, Measurement
 
 DEFAULT_DIR = Path(__file__).parent / "mappings"
 SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial",
-          "measurements", "curves"}
+          "measurements", "curves", "limits"}
 
 
 class MappingError(ValueError):
@@ -110,6 +124,8 @@ def tables(conn=None) -> dict[str, "Mapping"]:
 
 
 SELF = object()  # endpoint: the record's own candidate
+LIMIT_TYPES = ("hihi", "hi", "lo", "lolo")
+DISABLED = {"n", "no", "false", "0", "disabled", "off"}
 
 
 class Mapping:
@@ -152,6 +168,7 @@ class Mapping:
                           for m in raw.get("mentions") or []]
         self.measures = self._measurements(raw["measurements"]) if raw.get("measurements") else None
         self.curve_spec = self._curves(raw["curves"]) if raw.get("curves") else None
+        self.limit_spec = self._limits(raw["limits"]) if raw.get("limits") else None
         self._hooks = []
         for h in raw.get("hooks") or []:
             h = h if isinstance(h, dict) else {"name": h}
@@ -258,6 +275,22 @@ class Mapping:
         return ([self._endpoint(o) for o in of], self._value(spec["at"]), text(spec.get("method")),
                 self._value(spec["location"]) if spec.get("location") else None, values)
 
+    def _limits(self, spec):
+        if not (spec.get("of") and spec.get("values")):
+            raise MappingError(f"limits need of and values{self._where}")
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        col = lambda c: self._value(c) if c else (lambda k, r, p: None)  # noqa: E731
+        of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
+        values = []
+        for v in spec["values"]:
+            if not (v.get("type") and v.get("from")):
+                raise MappingError(f"each limit value needs a type and from{self._where}")
+            values.append((text(v["type"]), self._value(v["from"])))
+        return (spec.get("each"), [self._endpoint(o) for o in of], text(spec.get("basis", "alarm")), text(spec.get("unit")),
+                text(spec.get("level")), col(spec.get("allowed")), col(spec.get("enabled")), col(spec.get("valid_from")),
+                col(spec.get("valid_to")), text(spec.get("note")), {str(k).upper(): t for k, t in (spec.get("types") or {}).items()},
+                values)
+
     def _curves(self, spec):
         if not (spec.get("of") and spec.get("series") and "x" in spec):
             raise MappingError(f"curves need of, series and x{self._where}")
@@ -280,6 +313,36 @@ class Mapping:
         return [CurvePoint(f"{self.source}:{self.record_type}:{key}", of, str(curve_f(key, row, pack) or ""),
                            str(series_f(key, row, pack)), x[0], y[0] if y else None,
                            xu_f(key, row, pack) or None, yu_f(key, row, pack) or None)]
+
+    def limits(self, key: str, row: dict, pack) -> list[Limit]:
+        """The limits in one row (or in each item of its `each` list), in stored units; blanks and values
+        that aren't numbers are skipped, as are types the mapping doesn't know."""
+        if not self.limit_spec:
+            return []
+        each, of_f, basis_f, unit_f, level_f, allowed_f, enabled_f, from_f, to_f, note_f, names, values = self.limit_spec
+        out = []
+        items = enumerate(row.get(each) or [], 1) if each else [(None, row)]
+        for i, item in items:
+            record = f"{self.source}:{self.record_type}:{key}" + (f"#{i}" if i else "")
+            of = [o for o in (o_f(key, item, pack) for o_f in of_f) if o and o[1]]
+            if not of:
+                continue
+            unit, level, enabled = unit_f(key, item, pack) or None, level_f(key, item, pack), enabled_f(key, item, pack)
+            for type_f, value_f in values:
+                t = str(type_f(key, item, pack) or "")
+                t = names.get(t.upper(), t.lower())
+                read = units.reading(raw := value_f(key, item, pack))
+                if read is None or t not in LIMIT_TYPES:
+                    continue
+                value, stored = units.normalise(read[0], unit)
+                out.append(Limit(record, of, t, str(basis_f(key, item, pack) or "alarm").lower(), round(value, 6), stored,
+                                 f"{raw} {unit}".strip() if stored != unit else None,
+                                 str(level).strip().lower() if level not in (None, "") else None,
+                                 units.minutes(allowed_f(key, item, pack)),
+                                 str(enabled).strip().lower() not in DISABLED if enabled is not None else True,
+                                 from_f(key, item, pack) or None, to_f(key, item, pack) or None,
+                                 note_f(key, item, pack) or None))
+        return out
 
     def measure(self, key: str, row: dict, pack) -> list[Measurement]:
         """The readings in one row, in stored units; values that aren't numbers are skipped."""

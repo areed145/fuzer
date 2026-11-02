@@ -67,3 +67,23 @@ class Measurement:
     reported: str | None = None  # the value and unit as the source gave them, when converted
     method: str | None = None
     location: str | None = None  # where on the thing (a CML, a sample point)
+
+
+@dataclass
+class Limit:
+    """One limit on one point: an alarm setpoint (PI AF limit trait, DCS alarm) or one side of an
+    integrity operating window."""
+
+    record: str  # <source>:<record_type>:<key>, with #<n> for the n-th item of a nested list
+    of: list[Endpoint]  # the point (or a tag with one point): the first of these that resolves
+    limit_type: str  # hihi | hi | lo | lolo
+    basis: str  # alarm | iow
+    value: float
+    unit: str | None
+    reported: str | None = None  # the value and unit as the source gave them, when converted
+    level: str | None = None  # IOW class (critical / standard / informational) or alarm priority
+    allowed_minutes: float | None = None  # IOW: time allowed outside before it must be acted on
+    enabled: bool = True
+    valid_from: str | None = None
+    valid_to: str | None = None
+    note: str | None = None

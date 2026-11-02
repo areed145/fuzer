@@ -17,6 +17,10 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    discharge temperature climbing with a fouled cooler, suction pressure falling with a supply problem).
    For a wider or different window use `process_values(ref, at, hours_before, hours_after)`.
    Note the provider: `synthetic` values are not real plant data, so say so.
+   Each series carries its `limits` (alarm hi / lo, IOW windows, or a learned normal range): say which
+   limit a value crossed rather than calling it "high". `limits(ref)` adds each source's values, the
+   checks that fail (a disabled or standing alarm, AF and DCS disagreeing) and recorded excursions;
+   excursions only count while the unit runs, so a stopped unit's low values are not one.
    The brief's `measurements` are the sparse readings PI doesn't have: lab results at the unit's
    sample points (oil in water, BS&W, H2S, dewpoint), well tests, wall thickness. A lab result that
    stepped up weeks before the incident (more oil in the water, a wetter crude) often explains it;

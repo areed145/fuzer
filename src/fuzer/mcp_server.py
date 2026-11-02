@@ -51,6 +51,8 @@ as_of=YYYY-MM-DD to see what was true on a day.
 
 Measurements that aren't in PI (well tests, lab results at sample points, wall thickness at CMLs) are
 landed and kept: `measurements(ref)` returns them per quantity and location next to process values.
+Operating limits per point (alarm limits from the DCS and PI AF, integrity operating windows, normal ranges
+learned from history) and excursions outside them, counted only while the unit runs: `limits(ref)`.
 
 Charts: the plot_* tools build interactive charts from Fuzer data and return a figure id, a
 `[[figure:<id>]]` marker and a summary of what the chart shows (never the plotted arrays); the chart
@@ -462,10 +464,26 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        out = timeseries.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720))
+        out = timeseries.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720), pack=PACK)
     if "series" in out:
         out["series"] = [{k: v for k, v in s.items() if k != "values"} for s in out["series"]]
     return _plain(out)
+
+
+@server.tool(annotations=READ_ONLY)
+def limits(ref: str, at: str | None = None) -> dict[str, Any]:
+    """Operating limits on a PI point, or on every point of a unit (tag, equipment, well): the alarm limits
+    that count (hihi / hi / lo / lolo, from the DCS or PI AF), integrity operating windows (IOWs: class,
+    low / high and the time allowed outside), the normal range learned from history while the unit runs
+    (used as the limit, labelled learned, when no source gives one), each source's values, checks that
+    fail (sources disagree, disabled, standing, out of order, implausible, missing) and the latest
+    excursions with any work item opened for them. at (ISO date) for the limits valid then."""
+    from . import limits as lim
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        return _plain(lim.for_entity(conn, PACK, fid, at))
 
 
 @server.tool(annotations=READ_ONLY)

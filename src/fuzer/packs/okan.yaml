@@ -142,3 +142,18 @@ value:
     priority_days: {"1": 0, "2": 7, "3": 30, "4": 90}   # SAP priority -> days to consequence
   effort_usd: {incident: 25000, work_order: 20000, maintenance_plan: 15000, opportunity: 3000}
   weights: {production: 1.0, risk: 1.0, compliance: 1.0}
+
+# Operating limits (#101). Alarm limits come from the DCS export and PI AF limit traits; when both give
+# one, the first source here counts (the DCS is what actually alarms). A unit runs when its run signal,
+# the first of its points matching one of run_signals, is at or above `above` (stopped under `below`,
+# which defaults to a third of it); units without one follow the units around them (same area and train).
+limits:
+  priority: [dcs, pi_af]
+  run_signals:
+    - {uom: kW, above: 20}
+    - {uom: rpm, above: 3000}
+    - {uom: mm/s, above: 1.0}
+    - {point: '\.CHOKE$', above: 5}
+  settle_minutes: 180     # after a start, temperatures and pressures settle before limits count
+  # Positions operators set get no learned range.
+  not_learned: ['\.CHOKE$', 'Valve$', 'ESDV$']
