@@ -7,7 +7,9 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
 
 1. **Find the unit and the incident.** Resolve the tag or well with `search` / `get_entity`. If the user
    names an event ("train B tripped last night"), list the unit's incidents with `get_incidents` and pick
-   the one that matches; give the date you picked.
+   the one that matches; give the date you picked. For "what happened since ..." without a unit, start
+   with `what_changed(since)`: log events, notifications, work orders, downtime, incidents, equipment
+   swaps, limit changes and excursions in the window.
 2. **One call for the picture:** `troubleshooting_brief(ref)` returns the incident timeline, similar past
    incidents and how they ended, approved lessons, manual / guide sections for the failure modes,
    maintenance history, downtime, spares in stock, suggested checks, and a process-value summary.
@@ -26,7 +28,15 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    stepped up weeks before the incident (more oil in the water, a wetter crude) often explains it;
    `measurements(ref, quantity, history=true)` gives the full record.
    For a pump or a well's choke, compare it with its OEM curve: `plot_pump_curve` (lost head, running
-   off the BEP), `plot_choke` (eroded or restricted trim).
+   off the BEP), `plot_choke` (eroded or restricted trim); `calc("pump_curve" | "choke", ref)` gives the
+   same as one number against expected, with its basis, to cite.
+   **Can the reading be trusted?** Before resting a cause on one transmitter, run
+   `instrument_health(ref)` over the window: a noisy (hunting), frozen, stuck or out-of-range reading,
+   or A / B transmitters drifting apart, is an instrument problem, not the process. A level transmitter
+   hunting while the real level runs high is a classic way to carry liquid over; say which it was.
+   **When did it change?** `detect_changes(ref, since, until)` gives the steps, drifts and jitter changes
+   on each point with their start times; the earliest change on the unit or upstream is usually nearer
+   the cause than the trip. `plot_changes` / `plot_instrument_health` chart them.
 4. **History repeats.** Similar incidents with the same failure mode on the same unit mean the earlier
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds

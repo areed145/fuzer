@@ -8,7 +8,7 @@ fake asset reads as if it were current; pass as_of to look from another day.
 """
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from . import queries
 from .queries import _DOWNTIME
@@ -535,3 +535,104 @@ def gas_lift_network(conn, ref_id: str | None = None, since: str | None = None, 
                               for n in supply(ref_id)]
         out["wells"] = per_well
     return out
+
+
+# --- what changed ----------------------------------------------------------------------------------
+
+def _within(value: str | None, since: datetime, until: datetime) -> bool:
+    """A source time in [since, until). A date without a time (SAP dates) counts on any window that
+    overlaps its day, so a 6-hour run sees the day's new notifications once that day starts."""
+    if not value:
+        return False
+    if len(value) <= 10:
+        day = date.fromisoformat(value[:10])
+        return since.date() <= day <= (until - timedelta(minutes=1)).date()
+    return since <= datetime.fromisoformat(value[:19]) < until
+
+
+def what_changed(conn, since: str, until: str | None = None, limit: int = 20) -> dict:
+    """What happened in the plant's records between two times: new events from the logs, new
+    notifications, work orders started and finished, downtime started and ended, incidents, equipment
+    installed or removed, limits that took or stopped taking effect, excursions, and new well tests. By the
+    record's own time (plant time), so a replay of history sees what the run would have seen then.
+    until defaults to the end of the data's today. Each list is newest first, at most `limit` long, with
+    its full count in `counts`. The starting snapshot of each SRE run (#96) and the daily report (#98)."""
+    a = datetime.fromisoformat(since)
+    b = datetime.fromisoformat(until) if until else datetime.fromisoformat(as_of(conn)) + timedelta(days=1)
+    lo, hi = a.date().isoformat(), b.isoformat()  # generous text bounds for the SQL; _within decides
+
+    def kind(k: str, field: str) -> list[dict]:
+        return [r for r in _rows(conn, k, "f->>%(field)s >= %(lo)s and f->>%(field)s <= %(hi)s",
+                                 {"field": field, "lo": lo, "hi": hi}) if _within(r["f"].get(field), a, b)]
+
+    def pick(rows: list[dict], at: str, *fields: str) -> list[dict]:
+        rows = sorted(rows, key=lambda r: r["f"].get(at) or "", reverse=True)
+        return [{"id": r["id"], "label": r["label"], "at": r["f"].get(at), **{f: r["f"].get(f) for f in fields}}
+                for r in rows]
+
+    out = {
+        "events": pick(kind("event", "timestamp"), "timestamp", "event_type", "summary"),
+        "notifications": pick(kind("notification", "created"), "created", "notif_type", "short_text", "priority",
+                              "failure_mode_name", "status"),
+        "work_orders_started": pick(kind("work_order", "start"), "start", "order_type", "description", "status"),
+        "work_orders_finished": pick(kind("work_order", "finish"), "finish", "order_type", "description", "status"),
+        "downtime_started": pick(kind("downtime", "start"), "start", "reason", "comment", "end", "lost_oil_sm3"),
+        "downtime_ended": pick(kind("downtime", "end"), "end", "reason", "start", "duration_h", "lost_oil_sm3"),
+        "incidents": pick(kind("incident", "start"), "start", "description", "end", "lost_oil_sm3"),
+    }
+    tags = _tags_of(conn, [x["id"] for k in ("notifications", "work_orders_started", "work_orders_finished")
+                           for x in out[k]])
+    for k in ("notifications", "work_orders_started", "work_orders_finished"):
+        for x in out[k]:
+            x["tag"] = tags.get(x["id"])
+    out["equipment"] = [{"equipment": {"id": r["src"], "label": r["el"]}, "tag": {"id": r["dst"], "label": r["tl"]},
+                         "change": r["change"], "at": r["at"].isoformat()} for r in conn.execute(
+        """
+        select * from (
+            select e.src, e.dst, 'installed' as change, e.valid_from as at from edge e
+            where e.rel = 'installed_at' and e.valid_from >= %(a)s::date and e.valid_from <= %(b)s::date
+            union all
+            select e.src, e.dst, 'removed', e.valid_to from edge e
+            where e.rel = 'installed_at' and e.valid_to >= %(a)s::date and e.valid_to <= %(b)s::date
+        ) x
+        left join lateral (select label as el from entity_label where fuzer_id = x.src) el on true
+        left join lateral (select label as tl from entity_label where fuzer_id = x.dst) tl on true
+        order by at desc, change
+        """, {"a": a, "b": b - timedelta(minutes=1)}) if _within(r["at"].isoformat(), a, b)]
+    out["limits"] = [{"point": r["label"], "point_id": r["point_id"], "limit_type": r["limit_type"], "source": r["source"],
+                      "basis": r["basis"], "value": r["value"], "unit": r["unit"], "change": r["change"],
+                      "at": r["at"].isoformat(timespec="minutes"), "record": r["record"]} for r in conn.execute(
+        """
+        select * from (
+            select l.*, 'takes effect' as change, l.valid_from as at from point_limit l
+            where l.valid_from >= %(a)s and l.valid_from < %(b)s
+            union all
+            select l.*, 'ends', l.valid_to from point_limit l where l.valid_to >= %(a)s and l.valid_to < %(b)s
+        ) x left join entity_label e on e.fuzer_id = x.point_id
+        order by at desc
+        """, {"a": a, "b": b})]
+    out["excursions"] = [{"point": r["label"], "point_id": r["point_id"], "limit_type": r["limit_type"],
+                          "basis": r["basis"], "limit_value": r["limit_value"], "peak": r["peak"],
+                          "start": r["start"].isoformat(timespec="minutes"),
+                          "end": r["end"].isoformat(timespec="minutes") if r["end"] else None,
+                          "work_item_id": r["work_item_id"]} for r in conn.execute(
+        """
+        select x.*, l.label from excursion x left join entity_label l on l.fuzer_id = x.point_id
+        where x.start >= %(a)s and x.start < %(b)s order by x.start desc
+        """, {"a": a, "b": b})]
+    tests = {}
+    for r in conn.execute(
+        """
+        select m.record, m.fuzer_id, l.label, m.at, m.quantity, m.value from measurement m
+        left join entity_label l using (fuzer_id)
+        where m.method = 'well test' and m.at >= %(a)s and m.at < %(b)s order by m.at desc
+        """, {"a": a, "b": b}):
+        t = tests.setdefault(r["record"], {"record": r["record"], "well": {"id": r["fuzer_id"], "label": r["label"]},
+                                           "at": r["at"].isoformat()[:10]})
+        t[r["quantity"]] = r["value"]
+    out["well_tests"] = list(tests.values())
+    counts = {k: len(v) for k, v in out.items()}
+    return {"since": a.isoformat(timespec="minutes"), "until": b.isoformat(timespec="minutes"), "counts": counts,
+            "total": sum(counts.values()), **{k: v[:limit] for k, v in out.items()},
+            "note": "SAP notifications carry no closing date, so closed notifications aren't listed; dates without a "
+                    "time count on any window overlapping their day"}

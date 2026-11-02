@@ -23,7 +23,9 @@ A repeat failure is the same failure mode on the same unit more than once in the
    change per year (negative = loss). Compare CMLs on the same item and items in the same service: one
    losing several times faster than its neighbours points at a changed condition (water, sand, flow
    regime) worth tying to well tests or lab results. Remaining life needs the minimum required
-   thickness from the design, which Fuzer doesn't hold; say so rather than guessing it.
+   thickness from the design, which Fuzer doesn't hold; say so rather than guessing it. With it,
+   `calc("wall_loss", ref, min_required_mm=...)` gives the fastest CML against the item's median and the
+   remaining life per CML (`retire_soon`, `localised`).
    Integrity operating windows (IOWs) are the process side of this: `limits(ref)` lists a unit's IOWs
    (class, limits, time allowed outside) and excursions past them; a breach past its allowed time
    already has an `iow_breach` work item. Repeated breaches explain faster wall loss or seal damage.
@@ -31,7 +33,11 @@ A repeat failure is the same failure mode on the same unit more than once in the
    Head falling below the curve month by month at the same flow means internal wear (wear rings,
    impeller): quote `head_vs_curve_by_month` and the month it started. Running far from the BEP
    (outside the preferred region) shortens seal and bearing life; say how much time was spent there.
-   `equipment_curves(ref)` gives the curve itself.
+   `equipment_curves(ref)` gives the curve itself; `calc("pump_curve", ref)` the latest month's head
+   against the curve as one number (`head_loss` at 5 % below).
+   **Citing a fit:** `calc("reliability", ref, method="weibull" | "crow_amsaa")` returns beta against 1
+   with its basis (`wear_out`, `early_life`, `failures_accelerating`); quote it rather than reading the
+   number off a chart.
 6. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
 

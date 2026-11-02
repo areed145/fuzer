@@ -54,6 +54,12 @@ landed and kept: `measurements(ref)` returns them per quantity and location next
 Operating limits per point (alarm limits from the DCS and PI AF, integrity operating windows, normal ranges
 learned from history) and excursions outside them, counted only while the unit runs: `limits(ref)`.
 
+Diagnostics return numbers to cite as evidence, {{value, expected, deviation, flag, basis, sources}}:
+`calc(check, ref)` (decline, gas lift optimum, pump and choke against OEM curves, Weibull / Crow-AMSAA, wall
+loss), `instrument_health(ref)` (frozen, stuck, noisy, out of range, redundant drift), `detect_changes(ref)`
+(steps, drifts, jitter changes with their start times) and `what_changed(since)` (what the records say
+happened since a time).
+
 Charts: the plot_* tools build interactive charts from Fuzer data and return a figure id, a
 `[[figure:<id>]]` marker and a summary of what the chart shows (never the plotted arrays); the chart
 opens at the returned link. `look_at_figure` shows one as an image when the summary isn't enough.
@@ -484,6 +490,75 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
         if err:
             return err
         return _plain(lim.for_entity(conn, PACK, fid, at))
+
+
+# --- diagnostics (calcs.py, signals.py): numbers with their basis, to cite as evidence -----------------
+
+@server.tool(annotations=READ_ONLY)
+def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss"], ref: str,
+         method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
+         breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
+    """One diagnostic check as a number against what it should be: {value, expected, deviation,
+    deviation_pct, flag, basis, sources}. Cite it as evidence; flag is set only when they disagree enough to
+    act on. decline (well): latest test against its Arps fit (below_decline, step_down). gas_lift (well):
+    lift gas against the optimum on its curve (more_gas, less_gas, below_curve = valve failed open).
+    pump_curve (pump): head against the OEM curve at the same flow, latest month (head_loss). choke (well
+    or choke): effective Cv against the characteristic (eroded, restricted). reliability (tag, equipment or
+    class; method weibull | crow_amsaa): beta against 1 (wear_out, early_life, failures_accelerating).
+    wall_loss (vessel, piping, pipeline): fastest CML loss against the median, remaining life with
+    min_required_mm (retire_soon, localised). until (ISO) works it out as of then. The plot_* chart of the
+    same name shows the fit."""
+    from . import calcs
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        try:
+            return _plain(calcs.run(conn, check, fid, method=method, model=model, days=days, breakeven=breakeven,
+                                    min_required_mm=min_required_mm, until=until))
+        except calcs.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
+def instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """Can the readings be trusted? On a PI point, or every point on a unit: frozen (no change while the
+    unit runs), stuck (jitter collapsed), noisy (hunting: jitter several times its usual), out of range,
+    and redundant transmitters (A / B) drifting apart. Each finding has its span, value against the usual,
+    basis and sources. Check it before blaming the process on one transmitter's word. Default window: the
+    last 14 days; since / until ISO times."""
+    from . import signals
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        since, until = signals.window(conn, since, until)
+        return _plain(signals.instrument_health(conn, PACK, fid, since, until))
+
+
+@server.tool(annotations=READ_ONLY)
+def detect_changes(ref: str, since: str | None = None, until: str | None = None, limit: int = 40) -> dict[str, Any]:
+    """Where a PI point (or each point on a unit) stepped (a trip, a choke move), drifted (fouling, wear)
+    or changed its jitter (a transmitter starting to hunt), with when it started, the value before and
+    after, and a score; the `limit` strongest. Default window: the last 14 days; since / until ISO times."""
+    from . import signals
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        since, until = signals.window(conn, since, until)
+        return _plain(signals.changes(conn, fid, since, until, limit=min(limit, 200)))
+
+
+@server.tool(annotations=READ_ONLY)
+def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """What happened in the records between two times (plant time): new log events, notifications, work
+    orders started and finished, downtime started and ended, incidents, equipment installed or removed,
+    limits taking or ending effect, excursions and new well tests, with counts. Start here for "what
+    happened since ..." and each shift's or run's snapshot. since / until ISO times (until: now)."""
+    from . import operations
+    with db.connect() as conn:
+        return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
 
 @server.tool(annotations=READ_ONLY)
@@ -927,6 +1002,23 @@ def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
     ref: a well or its choke tag. Says which datasheet is waiting when the model has no curve yet."""
     from .plots import production
     return _chart(production.choke, {"days": min(days, 1100)}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy,
+    frozen or stuck, out of range, apart from its redundant twin). Default window: the last 14 days."""
+    from .plots import troubleshooting
+    return _chart(lambda conn, **kw: troubleshooting.instrument_health(conn, pack=PACK, **kw),
+                  {"since": since, "until": until}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_changes(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """Chart a point's or a unit's readings with the steps and jitter changes detect_changes finds marked
+    and drifts shaded. Default window: the last 14 days."""
+    from .plots import troubleshooting
+    return _chart(troubleshooting.changes, {"since": since, "until": until}, {"fid": ref})
 
 
 @server.tool(annotations=READ_ONLY)

@@ -39,8 +39,9 @@ UPSETS = {"trip", "shutdown", "shut_in", "vibration", "fouling", "discharge_temp
 ROUTINE = {"choke", "stopped", "covering", "open", "curtail", "down"}
 
 
-class Peek(Exception):
-    """A detector asked for values after the replay clock."""
+class Peek(BaseException):
+    """A detector asked for values after the replay clock. A BaseException, so a detector's own "skip a
+    point that can't be read" handling (except Exception) can't hide a look into the future."""
 
 
 class Clocked:

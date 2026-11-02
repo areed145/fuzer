@@ -24,6 +24,10 @@ description: Production engineering for wells - well test trends (rate, water cu
    (water shut-off), big decline vs neighbours (stimulation / scale squeeze). Rank by Sm³/d at stake.
 
 Quote test dates and values; one test is not a trend, so say how many tests support a conclusion.
+`calc("decline", well)` puts the latest test against the Arps fit through the ones before it
+(`below_decline`, `step_down`), and `calc("gas_lift", well)` its lift gas against the optimum on its
+curve (`more_gas`, `less_gas`, `below_curve` = valve failed open): numbers with their basis to cite.
+`detect_changes(well)` finds when its wellhead pressure, rates or casing pressure stepped or drifted.
 
 **Chokes.** `plot_choke(well)` compares the well's choke with its OEM characteristic (effective Cv
 against opening, from each test's liquid rate and the pressure drop to the header; for gas wells from

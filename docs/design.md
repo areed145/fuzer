@@ -525,6 +525,60 @@ false alarms per week, seconds per window. Each `fuzer eval --ops` run is kept i
 detector to test the scoring and the `limits` detector (the #101 excursions, standing in until #96).
 Grouping, diagnosis, daily reports and the opportunity scan are scored later.
 
+### 18g. Diagnostic calcs that return numbers (#105)
+
+The charts were built for a person asking a question; detectors, the replay scorer and workflow steps
+need the number behind them. Each check is a plain function used three ways: a `plot_*` chart for
+people, an MCP tool for agents, and (from #96) a detector. They return one shape to keep as evidence and
+cite: `{value, expected, deviation, deviation_pct, flag, basis, sources}`. `flag` is a short code only
+when value and expected disagree enough to act on.
+
+**Calcs (`calcs.py`, the `calc` tool).** The fits that lived inside the plot builders moved here, and
+the charts draw from them (every chart on Okan is unchanged): the latest well test against its Arps
+decline (`step_down`, `below_decline`), lift gas against the optimum on the well's curve (`more_gas`,
+`less_gas`, `below_curve` for a valve failed open), a pump's head against its OEM curve at the same flow
+(`head_loss`), a choke's effective Cv against its characteristic, judged on the readings since any
+replacement (`eroded`, `restricted`), Weibull or Crow-AMSAA beta (`wear_out`, `early_life`,
+`failures_accelerating`), and the fastest CML's wall loss against the item's median with remaining life
+(`retire_soon`, `localised`). Each takes `until` so it can run as of a past time. `CHECKS` records who
+uses each one.
+
+**Instrument health (`signals.py`, `instrument_health`).** Whether a reading can be trusted, apart from
+whether the process is upset. A reading is *frozen* when it doesn't change for 2 h, *stuck* when its
+step-to-step jitter falls under a tenth of its usual for 6 h, and *noisy* when the jitter is over 4×
+its usual for 1 h. Frozen and stuck only count while the unit runs. "Usual" means the 7 days before the
+window. *Out of range* is sitting at or past the range end for 30 min, and *redundant drift* is A / B
+transmitters on one unit moving apart from their usual offset for 2 h. Findings within 4 h of each
+other merge. On Okan it finds 20-LT-2001 hunting from 02:10 on 4 November to 11:30 on 12 November
+2024 (injected 02:00 to 12:30). The pressure transmitter on the same vessel stays clean.
+
+**Change detection (`detect_changes`).** These checks find where a series steps, drifts or changes
+its jitter, and when. A *step* is a move between the medians of the windows either side (3 h, or 6
+steps) that stands out from how far those windows usually move in that series. A daily swing moves
+them every day; a trip moves them once. A *variance* change is a jitter ratio of 4× or more that also
+stands out from the series' usual ratios, and isn't next to a step. A *drift* is a straight-line trend
+in the window medians between steps that clears the spread left around it (r² ≥ 0.7). On Okan these
+find:
+- train C's two trips as steps on every machine point;
+- the transmitter fault starting and ending;
+- each summer's after-cooler fouling as a drift ending at the clean;
+- OK-NWP-G3's choke plugging as a gas-rate drift down, then a step at the bean change.
+
+Both read only up to `until`. The replay's `Peek` is a `BaseException`, so a "skip an unreadable
+point" handler can't hide a look into the future.
+
+**What changed (`operations.what_changed`).** These are the records whose own time falls between two
+times:
+- log events and new notifications;
+- work orders started and finished;
+- downtime started and ended, and incidents;
+- equipment installed or removed;
+- limits taking or ending effect, and excursions;
+- new well tests.
+
+It is the starting snapshot for each SRE run and daily report. Dates without a time (SAP) count on every
+window that overlaps their day. SAP notifications carry no closing date, so closed ones aren't listed.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

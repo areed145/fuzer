@@ -1,5 +1,8 @@
 """Troubleshooting charts: an incident on one page, which process values move together (and which
-moved first), and vibration against ISO 20816 zones."""
+moved first), vibration against ISO 20816 zones, and readings with their instrument health findings or
+the changes found in them (signals.py)."""
+
+import math
 
 from . import ChartError, Figure, axis, layout, rnd, stacked, thin
 from .general import _shade_upsets, _summ, _window, short, synthetic_note
@@ -159,3 +162,75 @@ def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
         "latest": v["last"], "latest_zone": zone(v["last"]), "peak": v["max"], "peak_zone": zone(v["max"]),
         "lead_in": v.get("lead_in"), "incidents_in_window": upsets, "provider": out["provider"],
         **synthetic_note(out["provider"], series)}, [fid, v["id"]])
+
+
+FINDING_COLOURS = {"noisy": "rgba(200,50,45,0.18)", "frozen": "rgba(60,110,200,0.18)", "stuck": "rgba(60,110,200,0.18)",
+                   "out_of_range": "rgba(190,120,0,0.22)", "redundant_drift": "rgba(140,70,170,0.18)",
+                   "drift": "rgba(110,120,135,0.16)"}
+
+
+def _signal_panels(title: str, out: dict, marks: list[dict], max_series: int) -> tuple[list[dict], dict, list[dict]]:
+    """The points with something to show first, stacked; findings shaded on their panel, changes at a
+    point in time drawn as a line with a marker on the value."""
+    hit = {m["point_id"] for m in marks}
+    series = sorted(out["series"], key=lambda s: s["id"] not in hit)[:max_series]
+    if not series:
+        raise ChartError("no process values in that window")
+    times = [t.isoformat(timespec="minutes") for t in out["times"]]
+    data, lay, shapes = [], layout(title, showlegend=False), []
+    for i, (s, dom) in enumerate(zip(series, stacked(len(series)))):
+        ref, key = axis(i)
+        vals = [None if math.isnan(v) else round(float(v), 4) for v in s["values"]]
+        xs, ys = thin(times, vals)
+        data.append({"type": "scatter", "mode": "lines", "name": s["point"], "x": xs, "y": ys, "yaxis": ref,
+                     "meta": {"entity": s["id"]}, "hovertemplate": f"%{{y:.3g}} {s['uom'] or ''}<extra>{s['point']}</extra>"})
+        lay[key] = {"domain": dom, "title": {"text": short(s), "font": {"size": 10}}}
+        mine = [m for m in marks if m["point_id"] == s["id"]]
+        for m in mine:
+            if m.get("end") and (m["flag"] in FINDING_COLOURS):
+                shapes.append({"type": "rect", "xref": "x", "yref": f"{ref} domain", "x0": m["start"], "x1": m["end"],
+                               "y0": 0, "y1": 1, "fillcolor": FINDING_COLOURS[m["flag"]], "line": {"width": 0},
+                               "layer": "below"})
+            else:
+                shapes.append({"type": "line", "xref": "x", "yref": f"{ref} domain", "x0": m["start"], "x1": m["start"],
+                               "y0": 0, "y1": 1, "line": {"dash": "dot", "width": 1}})
+        if mine:
+            at = {t: v for t, v in zip(times, vals)}
+            data.append({"type": "scatter", "mode": "markers", "name": f"{s['point']} findings", "yaxis": ref,
+                         "x": [m["start"] for m in mine], "y": [at.get(m["start"]) for m in mine],
+                         "text": [f"{m['flag'].replace('_', ' ')}: {m['expected']} -> {m['value']}" for m in mine],
+                         "marker": {"size": 9, "symbol": "diamond"}, "hovertemplate": "%{x}<br>%{text}<extra></extra>"})
+    lay["xaxis"] = {"anchor": axis(len(series) - 1)[0], "range": [times[0], times[-1]]}
+    lay["shapes"] = shapes
+    lay["height"] = 160 + 130 * len(series)
+    return data, lay, series
+
+
+def instrument_health(conn, fid: str, since: str | None = None, until: str | None = None, days: int = 14,
+                      pack=None, max_series: int = 6) -> Figure:
+    """A point's or a unit's readings with the stretches instrument health flags shaded (noisy red, frozen
+    or stuck blue, out of range amber, apart from its redundant twin purple)."""
+    from .. import signals
+
+    since, until = signals.window(conn, since, until, days)
+    out = signals.instrument_health(conn, pack, fid, since, until, values=True)
+    data, lay, series = _signal_panels(f"Instrument health {since[:10]} to {until[:10]}", out, out["findings"], max_series)
+    return Figure("instrument_health", lay["title"]["text"], data, lay, {
+        "window": [since, until], "points": out["points"], "suspect": out["suspect"],
+        "findings": [{k: f[k] for k in ("point", "flag", "start", "end", "minutes", "value", "expected", "basis")}
+                     for f in out["findings"][:20]]}, [s["id"] for s in series])
+
+
+def changes(conn, fid: str, since: str | None = None, until: str | None = None, days: int = 14,
+            max_series: int = 6) -> Figure:
+    """A point's or a unit's readings with the steps and variance changes detect_changes finds marked,
+    and drifts shaded."""
+    from .. import signals
+
+    since, until = signals.window(conn, since, until, days)
+    out = signals.changes(conn, fid, since, until, values=True)
+    data, lay, series = _signal_panels(f"Changes {since[:10]} to {until[:10]}", out, out["changes"], max_series)
+    return Figure("changes", lay["title"]["text"], data, lay, {
+        "window": [since, until], "step_minutes": out["step_minutes"], "points": out["points"], "found": out["found"],
+        "changes": [{k: c.get(k) for k in ("point", "flag", "start", "end", "expected", "value", "deviation_pct", "score",
+                                           "per_day")} for c in out["changes"][:20]]}, [s["id"] for s in series])
