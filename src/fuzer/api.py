@@ -312,6 +312,37 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
     return row
 
 
+@app.get("/value")
+def value_ranking(kind: list[str] | None = Query(None), by: Literal["value", "per_effort"] = "value",
+                  ref: str | None = None, as_of: str | None = None, limit: int = 50, conn=Depends(get_conn)):
+    """Upsets, work, plans and opportunities ranked by the shared value / risk score (#100)."""
+    from . import value
+    fid = queries.resolve_ref(conn, PACK, ref) if ref else None
+    return value.ranked(conn, PACK, tuple(kind or value.KINDS), as_of, by, fid, min(limit, 500))
+
+
+class Ranking(BaseModel):
+    items: list[str]  # fuzer ids (or opportunity ids), most valuable first
+    comment: str | None = None
+    by: str = "anonymous"
+
+
+@app.post("/value/rankings")
+def value_rank(r: Ranking, conn=Depends(get_conn)):
+    """An engineer's own ordering of a sample, to calibrate the score against."""
+    row = conn.execute("insert into value_ranking (items, comment, by_user) values (%s, %s, %s) returning id",
+                       (Jsonb(r.items), r.comment, r.by)).fetchone()
+    conn.commit()
+    return row
+
+
+@app.get("/value/calibration")
+def value_calibration(as_of: str | None = None, conn=Depends(get_conn)):
+    """How well the score's ranking agrees with engineers' orderings (Kendall's tau, top-3 overlap)."""
+    from . import value
+    return value.calibrate(conn, PACK, as_of)
+
+
 class Image(BaseModel):
     media_type: Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
     data: str  # base64

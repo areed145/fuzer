@@ -391,7 +391,8 @@ asked). 30 read-only tools: the graph (`get_ontology`, `search`, `get_entity`, `
 `process_values`, `lessons_learned`, ...) and asset-wide operations
 (`production_summary`, `deferment_pareto`, `production_constraints`,
 `well_performance`, `bad_actors`, `work_order_backlog`, `maintenance_compliance`,
-`turnaround_scope`). Anything that takes a `ref` accepts a tag in any style, a well,
+`turnaround_scope`), and `value_score`: the shared value / risk score that ranks upsets,
+work, plans and opportunities in money, with every input and source shown. Anything that takes a `ref` accepts a tag in any style, a well,
 a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production
 separator on 2024-01-01, and what changed after?"* or *"Which pumps were
 swapped, and what replaced them?"*

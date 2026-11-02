@@ -578,6 +578,27 @@ def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def value_score(ref: str | None = None,
+                kinds: list[Literal["incident", "work_order", "maintenance_plan", "opportunity"]] | None = None,
+                by: Literal["value", "per_effort"] = "value", as_of: str | None = None,
+                limit: int = 20) -> dict[str, Any]:
+    """The shared value / risk score: upsets, open work orders, overdue or due maintenance plans and gas
+    lift opportunities ranked in money over the pack's horizon (by value, or by value per effort). Each
+    item has its production, risk (consequence x likelihood on the risk matrix, from SAP ABC criticality
+    and failure history), compliance, urgency and effort, with inputs, sources, what is unknown and a
+    one-line reason. Use these numbers when saying one thing matters more than another. With ref (an
+    item or a tag): only the items for it."""
+    from . import value
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain(value.ranked(conn, PACK, tuple(kinds or value.KINDS), as_of, by, fid, min(limit, 200)))
+
+
+@server.tool(annotations=READ_ONLY)
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with

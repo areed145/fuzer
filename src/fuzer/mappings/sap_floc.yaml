@@ -1,4 +1,5 @@
-# SAP functional locations: the plant hierarchy (facility > area > tag, wells under areas).
+# SAP functional locations: the plant hierarchy (facility > area > tag, wells under areas). abc_indicator
+# is SAP's ABC criticality (A highest); blank means not assessed.
 source: sap
 record_type: floc
 shape: hierarchy
@@ -6,7 +7,7 @@ dataset: sap_floc
 key: floc
 entity:
   node: {from: _key, as: floc}
-  fields: [description]
+  fields: [description, [criticality, {from: abc_indicator}]]
 links:
   - rel: part_of
     when: parent

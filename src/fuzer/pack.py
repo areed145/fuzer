@@ -24,6 +24,7 @@ class Pack:
     maintenance_codes: dict
     downtime_reasons: dict
     spatial_links: list
+    value: dict
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -47,4 +48,5 @@ def load_pack(name: str | None = None) -> Pack:
         maintenance_codes=raw.get("maintenance_codes", {}),
         downtime_reasons=raw.get("downtime_reasons", {}),
         spatial_links=raw.get("spatial_links", []),
+        value=raw.get("value", {}),
     )
