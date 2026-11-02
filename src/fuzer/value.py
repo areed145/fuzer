@@ -389,6 +389,17 @@ def _opportunities(conn, ctx: dict) -> list[Item]:
             sources={"oil_sm3d": f"EC well tests {net['since']} to {net['until']}: lift gas response",
                      "time_to_consequence_days": "gain starts when the move is made"},
             notes=[f"moves {share:.0%} of {lo['well']}'s lift gas"]))
+    exists = conn.execute("select to_regclass('debottleneck_option') is not null as x").fetchone()["x"]
+    for o in conn.execute("select * from debottleneck_option where gain_sm3d > 0 order by rank") if exists else []:
+        d = o["detail"]
+        out.append(Item(
+            "opportunity", f"debottleneck:{o['kind']}:{o['target']}", o["action"], d.get("basis"),
+            None, o["target"] if (o["target"] or "").startswith("fz-tag") else None, oil_sm3d=o["gain_sm3d"],
+            risk_applies=False, time_to_consequence_days=0.0,
+            sources={"oil_sm3d": f"back-pressure model (#107), scanned {o['as_of']}", "time_to_consequence_days":
+                     "gain starts when the change is made"},
+            notes=[f"confidence {d.get('confidence')}", f"next constraint: {d.get('next_constraint')}",
+                   f"confirm by {d.get('confirm_by')}"]))
     return out
 
 

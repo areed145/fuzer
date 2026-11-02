@@ -22,6 +22,9 @@ their effects: deferment by reason, the units causing it, and the operator log.
    (hand to maintenance), spare capacity or redistribution (lift gas priority to the best responders,
    from `well_performance`), operating envelope (process values near limits via `process_values`).
    The data has no nameplate capacities; say so when an answer depends on one.
+5. **Back-pressure** holds wells back without a deferment record. When an answer depends on hydraulics
+   ("what's holding back jacket X?", "what would lowering the separator give?"), load the
+   `back-pressure` skill. `debottleneck_options` ranks the options with their gain and next constraint.
 
 Report: the top constraints ranked, each with its cause unit(s), volume, frequency and trend, the
 cascade it triggers, and the options to relieve it.

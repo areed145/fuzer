@@ -736,6 +736,22 @@ def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> 
 
 
 @server.tool(annotations=READ_ONLY)
+def debottleneck_options(scope: str = "facility", at: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """Ranked actions against back-pressure: lower a separator to its next limit, pig a flowline whose
+    pressure drop is rising, reroute a well to a lower header, open a throttled choke. Each with oil gained
+    (from the back-pressure model), confidence, the next constraint it runs into, and what would confirm it.
+    Proposals for people to decide, never operating instructions."""
+    from . import hydraulics
+    with db.connect() as conn:
+        sc = scope
+        if scope != "facility":
+            sc, err = _resolve(conn, scope)
+            if err:
+                return err
+        return _plain(hydraulics.debottleneck_options(conn, PACK, sc, at, limit=min(limit, 30)))
+
+
+@server.tool(annotations=READ_ONLY)
 def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
     """How close each point on a unit (compressor, separator, pump) runs to its nearest limit (alarm, IOW or
     learned range): what a debottleneck would run into next."""
@@ -1219,6 +1235,47 @@ def plot_changes(ref: str, since: str | None = None, until: str | None = None) -
     and drifts shaded. Default window: the last 14 days."""
     from .plots import troubleshooting
     return _chart(troubleshooting.changes, {"since": since, "until": until}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_pressure_profile(well: str, at: str | None = None, ref_at: str | None = None) -> dict[str, Any]:
+    """Chart pressure at each node down a well's flow path (wellhead, jacket header, separator,
+    compressor suction), today and against a reference date: where back-pressure builds."""
+    from .plots import production
+    return _chart(production.pressure_profile, {"at": at, "ref_at": ref_at}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
+    """Chart oil per bar of back-pressure for each back-pressure-limited well: the model's figure and the
+    tests' side by side. scope: a well, a jacket area or "facility"."""
+    from .plots import production
+    if scope == "facility":
+        return _chart(production.backpressure_sensitivity, {"scope": scope, "at": at})
+    return _chart(production.backpressure_sensitivity, {"at": at}, {"scope": scope})
+
+
+@server.tool(annotations=CHART)
+def plot_choke_criticality(well: str, days: int = 90) -> dict[str, Any]:
+    """Chart back over wellhead pressure through a well's choke over time against the critical ratio (0.55):
+    under it the choke limits the well and back-pressure doesn't reach it."""
+    from .plots import production
+    return _chart(production.choke_criticality, {"days": min(days, 730)}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_dp_drift(well: str, days: int = 60) -> dict[str, Any]:
+    """Chart a well's wellhead-to-header pressure drop over time against its baseline band, with any rise
+    marked (a flowline waxing or scaling)."""
+    from .plots import production
+    return _chart(production.dp_drift, {"days": min(days, 365)}, {"well": well})
+
+
+@server.tool(annotations=CHART)
+def plot_debottleneck(at: str | None = None) -> dict[str, Any]:
+    """Chart the debottleneck options ranked by oil gained, coloured by kind."""
+    from .plots import production
+    return _chart(lambda conn, **kw: production.debottleneck(conn, pack=PACK, **kw), {"at": at})
 
 
 @server.tool(annotations=READ_ONLY)

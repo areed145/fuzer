@@ -703,3 +703,17 @@ create table if not exists daily_ops_report (
     created_at  timestamptz not null default now(),
     unique (day, version)
 );
+
+-- Debottleneck options (#107): ranked proposals against back-pressure, kept from the last scan so the
+-- work board (#99) and the value score (#100) can read them without re-running the hydraulics.
+create table if not exists debottleneck_option (
+    id         bigserial primary key,
+    scanned_at timestamptz not null default now(),
+    as_of      text not null,
+    rank       integer not null,
+    kind       text not null,
+    target     text,
+    action     text not null,
+    gain_sm3d  double precision not null,
+    detail     jsonb not null
+);
