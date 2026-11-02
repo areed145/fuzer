@@ -88,6 +88,10 @@ def main(argv=None):
                     help="then prioritise, diagnose (Claude, capped) and hand off the new upsets to the workflow")
     sr.add_argument("--max-diagnoses", type=int, default=10, help="Claude diagnoses per run (0: none)")
 
+    bd = sub.add_parser("board", help="the work board (#99): refresh it, or show the top cards")
+    bd.add_argument("action", choices=["refresh", "show"])
+    bd.add_argument("--limit", type=int, default=20)
+
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
@@ -206,6 +210,10 @@ def main(argv=None):
                 _print(pipeline.rebuild(conn, pack))
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
+            elif args.cmd == "board":
+                from . import board
+
+                _print(board.refresh(conn, pack) if args.action == "refresh" else board.cards(conn, per_page=args.limit))
             elif args.cmd == "sre":
                 from . import sre
 
@@ -216,6 +224,9 @@ def main(argv=None):
 
                     engine.load_defaults(conn)
                     _print(sre_handoff.handoff(conn, pack, max_diagnoses=args.max_diagnoses))
+                    from . import board
+
+                    _print({"board": board.refresh(conn, pack)})
 
 
 def _limits(conn, pack, args) -> None:

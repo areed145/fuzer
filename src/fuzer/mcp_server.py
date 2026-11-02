@@ -656,6 +656,38 @@ def correlation_matrix(scope: str | list[str], since: str | None = None, until: 
 
 
 @server.tool(annotations=READ_ONLY)
+def board(area: str | None = None, unit: str | None = None, kind: str | None = None, text: str | None = None,
+          since: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """The work board (#99): outstanding work across SAP backlog, PMs and inspections, incidents and SRE
+    upsets, workflow items, opportunities, reviews and projects, one card per piece of work, ranked by value
+    (#100). Each card: rank, value and why, its records, whether a person pinned it and why it moved.
+    Filter by area or unit (any ref), kind, words in the title, or new since a time. "Top 5 on train B":
+    unit or area, limit 5."""
+    from . import board as b
+    with db.connect() as conn:
+        args = {}
+        for k, ref in (("area", area), ("unit", unit)):
+            if ref:
+                fid, err = _resolve(conn, ref)
+                if err:
+                    return err
+                args[k] = fid
+        out = b.cards(conn, kind, args.get("area"), args.get("unit"), text, since, 1, min(limit, 50))
+    for c in out["cards"]:
+        c.pop("breakdown", None)
+    return _plain(out)
+
+
+@server.tool(annotations=READ_ONLY)
+def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
+    """The workflow steps your agent role can take now, highest on the board first. Claim one with
+    claim_work."""
+    from . import board as b
+    with db.connect() as conn:
+        return _plain({"agent": agent, "steps": b.next_work(conn, agent, min(limit, 20))})
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,

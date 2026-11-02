@@ -44,7 +44,8 @@ def note(kind: str, **data) -> None:
         t.append({"kind": kind, "at": round(time.time(), 2), **data})
 
 
-COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge", "what_changed"]
+COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge", "what_changed",
+          "board"]
 CHARTS = ["plot_trend", "plot_measurements", "plot_xy", "plot_bar", "plot_distribution", "plot_custom", "look_at_figure"]
 TOOLS = {
     "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow", "value_score", "plot_bar",
