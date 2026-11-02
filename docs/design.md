@@ -768,8 +768,29 @@ show the response.
 - **`headroom`:** each point on a unit against its nearest #101 limit.
 
 `dp_drift` is also the SRE's daily `hydraulics` detector. MCP: `pressure_profile`,
-`backpressure_sensitivity`, `capacity_headroom`, and `calc("well_constraint" | "dp_drift")`. Debottleneck
-options, the charts and the skill come next (#107b).
+`backpressure_sensitivity`, `capacity_headroom`, and `calc("well_constraint" | "dp_drift")`.
+
+The production separator each jacket follows is its hub's: PP for 10-V-2001, ST1 for 30-V-2002, ST2 for
+40-V-2002. `dp_drift` measures a rise on the drift itself, so a step before it (a choke move) doesn't
+count, and it ignores a rise while the choke moved.
+
+**Debottleneck options (#107b, `debottleneck_options`).** These are ranked by oil gained, using the
+model's sensitivities:
+- lower a separator to its next limit (an IOW binds before an alarm);
+- pig a flowline whose pressure drop is rising;
+- reroute a well to a header at least 1 bar lower;
+- open a choke throttled under 80%.
+
+Each option comes with its basis, confidence, the next constraint and what would confirm it. On Okan
+before 25 November 2025, the top option is lowering 10-V-2001 by 2.1 bar to its IOW low of 9.9 barg.
+At 80 Sm3/d of oil per bar, that matches the model's own response to the 2-bar cut it applies that day
+(80 per bar). The day-close job stores the options (`debottleneck_option`), #100 scores them as
+opportunities, and they appear on the work board.
+
+**Charts:** `plot_pressure_profile`, `plot_backpressure_sensitivity`, `plot_choke_criticality`,
+`plot_dp_drift` and `plot_debottleneck`. The production specialist's new `back-pressure` skill works
+through these steps: classify the wells, find the drop, what a bar is worth, the next constraint, the
+options, and the uncertainty. `constraint-management` points to it.
 
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k

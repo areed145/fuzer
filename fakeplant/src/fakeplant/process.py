@@ -20,6 +20,7 @@ TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
 # Compression: stage -> (suction, discharge) barg; the 3rd stage feeds the lift gas header.
 STAGES = {1: (6.0, 18.0), 2: (17.0, 38.0), 3: (37.0, 92.0)}
 HEADER = {"10": "header:20", "30": "header:30", "40": "header:40", "50": "header:20"}
+SEPARATOR = {"30": "30-V-2002", "40": "40-V-2002"}  # a jacket's production goes to its hub's separator; PP and NWP: 10-V-2001
 VESSELS = {"10-V-2001": (12.0, 50), "10-V-2002": (3.0, 50), "10-V-2003": (12.0, 45), "10-V-2004": (2.5, 55),
            "20-V-2001": (6.5, 45), "20-V-2002": (88.0, 25), "20-V-2400": (89.0, 40)}
 
@@ -132,7 +133,8 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                             "p_res": P_RES, "c_gas": C_GAS, **({"k_gas": round(k, 5)} if k else {}),
                             **({"liquid_path": sorted(liquid[w["name"]])} if w["name"] in liquid else {})}
         if jacket:
-            j = units.setdefault(jacket, {"type": "jacket", "wells": [], "gl_wells": [], "separator": "10-V-2001"})
+            j = units.setdefault(jacket, {"type": "jacket", "wells": [], "gl_wells": [],
+                                          "separator": SEPARATOR.get(hub.get(w["area"], "10"), "10-V-2001")})
             j["wells"].append(w["name"])
             if w["lift"] == "GL":
                 j["gl_wells"].append(w["name"])

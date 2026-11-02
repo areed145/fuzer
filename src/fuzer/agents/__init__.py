@@ -56,13 +56,15 @@ TOOLS = {
                                 "gas_lift_network", "well_performance", "measurements", "limits",
                                 "calc", "instrument_health", "detect_changes", "detections", "get_upsets", "upset_detail", "correlate", "correlation_matrix",
                                 *CHARTS, "plot_incident", "plot_correlation", "plot_vibration", "plot_pump_curve",
-                                "plot_choke", "plot_instrument_health", "plot_changes", "equipment_curves"],
+                                "plot_choke", "plot_instrument_health", "plot_changes", "equipment_curves",
+                                "pressure_profile", "plot_pressure_profile", "plot_dp_drift"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
                             "measurements", "limits", "trace_flow", "calc", "detect_changes", "pressure_profile",
-                            "backpressure_sensitivity", "capacity_headroom",
+                            "backpressure_sensitivity", "capacity_headroom", "debottleneck_options",
                             *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
-                            "plot_gas_lift_allocation", "plot_choke", "equipment_curves"],
+                            "plot_gas_lift_allocation", "plot_choke", "equipment_curves", "plot_pressure_profile",
+                            "plot_backpressure_sensitivity", "plot_choke_criticality", "plot_dp_drift", "plot_debottleneck"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
                              "value_score",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
@@ -106,7 +108,7 @@ SPECIALISTS = {
                    "production engineering (wells, well tests) and gas lift (network, allocation, shortfalls).",
                    "You are a production engineer for an oil and gas asset, working from Fuzer's tools. Load the "
                    "skill that fits the task first: production-surveillance, production-efficiency, "
-                   "constraint-management, production-engineering or gas-lift."),
+                   "constraint-management, back-pressure, production-engineering or gas-lift."),
     "maintenance": ("Reliability, maintenance and inspection: bad actors, MTBF, failure modes, PM and inspection "
                     "compliance, work order backlog, turnaround scope and spares.",
                     "You are a maintenance and reliability engineer for an oil and gas asset, working from Fuzer's "

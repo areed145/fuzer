@@ -26,7 +26,7 @@ import numpy as np
 
 from .calcs import CalcError, _label, result, window_of
 
-RISE_BAR, RISE_SHARE = 0.7, 0.5  # a rising pressure drop must be up this much (bar) and this share
+RISE_BAR, RISE_SHARE = 0.7, 0.4  # a rising pressure drop must be up this much (bar) and this share
 CRITICAL = 0.55  # back / wellhead pressure (absolute) under this: the choke is at critical flow
 ATM = 1.013
 
@@ -144,6 +144,19 @@ def _wells(conn, scope: str) -> list[str]:
 def backpressure_sensitivity(conn, scope: str, at: str | None = None, src=None, limit: int = 200) -> dict:
     """Oil change per bar of back-pressure (Sm3/d per bar, negative: more back-pressure, less oil) for
     each flowing subcritical well in scope, model-based and data-based, summed per header."""
+    out, by_header = sensitivities(conn, scope, at, src, limit)
+    total = round(sum(r["model_sm3d_per_bar"] or 0 for r in out), 2)
+    disagree = [r["well"] for r in out if r["agree"] is False]
+    return result(total, None, "model_and_data_disagree" if disagree else None,
+                  "model: linear inflow at the wellhead to the shut-in pressure, choke and flowline drop growing with "
+                  "rate squared, differentiated at today's point; data: the well's tests against the header pressure "
+                  "at the time, decline taken out", [r["latest_test"] for r in out][:20], unit="Sm3/d oil per bar",
+                  wells=sorted(out, key=lambda r: r["model_sm3d_per_bar"] or 0)[:50], by_header=list(by_header.values()),
+                  disagree=disagree)
+
+
+def sensitivities(conn, scope: str, at: str | None = None, src=None, limit: int = 200) -> tuple[list[dict], dict]:
+    """Every back-pressure-limited well's sensitivity row, and the sums per header."""
     from . import calcs
 
     out, by_header = [], {}
@@ -172,17 +185,12 @@ def backpressure_sensitivity(conn, scope: str, at: str | None = None, src=None, 
                "model_sm3d_per_bar": model, "data_sm3d_per_bar": data, "agree": agree, "shut_in_whp": psi,
                "latest_test": t["record"]}
         out.append(row)
-        h = by_header.setdefault(pts["back"]["point"], {"header": pts["back"]["point"], "wells": 0, "model_sm3d_per_bar": 0.0})
+        row |= {"whp_barg": c["whp_barg"], "back_barg": c["back_barg"], "choke_pct": c["choke_pct"]}
+        h = by_header.setdefault(pts["back"]["point"], {"header": pts["back"]["point"], "wells": 0, "model_sm3d_per_bar": 0.0,
+                                                         "back_barg": c["back_barg"]})
         h["wells"] += 1
         h["model_sm3d_per_bar"] = round(h["model_sm3d_per_bar"] + (model or 0), 3)
-    total = round(sum(r["model_sm3d_per_bar"] or 0 for r in out), 2)
-    disagree = [r["well"] for r in out if r["agree"] is False]
-    return result(total, None, "model_and_data_disagree" if disagree else None,
-                  "model: linear inflow at the wellhead to the shut-in pressure, choke and flowline drop growing with "
-                  "rate squared, differentiated at today's point; data: the well's tests against the header pressure "
-                  "at the time, decline taken out", [r["latest_test"] for r in out][:20], unit="Sm3/d oil per bar",
-                  wells=sorted(out, key=lambda r: r["model_sm3d_per_bar"] or 0)[:50], by_header=list(by_header.values()),
-                  disagree=disagree)
+    return out, by_header
 
 
 def _test_regression(conn, pts: dict, tests: list[dict], end: datetime, src=None, days: int = 365) -> float | None:
@@ -216,7 +224,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
     if not pts["back"]:
         raise CalcError("no production header pressure for the well's jacket")
     start, end = window_of(conn, days, until)
-    v = calcs.read({"whp": pts["whp"], "back": pts["back"]}, start, end, 60, src)
+    v = calcs.read({k: pts[k] for k in ("whp", "back", "choke") if pts.get(k)}, start, end, 60, src)
     times = sorted(set(v["whp"]) & set(v["back"]))
     dp = np.array([v["whp"][t] - v["back"][t] for t in times])
     found = signals.detect_changes([datetime.fromisoformat(t) for t in times], dp, 60, window_minutes=720)
@@ -224,10 +232,18 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
               c["end"] >= (end - timedelta(days=2)).isoformat(timespec="minutes")]
     first = float(np.median(dp[: max(24, len(dp) // 10)])) if len(dp) else None
     now = float(np.median(dp[-24:])) if len(dp) else None
-    big = first is not None and now is not None and now - first >= max(RISE_BAR, RISE_SHARE * abs(first))
-    return result(round(now, 2) if now is not None else None, round(first, 2) if first is not None else None,
+    seg = rising[-1] if rising else None  # measured on the drift itself, so a step before it doesn't count
+    big = seg is not None and seg["after"] - seg["before"] >= max(RISE_BAR, RISE_SHARE * abs(seg["before"]))
+    if rising and v.get("choke"):  # the choke moving changes the drop too: that isn't the flowline
+        since = rising[-1]["start"]
+        moved = [x for t, x in v["choke"].items() if t >= since]
+        if moved and max(moved) - min(moved) > 2:
+            big = False
+    return result(round(now, 2) if now is not None else None,
+                  round(seg["before"] if big else first, 2) if first is not None else None,
                   "dp_rising" if rising and big else None,
-                  f"wellhead minus jacket header pressure, hourly over {days} days; expected is its first days",
+                  f"wellhead minus jacket header pressure, hourly over {days} days; expected is where a rise began, "
+                  "else its first days",
                   [well, pts["whp"]["id"], pts["back"]["id"]], unit="bar",
                   rising_since=rising[-1]["start"] if rising else None,
                   changes=[{k: c.get(k) for k in ("kind", "start", "end", "before", "after", "per_day")} for c in found][-8:])
@@ -263,3 +279,105 @@ def headroom(conn, pack, unit: str, at: str | None = None, src=None) -> dict:
                   f"median over the 24 h to {end:%Y-%m-%d %H:%M} against the nearest alarm, IOW or learned limit, as a "
                   "share of the span between its limits", [unit, *[p["id"] for p in pts][:10]], unit="% of span",
                   points=rows[:15], tightest=rows[0])
+
+
+# ---- debottleneck options (#107 §3) ---------------------------------------------------------------
+
+def _separator_of(conn, well: str, cache: dict) -> str | None:
+    """The first separator (a -V- tag) down a well's flow path."""
+    from . import graph
+
+    if well not in cache:
+        cache[well] = next((r["fuzer_id"] for r in graph.trace(conn, well, "flows_to", "down", None, 4)
+                            if r["kind"] == "tag" and "-V-" in (r["label"] or "")), None)
+    return cache[well]
+
+
+def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = None, src=None, limit: int = 10) -> dict:
+    """Candidate actions against back-pressure, ranked by oil gained (Sm3/d), each with its basis,
+    confidence, the next constraint it runs into and what would confirm it. Proposals for people, not
+    operating instructions."""
+    from . import limits
+
+    rows, _ = sensitivities(conn, scope, at, src, limit=1000)
+    rows = [r for r in rows if r["model_sm3d_per_bar"] is not None]
+    end = datetime.fromisoformat(at) if at else window_of(conn, 1)[1]
+    options, cache = [], {}
+
+    by_sep: dict[str, list[dict]] = {}
+    for r in rows:
+        if sep := _separator_of(conn, r["id"], cache):
+            by_sep.setdefault(sep, []).append(r)
+    for sep, ws in by_sep.items():
+        p = _pt(conn, _label(conn, sep))
+        if not p:
+            continue
+        v, _ = _now(conn, {"p": p}, end.isoformat(), src=src)
+        lines = limits.lines(limits.for_points(conn, pack, [p["id"]], end)[p["id"]])
+        floor = [(x["value"], f"{x['basis']} {x['type']} {x['value']:g} barg" + (f" ({x['iow']})" if x.get("iow") else ""))
+                 for x in lines if x["type"] in ("lo", "lolo") and x["value"] < v["p"]]
+        if not floor:
+            continue
+        bound, what = max(floor, key=lambda f: f[0] if "iow" in f[1] else f[0] - 100)  # an IOW binds before an alarm
+        room = round(v["p"] - bound, 2)
+        per_bar = -sum(r["model_sm3d_per_bar"] for r in ws)
+        if room > 0.1:
+            options.append({"action": f"Lower {_label(conn, sep)} pressure by {room:g} bar, to its {what}",
+                            "kind": "lower_pressure", "target": sep, "gain_sm3d": round(per_bar * room, 1),
+                            "per_bar_sm3d": round(per_bar, 2), "wells": len(ws), "confidence": "medium",
+                            "next_constraint": f"{_label(conn, sep)} {what}; compressor suction follows the separator down",
+                            "side_effect": "lower separator pressure: more gas to recompress, check compressor suction and power headroom",
+                            "confirm_by": "a stepped setpoint change with well tests before and after",
+                            "basis": f"model sensitivity of {len(ws)} back-pressure-limited wells, summed, times the room to the limit"})
+
+    headers = sorted({(r["header"], r["back_barg"]) for r in rows}, key=lambda h: h[1])
+    for r in rows:
+        low = next((h for h in headers if h[1] < r["back_barg"] - 1.0), None)
+        if low:
+            dp = r["back_barg"] - low[1]
+            options.append({"action": f"Reroute {r['well']} from header {r['header']} to {low[0]} ({dp:.1f} bar lower)",
+                            "kind": "reroute", "target": r["id"], "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1),
+                            "confidence": "low", "next_constraint": f"capacity of the line to {low[0]}; its other wells see more back-pressure",
+                            "side_effect": "needs a route between the headers (check the P&IDs)",
+                            "confirm_by": "a well test on the new route", "basis": "model sensitivity times the header difference"})
+        if r["choke_pct"] is not None and r["choke_pct"] < 80:
+            dp = 0.5 * (r["whp_barg"] - r["back_barg"])
+            options.append({"action": f"Open {r['well']}'s choke from {r['choke_pct']:.0f}%", "kind": "open_choke", "target": r["id"],
+                            "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1), "confidence": "low",
+                            "next_constraint": "sand or water coning at a higher drawdown; the header's other wells",
+                            "side_effect": "higher drawdown", "confirm_by": "a step-rate test",
+                            "basis": "model sensitivity times half the drop across the choke"})
+    for r in rows:
+        try:
+            d = dp_drift(conn, r["id"], 45, end.isoformat(timespec="minutes"), src)
+        except CalcError:
+            continue
+        if d["flag"] == "dp_rising":
+            dp = d["value"] - d["expected"]
+            options.append({"action": f"Pig or clean {r['well']}'s flowline (pressure drop up {dp:.1f} bar since {d['rising_since'][:10]})",
+                            "kind": "pig_flowline", "target": r["id"], "gain_sm3d": round(-r["model_sm3d_per_bar"] * dp, 1),
+                            "confidence": "medium", "next_constraint": "the well's choke and the header",
+                            "side_effect": "pigging run", "confirm_by": "the pressure drop back at its baseline after pigging",
+                            "basis": "model sensitivity times the rise in the wellhead-to-header drop"})
+    options.sort(key=lambda o: -o["gain_sm3d"])
+    for i, o in enumerate(options, 1):
+        o["rank"] = i
+    top = options[0] if options else None
+    return result(top["gain_sm3d"] if top else 0.0, None, None,
+                  "ranked by oil gained from the back-pressure model (IPR and choke) at today's operating point; "
+                  "proposals for people, not operating instructions", [r["latest_test"] for r in rows][:20],
+                  unit="Sm3/d oil", at=end.isoformat(timespec="minutes"), options=options[:limit], considered=len(options))
+
+
+def store_options(conn, pack, at: str | None = None, src=None, keep: int = 25) -> dict:
+    """Replace the stored debottleneck options with a fresh scan (the work board and value score read them)."""
+    from psycopg.types.json import Jsonb
+
+    out = debottleneck_options(conn, pack, "facility", at, src, limit=keep)
+    conn.execute("delete from debottleneck_option")
+    for o in out["options"]:
+        conn.execute("insert into debottleneck_option (as_of, rank, kind, target, action, gain_sm3d, detail) "
+                     "values (%s, %s, %s, %s, %s, %s, %s)", (out["at"], o["rank"], o["kind"], o["target"], o["action"],
+                                                             o["gain_sm3d"], Jsonb(o)))
+    conn.commit()
+    return {"options": len(out["options"]), "considered": out["considered"], "top": out["options"][:1]}

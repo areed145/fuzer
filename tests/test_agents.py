@@ -263,7 +263,8 @@ def test_skills_are_valid():
         provider = SkillsProvider.from_paths([agents.SKILLS / name, agents.SKILLS / "shared"], script_extensions=())
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
-    assert found == ["answering", "charts", "constraint-management", "gas-lift", "production-efficiency", "production-engineering",
+    assert found == ["answering", "back-pressure", "charts", "constraint-management", "gas-lift", "production-efficiency",
+                     "production-engineering",
                      "production-surveillance", "reliability", "troubleshooting", "turnarounds", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists

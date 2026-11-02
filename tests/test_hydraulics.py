@@ -109,3 +109,39 @@ def test_detector_tools_and_headroom(conn, spec, data):
     assert mcp_server.pressure_profile(fl)["nodes"]
     room = hydraulics.headroom(conn, PACK, fid(conn, "20-K-2100A"))
     assert room["points"] and room["points"] == sorted(room["points"], key=lambda r: r["headroom_pct"])
+
+
+def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
+    """Before the 25 November setpoint change, lowering the HP separator to its IOW is the top option, and
+    its gain is within 20% of what the model gives for the same move; the options reach the board."""
+    from fuzer import board, value
+    from fuzer.plots import production
+
+    out = hydraulics.debottleneck_options(conn, PACK, "facility", "2025-11-20T00:00")
+    top = out["options"][0]
+    assert top["kind"] == "lower_pressure" and top["target"] == fid(conn, "10-V-2001"), out["options"][:3]
+    assert "iow" in top["action"] and top["next_constraint"] and top["confirm_by"]
+
+    m = ProcessModel(spec)  # the model's own response to the 2-bar cut it applies on 25 November
+    gain = 0.0
+    for w, u in spec["units"].items():
+        if u.get("type") == "well" and u.get("kind") != "gas" and u.get("jacket") and \
+                spec["units"][u["jacket"]].get("separator") == "10-V-2001":
+            t = calcs.well_tests(conn, fid(conn, w), "2025-11-20T00:00")[-1]
+            wc = min(t.get("water_cut", 0) or 0, 98) / 100
+            gain += (m.at(w, "liquid", datetime(2025, 11, 26, 12)) - m.at(w, "liquid", datetime(2025, 11, 24, 12))) * (1 - wc)
+    assert abs(top["per_bar_sm3d"] - gain / 2) <= 0.2 * gain / 2, (top["per_bar_sm3d"], gain / 2)
+
+    hydraulics.store_options(conn, PACK, "2025-11-20T00:00")
+    opp = [i for i in value.items(conn, PACK, ("opportunity",)) if i.id.startswith("debottleneck:")]
+    assert opp and opp[0].oil_sm3d == top["gain_sm3d"]
+    board.refresh(conn, PACK)
+    assert any(c["key"].startswith("opportunity:debottleneck:lower_pressure") for c in board.cards(conn, kind="opportunity")["cards"])
+
+    well = fid(conn, story(spec, "flowline_restriction")["unit"])
+    for fig in (production.pressure_profile(conn, well, "2025-11-12T00:00", "2025-09-15T00:00"),
+                production.choke_criticality(conn, well, 60, "2025-11-15T00:00"),
+                production.dp_drift(conn, well, 60, "2025-11-15T00:00"),
+                production.debottleneck(conn, "facility", "2025-11-20T00:00", PACK)):
+        assert fig.data and fig.summary
+    assert production.dp_drift(conn, well, 60, "2025-11-15T00:00").summary["flag"] == "dp_rising"

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from .. import calcs
 from ..calcs import YEAR, linreg, rate
-from . import ChartError, Figure, layout, rnd, stacked
+from . import ChartError, Figure, layout, rnd, stacked, thin
 
 
 def _label(conn, fid: str) -> str:
@@ -218,3 +218,122 @@ def choke(conn, fid: str, days: int = 730, sg: float = calcs.SG) -> Figure:
         "cv_vs_curve_by_quarter": by_q, "before_replacement_latest": round(drift, 2), "reading": reading,
         "furthest": {"at": peak[0][:10], "opening_pct": round(peak[1], 1), "cv_vs_curve": round(peak[3], 2)},
         **({"note": note} if note else {})}, [well, tag, c["model_id"]])
+
+
+# ---- back-pressure (#107) ---------------------------------------------------------------------------
+
+def pressure_profile(conn, well: str, at: str | None = None, ref_at: str | None = None) -> Figure:
+    """Pressure at each node down a well's flow path, today and (with ref_at) on a reference date."""
+    from .. import hydraulics
+
+    now = hydraulics.pressure_profile(conn, well, at)
+    data = [{"type": "scatter", "mode": "lines+markers", "name": f"at {at or 'today'}", "x": [n["node"] for n in now["nodes"]],
+             "y": [n["pressure_barg"] for n in now["nodes"]], "text": [n["point"] for n in now["nodes"]],
+             "hovertemplate": "%{x}: %{y:.2f} barg<br>%{text}<extra></extra>"}]
+    ref = hydraulics.pressure_profile(conn, well, ref_at) if ref_at else None
+    if ref:
+        data.append({"type": "scatter", "mode": "lines+markers", "name": f"at {ref_at}", "line": {"dash": "dot"},
+                     "x": [n["node"] for n in ref["nodes"]], "y": [n["pressure_barg"] for n in ref["nodes"]]})
+    lay = layout(f"{_label(conn, well)} pressure down its flow path", None, "pressure (barg)")
+    return Figure("pressure_profile", lay["title"]["text"], data, lay, {
+        "well": _label(conn, well), "nodes": now["nodes"], "segments": now["segments"], "largest_drop": now["largest_drop"],
+        **({"reference": {"at": ref_at, "nodes": ref["nodes"]}} if ref else {})}, now["sources"][:8])
+
+
+def backpressure_sensitivity(conn, scope: str = "facility", at: str | None = None) -> Figure:
+    """Oil per bar of back-pressure for each back-pressure-limited well: the model's and the tests'."""
+    from .. import hydraulics
+
+    s = hydraulics.backpressure_sensitivity(conn, scope, at)
+    ws = s["wells"]
+    if not ws:
+        raise ChartError("no back-pressure-limited wells with tests in that scope")
+    data = [{"type": "bar", "name": "model (inflow and choke)", "x": [w["well"] for w in ws],
+             "y": [w["model_sm3d_per_bar"] for w in ws], "customdata": [w["id"] for w in ws]},
+            {"type": "bar", "name": "data (tests against header pressure)", "x": [w["well"] for w in ws],
+             "y": [w["data_sm3d_per_bar"] for w in ws], "customdata": [w["id"] for w in ws]}]
+    lay = layout("Oil per bar of back-pressure", None, "Sm3/d oil per bar (negative: more back-pressure, less oil)",
+                 barmode="group")
+    lay["xaxis"] = {"tickangle": -60}
+    return Figure("backpressure_sensitivity", lay["title"]["text"], data, lay, {
+        "total_model_sm3d_per_bar": s["value"], "wells": len(ws), "by_header": s["by_header"][:10],
+        "disagree": s["disagree"][:10], "basis": s["basis"]}, [w["id"] for w in ws])
+
+
+def _pressure_series(conn, well: str, days: int, until: str | None, step: int = 60):
+    from .. import calcs, hydraulics
+
+    pts = hydraulics.well_points(conn, well)
+    if not pts["back"]:
+        raise ChartError("no production header pressure for the well's jacket")
+    start, end = calcs.window_of(conn, days, until)
+    v = calcs.read({"whp": pts["whp"], "back": pts["back"]}, start, end, step)
+    times = sorted(set(v["whp"]) & set(v["back"]))
+    return pts, times, [v["whp"][t] for t in times], [v["back"][t] for t in times]
+
+
+def choke_criticality(conn, well: str, days: int = 90, until: str | None = None) -> Figure:
+    """Back over wellhead pressure (absolute) through a well's choke over time, against the critical
+    ratio: under it, back-pressure doesn't reach the well."""
+    from .. import hydraulics
+
+    pts, times, whp, back = _pressure_series(conn, well, days, until)
+    ratio = [round((b + hydraulics.ATM) / (w + hydraulics.ATM), 3) for w, b in zip(whp, back)]
+    xs, ys = thin(times, ratio)
+    data = [{"type": "scatter", "mode": "lines", "name": "back / wellhead pressure", "x": xs, "y": ys}]
+    lay = layout(f"{_label(conn, well)} choke: pressure ratio", None, "back / wellhead pressure (absolute)")
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": hydraulics.CRITICAL,
+                      "y1": hydraulics.CRITICAL, "line": {"dash": "dash", "color": "rgba(210,60,50,0.8)"}}]
+    below = sum(r < hydraulics.CRITICAL for r in ratio)
+    return Figure("choke_criticality", lay["title"]["text"], data, lay, {
+        "well": _label(conn, well), "critical_ratio": hydraulics.CRITICAL, "latest_ratio": ratio[-1] if ratio else None,
+        "share_critical": round(below / len(ratio), 3) if ratio else None,
+        "reading": "choke-limited (critical flow)" if ratio and ratio[-1] < hydraulics.CRITICAL else "back-pressure reaches the well"},
+        [well, pts["whp"]["id"], pts["back"]["id"]])
+
+
+def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figure:
+    """The wellhead-to-header pressure drop over time against its baseline band, with any rise marked."""
+    from .. import hydraulics
+
+    d = hydraulics.dp_drift(conn, well, days, until)
+    pts, times, whp, back = _pressure_series(conn, well, days, until)
+    dp = [w - b for w, b in zip(whp, back)]
+    base = sorted(dp[: max(24, len(dp) // 10)])
+    lo, hi = base[len(base) // 10], base[-max(1, len(base) // 10)]
+    xs, ys = thin(times, [round(x, 3) for x in dp])
+    data = [{"type": "scatter", "mode": "lines", "name": "wellhead - header pressure", "x": xs, "y": ys}]
+    lay = layout(f"{_label(conn, well)} pressure drop to the header", None, "bar")
+    lay["shapes"] = [{"type": "rect", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": lo, "y1": hi, "layer": "below",
+                      "fillcolor": "rgba(110,120,135,0.15)", "line": {"width": 0}}]
+    if d["rising_since"]:
+        lay["shapes"].append({"type": "line", "xref": "x", "x0": d["rising_since"], "x1": d["rising_since"], "yref": "paper",
+                              "y0": 0, "y1": 1, "line": {"dash": "dot", "color": "rgba(210,60,50,0.8)"}})
+    return Figure("dp_drift", lay["title"]["text"], data, lay, {
+        "well": _label(conn, well), "dp_now_bar": d["value"], "dp_before_bar": d["expected"], "flag": d["flag"],
+        "rising_since": d["rising_since"], "baseline_band": [round(lo, 2), round(hi, 2)], "changes": d["changes"]},
+        d["sources"])
+
+
+def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None) -> Figure:
+    """Debottleneck options ranked by oil gained, coloured by kind."""
+    from .. import hydraulics
+    from ..pack import load_pack
+
+    out = hydraulics.debottleneck_options(conn, pack or load_pack(), scope, at, limit=15)
+    opts = out["options"]
+    if not opts:
+        raise ChartError("no debottleneck options in that scope")
+    data = []
+    for kind in dict.fromkeys(o["kind"] for o in opts):
+        os_ = [o for o in opts if o["kind"] == kind]
+        data.append({"type": "bar", "orientation": "h", "name": kind.replace("_", " "), "y": [o["action"] for o in os_],
+                     "x": [o["gain_sm3d"] for o in os_], "text": [f"confidence {o['confidence']}" for o in os_],
+                     "hovertemplate": "%{y}: %{x:.0f} Sm3/d<br>%{text}<extra></extra>"})
+    lay = layout("Debottleneck options by oil gained", "oil gained (Sm3/d)", None)
+    lay["yaxis"] = {"autorange": "reversed", "automargin": True}
+    lay["height"] = 220 + 28 * len(opts)
+    return Figure("debottleneck", lay["title"]["text"], data, lay, {
+        "at": out["at"], "considered": out["considered"],
+        "options": [{k: o[k] for k in ("rank", "action", "gain_sm3d", "confidence", "next_constraint", "confirm_by")} for o in opts[:8]],
+        "note": "proposals for people, not operating instructions"}, [o["target"] for o in opts if o.get("target")][:10])
