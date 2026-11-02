@@ -234,24 +234,40 @@ def pin(conn, key: str, by: str, reason: str, rank: int | None = None, value_usd
 
 # ---- reading it -----------------------------------------------------------------------------------
 
+OWNER = "coalesce(w.assignee, w.role, 'unassigned')"
+
+
 def cards(conn, kind: str | None = None, area: str | None = None, unit: str | None = None, text: str | None = None,
-          since: str | None = None, page: int = 1, per_page: int = PAGE) -> dict:
-    """One page of the board in rank order, filtered by kind, area, unit, words in the title, or new since
-    a time."""
+          since: str | None = None, page: int = 1, per_page: int = PAGE, owner: str | None = None,
+          facets: bool = False) -> dict:
+    """One page of the board in rank order, filtered by kind, area, unit, owner (the person or role its
+    work item is with), words in the title, or new since a time. `facets`: counts by kind, area and owner
+    under the same filters, for the views."""
     where = ["(%(kind)s::text is null or c.kind = %(kind)s)", "(%(area)s::text is null or c.area_id = %(area)s)",
              "(%(unit)s::text is null or c.unit_id = %(unit)s)", "(%(text)s::text is null or c.title ilike %(like)s)",
-             "(%(since)s::timestamp is null or c.first_seen >= %(since)s::timestamp)"]
-    params = {"kind": kind, "area": area, "unit": unit, "text": text, "like": f"%{text}%", "since": since,
+             "(%(since)s::timestamp is null or c.first_seen >= %(since)s::timestamp)",
+             f"(%(owner)s::text is null or {OWNER} = %(owner)s)"]
+    params = {"kind": kind, "area": area, "unit": unit, "text": text, "like": f"%{text}%", "since": since, "owner": owner,
               "limit": per_page, "offset": (page - 1) * per_page}
-    total = conn.execute(f"select count(*) as n from board_card c where {' and '.join(where)}", params).fetchone()["n"]
+    base = f"from board_card c left join work_item w on w.id = c.item_id where {' and '.join(where)}"
+    total = conn.execute(f"select count(*) as n {base}", params).fetchone()["n"]
     rows = conn.execute(
         f"""
-        select c.*, l.label as unit, p.reason as pin_reason, p.pinned_by from board_card c
-        left join entity_label l on l.fuzer_id = c.unit_id
-        left join board_pin p on p.key = any(c.records)
+        select c.*, l.label as unit, a.label as area, {OWNER} as owner, p.reason as pin_reason, p.pinned_by
+        from board_card c left join work_item w on w.id = c.item_id
+        left join entity_label l on l.fuzer_id = c.unit_id left join entity_label a on a.fuzer_id = c.area_id
+        left join lateral (select reason, pinned_by from board_pin where key = any(c.records) limit 1) p on true
         where {' and '.join(where)} order by c.rank limit %(limit)s offset %(offset)s
         """, params).fetchall()
-    return {"total": total, "page": page, "per_page": per_page, "cards": [_plain(dict(r)) for r in rows]}
+    out = {"total": total, "page": page, "per_page": per_page, "cards": [_plain(dict(r)) for r in rows]}
+    if facets:
+        out["facets"] = {
+            "kind": {r["k"]: r["n"] for r in conn.execute(f"select c.kind as k, count(*) as n {base} group by 1 order by 2 desc", params)},
+            "owner": {r["k"]: r["n"] for r in conn.execute(f"select {OWNER} as k, count(*) as n {base} group by 1 order by 2 desc", params)},
+            "area": [dict(r) for r in conn.execute(
+                f"select c.area_id as id, (select label from entity_label where fuzer_id = c.area_id) as label, count(*) as n "
+                f"{base} group by 1 order by 3 desc", params)]}
+    return out
 
 
 def history(conn, key: str) -> list[dict]:

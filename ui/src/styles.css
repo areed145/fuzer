@@ -530,3 +530,13 @@ ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { bo
 .form-editor { height: 620px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin: 8px 0;
   background: #fff; color: #1b1f24; }
 .form-editor .fjs-editor-container { height: 100%; }
+
+/* work board */
+ol.board { list-style: none; padding: 0; margin: 8px 0; }
+.board-card { padding: 10px 12px; margin-bottom: 6px; }
+.board-card.pinned { border-left: 3px solid var(--accent); }
+.board-card .rank { min-width: 2.5em; color: var(--muted); }
+.board-card .spacer { flex: 1; }
+.board-detail { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+.board-detail table { width: auto; margin: 4px 0; }
+.board-detail td { padding: 2px 12px 2px 0; }
