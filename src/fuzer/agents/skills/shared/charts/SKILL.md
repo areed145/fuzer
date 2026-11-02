@@ -18,7 +18,8 @@ engineer sees an interactive chart there (zoom, hover, click a point to open its
 - Process values around an event: `plot_trend` (any tags / points), `plot_incident` (an incident on
   one page), `plot_correlation` (what moves together; `target` = the point that tripped, to see what
   moved first), `plot_vibration` (against ISO 20816 zones), `plot_xy` (one point against another),
-  `plot_distribution` (before / after a change).
+  `plot_distribution` (before / after a change), `plot_changes` (steps, drifts and jitter changes
+  marked, with when they started), `plot_instrument_health` (readings that can't be trusted shaded).
 - Wells: `plot_decline` (Arps fit after the last step change, forecast), `plot_water_diagnostic`
   (WOR and derivative: channelling, coning, breakthrough), `plot_gas_lift_curve` (where the well sits
   on its curve, marginal response, optimum), `plot_gas_lift_allocation` (moving gas between wells).

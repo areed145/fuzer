@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 
 from psycopg.types.json import Jsonb
 
+from ..calcs import CalcError
+
 TRACES = {"scatter", "scattergl", "bar", "histogram", "box", "heatmap", "contour"}
 MAX_POINTS = 20000
 SAFE_TAGS = re.compile(r"</?(b|i|br|sup|sub|em|extra)\s*/?>", re.I)
@@ -40,8 +42,8 @@ class Figure:
         return {"data": self.data, "layout": self.layout}
 
 
-class ChartError(ValueError):
-    pass
+# A chart fails for the same reasons its calc does (too few tests, no curve); one error for both.
+ChartError = CalcError
 
 
 # ---- house style ----------------------------------------------------------------------------------

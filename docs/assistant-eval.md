@@ -34,6 +34,41 @@ What these scores don't say: whether the advice is good. The checks are mechanic
 citations, no operating verbs, routing). Engineers rating answers on the Ask page (feedback
 `answer:<id>`) is the real measure.
 
+## SRE detection baseline (#103)
+
+`uv run fuzer --pack okan eval --ops --detector limits --since 2024-04-15 --until 2025-12-15`: the #101 excursions
+(alarm limits, IOWs and learned normal ranges, counted while units run) replayed in 6-hour windows over
+20 months of Okan, scored against the process model's injected events. Run 2026-11-01. This is the
+stand-in that the #96 detectors have to beat.
+
+| | |
+|---|---|
+| Upsets | 41 |
+| Found | 39 (recall 0.95) |
+| Detections | 5,619 |
+| False alarms | 1,022 (11.7 a week) |
+| Precision | 0.57 |
+| Windows | 2,436, about 0.5 s each |
+
+| Kind | Upsets | Found | Median hours to detect |
+|---|---|---|---|
+| trip | 7 | 7 | 3.0 |
+| shutdown | 1 | 1 | 0.0 |
+| shut_in | 18 | 16 | 4.0 |
+| discharge_temperature | 5 | 5 | 1.2 |
+| level | 2 | 2 | 3.1 |
+| erratic (bad instrument) | 1 | 1 | 28 |
+| restriction (hydrate) | 2 | 2 | 1.2 |
+| valve_failed_open | 2 | 2 | 2.5 |
+| choke_wear | 2 | 2 | 225 |
+| head_loss | 1 | 1 | 3,348 |
+
+Recall is high because limits on many points catch most upsets eventually. Each slow upset (head loss,
+choke wear, the bad instrument) is "found" only once it has pushed a value past a limit, days to months
+in. Most false alarms are learned-range alarms on wellhead temperatures swinging day to night. The #96
+detectors should find the slow ones in hours to days from the calcs (pump and choke against their
+curves) and the signal checks (instrument health, drift).
+
 ## Example: across domains
 
 > Why does lift gas keep running short, and what should go in the next turnaround to fix it?

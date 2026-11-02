@@ -2,8 +2,9 @@
 asset), reliability (Weibull or Crow-AMSAA) from failure notifications, and bad actors."""
 
 import math
-from datetime import date, datetime, timedelta
+from datetime import datetime
 
+from .. import calcs
 from . import ChartError, Figure, layout, rnd
 
 
@@ -31,8 +32,7 @@ def wall_thickness(conn, fid: str | None = None, kind: str | None = None, min_re
                      "line": {"width": 3 if hot else 1.5}, "meta": {"entity": s["of"]["id"]},
                      "hovertemplate": "%{y:.2f} mm<br>%{x}<br>%{text}<extra>%{fullData.name}</extra>"})
         retire = None
-        if min_required_mm and s["per_year"] and s["per_year"] < 0:
-            years = (s["latest"]["value"] - min_required_mm) / -s["per_year"]
+        if (years := calcs.remaining_life(s["latest"]["value"], s["per_year"], min_required_mm)) is not None:
             retire = ts[-1].year + years
             end = ts[-1].replace(year=min(2200, int(retire)))
             data.append({"type": "scatter", "mode": "lines", "name": f"{s['location']} projected", "showlegend": False,
@@ -85,45 +85,15 @@ def _wall_ranking(conn, kind: str | None, limit: int) -> Figure:
         "median_of_shown_mm_per_year": rnd(rates[len(rates) // 2], 3)}, [r["fuzer_id"] for r in rows])
 
 
-def _failures(conn, fid: str) -> tuple[str, dict[str, list[date]]]:
-    """Failure dates per unit for a tag / equipment, or for every unit in an equipment class."""
-    e = conn.execute("select e.kind, l.label from entity e left join entity_label l using (fuzer_id) "
-                     "where fuzer_id = %s", (fid,)).fetchone()
-    if e is None:
-        raise ChartError("unknown entity")
-    units = [fid]
-    if e["kind"] == "equipment_class":
-        units = [r["src"] for r in conn.execute(
-            "select distinct src from edge where rel = 'classified_as' and dst = %s", (fid,))]
-    rows = conn.execute(
-        """
-        select c.dst as unit, g.value #>> '{}' as created from edge c
-        join entity n on n.fuzer_id = c.src and n.kind = 'notification'
-        join golden g on g.fuzer_id = c.src and g.field = 'created'
-        where c.rel = 'concerns' and c.dst = any(%s)
-        """, (units,)).fetchall()
-    out: dict[str, list[date]] = {}
-    for r in rows:
-        out.setdefault(r["unit"], []).append(date.fromisoformat(r["created"][:10]))
-    return e["label"] or fid, {u: sorted(d) for u, d in out.items()}
-
-
 def reliability(conn, fid: str, method: str = "weibull") -> Figure:
     """Weibull probability plot of times between failures (median ranks; beta < 1 early failures,
     about 1 random, > 1 wear-out), or Crow-AMSAA cumulative failures on log-log (beta > 1: failures
     coming faster)."""
-    label, per = _failures(conn, fid)
+    label, per = calcs.failures(conn, fid)
     if method == "crow_amsaa":
-        dates = sorted(d for ds in per.values() for d in ds)
-        if len(dates) < 4:
-            raise ChartError("fewer than four failures")
+        f = calcs.crow_amsaa([d for ds in per.values() for d in ds])
+        dates, ts, n, beta, lam = f["dates"], f["ts"], f["n"], f["beta"], f["lam"]
         start = dates[0]
-        ts = [max(1, (d - start).days) for d in dates]
-        n = list(range(1, len(ts) + 1))
-        pts = [(math.log(t), math.log(k)) for t, k in zip(ts, n) if t > 1]
-        mx, my = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
-        beta = sum((x - mx) * (y - my) for x, y in pts) / sum((x - mx) ** 2 for x, _ in pts)
-        lam = math.exp(my - beta * mx)
         data = [{"type": "scatter", "mode": "markers", "name": "failures", "x": ts, "y": n,
                  "text": [d.isoformat() for d in dates], "hovertemplate": "%{y} failures by day %{x}<br>%{text}<extra></extra>"},
                 {"type": "scatter", "mode": "lines", "name": f"fit N = {lam:.3g} t^{beta:.2f}", "line": {"dash": "dash"},
@@ -132,19 +102,10 @@ def reliability(conn, fid: str, method: str = "weibull") -> Figure:
         lay["xaxis"]["type"] = lay["yaxis"]["type"] = "log"
         return Figure("crow_amsaa", lay["title"]["text"], data, lay, {
             "scope": label, "units": len(per), "failures": len(dates), "first": dates[0].isoformat(),
-            "last": dates[-1].isoformat(), "beta": rnd(beta, 2), "lambda": rnd(lam, 4),
-            "reading": "failures coming faster" if beta > 1.15 else "failures slowing" if beta < 0.85 else "steady rate"},
+            "last": dates[-1].isoformat(), "beta": rnd(beta, 2), "lambda": rnd(lam, 4), "reading": f["reading"]},
             [fid])
-    tbf = sorted((b - a).days for ds in per.values() for a, b in zip(ds, ds[1:]) if (b - a).days > 0)
-    if len(tbf) < 3:
-        raise ChartError("fewer than three times between failures (need repeat failures on the same unit)")
-    n = len(tbf)
-    F = [(i + 1 - 0.3) / (n + 0.4) for i in range(n)]
-    xs = [math.log(t) for t in tbf]
-    ys = [math.log(-math.log(1 - f)) for f in F]
-    mx, my = sum(xs) / n, sum(ys) / n
-    beta = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-    eta = math.exp(mx - my / beta)
+    f = calcs.weibull(calcs.times_between(per))
+    tbf, n, ys, beta, eta = f["tbf"], f["n"], f["ys"], f["beta"], f["eta"]
     lo, hi = min(tbf) * 0.7, max(tbf) * 1.4
     ticks = [0.01, 0.05, 0.1, 0.2, 0.5, 0.632, 0.9, 0.99]
     data = [{"type": "scatter", "mode": "markers", "name": "times between failures", "x": tbf, "y": ys,
@@ -156,9 +117,7 @@ def reliability(conn, fid: str, method: str = "weibull") -> Figure:
     lay["yaxis"] |= {"tickvals": [math.log(-math.log(1 - f)) for f in ticks], "ticktext": [f"{f * 100:g}%" for f in ticks]}
     return Figure("weibull", lay["title"]["text"], data, lay, {
         "scope": label, "units_with_repeats": sum(1 for d in per.values() if len(d) > 1), "times_between_failures": n,
-        "beta": rnd(beta, 2), "eta_days": rnd(eta, 0), "median_days": rnd(eta * math.log(2) ** (1 / beta), 0),
-        "reading": "early-life failures (installation, quality)" if beta < 0.85 else
-        "random failures (time-based PM won't help)" if beta < 1.2 else "wear-out (a PM interval below eta helps)"},
+        "beta": rnd(beta, 2), "eta_days": rnd(eta, 0), "median_days": rnd(f["median"], 0), "reading": f["reading"]},
         [fid])
 
 
@@ -186,64 +145,12 @@ def bad_actors(conn, since: str | None = None, until: str | None = None, limit: 
                                     "repeat_failure_modes")} for i in items[:6]]}, [i["id"] for i in items])
 
 
-def _window_of(conn, days: int) -> tuple[datetime, datetime]:
-    from .. import operations
-
-    end = datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1)
-    return end - timedelta(days=days), end
-
-
-def _read(points: dict[str, dict], start: datetime, end: datetime, step: int) -> dict[str, dict[str, float]]:
-    """Values of several points on one time grid: {name: {time: value}}."""
-    from .. import timeseries
-
-    src = timeseries.provider()
-    return {k: dict(src.series({**p, "upsets": []}, start, end, step)) for k, p in points.items()}
-
-
-def _curve_or_why(conn, model: str | None, what: str) -> dict:
-    from .. import curves
-
-    if model is None:
-        raise ChartError(f"no equipment model known for that {what}")
-    c = curves.for_model(conn, model)
-    if c:
-        return c
-    label = conn.execute("select label from entity_label where fuzer_id = %s", (model,)).fetchone()
-    wait = curves.waiting(conn, model)
-    why = "; ".join(f"datasheet {w['label']} " + ("waiting for review" if w["status"] == "open" else
-                                                  "not read yet" if w["status"] is None else w["status"]) for w in wait)
-    raise ChartError(f"no OEM curve for {label['label'] if label else model}" + (f" ({why})" if why else
-                                                                                   " and no datasheet for it"))
-
-
 def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
     """A pump's OEM head and efficiency curves, with its operating points from PI (head from discharge
     minus suction pressure) coloured by time, the BEP and the preferred / allowable operating regions.
     Points falling below the curve at the same flow mean lost head (wear rings, impeller)."""
-    from .. import curves, timeseries
-
-    tag = fid
-    if conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"] == "equipment":
-        r = conn.execute("select dst from edge where rel = 'installed_at' and src = %s and valid_to is null", (fid,)).fetchone()
-        tag = r["dst"] if r else fid
-    c = _curve_or_why(conn, curves.model_of(conn, tag), "pump")
-    if c["curve"] != "pump" or "head" not in c["series"]:
-        raise ChartError("that model's curve isn't a pump curve")
-    pts = timeseries._unit_points(conn, tag, 20)
-    need = {k: next((p for p in pts if (p["description"] or "").endswith(end)), None)
-            for k, end in (("flow", " Flow"), ("suction", "Suction Pressure"), ("discharge", "Discharge Pressure"))}
-    if None in need.values():
-        raise ChartError("the pump needs flow, suction and discharge pressure points in PI")
-    start, end = _window_of(conn, days)
-    v = _read(need, start, end, 360)
-    times = sorted(set(v["flow"]) & set(v["suction"]) & set(v["discharge"]))
-    bep = c["ratings"].get("bep", [None, None])
-    mcsf = (c["ratings"].get("mcsf") or [0])[0] or 0.3 * (bep[0] or 100)
-    ops = [(t, v["flow"][t], (v["discharge"][t] - v["suction"][t]) * 1e5 / (rho * 9.81)) for t in times
-           if v["flow"][t] > 0.5 * mcsf]
-    if len(ops) < 10:
-        raise ChartError("the pump hardly ran in that window")
+    p = calcs.pump_operation(conn, fid, days, rho)
+    tag, c, start, end, ops, bep, deficit = p["tag"], p["curve"], p["start"], p["end"], p["ops"], p["bep"], p["by_month"]
     head = c["series"]["head"]
     t0 = datetime.fromisoformat(ops[0][0])
     data = [{"type": "scatter", "mode": "lines", "name": "OEM head curve", "x": [p[0] for p in head], "y": [p[1] for p in head],
@@ -270,13 +177,6 @@ def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
     if aor := c["ratings"].get("aor"):
         lay["shapes"] += [{"type": "line", "xref": "x", "yref": "paper", "x0": x, "x1": x, "y0": 0, "y1": 1,
                            "line": {"dash": "dot", "width": 1}} for x in aor if x]
-    # head against the curve at the same flow, month by month
-    months: dict[str, list[float]] = {}
-    for t, q, h in ops:
-        hc = curves.at(head, q)
-        if hc:
-            months.setdefault(t[:7], []).append((h - hc) / hc * 100)
-    deficit = [{"month": m, "head_vs_curve_pct": round(sorted(x)[len(x) // 2], 1)} for m, x in sorted(months.items())]
     in_por = sum(1 for _, q, _ in ops if por and por[0] <= q <= por[1]) / len(ops) if por else None
     worst = min(deficit, key=lambda d: d["head_vs_curve_pct"]) if deficit else None
     qs = sorted(o[1] for o in ops)
