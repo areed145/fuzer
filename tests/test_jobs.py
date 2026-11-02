@@ -24,7 +24,7 @@ def fuzer():
 
 def test_definitions_load():
     defs = jobs.defs
-    assert {j.name for j in defs.resolve_all_job_defs()} >= {"refresh_all", "refresh_logs", "claude_reading"}
+    assert {j.name for j in defs.resolve_all_job_defs()} >= {"refresh_all", "refresh_logs", "claude_reading", "work_tick"}
     claude = next(s for s in defs.schedules if s.job_name == "claude_reading")
     assert claude.default_status == dg.DefaultScheduleStatus.STOPPED  # costs money: opt in
     assert defs.resolve_sensor_def("new_exports").default_status == dg.DefaultSensorStatus.RUNNING
@@ -85,3 +85,8 @@ def test_check_flags_tag_missing_from_sap(fuzer):
     check = result.get_asset_check_evaluations()[0]
     assert not check.passed and check.metadata["count"].value == 1
     assert check.metadata["examples"].value[0] == {"label": "20-P-1099A", "seen_in": ["pi_af"]}
+
+
+def test_work_tick_job_runs(fuzer):
+    result = jobs.work_tick.execute_in_process(resources={"fuzer": fuzer})
+    assert result.success

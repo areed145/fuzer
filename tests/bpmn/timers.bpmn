@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:fuzer="https://fuzer.dev/schema/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="defs" targetNamespace="https://fuzer.dev/test">
+  <bpmn:process id="t_timers" isExecutable="true">
+    <bpmn:startEvent id="start" />
+    <bpmn:intermediateCatchEvent id="wait"><bpmn:timerEventDefinition><bpmn:timeDuration>"PT6H"</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="recheck" name="Re-check" fuzer:role="engineer" />
+    <bpmn:boundaryEvent id="sla" attachedToRef="recheck"><bpmn:timerEventDefinition><bpmn:timeDuration>"PT2H"</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:userTask id="escalated" name="Escalated" fuzer:role="ops_lead" fuzer:sla="PT1H" />
+    <bpmn:endEvent id="end_done" />
+    <bpmn:endEvent id="end_escalated" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="wait" />
+    <bpmn:sequenceFlow id="f2" sourceRef="wait" targetRef="recheck" />
+    <bpmn:sequenceFlow id="f3" sourceRef="recheck" targetRef="end_done" />
+    <bpmn:sequenceFlow id="f4" sourceRef="sla" targetRef="escalated" />
+    <bpmn:sequenceFlow id="f5" sourceRef="escalated" targetRef="end_escalated" />
+  </bpmn:process>
+</bpmn:definitions>

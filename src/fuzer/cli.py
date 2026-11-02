@@ -67,6 +67,11 @@ def main(argv=None):
                        help="orchestrator effort (default high); specialists use $FUZER_AGENT_SPECIALIST_EFFORT")
         a.add_argument("--json", action="store_true", help="print the answer, tools used and cost as JSON")
 
+    w = sub.add_parser("work", help="work engine (#97): load the starting processes, run the agent worker, fire timers")
+    w.add_argument("action", choices=["load", "worker", "tick"],
+                   help="load: import and publish definitions/*.bpmn; worker: run agent steps with the assistant's "
+                        "specialists (Claude; costs money); tick: fire due timers and escalate overdue tasks once")
+
     sub.add_parser("bench", help="time the main read queries against the current database")
     ev = sub.add_parser("eval", help="score search, document links, section failure modes and log reading")
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
@@ -104,6 +109,17 @@ def main(argv=None):
         from . import mcp_server
 
         mcp_server.main(http=args.http, host=args.host, port=args.port)
+    elif args.cmd == "work":
+        from .workflow import engine, worker
+
+        with db.connect() as conn:
+            db.init_schema(conn)
+            if args.action == "load":
+                print(json.dumps(engine.load_defaults(conn), default=str, indent=2))
+            elif args.action == "tick":
+                print(json.dumps(engine.tick(conn)))
+        if args.action == "worker":
+            worker.run(db.connect, worker.assistant_agents())
     else:
         with db.connect() as conn:
             if args.cmd != "reset":

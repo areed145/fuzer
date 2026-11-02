@@ -232,6 +232,18 @@ def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          "examples": dg.MetadataValue.json([dict(r) for r in diff["in_ec_not_on_pids"]])})
 
 
+@dg.op(description="Fire due work-engine timers and escalate person tasks past their SLA (#97).")
+def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from .workflow import engine
+    with fuzer.connect() as conn:
+        context.log.info(f"work tick: {engine.tick(conn)}")
+
+
+@dg.job(description="Work engine timers and SLAs: re-checks that are due, reminders and escalations.")
+def work_tick():
+    work_tick_op()
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -249,6 +261,8 @@ schedules = [
                           default_status=dg.DefaultScheduleStatus.RUNNING),
     dg.ScheduleDefinition(job=claude_reading, cron_schedule="0 3 * * *", execution_timezone=TZ,
                           default_status=dg.DefaultScheduleStatus.STOPPED),
+    dg.ScheduleDefinition(job=work_tick, cron_schedule="*/5 * * * *", execution_timezone=TZ,
+                          default_status=dg.DefaultScheduleStatus.RUNNING),
 ]
 
 
@@ -287,7 +301,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
                   document_revisions, flow_vs_piping],
-    jobs=[refresh_all, refresh_logs, claude_reading],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick],
     schedules=schedules,
     sensors=[new_exports, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
