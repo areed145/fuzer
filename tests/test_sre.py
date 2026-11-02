@@ -81,7 +81,8 @@ def test_scan_carries_on_from_the_last_run(conn):
     assert len(trip) == 1 and trip[0]["first_unit"] == "20-V-2001", trip  # the carryover, before the trip
     assert len({tuple(u["units"] or []) for u in sre.upsets(conn) if "20-K-2100C" in (u["units"] or [])}) == 1
     detail = mcp_server.upset_detail(trip[0]["id"])
-    assert detail["timeline"][0]["unit"] == "20-V-2001" and detail["by_unit"]["20-K-2100C"] >= 1
+    first = next(x for x in detail["timeline"] if x["detector"] != "multivariate")  # an SPE finding isn't a cause
+    assert first["unit"] == "20-V-2001" and detail["by_unit"]["20-K-2100C"] >= 1
 
     pipeline.rebuild(conn, PACK)  # the train C trip downtime lands on the detected upset's incident
     inc = conn.execute("select f.value as f from entity_label l join golden f on f.fuzer_id = l.fuzer_id "

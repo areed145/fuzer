@@ -166,7 +166,7 @@ def _only(*names):
 
 DETECTORS = {"limits": limits_detector, "sre": sre_detector,
              **{f"sre:{n}": _only(n) for n in ("excursions", "stops", "steps", "drifts", "instruments", "models",
-                                                       "hydraulics")}}
+                                                       "hydraulics", "multivariate")}}
 
 
 # ---- replay -------------------------------------------------------------------------------------

@@ -224,7 +224,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
     if not pts["back"]:
         raise CalcError("no production header pressure for the well's jacket")
     start, end = window_of(conn, days, until)
-    v = calcs.read({k: pts[k] for k in ("whp", "back", "choke") if pts.get(k)}, start, end, 60, src)
+    v = calcs.read({k: pts[k] for k in ("whp", "back", "choke", "wht") if pts.get(k)}, start, end, 60, src)
     times = sorted(set(v["whp"]) & set(v["back"]))
     dp = np.array([v["whp"][t] - v["back"][t] for t in times])
     found = signals.detect_changes([datetime.fromisoformat(t) for t in times], dp, 60, window_minutes=720)
@@ -234,6 +234,10 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
     now = float(np.median(dp[-24:])) if len(dp) else None
     seg = rising[-1] if rising else None  # measured on the drift itself, so a step before it doesn't count
     big = seg is not None and seg["after"] - seg["before"] >= max(RISE_BAR, RISE_SHARE * abs(seg["before"]))
+    if big and v.get("wht"):  # more flow (a warmer wellhead) raises the drop too: a restriction cuts the flow
+        w = [x for t, x in sorted(v["wht"].items()) if t >= seg["start"]]
+        if len(w) >= 48 and np.median(w[-24:]) - np.median(w[:24]) > 0.5:
+            big = False
     if rising and v.get("choke"):  # the choke moving changes the drop too: that isn't the flowline
         since = rising[-1]["start"]
         moved = [x for t, x in v["choke"].items() if t >= since]

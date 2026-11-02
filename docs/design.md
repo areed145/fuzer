@@ -877,6 +877,35 @@ skill uses them for "how did it spread".
   latest), with the work orders done for each and whether the fix held (no incident on the unit within
   90 days).
 
+### 18q. Clustering and multivariate anomaly (#106b, calcs)
+
+`clusters.py` adds four analyses:
+- **`modes(scope)`:** operating modes in two stages.
+  1. The times the unit is stopped (its run signals) are one mode.
+  2. The running time is clustered with k-means, on day-long medians of the points that carry its
+     regimes: those whose two-week medians hold at least 80% as much of their variance as the slowest
+     point's. Fast noise and the daily swing don't make modes; fouling or a new setpoint does.
+  
+  k is chosen by silhouette. On Okan's train A over 2024, it finds three modes from 20-TT-2350A (normal,
+  fouled, stopped), with an adjusted Rand index of 0.77 against the process model's own. Clustering all
+  20 points at once scored 0.06: fouling moves only two of them.
+- **`entities("wells")`:** peer groups by decline, water cut and its rise, lift gas response and rate.
+  **`entities("points")`:** points grouped by correlation distance.
+- **`events()`:** SRE upsets grouped by signature (kind of unit and finding, Jaccard). Train C's two
+  November trips are one recurring type.
+- **`spe()`:** a PCA model of a training week, and stretches of a test window the model can't explain
+  (squared prediction error past its 99.9th percentile), with the points contributing most. It is the
+  SRE's daily `multivariate` detector, per process area, for 2 h or more. A multivariate finding names its
+  largest contributor, not a cause, so it never leads an upset as first cause.
+
+Two SRE fixes:
+- A detection is extended only by the window right after the one that last saw it (`seen_until`).
+  Before, a scan that skipped days carried an old open detection on and merged two trips.
+- Regrouping loads every detection of each upset it touches.
+
+MCP: `cluster_modes`, `cluster_entities`, `cluster_events`, `plot_modes`. Stored studies, the background
+job and the study page come next.
+
 ### 19. Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

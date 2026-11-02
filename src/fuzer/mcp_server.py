@@ -849,6 +849,52 @@ def similar_cases(ref: str) -> dict[str, Any]:
 
 
 @server.tool(annotations=READ_ONLY)
+def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
+    """Operating modes of a unit, train or list of points over a window: stopped (its run signals) and its
+    running regimes (k-means on the points that carry them: fouling, a new setpoint), with each mode's share,
+    the points that differ most, how often it moves between modes and the mode before each stop."""
+    from . import clusters
+    with db.connect() as conn:
+        sc, err = _scope(conn, scope)
+        if err:
+            return err
+        try:
+            out = clusters.modes(conn, sc, since, until, k, pack=PACK)
+        except clusters.CalcError as e:
+            return {"error": str(e)}
+    return _plain({k_: v for k_, v in out.items() if k_ not in ("times", "labels")})
+
+
+@server.tool(annotations=READ_ONLY)
+def cluster_entities(kind: Literal["wells", "points"] = "wells", scope: str | None = None, since: str | None = None,
+                     until: str | None = None) -> dict[str, Any]:
+    """Peer groups: wells by decline, water cut and lift gas response; or the points in a scope by how they
+    move together (redundant points, mislabelled tags, natural sub-units; needs scope, since, until)."""
+    from . import clusters
+    with db.connect() as conn:
+        sc = scope
+        if scope:
+            sc, err = _resolve(conn, scope)
+            if err:
+                return err
+        try:
+            return _plain(clusters.entities(conn, kind, sc, since, until))
+        except clusters.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
+def cluster_events(since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """SRE upsets grouped by signature (which kinds of unit raised which findings): recurring upset types."""
+    from . import clusters
+    with db.connect() as conn:
+        try:
+            return _plain(clusters.events(conn, since, until))
+        except clusters.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
@@ -1435,6 +1481,17 @@ def plot_flare(since: str, until: str) -> dict[str, Any]:
     """Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate)."""
     from .plots import general
     return _chart(general.flare, {"since": since, "until": until})
+
+
+@server.tool(annotations=CHART)
+def plot_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
+    """Chart a unit's operating modes over time as a coloured strip under its regime-carrying point."""
+    from .plots import troubleshooting
+    with db.connect() as conn:
+        sc, err = _scope(conn, scope)
+    if err:
+        return err
+    return _chart(lambda conn, **kw: troubleshooting.modes_chart(conn, sc, pack=PACK, **kw), {"since": since, "until": until, "k": k})
 
 
 @server.tool(annotations=READ_ONLY)

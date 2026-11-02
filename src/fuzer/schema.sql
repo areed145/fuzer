@@ -736,3 +736,4 @@ create table if not exists opportunity (
     decided_at  timestamptz,
     scanned_at  timestamptz not null default now()
 );
+alter table detection add column if not exists seen_until timestamp;  -- the end of the last window that saw it

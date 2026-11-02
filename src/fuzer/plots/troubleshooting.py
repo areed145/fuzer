@@ -303,13 +303,15 @@ def propagation(conn, upset: int) -> Figure:
         raise ChartError(f"no upset {upset}")
     first: dict[str, str] = {}
     ids: dict[str, str] = {}
-    for x in d["timeline"]:
-        if x["unit"] and x["unit"] not in first:
+    for x in d["timeline"]:  # multivariate findings are area-wide symptoms, not a unit's own first sign
+        if x["unit"] and x["unit"] not in first and x["detector"] != "multivariate":
             first[x["unit"]] = x["start"]
     rows = conn.execute("select fuzer_id, label from entity_label where label = any(%s)", (list(first),)).fetchall()
     ids = {r["label"]: r["fuzer_id"] for r in rows}
-    t0 = dt.fromisoformat(d["start"])
+    if not first:
+        raise ChartError("no unit detections in that upset")
     order = sorted(first, key=lambda u: first[u])
+    t0 = dt.fromisoformat(first[order[0]])
     mins = {u: (dt.fromisoformat(first[u]) - t0).total_seconds() / 60 for u in order}
     # layered layout: x = minutes after the first detection, y spreads the units at about the same time
     pos, lanes = {}, {}
@@ -340,3 +342,43 @@ def propagation(conn, upset: int) -> Figure:
         "upset": upset, "first_cause": d["first_unit"], "first_detection": f"{d['first_key']} on {d['first_point']}",
         "units": len(order), "order": [{"unit": u, "minutes_after_first": round(mins[u])} for u in order[:15]],
         "links_drawn": len(ex) // 3}, [i for i in ids.values()][:20])
+
+
+
+def modes_chart(conn, scope, since: str, until: str, k: int | None = None, pack=None) -> Figure:
+    """A unit's operating modes over time as a coloured strip, under the regime-carrying point's trend."""
+    from .. import clusters
+
+    r = clusters.modes(conn, scope, since, until, k, pack=pack)
+    names = [m["name"] for m in r["modes"]]
+    reg = r["regime_points"][0] if r["regime_points"] else r["points"][0]
+    j = r["points"].index(reg)
+    prof_rows = [m["profile"][reg] for m in r["modes"]]
+    top, bottom = stacked(2, 0.08)
+    data = [{"type": "heatmap", "x": r["times"], "y": ["mode"], "z": [r["labels"]], "yaxis": "y2", "xaxis": "x",
+             "colorscale": "Viridis", "showscale": False, "hovertemplate": "%{x}: mode %{z}<extra></extra>"},
+            {"type": "scatter", "mode": "markers", "name": reg, "x": r["times"], "y": [m["profile"][reg] for m in r["modes"]] and
+             [prof_rows[x] for x in r["labels"]], "marker": {"size": 4, "color": r["labels"], "colorscale": "Viridis"},
+             "yaxis": "y", "hovertemplate": "%{x}: mode profile %{y:.1f}<extra></extra>"}]
+    lay = layout(f"Operating modes {since[:10]} to {until[:10]}", showlegend=False)
+    lay["yaxis"] = {"domain": top, "title": {"text": f"{reg} (mode mean)"}}
+    lay["yaxis2"] = {"domain": [bottom[1] - 0.12, bottom[1]], "showticklabels": False}
+    _ = j
+    return Figure("modes", lay["title"]["text"], data, lay, {
+        "modes": [{k: m[k] for k in ("name", "share", "most_different")} for m in r["modes"]], "names": names,
+        "regime_points": r["regime_points"], "mode_before_stops": r["mode_before_stops"], "basis": r["basis"]},
+        r["sources"])
+
+
+def spe_chart(conn, scope, train_since: str, train_until: str, since: str, until: str) -> Figure:
+    """A PCA model's squared prediction error over a window against its limit, the anomalies shaded."""
+    from .. import clusters
+
+    r = clusters.spe(conn, scope, (train_since, train_until), (since, until))
+    data = [{"type": "scatter", "mode": "lines", "name": "limit", "x": [since, until], "y": [r["limit"], r["limit"]],
+             "line": {"dash": "dash", "color": "rgba(210,60,50,0.8)"}}]
+    lay = layout(f"Multivariate anomaly {since[:10]} to {until[:10]} ({r['components']} components)", None, "SPE")
+    lay["shapes"] = [{"type": "rect", "xref": "x", "x0": a["start"], "x1": a["end"], "yref": "paper", "y0": 0, "y1": 1,
+                      "fillcolor": "rgba(210,60,50,0.15)", "line": {"width": 0}, "layer": "below"} for a in r["anomalies"]]
+    return Figure("spe", lay["title"]["text"], data, lay, {
+        "anomalies": r["anomalies"][:10], "limit": r["limit"], "components": r["components"], "basis": r["basis"]}, r["sources"])
