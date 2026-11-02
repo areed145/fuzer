@@ -97,6 +97,8 @@ LOOSE = {
 }
 JACKET_ITEMS = [("FT", 3001, "Gas Lift Supply Meter", "kSm3/d"), ("PT", 3002, "Production Header Pressure", "barg"),
                 ("XV", 3100, "Jacket ESDV", "%")]
+# SAP ABC indicator by function: A safety / production critical, B production impact, C the rest.
+ABC = {"K": "A", "GT": "A", "V": "A", "XV": "A", "PSV": "A", "P": "B", "E": "B", "HCV": "B"}
 # Production choke models (manufacturer, model): two for oil wells by slot, one for the gas producers.
 CHOKES = [("Master Flo", "P2-12"), ("Cameron", "CC30"), ("Mokveld", "MCV-40")]
 CHOKE_CURVES = {"P2-12": (12.0, "equal_percentage", 1.5), "CC30": (22.0, "equal_percentage", 2.0),
@@ -816,6 +818,14 @@ def generate(out, seed: int = 11) -> dict:
     walls += [{"tag": f"{area}-V-{loop}", "nominal_mm": 22.0, "cmls": 3}
               for area, items in EQUIPMENT.items() for func, loop, _, _, _ in items if func == "V"]
     readings = measurements.thickness_readings(random.Random(seed + 13), walls, [2019, 2021, 2023, 2025])
+
+    # SAP ABC indicator (criticality) on functional locations. Jacket instruments were never assessed,
+    # so they come through blank, as gaps do in real registers.
+    for f in floc:
+        parts = f["floc"].split("-")
+        func = parts[2].rstrip("0123456789ABC") if len(parts) > 2 else ""
+        f["abc_indicator"] = ("B" if parts[1:2] == ["WELL"] else "" if len(parts) < 3 else
+                              ABC.get(func, "C" if int(parts[1]) < 61 else ""))
 
     # ---- write ----------------------------------------------------------------------------------------
     (out / "answer_keys").mkdir(exist_ok=True)

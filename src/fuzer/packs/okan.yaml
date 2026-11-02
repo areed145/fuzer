@@ -111,3 +111,34 @@ downtime_reasons:
   GL-VALVE: {name: Gas lift valve failure, category: well}
   WELL-INT: {name: Well intervention, category: well}
   WEATHER: {name: Weather, category: external}
+
+# Value and risk score (#100): one explainable number in USD so an upset, a late PM and a gas lift move
+# rank on one board. Change a price or the matrix here and everything re-ranks; no code changes.
+value:
+  currency: USD
+  prices: {oil_sm3: 470, gas_ksm3: 150}       # ~75 $/bbl Brent; EGP gas contract
+  horizon_days: 90                            # how long a risk or a gain counts if nothing is done
+  incident_lookback_days: 365                 # upsets this recent are scored (as the cost of a repeat)
+  risk_matrix:
+    # Consequence levels 1-5 (people, environment, asset, reputation share one money scale).
+    consequence_usd: [10000, 100000, 1000000, 10000000, 100000000]
+    # Likelihood levels 1-5 from failures per year: upper bounds of levels 1-4, above is level 5.
+    likelihood_per_year: [0.1, 0.3, 1, 3]
+    # Bands by consequence x likelihood (highest score in each band).
+    bands: {low: 4, medium: 9, high: 15, extreme: 25}
+    # Share of failures that reach the worst credible consequence; most failures are a trip, not a fire.
+    worst_case_share: 0.01
+  # SAP ABC indicator -> worst credible consequence level per category.
+  criticality:
+    A: {people: 4, environment: 3, asset: 4, reputation: 3}
+    B: {people: 2, environment: 2, asset: 3, reputation: 2}
+    C: {people: 1, environment: 1, asset: 2, reputation: 1}
+  compliance:
+    usd_per_day_overdue: {PM: 100, INSP: 400, IOW: 2000}
+    max_days: 365                             # overdue days count up to this
+    criticality_factor: {A: 3, B: 2, C: 1}
+  urgency:
+    days: 30                                  # value halves when the consequence is this far away
+    priority_days: {"1": 0, "2": 7, "3": 30, "4": 90}   # SAP priority -> days to consequence
+  effort_usd: {incident: 25000, work_order: 20000, maintenance_plan: 15000, opportunity: 3000}
+  weights: {production: 1.0, risk: 1.0, compliance: 1.0}

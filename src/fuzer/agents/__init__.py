@@ -47,8 +47,8 @@ def note(kind: str, **data) -> None:
 COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge"]
 CHARTS = ["plot_trend", "plot_measurements", "plot_xy", "plot_bar", "plot_distribution", "plot_custom", "look_at_figure"]
 TOOLS = {
-    "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow", "plot_bar", "plot_measurements",
-                              "plot_custom", "look_at_figure"],
+    "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow", "value_score", "plot_bar",
+                              "plot_measurements", "plot_custom", "look_at_figure"],
     "troubleshooter": COMMON + ["troubleshooting_brief", "incident_detail", "get_incidents", "get_events",
                                 "process_values", "lessons_learned", "maintenance_history", "equipment_history",
                                 "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
@@ -61,6 +61,7 @@ TOOLS = {
                             *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
                             "plot_gas_lift_allocation", "plot_choke", "equipment_curves"],
     "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
+                             "value_score",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
                              "list_members", "get_incidents", "deferment_pareto", "measurements",
                              *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration",

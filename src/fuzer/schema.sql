@@ -225,6 +225,16 @@ create table if not exists lesson (
     unique (scope_kind, scope_key, failure_mode)
 );
 
+-- Engineers' own ordering of a sample of work (fuzer ids, most valuable first), to calibrate the value
+-- score (#100) against: value.calibrate reports how well the score's ranking agrees.
+create table if not exists value_ranking (
+    id         bigserial primary key,
+    items      jsonb not null,
+    by_user    text not null default 'anonymous',
+    comment    text,
+    created_at timestamptz not null default now()
+);
+
 -- Engineers' ratings of what Fuzer suggests (briefs, reading, lessons), to measure and improve it.
 create table if not exists feedback (
     id         bigserial primary key,
