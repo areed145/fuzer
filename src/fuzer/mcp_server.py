@@ -783,6 +783,38 @@ def opportunities(status: Literal["open", "rejected", "accepted", "project", "go
 
 
 @server.tool(annotations=READ_ONLY)
+def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
+    """Alarm performance (ISA-18.2 / EEMUA 191) over a window: alarms per hour against 6, floods (over 10 in
+    10 minutes), chattering and standing alarms, and the top bad-actor points. An alarm is a point going past
+    an enabled DCS / AF alarm limit while its unit runs. scope: a unit or area (default: everything)."""
+    from . import alarms
+    with db.connect() as conn:
+        sc = scope
+        if scope:
+            sc, err = _resolve(conn, scope)
+            if err:
+                return err
+        return _plain(alarms.alarm_analysis(conn, PACK, sc, since, until))
+
+
+@server.tool(annotations=READ_ONLY)
+def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
+    """Stops (trips), starts and failed starts per unit with a run signal over a window, with the days between
+    stops and the share of time running. scope: a unit or area (default: everything)."""
+    from . import alarms
+    with db.connect() as conn:
+        sc = scope
+        if scope:
+            sc, err = _resolve(conn, scope)
+            if err:
+                return err
+        try:
+            return _plain(alarms.trip_analysis(conn, PACK, sc, since, until))
+        except alarms.CalcError as e:
+            return {"error": str(e)}
+
+
+@server.tool(annotations=READ_ONLY)
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
@@ -1313,6 +1345,24 @@ def plot_peers(ref: str) -> dict[str, Any]:
     """Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked."""
     from .plots import maintenance
     return _chart(maintenance.peers, {}, {"fid": ref})
+
+
+@server.tool(annotations=CHART)
+def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
+    """Chart each unit's state (running, startup, stopped, transition) as swimlanes over a window: an upset
+    spreading through a train or the plant. scope: a unit or area (default: everything with a run signal)."""
+    from .plots import troubleshooting
+    build = lambda conn, **kw: troubleshooting.state_timeline(conn, pack=PACK, **kw)  # noqa: E731
+    return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
+
+
+@server.tool(annotations=CHART)
+def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
+    """Chart alarms per 10 minutes over a window against the flood line, with floods, chattering, standing
+    alarms and the bad actors in the summary."""
+    from .plots import troubleshooting
+    build = lambda conn, **kw: troubleshooting.alarms_chart(conn, pack=PACK, **kw)  # noqa: E731
+    return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
 @server.tool(annotations=READ_ONLY)

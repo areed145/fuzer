@@ -58,7 +58,7 @@ TOOLS = {
                                 *CHARTS, "plot_incident", "plot_correlation", "plot_vibration", "plot_pump_curve",
                                 "plot_choke", "plot_instrument_health", "plot_changes", "equipment_curves",
                                 "pressure_profile", "plot_pressure_profile", "plot_dp_drift", "plot_compressor_performance",
-                                "plot_cooler_fouling"],
+                                "plot_cooler_fouling", "alarm_analysis", "trip_analysis", "plot_state_timeline", "plot_alarms"],
     "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
                             "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
                             "measurements", "limits", "trace_flow", "calc", "detect_changes", "pressure_profile",
@@ -72,7 +72,7 @@ TOOLS = {
                              "list_members", "get_incidents", "deferment_pareto", "measurements", "limits", "calc",
                              *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration",
                              "plot_pump_curve", "plot_choke", "equipment_curves", "plot_compressor_performance",
-                             "plot_cooler_fouling", "plot_peers"],
+                             "plot_cooler_fouling", "plot_peers", "trip_analysis", "alarm_analysis"],
 }
 
 ORCHESTRATOR = """\
