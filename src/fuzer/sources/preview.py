@@ -40,7 +40,8 @@ def listing(conn, data_dir) -> list[dict]:
             state = "new"
         else:
             state = "unchanged" if prev["fingerprint"] == c.fingerprint() else "changed"
-        out.append({"dataset": name, "connector": c.kind, "mapping": f"{m.source}/{m.record_type}" if m else None,
+        out.append({"dataset": name, "connector": c.kind, "mapping": f"{m.source}/{m.record_type}" if m else
+                    ("built-in loader" if name in ingest.FILES else None),
                     "state": state, "rows": prev["rows"] if prev else None,
                     "loaded_at": prev["loaded_at"].isoformat(timespec="seconds") if prev else None})
     return out

@@ -47,3 +47,16 @@ def test_preview_of_a_new_table_drafts_a_mapping(conn, tmp_path):
     assert p["connector"] == "csv" and p["suggested"]["key"] == "tag_no" and "dataset: instrument_index" in p["suggested"]["yaml"]
     with pytest.raises(ValueError, match="no table"):
         preview.preview(conn, PACK, tmp_path, "nothing_here")
+
+
+def test_api(conn):
+    from fastapi.testclient import TestClient
+
+    from fuzer import api
+
+    client = TestClient(api.app)
+    listed = client.get("/sources").json()
+    assert any(s["dataset"] == "sap_notifications" and s["state"] == "unchanged" for s in listed["sources"])
+    one = client.get("/sources/sap_notifications", params={"rows": 2}).json()
+    assert len(one["sample"]) == 2 and one["makes"][0]["entities"]
+    assert client.get("/sources/nothing_here").status_code == 404
