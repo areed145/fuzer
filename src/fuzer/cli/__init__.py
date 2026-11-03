@@ -13,7 +13,8 @@ from ..resources import ROOT
 from ..sources import ingest
 
 
-def main(argv=None):
+def parser() -> argparse.ArgumentParser:
+    """The command line, as argparse builds it (docs/cli.md is generated from it)."""
     p = argparse.ArgumentParser(prog="fuzer")
     p.add_argument("--project", default=None,
                    help="project (#131): picks the pack, data folder, mappings and time-series provider "
@@ -143,6 +144,11 @@ def main(argv=None):
     pj.add_argument("name", nargs="?")
     pj.add_argument("--by", default=os.environ.get("USER", "cli"))
 
+    return p
+
+
+def main(argv=None):
+    p = parser()
     args = p.parse_args(argv)
     if name := (args.project or projects.current()):
         with db.connect() as conn:
