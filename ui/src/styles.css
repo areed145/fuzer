@@ -540,3 +540,17 @@ ol.board { list-style: none; padding: 0; margin: 8px 0; }
 .board-detail { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
 .board-detail table { width: auto; margin: 4px 0; }
 .board-detail td { padding: 2px 12px 2px 0; }
+
+/* settings (#131) */
+table.settings { width: 100%; table-layout: fixed; }
+table.settings th:nth-child(1) { width: 44%; }
+table.settings th:nth-child(2) { width: 17%; }
+table.settings th:nth-child(3) { width: 11%; }
+table.settings th:nth-child(4) { width: 10%; }
+table.settings th:nth-child(6) { width: 104px; }
+table.settings td { overflow-wrap: anywhere; }
+table.settings button { white-space: nowrap; }
+table.settings code { font-family: var(--mono); font-size: 12px; margin-right: 6px; }
+tr.setting-edit > td { background: var(--bg); }
+tr.setting-edit .row { margin-bottom: 8px; }
+.row input.grow { flex: 1; min-width: 200px; }

@@ -713,6 +713,37 @@ export interface DailyReport {
   item_id: number | null;
 }
 
+export interface SettingRow {
+  key: string;
+  group: string;
+  type: "int" | "float" | "bool" | "str" | "choice" | "secret";
+  description: string;
+  default: unknown;
+  global: unknown;
+  project: unknown;
+  value: unknown;
+  from: "default" | "global" | "project";
+  updated_by: string | null;
+  updated_at: string | null;
+  min?: number;
+  max?: number;
+  choices?: string[];
+  restart: boolean;
+  scopes: string[];
+  resolves?: boolean;
+}
+
+export interface SettingChange {
+  scope: string;
+  old: unknown;
+  new: unknown;
+  by: string;
+  reason: string | null;
+  at: string;
+}
+
+export type SettingScope = "global" | "project";
+
 export interface Study {
   id: number;
   kind: string;
@@ -793,6 +824,13 @@ export const api = {
   startStudy: (kind: string, params: Record<string, unknown>, by: string) =>
     request<Study>("POST", "/studies", undefined, { kind, params, by }),
   rerunStudy: (id: number, by: string) => request<Study>("POST", `/studies/${id}/rerun`, { by }),
+  settings: (project?: string) =>
+    request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
+  setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>
+    request<unknown>("PUT", `/settings/${encodeURIComponent(key)}`, undefined, { value, scope, project, by, reason }),
+  resetSetting: (key: string, scope: SettingScope, project: string | null, by: string, reason: string) =>
+    request<unknown>("POST", `/settings/${encodeURIComponent(key)}/reset`, undefined, { scope, project, by, reason }),
+  settingHistory: (key: string) => request<SettingChange[]>("GET", `/settings/${encodeURIComponent(key)}/history`),
   workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
