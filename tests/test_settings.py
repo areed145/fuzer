@@ -64,3 +64,11 @@ def test_signals_thresholds_are_settings():
         th = signals.thresholds(None)
     assert th["flat_hours"] == 4.0
     assert signals.BASIS["frozen"].format(**th) == "no change at all for 4 h or more while the unit runs"
+
+
+def test_alarm_defaults_match_the_constants_they_replace():
+    from fuzer.analysis import alarms
+
+    assert [settings.REGISTRY[f"alarms.{k}"].default for k in (
+        "flood_per_10min", "target_per_hour", "standing_hours", "chatter", "failed_start_minutes")] == \
+        [alarms.FLOOD, alarms.TARGET_PER_HOUR, alarms.STANDING_HOURS, alarms.CHATTER, alarms.FAILED_START_MINUTES]
