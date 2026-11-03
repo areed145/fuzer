@@ -16,6 +16,8 @@ from typing import Any
 
 from psycopg.types.json import Jsonb
 
+from . import models
+
 CACHE_SECONDS = 5.0
 GLOBAL = "global"
 
@@ -36,6 +38,7 @@ class Setting:
     choices: tuple = ()
     restart: bool = False  # takes effect when the process restarts, not on the next read
     scopes: tuple = (GLOBAL, "project")
+    env: str | None = None  # the environment variable it replaces: still read for one release, with a warning
 
     def parse(self, value: Any) -> Any:
         """The value as this setting's type, or SettingError saying why it isn't one."""
@@ -84,7 +87,28 @@ def register(*settings: Setting) -> None:
         REGISTRY[s.key] = s
 
 
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
 register(
+    Setting("llm.model", "str", models.DEFAULT_MODEL, "Claude model for the readers: log links, P&IDs, documents, "
+            "curves, mapping suggestions, daily report drafts", "Claude", env="FUZER_LLM_MODEL"),
+    Setting("llm.effort", "choice", "medium", "Effort for the readers", "Claude", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
+    Setting("agents.model", "str", models.DEFAULT_MODEL, "Claude model for the assistant's orchestrator", "Claude",
+            env="FUZER_AGENT_MODEL"),
+    Setting("agents.effort", "choice", "high", "Effort for the assistant's orchestrator", "Claude", choices=EFFORTS,
+            env="FUZER_AGENT_EFFORT"),
+    Setting("agents.specialist_model", "str", "", "Claude model for the specialists (empty: the orchestrator's)",
+            "Claude", env="FUZER_AGENT_SPECIALIST_MODEL"),
+    Setting("agents.specialist_effort", "choice", "medium", "Effort for the specialists", "Claude", choices=EFFORTS,
+            env="FUZER_AGENT_SPECIALIST_EFFORT"),
+    Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
+            "Claude", env="FUZER_AGENT_FALLBACKS"),
+    Setting("daily_report.close_cron", "str", "0 7 * * *", "When the day is closed and its report drafted (cron)",
+            "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
+    Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",
+            "Schedule", min=30, env="FUZER_WORK_LEASE_SECONDS"),
+    Setting("db.work_mem", "str", "256MB", "Postgres work_mem for the rebuild's big queries", "Database",
+            env="FUZER_WORK_MEM"),
     Setting("sre.handoff.min_detections", "int", 3, "Detections an upset needs before it is handed off (a lone "
             "detection is evidence, not an upset worth a person's time)", "SRE", min=1),
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the troubleshooter diagnoses per hand-off run", "SRE",
@@ -111,16 +135,51 @@ def _setting(key: str) -> Setting:
 _cache: dict[tuple, tuple[float, Any]] = {}
 
 
+_warned: set[str] = set()
+
+
+def _stored(conn, key: str, p: str | None) -> dict:
+    if conn is None:  # open a short connection; without a database, the variable or the default
+        from . import db
+
+        if not os.environ.get("FUZER_DATABASE_URL") and db._server is None:
+            return {}  # don't start the embedded database just to read a setting (an import, a test)
+        try:
+            with db.connect() as c:
+                return _stored(c, key, p)
+        except Exception:
+            return {}
+    try:
+        return {r["scope"]: r["value"] for r in conn.execute(
+            "select scope, value from setting where key = %s and scope = any(%s)", (key, [scope_of(p), GLOBAL]))}
+    except Exception:  # a database from before #131: no setting table yet
+        conn.rollback()
+        return {}
+
+
 def get(conn, key: str, project_name: str | None = None) -> Any:
-    """The project's value, else the global value, else the default."""
+    """The project's value, else the global value, else the old environment variable (for one release),
+    else the default. `conn` None opens a short connection."""
     s = _setting(key)
     p = project_name or project()
     hit = _cache.get((key, p))
     if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
         return hit[1]
-    rows = {r["scope"]: r["value"] for r in conn.execute(
-        "select scope, value from setting where key = %s and scope = any(%s)", (key, [scope_of(p), GLOBAL]))}
-    v = rows.get(scope_of(p), rows.get(GLOBAL, s.default)) if p else rows.get(GLOBAL, s.default)
+    rows = _stored(conn, key, p)
+    if p and scope_of(p) in rows:
+        v = rows[scope_of(p)]
+    elif GLOBAL in rows:
+        v = rows[GLOBAL]
+    elif s.env and os.environ.get(s.env):
+        v = s.parse(os.environ[s.env])
+        if s.env not in _warned:
+            _warned.add(s.env)
+            import warnings
+
+            warnings.warn(f"{s.env} is deprecated: use the setting {key} (fuzer settings set {key} ...)",
+                          DeprecationWarning, stacklevel=2)
+    else:
+        v = s.default
     _cache[(key, p)] = (time.monotonic(), v)
     return v
 

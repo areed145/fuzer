@@ -14,22 +14,21 @@ all read-only) and its skills (`skills/<agent>/*/SKILL.md`: names and descriptio
 body loaded when the agent needs it).
 Nothing here can act on the plant.
 
-Settings: ANTHROPIC_API_KEY (the same key `fuzer llm-link` uses), FUZER_AGENT_MODEL (the orchestrator,
-default claude-opus-5-5), FUZER_AGENT_SPECIALIST_MODEL (default: the orchestrator's), FUZER_AGENT_EFFORT
-(orchestrator, default high), FUZER_AGENT_SPECIALIST_EFFORT (default medium), FUZER_AGENT_FALLBACKS=0 to
-turn off Claude's server-side refusal fallback. Every answer reports its calls, tokens and cost per model.
+ANTHROPIC_API_KEY is the same key `fuzer llm-link` uses. The models and efforts are settings (#131):
+agents.model and agents.effort for the orchestrator, agents.specialist_model (empty: the orchestrator's) and
+agents.specialist_effort, and agents.fallbacks for Claude's server-side refusal fallback. Every answer reports
+its calls, tokens and cost per model.
 """
 
 import asyncio
 import functools
 import logging
-import os
 import time
 import warnings
 from contextvars import ContextVar
 from pathlib import Path
 
-from ..core import models
+from ..core import models, settings
 
 SKILLS = Path(__file__).parent / "skills"
 DEFAULT_MODEL = models.DEFAULT_MODEL
@@ -167,7 +166,7 @@ def _content(result):
 def _options(effort: str) -> dict:
     # cache_control: automatic prompt caching of tools + system + history, re-sent on every turn
     opts = {"max_tokens": MAX_OUTPUT_TOKENS, "output_config": {"effort": effort}, "cache_control": {"type": "ephemeral"}}
-    if os.environ.get("FUZER_AGENT_FALLBACKS", "1") != "0":
+    if settings.get(None, "agents.fallbacks"):
         opts["fallbacks"] = "default"  # on a policy decline, the API re-runs the request on a fallback model
     return opts
 
@@ -218,8 +217,8 @@ def client(model: str | None = None, anthropic_client=None):
     from anthropic import AsyncAnthropic
 
     anthropic_client = _metered(anthropic_client or AsyncAnthropic())
-    betas = ["server-side-fallback-2026-07-01"] if os.environ.get("FUZER_AGENT_FALLBACKS", "1") != "0" else []
-    return AnthropicClient(model=model or os.environ.get("FUZER_AGENT_MODEL", DEFAULT_MODEL),
+    betas = ["server-side-fallback-2026-07-01"] if settings.get(None, "agents.fallbacks") else []
+    return AnthropicClient(model=model or settings.get(None, "agents.model"),
                            anthropic_client=anthropic_client, additional_beta_flags=betas)
 
 
@@ -247,10 +246,10 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     for name in ("agent_framework", "httpx", "httpx2"):  # every tool call and request is logged at INFO
         logging.getLogger(name).setLevel(logging.WARNING)
     chat = chat or client()
-    specialist_model = os.environ.get("FUZER_AGENT_SPECIALIST_MODEL")
+    specialist_model = settings.get(None, "agents.specialist_model")
     specialist_chat = specialist_chat or (client(specialist_model) if specialist_model else chat)
-    effort = effort or os.environ.get("FUZER_AGENT_EFFORT", "high")
-    specialist_effort = specialist_effort or os.environ.get("FUZER_AGENT_SPECIALIST_EFFORT", "medium")
+    effort = effort or settings.get(None, "agents.effort")
+    specialist_effort = specialist_effort or settings.get(None, "agents.specialist_effort")
     specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description)
                    for name, (description, instructions) in SPECIALISTS.items()]
     return _agent(chat, "orchestrator", ORCHESTRATOR, effort, "Fuzer operations assistant",
@@ -295,7 +294,7 @@ def ask_sync(question: str, **kw) -> dict:
                 stack.push_async_callback(ac.close)
                 return client(model, anthropic_client=ac)
 
-            spec = os.environ.get("FUZER_AGENT_SPECIALIST_MODEL")
+            spec = settings.get(None, "agents.specialist_model")
             agent = team(chat=chat(), specialist_chat=chat(spec) if spec else None)
             return await ask(question, agent=agent, **kw)
 

@@ -274,8 +274,7 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
     """A pump's operating points from PI (head from discharge minus suction pressure) against its OEM
     head curve: {tag, label, curve, start, end, ops [(time, flow, head)], by_month [{month,
     head_vs_curve_pct}]}."""
-    from ..sources import timeseries
-    from ..sources import curves
+    from ..sources import curves, timeseries
 
     tag = fid
     if conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"] == "equipment":

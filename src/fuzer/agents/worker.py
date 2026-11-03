@@ -23,10 +23,11 @@ from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
+from ..core import settings
 from ..workflow import engine
 
 log = logging.getLogger(__name__)
-LEASE = timedelta(seconds=int(os.environ.get("FUZER_WORK_LEASE_SECONDS", "900")))
+LEASE = timedelta(seconds=900)  # the default of the setting work.lease_seconds (#131)
 MAX_ATTEMPTS = 3
 
 
@@ -58,8 +59,9 @@ Agent = Callable[[AgentCall], dict | None]
 
 
 def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | None = None,
-          lease: timedelta = LEASE, task_id: int | None = None) -> dict | None:
+          lease: timedelta | None = None, task_id: int | None = None) -> dict | None:
     """Take the next agent step that is due and not held by a live lease (or that one step, if free)."""
+    lease = lease or timedelta(seconds=settings.get(conn, "work.lease_seconds"))
     now = now or engine.utcnow()
     row = conn.execute(
         """
@@ -80,6 +82,7 @@ def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | Non
 
 
 def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentCall:
+    lease = lease or timedelta(seconds=settings.get(conn, "work.lease_seconds"))
     proc = conn.execute("select data from work_process where id = %s", (t["process_id"],)).fetchone()
     item = conn.execute("select id, type, title, subjects, priority, payload from work_item where id = %s",
                         (t["item_id"],)).fetchone()
@@ -93,8 +96,9 @@ def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentC
 
 
 def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: datetime | None = None,
-             lease: timedelta = LEASE, max_attempts: int = MAX_ATTEMPTS) -> dict | None:
+             lease: timedelta | None = None, max_attempts: int = MAX_ATTEMPTS) -> dict | None:
     """Claim and run one agent step for the roles in `agents`; None when there is nothing to do."""
+    lease = lease or timedelta(seconds=settings.get(conn, "work.lease_seconds"))
     worker = worker or default_worker()
     now = now or engine.utcnow()
     t = claim(conn, worker, sorted(agents), now, lease)

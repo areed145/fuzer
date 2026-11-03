@@ -15,7 +15,8 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
+from ..core import llm
+from ..core.llm import call, usage
 from ..core.pack import Pack
 from .extract import model_key
 
@@ -85,9 +86,10 @@ def normalise(result: dict) -> dict:
             "ratings": {r["name"]: [r["x"], r["y"] or None] for r in result["ratings"]}}
 
 
-def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
+def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str | None = None,
         limit: int | None = None, workers: int = 4, force: bool = False, dry_run: bool = False, **_) -> dict:
     """Read datasheets without a current cached reading; queue each reading for review."""
+    model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
     rows = conn.execute(
         """
         select r.source_key, r.payload, x.text_hash, x.prompt_version

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from psycopg.types.json import Jsonb
 
-from ..core import nel
+from ..core import llm, nel
 from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage  # noqa: F401  (also used from here)
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
@@ -258,11 +258,12 @@ def _store(conn, rows: list[tuple]) -> None:
     conn.commit()
 
 
-def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
+def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str | None = None,
         limit: int | None = None, per_request: int = 20, workers: int = 4, batch: bool = False,
         force: bool = False, dry_run: bool = False, poll_seconds: int = 30,
         sources: list[str] | None = None) -> dict:
     """Read text records that have no current cached result. Needs a rebuilt register first."""
+    model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
     rows = []
     for name in sources or TEXT_SOURCES:
         rsrc, rtype, text_field, time_field = TEXT_SOURCES[name]

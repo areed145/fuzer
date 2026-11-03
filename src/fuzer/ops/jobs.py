@@ -12,7 +12,8 @@ Assets: one per source export (each loads only its own file, as a full snapshot)
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
 Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data),
-FUZER_PACK, FUZER_TIMEZONE (default UTC), FUZER_LLM_MODEL / FUZER_LLM_EFFORT.
+FUZER_PROJECT (or FUZER_PACK), FUZER_TIMEZONE (default UTC); the Claude model and effort are the
+settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
 
 import json
@@ -22,7 +23,7 @@ from pathlib import Path
 
 import dagster as dg
 
-from ..core import db
+from ..core import db, settings
 from ..core.pack import load_pack
 from ..graph import llm_links
 from ..sources import ingest, llm_pids
@@ -45,8 +46,8 @@ class Fuzer(dg.ConfigurableResource):
 class ClaudeSettings(dg.ConfigurableResource):
     """Limits for scheduled Claude runs, so a schedule can't run up a large bill by surprise."""
 
-    model: str = llm_links.DEFAULT_MODEL
-    effort: str = llm_links.DEFAULT_EFFORT
+    model: str = ""  # empty: the settings llm.model and llm.effort (#131)
+    effort: str = ""
     batch: bool = True  # half price; a run waits for the batch (usually under an hour)
     max_log_entries: int = 2000
     max_drawings: int = 200
@@ -336,7 +337,7 @@ schedules = [
                           default_status=dg.DefaultScheduleStatus.RUNNING),
     dg.ScheduleDefinition(job=studies_job, cron_schedule="*/5 * * * *", execution_timezone=TZ,
                           default_status=dg.DefaultScheduleStatus.RUNNING),
-    dg.ScheduleDefinition(job=day_close, cron_schedule=os.environ.get("FUZER_DAY_CLOSE_CRON", "0 7 * * *"),
+    dg.ScheduleDefinition(job=day_close, cron_schedule=settings.get(None, "daily_report.close_cron"),
                           execution_timezone=TZ, default_status=dg.DefaultScheduleStatus.RUNNING),
 ]
 

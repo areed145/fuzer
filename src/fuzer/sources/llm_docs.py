@@ -13,7 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from psycopg.types.json import Jsonb
 
-from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage
+from ..core import llm
+from ..core.llm import call, run_batch, text_hash, usage
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
 from ..core.taxonomy import load_standard
@@ -80,10 +81,11 @@ def _candidates(conn, section_keys: list[str]) -> dict[str, list[dict]]:
     return out
 
 
-def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
+def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str | None = None,
         limit: int | None = None, per_request: int = 10, workers: int = 4, batch: bool = False,
         force: bool = False, dry_run: bool = False, poll_seconds: int = 30) -> dict:
     """Read sections that have no current cached result. Needs a rebuilt register first."""
+    model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
     modes = load_standard(pack.classification.get("taxonomy", "iso14224")).get("failure_modes", {})
     rows = conn.execute(
         """
