@@ -7,10 +7,10 @@ page is out of date.
 """
 
 import argparse
-import ast
 import re
 from pathlib import Path
 
+from .components import COMPONENTS, GITHUB, PKG, _imports, _source, _tables
 from .resources import ROOT
 
 HEADER = "Generated from {what}; don't edit by hand (`uv run python -m fuzer.reference`)."
@@ -84,56 +84,6 @@ def schema_md() -> str:
         out += [f"## `{m.group(2)}`", "", *([_cell(note), ""] if note else []),
                 "| Column | Type | Note |", "|---|---|---|", *cols, ""]
     return "\n".join(out)
-
-
-GITHUB = "https://github.com/areed145/fuzer/tree/main/"
-
-# The components, in the order data moves through them. The rest of the page is read from the code.
-COMPONENTS = {
-    "sources": ("Sources and ingestion", "Connectors read each source table; mappings turn rows into records, "
-                "entities and links; Claude reads logs, P&IDs and documents.", "sources.md"),
-    "graph": ("Graph and golden records", "Resolves records into one entity per real thing, links them, and "
-              "answers queries over the graph.", "identity.md"),
-    "analysis": ("Analyses", "Signals, limits, calcs, hydraulics, studies and clustering over the graph and the "
-                 "process values.", "analyses.md"),
-    "ops": ("Operations", "The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, "
-            "opportunities and studies.", "workflow.md"),
-    "plots": ("Charts", "Interactive charts the agents and the app build from Fuzer data.", "agents.md"),
-    "workflow": ("Work engine", "BPMN processes that move work between agents and people.", "workflow.md"),
-    "agents": ("Agents and MCP", "The operations assistant, its specialists, and the MCP server with their tools.",
-               "agents.md"),
-    "evals": ("Evals", "Answer keys, the history replay and the ops eval that score it all.", "evals.md"),
-    "api": ("API", "The HTTP API the app uses.", "deployment.md"),
-    "cli": ("Command line", "`fuzer up` and the other commands.", "cli.md"),
-    "core": ("Core", "Database, settings, projects and packs, Claude calls, tags and units: used by everything.",
-             "deployment.md"),
-}
-PKG = Path(__file__).parent
-
-
-def _imports(pkg: str) -> set[str]:
-    """The fuzer packages `pkg` imports, inside functions too."""
-    out = set()
-    for f in (PKG / pkg).rglob("*.py"):
-        here = ["fuzer", *f.relative_to(PKG).parent.parts]  # the file's package
-        for n in ast.walk(ast.parse(f.read_text())):
-            if not isinstance(n, ast.ImportFrom):
-                continue
-            base = here[:len(here) - n.level + 1] if n.level else []
-            full = [*base, *(n.module or "").split(".")] if n.module else base
-            names = [full] if n.module or len(full) > 1 else [[*full, a.name] for a in n.names]
-            for x in names:
-                if len(x) > 1 and x[0] == "fuzer" and x[1] in COMPONENTS and x[1] != pkg:
-                    out.add(x[1])
-    return out
-
-
-def _source(pkg: str) -> str:
-    return "\n".join(f.read_text() for f in sorted((PKG / pkg).rglob("*.py")))
-
-
-def _tables() -> list[str]:
-    return re.findall(r"create table if not exists (\w+)", (PKG / "schema.sql").read_text())
 
 
 SCAN = [  # the scheduled scan, step by step: (function, what it does, the table it writes)
@@ -222,8 +172,7 @@ def architecture_md() -> str:
     for p, (title, purpose, page) in COMPONENTS.items():
         mods = sorted(str(f.relative_to(PKG / p))[:-3].replace("/", ".") for f in (PKG / p).rglob("*.py")
                       if f.name != "__init__.py")
-        tests = sum(len(re.findall(r"^def test_", f.read_text(), re.M)) for f in (PKG.parent.parent / "tests" / p).rglob("test_*.py")) \
-            if (PKG.parent.parent / "tests" / p).exists() else 0
+        tests = (PKG.parent.parent / "tests" / p).exists()
         out += [f"### {title}", "", f"{purpose} More in [{page[:-3].replace('-', ' ')}]({page}).", "",
                 f"- **Code:** [`src/fuzer/{p}`]({GITHUB}src/fuzer/{p}): {', '.join(f'`{m}`' for m in mods)}",
                 f"- **Uses:** {', '.join(sorted(deps[p])) or 'nothing else in fuzer'}"]
@@ -235,7 +184,7 @@ def architecture_md() -> str:
             out.append("- **Tools:** " + ", ".join(f"{a} {n}" for a, n in sorted(by_agent.items()))
                        + " ([capabilities](capabilities.md))")
         if tests:
-            out.append(f"- **Tests:** {tests} in [`tests/{p}`]({GITHUB}tests/{p})")
+            out.append(f"- **Tests:** [`tests/{p}`]({GITHUB}tests/{p})")
         out.append("")
     return "\n".join(out)
 
