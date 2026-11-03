@@ -85,3 +85,12 @@ def test_report_default_matches_the_constant_it_replaces():
     from fuzer.ops import daily_report
 
     assert settings.REGISTRY["daily_report.mover_pct"].default == daily_report.MOVER_PCT
+
+
+def test_study_defaults_match_the_constants_they_replace():
+    from fuzer.analysis import studies
+
+    assert [settings.REGISTRY[f"studies.{k}"].default for k in ("max_points", "max_values", "workers")] == \
+        [studies.MAX_POINTS, studies.MAX_VALUES, studies.WORKERS]
+    with settings.Overrides({"studies.max_values": 10000}), pytest.raises(studies.CalcError, match="too big"):
+        studies._window("2025-01-01", "2025-01-02", 100)  # 100 points x 145 steps

@@ -26,8 +26,10 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core import settings
 from .calcs import CalcError
 
+# Defaults; the values in effect are settings (#131): studies.max_points, .max_values, .workers
 MAX_POINTS = 2000  # an interactive study reads at most this many points
 MAX_VALUES = 15_000_000  # and at most this many values (points x steps); bigger studies run in the background
 WORKERS = 8
@@ -35,12 +37,13 @@ WORKERS = 8
 
 # ---- picking points -------------------------------------------------------------------------------
 
-def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3, limit: int = MAX_POINTS) -> list[dict]:
+def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3, limit: int | None = None) -> list[dict]:
     """PI points for a scope: a list of timeseries ids; "facility" (every point); an area (every point on
     its tags and wells); any other entity, its points and its instruments' points, plus with `path`
     ("flows_to" or "lift_gas_to", up or down as "flows_to:up") what that path reaches within `depth`."""
     from ..sources import timeseries
 
+    limit = settings.get(conn, "studies.max_points") if limit is None else limit
     if isinstance(scope, list):
         return [p for p in (timeseries._point(conn, i) for i in scope) if p][:limit]
     if scope == "facility":
@@ -108,7 +111,7 @@ def matrix(pts: list[dict], start: datetime, end: datetime, step: int = 10, src=
                 col[i] = at[t]
         return col
 
-    with ThreadPoolExecutor(WORKERS) as pool:
+    with ThreadPoolExecutor(settings.get(None, "studies.workers")) as pool:
         cols = list(pool.map(one, pts))
     X = np.column_stack(cols) if cols else np.empty((len(times), 0))
     if cache:
@@ -225,7 +228,7 @@ def _window(start: str, end: str, n_points: int = 0, step: int = 10) -> tuple[da
     if b <= a:
         raise CalcError("the window ends before it starts")
     steps = int((b - a).total_seconds() // 60 // step) + 1
-    if n_points * steps > MAX_VALUES:
+    if n_points * steps > settings.get(None, "studies.max_values"):
         raise CalcError(f"{n_points} points x {steps} steps is too big to answer now: narrow the scope, shorten the "
                         "window or use a longer step")
     return a, b
