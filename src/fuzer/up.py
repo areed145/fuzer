@@ -17,8 +17,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import pipeline
 from .core import db
+from .graph import pipeline
 from .sources import ingest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,8 +85,8 @@ def read_with_claude(conn, pack) -> None:
     (tags and piping), document sections (failure modes) and OEM datasheets (curves, for review); then
     rebuild once with what it found.
     Readings are cached by the text they read, so only new or changed records cost anything."""
-    from . import llm_links
     from .core.pricing import cost
+    from .graph import llm_links
     from .sources import llm_curves, llm_docs, llm_pids
 
     readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),

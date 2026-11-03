@@ -91,7 +91,7 @@ def _incident_of(conn, ref: str) -> str:
 
 def similar_cases(conn, ref: str, limit: int = 8) -> dict:
     """Past incidents like this one, with what was done for each and whether it held."""
-    from . import queries
+    from .graph import queries
 
     inc = _incident_of(conn, ref)
     sims = queries.similar_incidents(conn, inc, limit)

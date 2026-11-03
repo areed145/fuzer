@@ -71,9 +71,9 @@ from pathlib import Path
 
 import yaml
 
-from .. import nel
 from ..core import units
 from ..core.model import Candidate, CurvePoint, Edge, Limit, Measurement
+from ..graph import nel
 from ..resources import MAPPINGS as DEFAULT_DIR
 from . import extract as ex
 

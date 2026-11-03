@@ -54,10 +54,10 @@ def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3
         units = [r["src"] for r in conn.execute(
             "select src from edge where rel in ('part_of', 'located_at') and dst = %s", (scope,))]
     if path:
-        from . import graph
+        from .graph import edges
 
         rel, _, way = path.partition(":")
-        units += [r["fuzer_id"] for r in graph.trace(conn, scope, rel, way or "up", None, depth)]
+        units += [r["fuzer_id"] for r in edges.trace(conn, scope, rel, way or "up", None, depth)]
     out, seen = [], set()
     for u in dict.fromkeys(units):
         for p in timeseries._unit_points(conn, u, limit):

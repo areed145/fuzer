@@ -68,12 +68,12 @@ def _now(conn, pts: dict, at: str | None, hours: int = 24, src=None) -> tuple[di
 
 def pressure_profile(conn, well: str, at: str | None = None, src=None) -> dict:
     """Pressures from the wellhead down the well's flow path and the drop across each segment."""
-    from . import graph
+    from .graph import edges
 
     pts = well_points(conn, well)
     path = [("wellhead", pts["whp"]), ("jacket production header", pts["back"])]
     seen = {p["id"] for _, p in path if p}
-    for r in graph.trace(conn, well, "flows_to", "down", None, 4):
+    for r in edges.trace(conn, well, "flows_to", "down", None, 4):
         p = _pt(conn, r["label"]) if r.get("label") else None
         if p and p["id"] not in seen and (p["uom"] or "").startswith("bar"):
             seen.add(p["id"])
@@ -289,10 +289,10 @@ def headroom(conn, pack, unit: str, at: str | None = None, src=None) -> dict:
 
 def _separator_of(conn, well: str, cache: dict) -> str | None:
     """The first separator (a -V- tag) down a well's flow path."""
-    from . import graph
+    from .graph import edges
 
     if well not in cache:
-        cache[well] = next((r["fuzer_id"] for r in graph.trace(conn, well, "flows_to", "down", None, 4)
+        cache[well] = next((r["fuzer_id"] for r in edges.trace(conn, well, "flows_to", "down", None, 4)
                             if r["kind"] == "tag" and "-V-" in (r["label"] or "")), None)
     return cache[well]
 

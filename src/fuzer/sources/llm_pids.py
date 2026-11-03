@@ -25,7 +25,7 @@ from psycopg.types.json import Jsonb
 
 from ..core.model import Edge
 from ..core.pack import Pack
-from ..llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
+from ..graph.llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, usage
 
 PROMPT_VERSION = "2026-10-30.2"
 TILE_TARGET = 1400  # source pixels per tile side before overlap

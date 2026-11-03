@@ -13,9 +13,9 @@ from typing import Any, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from . import graph, queries
 from .core import db
 from .core.pack import load_pack
+from .graph import edges, queries
 from .workflow import bpmn
 from .workflow import engine as work
 
@@ -214,7 +214,7 @@ def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | N
         if err:
             return err
         rel = {"piping": "pipes_to", "lift_gas": "lift_gas_to"}.get(network, "flows_to")
-        rows = graph.trace(conn, fid, rel, direction, _date(as_of), min(max_depth, 25))
+        rows = edges.trace(conn, fid, rel, direction, _date(as_of), min(max_depth, 25))
     return _plain({
         "start": fid, "direction": direction, **({"as_of": as_of} if as_of else {}),
         "path": [{"depth": r["depth"], "id": r["fuzer_id"], "label": r["label"], "kind": r["kind"],
@@ -361,7 +361,7 @@ def incident_detail(ref: str) -> dict[str, Any]:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        from . import knowledge
+        from .graph import knowledge
         return _plain({"incident": fid, "timeline": queries.incident_timeline(conn, fid),
                        "similar": queries.similar_incidents(conn, fid, 10),
                        "suggested_reading": knowledge.for_incident(conn, fid, 5)})
@@ -377,7 +377,7 @@ def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
     manuals, its class's procedures and its area's guides, ranked closest first. Always cite the document
     and page you use. Superseded revisions are left out unless include_superseded is true. failure_modes
     (ISO 14224 codes such as VIB, ELP, FTS, OHE) boosts passages about those modes."""
-    from . import knowledge
+    from .graph import knowledge
     with db.connect() as conn:
         fid = None
         if ref:
@@ -393,7 +393,7 @@ def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
 def documents_for(ref: str) -> dict[str, Any]:
     """Current documents that apply to a tag / equipment / model / class: its OEM manual (via model), class
     procedures and area troubleshooting guides, closest first, with why each applies."""
-    from . import knowledge
+    from .graph import knowledge
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -417,7 +417,7 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
     """Lessons learned per equipment model (or class) and ISO 14224 failure mode: the corrective work that has
     fixed it before, how often it held for 30 days, and the incidents behind it. Approved lessons were
     reviewed by engineers; suggested ones are drafts. Approved lessons also come back from search_knowledge."""
-    from . import lessons
+    from .graph import lessons
     with db.connect() as conn:
         return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
 
@@ -954,7 +954,7 @@ def measurements(ref: str, quantity: str | None = None, since: str | None = None
     (wall_thickness, mm). One series per quantity and location with the latest value, min / max, the
     change per year (wall loss rate, decline) and the last three readings; history=true returns every
     reading. A qualifier "<" means below the detection limit. Dates YYYY-MM-DD."""
-    from . import measurements as m
+    from .graph import measurements as m
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:

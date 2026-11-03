@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import graph, nel, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import edges, nel, pipeline, queries
 from fuzer.sources import ingest
 
 PACK = load_pack("okan")
@@ -70,17 +70,17 @@ def test_wells_and_facilities(setup):
 def test_gas_lift_and_export_network(setup):
     conn, *_ = setup
     # Gas producers flow to GGCP inlet separation, compression and EGP.
-    down = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-NWP-G2"), direction="down")}
+    down = {r["fuzer_id"] for r in edges.trace(conn, fid(conn, "well", "OK-NWP-G2"), direction="down")}
     assert {fid(conn, "tag", "20-V-2001"), fid(conn, "tag", "20-K-2300B")} <= down
     egp = fid(conn, "allocation_node", "EGP")
     assert egp in down
     # Lift gas is its own network: production traces never enter it.
     assert fid(conn, "tag", "20-FT-3002") not in down
-    lift = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "tag", "20-K-2300B"), "lift_gas_to", "down", depth=12)}
+    lift = {r["fuzer_id"] for r in edges.trace(conn, fid(conn, "tag", "20-K-2300B"), "lift_gas_to", "down", depth=12)}
     assert {fid(conn, "tag", "20-FT-3002"), fid(conn, "tag", "30-FT-3002"), fid(conn, "tag", "40-FT-3002"),
             fid(conn, "well", "OK-J07-05")} <= lift
     # Jacket oil reaches PP and the crude terminal.
-    oil = {r["fuzer_id"] for r in graph.trace(conn, fid(conn, "well", "OK-J18-02"), direction="down")}
+    oil = {r["fuzer_id"] for r in edges.trace(conn, fid(conn, "well", "OK-J18-02"), direction="down")}
     assert {fid(conn, "tag", "40-V-2002"), fid(conn, "tag", "10-V-2001"), fid(conn, "allocation_node", "ESCRAVOS-TERM")} <= oil
 
 

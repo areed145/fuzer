@@ -13,7 +13,7 @@ from .general import _shade_upsets, _summ, _window, short, synthetic_note
 def incident(conn, fid: str, hours_before: int = 36, hours_after: int = 12, max_series: int = 5) -> Figure:
     """An incident (or a unit's latest): the points that moved most in the lead-in, stacked, with the
     incident's log events, trips, notifications and downtime as markers in a lane on top."""
-    from .. import queries
+    from ..graph import queries
 
     kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()
     if kind and kind["kind"] != "incident":
@@ -62,11 +62,12 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
     """Correlation of the process values on a unit (and on what feeds it) over a window, as a heatmap.
     With `target` (a timeseries, e.g. the vibration that tripped), also the lag at which each other
     point best matches it: a point that moves before the target is a lead to the cause."""
-    from .. import graph, studies
+    from .. import studies
+    from ..graph import edges
 
     ids = [fid]
     if upstream:
-        ids += [r["fuzer_id"] for r in graph.trace(conn, fid, "flows_to", "up", None, 1)][:2]
+        ids += [r["fuzer_id"] for r in edges.trace(conn, fid, "flows_to", "up", None, 1)][:2]
     series, upsets, out = _window(conn, ids + ([target] if target else []), at, hours_before, hours_after,
                                   max_points=max_points)
     series = [s for s in series if len(s["values"]) >= 5 and s["max"] != s["min"]][:max_points]

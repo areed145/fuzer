@@ -7,9 +7,9 @@ from datetime import datetime
 import pytest
 
 from fakeplant import offshore
-from fuzer import pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import pipeline, queries
 from fuzer.sources import ingest, timeseries
 
 PACK = load_pack()

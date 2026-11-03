@@ -9,8 +9,8 @@ ADX or synthetic; timeseries.py), summarised per point with how the lead-in diff
 measurements PI doesn't have (lab results, well tests, wall thickness) come next to them.
 """
 
-from . import knowledge, lessons, measurements, queries
 from .core.pack import Pack
+from .graph import knowledge, lessons, measurements, queries
 
 
 def brief(conn, pack: Pack, fuzer_id: str) -> dict:

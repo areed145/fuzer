@@ -17,9 +17,9 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import graph, knowledge, lessons, pipeline, queries
 from .core import db
 from .core.pack import load_pack
+from .graph import edges, knowledge, lessons, pipeline, queries
 from .workflow import engine as work
 
 
@@ -137,7 +137,7 @@ def excursions(since: str | None = None, basis: str | None = None, limit: int = 
 def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str | None = None,
                         until: str | None = None, conn=Depends(get_conn)):
     """Landed measurements (well tests, lab results, wall thickness) on an entity, per quantity and location."""
-    from . import measurements
+    from .graph import measurements
     return measurements.for_entity(conn, fuzer_id, quantity, since, until)
 
 
@@ -153,7 +153,7 @@ def entity_curves(fuzer_id: str, conn=Depends(get_conn)):
 @app.get("/entities/{fuzer_id}/trace")
 def trace(fuzer_id: str, rel: str = "flows_to", direction: Literal["up", "down"] = "up",
           as_of: date | None = None, depth: int = 10, conn=Depends(get_conn)):
-    return graph.trace(conn, fuzer_id, rel, direction, as_of, depth)
+    return edges.trace(conn, fuzer_id, rel, direction, as_of, depth)
 
 
 @app.get("/events")
@@ -172,7 +172,7 @@ def entity_events(fuzer_id: str, since: str | None = None, until: str | None = N
 def map_features(bbox: str | None = Query(None, description="min lon,min lat,max lon,max lat"),
                  kind: list[str] | None = Query(None), limit: int = 20000, conn=Depends(get_conn)):
     """Everything with a location, as GeoJSON (facilities, pipelines, wells, ...)."""
-    from . import spatial
+    from .graph import spatial
 
     box = tuple(float(x) for x in bbox.split(",")) if bbox else None
     if box is not None and len(box) != 4:
@@ -183,7 +183,7 @@ def map_features(bbox: str | None = Query(None, description="min lon,min lat,max
 @app.get("/entities/{fuzer_id}/map")
 def entity_map(fuzer_id: str, conn=Depends(get_conn)):
     """An entity's location and the located things linked to it, as GeoJSON (`focus` is the place shown)."""
-    from . import spatial
+    from .graph import spatial
 
     return spatial.around(conn, fuzer_id)
 

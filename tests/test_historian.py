@@ -10,9 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import historian, offshore
-from fuzer import assistant, jobs, pipeline, queries
+from fuzer import assistant, jobs
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import pipeline, queries
 from fuzer.sources import adx, connectors, ingest, pi_web_api, timeseries
 
 PACK = load_pack()
