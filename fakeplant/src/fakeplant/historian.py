@@ -13,7 +13,7 @@ One small web server, two faces over the same signals:
   `order by` and `take`. Anything else gets an ADX-style 400 error.
 
 The point list and AF tree come from the fake exports (pi_points, pi_af.json). Values are the
-deterministic synthetic signals (fuzer.timeseries.SyntheticProvider), and the upsets in them come
+deterministic synthetic signals (fuzer.sources.timeseries.SyntheticProvider), and the upsets in them come
 from the plant's own records, not from Fuzer: each downtime record and each operator log entry about
 a trip, vibration, leak, alarm etc. upsets the points whose tag shares the area and loop number of
 the first tag it names (20-P-1001B -> 20-VT-1001B, 20PT1001B). So trends lead into incidents the way they would on a real
