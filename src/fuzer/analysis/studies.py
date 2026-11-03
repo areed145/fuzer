@@ -232,10 +232,11 @@ def _window(start: str, end: str, n_points: int = 0, step: int = 10) -> tuple[da
 
 
 def _connected(conn, target_unit: str | None, units: dict[str, str]) -> dict[str, bool]:
+    from ..core import settings
     from ..graph import topology
 
-    adj, cache = topology.topology(conn), {}
-    return {pid: topology._near(adj, target_unit, u, cache) for pid, u in units.items()} if target_unit else {}
+    adj, cache, hops = topology.topology(conn), {}, settings.get(conn, "sre.hops")
+    return {pid: topology._near(adj, target_unit, u, cache, hops) for pid, u in units.items()} if target_unit else {}
 
 
 def correlate(conn, pack, target: str, scope: str | list[str], start: str, end: str, step: int = 10,
@@ -293,6 +294,7 @@ def correlation_matrix(conn, pack, scope: str | list[str], start: str, end: str,
                        keep_down: bool = False, top: int = 20, src=None, path: str | None = None) -> dict:
     """All pairs in `scope`: r for each, ordered so related points sit together, with the `top` strongest
     pairs and whether the plant model connects each pair."""
+    from ..core import settings
     from ..graph import topology
     from . import limits
 
@@ -307,11 +309,11 @@ def correlation_matrix(conn, pack, scope: str | list[str], start: str, end: str,
     R = np.corrcoef(ranks(Xc) if method == "spearman" else Xc, rowvar=False)
     idx = order(R)
     units = limits.units(conn, [p["id"] for p in kept])
-    adj, cache = topology.topology(conn), {}
+    adj, cache, hops = topology.topology(conn), {}, settings.get(conn, "sre.hops")
     iu = np.triu_indices(len(kept), 1)
     strongest = np.argsort(-np.abs(R[iu]))[:top]
     pairs = [{"a": kept[iu[0][k]]["point"], "b": kept[iu[1][k]]["point"], "r": round(float(R[iu][k]), 3),
-              "connected": topology._near(adj, units.get(kept[iu[0][k]]["id"]), units.get(kept[iu[1][k]]["id"]), cache)}
+              "connected": topology._near(adj, units.get(kept[iu[0][k]]["id"]), units.get(kept[iu[1][k]]["id"]), cache, hops)}
              for k in strongest]
     return {"window": [start, end], "step_minutes": step, "method": method, "points": len(pts), "used": len(kept),
             "rows_used": int(rows.sum()), "order": [kept[i]["point"] for i in idx], "ids": [kept[i]["id"] for i in idx],

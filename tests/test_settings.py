@@ -24,3 +24,32 @@ def test_overrides_need_no_database():
         assert settings.get(None, "sre.handoff.max_usd") == 1.5
     with pytest.raises(settings.SettingError, match="no setting"):
         settings.get(None, "no.such.setting")
+
+
+def test_sre_defaults_match_the_constants_they_replace():
+    from datetime import timedelta
+
+    from fuzer.graph import topology
+    from fuzer.ops import sre
+
+    with settings.Overrides({}):
+        g = sre.grouping(None)
+    assert g == {"gap": sre.GAP, "hops": topology.HOPS}
+    assert {k: settings.REGISTRY[k].default for k in ("sre.step_minutes", "sre.learned_minutes", "sre.spe_minutes",
+                                                      "sre.drift_rise")} == \
+        {"sre.step_minutes": sre.STEP, "sre.learned_minutes": sre.LEARNED_MINUTES, "sre.spe_minutes": sre.SPE_MINUTES,
+         "sre.drift_rise": sre.DRIFT_RISE}
+    assert timedelta(hours=settings.REGISTRY["sre.lookback_hours"].default) == sre.LOOKBACK
+    assert timedelta(minutes=settings.REGISTRY["sre.merge_minutes"].default) == sre.MERGE
+
+
+def test_group_gap_is_a_setting():
+    from datetime import datetime
+
+    from fuzer.ops import sre
+
+    found = [{"point": "A", "unit_id": None, "detector": "steps", "key": "step", "start": datetime(2025, 1, 1, h),
+              "end": None} for h in (0, 3)]  # 3 hours apart: past the 2-hour default
+    assert len(sre.group_detections(found, {}, **sre.grouping(None))) == 2
+    with settings.Overrides({"sre.group_gap_hours": 4}):
+        assert len(sre.group_detections(found, {}, **sre.grouping(None))) == 1

@@ -114,6 +114,20 @@ register(
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the troubleshooter diagnoses per hand-off run", "SRE",
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
+    Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),
+    Setting("sre.lookback_hours", "int", 24, "Hours before the window that a step is judged against", "SRE", min=1,
+            max=168),
+    Setting("sre.learned_minutes", "int", 60, "Minutes a value must stay outside a learned normal range (one no "
+            "source set) to count", "SRE", min=0),
+    Setting("sre.spe_minutes", "int", 120, "Minutes a multivariate anomaly lasts before it is raised", "SRE", min=10),
+    Setting("sre.merge_minutes", "int", 30, "The same finding again within this many minutes carries on the one "
+            "before", "SRE", min=0),
+    Setting("sre.drift_rise", "float", 0.05, "Share of its starting value a drift must climb before it is raised",
+            "SRE", min=0, max=1),
+    Setting("sre.group_gap_hours", "float", 2.0, "A detection joins an upset whose latest detection started within "
+            "this many hours", "SRE", min=0.1, max=48),
+    Setting("sre.hops", "int", 4, "Units this many links apart in the plant model count as connected (upsets and "
+            "correlation studies)", "SRE", min=1, max=10),
 )
 
 
