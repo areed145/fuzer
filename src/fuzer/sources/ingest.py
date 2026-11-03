@@ -23,11 +23,10 @@ def tables(conn=None) -> dict:
 
 
 def unmapped(data_dir, conn=None) -> list[str]:
-    """Tables in data_dir (CSV, Parquet, lake folders, Delta) that no mapping covers."""
+    """Tables in data_dir (any connector: CSV, Parquet, lake folders, Delta, GeoJSON, Excel sheets, JSON)
+    that no mapping covers."""
     data_dir, known = Path(data_dir), set(tables(conn)) | set(FILES)
-    names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")}
-    names |= {p.name for p in data_dir.iterdir() if p.is_dir() and connectors.find(data_dir, p.name)}
-    return sorted(names - known)
+    return [n for n in connectors.datasets(data_dir) if n not in known]
 
 
 def _pi_af(path: Path):

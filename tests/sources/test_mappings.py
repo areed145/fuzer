@@ -45,16 +45,40 @@ def extra_mapping(monkeypatch):
     return folder
 
 
-def test_new_source_from_a_mapping_file_only(extra_mapping):
+INDEX = [["tag_no", "service", "range_high", "unit", "vendor", "equipment"],
+         ["20-PT-1001B", "Pump discharge pressure", "25", "barg", "Instrumentco", "20P1001B"],
+         ["20-PT-9999Z", "Spare", "", "", "", ""]]
+
+
+def write_index(data: Path, fmt: str) -> None:
+    """The contractor's instrument index as a CSV, an Excel sheet under a title row, or JSON Lines (#132)."""
+    if fmt == "csv":
+        with (data / "instrument_index.csv").open("w", newline="") as f:
+            csv.writer(f).writerows(INDEX)
+    elif fmt == "xlsx":
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Instrument index, rev C"])  # a title row and a blank row above the table
+        ws.append([])
+        ws.append(INDEX[0])
+        ws.append([*INDEX[1][:2], 25, *INDEX[1][3:]])
+        ws.append([*INDEX[2][:2], None, None, None, None])
+        wb.save(data / "instrument_index.xlsx")
+    else:
+        import json
+
+        (data / "instrument_index.jsonl").write_text("\n".join(json.dumps(dict(zip(INDEX[0], r))) for r in INDEX[1:]))
+
+
+@pytest.mark.parametrize("fmt", ["csv", "xlsx", "jsonl"])
+def test_new_source_from_a_mapping_file_only(extra_mapping, fmt):
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
     offshore.generate(data)
-    with (data / "instrument_index.csv").open("w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["tag_no", "service", "range_high", "unit", "vendor", "equipment"])
-        w.writerow(["20-PT-1001B", "Pump discharge pressure", "25", "barg", "Instrumentco", "20P1001B"])
-        w.writerow(["20-PT-9999Z", "Spare", "", "", "", ""])
+    write_index(data, fmt)
 
     assert "instrument_index" in ingest.tables()
     with db.connect() as conn:
