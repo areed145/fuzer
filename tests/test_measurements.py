@@ -2,35 +2,23 @@
 table against the wells, tags and pipelines they were taken on, in stored units, and show up next to
 process values (API, troubleshooting brief, MCP)."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import okan
 from fuzer.agents import mcp_server
-from fuzer.core import db, units
+from fuzer.core import units
 from fuzer.core.pack import load_pack
 from fuzer.graph import measurements, queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest, mappings
+from fuzer.sources import mappings
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        c.stats = pipeline.rebuild(c, PACK)
-        yield c
+def conn(okan_db):
+    c = okan_db.conn
+    c.stats = okan_db.built.stats
+    yield c
 
 
 def fid(conn, ref):

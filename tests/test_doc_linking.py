@@ -1,21 +1,16 @@
 """Section-level linking: failure modes from rules and Claude, suggested reading for incidents."""
 
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.core.taxonomy import failure_modes_in
 from fuzer.graph import knowledge, llm_links, queries
 from fuzer.ops import pipeline
-from fuzer.sources import ingest, llm_docs
+from fuzer.sources import llm_docs
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402
@@ -42,16 +37,9 @@ class FakeDocReader:
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    yield c
 
 
 def test_keyword_rules():

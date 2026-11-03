@@ -8,33 +8,20 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
-from fakeplant import okan
 from fuzer.agents import mcp_server
 from fuzer.analysis import studies
-from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 TRIP = ("2024-11-04T00:00", "2024-11-07T00:00")  # train C trips at 05:30 on the 5th
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
+def conn(okan_db):
+    c = okan_db.conn
     mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
     mp.setenv("FUZER_CACHE_DIR", tempfile.mkdtemp(prefix="fzcache"))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+    yield c
     mp.undo()
 
 

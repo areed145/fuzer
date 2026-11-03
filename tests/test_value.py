@@ -4,22 +4,14 @@ of item on the Okan demo scored with its inputs and sources."""
 
 import asyncio
 import dataclasses
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
 from fuzer import api
 from fuzer.agents import mcp_server
 from fuzer.analysis import value
 from fuzer.analysis.value import Item
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 CFG = value.config(PACK)
@@ -142,16 +134,9 @@ def test_agreement():
 # --- on the Okan demo --------------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 def test_sap_abc_indicator_is_criticality(conn):

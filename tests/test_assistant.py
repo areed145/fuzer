@@ -1,21 +1,15 @@
 """Troubleshooting brief: one call, everything relevant, every item with its source."""
 
 import asyncio
-import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
-from mcp import Client
-
-from fakeplant import offshore
 from fuzer.agents import assistant
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import lessons, llm_links, queries
 from fuzer.ops import pipeline
-from fuzer.sources import ingest
+from mcp import Client
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402
@@ -24,19 +18,13 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
+def conn(offshore_db):
+    c = offshore_db.conn
     lessons.MIN_INCIDENTS = 1
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)  # the reader picks candidates from the register
-        llm_links.run(c, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
-        pipeline.rebuild(c, PACK)
-        yield c
+    pipeline.rebuild(c, PACK)  # the reader picks candidates from the register
+    llm_links.run(c, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
+    pipeline.rebuild(c, PACK)
+    yield c
     lessons.MIN_INCIDENTS = 2
 
 
@@ -72,7 +60,6 @@ def test_mcp_tool_and_prompt(conn):
 
 def test_feedback(conn):
     from fastapi.testclient import TestClient
-
     from fuzer.api import app
     client = TestClient(app)
     assert client.post("/feedback", json={"target": "brief:x", "useful": True, "by": "tester"}).status_code == 200

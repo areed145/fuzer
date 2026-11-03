@@ -1,31 +1,18 @@
 """Piping connectivity from P&IDs, and how it compares with the Energy Components network."""
 
-import os
-import tempfile
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import edges, queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest, llm_pids
+from fuzer.sources import llm_pids
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    yield c
 
 
 def fid(conn, ref):
@@ -60,7 +47,6 @@ def test_claude_connections_from_drawings():
 
 def test_api_network_rel(conn):
     from fastapi.testclient import TestClient
-
     from fuzer.api import app
     client = TestClient(app)
     assert client.get("/network", params={"rel": "pipes_to"}).json()["edges"]

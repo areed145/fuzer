@@ -2,39 +2,22 @@
 calculation by hand from the wells' curves; opportunities on the board ranked against problems; a rejected
 one not raised again until the data changes materially."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
 from fuzer.agents import mcp_server
 from fuzer.analysis import calcs
-from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.ops import board, opportunities, pipeline
-from fuzer.sources import ingest
+from fuzer.ops import board, opportunities
 from fuzer.workflow import engine
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        engine.load_defaults(c)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    engine.load_defaults(c)
+    yield c
 
 
 def test_gas_lift_reallocation_matches_a_hand_calculation(conn):

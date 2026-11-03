@@ -8,12 +8,10 @@ import os
 import tempfile
 import time
 from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
-
-from fakeplant import historian, okan
+from fakeplant import historian
 from fuzer.analysis import values
 from fuzer.core import db
 from fuzer.core.pack import load_pack
@@ -25,10 +23,8 @@ PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")

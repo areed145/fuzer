@@ -4,46 +4,28 @@ operating points on them, and the planted stories show: export pump A losing hea
 are replaced, OK-J12-02's choke eroding until replaced, OK-NWP-G3's choke plugging until cleared."""
 
 import json
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
-from fuzer.sources import curves
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
-from fuzer.ops import pipeline
 from fuzer.plots import maintenance, production
-from fuzer.sources import ingest, llm_curves
+from fuzer.sources import curves, llm_curves
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")
-def conn(data):
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))  # synthetic values from the plant's process model
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 @pytest.fixture

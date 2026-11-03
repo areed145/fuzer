@@ -1,40 +1,22 @@
 """Alarms, trips and states (#105 D) on Okan's November 2024 week: floods at train C's two trips, the
 failed gas lift valve's standing low casing pressure, the hunting level transmitter chattering."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
 from fuzer.analysis import alarms
-from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.ops import pipeline
 from fuzer.plots import troubleshooting
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 WEEK = ("2024-11-04T00:00", "2024-11-11T00:00")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 def test_alarm_analysis_reads_the_week(conn):

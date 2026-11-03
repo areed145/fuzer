@@ -1,30 +1,13 @@
 """MCP tools, called through an in-memory MCP client against the fake asset."""
 
 import asyncio
-import os
-import tempfile
 
 import pytest
 from mcp import Client
 
-from fakeplant import offshore
-from fuzer.core import db
-from fuzer.core.pack import load_pack
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
-
 
 @pytest.fixture(scope="module")
-def call():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, load_pack())
-
+def call(offshore_db):  # the tools open their own connections, to this module's copy
     from fuzer.agents.mcp_server import server
 
     async def _call(name, args):

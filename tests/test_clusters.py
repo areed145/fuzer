@@ -2,47 +2,33 @@
 two November trips are one recurring upset type; the PCA model flags the trip; wells and points group."""
 
 import json
-import os
 import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
 from fuzer.analysis import clusters
-from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.ops import pipeline, sre
+from fuzer.ops import sre
 from fuzer.plots import troubleshooting
-from fuzer.sources import ingest
 from fuzer.sources.process_model import ProcessModel
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")
-def conn(data):
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
+def conn(okan_db):
+    c = okan_db.conn
     mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
     mp.setenv("FUZER_CACHE_DIR", tempfile.mkdtemp(prefix="fzcache"))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+    yield c
     mp.undo()
 
 
@@ -99,7 +85,6 @@ def test_tools_and_charts(conn, monkeypatch):
 
 def test_stored_studies_run_queue_and_rerun(conn, monkeypatch):
     from fastapi.testclient import TestClient
-
     from fuzer import api
     from fuzer.ops import study
 

@@ -2,40 +2,23 @@
 late records make a new version with what changed; Claude's draft (a recorded one here) is checked for
 uncited lines and numbers not in the records; the reporter step and the tools."""
 
-import os
-import tempfile
 from datetime import date, timedelta
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
 from fuzer.agents import mcp_server, worker
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import operations
-from fuzer.ops import daily_report, pipeline
-from fuzer.sources import ingest
+from fuzer.ops import daily_report
 from fuzer.workflow import engine
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        engine.load_defaults(c)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    engine.load_defaults(c)
+    yield c
 
 
 def test_last_week_every_line_cited_and_matching(conn):
@@ -130,7 +113,6 @@ def test_reporter_step_and_tools(conn, monkeypatch):
     assert got["day"] == day and got["markdown"].startswith(f"# Daily operations report {day}")
     assert mcp_server.get_daily_ops_report()["day"] == "2025-12-30"
     from fastapi.testclient import TestClient
-
     from fuzer import api
     client = TestClient(api.app)
     assert client.get("/reports/daily").json()[0]["day"] == "2025-12-30"

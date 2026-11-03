@@ -1,19 +1,14 @@
 """Claude reading scanned P&IDs, with a fake client (no network, no cost)."""
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline
-from fuzer.sources import ingest, llm_pids
+from fuzer.sources import llm_pids
 
 PACK = load_pack()
 SHEET = "OSB-44-PID-001"
@@ -65,16 +60,10 @@ class FakeVision:
 
 
 @pytest.fixture(scope="module")
-def setup():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c, json.loads((data / "pid_truth.json").read_text())
+def setup(offshore_db):
+    c = offshore_db.conn
+    data = offshore_db.data
+    yield c, json.loads((data / "pid_truth.json").read_text())
 
 
 def test_image_is_ingested_with_fingerprint(setup):

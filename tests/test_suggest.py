@@ -2,16 +2,10 @@
 next ingest loads the table; Claude names what rules can't."""
 
 import json
-import os
-import tempfile
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import evaluate
 from fuzer.ops import pipeline
@@ -21,16 +15,9 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def setup():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c, data
+def setup(offshore_db):
+    c = offshore_db.conn
+    yield c, offshore_db.data
 
 
 class FakeClaude:

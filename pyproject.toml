@@ -60,6 +60,12 @@ packages = ["src/fuzer"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Tiers (#137), set by tests/conftest.py from what each test uses: `pytest -m unit` for the quick ones.
+markers = [
+    "unit: pure functions on small in-memory inputs; no Postgres, no generated plant",
+    "integration: reads or writes a database (a shared plant copy or its own)",
+    "e2e: replays and evals over weeks of a plant",
+]
 
 [tool.importlinter]
 root_package = "fuzer"

@@ -1,42 +1,25 @@
 """Views and agent tools (#105 E, F): an upset on the plant model, a point against its window, the loss
 waterfall, a score breakdown, flare; compare_periods and similar_cases."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
 from fuzer.analysis import cases
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
 from fuzer.ops import pipeline, sre
 from fuzer.plots import general, troubleshooting
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        sre.scan(c, PACK, "2024-11-05T00:00", "2024-11-05T12:00")
-        pipeline.rebuild(c, PACK)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    sre.scan(c, PACK, "2024-11-05T00:00", "2024-11-05T12:00")
+    pipeline.rebuild(c, PACK)
+    yield c
 
 
 def fid(conn, ref):

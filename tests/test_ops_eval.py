@@ -1,36 +1,18 @@
 """The full ops eval (#103b) on the fake client: every scheduled job scored over Okan's 4-7 November
 2024 (CI scores the whole week), the gate passing; a score under its floor fails it."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import ops_eval
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def setup():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c, data
-    mp.undo()
+def setup(okan_db):
+    c = okan_db.conn
+    yield c, okan_db.data
 
 
 def test_full_eval_on_the_fake_client(setup):

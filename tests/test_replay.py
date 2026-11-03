@@ -2,29 +2,19 @@
 process model's injected events."""
 
 import json
-import os
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import replay
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 SINCE, UNTIL = "2024-11-03T00:00", "2024-11-13T00:00"  # train C trips, a bad level instrument, level upsets
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")
@@ -33,20 +23,9 @@ def spec(data):
 
 
 @pytest.fixture(scope="module")
-def conn(data):
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    old = os.environ.get("FUZER_DATA_DIR")
-    os.environ["FUZER_DATA_DIR"] = str(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
-    if old is None:
-        os.environ.pop("FUZER_DATA_DIR", None)
-    else:
-        os.environ["FUZER_DATA_DIR"] = old
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 def test_ground_truth(spec):

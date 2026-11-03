@@ -5,51 +5,35 @@ opens an integrity work item."""
 
 import json
 import os
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import okan
 from fuzer.agents import mcp_server
 from fuzer.analysis import limits, values
-from fuzer.core import db, units
+from fuzer.core import units
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest, mappings
+from fuzer.sources import mappings
 from fuzer.workflow import engine
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")
-def conn(data):
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    old = os.environ.get("FUZER_DATA_DIR")
-    os.environ["FUZER_DATA_DIR"] = str(data)  # the synthetic provider reads the plant's process model
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        c.stats = pipeline.rebuild(c, PACK)
-        engine.load_defaults(c)
-        limits.learn(c, PACK, "2025-01-01", "2025-03-31")  # a quiet quarter: no stories running
-        yield c
-    if old is None:
-        os.environ.pop("FUZER_DATA_DIR", None)
-    else:
-        os.environ["FUZER_DATA_DIR"] = old
+def conn(okan_db):
+    c = okan_db.conn
+    c.stats = okan_db.built.stats
+    engine.load_defaults(c)
+    limits.learn(c, PACK, "2025-01-01", "2025-03-31")  # a quiet quarter: no stories running
+    yield c
 
 
 def fid(conn, ref):
