@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, studies
+from fuzer import mcp_server
+from fuzer.analysis import studies
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline

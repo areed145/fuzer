@@ -40,7 +40,8 @@ def _opp(key: str, kind: str, title: str, gain: float | None, basis: str, confid
 
 
 def gas_lift_moves(conn, at: str | None = None, breakeven: float = BREAKEVEN) -> list[dict]:
-    from . import calcs, operations
+    from . import operations
+    from .analysis import calcs
 
     net = operations.gas_lift_network(conn, limit=100000)
     if "error" in net:
@@ -90,7 +91,8 @@ def gas_lift_moves(conn, at: str | None = None, breakeven: float = BREAKEVEN) ->
 
 
 def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
-    from . import calcs, operations
+    from . import operations
+    from .analysis import calcs
 
     today = date.fromisoformat(at[:10] if at else operations.as_of(conn))
     out = []
@@ -127,7 +129,8 @@ def recurring_constraints(conn, min_failures: int = 4) -> list[dict]:
 
 
 def recoverable_deferment(conn, at: str | None = None) -> list[dict]:
-    from . import calcs, operations
+    from . import operations
+    from .analysis import calcs
 
     today = at[:10] if at else operations.as_of(conn)
     out = []
@@ -173,7 +176,7 @@ def _material(old: dict, new: dict) -> bool:
 def scan(conn, pack, at: str | None = None) -> dict:
     """Find the day's opportunities, keep them, open a work item for each new one, close the ones the data no
     longer supports, and leave decided ones alone unless the data changed materially."""
-    from . import value
+    from .analysis import value
     from .workflow import engine
 
     cfg = value.config(pack)

@@ -29,7 +29,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import limits
+from .analysis import limits
 from .core import db
 
 STEP = timedelta(hours=6)

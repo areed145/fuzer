@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from psycopg.types.json import Jsonb
 
-from . import calcs, limits, signals
+from .analysis import calcs, limits, signals
 from .core.jsonsafe import plain as _plain
 
 STEP = 10  # minutes between values the detectors read
@@ -216,7 +216,7 @@ def hydraulics(conn, pack, since, until, src) -> list[dict]:
     or scaling, #107)."""
     if not _daily(since, until):
         return []
-    from . import hydraulics as h
+    from .analysis import hydraulics as h
 
     out = []
     for r in conn.execute("select distinct e.src as well from edge e join entity w on w.fuzer_id = e.src and w.kind = 'well' "
@@ -239,7 +239,7 @@ def multivariate(conn, pack, since, until, src) -> list[dict]:
     contributing most (#106)."""
     if not _daily(since, until):
         return []
-    from . import clusters
+    from .analysis import clusters
 
     out = []
     areas = conn.execute(

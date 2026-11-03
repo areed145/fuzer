@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from .. import curves, limits
+from ..analysis import curves, limits
 from ..core import db
 from ..core.pack import Pack
 from ..sources import llm_docs, llm_pids, mappings

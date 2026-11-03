@@ -108,7 +108,7 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
                            "with_operating_instructions": instructions}
 
     # opportunity gains against a hand calculation from the wells' curves
-    from . import calcs
+    from .analysis import calcs
 
     say("4/4 opportunity scan")
     errs = []

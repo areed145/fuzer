@@ -286,7 +286,8 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
                 context.log.info(f"report {day}: {daily_report.close_day(conn, pack, day)}")
             except ValueError as e:  # no DAY001 for that day yet
                 context.log.info(f"report {day}: {e}")
-        from . import board, hydraulics, opportunities
+        from . import board, opportunities
+        from .analysis import hydraulics
         context.log.info(f"debottleneck options: {hydraulics.store_options(conn, pack)}")
         context.log.info(f"opportunity scan: {opportunities.scan(conn, pack)}")
         board.refresh(conn, pack)

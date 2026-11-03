@@ -62,7 +62,7 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
     """Correlation of the process values on a unit (and on what feeds it) over a window, as a heatmap.
     With `target` (a timeseries, e.g. the vibration that tripped), also the lag at which each other
     point best matches it: a point that moves before the target is a lead to the cause."""
-    from .. import studies
+    from ..analysis import studies
     from ..graph import edges
 
     ids = [fid]
@@ -199,7 +199,7 @@ def instrument_health(conn, fid: str, since: str | None = None, until: str | Non
                       pack=None, max_series: int = 6) -> Figure:
     """A point's or a unit's readings with the stretches instrument health flags shaded (noisy red, frozen
     or stuck blue, out of range amber, apart from its redundant twin purple)."""
-    from .. import signals
+    from ..analysis import signals
 
     since, until = signals.window(conn, since, until, days)
     out = signals.instrument_health(conn, pack, fid, since, until, values=True)
@@ -214,7 +214,7 @@ def changes(conn, fid: str, since: str | None = None, until: str | None = None, 
             max_series: int = 6) -> Figure:
     """A point's or a unit's readings with the steps and variance changes detect_changes finds marked,
     and drifts shaded."""
-    from .. import signals
+    from ..analysis import signals
 
     since, until = signals.window(conn, since, until, days)
     out = signals.changes(conn, fid, since, until, values=True)
@@ -236,7 +236,7 @@ def state_timeline(conn, scope: str | None, since: str, until: str, pack=None, m
     changed state first."""
     from datetime import datetime as dt
 
-    from .. import alarms
+    from ..analysis import alarms
 
     s = alarms.states(conn, pack, scope, since, until)
     units = sorted(s["units"].items(), key=lambda kv: (len(kv[1]["spans"]) == 1, kv[0]))[:max_units]
@@ -268,7 +268,7 @@ def alarms_chart(conn, scope: str | None, since: str, until: str, pack=None) -> 
     from datetime import datetime as dt
     from datetime import timedelta as td
 
-    from .. import alarms, limits
+    from ..analysis import alarms, limits
 
     out = alarms.alarm_analysis(conn, pack, scope, since, until)
     a, b = dt.fromisoformat(since), dt.fromisoformat(until)
@@ -348,7 +348,7 @@ def propagation(conn, upset: int) -> Figure:
 
 def modes_chart(conn, scope, since: str, until: str, k: int | None = None, pack=None) -> Figure:
     """A unit's operating modes over time as a coloured strip, under the regime-carrying point's trend."""
-    from .. import clusters
+    from ..analysis import clusters
 
     r = clusters.modes(conn, scope, since, until, k, pack=pack)
     names = [m["name"] for m in r["modes"]]
@@ -373,7 +373,7 @@ def modes_chart(conn, scope, since: str, until: str, k: int | None = None, pack=
 
 def spe_chart(conn, scope, train_since: str, train_until: str, since: str, until: str) -> Figure:
     """A PCA model's squared prediction error over a window against its limit, the anomalies shaded."""
-    from .. import clusters
+    from ..analysis import clusters
 
     r = clusters.spe(conn, scope, (train_since, train_until), (since, until))
     data = [{"type": "scatter", "mode": "lines", "name": "limit", "x": [since, until], "y": [r["limit"], r["limit"]],

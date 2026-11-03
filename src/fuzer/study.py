@@ -13,7 +13,7 @@ KINDS = ("correlate", "correlation_matrix", "modes", "entities", "events", "spe"
 
 def _call(conn, pack, kind: str, p: dict) -> tuple[dict, object | None]:
     """Run one study: (its result with the bulky parts left out, a figure or None)."""
-    from . import clusters, studies
+    from .analysis import clusters, studies
     from .plots import troubleshooting
 
     if kind == "correlate":
@@ -55,7 +55,7 @@ def _summary(kind: str, r: dict) -> str:
 
 def big(kind: str, p: dict) -> bool:
     """Whether to queue it: a facility scope, or a window long enough to read many values."""
-    from . import studies
+    from .analysis import studies
 
     if kind == "events":
         return False
@@ -82,7 +82,7 @@ def start(conn, pack, kind: str, params: dict, by: str, now: bool | None = None)
 
 def run(conn, pack, sid: int) -> dict:
     from . import plots
-    from .calcs import CalcError
+    from .analysis.calcs import CalcError
     from .core.jsonsafe import plain as _plain
 
     s = conn.execute("update study set status = 'running' where id = %s returning *", (sid,)).fetchone()

@@ -202,7 +202,7 @@ def score(conn, truth: list[dict]) -> dict:
         if r is None:
             sheets.append({"datasheet": t["datasheet"], "form": form, "read": False})
             continue
-        from ..curves import at
+        from ..analysis.curves import at
 
         per_series = {}
         for name, true_pts in t["series"].items():
