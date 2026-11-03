@@ -205,7 +205,7 @@ numbers that appear in the facts; don't add, subtract or round them. A section w
 
 def draft(f: dict, ask=None, comments: str | None = None, model: str | None = None) -> dict:
     """Claude's draft from the facts. `ask(system, user) -> {answer, usage}` defaults to one Claude call."""
-    from . import llm_links
+    from .graph import llm_links
 
     if ask is None:
         def ask(system, user):

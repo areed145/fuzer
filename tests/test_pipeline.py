@@ -8,9 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import graph, pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import edges, pipeline
 from fuzer.sources import ingest
 
 PACK = load_pack()
@@ -78,8 +78,8 @@ def test_review_queue_has_planted_cases(conn):
 
 def test_trace_respects_dates(conn):
     sep = fid(conn, "tag", "20-V-2001")
-    before = {r["label"] for r in graph.trace(conn, sep, as_of=date(2024, 1, 1))}
-    after = {r["label"] for r in graph.trace(conn, sep, as_of=date(2024, 6, 1))}
+    before = {r["label"] for r in edges.trace(conn, sep, as_of=date(2024, 1, 1))}
+    after = {r["label"] for r in edges.trace(conn, sep, as_of=date(2024, 6, 1))}
     assert "A-03" not in before and "A-03" in after
     assert "A-07" not in after and "A-07 ST1" in after
 

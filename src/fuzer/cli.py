@@ -6,9 +6,9 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from . import pipeline
 from .core import db
 from .core.pack import load_pack
+from .graph import pipeline
 from .sources import ingest
 
 
@@ -169,7 +169,7 @@ def main(argv=None):
             elif args.cmd == "ingest":
                 _print(ingest.ingest(conn, data, full=args.full))
             elif args.cmd == "llm-link":
-                from . import llm_links
+                from .graph import llm_links
                 from .sources import llm_pids
 
                 opts = {k: v for k, v in {"model": args.model, "effort": args.effort}.items() if v}
@@ -356,7 +356,7 @@ def _bench(conn, pack) -> dict:
     """Best of three timings (ms) for the queries the UI and agents use most, on whatever is loaded."""
     import time
 
-    from . import graph, queries
+    from .graph import edges, queries
 
     def best(fn):
         times = []
@@ -378,7 +378,7 @@ def _bench(conn, pack) -> dict:
         "entity_hub": lambda: queries.entity(conn, big["id"], pack=pack),
         "entity_tag": lambda: queries.entity(conn, tag["fuzer_id"], pack=pack),
         "neighborhood_depth_2": lambda: queries.neighborhood(conn, tag["fuzer_id"], depth=2),
-        "trace_flow": lambda: graph.trace(conn, tag["fuzer_id"]),
+        "trace_flow": lambda: edges.trace(conn, tag["fuzer_id"]),
         "ontology": lambda: queries.ontology(conn),
         "incidents": lambda: queries.incidents(conn),
         "review_list": lambda: queries.reviews(conn, limit=500),

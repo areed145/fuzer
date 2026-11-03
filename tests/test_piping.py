@@ -6,9 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import graph, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import edges, pipeline, queries
 from fuzer.sources import ingest, llm_pids
 
 PACK = load_pack()
@@ -35,7 +35,7 @@ def test_smart_pid_piping(conn):
     net = queries.network(conn, "pipes_to")
     labels = {n["label"] for n in net["nodes"]}
     assert {"20-V-2001", "23-V-2001", "27-V-2001"} <= labels
-    down = {r["label"] for r in graph.trace(conn, fid(conn, "20-V-2001"), "pipes_to", "down")}
+    down = {r["label"] for r in edges.trace(conn, fid(conn, "20-V-2001"), "pipes_to", "down")}
     assert {"23-V-2001", "27-V-2001"} <= down
 
 

@@ -16,7 +16,7 @@ from pathlib import Path
 from psycopg.types.json import Jsonb
 
 from ..core.pack import Pack
-from ..llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
+from ..graph.llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
 from .extract import model_key
 
 PROMPT_VERSION = "2026-11-01.1"

@@ -12,7 +12,7 @@ def wall_thickness(conn, fid: str | None = None, kind: str | None = None, min_re
                    limit: int = 20) -> Figure:
     """One item's CMLs over time with fitted loss lines (and retirement dates when the minimum required
     thickness is given); without an item, the items losing wall fastest across the asset."""
-    from .. import measurements as m
+    from ..graph import measurements as m
 
     if fid is None:
         return _wall_ranking(conn, kind, limit)

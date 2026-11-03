@@ -102,7 +102,7 @@ def trend(conn, ids: list[str], at: str | None = None, hours_before: int = 48, h
 def measurements(conn, fid: str, quantity: str | None = None, since: str | None = None,
                  until: str | None = None) -> Figure:
     """Landed readings over time: one panel per quantity, one line per location (CML, sample point)."""
-    from .. import measurements as m
+    from ..graph import measurements as m
 
     out = m.for_entity(conn, fid, quantity, since, until)
     if not out["series"]:

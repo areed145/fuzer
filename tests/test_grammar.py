@@ -1,7 +1,7 @@
 import pytest
 
 from fuzer.core.pack import load_pack
-from fuzer.nel import find_mentions
+from fuzer.graph.nel import find_mentions
 from fuzer.sources.extract import norm_serial
 
 PACK = load_pack()

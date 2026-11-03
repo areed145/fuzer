@@ -22,9 +22,9 @@ from pathlib import Path
 
 import dagster as dg
 
-from . import llm_links, pipeline
 from .core import db
 from .core.pack import load_pack
+from .graph import llm_links, pipeline
 from .sources import ingest, llm_pids
 
 
@@ -210,7 +210,7 @@ def tags_missing_from_sap(fuzer: Fuzer) -> dg.AssetCheckResult:
 
 @dg.asset_check(asset=register, description="Downtime reason codes agree with what the comments say.")
 def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from . import queries
+    from .graph import queries
     with fuzer.connect() as conn:
         rows = queries.downtime_reason_checks(conn, 20)
         total = _scalar(conn, "select count(*) as n from golden where field = 'reason_check'")
@@ -221,7 +221,7 @@ def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
 
 @dg.asset_check(asset=register, description="Each document number has one current revision.")
 def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from . import queries
+    from .graph import queries
     with fuzer.connect() as conn:
         rows = queries.documents_with_several_current_revisions(conn)
     return dg.AssetCheckResult(passed=not rows, severity=dg.AssetCheckSeverity.WARN,
@@ -230,7 +230,7 @@ def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
 
 @dg.asset_check(asset=register, description="Energy Components flows are backed by P&ID piping between the same tags.")
 def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from . import queries
+    from .graph import queries
     with fuzer.connect() as conn:
         diff = queries.compare_networks(conn, limit=20)
     gaps = len(diff["in_ec_not_on_pids"])

@@ -10,11 +10,11 @@ from types import SimpleNamespace
 import pytest
 
 from fakeplant import offshore
-from fuzer import knowledge, llm_links, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import knowledge, llm_links, pipeline, queries
+from fuzer.graph.taxonomy import failure_modes_in
 from fuzer.sources import ingest, llm_docs
-from fuzer.taxonomy import failure_modes_in
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402

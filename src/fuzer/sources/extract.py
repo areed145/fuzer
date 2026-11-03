@@ -8,9 +8,9 @@ both kind and key from a value, and hooks for logic that truly is source-specifi
 import re
 from datetime import datetime
 
-from .. import nel
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
+from ..graph import nel
 
 
 def norm_serial(serial: str | None) -> str | None:
@@ -46,7 +46,7 @@ TRANSFORMS = {
 
 def model_key(v, pack) -> str | None:
     """"Manufacturer|model" as the equipment_model key the taxonomy derives (canonical maker, normalised model)."""
-    from ..taxonomy import Taxonomy, normalise_model
+    from ..graph.taxonomy import Taxonomy, normalise_model
 
     mfr, _, model = str(v or "").partition("|")
     mfr, model = Taxonomy(pack).manufacturer(mfr, []), normalise_model(model)
@@ -103,7 +103,7 @@ RESOLVERS = {
 
 def _iso(pack: Pack, kind: str, raw: str | None) -> tuple[str | None, str | None]:
     """Site catalog code -> (ISO 14224 code, name) through the pack's maintenance_codes."""
-    from ..taxonomy import load_standard
+    from ..graph.taxonomy import load_standard
 
     code = pack.maintenance_codes.get(kind, {}).get(raw) if raw else None
     if not code:
@@ -139,7 +139,7 @@ def downtime(c, p, pack):
 
 def document_applies_to(c, p, pack):
     """What the EDMS says a document applies to: manufacturer + model, class, tag references."""
-    from ..taxonomy import Taxonomy, normalise_model
+    from ..graph.taxonomy import Taxonomy, normalise_model
 
     if p.get("needs_ocr"):
         c.fields["needs_ocr"] = True
@@ -157,7 +157,7 @@ def document_applies_to(c, p, pack):
 
 
 def section_failure_modes(c, p, pack):
-    from ..taxonomy import failure_modes_in
+    from ..graph.taxonomy import failure_modes_in
 
     if modes := failure_modes_in(f"{p.get('heading', '')}\n{p.get('text', '')}", pack):
         c.fields["failure_modes"] = modes

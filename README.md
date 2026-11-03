@@ -498,13 +498,13 @@ curl "localhost:8000/work/inbox?person=alice"
 | `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
 | `src/fuzer/sources/extract.py` | Transforms, resolvers and hooks the mappings name |
 | `src/fuzer/core/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
-| `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
-| `src/fuzer/golden.py` | Per-field survivorship and conflict review |
-| `src/fuzer/graph.py` | Dated edges and flow tracing |
-| `src/fuzer/queries.py` | Read queries shared by the API and MCP server |
+| `src/fuzer/graph/resolve.py` | Matching, clustering, stable IDs, review queue |
+| `src/fuzer/graph/golden.py` | Per-field survivorship and conflict review |
+| `src/fuzer/graph/edges.py` | Dated edges and flow tracing |
+| `src/fuzer/graph/queries.py` | Read queries shared by the API and MCP server |
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
-| `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
+| `src/fuzer/graph/llm_links.py` | Claude reads operator logs: links and events |
 | `src/fuzer/sources/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
 | `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
 | `src/fuzer/workflow/` | Work engine: BPMN subset, publish checks, processes on Postgres, agent worker |

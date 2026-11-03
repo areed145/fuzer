@@ -15,8 +15,15 @@ from psycopg.types.json import Jsonb
 
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
-from ..llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage
-from ..taxonomy import load_standard
+from ..graph.llm_links import (
+    DEFAULT_EFFORT,
+    DEFAULT_MODEL,
+    call,
+    run_batch,
+    text_hash,
+    usage,
+)
+from ..graph.taxonomy import load_standard
 
 PROMPT_VERSION = "2026-10-29.2"
 CACHE = "edms_section"

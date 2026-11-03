@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import pipeline
 from fuzer.sources import ingest, mappings
 
 PACK = load_pack()

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import incidents, llm_links, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import incidents, llm_links, pipeline, queries
 from fuzer.sources import ingest
 
 sys.path.insert(0, str(Path(__file__).parent))

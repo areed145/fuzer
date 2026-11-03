@@ -20,8 +20,8 @@ import json
 import re
 from pathlib import Path
 
-from . import knowledge, queries
 from .core.pack import Pack
+from .graph import knowledge, queries
 
 
 def _pr(tp: int, fp: int, fn: int) -> dict:

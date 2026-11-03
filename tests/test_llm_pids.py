@@ -10,9 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import pipeline
 from fuzer.sources import ingest, llm_pids
 
 PACK = load_pack()
@@ -147,8 +147,8 @@ def test_drawing_endpoint_places_readings(setup):
 
 def test_drawings_for_an_entity(setup):
     conn, _ = setup
-    from fuzer import queries
     from fuzer.api import app
+    from fuzer.graph import queries
     client = TestClient(app)
     sheet = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
     tag = queries.resolve_ref(conn, PACK, "44-P-1001A")

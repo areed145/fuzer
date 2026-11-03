@@ -10,9 +10,10 @@ import pytest
 from mcp import Client
 
 from fakeplant import offshore
-from fuzer import assistant, lessons, llm_links, pipeline, queries
+from fuzer import assistant
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import lessons, llm_links, pipeline, queries
 from fuzer.sources import ingest
 
 sys.path.insert(0, str(Path(__file__).parent))

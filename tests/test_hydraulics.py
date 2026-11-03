@@ -11,9 +11,10 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import calcs, hydraulics, mcp_server, pipeline, queries, sre
+from fuzer import calcs, hydraulics, mcp_server, sre
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import pipeline, queries
 from fuzer.process_model import ProcessModel
 from fuzer.sources import ingest, timeseries
 

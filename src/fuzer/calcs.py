@@ -541,7 +541,7 @@ def wall_loss(conn, fid: str, min_required_mm: float | None = None, warn_years: 
     of its CMLs, with remaining life per CML when the minimum required thickness is given. Flags
     `retire_soon` when a CML reaches it within `warn_years`, else `localised` when the fastest CML loses
     more than twice the median."""
-    from . import measurements as m
+    from .graph import measurements as m
 
     series = m.for_entity(conn, fid, "wall_thickness", until=until)["series"]
     if not series:

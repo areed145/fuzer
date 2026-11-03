@@ -6,9 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import knowledge, lessons, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.graph import knowledge, lessons, pipeline, queries
 from fuzer.sources import ingest
 
 PACK = load_pack()
