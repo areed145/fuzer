@@ -359,7 +359,7 @@ def board_page(kind: str | None = None, area: str | None = None, unit: str | Non
                facets: bool = False, conn=Depends(get_conn)):
     """The work board (#99): every outstanding piece of work, ranked by value, one page at a time; with
     `facets`, counts by kind, area and owner for the views."""
-    from . import board
+    from .ops import board
     area_id = area if area and area.startswith("fz-") else queries.resolve_ref(conn, PACK, area) if area else None
     unit_id = queries.resolve_ref(conn, PACK, unit) if unit else None
     return board.cards(conn, kind, area_id, unit_id, text, since, max(1, page), min(per_page, 200), owner, facets)
@@ -367,7 +367,7 @@ def board_page(kind: str | None = None, area: str | None = None, unit: str | Non
 
 @app.get("/board/history")
 def board_history(key: str, conn=Depends(get_conn)):
-    from . import board
+    from .ops import board
     return board.history(conn, key)
 
 
@@ -383,7 +383,7 @@ class Pin(BaseModel):
 def board_pin(p: Pin, conn=Depends(get_conn)):
     """Pin a card's rank or value with a reason (both empty: unpin). Applied at the next refresh, which
     this runs."""
-    from . import board
+    from .ops import board
     try:
         out = board.pin(conn, p.key, p.by, p.reason, p.rank, p.value_usd)
     except ValueError as e:
@@ -406,7 +406,7 @@ class Project(BaseModel):
 @app.post("/board/projects")
 def board_project(p: Project, conn=Depends(get_conn)):
     """Add a project to the board."""
-    from . import board
+    from .ops import board
     unit_id = queries.resolve_ref(conn, PACK, p.unit) if p.unit else None
     out = board.add_project(conn, p.title, p.by, unit_id, p.owner, p.due, p.benefit_usd, p.effort_usd, p.scope)
     board.refresh(conn, PACK)
@@ -416,13 +416,13 @@ def board_project(p: Project, conn=Depends(get_conn)):
 @app.get("/reports/daily")
 def daily_reports(limit: int = 30, conn=Depends(get_conn)):
     """Days with a daily operations report, newest first (#98)."""
-    from . import daily_report
+    from .ops import daily_report
     return daily_report.days(conn, min(limit, 365))
 
 
 @app.get("/reports/daily/{day}")
 def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn)):
-    from . import daily_report
+    from .ops import daily_report
     out = daily_report.get(conn, day, version)
     if out is None:
         raise HTTPException(404, f"no report for {day}")
@@ -432,7 +432,7 @@ def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn
 @app.get("/opportunities")
 def opportunity_list(status: str | None = "open", limit: int = 100, conn=Depends(get_conn)):
     """Opportunities from the daily scan (#102)."""
-    from . import opportunities
+    from .ops import opportunities
     return opportunities.listing(conn, status, min(limit, 500))
 
 
@@ -445,7 +445,7 @@ class OpportunityDecision(BaseModel):
 @app.post("/opportunities/{key:path}/decision")
 def opportunity_decide(key: str, d: OpportunityDecision, conn=Depends(get_conn)):
     """Accept, reject (a reason is required) or turn an opportunity into a board project."""
-    from . import board, opportunities
+    from .ops import board, opportunities
     try:
         out = opportunities.decide(conn, key, d.decision, d.by, d.reason)
     except ValueError as e:
@@ -464,7 +464,7 @@ class StudyIn(BaseModel):
 @app.post("/studies")
 def study_start(s: StudyIn, conn=Depends(get_conn)):
     """Run a correlation or clustering study now when it is small, else queue it (#106)."""
-    from . import study
+    from .ops import study
     params = dict(s.params)
     for k in ("target", "scope"):
         if isinstance(params.get(k), str) and params[k] != "facility" and not params[k].startswith("fz-"):
@@ -477,13 +477,13 @@ def study_start(s: StudyIn, conn=Depends(get_conn)):
 
 @app.get("/studies")
 def study_list(limit: int = 50, conn=Depends(get_conn)):
-    from . import study
+    from .ops import study
     return study.listing(conn, min(limit, 200))
 
 
 @app.get("/studies/{sid}")
 def study_get(sid: int, conn=Depends(get_conn)):
-    from . import study
+    from .ops import study
     out = study.get(conn, sid)
     if out is None:
         raise HTTPException(404, f"no study {sid}")
@@ -492,7 +492,7 @@ def study_get(sid: int, conn=Depends(get_conn)):
 
 @app.post("/studies/{sid}/rerun")
 def study_rerun(sid: int, by: str = "anonymous", conn=Depends(get_conn)):
-    from . import study
+    from .ops import study
     try:
         return study.rerun(conn, PACK, sid, by)
     except ValueError as e:

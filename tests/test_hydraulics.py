@@ -11,12 +11,13 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, sre
+from fuzer import mcp_server
 from fuzer.analysis import calcs, hydraulics
 from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries
+from fuzer.ops import sre
 from fuzer.sources import ingest, timeseries
 
 PACK = load_pack("okan")
@@ -118,8 +119,8 @@ def test_detector_tools_and_headroom(conn, spec, data):
 def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
     """Before the 25 November setpoint change, lowering the HP separator to its IOW is the top option, and
     its gain is within 20% of what the model gives for the same move; the options reach the board."""
-    from fuzer import board
     from fuzer.analysis import value
+    from fuzer.ops import board
     from fuzer.plots import production
 
     out = hydraulics.debottleneck_options(conn, PACK, "facility", "2025-11-20T00:00")

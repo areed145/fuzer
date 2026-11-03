@@ -10,10 +10,11 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import daily_report, mcp_server, operations
+from fuzer import mcp_server
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline
+from fuzer.ops import daily_report, operations
 from fuzer.sources import ingest
 from fuzer.workflow import engine, worker
 

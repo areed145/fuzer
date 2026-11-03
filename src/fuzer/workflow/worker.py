@@ -142,6 +142,6 @@ def assistant_agents() -> dict[str, Agent]:
             answer = agents.ask_sync(prompt)
             return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}
         return run_step
-    from .. import daily_report
+    from ..ops import daily_report
 
     return {**{role: specialist(role) for role in agents.SPECIALISTS}, "reporter": daily_report.reporter_agent}

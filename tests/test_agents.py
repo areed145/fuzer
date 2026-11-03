@@ -12,10 +12,11 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, operations
+from fuzer import mcp_server
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries
+from fuzer.ops import operations
 from fuzer.sources import ingest
 
 PACK = load_pack("okan")

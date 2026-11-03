@@ -154,7 +154,7 @@ def limits_detector(conn, pack, since: datetime, until: datetime, src) -> list[d
 
 def sre_detector(conn, pack, since: datetime, until: datetime, src, only: list[str] | None = None) -> list[dict]:
     """The SRE's own detectors (sre.py), all of them or `only` some."""
-    from . import sre
+    from .ops import sre
 
     return sre.detect(conn, pack, since, until, src, only)
 
@@ -260,7 +260,7 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
             conn.commit()
     res = score(spec, found, a, b)
     if found and "unit_id" in found[0]:  # the SRE's detections carry their unit: score its upsets too
-        from . import sre
+        from .ops import sre
 
         res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn)), a, b)
     return {"detector": name, "since": since, "until": until, "windows": len(seconds),

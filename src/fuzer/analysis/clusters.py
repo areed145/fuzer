@@ -125,7 +125,7 @@ def entities(conn, kind: str = "wells", scope=None, since: str | None = None, un
         raise CalcError("kind is wells or points")
     from sklearn.cluster import KMeans
 
-    from .. import operations
+    from ..ops import operations
     from . import calcs
 
     resp = {w["id"]: w["response_oil_per_extra_gas"] for w in operations.gas_lift_network(conn, limit=100000).get("most_response", [])}

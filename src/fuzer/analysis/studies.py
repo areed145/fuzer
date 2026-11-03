@@ -232,7 +232,7 @@ def _window(start: str, end: str, n_points: int = 0, step: int = 10) -> tuple[da
 
 
 def _connected(conn, target_unit: str | None, units: dict[str, str]) -> dict[str, bool]:
-    from .. import sre
+    from ..ops import sre
 
     adj, cache = sre.topology(conn), {}
     return {pid: sre._near(adj, target_unit, u, cache) for pid, u in units.items()} if target_unit else {}
@@ -293,7 +293,7 @@ def correlation_matrix(conn, pack, scope: str | list[str], start: str, end: str,
                        keep_down: bool = False, top: int = 20, src=None, path: str | None = None) -> dict:
     """All pairs in `scope`: r for each, ordered so related points sit together, with the `top` strongest
     pairs and whether the plant model connects each pair."""
-    from .. import sre
+    from ..ops import sre
     from . import limits
 
     pts = points(conn, scope, path)
