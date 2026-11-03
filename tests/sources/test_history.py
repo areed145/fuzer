@@ -17,9 +17,18 @@ pytestmark = pytest.mark.sequence  # (#137) a reload that changes nothing, then 
 
 
 @pytest.fixture(scope="module")
-def setup(offshore_db):
+def setup(offshore_db, tmp_path_factory):
+    """These tests edit the exports, so they get their own copy (the shared one stays as loaded). Manifest
+    records hold absolute file paths, so the copy is loaded once and that move isn't counted as history."""
+    import shutil
+
     c = offshore_db.conn
-    yield c, offshore_db.data
+    data = tmp_path_factory.mktemp("history") / "data"
+    shutil.copytree(offshore_db.data, data)
+    ingest.ingest(c, data)
+    c.execute("delete from source_record_history")
+    c.commit()
+    yield c, data
 
 
 def edit_csv(path: Path, key_col: str, key: str, changes: dict | None):

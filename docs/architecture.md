@@ -232,7 +232,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `work_token` ([schema](schema.md))
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:**  ([capabilities](capabilities.md))
+- **Tools:** maintenance 47, orchestrator 17, production 52, troubleshooter 67 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

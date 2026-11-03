@@ -165,10 +165,7 @@ def architecture_md() -> str:
     reads = {p: sorted(set(re.findall(r'settings\.get\([^,()]+,\s*"([\w.]+)"', _source(p)))) for p in COMPONENTS}
     writes = {p: sorted({t for t in tables if re.search(rf"(insert into|update|delete from) {t}\b", _source(p))})
               for p in COMPONENTS}
-    by_agent: dict[str, int] = {}
-    for c in capabilities.REGISTRY.values():
-        for a in c.agents:
-            by_agent[a] = by_agent.get(a, 0) + 1
+    by_agent = {a: len(names) for a, names in capabilities.tools_by_agent().items() if names}  # loads the tools
     out += ["## Each component", ""]
     for p, (title, purpose, page) in COMPONENTS.items():
         mods = sorted(str(f.relative_to(PKG / p))[:-3].replace("/", ".") for f in (PKG / p).rglob("*.py")
