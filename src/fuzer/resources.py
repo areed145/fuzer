@@ -8,3 +8,4 @@ UNITS = PACKAGE / "units.yaml"
 PACKS = PACKAGE / "packs"
 MAPPINGS = PACKAGE / "mappings"
 STANDARDS = PACKAGE / "standards"
+UI_DIST = PACKAGE.parents[1] / "ui" / "dist"  # the built web UI (cd ui && npm run build)

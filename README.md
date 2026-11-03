@@ -502,7 +502,7 @@ curl "localhost:8000/work/inbox?person=alice"
 | `src/fuzer/graph/golden.py` | Per-field survivorship and conflict review |
 | `src/fuzer/graph/edges.py` | Dated edges and flow tracing |
 | `src/fuzer/graph/queries.py` | Read queries shared by the API and MCP server |
-| `src/fuzer/api.py` | REST API (also serves the built UI) |
+| `src/fuzer/api/` | REST API (also serves the built UI) |
 | `src/fuzer/agents/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/graph/llm_links.py` | Claude reads operator logs: links and events |
 | `src/fuzer/sources/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |

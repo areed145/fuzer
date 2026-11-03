@@ -1,0 +1,317 @@
+"""The workflow engine (#97): items, tasks, processes, definitions, forms and people."""
+
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import (
+    JSONResponse,
+    Response,
+)
+from pydantic import BaseModel
+
+from ..workflow import engine as work
+from .deps import get_conn
+
+router = APIRouter()
+
+
+# --- work engine (#97) ---------------------------------------------------------------------------
+
+def work_error(request, e: work.WorkError):
+    body = {"detail": str(e)}
+    if isinstance(e, work.CheckFailed):
+        body["problems"] = [vars(p) for p in e.problems]
+    return JSONResponse(body, status_code=e.status)
+
+
+class WorkBy(BaseModel):
+    by: str
+
+
+class WorkDefinitionIn(BaseModel):
+    xml: str
+    by: str
+
+
+class WorkStart(BaseModel):
+    process_key: str
+    by: str
+    data: dict[str, Any] = {}
+    title: str | None = None
+    subjects: list[str] | None = None
+    priority: float | None = None
+    correlation_key: str | None = None
+    correlate: bool = False   # send to the open process with the same correlation key instead, if there is one
+
+
+class WorkComplete(BaseModel):
+    by: str
+    data: dict[str, Any] = {}
+
+
+class WorkHandOff(BaseModel):
+    by: str
+    to: str                   # a person, role:<role> or agent:<role>
+    reason: str | None = None
+
+
+class WorkComment(BaseModel):
+    by: str
+    text: str
+    attachments: list[dict[str, Any]] = []
+
+
+class WorkTransition(BaseModel):
+    by: str
+    state: str
+    reason: str | None = None
+
+
+class WorkItemIn(BaseModel):
+    type: str
+    title: str
+    by: str
+    subjects: list[str] = []
+    priority: float | None = None
+    assignee: str | None = None
+    role: str | None = None
+    due: datetime | None = None
+    source: str | None = None
+    payload: dict[str, Any] = {}
+
+
+class WorkMessage(BaseModel):
+    name: str
+    correlation_key: str
+    by: str = work.SYSTEM
+    payload: dict[str, Any] = {}
+    process_key: str | None = None
+
+
+class WorkDraft(BaseModel):
+    process_key: str
+    by: str
+    from_id: int | None = None  # copy this version (default: the published one) unless a draft is open
+
+
+class WorkMigrate(BaseModel):
+    by: str
+    definition_id: int
+    mapping: dict[str, str] = {}
+
+
+class WorkBulk(BaseModel):
+    by: str
+    task_ids: list[int]
+    action: str               # the label of a bulk action the tasks' form declares
+    reason: str | None = None
+
+
+class WorkPerson(BaseModel):
+    roles: list[str]
+    by: str = work.SYSTEM
+
+
+@router.get("/work/items")
+def work_items(state: str | None = "open", type: str | None = None, assignee: str | None = None,
+               role: list[str] | None = Query(None), subject: str | None = None, overdue: bool | None = None,
+               q: str | None = None, limit: int = 50, offset: int = 0, conn=Depends(get_conn)):
+    """Work items ranked by priority, with filters, the total and how many are overdue or due soon."""
+    return work.list_items(conn, None if state == "all" else state, type, assignee, role, subject, overdue, q,
+                           min(limit, 1000), offset)
+
+
+@router.post("/work/items")
+def work_item_create(i: WorkItemIn, conn=Depends(get_conn)):
+    """A work item without a process (a plain task with an owner, a due date and a history)."""
+    return work.create_item(conn, i.type, i.title, i.by, i.subjects, i.priority, i.assignee, i.role, i.due,
+                            i.source, i.payload)
+
+
+@router.get("/work/items/{item_id}")
+def work_item(item_id: int, conn=Depends(get_conn)):
+    """An item with its processes (path taken, open steps) and every event in its history."""
+    return work.item(conn, item_id)
+
+
+@router.post("/work/items/{item_id}/comment")
+def work_item_comment(item_id: int, c: WorkComment, conn=Depends(get_conn)):
+    return work.comment(conn, item_id, c.by, c.text, c.attachments)
+
+
+@router.post("/work/items/{item_id}/transition")
+def work_item_transition(item_id: int, t: WorkTransition, conn=Depends(get_conn)):
+    return work.transition(conn, item_id, t.state, t.by, t.reason)
+
+
+@router.post("/work/items/{item_id}/hand-off")
+def work_item_hand_off(item_id: int, h: WorkHandOff, conn=Depends(get_conn)):
+    return work.assign_item(conn, item_id, h.by, h.to, h.reason)
+
+
+@router.get("/work/inbox")
+def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(get_conn)):
+    """A person's tasks ('mine') and their roles' unclaimed queue, with overdue and due-soon counts.
+    Roles default to the ones the person holds."""
+    return work.my_work(conn, person, role)
+
+
+@router.get("/work/agents/{role}")
+def work_agent_queue(role: str, conn=Depends(get_conn)):
+    return work.agent_work(conn, role)
+
+
+@router.get("/work/tasks/{task_id}")
+def work_task(task_id: int, conn=Depends(get_conn)):
+    """One step with its item, process data, form-js form, bulk actions and evidence."""
+    return work.task(conn, task_id)
+
+
+@router.post("/work/tasks/bulk-complete")
+def work_bulk_complete(b: WorkBulk, conn=Depends(get_conn)):
+    """Complete several steps with a bulk action their form declares (never requiresHuman steps)."""
+    return work.bulk_complete(conn, b.task_ids, b.by, b.action, b.reason)
+
+
+@router.post("/work/tasks/{task_id}/claim")
+def work_claim(task_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.claim(conn, task_id, b.by)
+
+
+@router.post("/work/tasks/{task_id}/release")
+def work_release(task_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.release(conn, task_id, b.by)
+
+
+@router.post("/work/tasks/{task_id}/complete")
+def work_complete(task_id: int, c: WorkComplete, conn=Depends(get_conn)):
+    """Complete a step with its form data. A requiresHuman step refuses agents (403)."""
+    return work.complete(conn, task_id, c.by, c.data)
+
+
+@router.post("/work/tasks/{task_id}/hand-off")
+def work_task_hand_off(task_id: int, h: WorkHandOff, conn=Depends(get_conn)):
+    return work.hand_off(conn, task_id, h.by, h.to, h.reason)
+
+
+@router.post("/work/processes")
+def work_start(s: WorkStart, conn=Depends(get_conn)):
+    """Start a published process on a new work item (or, with `correlate`, add to the open one)."""
+    if s.correlate:
+        return work.start_or_correlate(conn, s.process_key, s.data, s.by, title=s.title, subjects=s.subjects,
+                                       priority=s.priority)
+    return work.start(conn, s.process_key, s.data, s.by, s.title, s.subjects, s.priority, s.correlation_key)
+
+
+@router.get("/work/processes/{process_id}")
+def work_process(process_id: int, conn=Depends(get_conn)):
+    return work.process(conn, process_id)
+
+
+@router.post("/work/processes/{process_id}/migrate")
+def work_migrate(process_id: int, m: WorkMigrate, conn=Depends(get_conn)):
+    """Move one running process to another published version (explicit, per process)."""
+    return work.migrate(conn, process_id, m.definition_id, m.by, m.mapping)
+
+
+@router.post("/work/processes/{process_id}/cancel")
+def work_cancel(process_id: int, t: WorkTransition, conn=Depends(get_conn)):
+    return work.cancel(conn, process_id, t.by, t.reason)
+
+
+@router.post("/work/messages")
+def work_message(m: WorkMessage, conn=Depends(get_conn)):
+    """Send a message (new evidence, a notification raised, a comment) to the open process with its correlation key."""
+    return work.send_message(conn, m.name, m.correlation_key, m.payload, m.by, m.process_key)
+
+
+@router.get("/work/definitions")
+def work_definitions(process_key: str | None = None, conn=Depends(get_conn)):
+    return work.definitions(conn, process_key)
+
+
+@router.post("/work/definitions")
+def work_definition_import(d: WorkDefinitionIn, conn=Depends(get_conn)):
+    """Import a .bpmn file as draft versions (one per process in it)."""
+    return work.import_bpmn(conn, d.xml, d.by)
+
+
+@router.post("/work/definitions/draft")
+def work_definition_draft(d: WorkDraft, conn=Depends(get_conn)):
+    """The draft to edit in the modeler: the open one, or a new one copied from a version."""
+    return work.draft(conn, d.process_key, d.by, d.from_id)
+
+
+@router.put("/work/definitions/{definition_id}")
+def work_definition_save(definition_id: int, d: WorkDefinitionIn, conn=Depends(get_conn)):
+    """Save the modeler's diagram over a draft (published versions never change)."""
+    return work.save_draft(conn, definition_id, d.xml, d.by)
+
+
+@router.get("/work/definitions/{definition_id}/compare")
+def work_definition_compare(definition_id: int, against: int | None = None, conn=Depends(get_conn)):
+    """Elements added, removed or changed against another version (default: the published one)."""
+    return work.compare(conn, definition_id, against)
+
+
+@router.get("/work/monitor/{process_key}")
+def work_monitor(process_key: str, definition_id: int | None = None, days: int = 30, conn=Depends(get_conn)):
+    """Steps waiting and finished at each element of a process, for the diagram overlay."""
+    return work.monitor(conn, process_key, definition_id, min(max(days, 1), 365))
+
+
+@router.get("/work/roles")
+def work_roles():
+    """The person roles and agent roles a process may name."""
+    return work.roles()
+
+
+@router.post("/work/definitions/{definition_id}/check")
+def work_definition_check(definition_id: int, b: WorkBy, conn=Depends(get_conn)):
+    return work.check_definition(conn, definition_id, b.by)
+
+
+@router.post("/work/definitions/{definition_id}/publish")
+def work_definition_publish(definition_id: int, b: WorkBy, conn=Depends(get_conn)):
+    """Publish a version (workflow_admin role). Refused with 422 and each problem's element if a check fails."""
+    return work.publish(conn, definition_id, b.by)
+
+
+@router.get("/work/definitions/{definition_id}/bpmn")
+def work_definition_export(definition_id: int, conn=Depends(get_conn)):
+    return Response(work.export_bpmn(conn, definition_id), media_type="application/xml")
+
+
+@router.get("/work/forms")
+def work_forms(conn=Depends(get_conn)):
+    return work.forms(conn)
+
+
+@router.get("/work/forms/{key}")
+def work_form(key: str, conn=Depends(get_conn)):
+    if (f := work.form(conn, key)) is None:
+        raise HTTPException(404, f"no form '{key}'")
+    return f
+
+
+@router.post("/work/forms")
+def work_form_import(schema: dict[str, Any], by: str, conn=Depends(get_conn)):
+    """A form-js schema as the next version of the form its `id` names."""
+    return work.import_form(conn, schema, by)
+
+
+@router.get("/work/people")
+def work_people(conn=Depends(get_conn)):
+    return work.people(conn)
+
+
+@router.put("/work/people/{name}")
+def work_person(name: str, p: WorkPerson, conn=Depends(get_conn)):
+    return work.set_person(conn, name, p.roles, p.by)
+
+
+@router.post("/work/tick")
+def work_tick(conn=Depends(get_conn)):
+    """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes)."""
+    return work.tick(conn)
