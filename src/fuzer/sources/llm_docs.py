@@ -13,17 +13,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from psycopg.types.json import Jsonb
 
+from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
-from ..graph.llm_links import (
-    DEFAULT_EFFORT,
-    DEFAULT_MODEL,
-    call,
-    run_batch,
-    text_hash,
-    usage,
-)
-from ..graph.taxonomy import load_standard
+from ..core.taxonomy import load_standard
 
 PROMPT_VERSION = "2026-10-29.2"
 CACHE = "edms_section"

@@ -58,9 +58,10 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                   direct: bool = False, conn=Depends(get_conn)):
     """Process values on a unit (or an incident's unit), or of one timeseries, around a time, from the
     time-series provider. `direct`: only the entity's own points, not its instruments'."""
-    from ..sources import timeseries
-    return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
-                             direct=direct, pack=deps.PACK)
+    from ..analysis import values
+
+    return values.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
+                         direct=direct, pack=deps.PACK)
 
 
 @router.get("/entities/{fuzer_id}/limits")
@@ -96,7 +97,7 @@ def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str |
 @router.get("/entities/{fuzer_id}/curves")
 def entity_curves(fuzer_id: str, conn=Depends(get_conn)):
     """The OEM curves for an equipment model, or for the model of an equipment item or tag."""
-    from ..analysis import curves
+    from ..sources import curves
     model = curves.model_of(conn, fuzer_id)
     return (curves.for_model(conn, model) if model else None) or {"model_id": model, "series": {},
                                                                   "waiting": curves.waiting(conn, model) if model else []}

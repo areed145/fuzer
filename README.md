@@ -166,7 +166,7 @@ troubleshooting brief read values from them. The same settings point at a real
 server.
 
 On Okan, the fake values come from a small process model of the plant
-(`process_model.json`, written with the demo data; `src/fuzer/analysis/process_model.py`):
+(`process_model.json`, written with the demo data; `src/fuzer/sources/process_model.py`):
 compressor trains, lift gas headers, wells with chokes and gas lift, separators,
 pumps and meters, linked by simple relations with time lags. Values move
 together the way the plant would: vibration rises before temperature, a train
@@ -492,7 +492,7 @@ curl "localhost:8000/work/inbox?person=alice"
 |---|---|
 | `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
 | `src/fuzer/sources/ingest.py` | Land source exports into `source_record` |
-| `src/fuzer/ops/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
+| `src/fuzer/graph/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
 | `src/fuzer/agents/` | The operations assistant: agent team, skills, API service |
 | `src/fuzer/sources/connectors.py` | CSV / Parquet / Delta connectors |
 | `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |

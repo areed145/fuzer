@@ -277,7 +277,7 @@ STORY_WELLS = {"OK-J07-03", "OK-J12-02", "OK-J03-02", "OK-NWP-G3"}
 def scale_tests(model: dict, tests: list[dict], since: str = "2025-10-01") -> list[dict]:
     """Well tests after a back-pressure event as a test separator would measure them: the model's rate
     factor at the test applied to oil (the model itself runs on the tests as generated)."""
-    from fuzer.analysis.process_model import ProcessModel
+    from fuzer.sources.process_model import ProcessModel
 
     m = ProcessModel(model)
     out = []

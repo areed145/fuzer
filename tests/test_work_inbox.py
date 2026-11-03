@@ -8,8 +8,9 @@ import tempfile
 import pytest
 from mcp import Client
 
+from fuzer.agents import worker
 from fuzer.core import db
-from fuzer.workflow import engine, worker
+from fuzer.workflow import engine
 
 
 @pytest.fixture(scope="module")

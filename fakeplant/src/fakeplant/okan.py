@@ -29,7 +29,16 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import curves, docs, limits, measurements, pid, process
-from .offshore import ACTIONS, CAUSES, DAMAGE_TEXT, Tag, _add_days, _add_hours, _spares, _write_csv
+from .offshore import (
+    ACTIONS,
+    CAUSES,
+    DAMAGE_TEXT,
+    Tag,
+    _add_days,
+    _add_hours,
+    _spares,
+    _write_csv,
+)
 
 FIELD = "OKAN"
 AS_OF = "2025-12-31"  # the demo's "today": open work, overdue plans and backlog ages count from here

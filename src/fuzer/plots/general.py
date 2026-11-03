@@ -175,7 +175,7 @@ BAR_DATASETS = ("deferment_by_reason", "deferment_by_well", "deferment_by_tag", 
 
 def bar(conn, dataset: str, since: str | None = None, until: str | None = None, limit: int = 15) -> Figure:
     """A ranked bar chart (Pareto with a cumulative share line where the parts add up)."""
-    from ..ops import operations as ops
+    from ..graph import operations as ops
 
     if dataset.startswith("deferment_by_"):
         by = dataset.removeprefix("deferment_by_")
@@ -301,7 +301,7 @@ def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
     """Oil potential, then planned losses, unplanned losses by reason, then actual, over a period (DAY001 and
     EC downtime), priced with the pack's oil price."""
     from ..analysis import value
-    from ..ops import operations
+    from ..graph import operations
 
     days = operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                             {"s": since, "u": until})
@@ -366,7 +366,7 @@ CO2_T_PER_KSM3_FLARED = 2.0  # tonnes CO2 per kSm3 gas flared (combustion of a t
 
 def flare(conn, since: str, until: str) -> Figure:
     """Daily flare and lift gas from DAY001, and the flare's CO2 per barrel of oil (an estimate)."""
-    from ..ops import operations
+    from ..graph import operations
 
     days = sorted(operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                                    {"s": since, "u": until}), key=lambda d: d["f"]["report_date"])

@@ -58,7 +58,8 @@ def _day001(conn, d: str) -> dict | None:
 
 
 def facts(conn, pack, day: str) -> dict:
-    from . import operations, sre
+    from ..graph import operations
+    from . import sre
 
     d = date.fromisoformat(day)
     nxt = (d + timedelta(days=1)).isoformat()

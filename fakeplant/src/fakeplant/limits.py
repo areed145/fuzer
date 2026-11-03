@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from fuzer.analysis.process_model import ProcessModel
+from fuzer.sources.process_model import ProcessModel
 
 # Healthy reference weeks: both seasons, both years (the wells' rates follow their tests).
 WEEKS = ["2024-03-11", "2024-09-16", "2025-03-10", "2025-09-15"]

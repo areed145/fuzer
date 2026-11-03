@@ -12,7 +12,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from .taxonomy import load_standard
+from ..core.taxonomy import load_standard
 
 RECUR_DAYS = 30
 MIN_INCIDENTS = 2

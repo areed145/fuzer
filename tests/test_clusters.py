@@ -14,13 +14,12 @@ from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
 from fuzer.analysis import clusters
-from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline
-from fuzer.ops import sre
+from fuzer.ops import pipeline, sre
 from fuzer.plots import troubleshooting
 from fuzer.sources import ingest
+from fuzer.sources.process_model import ProcessModel
 
 PACK = load_pack("okan")
 

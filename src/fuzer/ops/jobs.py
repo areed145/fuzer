@@ -24,8 +24,9 @@ import dagster as dg
 
 from ..core import db
 from ..core.pack import load_pack
-from ..graph import llm_links, pipeline
+from ..graph import llm_links
 from ..sources import ingest, llm_pids
+from . import pipeline
 
 
 class Fuzer(dg.ConfigurableResource):
@@ -274,8 +275,9 @@ def sre_scan():
 def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from datetime import date, timedelta
 
+    from ..graph import operations
     from ..workflow import engine
-    from . import daily_report, operations
+    from . import daily_report
     pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
         engine.load_defaults(conn)

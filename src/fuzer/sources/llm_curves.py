@@ -15,8 +15,8 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
+from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
 from ..core.pack import Pack
-from ..graph.llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
 from .extract import model_key
 
 PROMPT_VERSION = "2026-11-01.1"
@@ -202,7 +202,7 @@ def score(conn, truth: list[dict]) -> dict:
         if r is None:
             sheets.append({"datasheet": t["datasheet"], "form": form, "read": False})
             continue
-        from ..analysis.curves import at
+        from .curves import at
 
         per_series = {}
         for name, true_pts in t["series"].items():

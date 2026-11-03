@@ -14,7 +14,7 @@ from fuzer.agents import mcp_server
 from fuzer.analysis import studies
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline
+from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
 PACK = load_pack("okan")

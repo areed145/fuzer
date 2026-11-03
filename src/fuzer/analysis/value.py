@@ -20,8 +20,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from ..ops import operations
-from ..ops.operations import _num, _rows, _tags_of
+from ..graph import operations
+from ..graph.operations import _num, _rows, _tags_of
 
 DEFAULTS = {
     "currency": "USD",

@@ -18,6 +18,8 @@ jobs:
         run: uv sync
       - name: "Every import resolves, including the ones inside functions"
         run: uv run python scripts/check_imports.py
+      - name: "Layers (#135): no module imports from a layer above its own"
+        run: uv run lint-imports
       - name: "Tests (no calls to Claude: agents and readers run on recorded answers)"
         run: uv run pytest -q -rf
       - name: "Ops eval (#103) on the fake plant with a scripted Claude, failing under its floors"

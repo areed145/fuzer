@@ -239,7 +239,7 @@ def gas_lift(conn, well: str, breakeven: float = 0.5, min_gain: float = 1.0, unt
 
 def window_of(conn, days: int, until: str | None = None) -> tuple[datetime, datetime]:
     """The `days` up to `until`, else to the end of the data's today (operations.as_of)."""
-    from ..ops import operations
+    from ..graph import operations
 
     end = datetime.fromisoformat(until) if until else datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1)
     return end - timedelta(days=days), end
@@ -255,7 +255,7 @@ def read(points: dict[str, dict], start: datetime, end: datetime, step: int, src
 
 def curve_for(conn, model: str | None, what: str) -> dict:
     """An equipment model's OEM curve, or a CalcError naming the datasheet waiting to be read."""
-    from . import curves
+    from ..sources import curves
 
     if model is None:
         raise CalcError(f"no equipment model known for that {what}")
@@ -275,7 +275,7 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
     head curve: {tag, label, curve, start, end, ops [(time, flow, head)], by_month [{month,
     head_vs_curve_pct}]}."""
     from ..sources import timeseries
-    from . import curves
+    from ..sources import curves
 
     tag = fid
     if conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"] == "equipment":
@@ -313,7 +313,7 @@ def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = 5.0, unti
     """A pump's head against its OEM curve at the same flow, as the median over its last `recent_days` of
     running: at least `min_readings` (about ten days at 6-hour readings), so a standby pump's starts and
     stops don't count. Flags `head_loss` (wear rings, impeller) at `tolerance_pct` or more below the curve."""
-    from . import curves
+    from ..sources import curves
 
     p = pump_operation(conn, fid, days, until=until)
     head = p["curve"]["series"]["head"]
@@ -338,7 +338,7 @@ def choke_operation(conn, fid: str, days: int = 730, sg: float = SG, src=None, u
     (gas wells), against the opening. {well, tag, wl, tl, curve, start, end, installs, rows [(time,
     opening, Cv)], ratio [(time, opening, Cv, Cv / curve)], note, drift (latest ratio before any
     replacement), reading}."""
-    from . import curves
+    from ..sources import curves
 
     kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"]
     if kind == "well":

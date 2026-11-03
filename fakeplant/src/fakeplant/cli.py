@@ -53,7 +53,7 @@ def main(argv=None):
     else:
         from fuzer.core import db
         from fuzer.core.pack import load_pack
-        from fuzer.graph import pipeline
+        from fuzer.ops import pipeline
         from fuzer.sources import ingest
 
         pack = load_pack(args.pack or PACKS[args.asset])

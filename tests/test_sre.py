@@ -13,8 +13,7 @@ from fuzer.agents import mcp_server
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import replay
-from fuzer.graph import pipeline
-from fuzer.ops import sre
+from fuzer.ops import pipeline, sre
 from fuzer.sources import ingest, timeseries
 
 PACK = load_pack("okan")

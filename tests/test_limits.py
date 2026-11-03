@@ -18,7 +18,8 @@ from fuzer.agents import mcp_server
 from fuzer.analysis import limits
 from fuzer.core import db, units
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
+from fuzer.graph import queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest, mappings, timeseries
 from fuzer.workflow import engine
 

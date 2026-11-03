@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from fuzer.agents import worker
 from fuzer.core import db
-from fuzer.workflow import bpmn, engine, worker
+from fuzer.workflow import bpmn, engine
 
 BPMN_DIR = Path(__file__).with_name("bpmn")
 PATH_TYPES = {"startEvent", "endEvent", "userTask", "serviceTask", "intermediateCatchEvent", "boundaryEvent",

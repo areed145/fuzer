@@ -13,12 +13,12 @@ import pytest
 from fakeplant import okan
 from fuzer.agents import mcp_server
 from fuzer.analysis import calcs, hydraulics
-from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
-from fuzer.ops import sre
+from fuzer.graph import queries
+from fuzer.ops import pipeline, sre
 from fuzer.sources import ingest, timeseries
+from fuzer.sources.process_model import ProcessModel
 
 PACK = load_pack("okan")
 
