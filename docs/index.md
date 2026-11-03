@@ -4,7 +4,9 @@ Fuzer pulls asset data from many systems (SAP, JDE, Maximo, PI and PI AF, Energy
 logs), works out which records describe the same real thing, links them into one graph, and runs agents and
 workflows on it: upset detection, diagnosis, daily reports, opportunities and an operations assistant.
 
-Setting it up and running the Okan demo: the [README](https://github.com/areed145/fuzer#readme).
+New here? [Getting started](getting-started.md) takes you from a clean checkout to the Okan demo and the evals;
+[from a well test to an answer](walkthrough.md) follows one record through the system; the [glossary](glossary.md)
+explains the terms.
 
 ## Reading order
 
