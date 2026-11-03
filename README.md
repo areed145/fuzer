@@ -300,6 +300,12 @@ uv run fakeplant generate --size medium --format parquet --out fakeplant/data/la
 uv run fuzer ingest --data fakeplant/data/lake     # unchanged tables are skipped; --full reads all
 ```
 
+`uv run fuzer source list` shows every table in the data folder with its connector, its
+mapping and its state (new, unchanged, changed, held for review, unmapped);
+`uv run fuzer source preview <table>` shows a sample, any column drift since the
+last load, and what the rows would make: the entities and links of a mapped
+table, or the draft mapping rules suggest for a new one. Neither loads anything.
+
 Fuzer remembers each table's fingerprint, columns and watermark
 (`dataset_state`). An unchanged table isn't read at all. If a column disappears
 or changes type, the table is held (its records stay as they were) and a

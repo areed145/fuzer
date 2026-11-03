@@ -37,6 +37,12 @@ def main(argv=None):
     sm.add_argument("--table", action="append", help="only this table (repeatable); default: every unmapped table")
     sm.add_argument("--claude", action="store_true", help="ask Claude about columns rules can't name (costs money)")
 
+    so = sub.add_parser("source", help="sources (#132): list the tables in the data folder, or preview one before it loads")
+    so.add_argument("action", choices=["list", "preview"])
+    so.add_argument("table", nargs="?", help="preview: the table (dataset) name")
+    so.add_argument("--data", default=None, help="exports folder (default: $FUZER_DATA_DIR or data)")
+    so.add_argument("--rows", type=int, default=5, help="preview: sample rows")
+
     s = sub.add_parser("serve", help="run the API")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
@@ -189,6 +195,15 @@ def main(argv=None):
                 db.init_schema(conn)  # idempotent; picks up new tables without a reset
             if args.cmd == "reset":
                 db.reset(conn)
+            elif args.cmd == "source":
+                from ..sources import preview
+
+                if args.action == "list":
+                    _print(preview.listing(conn, data))
+                elif not args.table:
+                    raise SystemExit("source preview needs a table (fuzer source list shows them)")
+                else:
+                    _print(preview.preview(conn, pack, data, args.table, args.rows))
             elif args.cmd == "suggest-mappings":
                 from ..sources import suggest
 
