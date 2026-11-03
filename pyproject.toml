@@ -49,6 +49,9 @@ dev = [
     "pytest-xdist>=3.6",
     "pytest-randomly>=3.15",
 ]
+docs = [
+    "mkdocs-material>=9.8.0",
+]
 
 [tool.uv]
 # agent-framework-anthropic still declares anthropic<2; it runs on the 2.x SDK Fuzer uses (tests/agents/test_agents.py).
