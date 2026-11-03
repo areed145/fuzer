@@ -9,3 +9,4 @@ ui/dist/
 .dagster/
 .env
 fakeplant/data/
+site/

@@ -5,7 +5,7 @@ and a dated asset graph (physical, flow/allocation, data, documents) across
 SAP S/4, JDE, Maximo, PI / PI AF, ADX, Energy Components, P&IDs and operator
 logs.
 
-Design and decisions: [docs/design.md](docs/design.md).
+Design and decisions: [docs/overview.md](docs/overview.md) and the pages it leads to ([site](https://areed145.github.io/fuzer/)).
 
 ## Architecture
 
@@ -67,7 +67,7 @@ flowchart LR
 Raw records, cached Claude readings and reviewer decisions are kept apart, so the
 whole register can be rebuilt from them at any time (about 25 s at full size)
 without calling Claude. Solid arrows are data, dotted arrows are runs and
-configuration. More in [docs/design.md](docs/design.md).
+configuration. More in [docs/deployment.md](docs/deployment.md).
 
 ## Quick start
 
@@ -200,7 +200,7 @@ Replays the operations detectors over a fake plant's history in 6-hour windows,
 without letting them see later data, and scores what they raise against the
 process model's injected upsets: recall and time to detect per kind, precision,
 false alarms per week. Runs are kept; it exits 1 if recall fell since the last
-run of the same period (design.md 18f). With `--full` it scores everything scheduled: SRE detection and
+run of the same period ([docs/evals.md](docs/evals.md)). With `--full` it scores everything scheduled: SRE detection and
 grouping, diagnosis (a scripted Claude unless `--live`), daily reports and the opportunity scan. It fails
 under each score's floor. CI runs it on the fake Okan plant.
 
