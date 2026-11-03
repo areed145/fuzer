@@ -269,6 +269,29 @@ async def _forget_tasks(agent, session) -> None:
                 state["tasks"] = []
 
 
+def ask_sync(question: str, **kw) -> dict:
+    """`ask` from synchronous code (the SRE hand-off, the workflow worker, the eval): one event loop per call,
+    with the team built inside it and its HTTP clients closed before the loop ends. A client left open is
+    closed later by garbage collection on a dead loop ("Event loop is closed"), and one reused across
+    loops holds connections from the old one."""
+    from contextlib import AsyncExitStack
+
+    from anthropic import AsyncAnthropic
+
+    async def go():
+        async with AsyncExitStack() as stack:
+            def chat(model=None):
+                ac = AsyncAnthropic()
+                stack.push_async_callback(ac.close)
+                return client(model, anthropic_client=ac)
+
+            spec = os.environ.get("FUZER_AGENT_SPECIALIST_MODEL")
+            agent = team(chat=chat(), specialist_chat=chat(spec) if spec else None)
+            return await ask(question, agent=agent, **kw)
+
+    return asyncio.run(go())
+
+
 async def ask(question: str, agent=None, session=None, trace: list | None = None,
               images: list[tuple[str, bytes]] | None = None) -> dict:
     """One question to the team: the answer, what each agent did (tools, specialist tasks, model calls)

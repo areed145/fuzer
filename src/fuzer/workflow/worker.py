@@ -130,7 +130,6 @@ def default_worker() -> str:
 def assistant_agents() -> dict[str, Agent]:
     """Agent steps run by the operations assistant's specialists (#80), read-only, one Claude call each.
     The answer is kept as `<step id>` in the process data, for the person who reviews it next."""
-    import asyncio
 
     from .. import agents
 
@@ -140,7 +139,7 @@ def assistant_agents() -> dict[str, Agent]:
                       f"({call.item['type']}): {call.item['title']}. Subjects: {', '.join(call.item['subjects']) or 'none'}.\n"
                       f"Process data so far: {call.data}\n"
                       f"Ask the {role} specialist to do this step and propose, not take, any action.")
-            answer = asyncio.run(agents.ask(prompt))
+            answer = agents.ask_sync(prompt)
             return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}
         return run_step
     from .. import daily_report
