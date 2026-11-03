@@ -32,6 +32,10 @@ validation:
 
 nav:
   - Home: index.md
+  - Start here:
+      - getting-started.md
+      - walkthrough.md
+      - glossary.md
   - Design:
       - overview.md
       - architecture.md
