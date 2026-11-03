@@ -104,6 +104,8 @@ def main(argv=None):
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
     ev.add_argument("--agents", action="store_true",
                     help="also ask the operations assistant the questions in assistant.json (Claude; costs money)")
+    ev.add_argument("--domain", action="append", default=None,
+                    help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
@@ -211,7 +213,12 @@ def main(argv=None):
                 if args.agents:
                     if not (keys / "assistant.json").is_file():
                         raise SystemExit(f"No assistant.json in {keys}.")
-                    res = evaluate.assistant(json.loads((keys / "assistant.json").read_text()), say=_say)
+                    cases = json.loads((keys / "assistant.json").read_text())
+                    if args.domain:
+                        cases = [c for c in cases if c.get("domain") in args.domain]
+                        if not cases:
+                            raise SystemExit(f"No questions in {', '.join(args.domain)}.")
+                    res = evaluate.assistant(cases, say=_say)
                     if args.out:
                         Path(args.out).write_text(json.dumps(res, indent=2, default=str))
                     _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})

@@ -41,9 +41,12 @@ CONTEXT_WINDOW = 1_000_000
 _trace: ContextVar[list | None] = ContextVar("fuzer_agent_trace", default=None)
 
 
-def note(kind: str, **data) -> None:
+def note(kind: str, **data) -> dict:
+    """Add an entry to the current question's trace (if any); returned so the caller can add to it."""
+    entry = {"kind": kind, "at": round(time.time(), 2), **data}
     if (t := _trace.get()) is not None:
-        t.append({"kind": kind, "at": round(time.time(), 2), **data})
+        t.append(entry)
+    return entry
 
 
 COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge", "what_changed",
@@ -76,6 +79,7 @@ TOOLS = {
                              "value_score",
                              "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
                              "list_members", "get_incidents", "deferment_pareto", "measurements", "limits", "calc",
+                             "well_performance",
                              *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration",
                              "plot_pump_curve", "plot_choke", "equipment_curves", "plot_compressor_performance",
                              "plot_cooler_fouling", "plot_peers", "trip_analysis", "alarm_analysis", "similar_cases",
@@ -139,8 +143,12 @@ def _tool(name: str, agent: str):
 
     @functools.wraps(fn)
     async def run(**kwargs):
-        note("tool", agent=agent, tool=name, args={k: v for k, v in kwargs.items() if v is not None})
-        return _content(await asyncio.to_thread(fn, **kwargs))
+        entry = note("tool", agent=agent, tool=name, args={k: v for k, v in kwargs.items() if v is not None})
+        started = time.perf_counter()
+        try:
+            return _content(await asyncio.to_thread(fn, **kwargs))
+        finally:
+            entry["seconds"] = round(time.perf_counter() - started, 2)
 
     return tool(run, name=name, description=fn.__doc__, approval_mode="never_require")
 
@@ -316,5 +324,5 @@ async def ask(question: str, agent=None, session=None, trace: list | None = None
         await _forget_tasks(agent, session)
     return {"answer": final_text(response), "seconds": round(time.time() - started, 1), "usage": usage(trace),
             "specialists": sorted({t["agent"] for t in trace if t["kind"] == "tool" and t["agent"] != "orchestrator"}),
-            "tools": [{k: t[k] for k in ("agent", "tool", "args")} for t in trace if t["kind"] == "tool"],
+            "tools": [{k: t[k] for k in ("agent", "tool", "args", "seconds") if k in t} for t in trace if t["kind"] == "tool"],
             "session": session}

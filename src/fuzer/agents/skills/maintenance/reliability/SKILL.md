@@ -22,7 +22,12 @@ A repeat failure is the same failure mode on the same unit more than once in the
    each CML's readings (mm; older surveys were converted from inches) and `per_year`, the fitted wall
    change per year (negative = loss). Compare CMLs on the same item and items in the same service: one
    losing several times faster than its neighbours points at a changed condition (water, sand, flow
-   regime) worth tying to well tests or lab results. Remaining life needs the minimum required
+   regime) worth tying to well tests or lab results. **For a pipeline, find what flows through it:**
+   `get_entity(pipeline)` shows where it starts (`starts_at`, a jacket or area); the wells there feed it.
+   `well_performance()` lists water cut risers across the asset: a well on that jacket whose water cut
+   jumped (breakthrough) makes its flowline wetter and more corrosive, and `measurements(well)` shows its
+   chloride. Name the well and the date its water cut rose, against when the line's loss sped up. If
+   nothing upstream changed, say the cause isn't in the records. Remaining life needs the minimum required
    thickness from the design, which Fuzer doesn't hold; say so rather than guessing it. With it,
    `calc("wall_loss", ref, min_required_mm=...)` gives the fastest CML against the item's median and the
    remaining life per CML (`retire_soon`, `localised`).
