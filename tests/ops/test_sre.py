@@ -1,7 +1,7 @@
 """Agentic SRE detection (#96): the detectors replayed on Okan's injected upsets (#103), the scheduled
 scan's watermark and dedupe, and the daily checks on the slow stories."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -82,3 +82,22 @@ def test_scan_carries_on_from_the_last_run(conn):
     got = mcp_server.detections("2024-11-05T00:00", "stops")
     n = conn.execute("select count(*) as n from detection where detector = 'stops'").fetchone()["n"]
     assert got["count"] == n and got["detections"][0]["unit"] and got["detections"][0]["point"]
+
+
+def test_alarms_already_on_at_the_start_are_standing():
+    """#142: detections already on at the first instant scanned group as usual, but a group of nothing else
+    is `standing`, not an upset; one a new detection joins is an upset, and may start from it (an upset
+    already under way)."""
+    t0 = datetime(2024, 6, 10)
+
+    def det(point, unit, h, key="alarm:hi"):
+        return {"point": point, "unit_id": unit, "detector": "excursions", "key": key, "start": t0 + timedelta(hours=h),
+                "end": None}
+
+    whp, other, step = det("OK_J21_08.WHP", "w1", 0), det("OK_J02_01.WHP", "w2", 0), det("OK_J21_08.FLOW", "w1", 1, "step")
+    groups = sre.group_detections([whp, other, step], {}, standing_before=t0)
+    assert sorted(g["kind"] for g in groups) == ["process", "standing"]
+    process = next(g for g in groups if g["kind"] == "process")
+    assert process["detections"] == [whp, step] and process["first"] is whp
+    fresh = [{**whp, "standing": False}, {**other, "standing": False}]
+    assert [g["kind"] for g in sre.group_detections(fresh, {})] == ["process", "process"]  # no scan start: as before

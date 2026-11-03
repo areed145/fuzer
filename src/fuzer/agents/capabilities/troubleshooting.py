@@ -110,7 +110,7 @@ def detections(since: str | None = None, detector: Literal["excursions", "stops"
 
 @capability("troubleshooter", kind="query")
 def get_upsets(since: str | None = None, status: Literal["detected", "confirmed", "resolved", "false_alarm"] | None = None,
-               kind: Literal["process", "instrument", "slow"] = "process", limit: int = 30) -> dict[str, Any]:
+               kind: Literal["process", "instrument", "slow", "standing"] = "process", limit: int = 30) -> dict[str, Any]:
     """Upsets the SRE found in the process data (#96), newest first: detections close in time and connected
     in the plant model grouped into one, with the earliest as the likely first cause (unit, point and what
     it found), the units it reached and its status. kind: process (trips, excursions, steps), instrument

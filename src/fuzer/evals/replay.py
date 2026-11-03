@@ -262,7 +262,8 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
     if found and "unit_id" in found[0]:  # the SRE's detections carry their unit: score its upsets too
         from ..ops import sre
 
-        res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn), **sre.grouping(conn)), a, b)
+        res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn), **sre.grouping(conn),
+                                                                     standing_before=a), a, b)
     return {"detector": name, "since": since, "until": until, "windows": len(seconds),
             "seconds_per_window": round(statistics.mean(seconds), 2) if seconds else None,
             "learn_days": learn_days, "relearn_days": relearn_days if learn_days else None, **res}
@@ -293,7 +294,10 @@ def score(spec: dict, found: list[dict], since: datetime, until: datetime) -> di
             k["missed"].append(f"{e['unit']} {e['start']:%Y-%m-%d %H:%M}")
     right = explained = 0
     false = []
+    standing = [d for d in found if d["start"] <= since]  # already on at the first instant: not raised by the replay (#142)
     for d in found:
+        if d["start"] <= since:
+            continue
         u = unit_of.get(d["point"])
         if any(_hits(d, u, e, "own") for e in events if e["upset"]):
             right += 1
@@ -309,6 +313,7 @@ def score(spec: dict, found: list[dict], since: datetime, until: datetime) -> di
                    "missed": v["missed"]} for k, v in sorted(kinds.items())}
     return {"upsets": n_ev, "detected": n_det, "recall": round(n_det / n_ev, 3) if n_ev else None,
             "detections": len(found), "right": right, "explained": explained, "false_alarms": len(false),
+            "standing": len(standing),
             "precision": round(right / (right + len(false)), 3) if right + len(false) else None,
             "false_alarms_per_week": round(len(false) / weeks, 1), "by_kind": by_kind,
             "false_alarm_examples": [f"{d['point']} {d['key']} {d['start']:%Y-%m-%d %H:%M}" for d in false[:10]]}
@@ -325,9 +330,9 @@ def score_groups(spec: dict, groups: list[dict], since: datetime, until: datetim
     def hit(g, e, where):
         return any(_hits(d, unit_of.get(d["point"]), e, where) for d in g["detections"])
 
-    right = [g for g in groups if any(hit(g, e, "own") for e in events if e["upset"])]
+    right = [g for g in groups if g["kind"] != "standing" and any(hit(g, e, "own") for e in events if e["upset"])]
     explained = [g for g in groups if g not in right and any(hit(g, e, "scope") for e in events)]
-    false = [g for g in groups if g not in right and g not in explained]
+    false = [g for g in groups if g not in right and g not in explained and g["kind"] != "standing"]
     split = [sum(1 for g in groups if g["kind"] == "process" and hit(g, e, "own")) for e in upsets
              if e["kind"] in ("trip", "shutdown")]
     first = []  # the group's first detection is on the trip, or on an upset in it that began before (its cause)
@@ -339,6 +344,7 @@ def score_groups(spec: dict, groups: list[dict], since: datetime, until: datetim
     weeks = max((until - since).total_seconds() / 604800, 1 / 7)
     return {"groups": len(groups), "by_kind": dict(statistics_counter(g["kind"] for g in groups)),
             "right": len(right), "explained": len(explained), "false_upsets": len(false),
+            "standing": sum(g["kind"] == "standing" for g in groups),
             "false_upsets_per_week": round(len(false) / weeks, 1),
             "groups_per_trip": round(statistics.mean(split), 1) if split else None,
             "first_cause_right": round(sum(first) / len(first), 2) if first else None,

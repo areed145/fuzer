@@ -393,9 +393,11 @@ SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with th
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
 
 
-def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta = GAP, hops: int = HOPS) -> list[dict]:
+def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta = GAP, hops: int = HOPS,
+                     standing_before: datetime | None = None) -> list[dict]:
     """Detections into upsets: close in time (each joins while within `gap` of the upset's latest start) and
-    connected in the plant model (within `hops`). Bad instruments and slow findings stay apart, one per unit and finding.
+    connected in the plant model (within `hops`). Detections that started by `standing_before` (already on when
+    scanning began) group as usual, but a group of nothing else is `standing`, not an upset (#142). Bad instruments and slow findings stay apart, one per unit and finding.
     Each upset: {kind, detections, units, first (the earliest detection: its likely first cause), start,
     end}."""
     groups: list[dict] = []
@@ -403,6 +405,8 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
     cache: dict = {}
     keyed: dict[tuple, dict] = {}
     for d in sorted(found, key=lambda d: (d["start"], FIRST.get(d["detector"], 9))):
+        if standing_before is not None and d["start"] <= standing_before:
+            d["standing"] = True  # already on when scanning began (#142)
         if d["detector"] == "instruments" or d["detector"] in SLOW:
             kind = "instrument" if d["detector"] == "instruments" else "slow"
             k = (kind, d.get("unit_id") or d["point"], d["key"])
@@ -423,11 +427,13 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
         home["last"] = max(home["last"], d["start"])
     out = []
     for g in groups:
-        ds = g["detections"]
+        ds = sorted(g["detections"], key=lambda x: x["start"])
         ends = [x["end"] for x in ds]
         # a multivariate finding names its biggest contributor, not a cause: the first cause is the earliest other one
         first = next((x for x in ds if x["detector"] != "multivariate"), ds[0])
-        out.append({"kind": g["kind"], "detections": ds, "first": first, "start": ds[0]["start"],
+        # a group of detections that were all already on when scanning began isn't a new upset: `standing`
+        kind = "standing" if g["kind"] == "process" and all(x.get("standing") for x in ds) else g["kind"]
+        out.append({"kind": kind, "detections": ds, "first": first, "start": ds[0]["start"],
                     "end": None if any(e is None for e in ends) else max(ends),
                     "units": list(dict.fromkeys(x.get("unit_id") for x in ds if x.get("unit_id")))})
     return out
@@ -447,7 +453,8 @@ def regroup(conn, since: datetime) -> dict:
            or d.upset_id in (select upset_id from recent where upset_id is not null)  -- all of each upset it touches
         order by d.start
         """, {"s": since - timedelta(days=1)})]
-    groups = group_detections(rows, topology(conn), **grouping(conn))
+    began = conn.execute("select min(since) as t from sre_run").fetchone()["t"]  # the first instant ever scanned
+    groups = group_detections(rows, topology(conn), **grouping(conn), standing_before=began)
     used: set[int] = set()
     for g in groups:
         old = Counter(d["upset_id"] for d in g["detections"] if d["upset_id"] and d["upset_id"] not in used)
