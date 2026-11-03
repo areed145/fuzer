@@ -18,7 +18,8 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, text_hash, usage
+from ..core import llm
+from ..core.llm import call, text_hash, usage
 from ..core.pack import Pack
 from . import connectors
 
@@ -390,8 +391,9 @@ def cached_claude(conn, dataset: str, payload: dict) -> dict | None:
     return row["result"] if row and row["text_hash"] == h and row["prompt_version"] == PROMPT_VERSION else None
 
 
-def ask_claude(conn, dataset: str, payload: dict, *, client=None, model: str = DEFAULT_MODEL,
-               effort: str = DEFAULT_EFFORT) -> tuple[dict, dict]:
+def ask_claude(conn, dataset: str, payload: dict, *, client=None, model: str | None = None,
+               effort: str | None = None) -> tuple[dict, dict]:
+    model, effort = model or llm.model(), effort or llm.effort()  # the settings (#131) unless given
     if (hit := cached_claude(conn, dataset, payload)) is not None:
         return hit, {"cached": True}
     if client is None:

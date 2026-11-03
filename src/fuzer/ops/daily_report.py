@@ -206,6 +206,7 @@ numbers that appear in the facts; don't add, subtract or round them. A section w
 
 def draft(f: dict, ask=None, comments: str | None = None, model: str | None = None) -> dict:
     """Claude's draft from the facts. `ask(system, user) -> {answer, usage}` defaults to one Claude call."""
+    from ..core import llm
     from ..graph import llm_links
 
     if ask is None:
@@ -214,7 +215,7 @@ def draft(f: dict, ask=None, comments: str | None = None, model: str | None = No
 
             from ..core.pricing import cost
 
-            m = model or llm_links.DEFAULT_MODEL
+            m = model or llm.model()
             msg = llm_links.call(anthropic.Anthropic(), {"model": m, "max_tokens": 8000, "system": system,
                                                          "messages": [{"role": "user", "content": user}]})
             u = llm_links.usage(msg)

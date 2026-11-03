@@ -1,23 +1,30 @@
 """Extract -> resolve -> golden -> graph. Safe to rerun at any time."""
 
-import os
 import threading
 import time
 from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from ..sources import curves
 from ..analysis import limits
-from ..core import db, taxonomy
+from ..core import db, settings, taxonomy
 from ..core.pack import Pack
-from ..graph import edges, golden, incidents, knowledge, lessons, llm_links, measurements, queries, spatial
+from ..graph import (
+    edges,
+    golden,
+    incidents,
+    knowledge,
+    lessons,
+    llm_links,
+    measurements,
+    queries,
+    spatial,
+)
 from ..graph.resolve import resolve, resolve_keyed, retire_unused, sync_labels
-from ..sources import llm_docs, llm_pids, mappings
+from ..sources import curves, llm_docs, llm_pids, mappings
 from ..sources.extract import extract, link_part_numbers
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
-WORK_MEM = os.environ.get("FUZER_WORK_MEM", "256MB")
 
 
 def rebuild(conn, pack: Pack) -> dict:
@@ -34,7 +41,7 @@ def rebuild(conn, pack: Pack) -> dict:
     conn.execute("select pg_advisory_xact_lock(%s)", (REBUILD_LOCK,))
     # Set-based syncs join hundreds of thousands of rows; give this transaction enough memory to hash
     # them instead of sorting on disk (the server default is a few MB).
-    conn.execute(f"set local work_mem = '{WORK_MEM}'")
+    conn.execute(f"set local work_mem = '{settings.get(conn, 'db.work_mem')}'")
     lap("wait_for_lock")
 
     cands, extra, pid_sheets = [], [], {}

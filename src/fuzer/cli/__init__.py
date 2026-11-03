@@ -44,7 +44,7 @@ def main(argv=None):
     lk = sub.add_parser("llm-link", help="have Claude read operator logs and scanned P&IDs, then rebuild")
     lk.add_argument("--source", choices=["logs", "pids", "docs", "curves", "all"], default="all")
     lk.add_argument("--limit", type=int, help="only this many entries (try a small sample first)")
-    lk.add_argument("--model", default=None, help="Claude model id (default claude-opus-5-5 or $FUZER_LLM_MODEL)")
+    lk.add_argument("--model", default=None, help="Claude model id (default: the setting llm.model)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
@@ -68,10 +68,10 @@ def main(argv=None):
         a = sub.add_parser(name, help=text)
         if name == "ask":
             a.add_argument("question")
-        a.add_argument("--model", default=None, help="orchestrator model (default $FUZER_AGENT_MODEL or claude-opus-5-5); "
-                       "specialists use $FUZER_AGENT_SPECIALIST_MODEL")
+        a.add_argument("--model", default=None, help="orchestrator model (default: the setting agents.model); "
+                       "specialists use agents.specialist_model")
         a.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
-                       help="orchestrator effort (default high); specialists use $FUZER_AGENT_SPECIALIST_EFFORT")
+                       help="orchestrator effort (default: the setting agents.effort); specialists use agents.specialist_effort")
         a.add_argument("--json", action="store_true", help="print the answer, tools used and cost as JSON")
 
     w = sub.add_parser("work", help="work engine (#97): load the starting processes, run the agent worker, fire timers")

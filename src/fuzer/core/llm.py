@@ -3,13 +3,24 @@ and effort, one request with the server-side refusal fallback, token usage, the 
 text hash results are cached under."""
 
 import hashlib
-import os
 import time
 
 from . import models
 
-DEFAULT_MODEL = os.environ.get("FUZER_LLM_MODEL", models.DEFAULT_MODEL)
-DEFAULT_EFFORT = os.environ.get("FUZER_LLM_EFFORT", "medium")
+DEFAULT_MODEL = models.DEFAULT_MODEL  # code defaults; the values in effect are the settings llm.model and llm.effort
+DEFAULT_EFFORT = "medium"
+
+
+def model() -> str:
+    from . import settings
+
+    return settings.get(None, "llm.model")
+
+
+def effort() -> str:
+    from . import settings
+
+    return settings.get(None, "llm.effort")
 
 
 def text_hash(text: str) -> str:
