@@ -263,15 +263,26 @@ def summarise(results: list[dict]) -> dict:
             "seconds_per_answer": round(sum(r["seconds"] for r in results) / n, 1), "results": results}
 
 
-def assistant(cases: list[dict], team=None) -> dict:
-    """Ask the operations assistant each question (fresh conversation each) and score the answers."""
+def assistant(cases: list[dict], team=None, say=None) -> dict:
+    """Ask the operations assistant each question (fresh conversation each) and score the answers.
+    `say(msg)` gets a progress line per question."""
     import asyncio
 
     from . import agents
 
-    if team is None:  # a team per question, its clients closed with its event loop
-        return summarise([score_answer(c, agents.ask_sync(c["question"])) for c in cases])
-    return summarise([score_answer(c, asyncio.run(agents.ask(c["question"], team))) for c in cases])
+    results, spent = [], 0.0
+    for i, c in enumerate(cases, 1):
+        if say:
+            say(f"question {i}/{len(cases)} ({c.get('domain') or 'general'}): {c['question'][:80]}")
+        # without a team: one per question, its clients closed with its event loop
+        out = agents.ask_sync(c["question"]) if team is None else asyncio.run(agents.ask(c["question"], team))
+        r = score_answer(c, out)
+        results.append(r)
+        spent += r["cost_usd"] or 0
+        if say:
+            say(f"  {r['seconds']:.0f} s, {r['tool_calls']} tool calls, facts {r['mentions']}, "
+                f"${r['cost_usd']:.2f} (${spent:.2f} so far)" + (f", missing {r['missing']}" if r["missing"] else ""))
+    return summarise(results)
 
 
 def run(conn, pack: Pack, keys_dir) -> dict:

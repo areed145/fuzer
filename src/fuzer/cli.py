@@ -206,7 +206,7 @@ def main(argv=None):
                 if args.agents:
                     if not (keys / "assistant.json").is_file():
                         raise SystemExit(f"No assistant.json in {keys}.")
-                    res = evaluate.assistant(json.loads((keys / "assistant.json").read_text()))
+                    res = evaluate.assistant(json.loads((keys / "assistant.json").read_text()), say=_say)
                     if args.out:
                         Path(args.out).write_text(json.dumps(res, indent=2, default=str))
                     _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})
