@@ -35,7 +35,7 @@ def lesson_decide(lesson_id: int, d: LessonDecision, conn=Depends(get_conn)):
 @router.get("/entities/{fuzer_id}/brief")
 def troubleshooting_brief(fuzer_id: str, conn=Depends(get_conn)):
     """Everything that helps troubleshoot a unit or incident, with sources."""
-    from .agents import assistant
+    from ..agents import assistant
     return assistant.brief(conn, deps.PACK, fuzer_id)
 
 

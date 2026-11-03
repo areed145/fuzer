@@ -34,7 +34,7 @@ def value_rank(r: Ranking, conn=Depends(get_conn)):
 @router.get("/value/calibration")
 def value_calibration(as_of: str | None = None, conn=Depends(get_conn)):
     """How well the score's ranking agrees with engineers' orderings (Kendall's tau, top-3 overlap)."""
-    from .analysis import value
+    from ..analysis import value
     return value.calibrate(conn, deps.PACK, as_of)
 
 
@@ -59,7 +59,7 @@ async def assistant_ask(q: Question):
     import base64
     import binascii
 
-    from .agents import service
+    from ..agents import service
 
     if not q.question.strip():
         raise HTTPException(400, "empty question")
@@ -80,7 +80,7 @@ async def assistant_ask(q: Question):
 @router.get("/assistant/jobs/{job_id}")
 def assistant_job(job_id: str):
     """Progress (which agent is calling which tool) and, when done, the answer with its cost."""
-    from .agents import service
+    from ..agents import service
     if (out := service.status(job_id)) is None:
         raise HTTPException(404, "unknown job (the server may have restarted)")
     return out
@@ -89,7 +89,7 @@ def assistant_job(job_id: str):
 @router.get("/figures/{figure_id}.html", include_in_schema=False)
 def figure_page(figure_id: str, conn=Depends(get_conn)):
     """One chart as a page of its own (for sharing and for MCP clients)."""
-    from . import plots
+    from .. import plots
     if (row := plots.get(conn, figure_id)) is None:
         raise HTTPException(404, "unknown figure")
     return HTMLResponse(plots.html(row["id"], row["title"], row["spec"]))
@@ -98,7 +98,7 @@ def figure_page(figure_id: str, conn=Depends(get_conn)):
 @router.get("/figures/{figure_id}.png", include_in_schema=False)
 def figure_png(figure_id: str, conn=Depends(get_conn)):
     """A plain image of a chart (what look_at_figure shows the assistant)."""
-    from . import plots
+    from .. import plots
     if (row := plots.get(conn, figure_id)) is None:
         raise HTTPException(404, "unknown figure")
     return Response(plots.png(row["spec"]), media_type="image/png")
@@ -107,7 +107,7 @@ def figure_png(figure_id: str, conn=Depends(get_conn)):
 @router.get("/figures/{figure_id}")
 def figure(figure_id: str, conn=Depends(get_conn)):
     """A chart the assistant made: the Plotly figure, its summary and sources."""
-    from . import plots
+    from .. import plots
     if (row := plots.get(conn, figure_id)) is None:
         raise HTTPException(404, "unknown figure")
     return {k: row[k] for k in ("id", "kind", "title", "spec", "summary", "sources", "by_source", "created_at")}
