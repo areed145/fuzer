@@ -79,3 +79,9 @@ def test_opportunity_defaults_match_the_constants_they_replace():
 
     assert [settings.REGISTRY[f"opportunities.{k}"].default for k in ("gas_lift_breakeven", "stale_days", "material")] == \
         [opportunities.BREAKEVEN, opportunities.STALE_DAYS, opportunities.MATERIAL]
+
+
+def test_report_default_matches_the_constant_it_replaces():
+    from fuzer.ops import daily_report
+
+    assert settings.REGISTRY["daily_report.mover_pct"].default == daily_report.MOVER_PCT

@@ -27,9 +27,11 @@ from datetime import date, datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
+from ..core import settings
+
 OUTLINE = ["Headline", "Production and deferment", "Upsets and events", "Wells", "Maintenance and integrity",
            "Look-ahead and asks"]
-MOVER_PCT = 10.0  # a well test this far from the well's previous one is a mover
+MOVER_PCT = 10.0  # default for the setting daily_report.mover_pct (#131); a well test this far from the well's previous one is a mover
 CITE = re.compile(r"\[([^\[\]]+)\]")
 
 
@@ -112,6 +114,7 @@ def facts(conn, pack, day: str) -> dict:
                                                 type=x.get("event_type") or "event", summary=x.get("summary") or ""))
 
     # wells: tests against the well's previous test
+    mover = settings.get(conn, "daily_report.mover_pct")
     for t in w["well_tests"]:
         q = t.get("oil_rate")
         if q is None:
@@ -120,13 +123,13 @@ def facts(conn, pack, day: str) -> dict:
                          "and method = 'well test' and at < %s order by at desc limit 1", (t["well"]["id"], day)).fetchone()
         if p and p["value"]:
             pct = (q - p["value"]) / p["value"] * 100
-            if abs(pct) >= MOVER_PCT:
+            if abs(pct) >= mover:
                 sections["Wells"].append(_f("{well} tested {q} Sm3/d, {pct}% against its previous test ({prev} Sm3/d)",
                                             [t["record"], p["record"]], well=t["well"]["label"], q=round(q, 1),
                                             pct=round(pct, 1), prev=round(p["value"], 1)))
     if w["well_tests"] and not sections["Wells"]:
         sections["Wells"].append(_f("{n} well tests, none more than {pct}% from the well's previous test",
-                                    [t["record"] for t in w["well_tests"]], n=len(w["well_tests"]), pct=MOVER_PCT))
+                                    [t["record"] for t in w["well_tests"]], n=len(w["well_tests"]), pct=mover))
 
     # maintenance and integrity
     for x in w["notifications"]:

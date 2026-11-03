@@ -168,6 +168,8 @@ register(
             "Opportunities", min=7, max=730),
     Setting("opportunities.material", "float", 0.5, "A decided opportunity comes back when its gain moves by this "
             "share", "Opportunities", min=0.05, max=10),
+    Setting("daily_report.mover_pct", "float", 10.0, "A well test this many percent from the well's previous one is "
+            "a mover in the daily report", "Reports", min=1, max=100),
 )
 
 
