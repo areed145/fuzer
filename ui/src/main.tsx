@@ -5,6 +5,7 @@ import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
+import { SettingsPage } from "./pages/Settings";
 import { StudiesPage } from "./pages/Studies";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
@@ -97,6 +98,9 @@ function App() {
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
+        <a className={section === "settings" ? "on" : ""} href={href("/settings")}>
+          Settings
+        </a>
         <span className="spacer" />
         {rebuilding && <span className="badge updating">Updating…</span>}
         {s?.rebuild.last?.error && <span className="error small">Last update failed</span>}
@@ -140,6 +144,8 @@ function App() {
             <ReportsPage query={query} />
           ) : section === "studies" ? (
             <StudiesPage query={query} />
+          ) : section === "settings" ? (
+            <SettingsPage query={query} />
           ) : section === "board" ? (
             <BoardPage query={query} />
           ) : section === "review" ? (

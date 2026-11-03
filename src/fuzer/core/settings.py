@@ -279,12 +279,13 @@ def reset(conn, key: str, *, by: str, reason: str | None = None, project_name: s
 
 
 def listing(conn, group: str | None = None, project_name: str | None = None) -> list[dict]:
-    """Every setting with its default, the global and project values, the one in effect, and who set it."""
+    """Every setting with its default, the global and project values, the one in effect, and who set it;
+    groups in the order they are declared, and a secret's reference with whether it resolves."""
     p = project_name or project()
     stored: dict[tuple, dict] = {(r["key"], r["scope"]): r for r in conn.execute(
         "select key, scope, value, updated_by, updated_at from setting where scope = any(%s)", ([GLOBAL, scope_of(p)],))}
-    out = []
-    for s in sorted(REGISTRY.values(), key=lambda s: (s.group, s.key)):
+    out, groups = [], list(dict.fromkeys(s.group for s in REGISTRY.values()))
+    for s in sorted(REGISTRY.values(), key=lambda s: groups.index(s.group)):
         if group and s.group.lower() != group.lower():
             continue
         g, pr = stored.get((s.key, GLOBAL)), stored.get((s.key, scope_of(p))) if p else None
@@ -295,7 +296,10 @@ def listing(conn, group: str | None = None, project_name: str | None = None) -> 
                     "updated_by": top["updated_by"] if top else None,
                     "updated_at": top["updated_at"].isoformat(timespec="seconds") if top else None,
                     **({"min": s.min} if s.min is not None else {}), **({"max": s.max} if s.max is not None else {}),
-                    **({"choices": list(s.choices)} if s.choices else {}), "restart": s.restart})
+                    **({"choices": list(s.choices)} if s.choices else {}), "restart": s.restart,
+                    "scopes": list(s.scopes),
+                    **({"resolves": bool(os.environ.get(str(top["value"] if top else s.default or "")[4:]))}
+                       if s.type == "secret" else {})})
     return out
 
 
