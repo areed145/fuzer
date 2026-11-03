@@ -173,7 +173,7 @@ Connectors read each source table; mappings turn rows into records, entities and
 
 - **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `connectors`, `curves`, `documents`, `extract`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `suggest`, `timeseries`
 - **Uses:** core
-- **Writes:** `curve_digitised`, `dataset_state`, `llm_extraction`, `review_item`, `source_record`, `source_record_history` ([schema](schema.md))
+- **Writes:** `curve_digitised`, `dataset_state`, `llm_extraction`, `mapping_version`, `review_item`, `source_record`, `source_record_history` ([schema](schema.md))
 - **Settings:** `sources.adx.catalog`, `sources.adx.database`, `sources.adx.url`, `sources.pi.url`, `sources.pi.user`, `sources.pi.verify_tls` ([settings](settings.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
@@ -251,7 +251,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 
 - **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
-- **Writes:** `assertion`, `dataset_state`, `feedback`, `golden`, `mapping_version`, `pinned_link`, `review_item`, `value_ranking` ([schema](schema.md))
+- **Writes:** `assertion`, `dataset_state`, `feedback`, `golden`, `pinned_link`, `review_item`, `value_ranking` ([schema](schema.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
 
 ### Command line

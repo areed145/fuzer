@@ -60,3 +60,30 @@ def test_api(conn):
     one = client.get("/sources/sap_notifications", params={"rows": 2}).json()
     assert len(one["sample"]) == 2 and one["makes"][0]["entities"]
     assert client.get("/sources/nothing_here").status_code == 404
+
+
+def test_add_a_table_in_one_flow(conn, tmp_path, monkeypatch):
+    """Sources page (#132): the draft mapping, edited, saved and loaded without the review queue."""
+    from fastapi.testclient import TestClient
+
+    from fuzer import api
+
+    with (tmp_path / "instrument_index.csv").open("w", newline="") as f:
+        csv.writer(f).writerows([["tag_no", "service"], ["20-PT-1001B", "Pump discharge pressure"],
+                                 ["20-PT-1002B", "Pump suction pressure"]])
+    monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
+    client = TestClient(api.app)
+    assert client.post("/sources/instrument_index/load", json={}).status_code == 400  # no mapping yet
+    draft = client.post("/sources/instrument_index/suggest", json={}).json()
+    assert draft["key"] == "tag_no" and draft["claude"] is None
+    bad = client.post("/sources/instrument_index/load", json={"yaml": draft["yaml"].replace(
+        "dataset: instrument_index", "dataset: other"), "by": "test"})
+    assert bad.status_code == 400 and "keep dataset" in bad.json()["detail"]
+
+    r = client.post("/sources/instrument_index/load", json={"yaml": draft["yaml"], "by": "test"}).json()
+    assert r["loaded"] == ["instrument_index"] and r["inserted"] == 2
+    assert conn.execute("select approved_by from mapping_version where dataset = 'instrument_index'"
+                        ).fetchone()["approved_by"] == "test"
+    again = client.post("/sources/instrument_index/load", json={}).json()
+    assert again["unchanged"] == ["instrument_index"]
+    assert {s["dataset"]: s["state"] for s in client.get("/sources").json()["sources"]}["instrument_index"] == "unchanged"

@@ -449,6 +449,29 @@ def suggest_table(conn, pack: Pack, dataset: str, c, *, exclude=frozenset(), cla
     return {"profile": prof, "suggestion": sug, "mapping": draft(dataset, sug), "claude": spent}
 
 
+def save(conn, dataset: str, text: str, by: str) -> dict:
+    """Keep an approved mapping for `dataset` as a new version (the next ingest loads the table with it) and
+    close its open review item. Raises ValueError when the YAML isn't a valid mapping for this dataset."""
+    import yaml
+
+    from . import mappings
+
+    try:
+        raw = yaml.safe_load(text or "")
+        m = mappings.Mapping(raw if isinstance(raw, dict) else {})
+    except (yaml.YAMLError, mappings.MappingError) as e:
+        raise ValueError(f"mapping is not valid: {e}") from e
+    if m.dataset != dataset:
+        raise ValueError(f"mapping must keep dataset: {dataset}")
+    conn.execute("insert into mapping_version (source, record_type, dataset, yaml, approved_by) "
+                 "values (%s, %s, %s, %s, %s)", (m.source, m.record_type, m.dataset, text, by))
+    conn.execute("update review_item set status = 'decided', decision = %s, decided_by = %s, decided_at = now() "
+                 "where kind = 'mapping' and subject = %s and status = 'open'",
+                 (Jsonb({"decision": "saved", "yaml": text}), by, dataset))
+    conn.commit()
+    return {"dataset": m.dataset, "mapping": f"{m.source}/{m.record_type}"}
+
+
 def run(conn, pack: Pack, data_dir, *, claude: bool = False, client=None, datasets: list[str] | None = None,
         **claude_opts) -> dict:
     """Suggest mappings for every table in data_dir that has none, as `mapping` review items."""

@@ -1,5 +1,14 @@
-import { api, type SourcePreview } from "../api";
-import { Status, href, useAsync } from "../lib";
+import { useState } from "react";
+import { api, type SourceLoad, type SourcePreview } from "../api";
+import { Status, href, notifyChanged, useAsync } from "../lib";
+
+const reviewer = () => {
+  try {
+    return localStorage.getItem("fuzer.reviewer") || "anonymous";
+  } catch {
+    return "anonymous";
+  }
+};
 
 const STATE: Record<string, string> = {
   unchanged: "ok", new: "key", changed: "updating", held: "", unmapped: "",
@@ -17,7 +26,8 @@ export function SourcesPage({ query }: { query: URLSearchParams }) {
       <p className="muted">
         The tables in the data folder{list.data ? ` (${list.data.data_dir})` : ""}, with the connector that reads each,
         its mapping and its state since the last load. Open one to see a sample and what its rows would make, before
-        anything loads. Held tables changed their columns and wait for review.
+        anything loads; for a new table, check the suggested mapping, save it and load it here. Held tables changed
+        their columns and wait for review.
       </p>
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.sources.length === 0}>
         No tables in the data folder.
@@ -86,12 +96,102 @@ function Preview({ name }: { name: string }) {
           </ul>
         </>
       )}
-      {d.suggested && (
-        <>
-          <h3>Suggested mapping <span className="muted small">from rules; review it with fuzer suggest-mappings</span></h3>
-          <pre className="small">{d.suggested.yaml}</pre>
-        </>
+      {d.suggested ? (
+        <AddSource name={d.dataset} yaml={d.suggested.yaml} />
+      ) : d.held ? (
+        <p className="small"><a href={href("/review", { kind: "schema" })}>Review the new columns</a> to load it.</p>
+      ) : (
+        <LoadNow name={d.dataset} />
       )}
     </div>
+  );
+}
+
+function Loaded({ r }: { r: SourceLoad }) {
+  if (r.held.length) return <p className="error small">Held: its columns changed. Review them on the Review page.</p>;
+  if (r.unchanged.length) return <p className="small muted">Unchanged since the last load: nothing to do.</p>;
+  return (
+    <p className="small">
+      Loaded {r.records.toLocaleString()} records ({r.inserted} new, {r.updated} changed, {r.removed} removed). They
+      become entities on the next rebuild.
+    </p>
+  );
+}
+
+function LoadNow({ name }: { name: string }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<SourceLoad | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setDone(await api.loadSource(name, null, reviewer()));
+      notifyChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="row">
+      <button className="primary" onClick={load} disabled={busy}>{busy ? "Loading…" : "Load now"}</button>
+      {done && <Loaded r={done} />}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
+/** A table with no mapping: the draft from rules (or Claude), edited here, saved and loaded in one step. */
+function AddSource({ name, yaml }: { name: string; yaml: string }) {
+  const [text, setText] = useState(yaml);
+  const [busy, setBusy] = useState<"claude" | "load" | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<SourceLoad | null>(null);
+  const ask = async () => {
+    setBusy("claude");
+    setError(null);
+    try {
+      const s = await api.suggestSource(name, true);
+      setText(s.yaml);
+      const named = Object.values(s.columns).filter((c) => c.by === "claude").length;
+      setNote(named ? `Claude named ${named} column${named > 1 ? "s" : ""} the rules couldn't.` : "Nothing left for Claude to name.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const save = async () => {
+    setBusy("load");
+    setError(null);
+    try {
+      setDone(await api.loadSource(name, text, reviewer()));
+      notifyChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <h3>Add this table <span className="muted small">a draft from rules: check what each column means</span></h3>
+      <textarea className="yaml mono" rows={Math.min(24, text.split("\n").length + 1)} value={text}
+        onChange={(e) => setText(e.target.value)} spellCheck={false} disabled={!!done} />
+      <div className="row">
+        <button className="primary" onClick={save} disabled={!!busy || !!done}>{busy === "load" ? "Loading…" : "Save mapping and load"}</button>
+        <button className="secondary" onClick={ask} disabled={!!busy || !!done}
+          title="Claude names the columns the rules could only call code or other (costs money; cached)">
+          {busy === "claude" ? "Asking Claude…" : "Ask Claude"}
+        </button>
+        {text !== yaml && !done && <button className="secondary" onClick={() => setText(yaml)}>Undo edits</button>}
+      </div>
+      {note && <p className="small muted">{note}</p>}
+      {error && <p className="error small">{error}</p>}
+      {done && <Loaded r={done} />}
+    </>
   );
 }

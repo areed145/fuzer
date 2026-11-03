@@ -748,6 +748,23 @@ export interface SourcePreview {
   suggested?: { yaml: string; key: string | null; columns: Record<string, string> };
 }
 
+export interface SourceSuggestion {
+  yaml: string;
+  key: string | null;
+  columns: Record<string, { meaning: string; by: string }>;
+  claude: { usd?: number } | null;
+}
+
+export interface SourceLoad {
+  loaded: string[];
+  unchanged: string[];
+  held: string[];
+  records: number;
+  inserted: number;
+  updated: number;
+  removed: number;
+}
+
 export interface SettingRow {
   key: string;
   group: string;
@@ -862,6 +879,10 @@ export const api = {
   architecture: () => request<Architecture>("GET", "/architecture"),
   sources: () => request<{ data_dir: string; sources: SourceRow[] }>("GET", "/sources"),
   source: (name: string) => request<SourcePreview>("GET", `/sources/${encodeURIComponent(name)}`, { rows: 8 }),
+  suggestSource: (name: string, claude: boolean) =>
+    request<SourceSuggestion>("POST", `/sources/${encodeURIComponent(name)}/suggest`, undefined, { claude }),
+  loadSource: (name: string, yaml: string | null, by: string) =>
+    request<SourceLoad>("POST", `/sources/${encodeURIComponent(name)}/load`, undefined, { yaml, by }),
   settings: (project?: string) =>
     request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
   setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>
