@@ -7,12 +7,8 @@ from datetime import datetime, timedelta
 
 from .. import calcs
 from ..calcs import YEAR, linreg, rate
+from ..core.labels import label as _label
 from . import ChartError, Figure, layout, rnd, stacked, thin
-
-
-def _label(conn, fid: str) -> str:
-    r = conn.execute("select label from entity_label where fuzer_id = %s", (fid,)).fetchone()
-    return r["label"] if r else fid
 
 
 def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> Figure:

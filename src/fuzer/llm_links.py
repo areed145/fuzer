@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from psycopg.types.json import Jsonb
 
 from . import nel
+from .core import models
 from .core.model import Candidate, Edge
 from .core.pack import Pack
 
@@ -32,7 +33,7 @@ TEXT_SOURCES = {
     "ec_daily": ("ec", "daily_report", "comments", "report_date"),
     "ec_downtime": ("ec", "downtime", "comment", "start"),
 }
-DEFAULT_MODEL = os.environ.get("FUZER_LLM_MODEL", "claude-opus-5-5")
+DEFAULT_MODEL = os.environ.get("FUZER_LLM_MODEL", models.DEFAULT_MODEL)
 DEFAULT_EFFORT = os.environ.get("FUZER_LLM_EFFORT", "medium")
 MAX_CANDIDATES = 60
 EQUIPMENT_FUNCS = {"P", "K", "V", "E"}

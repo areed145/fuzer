@@ -350,7 +350,7 @@ def days(conn, limit: int = 30) -> list[dict]:
 
 
 def _plain(x):
-    from .sre import _plain as p
+    from .core.jsonsafe import plain as p
 
     if isinstance(x, (date, datetime)):
         return x.isoformat()
