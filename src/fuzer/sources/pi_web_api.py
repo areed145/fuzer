@@ -109,7 +109,7 @@ class PiPoints(LiveTable):
 
 
 class PiAf(LiveTable):
-    """The AF element tree. Like the pi_af.json export, it is a nested dataset with no column schema."""
+    """The AF element tree. Like the pi_af.json export, it is nested: its schema is its JSON shape."""
 
     kind = "pi_web_api"
 

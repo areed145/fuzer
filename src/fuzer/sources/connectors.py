@@ -22,6 +22,7 @@ series catalog (adx.py). They yield the same rows as the file exports, as a full
 import csv
 import datetime as dt
 import hashlib
+import re
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -161,6 +162,40 @@ def _schema_of(rows: list[dict]) -> list[list[str]]:
     return [[k, v] for k, v in cols.items()]
 
 
+def _jtype(v) -> str:
+    if isinstance(v, bool) or v is None:
+        return "null" if v is None else "bool"
+    return "number" if isinstance(v, int | float) else "string" if isinstance(v, str) else "array" \
+        if isinstance(v, list) else type(v).__name__
+
+
+_FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_ ]*$")
+
+
+def json_shape(obj) -> list[list[str]]:
+    """The fields of a nested JSON document as paths (`[].attributes[].name`) typed by their first non-null
+    value, so nested exports and live trees get the same drift check as tables. A dict keyed by data (tags,
+    `{"10-V-2001": ...}`) is a map: its values share one path (`positions{}`), so a new key isn't drift."""
+    out: dict[str, str] = {}
+
+    def walk(v, path: str) -> None:
+        if isinstance(v, dict):
+            if v and not all(_FIELD.match(str(k)) for k in v):
+                for x in v.values():
+                    walk(x, f"{path}{{}}")
+                return
+            for k, x in v.items():
+                walk(x, f"{path}.{k}" if path else k)
+        elif isinstance(v, list) and any(isinstance(x, dict | list) for x in v):
+            for x in v:
+                walk(x, f"{path}[]")
+        elif path and not (isinstance(v, list) and not v) and out.get(path, "null") == "null":
+            out[path] = _jtype(v)
+
+    walk(obj, "")
+    return [[k, v] for k, v in out.items()]
+
+
 def _flatten(obj: dict, prefix: str = "") -> dict:
     """Nested objects become dotted fields (`site.area`); lists stay as they are."""
     out = {}
@@ -284,7 +319,8 @@ class LiveTable:
         return hashlib.sha1(json.dumps(self._all(), sort_keys=True, default=str).encode()).hexdigest()
 
     def schema(self) -> list[list[str]] | None:
-        return [[c, "string"] for c in self.columns] if self.columns else None
+        """Flat tables: their columns. Nested ones (the AF tree) have no columns; their shape stands in."""
+        return [[c, "string"] for c in self.columns] if self.columns else json_shape(self._all()) or None
 
     def rows(self, since=None) -> Iterator[dict]:
         yield from self._all()

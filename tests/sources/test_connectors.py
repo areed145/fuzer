@@ -121,6 +121,33 @@ def test_added_column_loads_without_review(exports, conn):
     assert conn.execute("select count(*) as n from review_item where kind = 'schema'").fetchone()["n"] == 0
 
 
+
+def test_renamed_manifest_field_holds_it_and_new_map_keys_dont(exports, conn):
+    import json
+
+    lake = Path(tempfile.mkdtemp(prefix="fzman"))
+    shutil.copytree(exports, lake, dirs_exist_ok=True)
+    ingest.ingest(conn, lake)
+    docs = json.loads((lake / "documents.json").read_text())
+    (lake / "documents.json").write_text(json.dumps([{("doc_title" if k == "title" else k): v for k, v in d.items()}
+                                                     for d in docs]))
+    stats = ingest.ingest(conn, lake, exports=["documents"])
+    assert stats["held"] == ["documents"]
+    item = conn.execute("select payload from review_item where kind = 'schema' and subject = 'documents'").fetchone()
+    assert item["payload"]["removed"] == ["[].title"] and item["payload"]["added"] == ["[].doc_title"]
+
+    sheets = json.loads((lake / "pid_sheets.json").read_text())
+    sheets[0].setdefault("positions", {})["99-ZZ-9999"] = [1, 2]  # a new tag on a drawing: data, not a field
+    (lake / "pid_sheets.json").write_text(json.dumps(sheets))
+    assert ingest.ingest(conn, lake, exports=["pid_sheets"])["loaded"] == ["pid_sheets"]
+
+
+def test_json_shape():
+    shape = dict(map(tuple, connectors.json_shape(
+        {"nodes": [{"code": "A", "rate": 1}, {"code": "B", "rate": 2.5, "tags": []}],
+         "positions": {"10-V-1": [1, 2], "10-V-2": [3, 4]}, "flag": True})))
+    assert shape == {"nodes[].code": "string", "nodes[].rate": "number", "positions{}": "array", "flag": "bool"}
+
 def test_watermark_reads_only_new_log_rows(exports, conn):
     lake = as_lake(exports)
     ingest.ingest(conn, lake)

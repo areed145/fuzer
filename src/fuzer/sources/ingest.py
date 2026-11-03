@@ -85,7 +85,8 @@ def export_names(conn=None) -> list[str]:
 
 
 class _Manifest:
-    """A nested JSON export read by its own loader; no column schema."""
+    """A nested JSON export read by its own loader. Its schema is the shape of the JSON (field paths and
+    types), so a renamed or retyped field holds it for review like a table's column would."""
 
     kind = "json"
     watermarks = False
@@ -103,7 +104,7 @@ class _Manifest:
         return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
     def schema(self):
-        return None
+        return connectors.json_shape(json.loads(self.path.read_text())) or None
 
     def records(self):
         return self.load(self.path)
