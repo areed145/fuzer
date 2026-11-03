@@ -188,7 +188,8 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
 
     assert "OK-TAR-2026" in out["answer"] and "20-K-2200B" in out["answer"]
     assert out["specialists"] == ["maintenance"]
-    assert {"agent": "maintenance", "tool": "turnaround_scope", "args": {}} in out["tools"]
+    assert {"agent": "maintenance", "tool": "turnaround_scope", "args": {}} in [
+        {k: v for k, v in t.items() if k != "seconds"} for t in out["tools"]]  # each call also has its seconds
     assert out["usage"]["model_calls"] == len(fake.requests) and out["usage"]["cost_usd"] > 0
 
     for r in fake.requests:  # what reaches the API: valid for Claude Opus 5.5
