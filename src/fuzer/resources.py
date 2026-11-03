@@ -6,3 +6,4 @@ PACKAGE = Path(__file__).resolve().parent
 SCHEMA = PACKAGE / "schema.sql"
 UNITS = PACKAGE / "units.yaml"
 PACKS = PACKAGE / "packs"
+MAPPINGS = PACKAGE / "mappings"

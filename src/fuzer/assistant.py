@@ -63,7 +63,7 @@ def brief(conn, pack: Pack, fuzer_id: str) -> dict:
 
 
 def _values(conn, fuzer_id: str) -> dict:
-    from . import timeseries
+    from .sources import timeseries
     out = timeseries.around(conn, fuzer_id, hours_before=24, hours_after=6)
     return {k: v for k, v in out.items() if k != "series"} | {
         "series": [{k: v for k, v in s.items() if k != "values"} for s in out.get("series", [])],

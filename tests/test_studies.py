@@ -10,9 +10,10 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import ingest, mcp_server, pipeline, studies
+from fuzer import mcp_server, pipeline, studies
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 TRIP = ("2024-11-04T00:00", "2024-11-07T00:00")  # train C trips at 05:30 on the 5th

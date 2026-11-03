@@ -6,9 +6,10 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import graph, ingest, llm_pids, pipeline, queries
+from fuzer import graph, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest, llm_pids
 
 PACK = load_pack()
 

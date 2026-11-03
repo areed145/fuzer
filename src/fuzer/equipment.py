@@ -27,7 +27,7 @@ R_GAS = 0.5  # kJ/kg K (natural gas, molar mass about 16.6)
 
 
 def _tag_point(conn, label: str, ending: str = "") -> dict | None:
-    from .timeseries import _unit_points
+    from .sources.timeseries import _unit_points
 
     t = conn.execute("select fuzer_id from entity_label where label = %s", (label,)).fetchone()
     if not t:
@@ -149,7 +149,7 @@ def peers(conn, fid: str, z: float = 3.0, src=None) -> dict:
     """The units of a class (or model, or a unit's class) side by side: failures per year, MTBF, oil lost
     and vibration now; outliers far from the class's median (robust z of `z` or more)."""
     from . import operations
-    from .timeseries import _unit_points
+    from .sources.timeseries import _unit_points
 
     cls = _class_of(conn, fid)
     rel = "instance_of" if conn.execute("select kind from entity where fuzer_id = %s", (cls,)).fetchone()["kind"] == \

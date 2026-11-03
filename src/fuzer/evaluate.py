@@ -135,7 +135,7 @@ def schema(conn, pack: Pack, cases: list[dict], data_dir: Path) -> dict:
     """Suggested mappings against known column meanings: key column, every column, and the columns
     that refer to other things (what links depend on). Rules alone, and rules plus Claude where a
     cached Claude reading exists. Built-in tables are scored as if unmapped."""
-    from . import connectors, mappings, suggest
+    from .sources import connectors, mappings, suggest
 
     tabs = mappings.tables()
     runs = {"rules": [], "rules_and_claude": []}
@@ -294,7 +294,7 @@ def run(conn, pack: Pack, keys_dir) -> dict:
         if (cases := load(name)) is not None:
             out[name.removesuffix(".json")] = fn(conn, pack, cases)
     if (cases := load("curves.json")) is not None:  # datasheets Claude read, against the true curves
-        from . import llm_curves
+        from .sources import llm_curves
         out["curves"] = llm_curves.score(conn, cases)
     if (cases := load("schema.json")) is not None:
         out["schema"] = schema(conn, pack, cases, keys_dir.parent)

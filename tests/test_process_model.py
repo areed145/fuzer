@@ -14,9 +14,10 @@ import numpy as np
 import pytest
 
 from fakeplant import historian, okan
-from fuzer import ingest, pipeline, process_model, queries, timeseries
+from fuzer import pipeline, process_model, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest, timeseries
 
 PACK = load_pack("okan")
 

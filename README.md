@@ -308,8 +308,8 @@ links:
 
 Logic that really is source-specific (EC downtime reasons, document
 applicability, P&ID formats, ISO 14224 code lookups) is a named hook in
-[extract.py](src/fuzer/extract.py) that a mapping lists. The full syntax is at
-the top of [mappings.py](src/fuzer/mappings.py).
+[extract.py](src/fuzer/sources/extract.py) that a mapping lists. The full syntax is at
+the top of [mappings.py](src/fuzer/sources/mappings.py).
 
 ### Suggested mappings for new tables
 
@@ -491,12 +491,12 @@ curl "localhost:8000/work/inbox?person=alice"
 | Path | What |
 |---|---|
 | `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
-| `src/fuzer/ingest.py` | Land source exports into `source_record` |
+| `src/fuzer/sources/ingest.py` | Land source exports into `source_record` |
 | `src/fuzer/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
 | `src/fuzer/agents/` | The operations assistant: agent team, skills, API service |
-| `src/fuzer/connectors.py` | CSV / Parquet / Delta connectors |
-| `src/fuzer/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
-| `src/fuzer/extract.py` | Transforms, resolvers and hooks the mappings name |
+| `src/fuzer/sources/connectors.py` | CSV / Parquet / Delta connectors |
+| `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
+| `src/fuzer/sources/extract.py` | Transforms, resolvers and hooks the mappings name |
 | `src/fuzer/core/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
 | `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
 | `src/fuzer/golden.py` | Per-field survivorship and conflict review |
@@ -505,7 +505,7 @@ curl "localhost:8000/work/inbox?person=alice"
 | `src/fuzer/api.py` | REST API (also serves the built UI) |
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/llm_links.py` | Claude reads operator logs: links and events |
-| `src/fuzer/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
+| `src/fuzer/sources/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
 | `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
 | `src/fuzer/workflow/` | Work engine: BPMN subset, publish checks, processes on Postgres, agent worker |
 | `ui/` | React + TypeScript web UI (Vite) |

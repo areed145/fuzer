@@ -32,7 +32,7 @@ ATM = 1.013
 
 
 def _pt(conn, tag_label: str, ending: str = "Pressure") -> dict | None:
-    from .timeseries import _unit_points
+    from .sources.timeseries import _unit_points
 
     t = conn.execute("select fuzer_id from entity_label where label = %s", (tag_label,)).fetchone()
     if not t:
@@ -43,7 +43,7 @@ def _pt(conn, tag_label: str, ending: str = "Pressure") -> dict | None:
 def well_points(conn, well: str) -> dict:
     """A well's wellhead pressure and choke position points, and its back-pressure point (the jacket's
     production header, as plot_choke reads it)."""
-    from .timeseries import _unit_points
+    from .sources.timeseries import _unit_points
 
     pts = _unit_points(conn, well, 20, children=False)
     by = {k: next((p for p in pts if (p["description"] or "").endswith(end)), None)
@@ -257,7 +257,7 @@ def headroom(conn, pack, unit: str, at: str | None = None, src=None) -> dict:
     """Each point on a unit against its nearest limit (#101: alarm, IOW or learned range): the share of
     the limits' span left, smallest first."""
     from . import limits
-    from .timeseries import _unit_points
+    from .sources.timeseries import _unit_points
 
     pts = list(_unit_points(conn, unit, 30))
     if not pts:

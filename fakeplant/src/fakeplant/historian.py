@@ -31,8 +31,8 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from fuzer import connectors
-from fuzer.timeseries import SyntheticProvider
+from fuzer.sources import connectors
+from fuzer.sources.timeseries import SyntheticProvider
 
 RAW_STEP_MINUTES = 5
 VALUES_TABLE = "PiValues"

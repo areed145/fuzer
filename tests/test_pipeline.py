@@ -8,9 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import graph, ingest, pipeline
+from fuzer import graph, pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 
 PACK = load_pack()
 

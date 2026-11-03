@@ -106,7 +106,7 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                   direct: bool = False, conn=Depends(get_conn)):
     """Process values on a unit (or an incident's unit), or of one timeseries, around a time, from the
     time-series provider. `direct`: only the entity's own points, not its instruments'."""
-    from . import timeseries
+    from .sources import timeseries
     return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
                              direct=direct, pack=PACK)
 
@@ -709,7 +709,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         if d.decision != "reject":
             import yaml
 
-            from . import mappings
+            from .sources import mappings
 
             text = p["yaml"] if d.decision == "accept" else d.value
             try:
@@ -730,7 +730,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
             conn.execute("update dataset_state set schema = %s where dataset = %s", (Jsonb(p["new"]), p["dataset"]))
     elif item["kind"] == "curve":  # a datasheet Claude read: accept as read, or choose with corrections
         if d.decision != "reject":
-            from . import llm_curves
+            from .sources import llm_curves
             if d.decision == "choose" and not isinstance(d.value, dict):
                 raise HTTPException(400, "choose needs the corrected reading")
             llm_curves.accept(conn, item, d.by, d.value if d.decision == "choose" else None)

@@ -168,7 +168,7 @@ def for_points(conn, pack, point_ids: list[str], at: datetime | None = None) -> 
 def for_entity(conn, pack, fuzer_id: str, at: str | None = None, excursions: int = 10) -> dict:
     """The limits on a point, or on every point of a unit (its own and its instruments'), with each
     source's values, the checks that fail and the latest excursions."""
-    from .timeseries import _point, _unit_points
+    from .sources.timeseries import _point, _unit_points
 
     kind = conn.execute("select kind from entity where fuzer_id = %s", (fuzer_id,)).fetchone()
     if not kind:
@@ -316,7 +316,7 @@ def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
     """Each unit's run signal: {unit: {point (as timeseries._point), on, off}}, the unit's own or the ones
     it follows ({"follow": [units]}) when it has none: units in the same area and train (the trailing
     letter of its tag), else all units in the area that have one."""
-    from .timeseries import _point
+    from .sources.timeseries import _point
 
     rules = config(pack)["run_signals"]
     of_unit: dict[str, list[dict]] = {}
@@ -359,7 +359,7 @@ def modes(conn, pack, unit_ids: set[str], start: datetime, end: datetime, step: 
     after it starts running, while temperatures and pressures settle), stopped, transition (between
     stopped and running), or unknown (no run signal to tell). The signal is read from `settle_minutes`
     before start, so a unit that started just before the window is still settling in it."""
-    from .timeseries import provider
+    from .sources.timeseries import provider
 
     src = src or provider()
     sig = run_signals(conn, pack, unit_ids)
@@ -392,7 +392,7 @@ def modes(conn, pack, unit_ids: set[str], start: datetime, end: datetime, step: 
 # ---- learned normal ranges ------------------------------------------------------------------------
 
 def _all_points(conn) -> list[dict]:
-    from .timeseries import _point
+    from .sources.timeseries import _point
 
     ids = [r["fuzer_id"] for r in conn.execute("select fuzer_id from entity where kind = 'timeseries' order by fuzer_id")]
     return [p for p in (_point(conn, i) for i in ids) if p]
@@ -407,7 +407,7 @@ def learn(conn, pack, start: str, end: str, step: int = 60, src=None, point_ids:
     """Learn each point's normal range per mode of its unit over [start, end] (1st, 50th and 99th
     percentile) into point_normal. A unit with no run signal is learned as `any`. Points matching the
     pack's `limits.not_learned` (positions operators set, such as chokes and valves) are left out."""
-    from .timeseries import provider
+    from .sources.timeseries import provider
 
     src = src or provider()
     a, b = datetime.fromisoformat(start), datetime.fromisoformat(end)
@@ -517,7 +517,7 @@ def _limits_to_check(rows: list[dict], normals: dict | None, priority: list[str]
 def excursions(conn, pack, point_ids: list[str], start: datetime, end: datetime, step: int = 10, src=None) -> list[dict]:
     """Excursions on these points in [start, end] while their units run (not stored; see scan). Limits
     the checks flag as standing, implausible or out of order are not used."""
-    from .timeseries import _point, provider
+    from .sources.timeseries import _point, provider
 
     src = src or provider()
     n = int((end - start).total_seconds() // 60 // step) + 1

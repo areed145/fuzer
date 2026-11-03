@@ -247,7 +247,7 @@ def window_of(conn, days: int, until: str | None = None) -> tuple[datetime, date
 
 def read(points: dict[str, dict], start: datetime, end: datetime, step: int, src=None) -> dict[str, dict[str, float]]:
     """Values of several points on one time grid: {name: {time: value}}."""
-    from . import timeseries
+    from .sources import timeseries
 
     src = src or timeseries.provider()
     return {k: dict(src.series({**p, "upsets": []}, start, end, step)) for k, p in points.items()}
@@ -274,7 +274,8 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
     """A pump's operating points from PI (head from discharge minus suction pressure) against its OEM
     head curve: {tag, label, curve, start, end, ops [(time, flow, head)], by_month [{month,
     head_vs_curve_pct}]}."""
-    from . import curves, timeseries
+    from . import curves
+    from .sources import timeseries
 
     tag = fid
     if conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()["kind"] == "equipment":

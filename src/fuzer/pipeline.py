@@ -15,10 +15,7 @@ from . import (
     knowledge,
     lessons,
     limits,
-    llm_docs,
     llm_links,
-    llm_pids,
-    mappings,
     measurements,
     queries,
     spatial,
@@ -26,8 +23,9 @@ from . import (
 )
 from .core import db
 from .core.pack import Pack
-from .extract import extract, link_part_numbers
 from .resolve import resolve, resolve_keyed, retire_unused, sync_labels
+from .sources import llm_docs, llm_pids, mappings
+from .sources.extract import extract, link_part_numbers
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
 WORK_MEM = os.environ.get("FUZER_WORK_MEM", "256MB")

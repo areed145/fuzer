@@ -22,9 +22,10 @@ from pathlib import Path
 
 import dagster as dg
 
-from . import ingest, llm_links, llm_pids, pipeline
+from . import llm_links, pipeline
 from .core import db
 from .core.pack import load_pack
+from .sources import ingest, llm_pids
 
 
 class Fuzer(dg.ConfigurableResource):
@@ -136,7 +137,7 @@ def claude_pid_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResu
 @dg.asset(group_name="claude", deps=[register],
           description="Claude reads new or changed document sections: failure modes and specific links.")
 def claude_doc_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResult:
-    from . import llm_docs
+    from .sources import llm_docs
     pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
         stats = llm_docs.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,

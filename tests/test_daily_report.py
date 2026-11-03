@@ -10,9 +10,10 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import daily_report, ingest, mcp_server, operations, pipeline
+from fuzer import daily_report, mcp_server, operations, pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 from fuzer.workflow import engine, worker
 
 PACK = load_pack("okan")
