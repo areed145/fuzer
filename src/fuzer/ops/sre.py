@@ -29,9 +29,12 @@ import numpy as np
 from psycopg.types.json import Jsonb
 
 from ..analysis import calcs, limits, signals
+from ..core import settings
 from ..core.jsonsafe import plain as _plain
 from ..graph.topology import HOPS, LINKS, TRAIN, _near, topology  # noqa: F401  (sre.topology, as before)
 
+# Defaults; the values in effect are settings (#131): sre.step_minutes, .lookback_hours, .drift_rise,
+# .learned_minutes, .spe_minutes, .merge_minutes, .group_gap_hours, .hops
 STEP = 10  # minutes between values the detectors read
 OVERLAP = timedelta(hours=1)
 LOOKBACK = timedelta(hours=24)  # steps judge the window against how the point moved the day before
@@ -53,7 +56,7 @@ def _points(conn) -> list[dict]:
     return limits._all_points(conn)
 
 
-def _grid(a: datetime, b: datetime, step: int = STEP) -> list[datetime]:
+def _grid(a: datetime, b: datetime, step: int) -> list[datetime]:
     return [a + timedelta(minutes=step * i) for i in range(int((b - a).total_seconds() // 60 // step) + 1)]
 
 
@@ -62,9 +65,9 @@ def _grid(a: datetime, b: datetime, step: int = STEP) -> list[datetime]:
 def excursions(conn, pack, since, until, src) -> list[dict]:
     pids = [r["point_id"] for r in conn.execute(
         "select distinct point_id from point_limit union select distinct point_id from point_normal order by 1")]
-    out = []
+    learned, out = settings.get(conn, "sre.learned_minutes"), []
     for x in limits.excursions(conn, pack, pids, since, until, src=src):
-        if x["basis"] == "learned" and x["minutes_outside"] < LEARNED_MINUTES and x["end"] is not None:
+        if x["basis"] == "learned" and x["minutes_outside"] < learned and x["end"] is not None:
             continue  # a brief wander outside a range nobody set
         out.append(_det({"point": x["point"], "id": x["point_id"]}, x["unit_id"], x["start"], x["end"],
                         f"{x['basis']}:{x['limit_type']}", "excursions", x["peak"],
@@ -78,8 +81,9 @@ def stops(conn, pack, since, until, src) -> list[dict]:
     sig = {u: s for u, s in limits.run_signals(conn, pack, set(limits.units(conn).values())).items() if "point" in s}
     if not sig:
         return []
-    times = _grid(since, until)
-    mode = limits.modes(conn, pack, set(sig), since - timedelta(minutes=STEP), until, STEP, src)
+    step = settings.get(conn, "sre.step_minutes")
+    times = _grid(since, until, step)
+    mode = limits.modes(conn, pack, set(sig), since - timedelta(minutes=step), until, step, src)
     out = []
     for u, s in sig.items():
         m = mode[u]
@@ -96,9 +100,10 @@ def stops(conn, pack, since, until, src) -> list[dict]:
 
 def _running(conn, pack, pts, a, b, src) -> tuple[dict[str, np.ndarray], dict[str, str]]:
     """Per point, whether its unit runs at each step (unknown counts as running); and each point's unit."""
+    step = settings.get(conn, "sre.step_minutes")
     unit = limits.units(conn, [p["id"] for p in pts])
-    mode = limits.modes(conn, pack, set(unit.values()), a, b, STEP, src)
-    n = len(_grid(a, b))
+    mode = limits.modes(conn, pack, set(unit.values()), a, b, step, src)
+    n = len(_grid(a, b, step))
     run = {}
     for p in pts:
         m = mode.get(unit.get(p["id"]), np.full(n, "unknown", dtype=object))
@@ -108,20 +113,21 @@ def _running(conn, pack, pts, a, b, src) -> tuple[dict[str, np.ndarray], dict[st
 
 def steps(conn, pack, since, until, src) -> list[dict]:
     pts = _points(conn)
-    a = since - LOOKBACK
-    times = _grid(a, until)
+    step = settings.get(conn, "sre.step_minutes")
+    a = since - timedelta(hours=settings.get(conn, "sre.lookback_hours"))
+    times = _grid(a, until, step)
     run, unit = _running(conn, pack, pts, a, until, src)
-    out = []
+    out, th = [], signals.thresholds(conn)
     for p in pts:
         try:
-            v = signals._read(src, p, a, until, STEP)
+            v = signals._read(src, p, a, until, step)
         except Exception:  # one unreadable point shouldn't stop the run
             continue
         r = run[p["id"]]
-        for c in signals.detect_changes(times, v, STEP):
+        for c in signals.detect_changes(times, v, step, th=th):
             at = datetime.fromisoformat(c["start"])
             i = times.index(at) if at in times else None
-            if c["kind"] != "step" or at < since or i is None or not r[max(0, i - 18):i + 18].all():
+            if c["kind"] != "step" or at < since or i is None or not r[max(0, i - 180 // step):i + 180 // step].all():
                 continue  # only steps in this window, on a unit running either side (a stop is `stops`)
             out.append(_det(p, unit.get(p["id"]), at, None, "step", "steps", c["after"] - c["before"],
                             {"before": c["before"], "after": c["after"], "score": c["score"]}))
@@ -139,14 +145,14 @@ def drifts(conn, pack, since, until, src) -> list[dict]:
     pts = [p for p in _points(conn) if DRIFTING.search(p["description"] or "")]
     a = until - timedelta(days=DRIFT_DAYS)
     times = _grid(a, until, DRIFT_STEP)
-    out = []
+    out, rise, th = [], settings.get(conn, "sre.drift_rise"), signals.thresholds(conn)
     for p in pts:
         try:
             v = signals._read(src, p, a, until, DRIFT_STEP)
         except Exception:
             continue
-        for c in signals.detect_changes(times, v, DRIFT_STEP, window_minutes=1440):
-            if c["kind"] != "drift" or c["after"] - c["before"] < DRIFT_RISE * abs(c["before"]) \
+        for c in signals.detect_changes(times, v, DRIFT_STEP, window_minutes=1440, th=th):
+            if c["kind"] != "drift" or c["after"] - c["before"] < rise * abs(c["before"]) \
                     or c["end"] < (until - timedelta(days=1)).isoformat():
                 continue  # climbing, by enough, and still at the end of the window
             out.append(_det(p, None, since, None, "drift_up", "drifts", c["per_day"],
@@ -163,18 +169,19 @@ def _set_by_hand(pack) -> list[re.Pattern]:
 def instruments(conn, pack, since, until, src) -> list[dict]:
     skip = _set_by_hand(pack)
     pts = [p for p in _points(conn) if not any(x.search(p["point"]) or x.search(p["description"] or "") for x in skip)]
-    times = _grid(since, until)
+    step = settings.get(conn, "sre.step_minutes")
+    times = _grid(since, until, step)
     base_a = since - timedelta(days=2)
     run, unit = _running(conn, pack, pts, since, until, src)
-    out = []
+    out, th = [], signals.thresholds(conn)
     for p in pts:
         try:
-            v = signals._read(src, p, since, until, STEP)
-            base = signals._read(src, p, base_a, since - timedelta(minutes=STEP), STEP)
+            v = signals._read(src, p, since, until, step)
+            base = signals._read(src, p, base_a, since - timedelta(minutes=step), step)
         except Exception:
             continue
         lo, hi = signals.RANGES.get(p["uom"] or "", (None, None))
-        for f in signals.health(times, v, STEP, base, run[p["id"]], lo, hi):
+        for f in signals.health(times, v, step, base, run[p["id"]], lo, hi, th):
             end = datetime.fromisoformat(f["end"])
             out.append(_det(p, unit.get(p["id"]), datetime.fromisoformat(f["start"]), None if end >= until else end,
                             f"instrument:{f['check']}", "instruments", f["value"], {"usual": f["expected"]}))
@@ -236,7 +243,7 @@ def hydraulics(conn, pack, since, until, src) -> list[dict]:
 
 def multivariate(conn, pack, since, until, src) -> list[dict]:
     """Once a day: each process area's PCA model of the week before against the last day; a stretch the
-    model can't explain (squared prediction error past its 99.9th percentile for `SPE_MINUTES`) on the point
+    model can't explain (squared prediction error past its 99.9th percentile for sre.spe_minutes) on the point
     contributing most (#106)."""
     if not _daily(since, until):
         return []
@@ -253,7 +260,7 @@ def multivariate(conn, pack, since, until, src) -> list[dict]:
     for a in areas:
         try:
             r = clusters.spe(conn, a["fuzer_id"], ((day0 - timedelta(days=7)).isoformat(), day0.isoformat()),
-                             (day0.isoformat(), until.isoformat()), src=src, min_minutes=SPE_MINUTES)
+                             (day0.isoformat(), until.isoformat()), src=src, min_minutes=settings.get(conn, "sre.spe_minutes"))
         except calcs.CalcError:
             continue
         for x in r["anomalies"]:
@@ -298,6 +305,7 @@ def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime
     before saw (one left open by a scan that didn't reach this window isn't carried on)."""
     new = extended = 0
     a, b = window or (None, None)
+    merge = timedelta(minutes=settings.get(conn, "sre.merge_minutes"))
     for d in found:
         prev = conn.execute(
             """
@@ -305,7 +313,7 @@ def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime
               and ("end" is null or "end" >= %s) and start <= %s
               and (%s::timestamp is null or seen_until is null or seen_until >= %s::timestamp)
             order by start desc limit 1
-            """, (d["point_id"], d["detector"], d["key"], d["start"] - MERGE, d["start"] + MERGE, a,
+            """, (d["point_id"], d["detector"], d["key"], d["start"] - merge, d["start"] + merge, a,
                   a - OVERLAP if a else None)).fetchone()
         if prev:
             conn.execute('update detection set "end" = %s, last_run = %s, magnitude = coalesce(%s, magnitude), '
@@ -375,14 +383,19 @@ def recent(conn, since: str | None = None, detector: str | None = None, limit: i
 
 # ---- grouping into upsets (#96b) ------------------------------------------------------------------
 
+def grouping(conn) -> dict:
+    """group_detections' gap and hops as set (#131)."""
+    return {"gap": timedelta(hours=settings.get(conn, "sre.group_gap_hours")), "hops": settings.get(conn, "sre.hops")}
+
+
 GAP = timedelta(hours=2)  # a detection joins an upset starting within this long of its latest detection
 SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with the upsets they belong to  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
 
 
-def group_detections(found: list[dict], adj: dict[str, set[str]]) -> list[dict]:
-    """Detections into upsets: close in time (each joins while within GAP of the upset's latest start) and
-    connected in the plant model. Bad instruments and slow findings stay apart, one per unit and finding.
+def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta = GAP, hops: int = HOPS) -> list[dict]:
+    """Detections into upsets: close in time (each joins while within `gap` of the upset's latest start) and
+    connected in the plant model (within `hops`). Bad instruments and slow findings stay apart, one per unit and finding.
     Each upset: {kind, detections, units, first (the earliest detection: its likely first cause), start,
     end}."""
     groups: list[dict] = []
@@ -399,8 +412,8 @@ def group_detections(found: list[dict], adj: dict[str, set[str]]) -> list[dict]:
                 groups.append(g)
             g["detections"].append(d)
             continue
-        open_ = [g for g in open_ if d["start"] - g["last"] <= GAP]
-        home = next((g for g in open_ if any(_near(adj, d.get("unit_id"), x.get("unit_id"), cache)
+        open_ = [g for g in open_ if d["start"] - g["last"] <= gap]
+        home = next((g for g in open_ if any(_near(adj, d.get("unit_id"), x.get("unit_id"), cache, hops)
                                              or d["point"] == x["point"] for x in g["detections"])), None)
         if home is None:
             home = {"kind": "process", "detections": [], "last": d["start"]}
@@ -434,7 +447,7 @@ def regroup(conn, since: datetime) -> dict:
            or d.upset_id in (select upset_id from recent where upset_id is not null)  -- all of each upset it touches
         order by d.start
         """, {"s": since - timedelta(days=1)})]
-    groups = group_detections(rows, topology(conn))
+    groups = group_detections(rows, topology(conn), **grouping(conn))
     used: set[int] = set()
     for g in groups:
         old = Counter(d["upset_id"] for d in g["detections"] if d["upset_id"] and d["upset_id"] not in used)

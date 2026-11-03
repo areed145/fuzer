@@ -26,8 +26,10 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core import settings
 from .calcs import CalcError
 
+# Defaults; the values in effect are settings (#131): studies.max_points, .max_values, .workers
 MAX_POINTS = 2000  # an interactive study reads at most this many points
 MAX_VALUES = 15_000_000  # and at most this many values (points x steps); bigger studies run in the background
 WORKERS = 8
@@ -35,12 +37,13 @@ WORKERS = 8
 
 # ---- picking points -------------------------------------------------------------------------------
 
-def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3, limit: int = MAX_POINTS) -> list[dict]:
+def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3, limit: int | None = None) -> list[dict]:
     """PI points for a scope: a list of timeseries ids; "facility" (every point); an area (every point on
     its tags and wells); any other entity, its points and its instruments' points, plus with `path`
     ("flows_to" or "lift_gas_to", up or down as "flows_to:up") what that path reaches within `depth`."""
     from ..sources import timeseries
 
+    limit = settings.get(conn, "studies.max_points") if limit is None else limit
     if isinstance(scope, list):
         return [p for p in (timeseries._point(conn, i) for i in scope) if p][:limit]
     if scope == "facility":
@@ -108,7 +111,7 @@ def matrix(pts: list[dict], start: datetime, end: datetime, step: int = 10, src=
                 col[i] = at[t]
         return col
 
-    with ThreadPoolExecutor(WORKERS) as pool:
+    with ThreadPoolExecutor(settings.get(None, "studies.workers")) as pool:
         cols = list(pool.map(one, pts))
     X = np.column_stack(cols) if cols else np.empty((len(times), 0))
     if cache:
@@ -225,17 +228,18 @@ def _window(start: str, end: str, n_points: int = 0, step: int = 10) -> tuple[da
     if b <= a:
         raise CalcError("the window ends before it starts")
     steps = int((b - a).total_seconds() // 60 // step) + 1
-    if n_points * steps > MAX_VALUES:
+    if n_points * steps > settings.get(None, "studies.max_values"):
         raise CalcError(f"{n_points} points x {steps} steps is too big to answer now: narrow the scope, shorten the "
                         "window or use a longer step")
     return a, b
 
 
 def _connected(conn, target_unit: str | None, units: dict[str, str]) -> dict[str, bool]:
+    from ..core import settings
     from ..graph import topology
 
-    adj, cache = topology.topology(conn), {}
-    return {pid: topology._near(adj, target_unit, u, cache) for pid, u in units.items()} if target_unit else {}
+    adj, cache, hops = topology.topology(conn), {}, settings.get(conn, "sre.hops")
+    return {pid: topology._near(adj, target_unit, u, cache, hops) for pid, u in units.items()} if target_unit else {}
 
 
 def correlate(conn, pack, target: str, scope: str | list[str], start: str, end: str, step: int = 10,
@@ -293,6 +297,7 @@ def correlation_matrix(conn, pack, scope: str | list[str], start: str, end: str,
                        keep_down: bool = False, top: int = 20, src=None, path: str | None = None) -> dict:
     """All pairs in `scope`: r for each, ordered so related points sit together, with the `top` strongest
     pairs and whether the plant model connects each pair."""
+    from ..core import settings
     from ..graph import topology
     from . import limits
 
@@ -307,11 +312,11 @@ def correlation_matrix(conn, pack, scope: str | list[str], start: str, end: str,
     R = np.corrcoef(ranks(Xc) if method == "spearman" else Xc, rowvar=False)
     idx = order(R)
     units = limits.units(conn, [p["id"] for p in kept])
-    adj, cache = topology.topology(conn), {}
+    adj, cache, hops = topology.topology(conn), {}, settings.get(conn, "sre.hops")
     iu = np.triu_indices(len(kept), 1)
     strongest = np.argsort(-np.abs(R[iu]))[:top]
     pairs = [{"a": kept[iu[0][k]]["point"], "b": kept[iu[1][k]]["point"], "r": round(float(R[iu][k]), 3),
-              "connected": topology._near(adj, units.get(kept[iu[0][k]]["id"]), units.get(kept[iu[1][k]]["id"]), cache)}
+              "connected": topology._near(adj, units.get(kept[iu[0][k]]["id"]), units.get(kept[iu[1][k]]["id"]), cache, hops)}
              for k in strongest]
     return {"window": [start, end], "step_minutes": step, "method": method, "points": len(pts), "used": len(kept),
             "rows_used": int(rows.sum()), "order": [kept[i]["point"] for i in idx], "ids": [kept[i]["id"] for i in idx],

@@ -1,12 +1,14 @@
 """Stored studies (#106): a correlation or clustering run kept with its parameters, its top results, a
 short summary and a chart, so people can re-run it, an agent can cite it (`study:<id>`) and a work item
-can attach it. A small one runs straight away; a big one (`studies.MAX_VALUES` and up, or a facility
+can attach it. A small one runs straight away; a big one (the setting studies.max_values and up, or a facility
 scope) queues for the `studies` background job.
 """
 
 from datetime import datetime
 
 from psycopg.types.json import Jsonb
+
+from ..core import settings
 
 KINDS = ("correlate", "correlation_matrix", "modes", "entities", "events", "spe")
 
@@ -55,8 +57,6 @@ def _summary(kind: str, r: dict) -> str:
 
 def big(kind: str, p: dict) -> bool:
     """Whether to queue it: a facility scope, or a window long enough to read many values."""
-    from ..analysis import studies
-
     if kind == "events":
         return False
     if p.get("scope") == "facility":
@@ -65,7 +65,7 @@ def big(kind: str, p: dict) -> bool:
         days = (datetime.fromisoformat(p["until"]) - datetime.fromisoformat(p["since"])).days
     except (KeyError, TypeError, ValueError):
         return False
-    return days * 144 * 50 > studies.MAX_VALUES  # about 50 points at 10-minute steps
+    return days * 144 * 50 > settings.get(None, "studies.max_values")  # about 50 points at 10-minute steps
 
 
 def start(conn, pack, kind: str, params: dict, by: str, now: bool | None = None) -> dict:

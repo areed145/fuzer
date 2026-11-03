@@ -114,6 +114,67 @@ register(
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the troubleshooter diagnoses per hand-off run", "SRE",
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
+    Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),
+    Setting("sre.lookback_hours", "int", 24, "Hours before the window that a step is judged against", "SRE", min=1,
+            max=168),
+    Setting("sre.learned_minutes", "int", 60, "Minutes a value must stay outside a learned normal range (one no "
+            "source set) to count", "SRE", min=0),
+    Setting("sre.spe_minutes", "int", 120, "Minutes a multivariate anomaly lasts before it is raised", "SRE", min=10),
+    Setting("sre.merge_minutes", "int", 30, "The same finding again within this many minutes carries on the one "
+            "before", "SRE", min=0),
+    Setting("sre.drift_rise", "float", 0.05, "Share of its starting value a drift must climb before it is raised",
+            "SRE", min=0, max=1),
+    Setting("sre.group_gap_hours", "float", 2.0, "A detection joins an upset whose latest detection started within "
+            "this many hours", "SRE", min=0.1, max=48),
+    Setting("sre.hops", "int", 4, "Units this many links apart in the plant model count as connected (upsets and "
+            "correlation studies)", "SRE", min=1, max=10),
+    Setting("signals.flat_hours", "float", 2.0, "Hours with no change at all, while the unit runs, before a reading "
+            "is frozen", "Signals", min=0.5, max=48),
+    Setting("signals.stuck_hours", "float", 6.0, "Hours a reading moves far less than usual (under stuck_ratio x), "
+            "while the unit runs, before it is stuck", "Signals", min=0.5, max=72),
+    Setting("signals.stuck_ratio", "float", 0.1, "A stuck reading's step-to-step spread is under this share of its "
+            "usual", "Signals", min=0.01, max=0.9),
+    Setting("signals.noisy_hours", "float", 1.0, "Hours a reading moves far more than usual (over noisy_ratio x) "
+            "before it is noisy", "Signals", min=0.25, max=48),
+    Setting("signals.noisy_ratio", "float", 4.0, "A noisy reading's step-to-step spread is over this many times its "
+            "usual", "Signals", min=1.5, max=50),
+    Setting("signals.range_minutes", "int", 30, "Minutes at or past the end of its instrument range before a reading "
+            "is out of range", "Signals", min=10, max=1440),
+    Setting("signals.redundant_hours", "float", 2.0, "Hours two redundant transmitters stay further apart than usual "
+            "before one is drifting", "Signals", min=0.5, max=72),
+    Setting("signals.baseline_days", "int", 7, "Days before the window that set a reading's usual behaviour "
+            "(instrument_health)", "Signals", min=1, max=90),
+    Setting("signals.merge_minutes", "int", 240, "The same instrument finding again within this many minutes is one "
+            "finding", "Signals", min=0, max=1440),
+    Setting("signals.step_z", "float", 6.0, "A step: the median moves this many times its usual window-to-window "
+            "move", "Signals", min=2, max=50),
+    Setting("signals.var_ratio", "float", 4.0, "A variance change: the jitter either side differs by this "
+            "factor", "Signals", min=1.5, max=50),
+    Setting("signals.drift_z", "float", 4.0, "A drift: the fitted trend moves this many times the spread around "
+            "it", "Signals", min=2, max=50),
+    Setting("alarms.flood_per_10min", "int", 10, "More alarms than this in 10 minutes is a flood (EEMUA 191)", "Alarms",
+            min=2, max=100),
+    Setting("alarms.target_per_hour", "float", 6.0, "Alarms per hour an operator can handle; more is overloaded",
+            "Alarms", min=0.5, max=60),
+    Setting("alarms.standing_hours", "float", 24.0, "Hours an alarm stays on before it is standing", "Alarms", min=1,
+            max=720),
+    Setting("alarms.chatter", "int", 3, "Alarms on one point, each within a minute of the last clearing, that make "
+            "it chattering", "Alarms", min=2, max=50),
+    Setting("alarms.failed_start_minutes", "int", 30, "A start followed by a stop within this many minutes is a "
+            "failed start", "Alarms", min=1, max=1440),
+    Setting("opportunities.gas_lift_breakeven", "float", 0.5, "Sm3/d of oil per kSm3/d of lift gas below which "
+            "more gas isn't worth it", "Opportunities", min=0, max=10),
+    Setting("opportunities.stale_days", "int", 90, "Days without a well test before the test is stale",
+            "Opportunities", min=7, max=730),
+    Setting("opportunities.material", "float", 0.5, "A decided opportunity comes back when its gain moves by this "
+            "share", "Opportunities", min=0.05, max=10),
+    Setting("daily_report.mover_pct", "float", 10.0, "A well test this many percent from the well's previous one is "
+            "a mover in the daily report", "Reports", min=1, max=100),
+    Setting("studies.max_points", "int", 2000, "Points an interactive correlation or clustering study reads at most",
+            "Studies", min=10, max=100000),
+    Setting("studies.max_values", "int", 15_000_000, "Values (points x steps) a study reads at once; bigger ones run "
+            "in the background", "Studies", min=10000),
+    Setting("studies.workers", "int", 8, "Threads reading a study's points in parallel", "Studies", min=1, max=64),
 )
 
 
@@ -218,12 +279,13 @@ def reset(conn, key: str, *, by: str, reason: str | None = None, project_name: s
 
 
 def listing(conn, group: str | None = None, project_name: str | None = None) -> list[dict]:
-    """Every setting with its default, the global and project values, the one in effect, and who set it."""
+    """Every setting with its default, the global and project values, the one in effect, and who set it;
+    groups in the order they are declared, and a secret's reference with whether it resolves."""
     p = project_name or project()
     stored: dict[tuple, dict] = {(r["key"], r["scope"]): r for r in conn.execute(
         "select key, scope, value, updated_by, updated_at from setting where scope = any(%s)", ([GLOBAL, scope_of(p)],))}
-    out = []
-    for s in sorted(REGISTRY.values(), key=lambda s: (s.group, s.key)):
+    out, groups = [], list(dict.fromkeys(s.group for s in REGISTRY.values()))
+    for s in sorted(REGISTRY.values(), key=lambda s: groups.index(s.group)):
         if group and s.group.lower() != group.lower():
             continue
         g, pr = stored.get((s.key, GLOBAL)), stored.get((s.key, scope_of(p))) if p else None
@@ -234,7 +296,10 @@ def listing(conn, group: str | None = None, project_name: str | None = None) -> 
                     "updated_by": top["updated_by"] if top else None,
                     "updated_at": top["updated_at"].isoformat(timespec="seconds") if top else None,
                     **({"min": s.min} if s.min is not None else {}), **({"max": s.max} if s.max is not None else {}),
-                    **({"choices": list(s.choices)} if s.choices else {}), "restart": s.restart})
+                    **({"choices": list(s.choices)} if s.choices else {}), "restart": s.restart,
+                    "scopes": list(s.scopes),
+                    **({"resolves": bool(os.environ.get(str(top["value"] if top else s.default or "")[4:]))}
+                       if s.type == "secret" else {})})
     return out
 
 

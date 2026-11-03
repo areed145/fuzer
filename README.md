@@ -114,8 +114,13 @@ Optional, in `.env` (see `.env.example`):
 
 - `FUZER_DATABASE_URL=...` to use your own Postgres (`docker compose up -d` gives
   one on localhost:5432); without it Fuzer runs a built-in one in `.fuzer/pgdata`.
-- `FUZER_DATA_DIR=...` to load your own exports instead of the fake plant, or
+- `FUZER_PROJECT=...` to pick a project (its pack, data folder, mappings and
+  time-series provider; see [Other assets](#other-assets)), or
   `uv run fuzer up --demo offshore` / `--demo onshore` for the other fake plants.
+
+Everything else (Claude models and effort, schedules, detection thresholds,
+caps) is a setting, stored in the database and changed on the **Settings** page
+or with `fuzer settings`, not an environment variable.
 
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
@@ -138,8 +143,8 @@ read-only Fuzer tools and skills (`src/fuzer/agents/skills/`); every fact in an
 answer cites the record it came from, and it never tells anyone to operate the
 plant. Needs `ANTHROPIC_API_KEY`. A cross-domain answer on Okan takes one to
 two minutes and costs about a dollar on Claude Opus 5.5; each answer shows its
-cost per model. `FUZER_AGENT_SPECIALIST_MODEL=claude-sonnet-5-5` runs the
-specialists on Sonnet (the orchestrator stays on `FUZER_AGENT_MODEL`). `uv run fuzer eval --agents` scores it per domain against
+cost per model. `fuzer settings set agents.specialist_model claude-sonnet-5-5` runs the
+specialists on Sonnet (the orchestrator stays on `agents.model`). `uv run fuzer eval --agents` scores it per domain against
 `answer_keys/assistant.json`.
 
 Answers can include interactive charts (Plotly; `src/fuzer/plots/`): trends,
@@ -159,8 +164,8 @@ uv run fakeplant historian --asset okan   # fake PI Web API + ADX on :8100
 ```
 
 Then in `.env`: `FUZER_PI_WEB_API_URL=http://127.0.0.1:8100/piwebapi`,
-`FUZER_ADX_URL=http://127.0.0.1:8100`, `FUZER_ADX_DATABASE=OKAN` and
-`FUZER_TIMESERIES=adx` (or `pi`). `fuzer ingest` now reads the point list and AF
+`FUZER_ADX_URL=http://127.0.0.1:8100` and `FUZER_ADX_DATABASE=OKAN`, and the project's
+`timeseries: adx` (or `pi`) in `projects/<name>.yaml` or `fuzer projects save`. `fuzer ingest` now reads the point list and AF
 tree from PI Web API and the series catalog from ADX, and trends and the
 troubleshooting brief read values from them. The same settings point at a real
 server.
@@ -175,7 +180,7 @@ trip drops the lift gas header, and the gas lifted wells and oil export follow.
 ### Measuring quality
 
 ```sh
-uv run fuzer eval     # answer keys in $FUZER_DATA_DIR/answer_keys
+uv run fuzer eval     # answer keys in the project data folder's answer_keys/
 ```
 
 Scores the loaded register against answer keys: knowledge search (hit@1, hit@3,
@@ -201,8 +206,18 @@ under each score's floor. CI runs it on the fake Okan plant.
 A **project** picks everything for one asset in one name: its pack, data folder, mappings, time-series
 provider and timezone (`fuzer --project okan …` or `FUZER_PROJECT=okan`; `fuzer projects list`). Its
 config is stored in the database, and `projects/<name>.yaml` is used when the database has none
-(`fuzer projects save <name>` stores it). Tunable thresholds and caps are settings, per project or for
-all projects: `fuzer settings list`.
+(`fuzer projects save <name>` stores it).
+
+**Settings.** Tunable values are declared once in `src/fuzer/core/settings.py`, each with a type, default,
+valid range and description, and set per project or for all projects. They are grouped as Claude (models,
+effort, fallbacks), Schedule, Database, SRE (detection and grouping, hand-off caps), Signals (instrument
+health, change detection), Alarms, Opportunities, Reports and Studies. Change them on the **Settings**
+page (`#/settings`), which shows each value, its default and range, who changed it last, and the history
+with reasons. From the command line: `fuzer settings list | get | set | reset | history`. A project value
+beats the global one, which beats the default. The old variables (`FUZER_LLM_MODEL`, `FUZER_AGENT_*`,
+`FUZER_DAY_CLOSE_CRON`, `FUZER_WORK_LEASE_SECONDS`, `FUZER_WORK_MEM`) still work for one release, with a
+deprecation warning. PI and ADX connections and the alert webhook stay in the environment until the
+source settings move (#132).
 
 Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
 tag and well naming, aliases, classification onto the ISO 14224 taxonomy (and
@@ -210,7 +225,7 @@ extra classes), maintenance and downtime codes, survivorship. A fake onshore
 field shows a very different asset running on the same core:
 
 ```sh
-export FUZER_PACK=onshore_demo
+export FUZER_PROJECT=onshore_demo
 uv run fakeplant demo --asset onshore   # 40 pads, 480 wells on ESPs, pad separators / tanks / LACTs
 ```
 
@@ -264,7 +279,7 @@ sits (linked to the register, not in the register, not a tag, line number;
 click a linked tag to open it), the piping and the findings. Manuals and
 procedures show their file inline on their page.
 
-Model defaults to `claude-opus-5-5` (`--model` or `FUZER_LLM_MODEL` to change),
+Model defaults to `claude-opus-5-5` (`--model` or the `llm.model` setting to change),
 with server-side refusal fallback on.
 
 Ingest treats each export file as a full snapshot: records no longer in it are
@@ -292,7 +307,7 @@ last timestamp.
 
 What each column means is set in YAML, one file per source record type, in
 [src/fuzer/mappings/](src/fuzer/mappings/). Put extra or site-specific
-mappings in a folder named by `FUZER_MAPPINGS` (later files win for the same
+mappings in the project's `mappings` folder (later files win for the same
 source and record type). A new table needs only a mapping and its file in the
 data folder:
 
@@ -353,7 +368,7 @@ pipeline to the facilities it reaches. They're scored by distance and checked by
 ### Scheduled jobs (Dagster)
 
 ```sh
-export FUZER_DATA_DIR=fakeplant/data/okan FUZER_PACK=okan   # the folder the exports land in, and its pack
+export FUZER_PROJECT=okan   # the project: its data folder (where exports land) and pack
 uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C to stop)
 ```
 
@@ -365,7 +380,7 @@ uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C
   `claude_reading` nightly at 03:00 (**off**: it costs money; turn it on in the
   UI). Scheduled Claude runs use the Batches API and cap each run at 2,000 log
   entries and 200 drawings. `work_tick` every 5 minutes (on) fires work-engine
-  timers and escalates overdue tasks. Times are in `FUZER_TIMEZONE` (default UTC).
+  timers and escalates overdue tasks. Times are in the project's timezone (default UTC).
 - **Checks on the register** (warnings): review backlog under 5% of tags and
   equipment, PI points attached to a tag or well, every tag present in SAP.
 - **Alerts**: failed runs are posted to `FUZER_ALERT_WEBHOOK` (Teams, Slack or any

@@ -116,7 +116,7 @@ def cooler_fouling(conn, fid: str, days: int = 180, until: str | None = None, sr
     clean = float(np.percentile(med, 10))
     now = float(np.median(med[-7:]))
     times = [datetime.fromisoformat(d) for d in days_]
-    found = signals.detect_changes(times, med, 1440, window_minutes=1440 * 3)
+    found = signals.detect_changes(times, med, 1440, window_minutes=1440 * 3, th=signals.thresholds(conn))
     since = max((c["start"] for c in found if c["kind"] in ("step", "variance") and c["after"] < c["before"]),
                 default=days_[0])  # the last clean: a drop
     seg = [(i, m) for i, (d, m) in enumerate(zip(days_, med)) if d >= since[:10]]

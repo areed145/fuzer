@@ -26,6 +26,9 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
+from ..core import settings
+
+# Defaults; the values in effect are settings (#131): opportunities.gas_lift_breakeven, .stale_days, .material
 BREAKEVEN = 0.5  # Sm3/d oil per kSm3/d lift gas: past this, more gas isn't worth it
 STALE_DAYS = 90
 MATERIAL = 0.5  # a gain this much higher or lower is a different opportunity
@@ -39,10 +42,11 @@ def _opp(key: str, kind: str, title: str, gain: float | None, basis: str, confid
             "evidence": [e for e in dict.fromkeys(evidence) if e], "confirm_by": confirm_by, **detail}
 
 
-def gas_lift_moves(conn, at: str | None = None, breakeven: float = BREAKEVEN) -> list[dict]:
+def gas_lift_moves(conn, at: str | None = None, breakeven: float | None = None) -> list[dict]:
     from ..analysis import calcs
     from ..graph import operations
 
+    breakeven = settings.get(conn, "opportunities.gas_lift_breakeven") if breakeven is None else breakeven
     net = operations.gas_lift_network(conn, limit=100000)
     if "error" in net:
         return []
@@ -95,7 +99,7 @@ def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
     from ..graph import operations
 
     today = date.fromisoformat(at[:10] if at else operations.as_of(conn))
-    out = []
+    out, stale = [], settings.get(conn, "opportunities.stale_days")
     for r in conn.execute("select fuzer_id from entity where kind = 'well' order by 1"):
         try:
             d = calcs.decline(conn, r["fuzer_id"], until=at)
@@ -107,9 +111,9 @@ def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
                             f"{label} tested {d['value']} Sm3/d, under its decline's {d['expected']}", d["expected"] - d["value"],
                             d["basis"], "medium", d["sources"], "a retest; if it holds, a slickline or gas lift valve check",
                             r["fuzer_id"], latest_test=d["at"]))
-        if (today - date.fromisoformat(d["at"])).days > STALE_DAYS:
+        if (today - date.fromisoformat(d["at"])).days > stale:
             out.append(_opp(f"stale_test:{r['fuzer_id']}", "stale_test", f"{label}: last tested {d['at']}", None,
-                            f"no well test in {STALE_DAYS} days: its rate and allocation rest on an old test", "low",
+                            f"no well test in {stale} days: its rate and allocation rest on an old test", "low",
                             d["sources"], "a well test", r["fuzer_id"], latest_test=d["at"]))
     return out
 
@@ -165,12 +169,12 @@ def _fingerprint(o: dict) -> str:
     return hashlib.sha1(json.dumps(sorted(o["evidence"])).encode()).hexdigest()[:16]
 
 
-def _material(old: dict, new: dict) -> bool:
-    """A decided opportunity comes back only if its evidence or its gain changed materially."""
+def _material(old: dict, new: dict, share: float = MATERIAL) -> bool:
+    """A decided opportunity comes back only if its evidence or its gain changed materially (by `share`)."""
     if old["fingerprint"] != _fingerprint(new):
         return True
     a, b = old["gain_sm3d"], new["gain_sm3d"]
-    return a is not None and b is not None and abs(b - a) > MATERIAL * max(abs(a), 1e-9)
+    return a is not None and b is not None and abs(b - a) > share * max(abs(a), 1e-9)
 
 
 def scan(conn, pack, at: str | None = None) -> dict:
@@ -183,9 +187,10 @@ def scan(conn, pack, at: str | None = None) -> dict:
     found = {o["key"]: o for o in candidates(conn, at)}
     old = {r["key"]: dict(r) for r in conn.execute("select * from opportunity")}
     stats = {"found": len(found), "new": 0, "updated": 0, "still_decided": 0, "reopened": 0, "gone": 0}
+    share = settings.get(conn, "opportunities.material")
     for key, o in found.items():
         prev = old.get(key)
-        if prev and prev["status"] in DECIDED and not _material(prev, o):
+        if prev and prev["status"] in DECIDED and not _material(prev, o, share):
             stats["still_decided"] += 1
             continue
         reopened = bool(prev and prev["status"] in DECIDED)

@@ -66,10 +66,13 @@ def _span(times: list[datetime], i: int, j: int, step: int) -> dict:
 
 
 def health(times: list[datetime], v: np.ndarray, step: int, baseline: np.ndarray | None = None,
-           running: np.ndarray | None = None, lo: float | None = None, hi: float | None = None) -> list[dict]:
+           running: np.ndarray | None = None, lo: float | None = None, hi: float | None = None,
+           th: dict | None = None) -> list[dict]:
     """Frozen, stuck, noisy and out-of-range stretches of one reading: [{check, start, end, minutes,
     value, expected}]. `baseline` is the same point before the window (else the window itself sets
-    what's usual); `running` masks the steps its unit runs; lo / hi its instrument range."""
+    what's usual); `running` masks the steps its unit runs; lo / hi its instrument range; `th` the
+    thresholds (thresholds(conn), else the defaults)."""
+    th = th or DEFAULTS
     v = np.asarray(v, float)
     run = np.ones(len(v), bool) if running is None else np.asarray(running, bool)
     out = []
@@ -83,7 +86,7 @@ def health(times: list[datetime], v: np.ndarray, step: int, baseline: np.ndarray
     if lo is not None or hi is not None:
         past = ((v <= lo) if lo is not None else False) | ((v >= hi) if hi is not None else False)
         for i, j in _runs(past & ~np.isnan(v)):
-            if (j - i) * step >= RANGE_MINUTES:
+            if (j - i) * step >= th["range_minutes"]:
                 x = v[i:j]
                 out.append({"check": "out_of_range", **_span(times, i, j, step), "value": float(x[np.argmax(np.abs(x - x.mean()))]
                             if len(x) else x[0]), "expected": hi if hi is not None and x[0] >= hi else lo})
@@ -93,7 +96,7 @@ def health(times: list[datetime], v: np.ndarray, step: int, baseline: np.ndarray
     same = np.concatenate([[False], np.diff(v) == 0]) & (v != 0) & run & ~at_end
     for i, j in _runs(same):
         i = max(0, i - 1)  # the first of the repeated values
-        if (j - i) * step >= FLAT_HOURS * 60:
+        if (j - i) * step >= th["flat_hours"] * 60:
             out.append({"check": "frozen", **_span(times, i, j, step), "value": float(v[i]), "expected": None})
     frozen = np.zeros(len(v), bool)
     for f in out:
@@ -101,21 +104,22 @@ def health(times: list[datetime], v: np.ndarray, step: int, baseline: np.ndarray
             frozen[(np.array(times) >= datetime.fromisoformat(f["start"])) & (np.array(times) <= datetime.fromisoformat(f["end"]))] = True
 
     with np.errstate(invalid="ignore"):
-        for check, mask, hours in (("stuck", (s < STUCK * usual) & run & ~frozen & ~at_end, STUCK_HOURS),
-                                   ("noisy", s > NOISY * usual, NOISY_HOURS)):
+        for check, mask, hours in (("stuck", (s < th["stuck_ratio"] * usual) & run & ~frozen & ~at_end, th["stuck_hours"]),
+                                   ("noisy", s > th["noisy_ratio"] * usual, th["noisy_hours"])):
             for i, j in _runs(mask):
                 if (j - i) * step >= hours * 60:
                     out.append({"check": check, **_span(times, i, j, step), "value": round(float(np.nanmedian(s[i:j])), 4),
                                 "expected": round(usual, 4)})
-    return _merge(out, step)
+    return _merge(out, step, th)
 
 
-def _merge(found: list[dict], step: int) -> list[dict]:
-    """One finding per check for stretches that stop and start again within MERGE_MINUTES."""
+def _merge(found: list[dict], step: int, th: dict | None = None) -> list[dict]:
+    """One finding per check for stretches that stop and start again within th["merge_minutes"]."""
+    merge = timedelta(minutes=(th or DEFAULTS)["merge_minutes"])
     out: list[dict] = []
     for f in sorted(found, key=lambda f: (f["check"], f["start"])):
         last = out[-1] if out and out[-1]["check"] == f["check"] else None
-        if last and datetime.fromisoformat(f["start"]) - datetime.fromisoformat(last["end"]) <= timedelta(minutes=MERGE_MINUTES):
+        if last and datetime.fromisoformat(f["start"]) - datetime.fromisoformat(last["end"]) <= merge:
             gap = (datetime.fromisoformat(f["start"]) - datetime.fromisoformat(last["end"])).total_seconds() / 60
             worse = max(last, f, key=lambda x: abs((x["value"] or 0) - (x["expected"] or 0)))
             out[-1] = {**last, "end": max(last["end"], f["end"]), "minutes": last["minutes"] + f["minutes"] + gap,
@@ -126,9 +130,10 @@ def _merge(found: list[dict], step: int) -> list[dict]:
 
 
 def redundant_drift(times: list[datetime], a: np.ndarray, b: np.ndarray, step: int, base_a: np.ndarray | None = None,
-                    base_b: np.ndarray | None = None) -> list[dict]:
+                    base_b: np.ndarray | None = None, th: dict | None = None) -> list[dict]:
     """Stretches where two transmitters on the same measurement (A / B) move apart from the offset they
     usually keep: [{check, start, end, minutes, value (gap), expected (usual gap)}]."""
+    th = th or DEFAULTS
     a, b = np.asarray(a, float), np.asarray(b, float)
     ba, bb = (np.asarray(base_a, float), np.asarray(base_b, float)) if base_a is not None and base_b is not None else (a, b)
     offset = float(np.nanmedian(ba - bb))
@@ -141,11 +146,11 @@ def redundant_drift(times: list[datetime], a: np.ndarray, b: np.ndarray, step: i
     out = []
     with np.errstate(invalid="ignore"):
         for i, j in _runs(np.abs(gap - offset) > tol):
-            if (j - i) * step >= DRIFT_HOURS * 60:
+            if (j - i) * step >= th["redundant_hours"] * 60:
                 x = gap[i:j]
                 out.append({"check": "redundant_drift", **_span(times, i, j, step),
                             "value": round(float(x[np.nanargmax(np.abs(x - offset))]), 4), "expected": round(offset, 4)})
-    return _merge(out, step)
+    return _merge(out, step, th)
 
 
 # ---- change detection -----------------------------------------------------------------------------
@@ -153,6 +158,19 @@ def redundant_drift(times: list[datetime], a: np.ndarray, b: np.ndarray, step: i
 STEP_Z = 6.0  # a step: the median moves this many times the spread inside the windows either side
 VAR_RATIO = 4.0  # a variance change: the jitter in the two windows either side differs by this factor
 DRIFT_Z = 4.0  # a drift: the fitted trend moves this many times the spread of what's left
+
+# The constants above are the defaults; the values in effect are the signals.* settings (#131).
+DEFAULTS = {"flat_hours": FLAT_HOURS, "stuck_hours": STUCK_HOURS, "noisy_hours": NOISY_HOURS, "stuck_ratio": STUCK,
+            "noisy_ratio": NOISY, "range_minutes": RANGE_MINUTES, "redundant_hours": DRIFT_HOURS,
+            "baseline_days": BASELINE_DAYS, "merge_minutes": MERGE_MINUTES, "step_z": STEP_Z, "var_ratio": VAR_RATIO,
+            "drift_z": DRIFT_Z}
+
+
+def thresholds(conn) -> dict:
+    """The thresholds as set (signals.<name>), for health, redundant_drift and detect_changes."""
+    from ..core import settings
+
+    return {k: settings.get(conn, f"signals.{k}") for k in DEFAULTS}
 
 
 def _suppress(cands: list[tuple[float, int]], w: int) -> list[int]:
@@ -165,11 +183,13 @@ def _suppress(cands: list[tuple[float, int]], w: int) -> list[int]:
 
 
 def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minutes: int = 180,
-                   min_change_pct: float = 2.0) -> list[dict]:
+                   min_change_pct: float = 2.0, th: dict | None = None) -> list[dict]:
     """Steps, drifts and variance changes in one series: [{kind, start, end, before, after, score}].
     A step compares the medians in the windows either side of each time; a variance change compares
     their jitter; a drift is a straight-line trend between steps that stands out from what's left
-    around it. `min_change_pct` of the series' typical level is the smallest step or drift reported."""
+    around it. `min_change_pct` of the series' typical level is the smallest step or drift reported;
+    `th` holds step_z, var_ratio and drift_z (thresholds(conn), else the defaults)."""
+    th = th or DEFAULTS
     v = np.asarray(v, float)
     ok = ~np.isnan(v)
     if ok.sum() < 18:
@@ -199,7 +219,7 @@ def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minut
     for i in range(w, n - w + 1):
         diff = move[i - w]
         z = abs(diff - typical) / max(usual, mad[i - w], mad[i], floor)
-        if z >= STEP_Z and abs(diff) >= small:
+        if z >= th["step_z"] and abs(diff) >= small:
             cands.append((z, i))
     steps = _suppress(cands, w)
     for i in steps:
@@ -208,7 +228,7 @@ def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minut
         out.append({"kind": "step", "start": times[i].isoformat(timespec="minutes"), "end": None,
                     "before": round(before, 4), "after": round(after, 4), "score": round(float(z), 1)})
 
-    # The same for the jitter: a change of VAR_RATIO or more that stands out from its usual ratio.
+    # The same for the jitter: a change of var_ratio or more that stands out from its usual ratio.
     with np.errstate(invalid="ignore", divide="ignore"):
         ratio = np.full(n, np.nan)
         for i in range(2 * w, n - 2 * w):
@@ -216,7 +236,7 @@ def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minut
             if np.isfinite(a) and np.isfinite(b) and max(a, b) > floor:
                 ratio[i] = np.log(max(b, floor) / max(a, floor))
         wobble = max(spread(ratio), 1e-6)
-        cands = [(abs(ratio[i]), i) for i in range(n) if np.isfinite(ratio[i]) and abs(ratio[i]) >= np.log(VAR_RATIO)
+        cands = [(abs(ratio[i]), i) for i in range(n) if np.isfinite(ratio[i]) and abs(ratio[i]) >= np.log(th["var_ratio"])
                  and abs(ratio[i]) >= 4 * wobble and not any(abs(i - k) < 2 * w for k in steps)]
     shifts = _suppress(cands, 4 * w)  # a step changes the jitter around it too; the step is the change
     for i in shifts:
@@ -239,7 +259,7 @@ def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minut
         total = slope * (t[-1] - t[0])
         noise = max(spread(resid), floor)
         r2 = 1 - float(np.var(resid)) / max(float(np.var(y)), 1e-12)
-        if abs(total) >= DRIFT_Z * noise and abs(total) >= small and r2 >= 0.7:
+        if abs(total) >= th["drift_z"] * noise and abs(total) >= small and r2 >= 0.7:
             out.append({"kind": "drift", "start": times[a].isoformat(timespec="minutes"),
                         "end": times[b - 1].isoformat(timespec="minutes"), "before": round(float(icept + slope * t[0]), 4),
                         "after": round(float(icept + slope * t[-1]), 4), "score": round(abs(total) / noise, 1),
@@ -298,16 +318,16 @@ def _twins(points: list[dict]) -> list[tuple[dict, dict]]:
 
 
 BASIS = {
-    "frozen": "no change at all for {FLAT_HOURS} h or more while the unit runs",
-    "stuck": "step-to-step spread under {STUCK:g} x its usual for {STUCK_HOURS} h or more while the unit runs",
-    "noisy": "step-to-step spread over {NOISY:g} x its usual (the {BASELINE_DAYS} days before) for {NOISY_HOURS} h or more",
-    "out_of_range": "at or past the end of its {lo:g}-{hi:g} range for {RANGE_MINUTES} min or more",
-    "redundant_drift": "apart from {peer} by more than its usual offset allows for {DRIFT_HOURS} h or more",
+    "frozen": "no change at all for {flat_hours:g} h or more while the unit runs",
+    "stuck": "step-to-step spread under {stuck_ratio:g} x its usual for {stuck_hours:g} h or more while the unit runs",
+    "noisy": "step-to-step spread over {noisy_ratio:g} x its usual (the {baseline_days} days before) for {noisy_hours:g} h or more",
+    "out_of_range": "at or past the end of its {lo:g}-{hi:g} range for {range_minutes} min or more",
+    "redundant_drift": "apart from {peer} by more than its usual offset allows for {redundant_hours:g} h or more",
 }
 
 
 def instrument_health(conn, pack, fid: str, since: str, until: str, step: int = 10, src=None,
-                      baseline_days: int = BASELINE_DAYS, values: bool = False) -> dict:
+                      baseline_days: int | None = None, values: bool = False) -> dict:
     """Instrument health of a PI point, or every point on a unit, over [since, until]: frozen, stuck,
     noisy, out of range, and drift between redundant transmitters. Each finding is evidence
     ({value, expected, flag, basis, sources}) with its span. Reads only up to `until`, so the replay
@@ -316,9 +336,12 @@ def instrument_health(conn, pack, fid: str, since: str, until: str, step: int = 
     from . import limits
 
     src = src or timeseries.provider()
+    th = thresholds(conn)
+    if baseline_days is not None:
+        th = {**th, "baseline_days": baseline_days}
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
     times = _grid(a, b, step)
-    base_a = a - timedelta(days=baseline_days)
+    base_a = a - timedelta(days=th["baseline_days"])
     pts = _points(conn, fid)
     unit = limits.units(conn, [p["id"] for p in pts])
     mode = limits.modes(conn, pack, set(unit.values()), a, b, step, src) if unit else {}
@@ -333,11 +356,11 @@ def instrument_health(conn, pack, fid: str, since: str, until: str, step: int = 
         m = mode.get(unit.get(p["id"]))
         running = None if m is None else (m == "running") | (m == "unknown")
         lo, hi = RANGES.get(p["uom"] or "", (None, None))
-        for f in health(times, vals[p["id"]], step, base[p["id"]], running, lo, hi):
-            out.append(_finding(p, f, BASIS[f["check"]].format(**globals(), lo=lo or 0, hi=hi or 0)))
+        for f in health(times, vals[p["id"]], step, base[p["id"]], running, lo, hi, th):
+            out.append(_finding(p, f, BASIS[f["check"]].format(**th, lo=lo or 0, hi=hi or 0)))
     for x, y in _twins([p for p in pts if p["id"] in vals]):
-        for f in redundant_drift(times, vals[x["id"]], vals[y["id"]], step, base[x["id"]], base[y["id"]]):
-            out.append(_finding(x, f, BASIS["redundant_drift"].format(**globals(), peer=y["point"]), [y["id"]]))
+        for f in redundant_drift(times, vals[x["id"]], vals[y["id"]], step, base[x["id"]], base[y["id"]], th):
+            out.append(_finding(x, f, BASIS["redundant_drift"].format(**th, peer=y["point"]), [y["id"]]))
     return {"of": fid, "since": since, "until": until, "step_minutes": step, "points": len(pts),
             "suspect": sorted({f["point"] for f in out}), "findings": sorted(out, key=lambda f: f["start"]),
             **({"errors": errors[:5]} if errors else {}), **(_values_out(pts, vals, times) if values else {})}
@@ -365,7 +388,7 @@ def changes(conn, fid: str, since: str, until: str, step: int | None = None, src
     step = step or timeseries.auto_step((b - a).total_seconds() / 3600, 2000)
     window_minutes = max(window_minutes, 6 * step)
     times = _grid(a, b, step)
-    out, errors, vals = [], [], {}
+    out, errors, vals, th = [], [], {}, thresholds(conn)
     pts = _points(conn, fid)
     for p in pts:
         try:
@@ -373,7 +396,7 @@ def changes(conn, fid: str, since: str, until: str, step: int | None = None, src
         except Exception as e:
             errors.append(f"{p['point']}: {e}")
             continue
-        for c in detect_changes(times, v, step, window_minutes):
+        for c in detect_changes(times, v, step, window_minutes, th=th):
             basis = {"step": f"median of the {window_minutes} min after against the {window_minutes} min before",
                      "variance": f"step-to-step spread over the {window_minutes} min after against before",
                      "drift": "straight-line trend between steps, against the spread around it"}[c["kind"]]

@@ -262,7 +262,7 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
     if found and "unit_id" in found[0]:  # the SRE's detections carry their unit: score its upsets too
         from ..ops import sre
 
-        res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn)), a, b)
+        res["grouping"] = score_groups(spec, sre.group_detections(found, sre.topology(conn), **sre.grouping(conn)), a, b)
     return {"detector": name, "since": since, "until": until, "windows": len(seconds),
             "seconds_per_window": round(statistics.mean(seconds), 2) if seconds else None,
             "learn_days": learn_days, "relearn_days": relearn_days if learn_days else None, **res}
