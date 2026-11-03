@@ -6,10 +6,11 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from .core import db
-from .core.pack import load_pack
-from .graph import pipeline
-from .sources import ingest
+from ..core import db
+from ..core.pack import load_pack
+from ..graph import pipeline
+from ..resources import ROOT
+from ..sources import ingest
 
 
 def main(argv=None):
@@ -142,11 +143,11 @@ def main(argv=None):
     elif args.cmd in ("ask", "chat"):
         _assistant(args)
     elif args.cmd == "mcp":
-        from .agents import mcp_server
+        from ..agents import mcp_server
 
         mcp_server.main(http=args.http, host=args.host, port=args.port)
     elif args.cmd == "work":
-        from .workflow import engine, worker
+        from ..workflow import engine, worker
 
         with db.connect() as conn:
             db.init_schema(conn)
@@ -163,14 +164,14 @@ def main(argv=None):
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "suggest-mappings":
-                from .sources import suggest
+                from ..sources import suggest
 
                 _print(suggest.run(conn, pack, data, claude=args.claude, datasets=args.table))
             elif args.cmd == "ingest":
                 _print(ingest.ingest(conn, data, full=args.full))
             elif args.cmd == "llm-link":
-                from .graph import llm_links
-                from .sources import llm_pids
+                from ..graph import llm_links
+                from ..sources import llm_pids
 
                 opts = {k: v for k, v in {"model": args.model, "effort": args.effort}.items() if v}
                 common = {"limit": args.limit, "workers": args.workers, "batch": args.batch, "force": args.force,
@@ -181,10 +182,10 @@ def main(argv=None):
                 if args.source in ("pids", "all"):
                     result["pids"] = llm_pids.run(conn, pack, **common)
                 if args.source in ("docs", "all"):
-                    from .sources import llm_docs
+                    from ..sources import llm_docs
                     result["docs"] = llm_docs.run(conn, pack, **common)
                 if args.source in ("curves", "all"):  # OEM datasheets -> curve review items
-                    from .sources import llm_curves
+                    from ..sources import llm_curves
                     result["curves"] = llm_curves.run(conn, pack, **common)
                 _print(result)
                 if not (args.dry_run or args.no_rebuild) and any(r.get("stored") for r in result.values()):
@@ -192,7 +193,7 @@ def main(argv=None):
             elif args.cmd == "pid-score":
                 import json as _json
 
-                from .sources import llm_pids
+                from ..sources import llm_pids
 
                 truth = Path(args.truth or data / "pid_truth.json")
                 if not truth.is_file():
@@ -202,7 +203,7 @@ def main(argv=None):
             elif args.cmd == "eval" and args.ops:
                 _ops_eval(conn, pack, args, data)
             elif args.cmd == "eval":
-                from .evals import evaluate
+                from ..evals import evaluate
                 keys = Path(args.keys or data / "answer_keys")
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
@@ -222,8 +223,8 @@ def main(argv=None):
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
             elif args.cmd == "report":
-                from .ops import daily_report, operations
-                from .workflow import engine
+                from ..ops import daily_report, operations
+                from ..workflow import engine
 
                 engine.load_defaults(conn)
                 day = args.day or operations.as_of(conn)
@@ -232,20 +233,20 @@ def main(argv=None):
                     _print(daily_report.redraft(conn, day))
                 print(daily_report.get(conn, day)["markdown"])
             elif args.cmd == "board":
-                from .ops import board
+                from ..ops import board
 
                 _print(board.refresh(conn, pack) if args.action == "refresh" else board.cards(conn, per_page=args.limit))
             elif args.cmd == "sre":
-                from .ops import sre
+                from ..ops import sre
 
                 _print(sre.scan(conn, pack, args.since, args.until))
                 if args.handoff:
-                    from .ops import sre_handoff
-                    from .workflow import engine
+                    from ..ops import sre_handoff
+                    from ..workflow import engine
 
                     engine.load_defaults(conn)
                     _print(sre_handoff.handoff(conn, pack, max_diagnoses=args.max_diagnoses))
-                    from .ops import board
+                    from ..ops import board
 
                     _print({"board": board.refresh(conn, pack)})
 
@@ -253,8 +254,8 @@ def main(argv=None):
 def _limits(conn, pack, args) -> None:
     from datetime import datetime, timedelta
 
-    from .analysis import limits
-    from .ops import operations
+    from ..analysis import limits
+    from ..ops import operations
 
     if args.action == "issues":
         found = limits.issues(conn, pack)
@@ -266,7 +267,7 @@ def _limits(conn, pack, args) -> None:
     if args.action == "learn":
         _print(limits.learn(conn, pack, since, until.isoformat(timespec="minutes"), args.step or 60))
     else:
-        from .workflow import engine
+        from ..workflow import engine
 
         engine.load_defaults(conn)
         _print(limits.scan(conn, pack, since, until.isoformat(timespec="minutes"), args.step or 10))
@@ -275,11 +276,11 @@ def _limits(conn, pack, args) -> None:
 def _ops_eval(conn, pack, args, data: Path) -> None:
     from datetime import datetime, timedelta
 
-    from .evals import replay
-    from .ops import operations
+    from ..evals import replay
+    from ..ops import operations
 
     if not (data / "process_model.json").is_file():  # the fake plant's own folder for this pack
-        own = Path(__file__).resolve().parents[2] / "fakeplant" / "data" / pack.name
+        own = ROOT / "fakeplant" / "data" / pack.name
         data = own if (own / "process_model.json").is_file() else data
     if args.full and not (args.since or args.until) and (data / "process_model.json").is_file():
         since, until_s = replay.default_window(json.loads((data / "process_model.json").read_text()))
@@ -290,7 +291,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
         until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
         since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
     if args.full:
-        from .evals import ops_eval
+        from ..evals import ops_eval
 
         if not (data / "process_model.json").is_file():
             raise SystemExit("no process_model.json: set FUZER_DATA_DIR to the fake plant's folder")
@@ -316,7 +317,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
 def _assistant(args) -> None:
     import asyncio
 
-    from . import agents
+    from .. import agents
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise SystemExit("Set ANTHROPIC_API_KEY (in .env) for the operations assistant.")
     db.database_url()  # start embedded Postgres up front if it's in use
@@ -358,7 +359,7 @@ def _bench(conn, pack) -> dict:
     """Best of three timings (ms) for the queries the UI and agents use most, on whatever is loaded."""
     import time
 
-    from .graph import edges, queries
+    from ..graph import edges, queries
 
     def best(fn):
         times = []

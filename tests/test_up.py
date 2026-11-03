@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fuzer import up
+from fuzer.cli import up
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 
