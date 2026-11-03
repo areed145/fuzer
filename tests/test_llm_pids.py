@@ -10,8 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import db, ingest, llm_pids, pipeline
-from fuzer.pack import load_pack
+from fuzer import ingest, llm_pids, pipeline
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 SHEET = "OSB-44-PID-001"
@@ -84,8 +85,9 @@ def test_image_is_ingested_with_fingerprint(setup):
 def test_tiles_stay_within_size_limit(setup):
     conn, _ = setup
     p = conn.execute("select payload from source_record where source_key = %s", (SHEET,)).fetchone()["payload"]
-    from PIL import Image
     import io
+
+    from PIL import Image
     t = llm_pids.tiles(p["image_path"])
     assert len(t) == 4 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
     assert [box for _, _, box in t] == llm_pids.tile_boxes(2200, 1500)

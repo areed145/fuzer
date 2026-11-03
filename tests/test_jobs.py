@@ -8,7 +8,8 @@ import dagster as dg
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, jobs
+from fuzer import jobs
+from fuzer.core import db
 
 
 @pytest.fixture(scope="module")

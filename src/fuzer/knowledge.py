@@ -7,7 +7,7 @@ items linked to anything in it. Ranking = text match x how close the link is x h
 source is. Questions match on any of their words, so full sentences still find passages.
 """
 
-from . import db
+from .core import db
 
 AUTHORITY = {"oem_manual": 1.0, "procedure": 1.0, "troubleshooting_guide": 0.9, "lesson": 0.85, "incident": 0.7}
 COLS = ["fuzer_id", "kind", "document", "title", "doc_type", "status", "heading", "page", "body", "scope_ids",

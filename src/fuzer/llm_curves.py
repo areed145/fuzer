@@ -15,9 +15,9 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
+from .core.pack import Pack
 from .extract import model_key
 from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, usage
-from .pack import Pack
 
 PROMPT_VERSION = "2026-11-01.1"
 CACHE = "datasheet"

@@ -5,7 +5,7 @@ import tempfile
 
 from fastapi.testclient import TestClient
 
-from fuzer import db
+from fuzer.core import db
 
 
 def test_api_start_creates_missing_tables():

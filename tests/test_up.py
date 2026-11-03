@@ -4,8 +4,9 @@ import os
 import tempfile
 from pathlib import Path
 
-from fuzer import db, up
-from fuzer.pack import load_pack
+from fuzer import up
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 

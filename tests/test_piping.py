@@ -6,8 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, graph, ingest, llm_pids, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import graph, ingest, llm_pids, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -57,6 +58,7 @@ def test_claude_connections_from_drawings():
 
 def test_api_network_rel(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     assert client.get("/network", params={"rel": "pipes_to"}).json()["edges"]

@@ -8,7 +8,7 @@ the curve through instance_of. Charts (plot_pump_curve, plot_choke) read them fr
 
 from collections import Counter
 
-from . import db
+from .core import db
 
 COLS = ["model_id", "source", "series", "x", "curve", "y", "x_unit", "y_unit", "record"]
 

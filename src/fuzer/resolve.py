@@ -14,9 +14,9 @@ from itertools import combinations
 from psycopg.types.json import Jsonb
 from rapidfuzz import fuzz, utils
 
-from . import db
-from .model import Candidate
-from .pack import Pack
+from .core import db
+from .core.model import Candidate
+from .core.pack import Pack
 
 
 class Clusters:

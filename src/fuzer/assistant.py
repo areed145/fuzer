@@ -10,7 +10,7 @@ measurements PI doesn't have (lab results, well tests, wall thickness) come next
 """
 
 from . import knowledge, lessons, measurements, queries
-from .pack import Pack
+from .core.pack import Pack
 
 
 def brief(conn, pack: Pack, fuzer_id: str) -> dict:

@@ -6,8 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import ingest, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -75,6 +76,7 @@ def test_daily_reports(conn):
 
 def test_api(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     assert client.get("/downtime/ranking", params={"by": "reason"}).status_code == 200

@@ -6,8 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import ingest, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 

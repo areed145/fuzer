@@ -7,7 +7,7 @@ page, the troubleshooting brief and the assistant read them from there next to P
 from collections import Counter
 from datetime import datetime
 
-from . import db
+from .core import db
 
 COLS = ["record", "quantity", "fuzer_id", "at", "value", "unit", "qualifier", "reported", "method", "location"]
 

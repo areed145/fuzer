@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from . import nel
-from .pack import Pack
+from .core.pack import Pack
 
 
 class AmbiguousRef(LookupError):

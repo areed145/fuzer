@@ -23,7 +23,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 import numpy as np
-from . import db
+
+from .core import db
 
 COLS = ["record", "limit_type", "point_id", "source", "basis", "value", "unit", "reported", "level", "allowed_minutes",
         "enabled", "valid_from", "valid_to", "note"]

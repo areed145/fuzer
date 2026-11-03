@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from psycopg.types.json import Jsonb
 
 from . import nel
-from .model import Candidate, Edge
-from .pack import Pack
+from .core.model import Candidate, Edge
+from .core.pack import Pack
 
 PROMPT_VERSION = "2026-10-29.2"
 

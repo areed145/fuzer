@@ -13,9 +13,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from psycopg.types.json import Jsonb
 
+from .core.model import Candidate, Edge
+from .core.pack import Pack
 from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage
-from .model import Candidate, Edge
-from .pack import Pack
 from .taxonomy import load_standard
 
 PROMPT_VERSION = "2026-10-29.2"

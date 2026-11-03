@@ -341,7 +341,7 @@ def score_breakdown(conn, ref: str, pack=None) -> Figure:
     """What makes up one item's #100 score: production, risk and compliance at stake, the urgency factor and
     the effort, so people can see why one card ranks above another."""
     from .. import value
-    from ..pack import load_pack
+    from ..core.pack import load_pack
 
     pack = pack or load_pack()
     found = value.ranked(conn, pack, ref_id=ref, limit=5)["items"]

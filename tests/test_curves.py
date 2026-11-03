@@ -12,8 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import okan
-from fuzer import curves, db, ingest, llm_curves, mcp_server, pipeline, plots, queries
-from fuzer.pack import load_pack
+from fuzer import curves, ingest, llm_curves, mcp_server, pipeline, plots, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 from fuzer.plots import maintenance, production
 
 PACK = load_pack("okan")

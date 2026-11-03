@@ -8,8 +8,9 @@ import pytest
 from mcp import Client
 
 from fakeplant import offshore
-from fuzer import db, ingest, pipeline
-from fuzer.pack import load_pack
+from fuzer import ingest, pipeline
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 
 @pytest.fixture(scope="module")

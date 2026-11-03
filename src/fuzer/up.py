@@ -17,7 +17,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import db, ingest, pipeline
+from . import ingest, pipeline
+from .core import db
 
 ROOT = Path(__file__).resolve().parents[2]
 UI = ROOT / "ui"
@@ -84,7 +85,7 @@ def read_with_claude(conn, pack) -> None:
     rebuild once with what it found.
     Readings are cached by the text they read, so only new or changed records cost anything."""
     from . import llm_curves, llm_docs, llm_links, llm_pids
-    from .pricing import cost
+    from .core.pricing import cost
 
     readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),
                ("document sections", "sections", llm_docs.run), ("datasheets", "datasheets", llm_curves.run)]
@@ -127,7 +128,7 @@ def build_ui() -> None:
 
 def use_demo(name: str):
     """Point everything at one fake plant: its asset pack and its data folder."""
-    from .pack import load_pack
+    from .core.pack import load_pack
 
     fake = _fake_plant()
     if fake is None or name not in fake.PACKS:

@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, mappings, pipeline
-from fuzer.pack import load_pack
+from fuzer import ingest, mappings, pipeline
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -101,7 +102,7 @@ def test_bad_mappings_fail_clearly(raw, message):
 
 
 def test_when_and_unless_test_values():
-    from fuzer.pack import load_pack
+    from fuzer.core.pack import load_pack
 
     pack = load_pack("okan")
     m = mappings.Mapping({"source": "ec", "record_type": "edge", "shape": "network", "links": [

@@ -11,8 +11,18 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import calcs, db, hydraulics, ingest, mcp_server, pipeline, queries, sre, timeseries
-from fuzer.pack import load_pack
+from fuzer import (
+    calcs,
+    hydraulics,
+    ingest,
+    mcp_server,
+    pipeline,
+    queries,
+    sre,
+    timeseries,
+)
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 from fuzer.process_model import ProcessModel
 
 PACK = load_pack("okan")

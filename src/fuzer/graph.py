@@ -5,8 +5,8 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from . import db
-from .model import Candidate, Edge
+from .core import db
+from .core.model import Candidate, Edge
 
 
 def _date(s: str | None) -> date | None:

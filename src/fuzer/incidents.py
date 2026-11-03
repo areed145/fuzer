@@ -13,8 +13,8 @@ confirms it. One sorted pass per unit, after the graph is built.
 from collections import Counter, defaultdict
 from datetime import date
 
-from . import db
-from .model import Candidate, Edge
+from .core import db
+from .core.model import Candidate, Edge
 
 WINDOW_DAYS = 3
 SOURCE = "fuzer"
