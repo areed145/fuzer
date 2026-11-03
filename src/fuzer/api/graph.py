@@ -73,7 +73,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         if d.decision != "reject":
             import yaml
 
-            from .sources import mappings
+            from ..sources import mappings
 
             text = p["yaml"] if d.decision == "accept" else d.value
             try:
@@ -94,7 +94,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
             conn.execute("update dataset_state set schema = %s where dataset = %s", (Jsonb(p["new"]), p["dataset"]))
     elif item["kind"] == "curve":  # a datasheet Claude read: accept as read, or choose with corrections
         if d.decision != "reject":
-            from .sources import llm_curves
+            from ..sources import llm_curves
             if d.decision == "choose" and not isinstance(d.value, dict):
                 raise HTTPException(400, "choose needs the corrected reading")
             llm_curves.accept(conn, item, d.by, d.value if d.decision == "choose" else None)

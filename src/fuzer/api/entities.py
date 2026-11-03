@@ -58,7 +58,7 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
                   direct: bool = False, conn=Depends(get_conn)):
     """Process values on a unit (or an incident's unit), or of one timeseries, around a time, from the
     time-series provider. `direct`: only the entity's own points, not its instruments'."""
-    from .sources import timeseries
+    from ..sources import timeseries
     return timeseries.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
                              direct=direct, pack=deps.PACK)
 
@@ -67,21 +67,21 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
 def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
     """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned
     normal range, checks that fail and the latest excursions (#101)."""
-    from .analysis import limits
+    from ..analysis import limits
     return limits.for_entity(conn, deps.PACK, fuzer_id, at)
 
 
 @router.get("/limits/issues")
 def limit_issues(conn=Depends(get_conn)):
     """Limits that look wrong or are missing across the asset (#101)."""
-    from .analysis import limits
+    from ..analysis import limits
     return limits.issues(conn, deps.PACK)
 
 
 @router.get("/excursions")
 def excursions(since: str | None = None, basis: str | None = None, limit: int = 200, conn=Depends(get_conn)):
     """Recorded excursions outside alarm limits, IOWs and learned ranges, newest first (#101)."""
-    from .analysis import limits
+    from ..analysis import limits
     return limits.recent(conn, since, basis, min(limit, 2000))
 
 
@@ -89,14 +89,14 @@ def excursions(since: str | None = None, basis: str | None = None, limit: int = 
 def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str | None = None,
                         until: str | None = None, conn=Depends(get_conn)):
     """Landed measurements (well tests, lab results, wall thickness) on an entity, per quantity and location."""
-    from .graph import measurements
+    from ..graph import measurements
     return measurements.for_entity(conn, fuzer_id, quantity, since, until)
 
 
 @router.get("/entities/{fuzer_id}/curves")
 def entity_curves(fuzer_id: str, conn=Depends(get_conn)):
     """The OEM curves for an equipment model, or for the model of an equipment item or tag."""
-    from .analysis import curves
+    from ..analysis import curves
     model = curves.model_of(conn, fuzer_id)
     return (curves.for_model(conn, model) if model else None) or {"model_id": model, "series": {},
                                                                   "waiting": curves.waiting(conn, model) if model else []}
@@ -124,7 +124,7 @@ def entity_events(fuzer_id: str, since: str | None = None, until: str | None = N
 def map_features(bbox: str | None = Query(None, description="min lon,min lat,max lon,max lat"),
                  kind: list[str] | None = Query(None), limit: int = 20000, conn=Depends(get_conn)):
     """Everything with a location, as GeoJSON (facilities, pipelines, wells, ...)."""
-    from .graph import spatial
+    from ..graph import spatial
 
     box = tuple(float(x) for x in bbox.split(",")) if bbox else None
     if box is not None and len(box) != 4:
@@ -135,7 +135,7 @@ def map_features(bbox: str | None = Query(None, description="min lon,min lat,max
 @router.get("/entities/{fuzer_id}/map")
 def entity_map(fuzer_id: str, conn=Depends(get_conn)):
     """An entity's location and the located things linked to it, as GeoJSON (`focus` is the place shown)."""
-    from .graph import spatial
+    from ..graph import spatial
 
     return spatial.around(conn, fuzer_id)
 
