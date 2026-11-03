@@ -46,6 +46,7 @@ dev = [
     "spiffworkflow>=3.2.0",
     "import-linter>=2.1",
     "pytest-xdist>=3.6",
+    "pytest-randomly>=3.15",
 ]
 
 [tool.uv]
@@ -67,6 +68,8 @@ packages = ["src/fuzer"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The e2e tier (week-long replays and evals, minutes each) runs only when asked: pytest -m e2e. A later -m wins.
+addopts = "-m 'not e2e'"
 # Tiers (#137), set by tests/conftest.py from what each test uses: `pytest -m unit` for the quick ones.
 markers = [
     "unit: pure functions on small in-memory inputs; no Postgres, no generated plant",

@@ -21,6 +21,8 @@ os.environ["FUZER_ENV_FILE"] = "none"
 # an embedded Postgres in a temporary folder.
 os.environ.pop("FUZER_DATABASE_URL", None)
 os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")
+# Nor a Claude key: tests run on recorded or fake answers, so one that forgets its fake fails instead of paying.
+os.environ.pop("ANTHROPIC_API_KEY", None)
 
 PLANTS = {  # name: (generator module, pack)
     "okan": ("okan", "okan"),

@@ -124,7 +124,7 @@ or with `fuzer settings`, not an environment variable.
 
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
-`uv run pytest -n auto --dist loadfile` runs the tests in parallel, each worker on its own throwaway database; `uv run pytest -m unit` runs only the quick ones (no database, a few seconds), `-m integration` and `-m e2e` (the replays and evals) the rest.
+`uv run pytest -n auto --dist loadfile` runs the tests in parallel, each worker on its own throwaway database; `uv run pytest -m unit` runs only the quick ones (no database, a few seconds). The e2e tier (week-long replays and evals) is left out unless asked for with `-m e2e`; CI runs it on main. Tests run in random order (pytest-randomly; `-p no:randomly` turns it off) and never see `ANTHROPIC_API_KEY`.
 
 ### Operations assistant (Claude agents)
 
