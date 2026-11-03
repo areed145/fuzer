@@ -145,7 +145,8 @@ plant. Needs `ANTHROPIC_API_KEY`. A cross-domain answer on Okan takes one to
 two minutes and costs about a dollar on Claude Opus 5.5; each answer shows its
 cost per model. `fuzer settings set agents.specialist_model claude-sonnet-5-5` runs the
 specialists on Sonnet (the orchestrator stays on `agents.model`). `uv run fuzer eval --agents` scores it per domain against
-`answer_keys/assistant.json`.
+`answer_keys/assistant.json`. Every tool, the agents that use it and the calc checks are listed in
+[docs/capabilities.md](docs/capabilities.md), generated from the capability registry.
 
 Answers can include interactive charts (Plotly; `src/fuzer/plots/`): trends,
 incident timelines, correlation heatmaps, vibration against ISO 20816 zones,

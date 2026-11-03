@@ -7,6 +7,7 @@ import pytest
 
 from fuzer import agents
 from fuzer.agents import capabilities, mcp_server
+from fuzer.analysis import calcs
 
 
 def test_every_tool_is_declared_once_with_a_kind_and_a_docstring():
@@ -38,3 +39,14 @@ def test_skills_only_name_tools_their_agent_has():
             if name not in allowed:
                 bad.append(f"{md.relative_to(agents.SKILLS)}: {name}")
     assert not bad, bad
+
+
+def test_catalogue_is_current():
+    """docs/capabilities.md is generated from the registry: regenerate with
+    `uv run python -m fuzer.agents.capabilities > docs/capabilities.md`."""
+    from pathlib import Path
+
+    doc = Path(__file__).parents[2] / "docs" / "capabilities.md"
+    assert doc.read_text() == capabilities.catalogue()
+    assert sum(1 for line in doc.read_text().splitlines() if line.startswith("| `") and "|---" not in line) == \
+        len(capabilities.REGISTRY) + len(calcs.CHECKS)
