@@ -367,7 +367,9 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
     message = f"Fuzer job '{context.dagster_run.job_name}' failed (run {context.dagster_run.run_id[:8]}): " \
               f"{context.failure_event.message}"
     context.log.error(message)
-    if url := os.environ.get("FUZER_ALERT_WEBHOOK"):
+    from ..core import settings
+
+    if url := settings.secret(None, "alerts.webhook"):
         req = urllib.request.Request(url, data=json.dumps({"text": message}).encode(),
                                      headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=10)

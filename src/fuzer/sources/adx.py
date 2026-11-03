@@ -11,20 +11,20 @@ FUZER_ADX_DATABASE, FUZER_ADX_TOKEN (a bearer token; Entra ID sign-in comes with
 cluster to try it on: `uv run fakeplant historian`.
 """
 
-import os
 import re
 from collections.abc import Iterator
 from datetime import datetime
 
 import httpx
 
+from ..core import settings
 from .connectors import LiveTable
 
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def configured() -> bool:
-    return bool(os.environ.get("FUZER_ADX_URL"))
+    return bool(settings.get(None, "sources.adx.url"))
 
 
 def quote(s: str) -> str:
@@ -33,12 +33,12 @@ def quote(s: str) -> str:
 
 class Client:
     def __init__(self, url: str | None = None, database: str | None = None, http: httpx.Client | None = None):
-        if not (url := url or os.environ.get("FUZER_ADX_URL")):
-            raise ValueError("FUZER_ADX_URL isn't set")
+        if not (url := url or settings.get(None, "sources.adx.url")):
+            raise ValueError("no ADX URL: set sources.adx.url (or FUZER_ADX_URL)")
         self.url = url.rstrip("/")
-        self.database = database or os.environ.get("FUZER_ADX_DATABASE", "")
+        self.database = database or settings.get(None, "sources.adx.database")
         if http is None:
-            token = os.environ.get("FUZER_ADX_TOKEN")
+            token = settings.secret(None, "sources.adx.token")
             http = httpx.Client(headers={"Authorization": f"Bearer {token}"} if token else {}, timeout=120)
         self.http = http
 
@@ -62,7 +62,7 @@ class SeriesCatalog(LiveTable):
         super().__init__(f"{self.client.url}/{self.client.database}")
 
     def read(self) -> Iterator[dict]:
-        catalog = os.environ.get("FUZER_ADX_CATALOG", "SeriesCatalog")
+        catalog = settings.get(None, "sources.adx.catalog")
         if not IDENT.match(catalog):
             raise ValueError(f"bad catalog table name {catalog!r}")
         for r in self.client.query(f"{catalog} | project SeriesId, PiPoint, Description, Units, ValuesTable"):
