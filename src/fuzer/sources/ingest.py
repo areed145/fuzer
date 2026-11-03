@@ -110,15 +110,22 @@ class _Manifest:
         return self.load(self.path)
 
 
-def dataset(data_dir: Path, name: str):
-    """The connector for one dataset: a live system when one is configured for it (connectors.live),
-    else the export in data_dir, or None when it isn't there."""
+def dataset(data_dir: Path, name: str, conn=None):
+    """The connector for one dataset: a live system when one is configured for it (connectors.live), else
+    where its mapping says (`location`, `connector`), else the export in data_dir; None when it isn't there.
+    With a connection, mappings approved in the review queue count too."""
     if (live := connectors.live(name)) is not None:
         return live
     if name in FILES:
         file, ref, load = FILES[name]
         return _Manifest(data_dir / file, ref, load) if (data_dir / file).is_file() else None
-    return connectors.find(data_dir, name)
+    m = tables(conn).get(name)
+    if m is not None and m.location:
+        return connectors.at(Path(data_dir) / m.location, m.connector)  # an absolute location wins
+    c = connectors.find(data_dir, name)
+    if c is not None and m is not None and m.connector and c.kind != m.connector:
+        return None  # the file there isn't the kind the mapping names
+    return c
 
 
 def _records(name: str, conn_, since=None, tabs=None):
@@ -163,7 +170,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
 
     plan = []  # decide every dataset before COPY starts: nothing else may run on conn during it
     for name in exports or export_names(conn):
-        if (c := dataset(data_dir, name)) is None:
+        if (c := dataset(data_dir, name, conn)) is None:
             continue
         prev = state.get(name) or {}
         fp = c.fingerprint()

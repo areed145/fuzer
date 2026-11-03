@@ -25,10 +25,10 @@ def listing(conn, data_dir) -> list[dict]:
     tables = ingest.tables(conn)
     loaded, held = _state(conn)
     names = sorted(set(connectors.datasets(data_dir)) | {n for n in ingest.export_names(conn)
-                                                         if ingest.dataset(data_dir, n) is not None})
+                                                         if ingest.dataset(data_dir, n, conn) is not None})
     out = []
     for name in names:
-        c = ingest.dataset(data_dir, name)
+        c = ingest.dataset(data_dir, name, conn)
         if c is None:
             continue
         m, prev = tables.get(name), loaded.get(name)
@@ -49,7 +49,7 @@ def listing(conn, data_dir) -> list[dict]:
 
 def preview(conn, pack, data_dir, name: str, rows: int = 5) -> dict:
     """One table: a sample, its schema and drift since the last load, and what it would make."""
-    c = ingest.dataset(Path(data_dir), name)
+    c = ingest.dataset(Path(data_dir), name, conn)
     if c is None:
         raise ValueError(f"no table {name!r} in {data_dir}")
     schema = c.schema()

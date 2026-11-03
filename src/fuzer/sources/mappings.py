@@ -11,6 +11,9 @@ for the same source and record type):
     dataset: sap_equipment  # tables only: the name it has in the data folder
     key: equnr              # tables only: record key column, or a list joined by ">"
     watermark: timestamp    # optional: append-only lake tables read rows at or after the last value
+    location: ../lake/sap/equipment  # optional: where the table is, when not `<dataset>` in the data folder
+                            # (relative to it, or absolute; a workbook sheet is `book.xlsx#Sheet`)
+    connector: delta        # optional: the reader (csv, parquet, delta, excel, json, geojson); default: by the file
     entity:                 # what the row is; omit for rows that are only links (BOM lines, network edges)
       kind: equipment
       key: {from: serial, as: serial}
@@ -125,6 +128,7 @@ def tables(conn=None) -> dict[str, "Mapping"]:
     return {m.dataset: m for m in load(conn).values() if m.dataset}
 
 
+CONNECTORS = ("csv", "parquet", "delta", "excel", "json", "geojson")
 SELF = object()  # endpoint: the record's own candidate
 LIMIT_TYPES = ("hihi", "hi", "lo", "lolo")
 DISABLED = {"n", "no", "false", "0", "disabled", "off"}
@@ -143,6 +147,11 @@ class Mapping:
             raise MappingError(f"unknown shape {raw['shape']!r}{self._where}; one of {sorted(SHAPES)}")
         self.source, self.record_type, self.shape = raw["source"], raw["record_type"], raw["shape"]
         self.dataset, self.watermark = raw.get("dataset"), raw.get("watermark")
+        self.location, self.connector = raw.get("location"), raw.get("connector")
+        if self.connector and self.connector not in CONNECTORS:
+            raise MappingError(f"unknown connector {self.connector!r}{self._where}; one of {list(CONNECTORS)}")
+        if (self.location or self.connector) and not self.dataset:
+            raise MappingError(f"location and connector are for tables (with a dataset){self._where}")
         key = raw.get("key")
         self.key = tuple(key) if isinstance(key, list) else key
         if self.dataset and not self.key:
