@@ -13,10 +13,11 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, plots, replay
+from fuzer import mcp_server, plots
 from fuzer.analysis import calcs, signals
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.evals import replay
 from fuzer.graph import pipeline, queries
 from fuzer.ops import operations
 from fuzer.plots import maintenance, production

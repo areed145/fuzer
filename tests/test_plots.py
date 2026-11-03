@@ -246,7 +246,7 @@ def test_images_attached_to_a_question_reach_claude(monkeypatch):
 
 
 def test_eval_scores_charts_in_answers(conn, okan_pack):
-    from fuzer import evaluate
+    from fuzer.evals import evaluate
 
     out = mcp_server.plot_decline("OK-J07-03")
     answer = {"answer": f"OK-J07-03 declines after the valve repair.\n\n{out['marker']}\n", "specialists": ["production"],

@@ -66,7 +66,7 @@ def test_wellheads_find_their_pads(conn):
     import json
     from pathlib import Path
 
-    from fuzer import evaluate
+    from fuzer.evals import evaluate
 
     truth = json.loads((Path(conn.data) / "answer_keys" / "spatial.json").read_text())
     assert len(truth) == 48 and conn.stats["spatial_links"] == {"well->area": 48}

@@ -182,7 +182,7 @@ Scores the loaded register against answer keys: knowledge search (hit@1, hit@3,
 MRR), document links and section failure modes (precision / recall), and
 operator-log reading (mentions, and event types once Claude has run). The fake
 generator writes keys for its data; for a real asset, curate the same JSON
-files (format in `src/fuzer/evaluate.py`).
+files (format in `src/fuzer/evals/evaluate.py`).
 
 ```sh
 uv run fuzer --pack okan eval --ops --since 2024-11-03 --until 2024-11-13

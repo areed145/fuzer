@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, replay
+from fuzer import mcp_server
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.evals import replay
 from fuzer.graph import pipeline
 from fuzer.ops import sre
 from fuzer.sources import ingest, timeseries
