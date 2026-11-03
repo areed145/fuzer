@@ -4,7 +4,7 @@ decide what can be connected."""
 
 import re
 
-HOPS = 4  # and on a unit this close in the plant model (compressor -> header -> manifold -> well)
+HOPS = 4  # default for the setting sre.hops (#131); and on a unit this close in the plant model (compressor -> header -> manifold -> well)
 LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
 TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
 
@@ -58,14 +58,14 @@ def topology(conn) -> dict[str, set[str]]:
     return adj
 
 
-def _near(adj: dict, a: str | None, b: str | None, cache: dict) -> bool:
+def _near(adj: dict, a: str | None, b: str | None, cache: dict, hops: int = HOPS) -> bool:
     if a is None or b is None:
         return False
     if a == b:
         return True
     if a not in cache:
         seen, frontier = {a}, {a}
-        for _ in range(HOPS):
+        for _ in range(hops):
             frontier = {n for u in frontier for n in adj.get(u, ())} - seen
             seen |= frontier
         cache[a] = seen
