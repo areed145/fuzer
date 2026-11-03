@@ -288,9 +288,12 @@ removed and their entities retired (IDs are kept and revived if they return).
 
 ### Lake tables (Parquet / Delta)
 
-Each table can be a CSV export, a `.parquet` file, or a lake-style folder of
-Parquet part files or a Delta table, found by name in
-the data folder (`sap_equipment/`, `sap_equipment.parquet`, `sap_equipment.csv`).
+Each table can be a CSV export, a `.parquet` file, a lake-style folder of
+Parquet part files or a Delta table, a GeoJSON file, an Excel sheet (`book.xlsx`
+for its first sheet, `book.sheet` for one of several; the header row is found
+under any title rows) or JSON records (`.jsonl`, or a `.json` list a mapping
+names), found by name in the data folder (`sap_equipment/`,
+`sap_equipment.parquet`, `sap_equipment.csv`, ...).
 
 ```sh
 uv run fakeplant generate --size medium --format parquet --out fakeplant/data/lake

@@ -10,8 +10,9 @@ part files and a Delta table alike:
   (`since=(column, value)`) so append-only tables read only rows at or after the last position.
 
 Tables are found by name in the data folder: `<name>/` (Delta if it has a `_delta_log`, else
-Parquet part files), `<name>.parquet`, `<name>.csv` or `<name>.geojson` (GIS), in that order. ADLS later: the same pyarrow
-datasets over an fsspec filesystem.
+Parquet part files), `<name>.parquet`, `<name>.csv`, `<name>.geojson` (GIS), `<name>.xlsx` (its first
+sheet; `<book>.<sheet>` names one sheet of `<book>.xlsx`), `<name>.jsonl` or `<name>.json` (a list of
+objects), in that order (#132). ADLS later: the same pyarrow datasets over an fsspec filesystem.
 
 Some datasets can come from a live system instead (`live()`): with FUZER_PI_WEB_API_URL set, the PI
 point list and AF tree are read through PI Web API (pi_web_api.py); with FUZER_ADX_URL, the ADX
@@ -149,6 +150,113 @@ class GeoJsonTable:
             yield {**(f.get("properties") or {}), "geometry": g, "geometry_type": g.get("type")}
 
 
+def _schema_of(rows: list[dict]) -> list[list[str]]:
+    """Columns in first-seen order, typed by their first non-empty value."""
+    cols: dict[str, str] = {}
+    for r in rows:
+        for k, v in r.items():
+            if cols.get(k, "null") == "null":
+                cols[k] = "null" if v is None else {"str": "string", "datetime": "timestamp"}.get(type(v).__name__,
+                                                                                                    type(v).__name__)
+    return [[k, v] for k, v in cols.items()]
+
+
+def _flatten(obj: dict, prefix: str = "") -> dict:
+    """Nested objects become dotted fields (`site.area`); lists stay as they are."""
+    out = {}
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out |= _flatten(v, f"{prefix}{k}.")
+        else:
+            out[f"{prefix}{k}"] = v
+    return out
+
+
+class ExcelTable:
+    """One sheet of an Excel workbook. The header is the first of the top 20 rows with the most text cells
+    (title rows and blank rows above a table are skipped); the table runs to the last non-empty row. Always
+    a full snapshot."""
+
+    kind = "excel"
+    watermarks = False
+
+    def __init__(self, path: Path, sheet: str | None = None):
+        self.path, self.sheet = path, sheet
+
+    def _rows(self) -> list[dict]:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(self.path, read_only=True, data_only=True)
+        try:
+            ws = wb[self.sheet] if self.sheet else wb.worksheets[0]
+            grid = [list(r) for r in ws.iter_rows(values_only=True)]
+        finally:
+            wb.close()
+        texts = [sum(isinstance(v, str) and v.strip() != "" for v in r) for r in grid[:20]]
+        if not texts or max(texts) == 0:
+            return []
+        h = texts.index(max(texts))
+        cols = [(i, str(v).strip()) for i, v in enumerate(grid[h]) if v is not None and str(v).strip()]
+        out = []
+        for r in grid[h + 1:]:
+            row = {c: _jsonable(r[i]) if i < len(r) else None for i, c in cols}
+            if any(v not in (None, "") for v in row.values()):
+                out.append(row)
+        return out
+
+    def fingerprint(self) -> str:
+        return _stat([self.path], self.path.parent) + (f":{self.sheet}" if self.sheet else "")
+
+    def schema(self) -> list[list[str]]:
+        return _schema_of(self._rows()[:200])
+
+    def rows(self, since=None) -> Iterator[dict]:
+        yield from self._rows()
+
+    @staticmethod
+    def sheets(path: Path) -> list[str]:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(path, read_only=True)
+        try:
+            return list(wb.sheetnames)
+        finally:
+            wb.close()
+
+
+class JsonTable:
+    """Records in JSON: a `.jsonl` file (one object per line), or a `.json` file holding a list of objects
+    (or an object with them under records, data, items or rows; any other object is a document, not a
+    table). Nested objects are flattened to dotted fields. Always a full snapshot."""
+
+    kind = "json"
+    watermarks = False
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def _rows(self) -> list[dict]:
+        import json
+
+        text = self.path.read_text()
+        if self.path.suffix == ".jsonl":
+            items = [json.loads(line) for line in text.splitlines() if line.strip()]
+        else:
+            items = json.loads(text)
+            if isinstance(items, dict):  # a wrapper object: only its conventional records key
+                items = next((items[k] for k in ("records", "data", "items", "rows") if isinstance(items.get(k), list)), [])
+        return [_flatten(x) for x in items if isinstance(x, dict)]
+
+    def fingerprint(self) -> str:
+        return _stat([self.path], self.path.parent)
+
+    def schema(self) -> list[list[str]]:
+        return _schema_of(self._rows()[:200])
+
+    def rows(self, since=None) -> Iterator[dict]:
+        yield from self._rows()
+
+
 class LiveTable:
     """A dataset read from a live system. There is no cheap change marker, so the first call reads
     everything once (kept for the rows() that follows) and the fingerprint is a hash of the content."""
@@ -205,7 +313,31 @@ def find(data_dir: Path, name: str):
         return CsvTable(data_dir / f"{name}.csv")
     if (data_dir / f"{name}.geojson").is_file():
         return GeoJsonTable(data_dir / f"{name}.geojson")
+    if (data_dir / f"{name}.xlsx").is_file():
+        return ExcelTable(data_dir / f"{name}.xlsx")
+    book, _, sheet = name.rpartition(".")
+    if book and (data_dir / f"{book}.xlsx").is_file() and sheet in ExcelTable.sheets(data_dir / f"{book}.xlsx"):
+        return ExcelTable(data_dir / f"{book}.xlsx", sheet)
+    if (data_dir / f"{name}.jsonl").is_file():
+        return JsonTable(data_dir / f"{name}.jsonl")
+    if (data_dir / f"{name}.json").is_file():
+        t = JsonTable(data_dir / f"{name}.json")
+        return t if t._rows() else None  # nested manifests (pi_af.json, ...) have their own loaders
     return None
+
+
+def datasets(data_dir: Path) -> list[str]:
+    """Every table name in data_dir a connector can read (an Excel workbook: one per sheet). A `.json` file
+    is read when a mapping names it, but isn't offered as a new table: fake plants and exports keep other
+    JSON beside their tables (manifests, process models)."""
+    names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")} | \
+            {p.stem for p in data_dir.glob("*.geojson")} | {p.stem for p in data_dir.glob("*.jsonl")}
+    names |= {p.name for p in data_dir.iterdir() if p.is_dir() and find(data_dir, p.name)}
+    for book in data_dir.glob("*.xlsx"):
+        if not book.name.startswith("~$"):  # Excel's lock file
+            sheets = ExcelTable.sheets(book)
+            names |= {book.stem} if len(sheets) == 1 else {f"{book.stem}.{s}" for s in sheets}
+    return sorted(names)
 
 
 def schema_drift(old: list[list[str]] | None, new: list[list[str]]) -> dict:

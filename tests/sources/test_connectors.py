@@ -157,3 +157,34 @@ def test_typed_columns_become_json(tmp_path):
     c = connectors.find(tmp_path, "t")
     assert next(c.rows()) == {"id": "a", "day": "2024-05-01", "at": "2024-05-01T07:30:00", "cost": 12.5, "n": 3}
     assert dict(map(tuple, c.schema()))["cost"] == "decimal128(10, 2)"
+
+
+def test_excel_sheets_and_json_records(tmp_path):
+    """#132: an Excel sheet (header found under title rows, one dataset per sheet) and JSON records (a list,
+    a wrapper object, JSON Lines; nested objects flattened) read like any other table."""
+    import json
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    a = wb.active
+    a.title = "pumps"
+    a.append(["Pump list"])
+    a.append(["tag", "rated_flow", "installed"])
+    a.append(["10-P-1001A", 120.5, dt.date(2020, 5, 1)])
+    a.append([None, None, None])
+    wb.create_sheet("motors").append(["tag", "kw"])
+    wb["motors"].append(["10-PM-1001A", 75])
+    wb.save(tmp_path / "rotating.xlsx")
+    (tmp_path / "events.jsonl").write_text('{"id": 1, "where": {"area": "10"}}\n{"id": 2, "where": {"area": "20"}}\n')
+    (tmp_path / "wrapped.json").write_text(json.dumps({"records": [{"k": "a"}], "meta": {"v": 1}}))
+    (tmp_path / "model.json").write_text(json.dumps({"units": {"a": 1}}))  # a document, not a table
+
+    pumps = connectors.find(tmp_path, "rotating.pumps")
+    assert list(pumps.rows()) == [{"tag": "10-P-1001A", "rated_flow": 120.5, "installed": "2020-05-01T00:00:00"}]
+    assert pumps.schema() == [["tag", "string"], ["rated_flow", "float"], ["installed", "string"]]
+    assert list(connectors.find(tmp_path, "rotating.motors").rows()) == [{"tag": "10-PM-1001A", "kw": 75}]
+    assert [r["where.area"] for r in connectors.find(tmp_path, "events").rows()] == ["10", "20"]
+    assert list(connectors.find(tmp_path, "wrapped").rows()) == [{"k": "a"}]
+    assert connectors.find(tmp_path, "model") is None
+    assert connectors.datasets(tmp_path) == ["events", "rotating.motors", "rotating.pumps"]  # .json: only when mapped
