@@ -18,6 +18,7 @@ from ..core.pack import load_pack
 from ..graph import edges, queries
 from ..workflow import bpmn
 from ..workflow import engine as work
+from . import capabilities
 
 PACK = load_pack()
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
@@ -77,6 +78,10 @@ when you answer. If a ref is ambiguous the tool returns candidates; pick one or 
 """
 
 server = MCPServer(name="fuzer", title="Fuzer asset graph", version="0.1.0", instructions=INSTRUCTIONS)
+# Each tool declares the agents that use it and its kind (#133). Charts are read-only like queries: a chart
+# is kept (assistant_figure) so the answer can show it, but no plant or register data changes, and clients
+# shouldn't ask for approval per chart.
+capability = capabilities.registrar(server, {"query": READ_ONLY, "calc": READ_ONLY, "plot": READ_ONLY, "work": WORK})
 
 REL_LABELS = {
     ("part_of", "out"): "part_of", ("part_of", "in"): "contains",
@@ -127,14 +132,14 @@ def _date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("orchestrator", kind="query")
 def get_stats() -> dict[str, Any]:
     """Counts of entities by kind, links, source records and open review items."""
     with db.connect() as conn:
         return queries.stats(conn, PACK)
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def get_ontology() -> dict[str, Any]:
     """The data model as it exists in Fuzer: entity kinds with counts, fields and feeding sources,
     and which link types connect which kinds (with counts and sources). Call this first when unsure
@@ -143,7 +148,7 @@ def get_ontology() -> dict[str, Any]:
         return _plain(queries.ontology(conn))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def search(query: str, kind: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Find entities by tag, well, PI point, serial number, source key or description text.
 
@@ -153,7 +158,7 @@ def search(query: str, kind: str | None = None, limit: int = 20) -> list[dict[st
         return _plain(queries.search(conn, PACK, query, kind, min(limit, 200)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
     """Everything Fuzer knows about one entity: chosen values (with source and any disagreeing
     sources), the source records merged into it, and its links grouped by relationship.
@@ -197,7 +202,7 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
     })
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("orchestrator", "troubleshooter", "production", kind="query")
 def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None, max_depth: int = 10,
                network: Literal["allocation", "lift_gas", "piping"] = "allocation") -> dict[str, Any]:
     """Follow a flow network from an entity.
@@ -223,7 +228,7 @@ def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | N
     })
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="query")
 def equipment_history(tag: str) -> dict[str, Any]:
     """Physical equipment installed at a tag over time (serial, manufacturer, model, install dates).
     Use it to answer questions like "when was 20-P-1001B swapped and what replaced it?"."""
@@ -249,7 +254,7 @@ def equipment_history(tag: str) -> dict[str, Any]:
          **(r["fields"] or {})} for r in rows]})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
     """Equipment removals and installs (swaps) across the facility, newest first.
     since (YYYY-MM-DD) limits to changes on or after that date."""
@@ -271,7 +276,7 @@ def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
     return _plain(rows)
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="query")
 def get_events(ref: str | None = None, since: str | None = None, until: str | None = None,
                event_type: str | None = None, limit: int = 50) -> dict[str, Any]:
     """What happened, from the operator logs: trips, starts, stops, changeovers, shut-ins, choke changes,
@@ -292,7 +297,7 @@ def get_events(ref: str | None = None, since: str | None = None, until: str | No
     return _plain({"for": fid or "facility", "events": rows})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("maintenance", kind="query")
 def list_members(ref: str, kind: Literal["tag", "equipment"] | None = None, limit: int = 100,
                  offset: int = 0) -> dict[str, Any]:
     """Everything in an equipment class (including its subtypes), e.g. ref="ISO14224:PU" for all pumps or
@@ -304,7 +309,7 @@ def list_members(ref: str, kind: Literal["tag", "equipment"] | None = None, limi
         return _plain({"of": fid, **queries.members(conn, fid, kind, min(limit, 500), offset)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="query")
 def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> dict[str, Any]:
     """SAP notifications and work orders for a tag, a piece of equipment, every instance of a model, or a
     whole class (e.g. "ISO14224:PU.CE"), newest first, with counts by ISO 14224 failure mode. since is a
@@ -316,7 +321,7 @@ def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> 
         return _plain({"for": fid, **queries.maintenance(conn, fid, since, min(limit, 200))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="query")
 def downtime(ref: str | None = None, since: str | None = None, until: str | None = None,
              rank_by: Literal["tag", "class", "reason"] | None = None, limit: int = 20) -> dict[str, Any]:
     """Production downtime and deferment from Energy Components, with lost oil (Sm3) and hours.
@@ -337,7 +342,7 @@ def downtime(ref: str | None = None, since: str | None = None, until: str | None
         return _plain({"for": fid or "facility", **queries.downtime(conn, fid, since, until, min(limit, 200))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def get_incidents(ref: str | None = None, since: str | None = None, until: str | None = None,
                   limit: int = 20) -> dict[str, Any]:
     """Incidents: logged events, downtime and SAP notifications on one piece of plant within a few days of
@@ -352,7 +357,7 @@ def get_incidents(ref: str | None = None, since: str | None = None, until: str |
         return _plain({"for": fid or "facility", **queries.incidents(conn, fid, since, until, min(limit, 200))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def incident_detail(ref: str) -> dict[str, Any]:
     """One incident's timeline (every event, downtime record and notification in it, in order), the most
     similar past incidents on the same unit or class (how those went is often the best clue), and suggested
@@ -367,7 +372,7 @@ def incident_detail(ref: str) -> dict[str, Any]:
                        "suggested_reading": knowledge.for_incident(conn, fid, 5)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
                      include_superseded: bool = False, failure_modes: list[str] | None = None) -> dict[str, Any]:
     """Search OEM manuals, troubleshooting guides, procedures and past incidents, returning cited
@@ -389,7 +394,7 @@ def search_knowledge(question: str, ref: str | None = None, limit: int = 8,
                                                     failure_modes)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def documents_for(ref: str) -> dict[str, Any]:
     """Current documents that apply to a tag / equipment / model / class: its OEM manual (via model), class
     procedures and area troubleshooting guides, closest first, with why each applies."""
@@ -401,7 +406,7 @@ def documents_for(ref: str) -> dict[str, Any]:
         return _plain({"for": fid, "documents": knowledge.documents_for(conn, fid)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
     """How the source records behind an entity changed: which system, when, and each field's old and new
     value (e.g. a manufacturer corrected in SAP, a description edited, a record removed from an export)."""
@@ -412,7 +417,7 @@ def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
         return _plain({"for": fid, "changes": queries.record_history(conn, PACK, fid, min(limit, 200))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="query")
 def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved", limit: int = 20) -> dict[str, Any]:
     """Lessons learned per equipment model (or class) and ISO 14224 failure mode: the corrective work that has
     fixed it before, how often it held for 30 days, and the incidents behind it. Approved lessons were
@@ -422,7 +427,7 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
         return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="query")
 def spare_parts(ref: str) -> dict[str, Any]:
     """Spare parts for a tag, piece of equipment or equipment model: SAP material, manufacturer part number,
     stock on hand (0 = none in stock), storage bin, how many units use it, and manual sections naming it."""
@@ -433,7 +438,7 @@ def spare_parts(ref: str) -> dict[str, Any]:
         return _plain({"for": fid, "parts": queries.spares(conn, fid)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def troubleshooting_brief(ref: str) -> dict[str, Any]:
     """Start here when troubleshooting. For an incident, tag or piece of equipment: what happened (timeline),
     similar past incidents and how they ended, engineer-approved lessons for its model / class, manual and
@@ -462,7 +467,7 @@ def troubleshoot(what: str) -> str:
    operator or engineer, and follow site procedures (permit to work, isolation)."""
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="query")
 def process_values(ref: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Process values (PI points on the unit and its instruments) around a time: per point min / max /
     mean / last and the provider used. For an incident, at defaults to its start. at is ISO date or time."""
@@ -478,7 +483,7 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
     return _plain(out)
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="query")
 def limits(ref: str, at: str | None = None) -> dict[str, Any]:
     """Operating limits on a PI point, or on every point of a unit (tag, equipment, well): the alarm limits
     that count (hihi / hi / lo / lolo, from the DCS or PI AF), integrity operating windows (IOWs: class,
@@ -496,7 +501,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 
 # --- diagnostics (calcs.py, signals.py): numbers with their basis, to cite as evidence -----------------
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="calc")
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
@@ -528,7 +533,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="calc")
 def instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Can the readings be trusted? On a PI point, or every point on a unit: frozen (no change while the
     unit runs), stuck (jitter collapsed), noisy (hunting: jitter several times its usual), out of range,
@@ -544,7 +549,7 @@ def instrument_health(ref: str, since: str | None = None, until: str | None = No
         return _plain(signals.instrument_health(conn, PACK, fid, since, until))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="calc")
 def detect_changes(ref: str, since: str | None = None, until: str | None = None, limit: int = 40) -> dict[str, Any]:
     """Where a PI point (or each point on a unit) stepped (a trip, a choke move), drifted (fouling, wear)
     or changed its jitter (a transmitter starting to hunt), with when it started, the value before and
@@ -558,7 +563,7 @@ def detect_changes(ref: str, since: str | None = None, until: str | None = None,
         return _plain(signals.changes(conn, fid, since, until, limit=min(limit, 200)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def detections(since: str | None = None, detector: Literal["excursions", "stops", "steps", "drifts", "instruments",
                                                            "models"] | None = None, limit: int = 100) -> dict[str, Any]:
     """What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit,
@@ -571,7 +576,7 @@ def detections(since: str | None = None, detector: Literal["excursions", "stops"
     return _plain({"detections": rows, "count": len(rows)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def get_upsets(since: str | None = None, status: Literal["detected", "confirmed", "resolved", "false_alarm"] | None = None,
                kind: Literal["process", "instrument", "slow"] = "process", limit: int = 30) -> dict[str, Any]:
     """Upsets the SRE found in the process data (#96), newest first: detections close in time and connected
@@ -584,7 +589,7 @@ def get_upsets(since: str | None = None, status: Literal["detected", "confirmed"
     return _plain({"upsets": rows, "count": len(rows)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="query")
 def upset_detail(upset_id: int) -> dict[str, Any]:
     """One upset: its detections in time order (the first is the likely first cause), with evidence, and
     how many on each unit."""
@@ -616,7 +621,7 @@ def _scope(conn, scope: str | list[str]) -> tuple[Any, dict | None]:
     return (out if isinstance(scope, list) else out[0]), None
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="calc")
 def correlate(target: str, scope: str | list[str] = "facility", since: str | None = None, until: str | None = None,
               max_lag_minutes: int = 360, path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up",
                                                         "lift_gas_to:down"] | None = None,
@@ -643,7 +648,7 @@ def correlate(target: str, scope: str | list[str] = "facility", since: str | Non
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="calc")
 def correlation_matrix(scope: str | list[str], since: str | None = None, until: str | None = None,
                        path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up", "lift_gas_to:down"] | None = None,
                        method: Literal["pearson", "spearman"] = "pearson", top: int = 15) -> dict[str, Any]:
@@ -663,7 +668,7 @@ def correlation_matrix(scope: str | list[str], since: str | None = None, until: 
     return _plain({k: v for k, v in out.items() if k not in ("matrix", "ids")} | {"order": out["order"][:60]})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def board(area: str | None = None, unit: str | None = None, kind: str | None = None, text: str | None = None,
           since: str | None = None, limit: int = 10) -> dict[str, Any]:
     """The work board (#99): outstanding work across SAP backlog, PMs and inspections, incidents and SRE
@@ -686,7 +691,7 @@ def board(area: str | None = None, unit: str | None = None, kind: str | None = N
     return _plain(out)
 
 
-@server.tool(annotations=READ_ONLY)
+@capability(kind="query")
 def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
     """The workflow steps your agent role can take now, highest on the board first. Claim one with
     claim_work."""
@@ -695,7 +700,7 @@ def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
         return _plain({"agent": agent, "steps": b.next_work(conn, agent, min(limit, 20))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def get_daily_ops_report(day: str | None = None, version: int | None = None) -> dict[str, Any]:
     """The daily operations report for a production day (YYYY-MM-DD; default the latest): headline,
     production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line
@@ -710,7 +715,7 @@ def get_daily_ops_report(day: str | None = None, version: int | None = None) -> 
     return _plain(out) if out else {"error": f"no report for {day}" if day else "no reports yet"}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="calc")
 def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
     """Pressure at each node from a well's wellhead down its flow path (jacket production header,
     separator, compressor suction) and the drop across each segment: where the back-pressure comes from."""
@@ -725,7 +730,7 @@ def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="calc")
 def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
     """Oil gained per bar less back-pressure, for each back-pressure-limited well in scope (a well, a jacket
     area or "facility") and summed per header: from the inflow and choke equations, and from the well's
@@ -740,7 +745,7 @@ def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> 
         return _plain(hydraulics.backpressure_sensitivity(conn, sc, at))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="calc")
 def debottleneck_options(scope: str = "facility", at: str | None = None, limit: int = 10) -> dict[str, Any]:
     """Ranked actions against back-pressure: lower a separator to its next limit, pig a flowline whose
     pressure drop is rising, reroute a well to a lower header, open a throttled choke. Each with oil gained
@@ -756,7 +761,7 @@ def debottleneck_options(scope: str = "facility", at: str | None = None, limit: 
         return _plain(hydraulics.debottleneck_options(conn, PACK, sc, at, limit=min(limit, 30)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="calc")
 def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
     """How close each point on a unit (compressor, separator, pump) runs to its nearest limit (alarm, IOW or
     learned range): what a debottleneck would run into next."""
@@ -771,7 +776,7 @@ def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="query")
 def opportunities(status: Literal["open", "rejected", "accepted", "project", "gone"] | None = "open",
                   limit: int = 20) -> dict[str, Any]:
     """Gains left on the table from the daily opportunity scan (#102): lift gas to reallocate between wells,
@@ -784,7 +789,7 @@ def opportunities(status: Literal["open", "rejected", "accepted", "project", "go
     return _plain({"opportunities": rows, "count": len(rows)})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="calc")
 def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Alarm performance (ISA-18.2 / EEMUA 191) over a window: alarms per hour against 6, floods (over 10 in
     10 minutes), chattering and standing alarms, and the top bad-actor points. An alarm is a point going past
@@ -799,7 +804,7 @@ def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str
         return _plain(alarms.alarm_analysis(conn, PACK, sc, since, until))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="calc")
 def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Stops (trips), starts and failed starts per unit with a run signal over a window, with the days between
     stops and the share of time running. scope: a unit or area (default: everything)."""
@@ -816,7 +821,7 @@ def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str,
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="calc")
 def compare_periods(ref: str, before_since: str, before_until: str, after_since: str, after_until: str) -> dict[str, Any]:
     """Did the change work? Each point on a PI point or unit in two windows (before and after a choke move,
     a repair, a swap): medians, the change, and whether it is significant (Welch's t with autocorrelation
@@ -832,7 +837,7 @@ def compare_periods(ref: str, before_since: str, before_until: str, after_since:
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "maintenance", kind="calc")
 def similar_cases(ref: str) -> dict[str, Any]:
     """Past incidents like this one (an incident, "upset:<id>", or a tag or well's latest incident): same unit
     or class, shared failure modes and event types, with the work orders done for each and whether the fix
@@ -850,7 +855,7 @@ def similar_cases(ref: str) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="calc")
 def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
     """Operating modes of a unit, train or list of points over a window: stopped (its run signals) and its
     running regimes (k-means on the points that carry them: fouling, a new setpoint), with each mode's share,
@@ -867,7 +872,7 @@ def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None 
     return _plain({k_: v for k_, v in out.items() if k_ not in ("times", "labels")})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="calc")
 def cluster_entities(kind: Literal["wells", "points"] = "wells", scope: str | None = None, since: str | None = None,
                      until: str | None = None) -> dict[str, Any]:
     """Peer groups: wells by decline, water cut and lift gas response; or the points in a scope by how they
@@ -885,7 +890,7 @@ def cluster_entities(kind: Literal["wells", "points"] = "wells", scope: str | No
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", kind="calc")
 def cluster_events(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """SRE upsets grouped by signature (which kinds of unit raised which findings): recurring upset types."""
     from ..analysis import clusters
@@ -896,7 +901,7 @@ def cluster_events(since: str | None = None, until: str | None = None) -> dict[s
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="calc")
 def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"],
                 params: dict[str, Any], agent: str = "assistant") -> dict[str, Any]:
     """Keep a correlation or clustering study (params as for correlate / correlation_matrix / cluster_modes /
@@ -919,7 +924,7 @@ def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entit
     return _plain({k: v for k, v in out.items() if k != "result"} | {"result": _trim(out.get("result"))})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="calc")
 def get_study(study_id: int) -> dict[str, Any]:
     """A kept study: its parameters, status, summary, figure and (when done) its top results."""
     from ..ops import study
@@ -935,7 +940,7 @@ def _trim(r):
     return {k: (v[:15] if isinstance(v, list) else v) for k, v in r.items()}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
     """What happened in the records between two times (plant time): new log events, notifications, work
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
@@ -946,7 +951,7 @@ def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[
         return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="query")
 def measurements(ref: str, quantity: str | None = None, since: str | None = None, until: str | None = None,
                  history: bool = False) -> dict[str, Any]:
     """Sparse measurements that aren't in PI, on a well, tag, equipment, pipeline or an incident's unit:
@@ -970,7 +975,7 @@ def measurements(ref: str, quantity: str | None = None, since: str | None = None
 
 # --- asset-wide operations (operations.py): dates default to the latest daily report ("today") ----
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="query")
 def production_summary(since: str | None = None, until: str | None = None,
                        by: Literal["month", "week"] = "month") -> dict[str, Any]:
     """Oil actual vs potential (production efficiency %), gas export, lift gas and flare per month or
@@ -980,7 +985,7 @@ def production_summary(since: str | None = None, until: str | None = None,
         return _plain(operations.production_summary(conn, since, until, by))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", "maintenance", kind="query")
 def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] = "reason",
                      since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
@@ -990,7 +995,7 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
         return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("production", kind="query")
 def production_constraints(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """What has been limiting production: losses by reason with the units that cause them, frequency,
     last occurrence and trend (worse / steady / better). Default: the last 12 months."""
@@ -999,7 +1004,7 @@ def production_constraints(since: str | None = None, until: str | None = None) -
         return _plain(operations.constraints(conn, since, until))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="query")
 def well_performance(ref: str | None = None, since: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
     wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
@@ -1014,7 +1019,7 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
         return _plain(operations.well_performance(conn, fid, since, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", kind="query")
 def gas_lift_network(ref: str | None = None, since: str | None = None, limit: int = 15) -> dict[str, Any]:
     """The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through
     another jacket) -> gas lifted wells. Per header: jackets, wells, lift gas and oil from latest tests. Per
@@ -1031,7 +1036,7 @@ def gas_lift_network(ref: str | None = None, since: str | None = None, limit: in
         return _plain(operations.gas_lift_network(conn, fid, since, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("maintenance", kind="query")
 def bad_actors(since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure
     modes, with MTBF per unit and per class. Default window: 2 years."""
@@ -1040,7 +1045,7 @@ def bad_actors(since: str | None = None, until: str | None = None, limit: int = 
         return _plain(operations.bad_actors(conn, since, until, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("maintenance", kind="query")
 def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest;
     open notifications with no order planned yet."""
@@ -1049,7 +1054,7 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("maintenance", kind="query")
 def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, limit: int = 25) -> dict[str, Any]:
     """Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks
     due within the horizon; tasks that need a shutdown are marked."""
@@ -1058,7 +1063,7 @@ def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, lim
         return _plain(operations.maintenance_compliance(conn, as_of, min(horizon_days, 1100), min(limit, 200)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("maintenance", kind="query")
 def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
     """Turnaround (shutdown) scope: work orders planned for the revision (default: the next one), plans
     that need the unit down and aren't in scope yet, bad actors not in scope, and spares for scoped
@@ -1068,7 +1073,7 @@ def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
         return _plain(operations.turnaround_scope(conn, revision))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("orchestrator", "maintenance", kind="calc")
 def value_score(ref: str | None = None,
                 kinds: list[Literal["incident", "work_order", "maintenance_plan", "opportunity"]] | None = None,
                 by: Literal["value", "per_effort"] = "value", as_of: str | None = None,
@@ -1089,7 +1094,7 @@ def value_score(ref: str | None = None,
         return _plain(value.ranked(conn, PACK, tuple(kinds or value.KINDS), as_of, by, fid, min(limit, 200)))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def link_text(text: str) -> list[dict[str, Any]]:
     """Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities.
     Short tags without an area (e.g. "PT-2001") may exist in several areas; those come back with
@@ -1098,7 +1103,7 @@ def link_text(text: str) -> list[dict[str, Any]]:
         return _plain(queries.link_text(conn, PACK, text))
 
 
-@server.tool(annotations=READ_ONLY)
+@capability(kind="query")
 def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Open questions waiting for a person: possible duplicate records ("match") and sources that
     disagree on a value ("conflict"). Decisions are made by people in the Fuzer web UI."""
@@ -1118,7 +1123,7 @@ def _work(fn, *args, **kwargs) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@server.tool(annotations=READ_ONLY)
+@capability(kind="query")
 def my_work(agent: AgentRole, limit: int = 20) -> dict[str, Any]:
     """Your open work as agent role `agent`: agent steps waiting for your role (claimed_by and
     lease_until show whether a worker has one), person steps you claimed or were handed, and work items
@@ -1126,7 +1131,7 @@ def my_work(agent: AgentRole, limit: int = 20) -> dict[str, Any]:
     return _work(work.agent_inbox, agent, min(limit, 200))
 
 
-@server.tool(annotations=WORK)
+@capability(kind="work")
 def claim_work(task_id: int, agent: AgentRole) -> dict[str, Any]:
     """Take a step before working on it, so no worker or other agent takes it too. An agent step is
     held with a lease (renewed by finishing in time); a person step that doesn't need a person is
@@ -1150,7 +1155,7 @@ def claim_work(task_id: int, agent: AgentRole) -> dict[str, Any]:
         return _plain(work.task(conn, task_id))
 
 
-@server.tool(annotations=WORK)
+@capability(kind="work")
 def complete_work(task_id: int, agent: AgentRole, result: dict[str, Any]) -> dict[str, Any]:
     """Finish a step with your result (merged into the process data; a proposal, findings, a draft).
     Gateways read it, so use the keys the step asks for. Steps that need a person refuse agents."""
@@ -1162,14 +1167,14 @@ def complete_work(task_id: int, agent: AgentRole, result: dict[str, Any]) -> dic
                  worker=mine if t and t["claimed_by"] == mine else None)
 
 
-@server.tool(annotations=WORK)
+@capability(kind="work")
 def hand_off(task_id: int, agent: AgentRole, to: str, reason: str) -> dict[str, Any]:
     """Give a step to someone better placed: a person by name, a role's queue (`role:engineer`) or
     another agent (`agent:maintenance`). Say why; it is kept in the item's history."""
     return _work(work.hand_off, task_id, f"agent:{agent}", to, reason)
 
 
-@server.tool(annotations=WORK)
+@capability(kind="work")
 def send_evidence(agent: AgentRole, evidence: dict[str, Any], correlation_key: str | None = None,
                   item_id: int | None = None, process_key: str | None = None,
                   name: str = "evidence") -> dict[str, Any]:
@@ -1192,10 +1197,6 @@ def send_evidence(agent: AgentRole, evidence: dict[str, Any], correlation_key: s
 
 
 # --- charts (plots/): built here from Fuzer data; the agent gets an id, a marker and a summary -------
-
-# Read-only like every other tool: a chart is kept (assistant_figure) so the answer can show it, but no
-# plant or register data changes, and clients shouldn't ask for approval per chart.
-CHART = READ_ONLY
 
 
 def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1221,7 +1222,7 @@ def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str,
         return _plain(plots.store(conn, fig, _plain({"chart": fig.kind, **params, **(refs or {})})))
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", "maintenance", kind="plot")
 def plot_trend(refs: list[str], at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded.
     refs: tags, wells or PI points (a tag gives its instruments' points; up to 6 series). at: the
@@ -1231,7 +1232,7 @@ def plot_trend(refs: list[str], at: str | None = None, hours_before: int = 48, h
                   {"ids": refs})
 
 
-@server.tool(annotations=CHART)
+@capability("all", kind="plot")
 def plot_measurements(ref: str, quantity: str | None = None, since: str | None = None,
                       until: str | None = None) -> dict[str, Any]:
     """Chart landed measurements over time on a well, tag, equipment or pipeline (well tests, lab
@@ -1241,7 +1242,7 @@ def plot_measurements(ref: str, quantity: str | None = None, since: str | None =
     return _chart(general.measurements, {"quantity": quantity, "since": since, "until": until}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", "maintenance", kind="plot")
 def plot_xy(x: str, y: str, at: str | None = None, hours_before: int = 72, hours_after: int = 24) -> dict[str, Any]:
     """Chart one PI point against another at the same times (operating envelope), coloured by time, with
     a straight-line fit and r. x and y are PI points (timeseries)."""
@@ -1250,7 +1251,7 @@ def plot_xy(x: str, y: str, at: str | None = None, hours_before: int = 72, hours
                   {"x_id": x, "y_id": y})
 
 
-@server.tool(annotations=CHART)
+@capability("all", kind="plot")
 def plot_bar(dataset: Literal["deferment_by_reason", "deferment_by_well", "deferment_by_tag", "deferment_by_class",
                               "failures_by_tag", "oil_change_by_well"],
              since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
@@ -1260,7 +1261,7 @@ def plot_bar(dataset: Literal["deferment_by_reason", "deferment_by_well", "defer
     return _chart(general.bar, {"dataset": dataset, "since": since, "until": until, "limit": min(limit, 40)})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", "maintenance", kind="plot")
 def plot_distribution(ref: str, split_at: str, hours_before: int = 168, hours_after: int = 168) -> dict[str, Any]:
     """Chart one PI point before and after a moment (a repair, a setpoint change) as two boxes, with
     medians and spread in the summary."""
@@ -1269,7 +1270,7 @@ def plot_distribution(ref: str, split_at: str, hours_before: int = 168, hours_af
                                          "hours_after": min(hours_after, 2160)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("all", kind="plot")
 def plot_custom(title: str, traces: list[dict[str, Any]], x_title: str | None = None,
                 y_title: str | None = None) -> dict[str, Any]:
     """Chart numbers you worked out yourself, when no other chart covers them: up to 8 traces
@@ -1280,7 +1281,7 @@ def plot_custom(title: str, traces: list[dict[str, Any]], x_title: str | None = 
                                                            "y_title": y_title})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_incident(ref: str) -> dict[str, Any]:
     """Chart an incident on one page (an incident, or a unit's latest): the process values that moved
     most in the lead-in, stacked, with its log events, trips, notifications and downtime as markers."""
@@ -1288,7 +1289,7 @@ def plot_incident(ref: str) -> dict[str, Any]:
     return _chart(troubleshooting.incident, {}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_correlation(ref: str, at: str | None = None, hours_before: int = 72, hours_after: int = 12,
                      upstream: bool = True, target: str | None = None) -> dict[str, Any]:
     """Chart how the process values on a unit (and on what feeds it) move together, as a correlation
@@ -1300,7 +1301,7 @@ def plot_correlation(ref: str, at: str | None = None, hours_before: int = 72, ho
                   {"fid": ref, "target": target})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "maintenance", kind="plot")
 def plot_vibration(ref: str, at: str | None = None, days: int = 30) -> dict[str, Any]:
     """Chart a machine's overall vibration against ISO 20816 zones A-D, with temperature on a second
     axis and incident lead-ins shaded. ref: a pump or compressor tag."""
@@ -1308,7 +1309,7 @@ def plot_vibration(ref: str, at: str | None = None, days: int = 30) -> dict[str,
     return _chart(troubleshooting.vibration, {"at": at, "days": min(days, 120)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_decline(well: str, model: Literal["auto", "exponential", "hyperbolic", "harmonic"] = "auto",
                  forecast_months: int = 12) -> dict[str, Any]:
     """Chart a well's oil rate decline from its tests (log scale) with an Arps fit after the last step
@@ -1318,7 +1319,7 @@ def plot_decline(well: str, model: Literal["auto", "exponential", "hyperbolic", 
     return _chart(production.decline, {"model": model, "forecast_months": min(forecast_months, 60)}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_water_diagnostic(well: str) -> dict[str, Any]:
     """Chart a well's water diagnostic: water cut against cumulative oil, and WOR and its derivative on
     log scales (Chan). Rising derivative = channelling; falling then rising = coning; a step = breakthrough."""
@@ -1326,7 +1327,7 @@ def plot_water_diagnostic(well: str) -> dict[str, Any]:
     return _chart(production.water_diagnostic, {}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
     """Chart a gas lifted well's performance curve: oil against lift gas from its tests (decline taken
     out), the current point, the marginal response there, and the optimum where one more kSm3/d of gas
@@ -1335,7 +1336,7 @@ def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
     return _chart(production.gas_lift_curve, {"breakeven": breakeven}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
     """Chart every gas lifted well's marginal response (oil per extra lift gas) grouped by lift gas
     header, with suggested gas moves. ref: a header, jacket or manifold to narrow it; default all."""
@@ -1343,7 +1344,7 @@ def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
     return _chart(production.gas_lift_allocation, {}, {"ref": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("maintenance", kind="plot")
 def plot_wall_thickness(ref: str | None = None, kind: Literal["pipeline", "tag"] | None = None,
                         min_required_mm: float | None = None) -> dict[str, Any]:
     """Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss
@@ -1353,7 +1354,7 @@ def plot_wall_thickness(ref: str | None = None, kind: Literal["pipeline", "tag"]
     return _chart(maintenance.wall_thickness, {"kind": kind, "min_required_mm": min_required_mm}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("maintenance", kind="plot")
 def plot_reliability(ref: str, method: Literal["weibull", "crow_amsaa"] = "weibull") -> dict[str, Any]:
     """Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of
     times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up)."""
@@ -1361,7 +1362,7 @@ def plot_reliability(ref: str, method: Literal["weibull", "crow_amsaa"] = "weibu
     return _chart(maintenance.reliability, {"method": method}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("maintenance", kind="plot")
 def plot_bad_actors(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Chart bad actors as bubbles: failures against oil lost to the downtime they caused, size =
     downtime events, colour = ISO 14224 class. Default window: 2 years."""
@@ -1369,7 +1370,7 @@ def plot_bad_actors(since: str | None = None, until: str | None = None) -> dict[
     return _chart(maintenance.bad_actors, {"since": since, "until": until})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "maintenance", kind="plot")
 def plot_pump_curve(ref: str, days: int = 365) -> dict[str, Any]:
     """Chart a pump against its OEM curve: operating points from PI (head from discharge minus suction
     pressure, flow) coloured by time over the head and efficiency curves, with the BEP and preferred
@@ -1379,7 +1380,7 @@ def plot_pump_curve(ref: str, days: int = 365) -> dict[str, Any]:
     return _chart(maintenance.pump_curve, {"days": min(days, 1100)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", "maintenance", kind="plot")
 def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
     """Chart a well's production choke against its OEM characteristic: effective Cv at each well test
     (oil wells) or from PI rates (gas wells) against the opening. Above the curve = eroded trim; below =
@@ -1389,7 +1390,7 @@ def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
     return _chart(production.choke, {"days": min(days, 1100)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy,
     frozen or stuck, out of range, apart from its redundant twin). Default window: the last 14 days."""
@@ -1398,7 +1399,7 @@ def plot_instrument_health(ref: str, since: str | None = None, until: str | None
                   {"since": since, "until": until}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_changes(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Chart a point's or a unit's readings with the steps and jitter changes detect_changes finds marked
     and drifts shaded. Default window: the last 14 days."""
@@ -1406,7 +1407,7 @@ def plot_changes(ref: str, since: str | None = None, until: str | None = None) -
     return _chart(troubleshooting.changes, {"since": since, "until": until}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", kind="plot")
 def plot_pressure_profile(well: str, at: str | None = None, ref_at: str | None = None) -> dict[str, Any]:
     """Chart pressure at each node down a well's flow path (wellhead, jacket header, separator,
     compressor suction), today and against a reference date: where back-pressure builds."""
@@ -1414,7 +1415,7 @@ def plot_pressure_profile(well: str, at: str | None = None, ref_at: str | None =
     return _chart(production.pressure_profile, {"at": at, "ref_at": ref_at}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> dict[str, Any]:
     """Chart oil per bar of back-pressure for each back-pressure-limited well: the model's figure and the
     tests' side by side. scope: a well, a jacket area or "facility"."""
@@ -1424,7 +1425,7 @@ def plot_backpressure_sensitivity(scope: str = "facility", at: str | None = None
     return _chart(production.backpressure_sensitivity, {"at": at}, {"scope": scope})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_choke_criticality(well: str, days: int = 90) -> dict[str, Any]:
     """Chart back over wellhead pressure through a well's choke over time against the critical ratio (0.55):
     under it the choke limits the well and back-pressure doesn't reach it."""
@@ -1432,7 +1433,7 @@ def plot_choke_criticality(well: str, days: int = 90) -> dict[str, Any]:
     return _chart(production.choke_criticality, {"days": min(days, 730)}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "production", kind="plot")
 def plot_dp_drift(well: str, days: int = 60) -> dict[str, Any]:
     """Chart a well's wellhead-to-header pressure drop over time against its baseline band, with any rise
     marked (a flowline waxing or scaling)."""
@@ -1440,35 +1441,35 @@ def plot_dp_drift(well: str, days: int = 60) -> dict[str, Any]:
     return _chart(production.dp_drift, {"days": min(days, 365)}, {"well": well})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_debottleneck(at: str | None = None) -> dict[str, Any]:
     """Chart the debottleneck options ranked by oil gained, coloured by kind."""
     from ..plots import production
     return _chart(lambda conn, **kw: production.debottleneck(conn, pack=PACK, **kw), {"at": at})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "maintenance", kind="plot")
 def plot_compressor_performance(ref: str, days: int = 90) -> dict[str, Any]:
     """Chart a compressor stage's daily polytropic efficiency against its first week (fouling, wear, hot recycle)."""
     from ..plots import maintenance
     return _chart(maintenance.compressor_performance, {"days": min(days, 730)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", "maintenance", kind="plot")
 def plot_cooler_fouling(ref: str, days: int = 240) -> dict[str, Any]:
     """Chart a cooler's daily outlet temperature against its clean baseline and its high limit."""
     from ..plots import maintenance
     return _chart(maintenance.cooler_fouling, {"days": min(days, 730)}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("maintenance", kind="plot")
 def plot_peers(ref: str) -> dict[str, Any]:
     """Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked."""
     from ..plots import maintenance
     return _chart(maintenance.peers, {}, {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Chart each unit's state (running, startup, stopped, transition) as swimlanes over a window: an upset
     spreading through a train or the plant. scope: a unit or area (default: everything with a run signal)."""
@@ -1477,7 +1478,7 @@ def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dic
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Chart alarms per 10 minutes over a window against the flood line, with floods, chattering, standing
     alarms and the bad actors in the summary."""
@@ -1486,7 +1487,7 @@ def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, A
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_propagation(upset_id: int) -> dict[str, Any]:
     """Chart an SRE upset on the plant model: units coloured by when each was first detected, plant model
     links between them, the likely first cause marked."""
@@ -1494,7 +1495,7 @@ def plot_propagation(upset_id: int) -> dict[str, Any]:
     return _chart(troubleshooting.propagation, {"upset": upset_id})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_operating_window(ref: str, since: str, until: str) -> dict[str, Any]:
     """Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day."""
     from ..plots import general
@@ -1502,14 +1503,14 @@ def plot_operating_window(ref: str, since: str, until: str) -> dict[str, Any]:
                   {"fid": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_loss_waterfall(since: str, until: str) -> dict[str, Any]:
     """Chart oil potential, planned losses, unplanned losses by reason and actual over a period, priced."""
     from ..plots import general
     return _chart(lambda conn, **kw: general.loss_waterfall(conn, pack=PACK, **kw), {"since": since, "until": until})
 
 
-@server.tool(annotations=CHART)
+@capability("maintenance", kind="plot")
 def plot_score_breakdown(ref: str) -> dict[str, Any]:
     """Chart what makes up an item's value score (#100): production, risk and compliance at stake, urgency and
     effort, to show why one card ranks above another. ref: a work order, plan, incident or tag."""
@@ -1517,14 +1518,14 @@ def plot_score_breakdown(ref: str) -> dict[str, Any]:
     return _chart(lambda conn, **kw: general.score_breakdown(conn, pack=PACK, **kw), {}, {"ref": ref})
 
 
-@server.tool(annotations=CHART)
+@capability("production", kind="plot")
 def plot_flare(since: str, until: str) -> dict[str, Any]:
     """Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate)."""
     from ..plots import general
     return _chart(general.flare, {"since": since, "until": until})
 
 
-@server.tool(annotations=CHART)
+@capability("troubleshooter", kind="plot")
 def plot_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
     """Chart a unit's operating modes over time as a coloured strip under its regime-carrying point."""
     from ..plots import troubleshooting
@@ -1535,7 +1536,7 @@ def plot_modes(scope: str | list[str], since: str, until: str, k: int | None = N
     return _chart(lambda conn, **kw: troubleshooting.modes_chart(conn, sc, pack=PACK, **kw), {"since": since, "until": until, "k": k})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("troubleshooter", "production", "maintenance", kind="calc")
 def equipment_curves(ref: str) -> dict[str, Any]:
     """The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening)
     and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment
@@ -1550,7 +1551,7 @@ def equipment_curves(ref: str) -> dict[str, Any]:
         return _plain(out or {"model_id": model, "series": {}, "waiting": curves.waiting(conn, model) if model else []})
 
 
-@server.tool(annotations=READ_ONLY)
+@capability("all", kind="query")
 def look_at_figure(figure: str) -> list[Any]:
     """See a chart you made, as an image. Only when its summary leaves you unsure how it reads (a fit
     that may miss the late points, an outlier that may set the scale, a chart that may be empty) or the

@@ -48,42 +48,15 @@ def note(kind: str, **data) -> dict:
     return entry
 
 
-COMMON = ["search", "get_entity", "link_text", "get_ontology", "documents_for", "search_knowledge", "what_changed",
-          "board", "get_daily_ops_report"]
-CHARTS = ["plot_trend", "plot_measurements", "plot_xy", "plot_bar", "plot_distribution", "plot_custom", "look_at_figure"]
-TOOLS = {
-    "orchestrator": COMMON + ["get_stats", "get_incidents", "trace_flow", "value_score", "plot_bar",
-                              "plot_measurements", "plot_custom", "look_at_figure"],
-    "troubleshooter": COMMON + ["troubleshooting_brief", "incident_detail", "get_incidents", "get_events",
-                                "process_values", "lessons_learned", "maintenance_history", "equipment_history",
-                                "equipment_changes", "spare_parts", "downtime", "trace_flow", "record_history",
-                                "gas_lift_network", "well_performance", "measurements", "limits",
-                                "calc", "instrument_health", "detect_changes", "detections", "get_upsets", "upset_detail", "correlate", "correlation_matrix",
-                                *CHARTS, "plot_incident", "plot_correlation", "plot_vibration", "plot_pump_curve",
-                                "plot_choke", "plot_instrument_health", "plot_changes", "equipment_curves",
-                                "pressure_profile", "plot_pressure_profile", "plot_dp_drift", "plot_compressor_performance",
-                                "plot_cooler_fouling", "alarm_analysis", "trip_analysis", "plot_state_timeline", "plot_alarms",
-                                "compare_periods", "similar_cases", "plot_propagation", "plot_operating_window",
-                                "cluster_modes", "cluster_events", "plot_modes", "start_study", "get_study"],
-    "production": COMMON + ["production_summary", "deferment_pareto", "production_constraints", "well_performance",
-                            "gas_lift_network", "downtime", "get_events", "get_incidents", "process_values",
-                            "measurements", "limits", "trace_flow", "calc", "detect_changes", "pressure_profile",
-                            "backpressure_sensitivity", "capacity_headroom", "debottleneck_options", "opportunities",
-                            "compare_periods", "plot_loss_waterfall", "plot_flare", "cluster_entities", "start_study",
-                            "get_study",
-                            *CHARTS, "plot_decline", "plot_water_diagnostic", "plot_gas_lift_curve",
-                            "plot_gas_lift_allocation", "plot_choke", "equipment_curves", "plot_pressure_profile",
-                            "plot_backpressure_sensitivity", "plot_choke_criticality", "plot_dp_drift", "plot_debottleneck"],
-    "maintenance": COMMON + ["bad_actors", "work_order_backlog", "maintenance_compliance", "turnaround_scope",
-                             "value_score",
-                             "maintenance_history", "equipment_history", "spare_parts", "lessons_learned",
-                             "list_members", "get_incidents", "deferment_pareto", "measurements", "limits", "calc",
-                             "well_performance",
-                             *CHARTS, "plot_wall_thickness", "plot_reliability", "plot_bad_actors", "plot_vibration",
-                             "plot_pump_curve", "plot_choke", "equipment_curves", "plot_compressor_performance",
-                             "plot_cooler_fouling", "plot_peers", "trip_analysis", "alarm_analysis", "similar_cases",
-                             "compare_periods", "plot_score_breakdown"],
-}
+def __getattr__(name: str):
+    """TOOLS (each agent's tool names) comes from the capability registry (#133): each tool declares its
+    agents where it is defined in mcp_server."""
+    if name == "TOOLS":
+        from .capabilities import tools_by_agent
+
+        return tools_by_agent()
+    raise AttributeError(name)
+
 
 ORCHESTRATOR = """\
 You are the operations assistant for an oil and gas asset. Engineers, supervisors and planners ask you
@@ -225,13 +198,15 @@ def client(model: str | None = None, anthropic_client=None):
 def _agent(chat, name: str, instructions: str, effort: str, description: str | None = None, **kw):
     from agent_framework import SkillsProvider, create_harness_agent
 
+    from .capabilities import tools_by_agent
+
     # Our own markdown skills (no scripts), so loading them needs no approval.
     skills = SkillsProvider.from_paths([SKILLS / name, SKILLS / "shared"], script_extensions=(),
                                        disable_load_skill_approval=True,
                                        disable_read_skill_resource_approval=True)
     return create_harness_agent(
         chat, name=name, description=description, agent_instructions=instructions,
-        tools=[_tool(t, name) for t in TOOLS[name]], skills_provider=skills,
+        tools=[_tool(t, name) for t in tools_by_agent()[name]], skills_provider=skills,
         max_context_window_tokens=CONTEXT_WINDOW, max_output_tokens=MAX_OUTPUT_TOKENS,
         disable_web_search=True, disable_file_memory=True, disable_todo=True, disable_mode=True,
         default_options=_options(effort), **kw)
