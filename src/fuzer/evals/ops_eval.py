@@ -110,14 +110,15 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
 
     # opportunity gains against a hand calculation from the wells' curves
     from ..analysis import calcs
+    from ..core import settings
 
     say("4/4 opportunity scan")
-    errs = []
+    errs, breakeven = [], settings.get(conn, "opportunities.gas_lift_breakeven")
     for o in opportunities.gas_lift_moves(conn, until):
         hand = 0.0
         for mv in o["moves"]:
-            a = calcs.gas_lift_fit(conn, mv["from_id"], opportunities.BREAKEVEN, until)
-            b = calcs.gas_lift_fit(conn, mv["to_id"], opportunities.BREAKEVEN, until)
+            a = calcs.gas_lift_fit(conn, mv["from_id"], breakeven, until)
+            b = calcs.gas_lift_fit(conn, mv["to_id"], breakeven, until)
             hand += mv["ksm3d"] * (b["marginal"] - a["marginal"])
         errs.append(abs(hand - o["gain_sm3d"]) / max(abs(hand), 1e-9))
     out["opportunities"] = {"gas_lift_reallocations": len(errs),

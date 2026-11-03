@@ -162,6 +162,12 @@ register(
             "it chattering", "Alarms", min=2, max=50),
     Setting("alarms.failed_start_minutes", "int", 30, "A start followed by a stop within this many minutes is a "
             "failed start", "Alarms", min=1, max=1440),
+    Setting("opportunities.gas_lift_breakeven", "float", 0.5, "Sm3/d of oil per kSm3/d of lift gas below which "
+            "more gas isn't worth it", "Opportunities", min=0, max=10),
+    Setting("opportunities.stale_days", "int", 90, "Days without a well test before the test is stale",
+            "Opportunities", min=7, max=730),
+    Setting("opportunities.material", "float", 0.5, "A decided opportunity comes back when its gain moves by this "
+            "share", "Opportunities", min=0.05, max=10),
 )
 
 
