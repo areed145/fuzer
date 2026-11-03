@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server
+from fuzer.agents import mcp_server
 from fuzer.analysis import calcs, hydraulics
 from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db

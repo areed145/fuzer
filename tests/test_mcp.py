@@ -25,7 +25,7 @@ def call():
         ingest.ingest(c, data)
         pipeline.rebuild(c, load_pack())
 
-    from fuzer.mcp_server import server
+    from fuzer.agents.mcp_server import server
 
     async def _call(name, args):
         async with Client(server, raise_exceptions=True) as client:
@@ -39,7 +39,7 @@ def call():
 
 
 def test_tools_are_read_only_except_work():
-    from fuzer.mcp_server import server
+    from fuzer.agents.mcp_server import server
 
     async def _list():
         async with Client(server) as client:

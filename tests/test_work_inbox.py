@@ -25,7 +25,7 @@ def conn():
 
 
 def mcp(name, **args):
-    from fuzer.mcp_server import server
+    from fuzer.agents.mcp_server import server
 
     async def _call():
         async with Client(server, raise_exceptions=True) as client:

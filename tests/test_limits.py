@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import okan
-from fuzer import mcp_server
+from fuzer.agents import mcp_server
 from fuzer.analysis import limits
 from fuzer.core import db, units
 from fuzer.core.pack import load_pack

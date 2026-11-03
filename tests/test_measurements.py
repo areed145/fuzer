@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import okan
-from fuzer import mcp_server
+from fuzer.agents import mcp_server
 from fuzer.core import db, units
 from fuzer.core.pack import load_pack
 from fuzer.graph import measurements, pipeline, queries
@@ -107,7 +107,7 @@ def test_tag_page_brief_and_mcp(conn):
     assert r.status_code == 200 and {s["quantity"] for s in r.json()["series"]} == {"oil_in_water"}
     assert all(v["at"] >= "2025-01-01" for v in r.json()["series"][0]["values"])
 
-    from fuzer import assistant
+    from fuzer.agents import assistant
 
     brief = assistant.brief(conn, PACK, sep)
     assert any(s["quantity"] == "oil_in_water" and len(s["recent"]) == 3 for s in brief["measurements"])

@@ -133,7 +133,7 @@ def _tool(name: str, agent: str):
     thread so specialists working at the same time don't block each other on the database."""
     from agent_framework import tool
 
-    from .. import mcp_server
+    from . import mcp_server
 
     fn = getattr(mcp_server, name)
 

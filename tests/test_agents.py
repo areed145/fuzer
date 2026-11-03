@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server
+from fuzer.agents import mcp_server
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries

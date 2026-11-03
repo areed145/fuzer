@@ -142,7 +142,7 @@ def main(argv=None):
     elif args.cmd in ("ask", "chat"):
         _assistant(args)
     elif args.cmd == "mcp":
-        from . import mcp_server
+        from .agents import mcp_server
 
         mcp_server.main(http=args.http, host=args.host, port=args.port)
     elif args.cmd == "work":

@@ -10,7 +10,7 @@ import pytest
 from mcp import Client
 
 from fakeplant import offshore
-from fuzer import assistant
+from fuzer.agents import assistant
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import lessons, llm_links, pipeline, queries
@@ -57,7 +57,7 @@ def test_brief_for_a_tag_uses_its_latest_incident(conn):
 
 
 def test_mcp_tool_and_prompt(conn):
-    from fuzer.mcp_server import server
+    from fuzer.agents.mcp_server import server
 
     async def go():
         async with Client(server, raise_exceptions=True) as client:
