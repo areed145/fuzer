@@ -521,7 +521,7 @@ rest are false alarms.
 **Scores.** Recall and median hours to detect per kind of upset (with the missed ones), precision,
 false alarms per week, seconds per window. Each `fuzer eval --ops` run is kept in `ops_eval`; it exits
 1 if overall or any kind's recall fell since the last run of the same detector and period.
-`tests/test_replay.py` is the CI check: it replays 3–13 November 2024 on Okan, with a scripted
+`tests/evals/test_replay.py` is the CI check: it replays 3–13 November 2024 on Okan, with a scripted
 detector to test the scoring and the `limits` detector (the #101 excursions, standing in until #96).
 `fuzer eval --ops --full` (`ops_eval.py`) scores everything that runs on a schedule:
 - **SRE:** the replay of the period, with grouping.

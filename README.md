@@ -425,7 +425,7 @@ uv run fuzer work tick      # fire due timers and escalate overdue tasks once (D
   the process owner.
 - A second detection of the same incident is sent to the open process as new
   evidence instead of starting another one (`correlate: true` on `POST /work/processes`).
-- Behaviour is checked against SpiffWorkflow on the files in `tests/bpmn/`.
+- Behaviour is checked against SpiffWorkflow on the files in `tests/workflow/bpmn/`.
 - Person tasks use [form-js](https://bpmn.io/toolkit/form-js/) forms: the `fuzer:form` key on a
   `userTask` names a `.form` file in `definitions/` (loaded as versions in `work_form`). A form can
   declare bulk actions (`fuzer.bulk`, such as "Close as false alarm"); bulk never applies to a
