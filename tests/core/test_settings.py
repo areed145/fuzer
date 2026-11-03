@@ -94,3 +94,26 @@ def test_study_defaults_match_the_constants_they_replace():
         [studies.MAX_POINTS, studies.MAX_VALUES, studies.WORKERS]
     with settings.Overrides({"studies.max_values": 10000}), pytest.raises(studies.CalcError, match="too big"):
         studies._window("2025-01-01", "2025-01-02", 100)  # 100 points x 145 steps
+
+
+def test_secrets_are_references_and_sources_read_settings(monkeypatch):
+    """#132: PI and ADX are configured through settings (the old variables still work for a release);
+    a secret setting holds where the secret is kept, and secret() reads it from there."""
+    from fuzer.sources import adx, pi_web_api
+
+    monkeypatch.setenv("FUZER_PI_PASSWORD", "s3cret")
+    assert settings.secret(None, "sources.pi.password") == "s3cret"
+    monkeypatch.delenv("FUZER_ALERT_WEBHOOK", raising=False)
+    assert settings.secret(None, "alerts.webhook") is None
+    with pytest.raises(settings.SettingError, match="isn't a secret"):
+        settings.secret(None, "sources.pi.url")
+    with pytest.raises(settings.SettingError, match="reference"):
+        settings.REGISTRY["sources.adx.token"].parse("eyJhbGciOi...")
+
+    monkeypatch.delenv("FUZER_PI_WEB_API_URL", raising=False)
+    assert not pi_web_api.configured()
+    with settings.Overrides({"sources.pi.url": "http://pi.example/piwebapi", "sources.adx.url": "http://adx.example"}):
+        assert pi_web_api.configured() and adx.configured()
+        assert pi_web_api.Client().url == "http://pi.example/piwebapi"
+    monkeypatch.setenv("FUZER_ADX_URL", "http://old.example")  # the old variable, read fresh each time
+    assert adx.Client().url == "http://old.example"

@@ -12,12 +12,12 @@ FUZER_PI_PASSWORD (basic auth), FUZER_PI_VERIFY_TLS=0 for a self-signed test ser
 to try it on: `uv run fakeplant historian`.
 """
 
-import os
 from collections.abc import Iterator
 from datetime import datetime
 
 import httpx
 
+from ..core import settings
 from .connectors import LiveTable
 
 PAGE = 1000
@@ -25,18 +25,18 @@ BATCH = 500
 
 
 def configured() -> bool:
-    return bool(os.environ.get("FUZER_PI_WEB_API_URL"))
+    return bool(settings.get(None, "sources.pi.url"))
 
 
 class Client:
     def __init__(self, url: str | None = None, http: httpx.Client | None = None):
-        if not (url := url or os.environ.get("FUZER_PI_WEB_API_URL")):
-            raise ValueError("FUZER_PI_WEB_API_URL isn't set")
+        if not (url := url or settings.get(None, "sources.pi.url")):
+            raise ValueError("no PI Web API URL: set sources.pi.url (or FUZER_PI_WEB_API_URL)")
         self.url = url.rstrip("/")
         if http is None:
-            user = os.environ.get("FUZER_PI_USER")
-            http = httpx.Client(auth=(user, os.environ.get("FUZER_PI_PASSWORD", "")) if user else None,
-                                verify=os.environ.get("FUZER_PI_VERIFY_TLS", "1") != "0", timeout=120)
+            user = settings.get(None, "sources.pi.user")
+            http = httpx.Client(auth=(user, settings.secret(None, "sources.pi.password") or "") if user else None,
+                                verify=settings.get(None, "sources.pi.verify_tls"), timeout=120)
         self.http = http
 
     def get(self, resource: str, **params) -> dict:
@@ -66,20 +66,20 @@ class Client:
                     else None for n in range(len(chunk))]
         return out
 
-    def _pick(self, path: str, env: str) -> dict:
+    def _pick(self, path: str, key: str) -> dict:
         items = self.get(path)["Items"]
-        want = os.environ.get(env)
+        want = settings.get(None, key)
         found = next((x for x in items if x["Name"] == want), None) if want else (items[0] if items else None)
         if found is None:
-            raise LookupError(f"{env}={want!r} not found at {self.url}/{path}" if want else f"nothing at {path}")
+            raise LookupError(f"{key}={want!r} not found at {self.url}/{path}" if want else f"nothing at {path}")
         return found
 
     def data_server(self) -> dict:
-        return self._pick("dataservers", "FUZER_PI_DATA_SERVER")
+        return self._pick("dataservers", "sources.pi.data_server")
 
     def af_database(self) -> dict:
-        server = self._pick("assetservers", "FUZER_PI_AF_SERVER")
-        return self._pick(f"assetservers/{server['WebId']}/assetdatabases", "FUZER_PI_AF_DATABASE")
+        server = self._pick("assetservers", "sources.pi.af_server")
+        return self._pick(f"assetservers/{server['WebId']}/assetdatabases", "sources.pi.af_database")
 
 
 class PiPoints(LiveTable):

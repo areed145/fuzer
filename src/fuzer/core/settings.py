@@ -19,6 +19,7 @@ from psycopg.types.json import Jsonb
 from . import models
 
 CACHE_SECONDS = 5.0
+OVERRIDE = "override"  # a cache entry set by Overrides (tests), not read from the database
 GLOBAL = "global"
 
 
@@ -175,6 +176,28 @@ register(
     Setting("studies.max_values", "int", 15_000_000, "Values (points x steps) a study reads at once; bigger ones run "
             "in the background", "Studies", min=10000),
     Setting("studies.workers", "int", 8, "Threads reading a study's points in parallel", "Studies", min=1, max=64),
+    # Sources (#132): live systems configured like everything else; secrets are references, never values.
+    Setting("sources.pi.url", "str", "", "PI Web API base URL (empty: the point list and AF tree come from files)",
+            "Sources", restart=True, env="FUZER_PI_WEB_API_URL"),
+    Setting("sources.pi.data_server", "str", "", "PI Data Archive to read points from (empty: the first)", "Sources",
+            env="FUZER_PI_DATA_SERVER"),
+    Setting("sources.pi.af_server", "str", "", "PI AF server (empty: the first)", "Sources", env="FUZER_PI_AF_SERVER"),
+    Setting("sources.pi.af_database", "str", "", "PI AF database (empty: the server's first)", "Sources",
+            env="FUZER_PI_AF_DATABASE"),
+    Setting("sources.pi.user", "str", "", "PI Web API user for basic auth (empty: no auth)", "Sources",
+            env="FUZER_PI_USER"),
+    Setting("sources.pi.password", "secret", "env:FUZER_PI_PASSWORD", "Where the PI Web API password is kept",
+            "Sources"),
+    Setting("sources.pi.verify_tls", "bool", True, "Check the PI Web API's TLS certificate", "Sources",
+            env="FUZER_PI_VERIFY_TLS"),
+    Setting("sources.adx.url", "str", "", "Azure Data Explorer cluster URL (empty: no ADX series catalog)", "Sources",
+            restart=True, env="FUZER_ADX_URL"),
+    Setting("sources.adx.database", "str", "", "ADX database", "Sources", env="FUZER_ADX_DATABASE"),
+    Setting("sources.adx.catalog", "str", "SeriesCatalog", "ADX table listing the series", "Sources",
+            env="FUZER_ADX_CATALOG"),
+    Setting("sources.adx.token", "secret", "env:FUZER_ADX_TOKEN", "Where the ADX bearer token is kept", "Sources"),
+    Setting("alerts.webhook", "secret", "env:FUZER_ALERT_WEBHOOK", "Where the URL failed scheduled runs are posted "
+            "to (Teams, Slack or any JSON webhook) is kept", "Schedule"),
 )
 
 
@@ -218,15 +241,27 @@ def _stored(conn, key: str, p: str | None) -> dict:
         return {}
 
 
+def secret(conn, key: str) -> str | None:
+    """A secret setting's value, read from where its reference points (env:NAME); None when it isn't there."""
+    if _setting(key).type != "secret":
+        raise SettingError(f"{key} isn't a secret")
+    ref = get(conn, key) or ""
+    return os.environ.get(ref[4:]) or None if ref.startswith("env:") else None
+
+
 def get(conn, key: str, project_name: str | None = None) -> Any:
     """The project's value, else the global value, else the old environment variable (for one release),
     else the default. `conn` None opens a short connection."""
     s = _setting(key)
     p = project_name or project()
-    hit = _cache.get((key, p))
+    hit = _cache.get((key, p))  # the stored rows, not the value: the environment and defaults are read fresh
     if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
-        return hit[1]
-    rows = _stored(conn, key, p)
+        rows = hit[1]
+        if OVERRIDE in rows:
+            return rows[OVERRIDE]
+    else:
+        rows = _stored(conn, key, p)
+        _cache[(key, p)] = (time.monotonic(), rows)
     if p and scope_of(p) in rows:
         v = rows[scope_of(p)]
     elif GLOBAL in rows:
@@ -241,7 +276,6 @@ def get(conn, key: str, project_name: str | None = None) -> Any:
                           DeprecationWarning, stacklevel=2)
     else:
         v = s.default
-    _cache[(key, p)] = (time.monotonic(), v)
     return v
 
 
@@ -318,7 +352,7 @@ class Overrides:
 
     def __enter__(self):
         for k, v in self.values.items():
-            _cache[(k, project())] = (float("inf"), _setting(k).parse(v))
+            _cache[(k, project())] = (float("inf"), {OVERRIDE: _setting(k).parse(v)})
         return self
 
     def __exit__(self, *exc):
