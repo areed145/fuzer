@@ -178,7 +178,7 @@ codes, area digits, well platforms, phrase aliases, matching thresholds and
 survivorship rules. A new onshore or downstream asset is a new pack, not new
 core code. `onshore_demo` (pads with hundreds of wells on ESPs, SAP + PI + EC
 only, pattern-based well names like `RB 07-03H`, an ESP class the pack adds)
-runs end to end on the same code as the offshore pack; `FUZER_PACK` selects the
+runs end to end on the same code as the offshore pack; the project (`FUZER_PROJECT`) selects the
 pack for the API, MCP server and jobs.
 
 ### 9. Equipment classes and models (ISO 14224, CFIHOS)
@@ -296,7 +296,7 @@ the id it came from. An MCP prompt (`troubleshoot`) tells agents to start there,
 cite everything and never instruct anyone to operate plant directly. Engineers'
 ratings go to a `feedback` table.
 
-Process values come through a pluggable time-series provider (`FUZER_TIMESERIES`):
+Process values come through a pluggable time-series provider (the project's `timeseries`):
 Fuzer asks for values when needed and never copies them. `pi` reads interpolated
 values from PI Web API by point name; `adx` reads them from Azure Data Explorer
 through the pointer the series catalog put on each timeseries entity (ADX bins
@@ -383,11 +383,11 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   trend and cascade causes, well-test performance, bad actors and MTBF, work order backlog, PM and
   inspection compliance, and turnaround scope. All are read-only, compact, and dated from the data's
   latest daily report.
-- **Claude settings.** `claude-opus-5-5` by default (`FUZER_AGENT_MODEL` for the orchestrator,
-  `FUZER_AGENT_SPECIALIST_MODEL` for the specialists), effort `high` for the orchestrator and `medium`
+- **Claude settings.** `claude-opus-5-5` by default (the settings `agents.model` for the orchestrator,
+  `agents.specialist_model` for the specialists), effort `high` for the orchestrator and `medium`
   for the specialists. Each answer reports calls, tokens and cost per model, as the API reports the
   serving model; a model missing from `pricing.py` is flagged as unpriced. Automatic prompt caching
-  is on. The server-side refusal fallback is on (`FUZER_AGENT_FALLBACKS=0` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
+  is on. The server-side refusal fallback is on (the setting `agents.fallbacks` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
   the older budget form, and Opus 5.5 thinks adaptively by default. Web search and file memory are
   off. The agent framework is a core dependency. `agent-framework-anthropic` still declares `anthropic<2`, so a uv override keeps Fuzer's 2.x
   SDK; the tests run the adapter against it.
@@ -659,7 +659,7 @@ detection's pattern (point, detector, finding) goes in `sre_suppress`, so it isn
 `studies.py` answers what moves with what across hundreds of points, and what moved first.
 - **Loading:** points are picked by unit, area, plant path (`flows_to`, `lift_gas_to`), the facility or
   a list, then read through the time-series provider in parallel onto one grid. The matrix is cached
-  as Parquet by points, window, step and provider (`FUZER_CACHE_DIR`).
+  as Parquet by points, window, step and provider (in the project's cache folder, `.fuzer/cache/<project>`).
 - **Cleaning:** drops points that don't move or are mostly missing, fills short gaps from the last
   value, and leaves out rows where under 30% of the units with a run signal were running (unless asked
   to keep them). It can also detrend or difference.
@@ -735,8 +735,8 @@ records.
 - **Checks:** `check` lists lines with no citation, citations not in the day's facts, and numbers not
   in them. The reviewer sees them, and the eval counts them.
 - **Versions:** `close_day` stores a version only when the day's facts changed, with what changed by
-  section, and starts or updates the day's work item for the ops lead. The `day_close` job (07:00, or
-  `FUZER_DAY_CLOSE_CRON`) closes the latest day and re-checks the six before it for late records.
+  section, and starts or updates the day's work item for the ops lead. The `day_close` job (07:00, or the
+  `daily_report.close_cron` setting) closes the latest day and re-checks the six before it for late records.
 
 Readers: the Reports page (`#/reports`: days, versions, checks, what changed), MCP
 `get_daily_ops_report(day)`, `GET /reports/daily/{day}`, and `fuzer report --day [--claude]`. On Okan, the
