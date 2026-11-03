@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-03",
+  "kind": "ops",
+  "since": "2024-06-10T00:00",
+  "until": "2024-06-17T00:00",
+  "live": true,
+  "sre": {
+    "recall": 1.0,
+    "upsets": 3,
+    "by_kind": {
+      "trip": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 3.0
+      },
+      "shut_in": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 4.0
+      },
+      "discharge_temperature": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 6.0
+      }
+    },
+    "detected": 3,
+    "precision": 0.788,
+    "seconds_per_window": 7.55,
+    "false_alarms_per_week": 14.0
+  },
+  "grouping": {
+    "right": 10,
+    "groups": 22,
+    "by_kind": {
+      "slow": 1,
+      "process": 18,
+      "standing": 2,
+      "instrument": 1
+    },
+    "standing": 2,
+    "explained": 11,
+    "false_upsets": 0,
+    "groups_per_trip": 1,
+    "first_cause_right": 1.0,
+    "false_upset_examples": [],
+    "false_upsets_per_week": 0.0
+  },
+  "diagnosis": {
+    "cited": null,
+    "client": "live",
+    "scored": 0,
+    "diagnosed": 0,
+    "claude_usd": 0.0,
+    "first_cause_named": null,
+    "upsets_handed_off": 0
+  },
+  "daily_report": {
+    "days": 7,
+    "all_checks_ok": 1.0,
+    "trip_days_led_by_the_trip": 1.0,
+    "with_operating_instructions": 0
+  },
+  "opportunities": {
+    "worst_gain_error": 0.0004,
+    "gas_lift_reallocations": 3
+  }
+}

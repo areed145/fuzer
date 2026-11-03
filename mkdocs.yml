@@ -54,4 +54,5 @@ nav:
       - settings.md
       - cli.md
       - schema.md
+      - eval-results.md
       - assistant-eval.md

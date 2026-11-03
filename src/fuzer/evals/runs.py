@@ -1,0 +1,38 @@
+"""Recorded eval runs (#134): `fuzer eval --agents --record` and `fuzer eval --ops --full --record` write a
+run's scores (no answers) to evals/runs/, and docs/eval-results.md is generated from them, so the baselines
+are committed with the code that made them.
+"""
+
+import json
+from datetime import date
+from pathlib import Path
+
+from ..resources import ROOT
+
+RUNS = ROOT / "evals" / "runs"
+KEEP = ("domain", "question", "mentions", "missing", "citations", "operating_instructions", "specialists", "routed",
+        "charts", "charted", "tool_calls", "seconds", "cost_usd")
+
+
+def assistant(res: dict, models: dict | None = None) -> dict:
+    """The assistant eval's summary and per-question scores, without the answers."""
+    return {"kind": "assistant", **(models or {}), **{k: v for k, v in res.items() if k != "results"},
+            "results": [{k: r.get(k) for k in KEEP} for r in res["results"]]}
+
+
+def ops(res: dict, since: str, until: str, live: bool) -> dict:
+    return {"kind": "ops", "since": since, "until": until, "live": live,
+            **{k: res.get(k) for k in ("sre", "grouping", "diagnosis", "daily_report", "opportunities")}}
+
+
+def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:
+    runs.mkdir(parents=True, exist_ok=True)
+    run = {"date": day or date.today().isoformat(), **run}
+    path = runs / f"{run['date']}-{run['kind']}.json"
+    path.write_text(json.dumps(run, indent=2, default=str) + "\n")
+    return path
+
+
+def load(runs: Path = RUNS) -> list[dict]:
+    """Every recorded run, oldest first."""
+    return [json.loads(p.read_text()) for p in sorted(runs.glob("*.json"))] if runs.is_dir() else []

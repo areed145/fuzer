@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-02",
+  "kind": "ops",
+  "since": "2024-06-10T00:00",
+  "until": "2024-06-17T00:00",
+  "live": true,
+  "sre": {
+    "recall": 1.0,
+    "upsets": 3,
+    "by_kind": {
+      "trip": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 3.0
+      },
+      "shut_in": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 4.0
+      },
+      "discharge_temperature": {
+        "events": 1,
+        "missed": [],
+        "recall": 1.0,
+        "detected": 1,
+        "median_hours_to_detect": 6.0
+      }
+    },
+    "detected": 3,
+    "precision": 0.783,
+    "seconds_per_window": 8.16,
+    "false_alarms_per_week": 15.0
+  },
+  "grouping": {
+    "right": 21,
+    "groups": 203,
+    "by_kind": {
+      "slow": 1,
+      "process": 20,
+      "instrument": 182
+    },
+    "explained": 181,
+    "false_upsets": 1,
+    "groups_per_trip": 1,
+    "first_cause_right": 1.0,
+    "false_upset_examples": [
+      "OK_J21_08.WHP alarm:hi 2024-06-10 00:00 (1 detections)"
+    ],
+    "false_upsets_per_week": 1.0
+  },
+  "diagnosis": {
+    "cited": 1.0,
+    "client": "live",
+    "scored": 2,
+    "diagnosed": 5,
+    "claude_usd": 3.0459,
+    "first_cause_named": 1.0,
+    "upsets_handed_off": 5
+  },
+  "daily_report": {
+    "days": 7,
+    "all_checks_ok": 1.0,
+    "trip_days_led_by_the_trip": 1.0,
+    "with_operating_instructions": 0
+  },
+  "opportunities": {
+    "worst_gain_error": 0.0004,
+    "gas_lift_reallocations": 3
+  }
+}
