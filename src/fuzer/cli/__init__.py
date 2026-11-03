@@ -6,7 +6,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from ..core import db
+from ..core import db, projects
 from ..core.pack import load_pack
 from ..ops import pipeline
 from ..resources import ROOT
@@ -15,7 +15,10 @@ from ..sources import ingest
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="fuzer")
-    p.add_argument("--pack", default=None, help="asset pack (default: $FUZER_PACK or offshore_demo)")
+    p.add_argument("--project", default=None,
+                   help="project (#131): picks the pack, data folder, mappings and time-series provider "
+                        "(default: $FUZER_PROJECT; `fuzer projects list` shows them)")
+    p.add_argument("--pack", default=None, help="asset pack (default: the project's, else $FUZER_PACK or offshore_demo)")
     sub = p.add_subparsers(dest="cmd", required=True)
     u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
@@ -129,7 +132,18 @@ def main(argv=None):
 
     sub.add_parser("reset", help="drop and recreate all tables")
 
+    pj = sub.add_parser("projects", help="projects (#131): list them, show one, or save one to the database")
+    pj.add_argument("action", choices=["list", "show", "save"])
+    pj.add_argument("name", nargs="?")
+    pj.add_argument("--by", default=os.environ.get("USER", "cli"))
+
     args = p.parse_args(argv)
+    if name := (args.project or projects.current()):
+        with db.connect() as conn:
+            try:
+                projects.activate(conn, name)
+            except projects.ProjectError as e:
+                raise SystemExit(str(e)) from None
     pack = load_pack(args.pack)
     data = Path(getattr(args, "data", None) or data_dir())
 
@@ -250,6 +264,8 @@ def main(argv=None):
                 if args.claude:
                     _print(daily_report.redraft(conn, day))
                 print(daily_report.get(conn, day)["markdown"])
+            elif args.cmd == "projects":
+                _projects(conn, args)
             elif args.cmd == "settings":
                 _settings(conn, args)
             elif args.cmd == "board":
@@ -411,6 +427,22 @@ def _bench(conn, pack) -> dict:
                    "maintenance_class": lambda: queries.maintenance(conn, pumps)}
     out["ms"] = {name: best(fn) for name, fn in checks.items()}
     return out
+
+
+def _projects(conn, args) -> None:
+    if args.action == "list":
+        cur = projects.current()
+        _print([{"name": n, "current": n == cur, **{k: v for k, v in projects.config(conn, n).items() if k != "name"}}
+                for n in projects.names(conn)])
+        return
+    name = args.name or projects.current()
+    if not name:
+        raise SystemExit(f"projects {args.action} needs a name (fuzer projects list shows them)")
+    try:
+        cfg = projects.config(conn, name)
+        _print(cfg if args.action == "show" else projects.save(conn, name, cfg, args.by))
+    except projects.ProjectError as e:
+        raise SystemExit(str(e)) from None
 
 
 def _settings(conn, args) -> None:

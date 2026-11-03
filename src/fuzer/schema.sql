@@ -776,3 +776,12 @@ create table if not exists setting_history (
     at     timestamptz not null default now()
 );
 create index if not exists setting_history_key on setting_history (key, id);
+
+-- Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone);
+-- projects/<name>.yaml in the repository is the fallback when there is no row.
+create table if not exists project (
+    name       text primary key,
+    config     jsonb not null,
+    updated_by text not null,
+    updated_at timestamptz not null default now()
+);

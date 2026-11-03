@@ -198,6 +198,12 @@ under each score's floor. CI runs it on the fake Okan plant.
 
 ### Other assets
 
+A **project** picks everything for one asset in one name: its pack, data folder, mappings, time-series
+provider and timezone (`fuzer --project okan …` or `FUZER_PROJECT=okan`; `fuzer projects list`). Its
+config is stored in the database, and `projects/<name>.yaml` is used when the database has none
+(`fuzer projects save <name>` stores it). Tunable thresholds and caps are settings, per project or for
+all projects: `fuzer settings list`.
+
 Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
 tag and well naming, aliases, classification onto the ISO 14224 taxonomy (and
 extra classes), maintenance and downtime codes, survivorship. A fake onshore
