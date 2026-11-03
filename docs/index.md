@@ -8,7 +8,8 @@ Setting it up and running the Okan demo: the [README](https://github.com/areed14
 
 ## Reading order
 
-1. [Overview and principles](overview.md): what it is and the decisions it rests on.
+1. [Overview and principles](overview.md): what it is and the decisions it rests on. Then
+   [architecture](architecture.md): the components, generated from the code, with diagrams.
 2. [Data model and ontology](data-model.md), [sources and ingestion](sources.md) and
    [identity and golden records](identity.md): how records become one graph.
 3. [Time series](timeseries.md) and [analyses](analyses.md): what it computes from the graph and the process data.
