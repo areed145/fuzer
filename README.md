@@ -146,7 +146,9 @@ two minutes and costs about a dollar on Claude Opus 5.5; each answer shows its
 cost per model. `fuzer settings set agents.specialist_model claude-sonnet-5-5` runs the
 specialists on Sonnet (the orchestrator stays on `agents.model`). `uv run fuzer eval --agents` scores it per domain against
 `answer_keys/assistant.json`. Every tool, the agents that use it and the calc checks are listed in
-[docs/capabilities.md](docs/capabilities.md), generated from the capability registry.
+[docs/capabilities.md](docs/capabilities.md), generated from the capability registry. Settings, CLI commands and the
+database schema have generated reference pages too: [docs/settings.md](docs/settings.md),
+[docs/cli.md](docs/cli.md) and [docs/schema.md](docs/schema.md) (`uv run python -m fuzer.reference`).
 
 Answers can include interactive charts (Plotly; `src/fuzer/plots/`): trends,
 incident timelines, correlation heatmaps, vibration against ISO 20816 zones,
