@@ -1,5 +1,5 @@
 """The fake plant's process model (#91): which PI point measures what on which unit, the units' design
-values, and the stories as timed events, written to process_model.json for fuzer.process_model to
+values, and the stories as timed events, written to process_model.json for fuzer.sources.process_model to
 evaluate. Stories are taken from the same downtime and log records the generator wrote, so the process
 values agree with what the operators logged."""
 

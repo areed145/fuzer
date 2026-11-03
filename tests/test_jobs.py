@@ -70,7 +70,7 @@ def test_export_signature_is_stable_across_processes(fuzer):
     # Python's hash() is randomised per process; the P&ID signature must not depend on it.
     import subprocess
     import sys
-    code = f"from pathlib import Path; from fuzer.jobs import export_signature; print(export_signature(Path({fuzer.data_dir!r}), 'pid_sheets'))"
+    code = f"from pathlib import Path; from fuzer.ops.jobs import export_signature; print(export_signature(Path({fuzer.data_dir!r}), 'pid_sheets'))"
     runs = {subprocess.check_output([sys.executable, "-c", code], text=True) for _ in range(2)}
     assert len(runs) == 1
 

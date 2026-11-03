@@ -869,7 +869,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
-    # How the fake historian makes process values move together (fuzer.process_model); not a source.
+    # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
     (out / "process_model.json").write_text(json.dumps(model))
     (out / "answer_keys" / "curves.json").write_text(json.dumps(
         [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",
