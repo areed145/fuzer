@@ -6,6 +6,7 @@ import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
+import { SourcesPage } from "./pages/Sources";
 import { StudiesPage } from "./pages/Studies";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
@@ -98,6 +99,9 @@ function App() {
         <a className={section === "review" ? "on" : ""} href={href("/review")}>
           Review {openReviews > 0 && <span className="count">{openReviews}</span>}
         </a>
+        <a className={section === "sources" ? "on" : ""} href={href("/sources")}>
+          Sources
+        </a>
         <a className={section === "settings" ? "on" : ""} href={href("/settings")}>
           Settings
         </a>
@@ -144,6 +148,8 @@ function App() {
             <ReportsPage query={query} />
           ) : section === "studies" ? (
             <StudiesPage query={query} />
+          ) : section === "sources" ? (
+            <SourcesPage query={query} />
           ) : section === "settings" ? (
             <SettingsPage query={query} />
           ) : section === "board" ? (

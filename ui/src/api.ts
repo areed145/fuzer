@@ -713,6 +713,28 @@ export interface DailyReport {
   item_id: number | null;
 }
 
+export interface SourceRow {
+  dataset: string;
+  connector: string;
+  mapping: string | null;
+  state: "new" | "unchanged" | "changed" | "held" | "unmapped";
+  rows: number | null;
+  loaded_at: string | null;
+}
+
+export interface SourcePreview {
+  dataset: string;
+  connector: string;
+  path: string;
+  schema: [string, string][] | null;
+  drift: { added: string[]; removed: string[]; retyped: { column: string; was: string; now: string }[] } | null;
+  held: boolean;
+  sample: Record<string, unknown>[];
+  mapping?: string;
+  makes?: { record: string; entities: { kind: string; key: string | null; fields: string[] }[]; links: { rel: string; to: string }[] }[];
+  suggested?: { yaml: string; key: string | null; columns: Record<string, string> };
+}
+
 export interface SettingRow {
   key: string;
   group: string;
@@ -824,6 +846,8 @@ export const api = {
   startStudy: (kind: string, params: Record<string, unknown>, by: string) =>
     request<Study>("POST", "/studies", undefined, { kind, params, by }),
   rerunStudy: (id: number, by: string) => request<Study>("POST", `/studies/${id}/rerun`, { by }),
+  sources: () => request<{ data_dir: string; sources: SourceRow[] }>("GET", "/sources"),
+  source: (name: string) => request<SourcePreview>("GET", `/sources/${encodeURIComponent(name)}`, { rows: 8 }),
   settings: (project?: string) =>
     request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
   setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>

@@ -554,3 +554,5 @@ table.settings code { font-family: var(--mono); font-size: 12px; margin-right: 6
 tr.setting-edit > td { background: var(--bg); }
 tr.setting-edit .row { margin-bottom: 8px; }
 .row input.grow { flex: 1; min-width: 200px; }
+
+.scroll-x { overflow-x: auto; max-width: 100%; }
