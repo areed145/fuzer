@@ -128,6 +128,30 @@ register(
             "this many hours", "SRE", min=0.1, max=48),
     Setting("sre.hops", "int", 4, "Units this many links apart in the plant model count as connected (upsets and "
             "correlation studies)", "SRE", min=1, max=10),
+    Setting("signals.flat_hours", "float", 2.0, "Hours with no change at all, while the unit runs, before a reading "
+            "is frozen", "Signals", min=0.5, max=48),
+    Setting("signals.stuck_hours", "float", 6.0, "Hours a reading moves far less than usual (under stuck_ratio x), "
+            "while the unit runs, before it is stuck", "Signals", min=0.5, max=72),
+    Setting("signals.stuck_ratio", "float", 0.1, "A stuck reading's step-to-step spread is under this share of its "
+            "usual", "Signals", min=0.01, max=0.9),
+    Setting("signals.noisy_hours", "float", 1.0, "Hours a reading moves far more than usual (over noisy_ratio x) "
+            "before it is noisy", "Signals", min=0.25, max=48),
+    Setting("signals.noisy_ratio", "float", 4.0, "A noisy reading's step-to-step spread is over this many times its "
+            "usual", "Signals", min=1.5, max=50),
+    Setting("signals.range_minutes", "int", 30, "Minutes at or past the end of its instrument range before a reading "
+            "is out of range", "Signals", min=10, max=1440),
+    Setting("signals.redundant_hours", "float", 2.0, "Hours two redundant transmitters stay further apart than usual "
+            "before one is drifting", "Signals", min=0.5, max=72),
+    Setting("signals.baseline_days", "int", 7, "Days before the window that set a reading's usual behaviour "
+            "(instrument_health)", "Signals", min=1, max=90),
+    Setting("signals.merge_minutes", "int", 240, "The same instrument finding again within this many minutes is one "
+            "finding", "Signals", min=0, max=1440),
+    Setting("signals.step_z", "float", 6.0, "A step: the median moves this many times its usual window-to-window "
+            "move", "Signals", min=2, max=50),
+    Setting("signals.var_ratio", "float", 4.0, "A variance change: the jitter either side differs by this "
+            "factor", "Signals", min=1.5, max=50),
+    Setting("signals.drift_z", "float", 4.0, "A drift: the fitted trend moves this many times the spread around "
+            "it", "Signals", min=2, max=50),
 )
 
 

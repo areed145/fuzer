@@ -117,14 +117,14 @@ def steps(conn, pack, since, until, src) -> list[dict]:
     a = since - timedelta(hours=settings.get(conn, "sre.lookback_hours"))
     times = _grid(a, until, step)
     run, unit = _running(conn, pack, pts, a, until, src)
-    out = []
+    out, th = [], signals.thresholds(conn)
     for p in pts:
         try:
             v = signals._read(src, p, a, until, step)
         except Exception:  # one unreadable point shouldn't stop the run
             continue
         r = run[p["id"]]
-        for c in signals.detect_changes(times, v, step):
+        for c in signals.detect_changes(times, v, step, th=th):
             at = datetime.fromisoformat(c["start"])
             i = times.index(at) if at in times else None
             if c["kind"] != "step" or at < since or i is None or not r[max(0, i - 180 // step):i + 180 // step].all():
@@ -145,13 +145,13 @@ def drifts(conn, pack, since, until, src) -> list[dict]:
     pts = [p for p in _points(conn) if DRIFTING.search(p["description"] or "")]
     a = until - timedelta(days=DRIFT_DAYS)
     times = _grid(a, until, DRIFT_STEP)
-    out, rise = [], settings.get(conn, "sre.drift_rise")
+    out, rise, th = [], settings.get(conn, "sre.drift_rise"), signals.thresholds(conn)
     for p in pts:
         try:
             v = signals._read(src, p, a, until, DRIFT_STEP)
         except Exception:
             continue
-        for c in signals.detect_changes(times, v, DRIFT_STEP, window_minutes=1440):
+        for c in signals.detect_changes(times, v, DRIFT_STEP, window_minutes=1440, th=th):
             if c["kind"] != "drift" or c["after"] - c["before"] < rise * abs(c["before"]) \
                     or c["end"] < (until - timedelta(days=1)).isoformat():
                 continue  # climbing, by enough, and still at the end of the window
@@ -173,7 +173,7 @@ def instruments(conn, pack, since, until, src) -> list[dict]:
     times = _grid(since, until, step)
     base_a = since - timedelta(days=2)
     run, unit = _running(conn, pack, pts, since, until, src)
-    out = []
+    out, th = [], signals.thresholds(conn)
     for p in pts:
         try:
             v = signals._read(src, p, since, until, step)
@@ -181,7 +181,7 @@ def instruments(conn, pack, since, until, src) -> list[dict]:
         except Exception:
             continue
         lo, hi = signals.RANGES.get(p["uom"] or "", (None, None))
-        for f in signals.health(times, v, step, base, run[p["id"]], lo, hi):
+        for f in signals.health(times, v, step, base, run[p["id"]], lo, hi, th):
             end = datetime.fromisoformat(f["end"])
             out.append(_det(p, unit.get(p["id"]), datetime.fromisoformat(f["start"]), None if end >= until else end,
                             f"instrument:{f['check']}", "instruments", f["value"], {"usual": f["expected"]}))

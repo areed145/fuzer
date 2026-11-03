@@ -227,7 +227,8 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None, src=None
     v = calcs.read({k: pts[k] for k in ("whp", "back", "choke", "wht") if pts.get(k)}, start, end, 60, src)
     times = sorted(set(v["whp"]) & set(v["back"]))
     dp = np.array([v["whp"][t] - v["back"][t] for t in times])
-    found = signals.detect_changes([datetime.fromisoformat(t) for t in times], dp, 60, window_minutes=720)
+    found = signals.detect_changes([datetime.fromisoformat(t) for t in times], dp, 60, window_minutes=720,
+                                   th=signals.thresholds(conn))
     rising = [c for c in found if c["kind"] == "drift" and c["after"] > c["before"] and
               c["end"] >= (end - timedelta(days=2)).isoformat(timespec="minutes")]
     first = float(np.median(dp[: max(24, len(dp) // 10)])) if len(dp) else None
