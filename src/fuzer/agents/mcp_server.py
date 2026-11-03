@@ -466,12 +466,13 @@ def troubleshoot(what: str) -> str:
 def process_values(ref: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Process values (PI points on the unit and its instruments) around a time: per point min / max /
     mean / last and the provider used. For an incident, at defaults to its start. at is ISO date or time."""
-    from ..sources import timeseries
+    from ..analysis import values
+
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
             return err
-        out = timeseries.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720), pack=PACK)
+        out = values.around(conn, fid, at, min(hours_before, 720), min(hours_after, 720), pack=PACK)
     if "series" in out:
         out["series"] = [{k: v for k, v in s.items() if k != "values"} for s in out["series"]]
     return _plain(out)
@@ -940,7 +941,7 @@ def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
     limits taking or ending effect, excursions and new well tests, with counts. Start here for "what
     happened since ..." and each shift's or run's snapshot. since / until ISO times (until: now)."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
@@ -974,7 +975,7 @@ def production_summary(since: str | None = None, until: str | None = None,
                        by: Literal["month", "week"] = "month") -> dict[str, Any]:
     """Oil actual vs potential (production efficiency %), gas export, lift gas and flare per month or
     week, with deferred oil by reason. Default: the last 12 months. Dates YYYY-MM-DD."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.production_summary(conn, since, until, by))
 
@@ -984,7 +985,7 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
                      since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
     or affected well, with each one's share. Default: the last 12 months."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
 
@@ -993,7 +994,7 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
 def production_constraints(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """What has been limiting production: losses by reason with the units that cause them, frequency,
     last occurrence and trend (worse / steady / better). Default: the last 12 months."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.constraints(conn, since, until))
 
@@ -1003,7 +1004,7 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
     """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
     wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
     Default window: 12 months."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         fid = None
         if ref:
@@ -1020,7 +1021,7 @@ def gas_lift_network(ref: str | None = None, since: str | None = None, limit: in
     well: lift gas, oil per lift gas and measured response to more lift gas (Sm3/d oil per extra kSm3/d),
     least and most responsive wells, wells lifting mostly water. With ref (header, manifold, jacket,
     compressor or well): only that part, plus its supply path. Default window: 12 months of tests."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         fid = None
         if ref:
@@ -1034,7 +1035,7 @@ def gas_lift_network(ref: str | None = None, since: str | None = None, limit: in
 def bad_actors(since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure
     modes, with MTBF per unit and per class. Default window: 2 years."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.bad_actors(conn, since, until, min(limit, 100)))
 
@@ -1043,7 +1044,7 @@ def bad_actors(since: str | None = None, until: str | None = None, limit: int = 
 def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest;
     open notifications with no order planned yet."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
@@ -1052,7 +1053,7 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
 def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, limit: int = 25) -> dict[str, Any]:
     """Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks
     due within the horizon; tasks that need a shutdown are marked."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.maintenance_compliance(conn, as_of, min(horizon_days, 1100), min(limit, 200)))
 
@@ -1062,7 +1063,7 @@ def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
     """Turnaround (shutdown) scope: work orders planned for the revision (default: the next one), plans
     that need the unit down and aren't in scope yet, bad actors not in scope, and spares for scoped
     units that are out of stock (order long-lead items now)."""
-    from ..ops import operations
+    from ..graph import operations
     with db.connect() as conn:
         return _plain(operations.turnaround_scope(conn, revision))
 
@@ -1130,7 +1131,7 @@ def claim_work(task_id: int, agent: AgentRole) -> dict[str, Any]:
     """Take a step before working on it, so no worker or other agent takes it too. An agent step is
     held with a lease (renewed by finishing in time); a person step that doesn't need a person is
     assigned to you. Returns the step, its form and the evidence so far."""
-    from ..workflow import worker
+    from . import worker
     with db.connect() as conn:
         t = conn.execute("select kind, role from work_token where id = %s", (task_id,)).fetchone()
         conn.commit()
@@ -1539,7 +1540,7 @@ def equipment_curves(ref: str) -> dict[str, Any]:
     """The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening)
     and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment
     item or tag, and where they came from (vendor export or an accepted datasheet reading)."""
-    from ..analysis import curves
+    from ..sources import curves
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:

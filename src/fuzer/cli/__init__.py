@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..core import db
 from ..core.pack import load_pack
-from ..graph import pipeline
+from ..ops import pipeline
 from ..resources import ROOT
 from ..sources import ingest
 
@@ -147,7 +147,8 @@ def main(argv=None):
 
         mcp_server.main(http=args.http, host=args.host, port=args.port)
     elif args.cmd == "work":
-        from ..workflow import engine, worker
+        from ..agents import worker
+        from ..workflow import engine
 
         with db.connect() as conn:
             db.init_schema(conn)
@@ -223,7 +224,8 @@ def main(argv=None):
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
             elif args.cmd == "report":
-                from ..ops import daily_report, operations
+                from ..graph import operations
+                from ..ops import daily_report
                 from ..workflow import engine
 
                 engine.load_defaults(conn)
@@ -255,7 +257,7 @@ def _limits(conn, pack, args) -> None:
     from datetime import datetime, timedelta
 
     from ..analysis import limits
-    from ..ops import operations
+    from ..graph import operations
 
     if args.action == "issues":
         found = limits.issues(conn, pack)
@@ -277,7 +279,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
     from datetime import datetime, timedelta
 
     from ..evals import replay
-    from ..ops import operations
+    from ..graph import operations
 
     if not (data / "process_model.json").is_file():  # the fake plant's own folder for this pack
         own = ROOT / "fakeplant" / "data" / pack.name

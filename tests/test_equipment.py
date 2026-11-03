@@ -13,7 +13,8 @@ from fuzer.agents import mcp_server
 from fuzer.analysis import equipment
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
+from fuzer.graph import queries
+from fuzer.ops import pipeline
 from fuzer.plots import maintenance
 from fuzer.sources import ingest
 

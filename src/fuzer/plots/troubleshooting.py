@@ -297,6 +297,7 @@ def propagation(conn, upset: int) -> Figure:
     the model connects them, the likely first cause marked."""
     from datetime import datetime as dt
 
+    from ..graph import topology
     from ..ops import sre
 
     d = sre.upset_detail(conn, upset, limit=2000)
@@ -320,7 +321,7 @@ def propagation(conn, upset: int) -> Figure:
         b = int(mins[u] // 10)
         lanes[b] = lanes.get(b, 0) + 1
         pos[u] = (mins[u], lanes[b])
-    adj = sre.topology(conn)
+    adj = topology.topology(conn)
     ex, ey = [], []
     for i, u in enumerate(order):
         for v in order[i + 1:]:

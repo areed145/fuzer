@@ -39,7 +39,7 @@ fuzer = "fuzer.cli:main"
 
 [dependency-groups]
 # SpiffWorkflow is only the reference the work engine's behaviour is tested against (tests/test_workflow.py).
-dev = ["pytest>=8", "httpx>=0.27", "fuzer-fakeplant", "spiffworkflow>=3.2.0"]
+dev = ["pytest>=8", "httpx>=0.27", "fuzer-fakeplant", "spiffworkflow>=3.2.0", "import-linter>=2.1"]
 
 [tool.uv]
 # agent-framework-anthropic still declares anthropic<2; it runs on the 2.x SDK Fuzer uses (tests/test_agents.py).
@@ -60,3 +60,25 @@ packages = ["src/fuzer"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "fuzer"
+
+[[tool.importlinter.contracts]]
+name = "Layers (#135): a module imports only from its own layer and the ones below"
+type = "layers"
+layers = [
+    "fuzer.cli",
+    "fuzer.api | fuzer.evals",
+    "fuzer.agents",
+    "fuzer.ops : fuzer.plots",
+    "fuzer.analysis",
+    "fuzer.graph",
+    "fuzer.sources",
+    "fuzer.workflow",
+    "fuzer.core",
+]
+ignore_imports = [
+    # The SRE hand-off's default diagnosis asks the troubleshooter at run time; callers can pass their own `ask`.
+    "fuzer.ops.sre_handoff -> fuzer.agents",
+]

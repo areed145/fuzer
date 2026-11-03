@@ -10,8 +10,8 @@ fake asset reads as if it were current; pass as_of to look from another day.
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from ..graph import queries
-from ..graph.queries import _DOWNTIME
+from . import queries
+from .queries import _DOWNTIME
 
 OPEN = ("CRTD", "REL", "OSNO", "OSTS")  # SAP: created, released, outstanding notification / task
 

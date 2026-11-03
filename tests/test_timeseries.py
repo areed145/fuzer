@@ -7,9 +7,11 @@ from datetime import datetime
 import pytest
 
 from fakeplant import offshore
+from fuzer.analysis import values
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
+from fuzer.graph import queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest, timeseries
 
 PACK = load_pack()
@@ -41,7 +43,7 @@ def test_synthetic_values_are_deterministic_and_show_upsets():
 def test_values_around_an_incident(conn):
     inc = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "23-K-1001A"))["items"]
                if i["start"] == "2024-02-03")
-    out = timeseries.around(conn, inc["id"])
+    out = values.around(conn, inc["id"])
     assert out["upsets"] and out["series"]
     points = {s["point"] for s in out["series"]}
     assert "OSB:23-TT-1001A.DACA.PV" in points  # the unit's own instruments
@@ -61,12 +63,12 @@ def test_unknown_or_unconfigured_provider_is_explicit(monkeypatch):
 def test_values_of_one_timeseries(conn):
     ts = conn.execute("select fuzer_id from entity_key where kind = 'timeseries' and key = 'OSB:23-TT-1001A.DACA.PV'"
                       ).fetchone()["fuzer_id"]
-    out = timeseries.around(conn, ts)
+    out = values.around(conn, ts)
     assert [s["point"] for s in out["series"]] == ["OSB:23-TT-1001A.DACA.PV"]
     # centred on the latest incident on the compressor it measures, shaded
     latest = queries.incidents(conn, queries.resolve_ref(conn, PACK, "23-K-1001A"))["items"][0]
     assert out["centre"][:10] == latest["start"] and out["centre"] in out["upsets"]
-    week = timeseries.around(conn, ts, "2024-02-03T14:00", hours_before=144, hours_after=24)
+    week = values.around(conn, ts, "2024-02-03T14:00", hours_before=144, hours_after=24)
     assert week["step_minutes"] == 120 and len(week["series"][0]["values"]) == 85
 
 
@@ -77,8 +79,8 @@ def test_auto_step():
 def test_direct_points_of_a_tag(conn):
     unit = queries.resolve_ref(conn, PACK, "23-K-1001A")
     vt = queries.resolve_ref(conn, PACK, "23-TT-1001A")
-    whole = timeseries.around(conn, unit)
-    own = timeseries.around(conn, vt, direct=True)
+    whole = values.around(conn, unit)
+    own = values.around(conn, vt, direct=True)
     assert {s["point"] for s in own["series"]} == {"OSB:23-TT-1001A.DACA.PV"}
     assert len(whole["series"]) > 1
     assert own["upsets"] and own["centre"] in own["upsets"]  # the latest incident on the compressor

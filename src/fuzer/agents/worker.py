@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from . import engine
+from ..workflow import engine
 
 log = logging.getLogger(__name__)
 LEASE = timedelta(seconds=int(os.environ.get("FUZER_WORK_LEASE_SECONDS", "900")))

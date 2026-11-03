@@ -30,6 +30,7 @@ from psycopg.types.json import Jsonb
 
 from ..analysis import calcs, limits, signals
 from ..core.jsonsafe import plain as _plain
+from ..graph.topology import HOPS, LINKS, TRAIN, _near, topology  # noqa: F401  (sre.topology, as before)
 
 STEP = 10  # minutes between values the detectors read
 OVERLAP = timedelta(hours=1)
@@ -326,7 +327,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
     """One scheduled run: from the last run's end (less an hour's overlap) to `until` (default: now, or
     the end of the data's today for a fake plant), in 6-hour steps so a missed run catches up. The first
     run covers the last day. At most `max_days` per call."""
-    from . import operations
+    from ..graph import operations
 
     end = datetime.fromisoformat(until) if until else min(datetime.now().replace(second=0, microsecond=0),
                                                           datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1))
@@ -375,74 +376,8 @@ def recent(conn, since: str | None = None, detector: str | None = None, limit: i
 # ---- grouping into upsets (#96b) ------------------------------------------------------------------
 
 GAP = timedelta(hours=2)  # a detection joins an upset starting within this long of its latest detection
-HOPS = 4  # and on a unit this close in the plant model (compressor -> header -> manifold -> well)
-LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
-TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
 SLOW = {"drifts", "models", "hydraulics"}  # multivariate findings group with the upsets they belong to  # days to months: one upset per unit and finding, never joined to others
 FIRST = {"stops": 0, "excursions": 1, "steps": 2}  # at the same time, the likelier first cause
-
-
-def topology(conn) -> dict[str, set[str]]:
-    """Units next to each other in the plant model: part_of (instrument -> equipment, choke -> well),
-    flows_to, lift_gas_to and P&ID piping, both ways; and the machines of one compression train (same
-    area, same trailing letter). Areas and the facility are left out, or everything would touch."""
-    adj: dict[str, set[str]] = {}
-    for r in conn.execute(
-        """
-        select e.src, e.dst from edge e join entity a on a.fuzer_id = e.src join entity b on b.fuzer_id = e.dst
-        where e.rel = any(%s) and a.kind in ('tag', 'well', 'allocation_node') and b.kind in ('tag', 'well', 'allocation_node')
-        """, (list(LINKS),)):
-        adj.setdefault(r["src"], set()).add(r["dst"])
-        adj.setdefault(r["dst"], set()).add(r["src"])
-    tags = conn.execute(
-        """
-        select l.fuzer_id, l.label, (select a.dst from edge a join entity x on x.fuzer_id = a.dst and x.kind = 'area'
-                                     where a.src = l.fuzer_id and a.rel = 'part_of' limit 1) as area,
-               exists (select 1 from edge p join entity x on x.fuzer_id = p.dst and x.kind = 'tag'
-                       where p.src = l.fuzer_id and p.rel = 'part_of') as instrument
-        from entity_label l join entity e using (fuzer_id) where e.kind = 'tag'
-        """).fetchall()
-    trains: dict[tuple, list[str]] = {}
-    for r in tags:
-        if not r["instrument"] and (m := TRAIN.match(r["label"] or "")):
-            trains.setdefault(m.groups(), []).append(r["fuzer_id"])
-    for members in trains.values():
-        if len(members) <= 20:  # a train's machines and vessels, not a whole lettered area
-            for u in members:
-                adj.setdefault(u, set()).update(x for x in members if x != u)
-    # A tag on its own (a header pressure, a jacket's gas lift meter) belongs with the manifolds in its area
-    # and with the tags of its loop family there (20-PT-3003 with 20-FT-3002).
-    nodes: dict[str, set[str]] = {}
-    for r in conn.execute("select e.src, e.dst from edge e join entity n on n.fuzer_id = e.src and n.kind = 'allocation_node' "
-                          "where e.rel = 'located_at'"):
-        nodes.setdefault(r["dst"], set()).add(r["src"])
-    family = lambda label: (label.split("-")[0], label.split("-")[-1][:2]) if label and label.count("-") >= 2 else None  # noqa: E731
-    linked = {}
-    for r in tags:
-        if not r["instrument"] and r["fuzer_id"] in adj:
-            linked.setdefault(family(r["label"]), set()).add(r["fuzer_id"])
-    for r in tags:
-        if r["instrument"] or r["fuzer_id"] in adj or not r["area"]:
-            continue
-        near = nodes.get(r["area"], set()) | linked.get(family(r["label"]), set())
-        for n in near:
-            adj.setdefault(r["fuzer_id"], set()).add(n)
-            adj.setdefault(n, set()).add(r["fuzer_id"])
-    return adj
-
-
-def _near(adj: dict, a: str | None, b: str | None, cache: dict) -> bool:
-    if a is None or b is None:
-        return False
-    if a == b:
-        return True
-    if a not in cache:
-        seen, frontier = {a}, {a}
-        for _ in range(HOPS):
-            frontier = {n for u in frontier for n in adj.get(u, ())} - seen
-            seen |= frontier
-        cache[a] = seen
-    return b in cache[a]
 
 
 def group_detections(found: list[dict], adj: dict[str, set[str]]) -> list[dict]:

@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from ..core.pack import Pack
+from .pack import Pack
 
 
 @dataclass

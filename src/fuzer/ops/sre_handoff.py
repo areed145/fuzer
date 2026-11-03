@@ -35,7 +35,7 @@ CITE = re.compile(r"\b(fz-[a-z_]+-[0-9a-f]{6,}|[a-z_]+:[a-z_]+:[A-Za-z0-9._#/-]+
 def priority(conn, pack, upset: dict, today: str | None = None) -> dict:
     """The #100 score of one upset, with its breakdown."""
     from ..analysis import value
-    from . import operations
+    from ..graph import operations
 
     cfg = value.config(pack)
     today = today or operations.as_of(conn)

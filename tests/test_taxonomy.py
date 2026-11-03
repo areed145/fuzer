@@ -8,8 +8,9 @@ import pytest
 from fakeplant import offshore
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
-from fuzer.graph.taxonomy import Taxonomy
+from fuzer.core.taxonomy import Taxonomy
+from fuzer.graph import queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
 PACK = load_pack()

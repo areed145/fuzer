@@ -7,24 +7,14 @@ from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from ..analysis import curves, limits
-from ..core import db
+from ..sources import curves
+from ..analysis import limits
+from ..core import db, taxonomy
 from ..core.pack import Pack
+from ..graph import edges, golden, incidents, knowledge, lessons, llm_links, measurements, queries, spatial
+from ..graph.resolve import resolve, resolve_keyed, retire_unused, sync_labels
 from ..sources import llm_docs, llm_pids, mappings
 from ..sources.extract import extract, link_part_numbers
-from . import (
-    edges,
-    golden,
-    incidents,
-    knowledge,
-    lessons,
-    llm_links,
-    measurements,
-    queries,
-    spatial,
-    taxonomy,
-)
-from .resolve import resolve, resolve_keyed, retire_unused, sync_labels
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
 WORK_MEM = os.environ.get("FUZER_WORK_MEM", "256MB")

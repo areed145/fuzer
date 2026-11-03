@@ -13,8 +13,7 @@ from fuzer.agents import mcp_server
 from fuzer.analysis import calcs
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline
-from fuzer.ops import board, opportunities
+from fuzer.ops import board, opportunities, pipeline
 from fuzer.sources import ingest
 from fuzer.workflow import engine
 

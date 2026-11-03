@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 from ..core import db
-from ..graph import pipeline
+from ..ops import pipeline
 from ..resources import ROOT
 from ..sources import ingest
 

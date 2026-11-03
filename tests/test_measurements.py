@@ -13,7 +13,8 @@ from fakeplant import okan
 from fuzer.agents import mcp_server
 from fuzer.core import db, units
 from fuzer.core.pack import load_pack
-from fuzer.graph import measurements, pipeline, queries
+from fuzer.graph import measurements, queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest, mappings
 
 PACK = load_pack("okan")

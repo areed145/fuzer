@@ -8,7 +8,8 @@ import pytest
 from fakeplant import offshore
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import knowledge, pipeline, queries
+from fuzer.graph import knowledge, queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
 PACK = load_pack()

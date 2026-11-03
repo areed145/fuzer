@@ -11,7 +11,7 @@ from fakeplant import okan
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import ops_eval
-from fuzer.graph import pipeline
+from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
 PACK = load_pack("okan")

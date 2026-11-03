@@ -13,8 +13,8 @@ from fakeplant import historian, offshore
 from fuzer.agents import assistant
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
-from fuzer.ops import jobs
+from fuzer.graph import queries
+from fuzer.ops import jobs, pipeline
 from fuzer.sources import adx, connectors, ingest, pi_web_api, timeseries
 
 PACK = load_pack()

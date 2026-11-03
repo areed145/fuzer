@@ -41,7 +41,7 @@ def _opp(key: str, kind: str, title: str, gain: float | None, basis: str, confid
 
 def gas_lift_moves(conn, at: str | None = None, breakeven: float = BREAKEVEN) -> list[dict]:
     from ..analysis import calcs
-    from . import operations
+    from ..graph import operations
 
     net = operations.gas_lift_network(conn, limit=100000)
     if "error" in net:
@@ -92,7 +92,7 @@ def gas_lift_moves(conn, at: str | None = None, breakeven: float = BREAKEVEN) ->
 
 def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
     from ..analysis import calcs
-    from . import operations
+    from ..graph import operations
 
     today = date.fromisoformat(at[:10] if at else operations.as_of(conn))
     out = []
@@ -115,7 +115,7 @@ def wells_below_expectation(conn, at: str | None = None) -> list[dict]:
 
 
 def recurring_constraints(conn, min_failures: int = 4) -> list[dict]:
-    from . import operations
+    from ..graph import operations
 
     ba = operations.bad_actors(conn, limit=50)
     days = max((date.fromisoformat(ba["until"]) - date.fromisoformat(ba["since"])).days, 1)
@@ -130,7 +130,7 @@ def recurring_constraints(conn, min_failures: int = 4) -> list[dict]:
 
 def recoverable_deferment(conn, at: str | None = None) -> list[dict]:
     from ..analysis import calcs
-    from . import operations
+    from ..graph import operations
 
     today = at[:10] if at else operations.as_of(conn)
     out = []

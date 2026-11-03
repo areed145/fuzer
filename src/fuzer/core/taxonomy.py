@@ -17,9 +17,9 @@ from functools import cache
 import yaml
 from rapidfuzz import fuzz, process, utils
 
-from ..core.model import Candidate, Edge
-from ..core.pack import Pack
 from ..resources import STANDARDS as STANDARDS_DIR
+from .model import Candidate, Edge
+from .pack import Pack
 
 SOURCE = "fuzer"  # derived records are attributed to Fuzer itself
 

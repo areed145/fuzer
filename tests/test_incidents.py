@@ -10,7 +10,8 @@ import pytest
 from fakeplant import offshore
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import incidents, llm_links, pipeline, queries
+from fuzer.graph import incidents, llm_links, queries
+from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -91,7 +92,8 @@ def test_lone_notifications_are_not_incidents(conn):
 def test_upset_workflow_on_a_fake_incident(conn):
     """#97: an upset on the fake asset goes detected -> agent diagnosis -> engineer approval -> resolved,
     each step in its history; a second detection of the same incident adds evidence to it."""
-    from fuzer.workflow import engine, worker
+    from fuzer.agents import worker
+    from fuzer.workflow import engine
     engine.load_defaults(conn)
     engine.set_person(conn, "alice", ["engineer"])
     engine.set_person(conn, "pat", ["maintenance_planner"])

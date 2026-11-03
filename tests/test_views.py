@@ -13,8 +13,8 @@ from fuzer.agents import mcp_server
 from fuzer.analysis import cases
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import pipeline, queries
-from fuzer.ops import sre
+from fuzer.graph import queries
+from fuzer.ops import pipeline, sre
 from fuzer.plots import general, troubleshooting
 from fuzer.sources import ingest
 

@@ -9,20 +9,17 @@ Claude only ever picks from a numbered list of candidates built here from the as
 so it can say "not sure" but cannot invent an entity.
 """
 
-import hashlib
 import json
-import os
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from psycopg.types.json import Jsonb
 
-from ..core import models
+from ..core import nel
+from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage  # noqa: F401  (also used from here)
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
-from . import nel
 
 PROMPT_VERSION = "2026-10-29.2"
 
@@ -33,8 +30,6 @@ TEXT_SOURCES = {
     "ec_daily": ("ec", "daily_report", "comments", "report_date"),
     "ec_downtime": ("ec", "downtime", "comment", "start"),
 }
-DEFAULT_MODEL = os.environ.get("FUZER_LLM_MODEL", models.DEFAULT_MODEL)
-DEFAULT_EFFORT = os.environ.get("FUZER_LLM_EFFORT", "medium")
 MAX_CANDIDATES = 60
 EQUIPMENT_FUNCS = {"P", "K", "V", "E"}
 
@@ -116,8 +111,6 @@ SCHEMA = {
 }
 
 
-def text_hash(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 # --- candidates ---------------------------------------------------------------------------------
@@ -247,19 +240,7 @@ def _parse(message, entries: list[dict]) -> tuple[dict[str, dict], dict]:
     return results, dropped
 
 
-def call(client, params: dict):
-    """One synchronous request with server-side refusal fallback."""
-    return client.beta.messages.create(
-        **params,
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",  # if the model declines, the API retries on a fallback model
-    )
 
-
-def usage(message) -> dict:
-    u = message.usage
-    return {"input_tokens": u.input_tokens or 0, "output_tokens": u.output_tokens or 0,
-            "cache_read_tokens": getattr(u, "cache_read_input_tokens", 0) or 0}
 
 
 def _store(conn, rows: list[tuple]) -> None:
@@ -345,29 +326,6 @@ def run(conn, pack: Pack, *, client=None, model: str = DEFAULT_MODEL, effort: st
     return {**stats, **totals, "errors": errors[:5]}
 
 
-def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors: list, poll_seconds: int = 30):
-    """Half-price asynchronous run through the Message Batches API (usually done within an hour).
-    requests maps custom_id -> request params; on_result(custom_id, message) handles each success."""
-    from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-    from anthropic.types.messages.batch_create_params import Request
-
-    created = client.messages.batches.create(requests=[
-        Request(custom_id=cid, params=MessageCreateParamsNonStreaming(**params)) for cid, params in requests.items()
-    ])
-    print(f"batch {created.id}: {len(requests)} requests submitted", flush=True)
-    while (b := client.messages.batches.retrieve(created.id)).processing_status != "ended":
-        print(f"batch {created.id}: {b.request_counts.processing} still processing", flush=True)
-        time.sleep(poll_seconds)
-    for result in client.messages.batches.results(created.id):
-        if result.result.type == "succeeded":
-            try:
-                on_result(result.custom_id, result.result.message)
-            except Exception as e:
-                totals["failed_requests"] += 1
-                errors.append(f"{result.custom_id}: {type(e).__name__}: {e}")
-        else:
-            totals["failed_requests"] += 1
-            errors.append(f"{result.custom_id}: {result.result.type}")
 
 
 # --- rebuild side -------------------------------------------------------------------------------

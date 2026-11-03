@@ -4,8 +4,8 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
+from ..core import nel
 from ..core.pack import Pack
-from . import nel
 
 
 class AmbiguousRef(LookupError):
