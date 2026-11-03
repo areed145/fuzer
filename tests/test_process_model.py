@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 from fakeplant import historian, okan
+from fuzer.analysis import values
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
@@ -152,5 +153,5 @@ def test_charts_on_modelled_points(data, monkeypatch):
         assert "process model" in cor.summary["note"]
         vib = next(r for r in cor.summary["against_target"]["best_lag"] if "VT" in r["point"])
         assert vib["leads_by_minutes"] > 0 and vib["r"] > 0.5
-        out = timeseries.around(conn, k, "2024-03-14T03:00", 6, 1)
+        out = values.around(conn, k, "2024-03-14T03:00", 6, 1)
         assert all(s.get("modelled") for s in out["series"])

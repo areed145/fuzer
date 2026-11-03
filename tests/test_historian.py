@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from fakeplant import historian, offshore
 from fuzer.agents import assistant
+from fuzer.analysis import values
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
@@ -116,7 +117,7 @@ def test_live_ingest_loads_pi_and_adx_and_values_come_from_them(data, live):
         for name in ("adx", "pi"):
             os.environ["FUZER_TIMESERIES"] = name
             try:
-                out = timeseries.around(conn, inc["id"])
+                out = values.around(conn, inc["id"])
             finally:
                 os.environ.pop("FUZER_TIMESERIES")
             assert out["provider"] == name and not out.get("errors")
@@ -128,7 +129,7 @@ def test_live_ingest_loads_pi_and_adx_and_values_come_from_them(data, live):
 
         os.environ["FUZER_TIMESERIES"] = "adx"
         try:
-            one = timeseries.around(conn, vib)  # a timeseries entity's own page
+            one = values.around(conn, vib)  # a timeseries entity's own page
             brief = assistant.brief(conn, PACK, inc["id"])
         finally:
             os.environ.pop("FUZER_TIMESERIES")
@@ -157,5 +158,5 @@ def test_unreachable_point_is_reported_not_fatal(data):
         ingest.ingest(conn, data)
         pipeline.rebuild(conn, PACK)
         unit = queries.resolve_ref(conn, PACK, "20-P-1001B")
-        out = timeseries.around(conn, unit, "2024-01-01T18:00", src=Broken())
+        out = values.around(conn, unit, "2024-01-01T18:00", src=Broken())
     assert out["series"] and out["errors"] and all("VT" not in s["point"] for s in out["series"])
