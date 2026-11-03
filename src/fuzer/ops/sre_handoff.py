@@ -22,8 +22,10 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from ..core import settings
 from ..core.jsonsafe import plain as _plain
 
+# Defaults; the values in effect are settings (#131): sre.handoff.min_detections, .max_diagnoses, .max_usd
 MIN_DETECTIONS = 3  # a lone detection is evidence, not an upset worth a person's time
 MAX_DIAGNOSES = 10  # per run
 MAX_USD = 5.0  # per run
@@ -126,17 +128,19 @@ def candidates(conn) -> list[dict]:
         left join entity_label l on l.fuzer_id = u.first_unit left join entity_label p on p.fuzer_id = d.point_id
         where u.kind = 'process' and u.status = 'detected' and u.work_item_id is null and u.detections >= %s
         order by u.start
-        """, (MIN_DETECTIONS,)).fetchall()
+        """, (settings.get(conn, "sre.handoff.min_detections"),)).fetchall()
     skip = suppressed(conn)
     return [dict(r) for r in rows if (r["point_id"], r["detector"], r["key"]) not in skip]
 
 
-def handoff(conn, pack, ask=None, max_diagnoses: int = MAX_DIAGNOSES, max_usd: float = MAX_USD,
+def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: float | None = None,
             today: str | None = None, say=None) -> dict:
     """Prioritise, diagnose (within the caps) and hand off the upsets not handed off yet. `say(msg)`
     gets progress lines."""
     from ..workflow import engine
 
+    max_diagnoses = settings.get(conn, "sre.handoff.max_diagnoses") if max_diagnoses is None else max_diagnoses
+    max_usd = settings.get(conn, "sre.handoff.max_usd") if max_usd is None else max_usd
     sync_feedback(conn)
     ups = candidates(conn)
     for u in ups:

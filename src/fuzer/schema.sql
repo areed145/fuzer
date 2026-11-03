@@ -754,3 +754,25 @@ create table if not exists study (
     finished_at timestamptz
 );
 create index if not exists study_queue on study (status, id);
+
+-- Settings (#131): values people set, per project ('project:<name>') or for all ('global'); the registry
+-- in core/settings.py holds each setting's type, default and range. Every change is kept.
+create table if not exists setting (
+    scope      text not null,
+    key        text not null,
+    value      jsonb not null,
+    updated_by text not null,
+    updated_at timestamptz not null default now(),
+    primary key (scope, key)
+);
+create table if not exists setting_history (
+    id     bigserial primary key,
+    scope  text not null,
+    key    text not null,
+    old    jsonb,
+    new    jsonb,
+    by     text not null,
+    reason text,
+    at     timestamptz not null default now()
+);
+create index if not exists setting_history_key on setting_history (key, id);

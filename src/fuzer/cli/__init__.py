@@ -91,6 +91,15 @@ def main(argv=None):
                     help="then prioritise, diagnose (Claude, capped) and hand off the new upsets to the workflow")
     sr.add_argument("--max-diagnoses", type=int, default=10, help="Claude diagnoses per run (0: none)")
 
+    st = sub.add_parser("settings", help="settings (#131): list, get, set, reset, or show a setting's history")
+    st.add_argument("action", choices=["list", "get", "set", "reset", "history"])
+    st.add_argument("key", nargs="?")
+    st.add_argument("value", nargs="?")
+    st.add_argument("--group", default=None, help="with list: only this group (SRE, Claude, ...)")
+    st.add_argument("--project", default=None, help="set or reset for this project (default: all projects)")
+    st.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is changing it (default: $USER)")
+    st.add_argument("--reason", default=None, help="why, kept in the history")
+
     bd = sub.add_parser("board", help="the work board (#99): refresh it, or show the top cards")
     bd.add_argument("action", choices=["refresh", "show"])
     bd.add_argument("--limit", type=int, default=20)
@@ -234,6 +243,8 @@ def main(argv=None):
                 if args.claude:
                     _print(daily_report.redraft(conn, day))
                 print(daily_report.get(conn, day)["markdown"])
+            elif args.cmd == "settings":
+                _settings(conn, args)
             elif args.cmd == "board":
                 from ..ops import board
 
@@ -393,6 +404,28 @@ def _bench(conn, pack) -> dict:
                    "maintenance_class": lambda: queries.maintenance(conn, pumps)}
     out["ms"] = {name: best(fn) for name, fn in checks.items()}
     return out
+
+
+def _settings(conn, args) -> None:
+    from ..core import settings
+
+    if args.action != "list" and not args.key:
+        raise SystemExit(f"settings {args.action} needs a key (fuzer settings list shows them)")
+    try:
+        if args.action == "list":
+            _print(settings.listing(conn, args.group, args.project))
+        elif args.action == "get":
+            _print({"key": args.key, "value": settings.get(conn, args.key, args.project)})
+        elif args.action == "set":
+            if args.value is None:
+                raise SystemExit("settings set needs a value")
+            _print(settings.set(conn, args.key, args.value, by=args.by, reason=args.reason, project_name=args.project))
+        elif args.action == "reset":
+            _print(settings.reset(conn, args.key, by=args.by, reason=args.reason, project_name=args.project))
+        else:
+            _print(settings.history(conn, args.key))
+    except settings.SettingError as e:
+        raise SystemExit(str(e)) from None
 
 
 def _say(msg: str) -> None:
