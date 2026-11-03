@@ -269,7 +269,8 @@ def assistant(cases: list[dict], team=None) -> dict:
 
     from . import agents
 
-    team = team or agents.team()
+    if team is None:  # a team per question, its clients closed with its event loop
+        return summarise([score_answer(c, agents.ask_sync(c["question"])) for c in cases])
     return summarise([score_answer(c, asyncio.run(agents.ask(c["question"], team))) for c in cases])
 
 
