@@ -34,6 +34,51 @@ What these scores don't say: whether the advice is good. The checks are mechanic
 citations, no operating verbs, routing). Engineers rating answers on the Ask page (feedback
 `answer:<id>`) is the real measure.
 
+## Live baseline, 2026-11-02 (14 questions)
+
+The same eval after the agentic-ops work (#96–#107): five new questions (pump and choke curves, decline,
+wall thickness, gas lift) and the new tools and skills. Claude Opus 5.5, orchestrator effort high,
+specialists medium.
+
+| | 2026-11-02 | 2026-10-29 |
+|---|---|---|
+| Questions | 14 | 9 |
+| Expected facts named | 97.6% | 100% |
+| Answers citing 3+ sources | 85.7% | 100% |
+| No plant-operating instructions | 100% | 100% |
+| Routed to the expected specialists | 100% | 100% |
+| Expected chart kind drawn | 75% (3 of 4) | – |
+| Cost per answer | $0.67 (total $9.31) | $0.55 (total $4.91) |
+| Time per answer | 102 s (75 s without the wall thickness question) | 71 s |
+
+| Domain | Specialists used | Facts | Citations | Charts | Tool calls | Time | Cost |
+|---|---|---|---|---|---|---|---|
+| curves: pump 10-P-1001A | maintenance, troubleshooter | 100% | 5 | pump curve, vibration | 30 | 80 s | $0.80 |
+| curves: choke OK-J12-02 | maintenance, production | 100% | 8 | choke, custom | 40 | 82 s | $0.74 |
+| charts: decline OK-J07-03 | production | 100% | 5 | measurements, custom (**not decline**) | 10 | 84 s | $0.40 |
+| charts: wall thickness | maintenance | **67%** (missed OK-J03-02) | **2** | wall ranking, measurements | 26 | **442 s** | $0.59 |
+| troubleshooting | maintenance, troubleshooter | 100% | 12 | trend | 33 | 74 s | $0.74 |
+| production efficiency | production | 100% | 8 | bar ×2 | 8 | 48 s | $0.31 |
+| production surveillance | production | 100% | 10 | bar ×2, custom | 14 | 75 s | $0.42 |
+| constraint management | maintenance, production | 100% | 10 | bar ×2 | 61 | 165 s | $1.60 |
+| production engineering | production | 100% | **2** | measurements, bar | 21 | 68 s | $0.46 |
+| reliability | maintenance | 100% | 8 | bar ×2 | 17 | 66 s | $0.53 |
+| work orders | maintenance | 100% | 3 | custom | 8 | 52 s | $0.46 |
+| turnarounds | maintenance | 100% | 8 | none | 7 | 48 s | $0.42 |
+| gas lift | production | 100% | 6 | gas lift allocation | 14 | 56 s | $0.41 |
+| across domains | maintenance, production, troubleshooter | 100% | 5 | bar | 52 | 92 s | $1.44 |
+
+Compared with 2026-10-29, on the 9 questions both runs asked: cost per answer rose from $0.55 to $0.61.
+The two broad questions rose the most: constraint management from $0.85 to $1.60 (61 tool calls against 40)
+and across domains from $1.02 to $1.44. Answers drew charts but never looked at one (`look_at_figure`, 0 times).
+
+To look into:
+- **Decline:** the production agent drew the well's measurements and a custom chart instead of
+  `plot_decline`. The skill should send decline and forecast questions to `plot_decline`.
+- **Wall thickness:** 442 s, it missed OK-J03-02 and it cited 2 sources. Something in that path is slow
+  (wall-loss calc, measurement reads or a retry) and the ranking leaves a line out.
+- **Citations:** two answers cited fewer than 3 sources (wall thickness, wells that lost rate).
+
 ## SRE detection baseline (#103)
 
 `uv run fuzer --pack okan eval --ops --detector limits --since 2024-04-15 --until 2025-12-15`: the #101 excursions
@@ -99,6 +144,28 @@ With grouping, replayed on the same periods (2026-11-02):
   with 1.2 false upsets a week. The one false upset is a single model detection.
 - **1–14 Jan 2025:** the 17 false-alarm detections, mostly the J03 steps, fall into upsets an event
   explains, so no false upsets.
+
+## Full ops eval, live (#103b), 2026-11-02
+
+`uv run fuzer --pack okan eval --ops --full --live`, with the default window: the first injected trip at least 90 days
+into the data, 10–17 June 2024 (the train A trip, caused by 20-K-2300A's discharge temperature). Live
+diagnosis on Claude Opus 5.5. It passed every gate in 16 minutes.
+
+| | |
+|---|---|
+| Upsets found | 3 of 3: trip in 3 h, discharge temperature in 6 h, well shut-in in 4 h |
+| Grouping | the trip is one upset, first cause 20-K-2300A; 1 false upset a week |
+| Diagnosis | 5 diagnosed for $3.05 ($0.61 each, about 1.5 min each); 2 matched an injected upset and both named the cause, with citations (too few to gate) |
+| Daily reports | 7 days, every check passed; the trip day leads with the trip; no operating instructions |
+| Opportunities | 3 gas lift moves; gains within 0.04% of a hand calculation |
+
+Single detections ran at 15 a week (precision 0.78). Grouping made 203 upsets, 182 of them instrument
+upsets that the plant's instrument events explain. They aren't false, but they are too many to show an
+operator one by one (#141). The one false upset is a WHP alarm already on when the window starts (#142).
+
+An earlier run on 22–29 February 2024 had no injected upsets in its window and started only 50 days into the
+data, too early for 90 days of learned normal ranges, so it scored nothing useful. The eval now warns about a window with no upsets
+and picks a scorable one by default.
 
 ## Example: across domains
 
