@@ -12,6 +12,9 @@ from fuzer.core import db
 from fuzer.ops import jobs
 
 
+pytestmark = pytest.mark.sequence  # (#137) the Dagster jobs on one data folder: load, sensor, checks
+
+
 @pytest.fixture(scope="module")
 def fuzer():
     os.environ.pop("FUZER_DATABASE_URL", None)

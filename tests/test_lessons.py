@@ -9,6 +9,9 @@ from fuzer.ops import pipeline
 PACK = load_pack()
 
 
+pytestmark = pytest.mark.sequence  # (#137) drafted, then reviewed and approved, then scoped
+
+
 @pytest.fixture(scope="module")
 def conn(offshore_db):
     c = offshore_db.conn

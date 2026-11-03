@@ -12,6 +12,9 @@ from fuzer.sources import ingest
 PACK = load_pack()
 
 
+pytestmark = pytest.mark.sequence  # (#137) a reload that changes nothing, then one that does
+
+
 @pytest.fixture(scope="module")
 def setup(offshore_db):
     c = offshore_db.conn

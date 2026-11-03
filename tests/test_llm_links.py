@@ -52,6 +52,9 @@ class FakeClaude:
                                usage=SimpleNamespace(input_tokens=1000, output_tokens=200, cache_read_input_tokens=0))
 
 
+pytestmark = pytest.mark.sequence  # (#137) the reader's cache over time: read, cached, changed, refused, removed
+
+
 @pytest.fixture(scope="module")
 def conn(offshore_db):
     c = offshore_db.conn

@@ -16,7 +16,10 @@ PACK = load_pack()
 
 @pytest.fixture(scope="module")
 def conn(offshore_db):
+    """With the operator logs read (by a fake Claude) into events, so incidents have them."""
     c = offshore_db.conn
+    llm_links.run(c, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
+    pipeline.rebuild(c, PACK)
     yield c
 
 
@@ -30,8 +33,6 @@ def test_downtime_alone_makes_an_incident(conn):
 
 
 def test_events_and_notifications_group_on_one_unit(conn):
-    llm_links.run(conn, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
-    pipeline.rebuild(conn, PACK)
     pump = queries.incidents(conn, fid(conn, "20-P-1001B"))["items"]
     jan = next(i for i in pump if i["start"] == "2024-01-01")
     assert jan["events"] >= 1 and jan["notifications"] >= 1 and "VIB" in jan["failure_modes"]

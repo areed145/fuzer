@@ -133,11 +133,14 @@ def _wells(conn, scope: str) -> list[str]:
     kind = conn.execute("select kind from entity where fuzer_id = %s", (scope,)).fetchone() if scope != "facility" else None
     if kind and kind["kind"] == "well":
         return [scope]
+    # By name, so a limit picks the same wells every time (ids are minted at random on a first build)
     if scope == "facility":
-        rows = conn.execute("select fuzer_id from entity where kind = 'well' order by 1")
+        rows = conn.execute("select w.fuzer_id from entity w left join entity_label l using (fuzer_id) "
+                            "where w.kind = 'well' order by l.label, 1")
     else:
         rows = conn.execute("select e.src as fuzer_id from edge e join entity w on w.fuzer_id = e.src and w.kind = 'well' "
-                            "where e.rel in ('part_of', 'located_at') and e.dst = %s order by 1", (scope,))
+                            "left join entity_label l on l.fuzer_id = e.src "
+                            "where e.rel in ('part_of', 'located_at') and e.dst = %s order by l.label, 1", (scope,))
     return [r["fuzer_id"] for r in rows]
 
 

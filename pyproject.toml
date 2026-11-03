@@ -75,6 +75,7 @@ markers = [
     "unit: pure functions on small in-memory inputs; no Postgres, no generated plant",
     "integration: reads or writes a database (a shared plant copy or its own)",
     "e2e: replays and evals over weeks of a plant",
+    "sequence: a module whose tests are steps of one story, run in file order (the module still runs anywhere)",
 ]
 
 [tool.importlinter]
