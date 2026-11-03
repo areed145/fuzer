@@ -273,8 +273,17 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
 
     from . import operations, replay
 
-    until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
-    since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
+    if not (data / "process_model.json").is_file():  # the fake plant's own folder for this pack
+        own = Path(__file__).resolve().parents[2] / "fakeplant" / "data" / pack.name
+        data = own if (own / "process_model.json").is_file() else data
+    if args.full and not (args.since or args.until) and (data / "process_model.json").is_file():
+        since, until_s = replay.default_window(json.loads((data / "process_model.json").read_text()))
+        until = datetime.fromisoformat(until_s)
+        _say(f"window {since} to {until_s}: the first injected trip 90 days or more into the data "
+             "(pass --since/--until for another)")
+    else:
+        until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
+        since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
     if args.full:
         from . import ops_eval
 

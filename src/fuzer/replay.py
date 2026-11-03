@@ -169,6 +169,30 @@ DETECTORS = {"limits": limits_detector, "sre": sre_detector,
                                                        "hydraulics", "multivariate")}}
 
 
+def default_window(model: dict, lead_days: int = 90, days: int = 7) -> tuple[str, str]:
+    """A week to score: the first injected trip (else any upset) at least `lead_days` into the data, so normal
+    ranges can be learned before it, starting the day before it. A trip scores the most: detection, grouping,
+    first cause, diagnosis and the day's report leading with it."""
+    starts = [_start(e) for e in model["events"] if _start(e)]
+    if not starts:
+        raise ValueError("the process model has no events")
+    first = min(starts) + timedelta(days=lead_days)
+    evs = [e for e in truth(model, first, max(starts) + timedelta(days=1)) if e["upset"] and e["start"] >= first]
+    ups = sorted(e["start"] for e in evs if e["kind"] == "trip") or sorted(e["start"] for e in evs)
+    if not ups:
+        raise ValueError(f"no injected upsets {lead_days} days or more into the data")
+    since = datetime.combine(ups[0].date() - timedelta(days=1), datetime.min.time())
+    return since.isoformat(timespec="minutes"), (since + timedelta(days=days)).isoformat(timespec="minutes")
+
+
+def _start(e: dict) -> datetime | None:
+    if e.get("start"):
+        return datetime.fromisoformat(e["start"])
+    if e.get("points"):
+        return datetime.fromisoformat(e["points"][0][0])
+    return None
+
+
 # ---- replay -------------------------------------------------------------------------------------
 
 def _windows(since: datetime, until: datetime, step: timedelta):
