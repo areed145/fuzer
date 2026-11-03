@@ -319,7 +319,7 @@ def propagation(conn, upset: int) -> Figure:
         b = int(mins[u] // 10)
         lanes[b] = lanes.get(b, 0) + 1
         pos[u] = (mins[u], lanes[b])
-    adj, cache = sre.topology(conn), {}
+    adj = sre.topology(conn)
     ex, ey = [], []
     for i, u in enumerate(order):
         for v in order[i + 1:]:

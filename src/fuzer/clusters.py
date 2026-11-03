@@ -14,7 +14,7 @@
   multivariate anomalies, with the points contributing most. This is the SRE's `multivariate` detector.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 
