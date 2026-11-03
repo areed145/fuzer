@@ -53,3 +53,14 @@ def test_group_gap_is_a_setting():
     assert len(sre.group_detections(found, {}, **sre.grouping(None))) == 2
     with settings.Overrides({"sre.group_gap_hours": 4}):
         assert len(sre.group_detections(found, {}, **sre.grouping(None))) == 1
+
+
+def test_signals_thresholds_are_settings():
+    from fuzer.analysis import signals
+
+    with settings.Overrides({}):
+        assert signals.thresholds(None) == signals.DEFAULTS
+    with settings.Overrides({"signals.flat_hours": 4}):
+        th = signals.thresholds(None)
+    assert th["flat_hours"] == 4.0
+    assert signals.BASIS["frozen"].format(**th) == "no change at all for 4 h or more while the unit runs"
