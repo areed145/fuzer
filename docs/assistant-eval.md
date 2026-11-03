@@ -49,7 +49,7 @@ specialists medium.
 | Routed to the expected specialists | 100% | 100% |
 | Expected chart kind drawn | 75% (3 of 4) | – |
 | Cost per answer | $0.67 (total $9.31) | $0.55 (total $4.91) |
-| Time per answer | 102 s (75 s without the wall thickness question) | 71 s |
+| Time per answer | 102 s (76 s without the wall thickness question) | 71 s |
 
 | Domain | Specialists used | Facts | Citations | Charts | Tool calls | Time | Cost |
 |---|---|---|---|---|---|---|---|
@@ -68,7 +68,7 @@ specialists medium.
 | gas lift | production | 100% | 6 | gas lift allocation | 14 | 56 s | $0.41 |
 | across domains | maintenance, production, troubleshooter | 100% | 5 | bar | 52 | 92 s | $1.44 |
 
-Compared with 2026-10-29, on the 9 questions both runs asked: cost per answer rose from $0.55 to $0.61.
+Compared with 2026-10-29, on the 9 questions both runs asked: cost per answer rose from $0.55 to $0.71 ($4.91 to $6.37 in total).
 The two broad questions rose the most: constraint management from $0.85 to $1.60 (61 tool calls against 40)
 and across domains from $1.02 to $1.44. Answers drew charts but never looked at one (`look_at_figure`, 0 times).
 
