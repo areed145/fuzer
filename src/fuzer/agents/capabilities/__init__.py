@@ -52,6 +52,6 @@ def registrar(server, annotations: dict[str, Any]) -> Callable:
 
 def tools_by_agent() -> dict[str, list[str]]:
     """Each agent's tool names, in the order they are declared."""
-    from . import mcp_server  # noqa: F401  (declaring the tools fills the registry)
+    from .. import mcp_server  # noqa: F401  (declaring the tools fills the registry)
 
     return {a: [c.name for c in REGISTRY.values() if a in c.agents] for a in AGENTS}
