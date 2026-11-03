@@ -215,3 +215,35 @@ def test_excel_sheets_and_json_records(tmp_path):
     assert list(connectors.find(tmp_path, "wrapped").rows()) == [{"k": "a"}]
     assert connectors.find(tmp_path, "model") is None
     assert connectors.datasets(tmp_path) == ["events", "rotating.motors", "rotating.pumps"]  # .json: only when mapped
+
+
+def test_mapping_location_and_connector(conn, tmp_path):
+    """#132: a mapping can say where its table is (outside the data folder, a workbook sheet) and which
+    reader to use; an approved one counts as soon as it's saved."""
+    from openpyxl import Workbook
+
+    from fuzer.sources import mappings
+
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    wb = Workbook()
+    wb.active.title = "list"
+    wb.active.append(["tag", "service"])
+    wb.active.append(["10-P-1001A", "export"])
+    wb.save(other / "pumps book.xlsx")
+    data = tmp_path / "data"
+    data.mkdir()
+    text = ("source: vendor\nrecord_type: pump\nshape: records\ndataset: vendor_pumps\nkey: tag\n"
+            "location: '../elsewhere/pumps book.xlsx#list'\nconnector: excel\n")
+    assert ingest.dataset(data, "vendor_pumps", conn) is None  # no mapping yet
+    conn.execute("insert into mapping_version (source, record_type, dataset, yaml, approved_by) "
+                 "values ('vendor', 'pump', 'vendor_pumps', %s, 'test')", (text,))
+    conn.commit()
+    c = ingest.dataset(data, "vendor_pumps", conn)
+    assert c.kind == "excel" and list(c.rows()) == [{"tag": "10-P-1001A", "service": "export"}]
+    assert ingest.ingest(conn, data, exports=["vendor_pumps"])["inserted"] == 1
+
+    with pytest.raises(mappings.MappingError, match="unknown connector"):
+        mappings.Mapping({"source": "a", "record_type": "b", "shape": "records", "dataset": "d", "connector": "xml"})
+    with pytest.raises(mappings.MappingError, match="for tables"):
+        mappings.Mapping({"source": "a", "record_type": "b", "shape": "records", "location": "x.csv"})

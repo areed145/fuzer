@@ -33,7 +33,10 @@ check. Medium asset from Parquet: same records and eval scores as CSV;
 large first load 3.6 s either way.
 
 Mappings: every source record type is a YAML file read by one compiled
-extractor (`mappings.py`); `extract.py` keeps only named value transforms
+extractor (`mappings.py`). A table mapping may say where the table is
+(`location`, relative to the data folder or absolute; `book.xlsx#Sheet` for a
+sheet) and which reader to use (`connector`); by default it's `<dataset>` in the
+data folder, read by its file type; `extract.py` keeps only named value transforms
 (tag, well, serial, number), resolvers that read kind and key together (FLOC,
 AF path, EC node) and six hooks (ISO 14224 codes, sidetracks, EC downtime,
 document applicability, section failure modes, P&ID formats). All 77,585

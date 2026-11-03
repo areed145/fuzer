@@ -362,6 +362,24 @@ def find(data_dir: Path, name: str):
     return None
 
 
+def at(path: Path, kind: str | None = None):
+    """The connector for a table at an explicit location (a mapping's `location`), or None when it isn't
+    there. `kind` picks the reader; without it, the file's suffix or the folder's contents decide."""
+    path, _, sheet = str(path).partition("#")
+    path = Path(path)
+    if not path.exists():
+        return None
+    kind = kind or ("excel" if path.suffix == ".xlsx" else path.suffix.lstrip(".") if path.is_file() else
+                    "delta" if (path / "_delta_log").is_dir() else "parquet")
+    if kind in ("parquet", "delta"):
+        return ParquetTable(path)
+    if kind == "excel":
+        return ExcelTable(path, sheet or None)
+    if kind in ("json", "jsonl"):
+        return JsonTable(path)
+    return {"csv": CsvTable, "geojson": GeoJsonTable}[kind](path) if kind in ("csv", "geojson") else None
+
+
 def datasets(data_dir: Path) -> list[str]:
     """Every table name in data_dir a connector can read (an Excel workbook: one per sheet). A `.json` file
     is read when a mapping names it, but isn't offered as a new table: fake plants and exports keep other
