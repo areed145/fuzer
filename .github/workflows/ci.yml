@@ -20,8 +20,14 @@ jobs:
         run: uv run python scripts/check_imports.py
       - name: "Layers (#135): no module imports from a layer above its own"
         run: uv run lint-imports
-      - name: "Tests (no calls to Claude: agents and readers run on recorded answers)"
-        run: uv run pytest -q -rf
+      # Tests (#137) by tier; no calls to Claude: agents and readers run on recorded answers. A worker per
+      # core, each with its own Postgres; a test file stays on one worker so its plant copy is built once.
+      - name: "Unit tests (no database)"
+        run: uv run pytest -q -rf -m unit
+      - name: "Integration tests"
+        run: uv run pytest -q -rf -m integration -n auto --dist loadfile
+      - name: "End-to-end tests (replays, evals)"
+        run: uv run pytest -q -rf -m e2e -n auto --dist loadfile
       - name: "Ops eval (#103) on the fake plant with a scripted Claude, failing under its floors"
         run: |
           uv run fakeplant demo --asset okan --seed 11 --data /tmp/okan

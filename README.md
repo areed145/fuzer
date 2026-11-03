@@ -124,7 +124,7 @@ or with `fuzer settings`, not an environment variable.
 
 Everything below is optional detail: each step `fuzer up` runs is also its own
 command (`fuzer ingest`, `fuzer rebuild`, `fuzer llm-link`, `fuzer serve`), and
-`uv run pytest` runs the tests on a throwaway database.
+`uv run pytest -n auto --dist loadfile` runs the tests in parallel, each worker on its own throwaway database; `uv run pytest -m unit` runs only the quick ones (no database, a few seconds), `-m integration` and `-m e2e` (the replays and evals) the rest.
 
 ### Operations assistant (Claude agents)
 

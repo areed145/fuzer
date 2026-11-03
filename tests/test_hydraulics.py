@@ -107,7 +107,7 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
     from fuzer.ops import board
     from fuzer.plots import production
 
-    out = hydraulics.debottleneck_options(conn, PACK, "facility", "2025-11-20T00:00")
+    out = hydraulics.debottleneck_options(conn, PACK, "facility", "2025-11-20T00:00", limit=25)  # one scan, about 35 s
     top = out["options"][0]
     assert top["kind"] == "lower_pressure" and top["target"] == fid(conn, "10-V-2001"), out["options"][:3]
     assert "iow" in top["action"] and top["next_constraint"] and top["confirm_by"]
@@ -122,7 +122,7 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
             gain += (m.at(w, "liquid", datetime(2025, 11, 26, 12)) - m.at(w, "liquid", datetime(2025, 11, 24, 12))) * (1 - wc)
     assert abs(top["per_bar_sm3d"] - gain / 2) <= 0.2 * gain / 2, (top["per_bar_sm3d"], gain / 2)
 
-    hydraulics.store_options(conn, PACK, "2025-11-20T00:00")
+    hydraulics.store_options(conn, PACK, "2025-11-20T00:00", options=out)
     opp = [i for i in value.items(conn, PACK, ("opportunity",)) if i.id.startswith("debottleneck:")]
     assert opp and opp[0].oil_sm3d == top["gain_sm3d"]
     board.refresh(conn, PACK)
@@ -132,6 +132,6 @@ def test_debottleneck_options_board_and_charts(conn, spec, monkeypatch):
     for fig in (production.pressure_profile(conn, well, "2025-11-12T00:00", "2025-09-15T00:00"),
                 production.choke_criticality(conn, well, 60, "2025-11-15T00:00"),
                 production.dp_drift(conn, well, 60, "2025-11-15T00:00"),
-                production.debottleneck(conn, "facility", "2025-11-20T00:00", PACK)):
+                production.debottleneck(conn, "facility", "2025-11-20T00:00", PACK, options=out)):
         assert fig.data and fig.summary
     assert production.dp_drift(conn, well, 60, "2025-11-15T00:00").summary["flag"] == "dp_rising"

@@ -374,15 +374,16 @@ def debottleneck_options(conn, pack, scope: str = "facility", at: str | None = N
                   unit="Sm3/d oil", at=end.isoformat(timespec="minutes"), options=options[:limit], considered=len(options))
 
 
-def store_options(conn, pack, at: str | None = None, src=None, keep: int = 25) -> dict:
-    """Replace the stored debottleneck options with a fresh scan (the work board and value score read them)."""
+def store_options(conn, pack, at: str | None = None, src=None, keep: int = 25, options: dict | None = None) -> dict:
+    """Replace the stored debottleneck options with a fresh scan (the work board and value score read them),
+    or with `options`, a facility scan at `at` already made."""
     from psycopg.types.json import Jsonb
 
-    out = debottleneck_options(conn, pack, "facility", at, src, limit=keep)
+    out = options or debottleneck_options(conn, pack, "facility", at, src, limit=keep)
     conn.execute("delete from debottleneck_option")
-    for o in out["options"]:
+    for o in out["options"][:keep]:
         conn.execute("insert into debottleneck_option (as_of, rank, kind, target, action, gain_sm3d, detail) "
                      "values (%s, %s, %s, %s, %s, %s, %s)", (out["at"], o["rank"], o["kind"], o["target"], o["action"],
                                                              o["gain_sm3d"], Jsonb(o)))
     conn.commit()
-    return {"options": len(out["options"]), "considered": out["considered"], "top": out["options"][:1]}
+    return {"options": len(out["options"][:keep]), "considered": out["considered"], "top": out["options"][:1]}
