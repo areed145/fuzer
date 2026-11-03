@@ -1,0 +1,5 @@
+# The onshore ESP field (fakeplant). The database's `project` row, when there is one, wins.
+pack: onshore_demo
+data: fakeplant/data/onshore
+timeseries: synthetic
+fakeplant: {asset: onshore}

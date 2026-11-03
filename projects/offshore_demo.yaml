@@ -1,0 +1,5 @@
+# The small offshore test platform (fakeplant). The database's `project` row, when there is one, wins.
+pack: offshore_demo
+data: fakeplant/data/offshore
+timeseries: synthetic
+fakeplant: {asset: offshore}

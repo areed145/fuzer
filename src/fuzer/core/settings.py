@@ -94,6 +94,7 @@ register(
 
 
 def project() -> str | None:
+    """The current project (#131): FUZER_PROJECT, else the pack name while projects are new."""
     return os.environ.get("FUZER_PROJECT") or os.environ.get("FUZER_PACK")
 
 
