@@ -202,7 +202,7 @@ def main(argv=None):
             elif args.cmd == "eval" and args.ops:
                 _ops_eval(conn, pack, args, data)
             elif args.cmd == "eval":
-                from . import evaluate
+                from .evals import evaluate
                 keys = Path(args.keys or data / "answer_keys")
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
@@ -275,7 +275,7 @@ def _limits(conn, pack, args) -> None:
 def _ops_eval(conn, pack, args, data: Path) -> None:
     from datetime import datetime, timedelta
 
-    from . import replay
+    from .evals import replay
     from .ops import operations
 
     if not (data / "process_model.json").is_file():  # the fake plant's own folder for this pack
@@ -290,7 +290,7 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
         until = datetime.fromisoformat(args.until or f"{operations.as_of(conn)}T00:00")
         since = args.since or (until - timedelta(days=28)).isoformat(timespec="minutes")
     if args.full:
-        from . import ops_eval
+        from .evals import ops_eval
 
         if not (data / "process_model.json").is_file():
             raise SystemExit("no process_model.json: set FUZER_DATA_DIR to the fake plant's folder")

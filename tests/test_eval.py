@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import evaluate
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.evals import evaluate
 from fuzer.graph import pipeline
 from fuzer.sources import ingest
 

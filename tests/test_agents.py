@@ -317,7 +317,7 @@ def test_ask_without_a_key_says_so(monkeypatch):
 
 def test_eval_scores_answers(conn, okan_pack):
     agents = pytest.importorskip("fuzer.agents")
-    from fuzer import evaluate
+    from fuzer.evals import evaluate
 
     case = {"domain": "turnarounds", "question": "What's in the next turnaround?",
             "must_mention": ["OK-TAR-2026", "20-K-2200B", "inspection"], "specialists": ["maintenance"]}

@@ -125,8 +125,8 @@ def test_spatial_links_and_map(setup):
     conn, data, stats, _, rebuilt = setup
     from fastapi.testclient import TestClient
 
-    from fuzer import evaluate
     from fuzer.api import app
+    from fuzer.evals import evaluate
 
     assert rebuilt["located"] == stats["gis_facilities"] + stats["pipelines"] + stats["gis_wells"]
     truth = json.loads((data / "answer_keys" / "spatial.json").read_text())
