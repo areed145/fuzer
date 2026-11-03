@@ -1,31 +1,17 @@
 """Scoped search across manuals, guides, procedures and incidents."""
 
-import os
-import tempfile
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import knowledge, queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    yield c
 
 
 def fid(conn, ref):
@@ -74,7 +60,6 @@ def test_superseded_revisions_left_out(conn):
 
 def test_api_and_unknown_ref(conn):
     from fastapi.testclient import TestClient
-
     from fuzer.api import app
     client = TestClient(app)
     r = client.get("/knowledge/search", params={"q": "seal leak", "ref": "44-P-1001B"})

@@ -5,37 +5,22 @@ arrays), look_at_figure's image, and images attached to a question."""
 import asyncio
 import base64
 import json
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
-from fuzer.ops import pipeline
 from fuzer.plots import general, maintenance, production, troubleshooting
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 @pytest.fixture
@@ -265,9 +250,9 @@ def test_eval_scores_charts_in_answers(conn, okan_pack):
 def test_agent_makes_a_chart_looks_at_it_and_answers_with_the_marker(conn, okan_pack, monkeypatch):
     """The real MAF loop with a scripted Claude: plot, look (the PNG arrives as an image block in the
     tool result), answer with the marker."""
-    from test_agents import _message
-
     from fuzer import agents
+
+    from test_agents import _message
 
     monkeypatch.delenv("FUZER_AGENT_FALLBACKS", raising=False)
 

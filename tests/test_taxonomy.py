@@ -1,32 +1,19 @@
 """Equipment classes (ISO 14224) and models derived from golden values."""
 
-import os
-import tempfile
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.core.taxonomy import Taxonomy
 from fuzer.graph import queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        c.stats = pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    c.stats = offshore_db.built.stats
+    yield c
 
 
 def fid(conn, ref):

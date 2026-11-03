@@ -5,34 +5,20 @@ the machine."""
 
 import asyncio
 import json
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
 from fakeplant import okan
 from fuzer.agents import mcp_server
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import operations, queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 @pytest.fixture
@@ -280,7 +266,6 @@ def test_ask_over_the_api(conn, okan_pack, monkeypatch):
     import time
 
     from fastapi.testclient import TestClient
-
     from fuzer.agents import service
     from fuzer.api import app
 
@@ -306,7 +291,6 @@ def test_ask_over_the_api(conn, okan_pack, monkeypatch):
 def test_ask_without_a_key_says_so(monkeypatch):
     pytest.importorskip("fuzer.agents")
     from fastapi.testclient import TestClient
-
     from fuzer.agents import service
     from fuzer.api import app
 

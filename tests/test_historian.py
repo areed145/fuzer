@@ -3,13 +3,11 @@ files and match the file exports, the ADX catalog puts a pointer on each timeser
 values around an incident come from PI or ADX and show the lead-in."""
 
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
+from fakeplant import historian
 from fastapi.testclient import TestClient
-
-from fakeplant import historian, offshore
 from fuzer.agents import assistant
 from fuzer.analysis import values
 from fuzer.core import db
@@ -22,12 +20,8 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def data():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    out = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(out)
-    return out
+def data(offshore_data):
+    return str(offshore_data)
 
 
 @pytest.fixture(scope="module")

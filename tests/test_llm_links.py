@@ -1,19 +1,13 @@
 """Claude log reading, with a fake client standing in for the API (no network, no cost)."""
 
 import json
-import os
-import tempfile
 from types import SimpleNamespace
 
 import pytest
-from psycopg.types.json import Jsonb
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import llm_links, queries
 from fuzer.ops import pipeline
-from fuzer.sources import ingest
+from psycopg.types.json import Jsonb
 
 PACK = load_pack()
 
@@ -59,16 +53,9 @@ class FakeClaude:
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    yield c
 
 
 def test_candidates_cover_ambiguous_tags_and_area_names(conn):

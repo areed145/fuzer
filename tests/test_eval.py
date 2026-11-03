@@ -1,32 +1,18 @@
 """Answer-key scoring of search, document links, section failure modes and log reading."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import evaluate
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def scores():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        return evaluate.run(c, PACK, data / "answer_keys")
+def scores(offshore_db):
+    c = offshore_db.conn
+    data = offshore_db.data
+    return evaluate.run(c, PACK, data / "answer_keys")
 
 
 def test_search_quality(scores):

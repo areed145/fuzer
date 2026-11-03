@@ -1,33 +1,20 @@
 """Process values around an event through the (synthetic) time-series provider."""
 
-import os
-import tempfile
 from datetime import datetime
 
 import pytest
-
-from fakeplant import offshore
 from fuzer.analysis import values
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest, timeseries
+from fuzer.sources import timeseries
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+def conn(offshore_db):
+    c = offshore_db.conn
+    yield c
 
 
 def test_synthetic_values_are_deterministic_and_show_upsets():

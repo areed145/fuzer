@@ -4,15 +4,10 @@ times. Each on made-up series where the answer is known, then on the Okan storie
 
 import asyncio
 import json
-import os
-import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import numpy as np
 import pytest
-
-from fakeplant import okan
 from fuzer import plots
 from fuzer.agents import mcp_server
 from fuzer.analysis import calcs, signals
@@ -20,33 +15,22 @@ from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.evals import replay
 from fuzer.graph import operations, queries
-from fuzer.ops import pipeline
 from fuzer.plots import maintenance, production
-from fuzer.sources import ingest, timeseries
+from fuzer.sources import timeseries
 
 PACK = load_pack("okan")
 EVIDENCE = {"value", "expected", "deviation", "deviation_pct", "flag", "basis", "sources"}
 
 
 @pytest.fixture(scope="module")
-def data():
-    out = Path(tempfile.mkdtemp(prefix="fzokan"))
-    okan.generate(out)
-    return out
+def data(okan_data):
+    return okan_data
 
 
 @pytest.fixture(scope="module")
-def conn(data):
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    mp = pytest.MonkeyPatch()
-    mp.setenv("FUZER_DATA_DIR", str(data))  # synthetic values from the plant's process model
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
-    mp.undo()
+def conn(okan_db):
+    c = okan_db.conn
+    yield c
 
 
 @pytest.fixture(scope="module")

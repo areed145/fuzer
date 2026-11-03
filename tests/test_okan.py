@@ -1,33 +1,19 @@
 """The Okan field demo: every source loads with the okan pack and the stories hang together."""
 
 import json
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-from fakeplant import okan
-from fuzer.core import db, nel
+from fuzer.core import nel
 from fuzer.core.pack import load_pack
 from fuzer.graph import edges, queries
-from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
-def setup():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = Path(tempfile.mkdtemp(prefix="fzokan"))
-    stats = okan.generate(data)
-    with db.connect() as c:
-        db.reset(c)
-        loaded = ingest.ingest(c, data)
-        rebuilt = pipeline.rebuild(c, PACK)
-        yield c, data, stats, loaded, rebuilt
+def setup(okan_db):
+    c = okan_db.conn
+    yield c, okan_db.data, okan_db.built.generated, okan_db.built.loaded, okan_db.built.stats
 
 
 def fid(conn, kind, key):
@@ -125,7 +111,6 @@ def test_drawings_and_guides(setup):
 def test_spatial_links_and_map(setup):
     conn, data, stats, _, rebuilt = setup
     from fastapi.testclient import TestClient
-
     from fuzer.api import app
     from fuzer.evals import evaluate
 

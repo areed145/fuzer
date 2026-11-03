@@ -1,32 +1,20 @@
 """Lessons learned: drafted from incidents + corrective work orders, owned by engineers once reviewed."""
 
-import os
-import tempfile
 
 import pytest
-
-from fakeplant import offshore
-from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import knowledge, lessons, queries
 from fuzer.ops import pipeline
-from fuzer.sources import ingest
 
 PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn():
-    os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
-    data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
+def conn(offshore_db):
+    c = offshore_db.conn
     lessons.MIN_INCIDENTS = 1  # the small asset has few repeats
-    with db.connect() as c:
-        db.reset(c)
-        ingest.ingest(c, data)
-        pipeline.rebuild(c, PACK)
-        yield c
+    pipeline.rebuild(c, PACK)
+    yield c
     lessons.MIN_INCIDENTS = 2
 
 
@@ -61,7 +49,6 @@ def test_lesson_scoped_to_its_model(conn):
 
 def test_api(conn):
     from fastapi.testclient import TestClient
-
     from fuzer.api import app
     client = TestClient(app)
     rows = client.get("/lessons", params={"status": "all"}).json()
