@@ -72,3 +72,10 @@ def test_alarm_defaults_match_the_constants_they_replace():
     assert [settings.REGISTRY[f"alarms.{k}"].default for k in (
         "flood_per_10min", "target_per_hour", "standing_hours", "chatter", "failed_start_minutes")] == \
         [alarms.FLOOD, alarms.TARGET_PER_HOUR, alarms.STANDING_HOURS, alarms.CHATTER, alarms.FAILED_START_MINUTES]
+
+
+def test_opportunity_defaults_match_the_constants_they_replace():
+    from fuzer.ops import opportunities
+
+    assert [settings.REGISTRY[f"opportunities.{k}"].default for k in ("gas_lift_breakeven", "stale_days", "material")] == \
+        [opportunities.BREAKEVEN, opportunities.STALE_DAYS, opportunities.MATERIAL]
