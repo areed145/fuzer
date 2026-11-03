@@ -175,9 +175,16 @@ def test_story_excursions(conn):
     assert all(x["start"] >= datetime(2024, 11, 4) for x in got)
 
 
-def test_iow_breach_past_its_time_opens_work(conn):
+@pytest.fixture(scope="module")
+def iow_scans(conn):
+    """Train A 3rd stage's discharge temperature scanned 10-20 July 2025, then 20-25 July: (first, second)."""
     temp = point(conn, "OK_GGCP:20-TT-2300A.PV")
-    out = limits.scan(conn, PACK, "2025-07-10", "2025-07-20", point_ids=[temp])
+    return (limits.scan(conn, PACK, "2025-07-10", "2025-07-20", point_ids=[temp]),
+            limits.scan(conn, PACK, "2025-07-20", "2025-07-25", point_ids=[temp]))
+
+
+def test_iow_breach_past_its_time_opens_work(conn, iow_scans):
+    out, again = iow_scans
     assert out["by_basis"]["iow"] >= 3
     [work] = [w for w in out["work"] if w["iow"] == "IOW-001"]
     assert work["started"] and "critical" in work["title"]
@@ -189,10 +196,10 @@ def test_iow_breach_past_its_time_opens_work(conn):
                         (item["id"],)).fetchone()
     assert (step["element"], step["role"], step["requires_human"]) == ("review", "engineer", True)
     linked = conn.execute("select count(*) as n from excursion where work_item_id = %s", (item["id"],)).fetchone()["n"]
-    assert linked == len(work["excursions"])
+    later = [w for w in again["work"] if w["iow"] == "IOW-001"]  # both scans have run: the second's breaches too
+    assert linked == len(set(work["excursions"]).union(*(w["excursions"] for w in later)))
 
     # The next scan's breaches go to the same item as evidence; the excursion open at the end is extended.
-    again = limits.scan(conn, PACK, "2025-07-20", "2025-07-25", point_ids=[temp])
     assert [(w["item_id"], w["started"]) for w in again["work"] if w["iow"] == "IOW-001"] == [(item["id"], False)]
     assert conn.execute("select count(*) as n from work_item where type = 'integrity'").fetchone()["n"] == 1
 
@@ -200,7 +207,7 @@ def test_iow_breach_past_its_time_opens_work(conn):
     assert all(w["iow"] not in ("IOW-008", "IOW-009") for w in out["work"] + again["work"])
 
 
-def test_trends_api_and_mcp_carry_limits(conn):
+def test_trends_api_and_mcp_carry_limits(conn, iow_scans):
     temp = point(conn, "OK_GGCP:20-TT-2300A.PV")
     tv = values.around(conn, temp, "2025-07-16T15:00", 24, 6, pack=PACK)
     lines = tv["series"][0]["limits"]
@@ -213,7 +220,7 @@ def test_trends_api_and_mcp_carry_limits(conn):
     r = client.get(f"/entities/{comp}/limits").json()
     by = {p["point"]: p for p in r["points"]}
     assert by["OK_GGCP:20-TT-2300A.PV"]["iow"][0]["level"] == "critical"
-    assert by["OK_GGCP:20-TT-2300A.PV"]["excursions"]  # recorded by the scan above
+    assert by["OK_GGCP:20-TT-2300A.PV"]["excursions"]  # recorded by the IOW scans
     assert client.get("/limits/issues").status_code == 200
     assert client.get("/excursions", params={"basis": "iow"}).json()[0]["basis"] == "iow"
 

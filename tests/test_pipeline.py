@@ -17,6 +17,9 @@ from fuzer.sources import ingest
 PACK = load_pack()
 
 
+pytestmark = pytest.mark.sequence  # (#137) the register as built, then reviewers' decisions on it
+
+
 @pytest.fixture(scope="module")
 def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)

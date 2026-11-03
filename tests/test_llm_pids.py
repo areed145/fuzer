@@ -66,6 +66,16 @@ def setup(offshore_db):
     yield c, json.loads((data / "pid_truth.json").read_text())
 
 
+@pytest.fixture(scope="module")
+def read(setup):
+    """The drawings read once by the fake Claude, and the register rebuilt with the readings: (result, fake)."""
+    conn, truth = setup
+    fake = FakeVision(truth)
+    out = llm_pids.run(conn, PACK, client=fake, workers=1)
+    pipeline.rebuild(conn, PACK)
+    return out, fake
+
+
 def test_image_is_ingested_with_fingerprint(setup):
     conn, _ = setup
     p = conn.execute("select payload from source_record where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["payload"]
@@ -88,15 +98,13 @@ def test_every_drawn_sheet_but_smart_is_read(setup):
     formats = {r["source_key"]: r["f"] for r in conn.execute(
         "select source_key, payload->>'format' as f from source_record where source = 'pid'")}
     assert set(truth) == set(formats)  # every sheet is drawn
-    assert llm_pids.run(conn, PACK, dry_run=True)["sheets"] == sum(1 for f in formats.values() if f != "smart")
+    assert llm_pids.run(conn, PACK, dry_run=True, force=True)["sheets"] == sum(1 for f in formats.values() if f != "smart")
 
 
-def test_read_link_and_score(setup):
+def test_read_link_and_score(setup, read):
     conn, truth = setup
-    fake = FakeVision(truth)
-    out = llm_pids.run(conn, PACK, client=fake, workers=1)
+    out, fake = read
     assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 2  # the scan and the text PDF
-    pipeline.rebuild(conn, PACK)
 
     result = conn.execute("select result from llm_extraction where source = 'pid' and source_key = %s",
                           (SHEET,)).fetchone()["result"]
@@ -115,7 +123,7 @@ def test_read_link_and_score(setup):
     assert s["piping"] == {"recall": 1.0, "precision": 1.0}
 
 
-def test_drawing_endpoint_places_readings(setup):
+def test_drawing_endpoint_places_readings(setup, read):
     conn, truth = setup
     from fuzer.api import app
     client = TestClient(app)
@@ -134,7 +142,7 @@ def test_drawing_endpoint_places_readings(setup):
     assert s["read_by"] == "smart file" and s["marks"] and all("x" in m for m in s["marks"])
 
 
-def test_drawings_for_an_entity(setup):
+def test_drawings_for_an_entity(setup, read):
     conn, _ = setup
     from fuzer.api import app
     from fuzer.graph import queries
@@ -152,17 +160,22 @@ def test_drawings_for_an_entity(setup):
         assert tag in e["highlight"] and sheet in [x["id"] for x in e["drawings"]]
 
 
-def test_cached_until_the_scan_changes(setup):
+def test_cached_until_the_scan_changes(setup, read):
     conn, truth = setup
     fake = FakeVision(truth)
     assert llm_pids.run(conn, PACK, client=fake)["sheets"] == 0 and fake.requests == []
     truth = {SHEET: truth[SHEET]}
-    conn.execute(
-        "update source_record set payload = jsonb_set(payload, '{image_sha256}', '\"rescanned\"') where source_key = %s",
-        (SHEET,))
+    sha = conn.execute("select payload->>'image_sha256' as s from source_record where source_key = %s", (SHEET,)).fetchone()["s"]
+    rescan = "update source_record set payload = jsonb_set(payload, '{image_sha256}', to_jsonb(%s::text)) where source_key = %s"
+    conn.execute(rescan, ("rescanned", SHEET))
     conn.commit()
-    pipeline.rebuild(conn, PACK)  # stale reading no longer applied
-    assert llm_pids.score(conn, truth)["sheets_read"] == 0
+    try:
+        pipeline.rebuild(conn, PACK)  # stale reading no longer applied
+        assert llm_pids.score(conn, truth)["sheets_read"] == 0
+    finally:  # the scan back as it was, so the tests that read the sheet still find its reading
+        conn.execute(rescan, (sha, SHEET))
+        conn.commit()
+        pipeline.rebuild(conn, PACK)
 
 
 def test_image_endpoint(setup):

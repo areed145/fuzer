@@ -171,6 +171,7 @@ def _uses_db(item) -> bool:
     return any(x in own for x in DB_USE)
 
 
+@pytest.hookimpl(tryfirst=True)  # before -m picks the tiers it was asked for
 def pytest_collection_modifyitems(config, items):
     for item in items:
         mod = item.module.__name__.rsplit(".", 1)[-1]
@@ -182,3 +183,23 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         else:
             item.add_marker(pytest.mark.unit)
+
+
+class _Sequence:
+    """A module marked `sequence` is one story told in steps (read, then cache, then change): its tests keep the
+    file's order, in the slots the shuffle gave them. Everything else runs in any order."""
+
+    @pytest.hookimpl(trylast=True)  # after pytest-randomly's shuffle
+    def pytest_collection_modifyitems(self, config, items):
+        slots: dict[str, list[int]] = {}
+        for i, item in enumerate(items):
+            if item.get_closest_marker("sequence"):
+                slots.setdefault(str(item.fspath), []).append(i)
+        for idx in slots.values():
+            steps = sorted((items[i] for i in idx), key=lambda it: it.reportinfo()[1] or 0)
+            for i, it in zip(idx, steps):
+                items[i] = it
+
+
+def pytest_configure(config):
+    config.pluginmanager.register(_Sequence(), "fuzer-sequence")
