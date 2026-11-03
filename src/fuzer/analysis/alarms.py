@@ -16,9 +16,12 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core import settings
 from ..core.jsonsafe import plain as _plain
 from .calcs import CalcError, _label, result
 
+# Defaults; the values in effect are settings (#131): alarms.flood_per_10min, .target_per_hour, .standing_hours,
+# .chatter, .failed_start_minutes
 FLOOD = 10  # alarms in 10 minutes (EEMUA 191)
 TARGET_PER_HOUR = 6  # an operator can handle about one every 10 minutes
 STANDING_HOURS = 24
@@ -45,6 +48,8 @@ def _window(since: str, until: str) -> tuple[datetime, datetime]:
 def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=None, top: int = 10) -> dict:
     from . import limits
 
+    flood, target, standing_h, chatter_n = (settings.get(conn, f"alarms.{k}") for k in (
+        "flood_per_10min", "target_per_hour", "standing_hours", "chatter"))
     a, b = _window(since, until)
     pids = _scope_points(conn, scope)
     ex = [x for x in limits.excursions(conn, pack, pids, a, b, 10, src) if x["basis"] == "alarm"]
@@ -54,9 +59,9 @@ def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=No
     for j, t in enumerate(starts):  # sliding 10 minutes
         while starts[i] < t - timedelta(minutes=10):
             i += 1
-        if j - i + 1 > FLOOD and (not floods or t - floods[-1]["end"] > timedelta(minutes=10)):
+        if j - i + 1 > flood and (not floods or t - floods[-1]["end"] > timedelta(minutes=10)):
             floods.append({"start": starts[i], "end": t, "alarms": j - i + 1})
-        elif floods and j - i + 1 > FLOOD:
+        elif floods and j - i + 1 > flood:
             floods[-1].update(end=t, alarms=max(floods[-1]["alarms"], j - i + 1))
     by_point: dict[str, list[dict]] = {}
     for x in ex:
@@ -65,19 +70,19 @@ def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=No
     for p, xs in by_point.items():
         xs.sort(key=lambda x: x["start"])
         quick = sum(1 for u, v in zip(xs, xs[1:]) if u["end"] and v["start"] - u["end"] <= timedelta(minutes=1))
-        if quick + 1 >= CHATTER:
+        if quick + 1 >= chatter_n:
             chatter.append({"point": p, "alarms": len(xs), "repeats_within_a_minute": quick})
     standing = [{"point": x["point"], "limit": f"{x['limit_type']} {x['limit_value']:g}", "since": x["start"],
                  "hours": round(((x["end"] or b) - x["start"]).total_seconds() / 3600, 1)}
-                for x in ex if ((x["end"] or b) - x["start"]) >= timedelta(hours=STANDING_HOURS)]
+                for x in ex if ((x["end"] or b) - x["start"]) >= timedelta(hours=standing_h)]
     rate = len(ex) / hours if hours else 0
     worst = sorted(by_point.items(), key=lambda kv: -len(kv[1]))[:top]
-    return result(round(rate, 2), TARGET_PER_HOUR, "flood" if floods else "overloaded" if rate > TARGET_PER_HOUR else None,
+    return result(round(rate, 2), target, "flood" if floods else "overloaded" if rate > target else None,
                   "each point going past an enabled DCS / AF alarm limit while its unit runs (#101) is an alarm; "
-                  f"flood: over {FLOOD} in 10 minutes; standing: on {STANDING_HOURS} h or more; chattering: {CHATTER} or "
+                  f"flood: over {flood} in 10 minutes; standing: on {standing_h:g} h or more; chattering: {chatter_n} or "
                   "more on one point within a minute of clearing", [x["point_id"] for x in ex][:20],
                   unit="alarms per hour", window=[since, until], alarms=len(ex), points_alarming=len(by_point),
-                  peak_10_min=max((f["alarms"] for f in floods), default=_peak(starts)), floods=_plain(floods[:10]),
+                  flood_per_10min=flood, peak_10_min=max((f["alarms"] for f in floods), default=_peak(starts)), floods=_plain(floods[:10]),
                   chattering=chatter[:10], standing=_plain(sorted(standing, key=lambda s: -s["hours"])[:10]),
                   bad_actors=[{"point": p, "alarms": len(xs), "share": round(len(xs) / max(len(ex), 1), 3)} for p, xs in worst])
 
@@ -125,6 +130,7 @@ def states(conn, pack, scope: str | None, since: str, until: str, step: int = 10
 
 def trip_analysis(conn, pack, scope: str | None, since: str, until: str, src=None) -> dict:
     s = states(conn, pack, scope, since, until, src=src)
+    failed_min = settings.get(conn, "alarms.failed_start_minutes")
     rows = []
     for name, u in s["units"].items():
         sp = u["spans"]
@@ -138,7 +144,7 @@ def trip_analysis(conn, pack, scope: str | None, since: str, until: str, src=Non
         for x in starts:
             end = datetime.fromisoformat(x["end"])
             after = next((y for y in sp if y["start"] >= x["end"] and y["state"] != "transition"), None)
-            if after and after["state"] == "stopped" and (end - datetime.fromisoformat(x["start"])) <= timedelta(minutes=FAILED_START_MINUTES):
+            if after and after["state"] == "stopped" and (end - datetime.fromisoformat(x["start"])) <= timedelta(minutes=failed_min):
                 failed.append(x["start"])
         gaps = [(datetime.fromisoformat(b_["start"]) - datetime.fromisoformat(a_["start"])).total_seconds() / 86400
                 for a_, b_ in zip(stops, stops[1:])]
@@ -149,6 +155,6 @@ def trip_analysis(conn, pack, scope: str | None, since: str, until: str, src=Non
     total = sum(r["stops"] for r in rows)
     return result(total, None, "failed_starts" if any(r["failed_starts"] for r in rows) else None,
                   "stops and starts from each unit's run signal (#101 run modes), 10-minute steps; a failed start "
-                  f"stops again within {FAILED_START_MINUTES} minutes", [r["id"] for r in rows][:20], unit="stops",
+                  f"stops again within {failed_min} minutes", [r["id"] for r in rows][:20], unit="stops",
                   window=s["window"], units=rows[:30],
                   note="no first-out alarm in the data; the operator logs record one where Claude has read them")

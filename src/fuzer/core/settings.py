@@ -152,6 +152,16 @@ register(
             "factor", "Signals", min=1.5, max=50),
     Setting("signals.drift_z", "float", 4.0, "A drift: the fitted trend moves this many times the spread around "
             "it", "Signals", min=2, max=50),
+    Setting("alarms.flood_per_10min", "int", 10, "More alarms than this in 10 minutes is a flood (EEMUA 191)", "Alarms",
+            min=2, max=100),
+    Setting("alarms.target_per_hour", "float", 6.0, "Alarms per hour an operator can handle; more is overloaded",
+            "Alarms", min=0.5, max=60),
+    Setting("alarms.standing_hours", "float", 24.0, "Hours an alarm stays on before it is standing", "Alarms", min=1,
+            max=720),
+    Setting("alarms.chatter", "int", 3, "Alarms on one point, each within a minute of the last clearing, that make "
+            "it chattering", "Alarms", min=2, max=50),
+    Setting("alarms.failed_start_minutes", "int", 30, "A start followed by a stop within this many minutes is a "
+            "failed start", "Alarms", min=1, max=1440),
 )
 
 

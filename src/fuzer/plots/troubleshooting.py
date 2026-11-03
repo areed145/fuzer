@@ -285,7 +285,7 @@ def alarms_chart(conn, scope: str | None, since: str, until: str, pack=None) -> 
         t += td(minutes=10)
     data = [{"type": "bar", "name": "alarms per 10 min", "x": xs, "y": ys}]
     lay = layout(f"Alarms per 10 minutes ({out['alarms']} in all)", None, "alarms")
-    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": alarms.FLOOD, "y1": alarms.FLOOD,
+    lay["shapes"] = [{"type": "line", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": out["flood_per_10min"], "y1": out["flood_per_10min"],
                       "line": {"dash": "dash", "color": "rgba(210,60,50,0.8)"}}]
     return Figure("alarms", lay["title"]["text"], data, lay, {
         k: out[k] for k in ("value", "flag", "alarms", "points_alarming", "peak_10_min", "floods", "chattering", "standing",
