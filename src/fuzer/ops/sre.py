@@ -397,7 +397,9 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
                      standing_before: datetime | None = None) -> list[dict]:
     """Detections into upsets: close in time (each joins while within `gap` of the upset's latest start) and
     connected in the plant model (within `hops`). Detections that started by `standing_before` (already on when
-    scanning began) group as usual, but a group of nothing else is `standing`, not an upset (#142). Bad instruments and slow findings stay apart, one per unit and finding.
+    scanning began) group as usual, but a group of nothing else is `standing`, not an upset (#142). Slow findings
+    stay apart, one per unit and finding. Bad instruments roll into one instrument-health summary per week
+    (#141): instrument work for the technicians, listed by area (`instrument_faults`), not an upset each.
     Each upset: {kind, detections, units, first (the earliest detection: its likely first cause), start,
     end}."""
     groups: list[dict] = []
@@ -409,7 +411,8 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
             d["standing"] = True  # already on when scanning began (#142)
         if d["detector"] == "instruments" or d["detector"] in SLOW:
             kind = "instrument" if d["detector"] == "instruments" else "slow"
-            k = (kind, d.get("unit_id") or d["point"], d["key"])
+            k = (kind, *d["start"].isocalendar()[:2]) if kind == "instrument" else \
+                (kind, d.get("unit_id") or d["point"], d["key"])
             g = keyed.get(k)
             if g is None:
                 g = keyed[k] = {"kind": kind, "detections": []}
@@ -507,5 +510,37 @@ def upset_detail(conn, upset_id: int, limit: int = 60) -> dict | None:
     for d in dets:
         by_unit[d["unit"]] = by_unit.get(d["unit"], 0) + 1
     diag = conn.execute("select diagnosis from upset where id = %s", (upset_id,)).fetchone()["diagnosis"]
+    if u["kind"] == "instrument":  # the week's summary (#141): every fault, by area
+        by_area: dict[str, list] = {}
+        for f in instrument_faults(conn, upset_id=upset_id):
+            by_area.setdefault(f.pop("area") or "no area", []).append(f)
+        u = {**u, "by_area": by_area}
     return {**u, "detections_shown": len(dets), "by_unit": by_unit, "timeline": dets,
             **({"diagnosis": {k: diag.get(k) for k in ("causes", "actions", "answer", "error")}} if diag else {})}
+
+
+def instrument_faults(conn, since: str | None = None, until: str | None = None, upset_id: int | None = None) -> list[dict]:
+    """Bad instruments (#141): each fault with its point, unit, area, check and since when, and an open
+    notification on the unit if there is one. Those starting in [since, until), or those in one weekly summary."""
+    rows = conn.execute(
+        """
+        select d.id, p.label as point, d.point_id, l.label as unit, d.unit_id, a.label as area,
+               split_part(d.key, ':', 2) as "check", d.start, d."end", d.magnitude,
+               (select n.label from edge m join entity_label n on n.fuzer_id = m.src
+                join entity ne on ne.fuzer_id = m.src and ne.kind = 'notification'
+                left join golden st on st.fuzer_id = m.src and st.field = 'status'
+                where m.rel = 'concerns' and m.dst = d.unit_id and coalesce(st.value #>> '{}', '') <> 'NOCO'  -- SAP: completed
+                order by n.label desc limit 1) as notification
+        from detection d
+        left join entity_label p on p.fuzer_id = d.point_id
+        left join entity_label l on l.fuzer_id = d.unit_id
+        left join lateral (select x.label from edge e join entity ae on ae.fuzer_id = e.dst and ae.kind = 'area'
+                           join entity_label x on x.fuzer_id = e.dst
+                           where e.src = d.unit_id and e.rel in ('part_of', 'located_at') limit 1) a on true
+        where d.detector = 'instruments'
+          and (%(u)s::int is null or d.upset_id = %(u)s)
+          and (%(s)s::timestamp is null or d.start >= %(s)s::timestamp)
+          and (%(e)s::timestamp is null or d.start < %(e)s::timestamp)
+        order by a.label nulls last, d.start, d.id
+        """, {"u": upset_id, "s": since, "e": until})
+    return [_plain(dict(r)) for r in rows]

@@ -101,3 +101,20 @@ def test_alarms_already_on_at_the_start_are_standing():
     assert process["detections"] == [whp, step] and process["first"] is whp
     fresh = [{**whp, "standing": False}, {**other, "standing": False}]
     assert [g["kind"] for g in sre.group_detections(fresh, {})] == ["process", "process"]  # no scan start: as before
+
+
+def test_bad_instruments_roll_into_one_summary_a_week():
+    """#141: instrument faults on any unit in the same week are one instrument-health summary, not an upset
+    each; the next week starts another, and they never join a process upset."""
+    t0 = datetime(2024, 6, 10)  # a Monday
+
+    def det(point, unit, h, detector="instruments", key="instrument:frozen"):
+        return {"point": point, "unit_id": unit, "detector": detector, "key": key, "start": t0 + timedelta(hours=h),
+                "end": None}
+
+    found = [det("A.PV", "u1", 1), det("B.PV", "u2", 30, key="instrument:noisy"), det("C.PV", "u3", 100),
+             det("D.PV", "u4", 24 * 7 + 2), det("A.PV", "u1", 2, "excursions", "alarm:hi")]
+    groups = sre.group_detections(found, {})
+    assert sorted(g["kind"] for g in groups) == ["instrument", "instrument", "process"]
+    week = next(g for g in groups if g["kind"] == "instrument")
+    assert [d["point"] for d in week["detections"]] == ["A.PV", "B.PV", "C.PV"] and week["units"] == ["u1", "u2", "u3"]

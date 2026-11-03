@@ -114,7 +114,8 @@ def get_upsets(since: str | None = None, status: Literal["detected", "confirmed"
     """Upsets the SRE found in the process data (#96), newest first: detections close in time and connected
     in the plant model grouped into one, with the earliest as the likely first cause (unit, point and what
     it found), the units it reached and its status. kind: process (trips, excursions, steps), instrument
-    (a bad reading) or slow (drift, equipment against its curve)."""
+    (the week's instrument-health summary: every bad reading that week; upset_detail lists them by area), slow
+    (drift, equipment against its curve) or standing (alarms already on when scanning began)."""
     from ...ops import sre
     with db.connect() as conn:
         rows = sre.upsets(conn, since, status, kind, min(limit, 200))

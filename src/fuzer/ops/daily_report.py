@@ -144,6 +144,13 @@ def facts(conn, pack, day: str) -> dict:
     if iow:
         sections["Maintenance and integrity"].append(_f("{n} IOW excursions, on {points}", [x["point_id"] for x in iow],
                                                         n=len(iow), points=", ".join(sorted({x["point"] for x in iow}))))
+    bad = sre.instrument_faults(conn, day, nxt) if _has(conn, "detection") else []  # #141
+    if bad:
+        pts = sorted({x["point"] for x in bad if x["point"]})
+        sections["Maintenance and integrity"].append(_f(
+            "{n} instrument faults began ({checks}), in {areas}: {points}", [x["point_id"] for x in bad][:20], n=len(bad),
+            checks=", ".join(sorted({x["check"] for x in bad})), areas=", ".join(sorted({x["area"] or "no area" for x in bad})),
+            points=", ".join(pts[:8]) + (f" and {len(pts) - 8} more" if len(pts) > 8 else "")))
     comp = operations.maintenance_compliance(conn, day, horizon_days=1)
     late = [x for x in comp.get("overdue", []) if x.get("overdue_days") == 1]
     for x in late:
