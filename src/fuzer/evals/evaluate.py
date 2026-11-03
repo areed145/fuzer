@@ -244,6 +244,9 @@ def score_answer(case: dict, out: dict) -> dict:
             "charts": kinds, "charted": bool(set(kinds) & set(case["charts"])) if case.get("charts") else None,
             "looked_at_charts": sum(1 for t in out["tools"] if t["tool"] == "look_at_figure"),
             "tool_calls": len(out["tools"]), "seconds": out["seconds"], "cost_usd": out["usage"]["cost_usd"],
+            "tool_seconds": round(sum(t.get("seconds") or 0 for t in out["tools"]), 1),
+            "slowest_tools": [{"tool": t["tool"], "seconds": t["seconds"], "args": t["args"]} for t in
+                              sorted(out["tools"], key=lambda t: -(t.get("seconds") or 0))[:3] if t.get("seconds")],
             "answer": text}
 
 
@@ -280,7 +283,9 @@ def assistant(cases: list[dict], team=None, say=None) -> dict:
         results.append(r)
         spent += r["cost_usd"] or 0
         if say:
-            say(f"  {r['seconds']:.0f} s, {r['tool_calls']} tool calls, facts {r['mentions']}, "
+            slow = ", ".join(f"{t['tool']} {t['seconds']:.0f} s" for t in r["slowest_tools"][:2])
+            say(f"  {r['seconds']:.0f} s ({r['tool_seconds']:.0f} s in tools: {slow or 'none'}), {r['tool_calls']} tool calls, "
+                f"facts {r['mentions']}, "
                 f"${r['cost_usd']:.2f} (${spent:.2f} so far)" + (f", missing {r['missing']}" if r["missing"] else ""))
     return summarise(results)
 

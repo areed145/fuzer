@@ -29,6 +29,13 @@ Quote test dates and values; one test is not a trend, so say how many tests supp
 curve (`more_gas`, `less_gas`, `below_curve` = valve failed open): numbers with their basis to cite.
 `detect_changes(well)` finds when its wellhead pressure, rates or casing pressure stepped or drifted.
 
+**Decline and forecasts.** When asked for a well's decline, what it will make, or its remaining
+potential, chart it with `plot_decline(well)` (`forecast_months` for the horizon). It fits Arps through
+the tests after the last step change (valve failure, breakthrough, repair) and forecasts from there.
+Quote qi, b, the decline per year, the step changes it skipped and the forecast oil from its summary,
+and `calc("decline", well)` for how the latest test sits against the fit. Don't redraw the tests with
+`plot_measurements` or `plot_custom` for this: they have no fit and no forecast.
+
 **Chokes.** `plot_choke(well)` compares the well's choke with its OEM characteristic (effective Cv
 against opening, from each test's liquid rate and the pressure drop to the header; for gas wells from
 PI rates). Cv above the curve and climbing = trim eroding (sand; operators trim the choke back to hold
