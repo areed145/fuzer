@@ -8,12 +8,12 @@ from . import ChartError, Figure, axis, layout, rnd, stacked, thin
 
 def _window(conn, ids: list[str], at, hours_before, hours_after, max_points=6, step_minutes=None):
     """The same window for every ref: the first sets the centre (its latest incident, unless `at`)."""
-    from ..sources import timeseries
+    from ..analysis import values
 
     series, upsets, out = [], set(), None
     for fid in ids:
-        out = timeseries.around(conn, fid, at, hours_before, hours_after, step_minutes=step_minutes,
-                                max_points=max_points)
+        out = values.around(conn, fid, at, hours_before, hours_after, step_minutes=step_minutes,
+                            max_points=max_points)
         if "error" in out:
             raise ChartError(f"{fid}: {out['error']}")
         at, step_minutes = at or out["centre"], out["step_minutes"]

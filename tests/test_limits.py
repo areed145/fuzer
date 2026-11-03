@@ -15,12 +15,12 @@ from fastapi.testclient import TestClient
 
 from fakeplant import okan
 from fuzer.agents import mcp_server
-from fuzer.analysis import limits
+from fuzer.analysis import limits, values
 from fuzer.core import db, units
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
 from fuzer.ops import pipeline
-from fuzer.sources import ingest, mappings, timeseries
+from fuzer.sources import ingest, mappings
 from fuzer.workflow import engine
 
 PACK = load_pack("okan")
@@ -218,7 +218,7 @@ def test_iow_breach_past_its_time_opens_work(conn):
 
 def test_trends_api_and_mcp_carry_limits(conn):
     temp = point(conn, "OK_GGCP:20-TT-2300A.PV")
-    tv = timeseries.around(conn, temp, "2025-07-16T15:00", 24, 6, pack=PACK)
+    tv = values.around(conn, temp, "2025-07-16T15:00", 24, 6, pack=PACK)
     lines = tv["series"][0]["limits"]
     assert {(x["basis"], x["type"]) for x in lines} >= {("alarm", "hi"), ("alarm", "hihi"), ("iow", "hi")}
 
