@@ -29,8 +29,10 @@ import warnings
 from contextvars import ContextVar
 from pathlib import Path
 
+from ..core import models
+
 SKILLS = Path(__file__).parent / "skills"
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_MODEL = models.DEFAULT_MODEL
 MAX_OUTPUT_TOKENS = 16_000  # under the SDK's non-streaming limit; answers are a few thousand at most
 CONTEXT_WINDOW = 1_000_000
 

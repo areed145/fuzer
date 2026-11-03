@@ -29,6 +29,7 @@ import numpy as np
 from psycopg.types.json import Jsonb
 
 from . import calcs, limits, signals
+from .core.jsonsafe import plain as _plain
 
 STEP = 10  # minutes between values the detectors read
 OVERLAP = timedelta(hours=1)
@@ -319,16 +320,6 @@ def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime
                       Jsonb(_plain(d["evidence"])), run_id, run_id, b))
             new += 1
     return {"new": new, "extended": extended}
-
-
-def _plain(x):
-    if isinstance(x, dict):
-        return {k: _plain(v) for k, v in x.items()}
-    if isinstance(x, (list, tuple)):
-        return [_plain(v) for v in x]
-    if isinstance(x, (np.floating, np.integer)):
-        return x.item()
-    return x.isoformat() if isinstance(x, datetime) else x
 
 
 def scan(conn, pack, since: str | None = None, until: str | None = None, src=None, max_days: int = 7) -> dict:

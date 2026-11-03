@@ -20,6 +20,8 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from .core.jsonsafe import plain as _plain
+
 PAGE = 50
 
 
@@ -210,12 +212,6 @@ def _count(xs) -> dict:
     for x in xs:
         out[x] = out.get(x, 0) + 1
     return out
-
-
-def _plain(x):
-    from .sre import _plain as p
-
-    return p(x)
 
 
 def pin(conn, key: str, by: str, reason: str, rank: int | None = None, value_usd: float | None = None) -> dict:

@@ -22,6 +22,8 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
+from .core.jsonsafe import plain as _plain
+
 MIN_DETECTIONS = 3  # a lone detection is evidence, not an upset worth a person's time
 MAX_DIAGNOSES = 10  # per run
 MAX_USD = 5.0  # per run
@@ -179,12 +181,6 @@ def handoff(conn, pack, ask=None, max_diagnoses: int = MAX_DIAGNOSES, max_usd: f
         out.append({"upset": u["id"], "item_id": res["item_id"], "value_usd": s["value_usd"], "diagnosed": bool(diag)})
     return {"candidates": len(ups), "handed_off": started, "diagnosed": diagnosed, "claude_usd": round(spent, 4),
             "items": out}
-
-
-def _plain(x):
-    from .sre import _plain as p
-
-    return p(x)
 
 
 def sync_feedback(conn) -> dict:

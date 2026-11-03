@@ -248,7 +248,7 @@ def decide(conn, key: str, decision: str, by: str, reason: str | None = None) ->
 
 
 def listing(conn, status: str | None = "open", limit: int = 50) -> list[dict]:
-    from .sre import _plain
+    from .core.jsonsafe import plain as _plain
 
     return [_plain(dict(r)) for r in conn.execute(
         "select key, kind, title, target, gain_sm3d, value_usd, status, item_id, reason, detail from opportunity "

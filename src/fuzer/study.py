@@ -83,7 +83,7 @@ def start(conn, pack, kind: str, params: dict, by: str, now: bool | None = None)
 def run(conn, pack, sid: int) -> dict:
     from . import plots
     from .calcs import CalcError
-    from .sre import _plain
+    from .core.jsonsafe import plain as _plain
 
     s = conn.execute("update study set status = 'running' where id = %s returning *", (sid,)).fetchone()
     conn.commit()
@@ -115,14 +115,14 @@ def rerun(conn, pack, sid: int, by: str) -> dict:
 
 
 def get(conn, sid: int) -> dict | None:
-    from .sre import _plain
+    from .core.jsonsafe import plain as _plain
 
     r = conn.execute("select * from study where id = %s", (sid,)).fetchone()
     return _plain(dict(r)) if r else None
 
 
 def listing(conn, limit: int = 50) -> list[dict]:
-    from .sre import _plain
+    from .core.jsonsafe import plain as _plain
 
     return [_plain(dict(r)) for r in conn.execute(
         "select id, kind, params, status, summary, figure_id, error, created_by, created_at, finished_at from study "

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .calcs import CalcError, _label, result
+from .core.jsonsafe import plain as _plain
 
 FLOOD = 10  # alarms in 10 minutes (EEMUA 191)
 TARGET_PER_HOUR = 6  # an operator can handle about one every 10 minutes
@@ -88,12 +89,6 @@ def _peak(starts: list[datetime]) -> int:
             i += 1
         best = max(best, j - i + 1)
     return best
-
-
-def _plain(x):
-    from .sre import _plain as p
-
-    return p(x)
 
 
 def _run_units(conn, pack, scope: str | None) -> dict[str, dict]:

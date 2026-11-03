@@ -21,6 +21,8 @@ import itertools
 import math
 from datetime import date, datetime, timedelta
 
+from .core.labels import label as _label
+
 YEAR = 365.25
 
 
@@ -39,9 +41,6 @@ def _r(x: float | None, n: int = 3) -> float | None:
     return None if x is None else round(x, n)
 
 
-def _label(conn, fid: str) -> str:
-    r = conn.execute("select label from entity_label where fuzer_id = %s", (fid,)).fetchone()
-    return r["label"] if r else fid
 
 
 # ---- wells: decline -------------------------------------------------------------------------------
