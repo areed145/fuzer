@@ -94,18 +94,20 @@ def load(conn=None) -> dict[tuple[str, str], "Mapping"]:
     ver = conn.execute("select coalesce(max(id), 0) as v from mapping_version").fetchone()["v"]
     if not ver:
         return files
-    if (extra, ver) not in _APPROVED:
+    # the database is part of the key: two databases (tests, projects on separate servers) share version ids
+    key = (extra, f"{conn.info.host}:{conn.info.port}/{conn.info.dbname}", ver)
+    if key not in _APPROVED:
         merged = dict(files)
         for r in conn.execute("select distinct on (source, record_type) yaml, id from mapping_version "
                               "order by source, record_type, id desc"):
             m = Mapping(yaml.safe_load(r["yaml"]))
             merged[(m.source, m.record_type)] = m
         _APPROVED.clear()
-        _APPROVED[(extra, ver)] = merged
-    return _APPROVED[(extra, ver)]
+        _APPROVED[key] = merged
+    return _APPROVED[key]
 
 
-_APPROVED: dict[tuple[str, int], dict] = {}
+_APPROVED: dict[tuple[str, str, int], dict] = {}
 
 
 @lru_cache(maxsize=8)

@@ -1,9 +1,11 @@
 """Sources (#132): the tables in the data folder with their connector, mapping and state, and a preview of
-one before it loads. Reads only."""
+one before it loads, and adding a new one in one flow: suggest a mapping (rules, or Claude), save it and load
+the table."""
 
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from . import deps
 from .deps import get_conn
@@ -30,3 +32,49 @@ def source_preview(name: str, rows: int = 5, conn=Depends(get_conn)):
         return preview.preview(conn, deps.PACK, _data_dir(), name, min(max(rows, 1), 50))
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
+
+
+class Suggest(BaseModel):
+    claude: bool = False  # ask Claude for the columns rules can't name (costs money; cached per table)
+
+
+@router.post("/sources/{name}/suggest")
+def source_suggest(name: str, body: Suggest, conn=Depends(get_conn)):
+    """A draft mapping for a table with none, to edit before saving. Nothing is stored but Claude's cache."""
+    from pathlib import Path
+
+    from ..sources import connectors, suggest
+
+    c = connectors.find(Path(_data_dir()), name)
+    if c is None:
+        raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
+    s = suggest.suggest_table(conn, deps.PACK, name, c, claude=body.claude)
+    return {"yaml": suggest.to_yaml(s["mapping"]), "key": s["suggestion"]["key"],
+            "columns": {k: {"meaning": v["meaning"], "by": v["by"]} for k, v in s["suggestion"]["columns"].items()},
+            "claude": s["claude"] or None}
+
+
+class Load(BaseModel):
+    yaml: str | None = None  # a mapping to save first (a new table, or a changed mapping)
+    by: str = "anonymous"
+
+
+@router.post("/sources/{name}/load")
+def source_load(name: str, body: Load, conn=Depends(get_conn)):
+    """Save the mapping (when given) and load this one table now. Its records become entities on the next
+    rebuild. A table whose columns changed stays held until its schema review is accepted."""
+    from pathlib import Path
+
+    from ..sources import ingest, suggest
+
+    if body.yaml is not None:
+        try:
+            suggest.save(conn, name, body.yaml, body.by)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+    if ingest.dataset(Path(_data_dir()), name) is None:
+        raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
+    if name not in ingest.tables(conn) and name not in ingest.FILES:
+        raise HTTPException(400, f"{name} has no mapping: save one first")
+    stats = ingest.ingest(conn, _data_dir(), exports=[name])
+    return {k: stats.get(k) for k in ("loaded", "unchanged", "held", "records", "inserted", "updated", "removed")}

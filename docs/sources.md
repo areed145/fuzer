@@ -27,7 +27,9 @@ connectors behind one interface; `dataset_state` keeps each dataset's
 fingerprint, columns and watermark, so unchanged datasets are skipped (large
 asset re-ingest 2.4 s -> 0.4 s), added columns load, removed or retyped columns
 hold the dataset behind a `schema` review item, and watermarked lake tables read
-only new rows. Medium asset from Parquet: same records and eval scores as CSV;
+only new rows. Nested JSON manifests and the live AF tree have no columns; their
+JSON shape (typed field paths, with tag-keyed maps as one path) gets the same
+check. Medium asset from Parquet: same records and eval scores as CSV;
 large first load 3.6 s either way.
 
 Mappings: every source record type is a YAML file read by one compiled
@@ -45,7 +47,9 @@ manufacturers) and values that are keys of records already held (ties between
 overlapping number ranges go to the target whose key column has the same
 name); Claude names columns rules could only call `code` or `other` (cached,
 never in rebuilds). Drafts are `mapping` review items; accepted versions live
-in `mapping_version` and load after the built-in files. Eval on 18 fake tables
+in `mapping_version` and load after the built-in files. On the Sources page a
+new table is added in one flow: the draft from rules (or Claude), edited, saved
+as a mapping version and loaded, without going through the queue. Eval on 18 fake tables
 (12 built-in, 6 with messy headers): key 1.0, references 1.0, columns 0.99
 (rules), 1.0 with Claude on the opaque table.
 
