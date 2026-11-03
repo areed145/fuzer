@@ -138,7 +138,7 @@ def main(argv=None):
         home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
         db.database_url()  # with no FUZER_DATABASE_URL, start embedded Postgres before Dagster forks
         os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
-        sys.exit(subprocess.call([sys.executable, "-m", "dagster", "dev", "-m", "fuzer.jobs", "-p", str(args.port)]))
+        sys.exit(subprocess.call([sys.executable, "-m", "dagster", "dev", "-m", "fuzer.ops.jobs", "-p", str(args.port)]))
     elif args.cmd in ("ask", "chat"):
         _assistant(args)
     elif args.cmd == "mcp":
@@ -222,7 +222,7 @@ def main(argv=None):
             elif args.cmd == "limits":
                 _limits(conn, pack, args)
             elif args.cmd == "report":
-                from . import daily_report, operations
+                from .ops import daily_report, operations
                 from .workflow import engine
 
                 engine.load_defaults(conn)
@@ -232,20 +232,20 @@ def main(argv=None):
                     _print(daily_report.redraft(conn, day))
                 print(daily_report.get(conn, day)["markdown"])
             elif args.cmd == "board":
-                from . import board
+                from .ops import board
 
                 _print(board.refresh(conn, pack) if args.action == "refresh" else board.cards(conn, per_page=args.limit))
             elif args.cmd == "sre":
-                from . import sre
+                from .ops import sre
 
                 _print(sre.scan(conn, pack, args.since, args.until))
                 if args.handoff:
-                    from . import sre_handoff
+                    from .ops import sre_handoff
                     from .workflow import engine
 
                     engine.load_defaults(conn)
                     _print(sre_handoff.handoff(conn, pack, max_diagnoses=args.max_diagnoses))
-                    from . import board
+                    from .ops import board
 
                     _print({"board": board.refresh(conn, pack)})
 
@@ -253,8 +253,8 @@ def main(argv=None):
 def _limits(conn, pack, args) -> None:
     from datetime import datetime, timedelta
 
-    from . import operations
     from .analysis import limits
+    from .ops import operations
 
     if args.action == "issues":
         found = limits.issues(conn, pack)
@@ -275,7 +275,8 @@ def _limits(conn, pack, args) -> None:
 def _ops_eval(conn, pack, args, data: Path) -> None:
     from datetime import datetime, timedelta
 
-    from . import operations, replay
+    from . import replay
+    from .ops import operations
 
     if not (data / "process_model.json").is_file():  # the fake plant's own folder for this pack
         own = Path(__file__).resolve().parents[2] / "fakeplant" / "data" / pack.name

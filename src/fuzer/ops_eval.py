@@ -39,7 +39,8 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
     import json
     from pathlib import Path
 
-    from . import daily_report, opportunities, replay, sre, sre_handoff
+    from . import replay
+    from .ops import daily_report, opportunities, sre, sre_handoff
     from .workflow import engine
 
     spec = json.loads((Path(data_dir) / "process_model.json").read_text())

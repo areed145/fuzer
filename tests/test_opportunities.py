@@ -9,11 +9,12 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import board, mcp_server, opportunities
+from fuzer import mcp_server
 from fuzer.analysis import calcs
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline
+from fuzer.ops import board, opportunities
 from fuzer.sources import ingest
 from fuzer.workflow import engine
 

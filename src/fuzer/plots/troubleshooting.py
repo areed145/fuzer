@@ -297,7 +297,7 @@ def propagation(conn, upset: int) -> Figure:
     the model connects them, the likely first cause marked."""
     from datetime import datetime as dt
 
-    from .. import sre
+    from ..ops import sre
 
     d = sre.upset_detail(conn, upset, limit=2000)
     if d is None:

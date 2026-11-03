@@ -124,7 +124,7 @@ def reliability(conn, fid: str, method: str = "weibull") -> Figure:
 def bad_actors(conn, since: str | None = None, until: str | None = None, limit: int = 25) -> Figure:
     """Bad actors as bubbles: failures against oil lost to the downtime they caused, bubble size =
     downtime events, colour = ISO 14224 class."""
-    from .. import operations as ops
+    from ..ops import operations as ops
 
     out = ops.bad_actors(conn, since, until, limit)
     items = out["bad_actors"]

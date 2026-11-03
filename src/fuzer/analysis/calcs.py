@@ -239,7 +239,7 @@ def gas_lift(conn, well: str, breakeven: float = 0.5, min_gain: float = 1.0, unt
 
 def window_of(conn, days: int, until: str | None = None) -> tuple[datetime, datetime]:
     """The `days` up to `until`, else to the end of the data's today (operations.as_of)."""
-    from .. import operations
+    from ..ops import operations
 
     end = datetime.fromisoformat(until) if until else datetime.fromisoformat(operations.as_of(conn)) + timedelta(days=1)
     return end - timedelta(days=days), end

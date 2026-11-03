@@ -564,7 +564,7 @@ def detections(since: str | None = None, detector: Literal["excursions", "stops"
     detector (excursions outside limits, unit stops, steps, drifts, bad instruments, equipment against its
     curve), what it found (key), start and end (null = still going) and evidence. since: ISO time; only
     those going on after it."""
-    from . import sre
+    from .ops import sre
     with db.connect() as conn:
         rows = sre.recent(conn, since, detector, min(limit, 500))
     return _plain({"detections": rows, "count": len(rows)})
@@ -577,7 +577,7 @@ def get_upsets(since: str | None = None, status: Literal["detected", "confirmed"
     in the plant model grouped into one, with the earliest as the likely first cause (unit, point and what
     it found), the units it reached and its status. kind: process (trips, excursions, steps), instrument
     (a bad reading) or slow (drift, equipment against its curve)."""
-    from . import sre
+    from .ops import sre
     with db.connect() as conn:
         rows = sre.upsets(conn, since, status, kind, min(limit, 200))
     return _plain({"upsets": rows, "count": len(rows)})
@@ -587,7 +587,7 @@ def get_upsets(since: str | None = None, status: Literal["detected", "confirmed"
 def upset_detail(upset_id: int) -> dict[str, Any]:
     """One upset: its detections in time order (the first is the likely first cause), with evidence, and
     how many on each unit."""
-    from . import sre
+    from .ops import sre
     with db.connect() as conn:
         out = sre.upset_detail(conn, upset_id)
     return _plain(out) if out else {"error": f"no upset {upset_id}"}
@@ -670,7 +670,7 @@ def board(area: str | None = None, unit: str | None = None, kind: str | None = N
     (#100). Each card: rank, value and why, its records, whether a person pinned it and why it moved.
     Filter by area or unit (any ref), kind, words in the title, or new since a time. "Top 5 on train B":
     unit or area, limit 5."""
-    from . import board as b
+    from .ops import board as b
     with db.connect() as conn:
         args = {}
         for k, ref in (("area", area), ("unit", unit)):
@@ -689,7 +689,7 @@ def board(area: str | None = None, unit: str | None = None, kind: str | None = N
 def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
     """The workflow steps your agent role can take now, highest on the board first. Claim one with
     claim_work."""
-    from . import board as b
+    from .ops import board as b
     with db.connect() as conn:
         return _plain({"agent": agent, "steps": b.next_work(conn, agent, min(limit, 20))})
 
@@ -700,7 +700,7 @@ def get_daily_ops_report(day: str | None = None, version: int | None = None) -> 
     production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line
     citing its records. With the checks (uncited lines, numbers not in the records) and what changed since
     the previous version. For "what happened on the 28th?"."""
-    from . import daily_report
+    from .ops import daily_report
     with db.connect() as conn:
         if day is None:
             got = daily_report.days(conn, 1)
@@ -777,7 +777,7 @@ def opportunities(status: Literal["open", "rejected", "accepted", "project", "go
     wells below their decline or with stale tests, units worth a permanent fix, shut-in wells that may be
     recoverable. Each with its gain (Sm3/d oil), #100 value, basis, confidence, cited evidence and what would
     confirm it. Proposals for engineers to accept or reject on the board."""
-    from . import opportunities as opp
+    from .ops import opportunities as opp
     with db.connect() as conn:
         rows = opp.listing(conn, status, min(limit, 100))
     return _plain({"opportunities": rows, "count": len(rows)})
@@ -902,7 +902,7 @@ def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entit
     cluster_entities / cluster_events, plus spe: scope, train_since, train_until, since, until). Small ones run
     now and come back with a summary; big ones (a facility scope, long windows) queue for the background job:
     check with get_study. Cite it as study:<id>."""
-    from . import study
+    from .ops import study
     with db.connect() as conn:
         p = dict(params)
         for k in ("target", "scope"):
@@ -921,7 +921,7 @@ def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entit
 @server.tool(annotations=READ_ONLY)
 def get_study(study_id: int) -> dict[str, Any]:
     """A kept study: its parameters, status, summary, figure and (when done) its top results."""
-    from . import study
+    from .ops import study
     with db.connect() as conn:
         out = study.get(conn, study_id)
     return _plain({k: v for k, v in out.items() if k != "result"} | {"result": _trim(out.get("result"))}) if out else \
@@ -940,7 +940,7 @@ def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[
     orders started and finished, downtime started and ended, incidents, equipment installed or removed,
     limits taking or ending effect, excursions and new well tests, with counts. Start here for "what
     happened since ..." and each shift's or run's snapshot. since / until ISO times (until: now)."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
@@ -974,7 +974,7 @@ def production_summary(since: str | None = None, until: str | None = None,
                        by: Literal["month", "week"] = "month") -> dict[str, Any]:
     """Oil actual vs potential (production efficiency %), gas export, lift gas and flare per month or
     week, with deferred oil by reason. Default: the last 12 months. Dates YYYY-MM-DD."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.production_summary(conn, since, until, by))
 
@@ -984,7 +984,7 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
                      since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
     or affected well, with each one's share. Default: the last 12 months."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
 
@@ -993,7 +993,7 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
 def production_constraints(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """What has been limiting production: losses by reason with the units that cause them, frequency,
     last occurrence and trend (worse / steady / better). Default: the last 12 months."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.constraints(conn, since, until))
 
@@ -1003,7 +1003,7 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
     """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
     wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
     Default window: 12 months."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         fid = None
         if ref:
@@ -1020,7 +1020,7 @@ def gas_lift_network(ref: str | None = None, since: str | None = None, limit: in
     well: lift gas, oil per lift gas and measured response to more lift gas (Sm3/d oil per extra kSm3/d),
     least and most responsive wells, wells lifting mostly water. With ref (header, manifold, jacket,
     compressor or well): only that part, plus its supply path. Default window: 12 months of tests."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         fid = None
         if ref:
@@ -1034,7 +1034,7 @@ def gas_lift_network(ref: str | None = None, since: str | None = None, limit: in
 def bad_actors(since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure
     modes, with MTBF per unit and per class. Default window: 2 years."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.bad_actors(conn, since, until, min(limit, 100)))
 
@@ -1043,7 +1043,7 @@ def bad_actors(since: str | None = None, until: str | None = None, limit: int = 
 def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest;
     open notifications with no order planned yet."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
@@ -1052,7 +1052,7 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
 def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, limit: int = 25) -> dict[str, Any]:
     """Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks
     due within the horizon; tasks that need a shutdown are marked."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.maintenance_compliance(conn, as_of, min(horizon_days, 1100), min(limit, 200)))
 
@@ -1062,7 +1062,7 @@ def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
     """Turnaround (shutdown) scope: work orders planned for the revision (default: the next one), plans
     that need the unit down and aren't in scope yet, bad actors not in scope, and spares for scoped
     units that are out of stock (order long-lead items now)."""
-    from . import operations
+    from .ops import operations
     with db.connect() as conn:
         return _plain(operations.turnaround_scope(conn, revision))
 

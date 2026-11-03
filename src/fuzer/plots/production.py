@@ -146,7 +146,7 @@ def gas_lift_curve(conn, well: str, breakeven: float = 0.5) -> Figure:
 def gas_lift_allocation(conn, ref: str | None = None) -> Figure:
     """Every gas lifted well's marginal response (oil per extra lift gas, from its tests with decline
     taken out) by header: moving gas from the bottom of a header's list to the top gains oil."""
-    from .. import operations as ops
+    from ..ops import operations as ops
 
     out = ops.gas_lift_network(conn, ref, limit=500)
     wells = sorted(out["most_response"], key=lambda w: -w["response_oil_per_extra_gas"])

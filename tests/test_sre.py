@@ -9,10 +9,11 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, replay, sre
+from fuzer import mcp_server, replay
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline
+from fuzer.ops import sre
 from fuzer.sources import ingest, timeseries
 
 PACK = load_pack("okan")
@@ -110,7 +111,7 @@ ANSWER = """Most likely liquid carryover from the inlet separator into train C's
 def test_handoff_prioritises_diagnoses_and_opens_work(conn):
     """After the scans above: each upset of note gets a #100 priority, the troubleshooter's diagnosis (a
     recorded answer here, within the cap) and an `upset` work item; a false alarm stops its pattern."""
-    from fuzer import sre_handoff
+    from fuzer.ops import sre_handoff
     from fuzer.workflow import engine
 
     engine.load_defaults(conn)
@@ -153,7 +154,7 @@ def test_board_ranks_everything_once(conn):
     """The work board (#99) after the hand-off: SAP backlog, plans, incidents, upsets, work items and a
     project together, ranked; an upset, its incident and its work item one card; a pin survives a
     rebuild."""
-    from fuzer import board
+    from fuzer.ops import board
 
     board.add_project(conn, "Replace 20-LT-2001 with a guided-wave radar", "alice", benefit_usd=250000.0, owner="alice")
     out = board.refresh(conn, PACK)

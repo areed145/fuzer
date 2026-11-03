@@ -148,7 +148,7 @@ def _class_of(conn, fid: str) -> str:
 def peers(conn, fid: str, z: float = 3.0, src=None) -> dict:
     """The units of a class (or model, or a unit's class) side by side: failures per year, MTBF, oil lost
     and vibration now; outliers far from the class's median (robust z of `z` or more)."""
-    from .. import operations
+    from ..ops import operations
     from ..sources.timeseries import _unit_points
 
     cls = _class_of(conn, fid)

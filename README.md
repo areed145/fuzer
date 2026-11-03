@@ -492,7 +492,7 @@ curl "localhost:8000/work/inbox?person=alice"
 |---|---|
 | `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
 | `src/fuzer/sources/ingest.py` | Land source exports into `source_record` |
-| `src/fuzer/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
+| `src/fuzer/ops/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
 | `src/fuzer/agents/` | The operations assistant: agent team, skills, API service |
 | `src/fuzer/sources/connectors.py` | CSV / Parquet / Delta connectors |
 | `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
@@ -506,7 +506,7 @@ curl "localhost:8000/work/inbox?person=alice"
 | `src/fuzer/mcp_server.py` | MCP server for AI agents |
 | `src/fuzer/graph/llm_links.py` | Claude reads operator logs: links and events |
 | `src/fuzer/sources/llm_pids.py` | Claude reads P&ID drawings: tags, piping, positions |
-| `src/fuzer/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
+| `src/fuzer/ops/jobs.py` | Dagster assets, schedules, sensors, checks and alerts |
 | `src/fuzer/workflow/` | Work engine: BPMN subset, publish checks, processes on Postgres, agent worker |
 | `ui/` | React + TypeScript web UI (Vite) |
 | `fakeplant/` | Fake plants (separate package, not imported by Fuzer): exports, drawings, documents, answer keys |

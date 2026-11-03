@@ -11,12 +11,13 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, plots, sre
+from fuzer import mcp_server, plots
 from fuzer.analysis import clusters
 from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline
+from fuzer.ops import sre
 from fuzer.plots import troubleshooting
 from fuzer.sources import ingest
 
@@ -99,7 +100,8 @@ def test_tools_and_charts(conn, monkeypatch):
 def test_stored_studies_run_queue_and_rerun(conn, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from fuzer import api, study
+    from fuzer import api
+    from fuzer.ops import study
 
     s = study.start(conn, PACK, "modes", {"scope": train_a(conn), "since": "2024-06-01T00:00", "until": "2024-09-30T00:00"},
                     "alice")

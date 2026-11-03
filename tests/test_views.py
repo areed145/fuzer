@@ -8,11 +8,12 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, plots, sre
+from fuzer import mcp_server, plots
 from fuzer.analysis import cases
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries
+from fuzer.ops import sre
 from fuzer.plots import general, troubleshooting
 from fuzer.sources import ingest
 
