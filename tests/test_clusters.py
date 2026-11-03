@@ -11,12 +11,13 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import clusters, mcp_server, plots, sre
+from fuzer import mcp_server, plots, sre
+from fuzer.analysis import clusters
+from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline
 from fuzer.plots import troubleshooting
-from fuzer.process_model import ProcessModel
 from fuzer.sources import ingest
 
 PACK = load_pack("okan")

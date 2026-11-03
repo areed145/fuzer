@@ -4,7 +4,7 @@ asset), reliability (Weibull or Crow-AMSAA) from failure notifications, and bad 
 import math
 from datetime import datetime
 
-from .. import calcs
+from ..analysis import calcs
 from . import ChartError, Figure, layout, rnd
 
 
@@ -195,7 +195,7 @@ def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:
 
 def compressor_performance(conn, fid: str, days: int = 90, until: str | None = None) -> Figure:
     """A compressor stage's daily polytropic efficiency, against the window's first week."""
-    from .. import equipment
+    from ..analysis import equipment
 
     out = equipment.compressor_performance(conn, fid, days=days, until=until)
     d = out["daily"]
@@ -210,7 +210,7 @@ def compressor_performance(conn, fid: str, days: int = 90, until: str | None = N
 
 def cooler_fouling(conn, fid: str, days: int = 240, until: str | None = None) -> Figure:
     """A cooler's daily outlet temperature against its clean baseline and its high limit."""
-    from .. import equipment
+    from ..analysis import equipment
 
     out = equipment.cooler_fouling(conn, fid, days=days, until=until)
     d = out["daily"]
@@ -229,7 +229,7 @@ def cooler_fouling(conn, fid: str, days: int = 240, until: str | None = None) ->
 
 def peers(conn, fid: str) -> Figure:
     """The units of one class side by side: failures per year, outliers marked."""
-    from .. import equipment
+    from ..analysis import equipment
 
     out = equipment.peers(conn, fid)
     us = out["units"]

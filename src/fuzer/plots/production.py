@@ -5,8 +5,8 @@ across a header."""
 import math
 from datetime import datetime, timedelta
 
-from .. import calcs
-from ..calcs import YEAR, linreg, rate
+from ..analysis import calcs
+from ..analysis.calcs import YEAR, linreg, rate
 from ..core.labels import label as _label
 from . import ChartError, Figure, layout, rnd, stacked, thin
 
@@ -220,7 +220,7 @@ def choke(conn, fid: str, days: int = 730, sg: float = calcs.SG) -> Figure:
 
 def pressure_profile(conn, well: str, at: str | None = None, ref_at: str | None = None) -> Figure:
     """Pressure at each node down a well's flow path, today and (with ref_at) on a reference date."""
-    from .. import hydraulics
+    from ..analysis import hydraulics
 
     now = hydraulics.pressure_profile(conn, well, at)
     data = [{"type": "scatter", "mode": "lines+markers", "name": f"at {at or 'today'}", "x": [n["node"] for n in now["nodes"]],
@@ -238,7 +238,7 @@ def pressure_profile(conn, well: str, at: str | None = None, ref_at: str | None 
 
 def backpressure_sensitivity(conn, scope: str = "facility", at: str | None = None) -> Figure:
     """Oil per bar of back-pressure for each back-pressure-limited well: the model's and the tests'."""
-    from .. import hydraulics
+    from ..analysis import hydraulics
 
     s = hydraulics.backpressure_sensitivity(conn, scope, at)
     ws = s["wells"]
@@ -257,7 +257,7 @@ def backpressure_sensitivity(conn, scope: str = "facility", at: str | None = Non
 
 
 def _pressure_series(conn, well: str, days: int, until: str | None, step: int = 60):
-    from .. import calcs, hydraulics
+    from ..analysis import calcs, hydraulics
 
     pts = hydraulics.well_points(conn, well)
     if not pts["back"]:
@@ -271,7 +271,7 @@ def _pressure_series(conn, well: str, days: int, until: str | None, step: int = 
 def choke_criticality(conn, well: str, days: int = 90, until: str | None = None) -> Figure:
     """Back over wellhead pressure (absolute) through a well's choke over time, against the critical
     ratio: under it, back-pressure doesn't reach the well."""
-    from .. import hydraulics
+    from ..analysis import hydraulics
 
     pts, times, whp, back = _pressure_series(conn, well, days, until)
     ratio = [round((b + hydraulics.ATM) / (w + hydraulics.ATM), 3) for w, b in zip(whp, back)]
@@ -290,7 +290,7 @@ def choke_criticality(conn, well: str, days: int = 90, until: str | None = None)
 
 def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figure:
     """The wellhead-to-header pressure drop over time against its baseline band, with any rise marked."""
-    from .. import hydraulics
+    from ..analysis import hydraulics
 
     d = hydraulics.dp_drift(conn, well, days, until)
     pts, times, whp, back = _pressure_series(conn, well, days, until)
@@ -313,7 +313,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figur
 
 def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None) -> Figure:
     """Debottleneck options ranked by oil gained, coloured by kind."""
-    from .. import hydraulics
+    from ..analysis import hydraulics
     from ..core.pack import load_pack
 
     out = hydraulics.debottleneck_options(conn, pack or load_pack(), scope, at, limit=15)

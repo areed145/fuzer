@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from psycopg.types.json import Jsonb
 
-from ..calcs import CalcError
+from ..analysis.calcs import CalcError
 
 TRACES = {"scatter", "scattergl", "bar", "histogram", "box", "heatmap", "contour"}
 MAX_POINTS = 20000

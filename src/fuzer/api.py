@@ -115,21 +115,21 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
 def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
     """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned
     normal range, checks that fail and the latest excursions (#101)."""
-    from . import limits
+    from .analysis import limits
     return limits.for_entity(conn, PACK, fuzer_id, at)
 
 
 @app.get("/limits/issues")
 def limit_issues(conn=Depends(get_conn)):
     """Limits that look wrong or are missing across the asset (#101)."""
-    from . import limits
+    from .analysis import limits
     return limits.issues(conn, PACK)
 
 
 @app.get("/excursions")
 def excursions(since: str | None = None, basis: str | None = None, limit: int = 200, conn=Depends(get_conn)):
     """Recorded excursions outside alarm limits, IOWs and learned ranges, newest first (#101)."""
-    from . import limits
+    from .analysis import limits
     return limits.recent(conn, since, basis, min(limit, 2000))
 
 
@@ -144,7 +144,7 @@ def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str |
 @app.get("/entities/{fuzer_id}/curves")
 def entity_curves(fuzer_id: str, conn=Depends(get_conn)):
     """The OEM curves for an equipment model, or for the model of an equipment item or tag."""
-    from . import curves
+    from .analysis import curves
     model = curves.model_of(conn, fuzer_id)
     return (curves.for_model(conn, model) if model else None) or {"model_id": model, "series": {},
                                                                   "waiting": curves.waiting(conn, model) if model else []}
@@ -348,7 +348,7 @@ def feedback(f: Feedback, conn=Depends(get_conn)):
 def value_ranking(kind: list[str] | None = Query(None), by: Literal["value", "per_effort"] = "value",
                   ref: str | None = None, as_of: str | None = None, limit: int = 50, conn=Depends(get_conn)):
     """Upsets, work, plans and opportunities ranked by the shared value / risk score (#100)."""
-    from . import value
+    from .analysis import value
     fid = queries.resolve_ref(conn, PACK, ref) if ref else None
     return value.ranked(conn, PACK, tuple(kind or value.KINDS), as_of, by, fid, min(limit, 500))
 
@@ -517,7 +517,7 @@ def value_rank(r: Ranking, conn=Depends(get_conn)):
 @app.get("/value/calibration")
 def value_calibration(as_of: str | None = None, conn=Depends(get_conn)):
     """How well the score's ranking agrees with engineers' orderings (Kendall's tau, top-3 overlap)."""
-    from . import value
+    from .analysis import value
     return value.calibrate(conn, PACK, as_of)
 
 

@@ -485,7 +485,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
     (used as the limit, labelled learned, when no source gives one), each source's values, checks that
     fail (sources disagree, disabled, standing, out of order, implausible, missing) and the latest
     excursions with any work item opened for them. at (ISO date) for the limits valid then."""
-    from . import limits as lim
+    from .analysis import limits as lim
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -515,7 +515,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     week (efficiency_drop). cooler_fouling (cooler tag): outlet temperature above its clean baseline, the rate
     since the last clean and when it reaches its limit (fouling). peers (tag, class or model): the class's units
     side by side, outliers or class_wide_failures. The plot_* chart of the same name shows the fit."""
-    from . import calcs
+    from .analysis import calcs
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -534,7 +534,7 @@ def instrument_health(ref: str, since: str | None = None, until: str | None = No
     and redundant transmitters (A / B) drifting apart. Each finding has its span, value against the usual,
     basis and sources. Check it before blaming the process on one transmitter's word. Default window: the
     last 14 days; since / until ISO times."""
-    from . import signals
+    from .analysis import signals
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -548,7 +548,7 @@ def detect_changes(ref: str, since: str | None = None, until: str | None = None,
     """Where a PI point (or each point on a unit) stepped (a trip, a choke move), drifted (fouling, wear)
     or changed its jitter (a transmitter starting to hunt), with when it started, the value before and
     after, and a score; the `limit` strongest. Default window: the last 14 days; since / until ISO times."""
-    from . import signals
+    from .analysis import signals
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -626,7 +626,7 @@ def correlate(target: str, scope: str | list[str] = "facility", since: str | Non
     correlated points that moved first, earliest first, usually nearer the cause than the target's
     siblings. `connected`: the plant model links the two (a strong correlation with no path is worth
     checking). Rows where the plant was down are left out. Default window: the last 3 days."""
-    from . import signals, studies
+    from .analysis import signals, studies
     with db.connect() as conn:
         fid, err = _resolve_point(conn, target)
         if err:
@@ -649,7 +649,7 @@ def correlation_matrix(scope: str | list[str], since: str | None = None, until: 
     """Which points in a scope move together: the strongest pairs (r, and whether the plant model connects
     them) and the points ordered so related groups sit together. plot_correlation draws a unit's heatmap.
     Default window: the last 3 days."""
-    from . import signals, studies
+    from .analysis import signals, studies
     with db.connect() as conn:
         sc, err = _scope(conn, scope)
         if err:
@@ -713,7 +713,7 @@ def get_daily_ops_report(day: str | None = None, version: int | None = None) -> 
 def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
     """Pressure at each node from a well's wellhead down its flow path (jacket production header,
     separator, compressor suction) and the drop across each segment: where the back-pressure comes from."""
-    from . import hydraulics
+    from .analysis import hydraulics
     with db.connect() as conn:
         fid, err = _resolve(conn, well)
         if err:
@@ -729,7 +729,7 @@ def backpressure_sensitivity(scope: str = "facility", at: str | None = None) -> 
     """Oil gained per bar less back-pressure, for each back-pressure-limited well in scope (a well, a jacket
     area or "facility") and summed per header: from the inflow and choke equations, and from the well's
     tests against the header pressure at the time. Where the two disagree, say so."""
-    from . import hydraulics
+    from .analysis import hydraulics
     with db.connect() as conn:
         sc = scope
         if scope != "facility":
@@ -745,7 +745,7 @@ def debottleneck_options(scope: str = "facility", at: str | None = None, limit: 
     pressure drop is rising, reroute a well to a lower header, open a throttled choke. Each with oil gained
     (from the back-pressure model), confidence, the next constraint it runs into, and what would confirm it.
     Proposals for people to decide, never operating instructions."""
-    from . import hydraulics
+    from .analysis import hydraulics
     with db.connect() as conn:
         sc = scope
         if scope != "facility":
@@ -759,7 +759,7 @@ def debottleneck_options(scope: str = "facility", at: str | None = None, limit: 
 def capacity_headroom(ref: str, at: str | None = None) -> dict[str, Any]:
     """How close each point on a unit (compressor, separator, pump) runs to its nearest limit (alarm, IOW or
     learned range): what a debottleneck would run into next."""
-    from . import hydraulics
+    from .analysis import hydraulics
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -788,7 +788,7 @@ def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str
     """Alarm performance (ISA-18.2 / EEMUA 191) over a window: alarms per hour against 6, floods (over 10 in
     10 minutes), chattering and standing alarms, and the top bad-actor points. An alarm is a point going past
     an enabled DCS / AF alarm limit while its unit runs. scope: a unit or area (default: everything)."""
-    from . import alarms
+    from .analysis import alarms
     with db.connect() as conn:
         sc = scope
         if scope:
@@ -802,7 +802,7 @@ def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str
 def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Stops (trips), starts and failed starts per unit with a run signal over a window, with the days between
     stops and the share of time running. scope: a unit or area (default: everything)."""
-    from . import alarms
+    from .analysis import alarms
     with db.connect() as conn:
         sc = scope
         if scope:
@@ -820,7 +820,7 @@ def compare_periods(ref: str, before_since: str, before_until: str, after_since:
     """Did the change work? Each point on a PI point or unit in two windows (before and after a choke move,
     a repair, a swap): medians, the change, and whether it is significant (Welch's t with autocorrelation
     taken into account). Use it to close the loop when a work item closes."""
-    from . import cases
+    from .analysis import cases
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:
@@ -836,7 +836,7 @@ def similar_cases(ref: str) -> dict[str, Any]:
     """Past incidents like this one (an incident, "upset:<id>", or a tag or well's latest incident): same unit
     or class, shared failure modes and event types, with the work orders done for each and whether the fix
     held (no incident on the unit within 90 days)."""
-    from . import cases
+    from .analysis import cases
     with db.connect() as conn:
         fid = ref
         if not ref.startswith("upset:"):
@@ -854,7 +854,7 @@ def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None 
     """Operating modes of a unit, train or list of points over a window: stopped (its run signals) and its
     running regimes (k-means on the points that carry them: fouling, a new setpoint), with each mode's share,
     the points that differ most, how often it moves between modes and the mode before each stop."""
-    from . import clusters
+    from .analysis import clusters
     with db.connect() as conn:
         sc, err = _scope(conn, scope)
         if err:
@@ -871,7 +871,7 @@ def cluster_entities(kind: Literal["wells", "points"] = "wells", scope: str | No
                      until: str | None = None) -> dict[str, Any]:
     """Peer groups: wells by decline, water cut and lift gas response; or the points in a scope by how they
     move together (redundant points, mislabelled tags, natural sub-units; needs scope, since, until)."""
-    from . import clusters
+    from .analysis import clusters
     with db.connect() as conn:
         sc = scope
         if scope:
@@ -887,7 +887,7 @@ def cluster_entities(kind: Literal["wells", "points"] = "wells", scope: str | No
 @server.tool(annotations=READ_ONLY)
 def cluster_events(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """SRE upsets grouped by signature (which kinds of unit raised which findings): recurring upset types."""
-    from . import clusters
+    from .analysis import clusters
     with db.connect() as conn:
         try:
             return _plain(clusters.events(conn, since, until))
@@ -1078,7 +1078,7 @@ def value_score(ref: str | None = None,
     and failure history), compliance, urgency and effort, with inputs, sources, what is unknown and a
     one-line reason. Use these numbers when saying one thing matters more than another. With ref (an
     item or a tag): only the items for it."""
-    from . import value
+    from .analysis import value
     with db.connect() as conn:
         fid = None
         if ref:
@@ -1539,7 +1539,7 @@ def equipment_curves(ref: str) -> dict[str, Any]:
     """The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening)
     and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment
     item or tag, and where they came from (vendor export or an accepted datasheet reading)."""
-    from . import curves
+    from .analysis import curves
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:

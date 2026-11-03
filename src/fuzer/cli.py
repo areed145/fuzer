@@ -253,7 +253,8 @@ def main(argv=None):
 def _limits(conn, pack, args) -> None:
     from datetime import datetime, timedelta
 
-    from . import limits, operations
+    from . import operations
+    from .analysis import limits
 
     if args.action == "issues":
         found = limits.issues(conn, pack)

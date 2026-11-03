@@ -11,12 +11,13 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import api, mcp_server, value
+from fuzer import api, mcp_server
+from fuzer.analysis import value
+from fuzer.analysis.value import Item
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries
 from fuzer.sources import ingest
-from fuzer.value import Item
 
 PACK = load_pack("okan")
 CFG = value.config(PACK)

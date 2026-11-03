@@ -260,7 +260,7 @@ def custom(title: str, traces: list[dict], x_title: str | None = None, y_title: 
 def operating_window(conn, fid: str, since: str, until: str, pack=None) -> Figure:
     """A point against its limits (#101): the value with each limit, time inside and outside, and the minutes
     outside per day."""
-    from .. import calcs, limits
+    from ..analysis import calcs, limits
     from ..sources.timeseries import _point
 
     p = _point(conn, fid)
@@ -300,7 +300,8 @@ def operating_window(conn, fid: str, since: str, until: str, pack=None) -> Figur
 def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
     """Oil potential, then planned losses, unplanned losses by reason, then actual, over a period (DAY001 and
     EC downtime), priced with the pack's oil price."""
-    from .. import operations, value
+    from .. import operations
+    from ..analysis import value
 
     days = operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                             {"s": since, "u": until})
@@ -340,7 +341,7 @@ def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
 def score_breakdown(conn, ref: str, pack=None) -> Figure:
     """What makes up one item's #100 score: production, risk and compliance at stake, the urgency factor and
     the effort, so people can see why one card ranks above another."""
-    from .. import value
+    from ..analysis import value
     from ..core.pack import load_pack
 
     pack = pack or load_pack()

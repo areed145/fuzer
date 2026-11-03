@@ -62,7 +62,7 @@ class SyntheticProvider:
     name = "synthetic"
 
     def __init__(self, data_dir=None):
-        from .. import process_model
+        from ..analysis import process_model
         self.model = process_model.load(data_dir or os.environ.get("FUZER_DATA_DIR"))
 
     def series(self, s, start, end, step_minutes):
@@ -168,7 +168,7 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
             series.append({**{k: p[k] for k in ("id", "point", "description", "uom")}, "values": vals,
                            **summary(vals, centre), **({"modelled": True} if modelled else {})})
     if series:
-        from .. import limits
+        from ..analysis import limits
         found = limits.for_points(conn, pack, [s["id"] for s in series], centre)
         for s in series:
             s["limits"] = limits.lines(found[s["id"]])

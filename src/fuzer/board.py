@@ -28,7 +28,7 @@ PAGE = 50
 # ---- cards from each source -----------------------------------------------------------------------
 
 def _value_cards(conn, pack) -> list[dict]:
-    from . import value
+    from .analysis import value
 
     cfg = value.config(pack)
     out = []
@@ -56,7 +56,7 @@ def _upset_cards(conn) -> list[dict]:
 def _work_item_cards(conn, pack) -> list[dict]:
     """Open workflow items. Their priority is a #100 value for upsets; IOW breaches are valued as
     compliance (#100 compliance rate for IOWs for each day outside past the allowed time)."""
-    from . import value
+    from .analysis import value
 
     cfg = value.config(pack)
     rate = cfg["compliance"]["usd_per_day_overdue"].get("IOW", 0)
