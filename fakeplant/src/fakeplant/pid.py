@@ -82,7 +82,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     cols = min(len(groups), 4) or 1
     rows = math.ceil(len(groups) / cols) or 1
     cell_w, cell_h = (W - 120) / cols, (height - 320) / rows
-    drawn, boxes, at = [], {}, {}
+    drawn, boxes = [], {}
     for i, (eq, insts) in enumerate(groups):
         cx = 60 + cell_w * (i % cols) + cell_w / 2
         cy = 60 + cell_h * (i // cols) + cell_h * 0.62

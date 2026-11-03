@@ -57,7 +57,8 @@ def generate(out, seed: int = 11, pads: int = 40, wells_per_pad: int = 12, logs:
         floc.append({"floc": f"{FACILITY}-{pad}", "parent": FACILITY, "description": f"Pad {pad}"})
         af.append({"path": f"{FACILITY}\\Pad {pad}", "template": "Pad", "attributes": []})
         sep, _ = item(pad, "SEP", 101, "", f"Pad {pad} separator")
-        tanks = [item(pad, "TK", 201, s, f"Pad {pad} oil tank {s}")[0] for s in "AB"]
+        for s in "AB":  # tank tags and equipment only; the allocation network runs separator -> LACT
+            item(pad, "TK", 201, s, f"Pad {pad} oil tank {s}")
         lact, _ = item(pad, "LACT", 401, "", f"Pad {pad} LACT unit")
         sep_node, lact_node = f"{FACILITY}_P{pad}_SEP", f"{FACILITY}_P{pad}_LACT"
         nodes += [{"code": sep_node, "type": "separator", "tag": sep.replace("-", ""), "name": f"Pad {pad} separator"},

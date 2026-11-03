@@ -22,7 +22,7 @@ evidence (the tests or records behind it) changes. Proposals only, never operati
 
 import hashlib
 import json
-from datetime import date, timedelta
+from datetime import date
 
 from psycopg.types.json import Jsonb
 

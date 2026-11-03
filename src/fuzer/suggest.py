@@ -186,7 +186,6 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
     """Each column's meaning (with why), the key column, shape and entity kind. `values` (sampled
     values per column) lets a parent column be found by its values, not only its header."""
     refs = refs or {}
-    cols = {c["name"]: c for c in prof["columns"]}
     rows = prof["rows_sampled"]
     key = pick_key(prof)
     out = {}
