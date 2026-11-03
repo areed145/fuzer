@@ -4,6 +4,25 @@
 domains, each with the facts a good answer must name given the planted stories. Run 2026-10-29 on
 Claude Opus 5.5 (orchestrator effort high, specialists medium), Okan demo data, synthetic process values.
 
+## After the refactor (#135, #133), 2026-11-03
+
+The same command on the same data after the packages moved (#135) and the tools moved into the capability
+registry (#133). It now asks 14 questions (the curves, charts and gas lift questions were added since). Every
+answer went to the expected specialists, so each agent's tool list still covers its questions.
+
+| | |
+|---|---|
+| Questions | 14 |
+| Expected facts named | 94% (missing: OK-J03-02 in the wall-thickness chart answer, "MTBF" in reliability) |
+| Answers citing 3+ sources | 86% (the wall-thickness chart answer cited 1, turnarounds 2) |
+| No plant-operating instructions | 100% |
+| Routed to the expected specialists | 100% |
+| Answers with a chart, where asked | 75% |
+| Cost per answer | $0.84 (total $11.80) |
+| Time per answer | 86 s |
+
+## First run, 2026-10-29
+
 | | |
 |---|---|
 | Questions | 9 |
@@ -162,6 +181,19 @@ diagnosis on Claude Opus 5.5. It passed every gate in 16 minutes.
 Single detections ran at 15 a week (precision 0.78). Grouping made 203 upsets, 182 of them instrument
 upsets that the plant's instrument events explain. They aren't false, but they are too many to show an
 operator one by one (#141). The one false upset is a WHP alarm already on when the window starts (#142).
+
+### Again after #141 and #142, 2026-11-03
+
+The same command and window after bad instruments became one weekly summary (#141) and alarms already on at the
+start became standing (#142). Every gate passed.
+
+| | |
+|---|---|
+| Upsets found | 3 of 3, recall 1.0, precision 0.79 (14 single false alarms a week) |
+| Grouping | 22 groups: 18 process, 1 instrument-health summary (was 182 instrument upsets), 1 slow, 2 standing; 0 false upsets (was 1); first cause right 1.0, 1 group per trip |
+| Diagnosis | not re-scored: the week's upsets already had work items from the run before, so none were handed off again |
+| Daily reports | 7 days, every check passed; the trip day leads with the trip; no operating instructions |
+| Opportunities | 3 gas lift moves; gains within 0.04% of a hand calculation |
 
 An earlier run on 22–29 February 2024 had no injected upsets in its window and started only 50 days into the
 data, too early for 90 days of learned normal ranges, so it scored nothing useful. The eval now warns about a window with no upsets

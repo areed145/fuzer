@@ -376,4 +376,4 @@ def store(conn, res: dict) -> dict:
     dropped = [k for k, v in res["by_kind"].items() if v["recall"] < p["by_kind"].get(k, {}).get("recall", 0)]
     if (res["recall"] or 0) < (p["recall"] or 0):
         dropped.insert(0, "overall")
-    return {"previous": {k: p[k] for k in ("recall", "precision", "false_alarms_per_week")}, "recall_dropped": dropped}
+    return {"previous": {k: p.get(k) for k in ("recall", "precision", "false_alarms_per_week")}, "recall_dropped": dropped}
