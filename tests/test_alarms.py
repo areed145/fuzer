@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, plots
+from fuzer import plots
+from fuzer.agents import mcp_server
 from fuzer.analysis import alarms
 from fuzer.core import db
 from fuzer.core.pack import load_pack

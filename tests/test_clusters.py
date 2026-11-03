@@ -11,7 +11,8 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import mcp_server, plots
+from fuzer import plots
+from fuzer.agents import mcp_server
 from fuzer.analysis import clusters
 from fuzer.analysis.process_model import ProcessModel
 from fuzer.core import db

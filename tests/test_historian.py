@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import historian, offshore
-from fuzer import assistant
+from fuzer.agents import assistant
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.graph import pipeline, queries
