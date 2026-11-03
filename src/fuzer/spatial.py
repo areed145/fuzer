@@ -12,7 +12,7 @@ import math
 
 from psycopg.types.json import Jsonb
 
-from . import db
+from .core import db
 
 EARTH_M = 6_371_000
 # Properties shown on the map, from golden values.

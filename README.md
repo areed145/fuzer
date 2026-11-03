@@ -497,7 +497,7 @@ curl "localhost:8000/work/inbox?person=alice"
 | `src/fuzer/connectors.py` | CSV / Parquet / Delta connectors |
 | `src/fuzer/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
 | `src/fuzer/extract.py` | Transforms, resolvers and hooks the mappings name |
-| `src/fuzer/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
+| `src/fuzer/core/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
 | `src/fuzer/resolve.py` | Matching, clustering, stable IDs, review queue |
 | `src/fuzer/golden.py` | Per-field survivorship and conflict review |
 | `src/fuzer/graph.py` | Dated edges and flow tracing |

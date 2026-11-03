@@ -182,7 +182,7 @@ def _metered(anthropic_client):
 def usage(trace: list[dict]) -> dict:
     """Token totals and cost for one question, overall and per model (the model the API says served
     each call, so a fallback or a misconfigured model shows up)."""
-    from ..pricing import cost
+    from ..core.pricing import cost
 
     calls = [t for t in trace if t["kind"] == "model"]
     keys = ("input", "output", "cache_read", "cache_write")

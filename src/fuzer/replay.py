@@ -29,7 +29,8 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import db, limits
+from . import limits
+from .core import db
 
 STEP = timedelta(hours=6)
 LEAD = timedelta(hours=1)  # a detection this long before an event is still about it (lags, noise)

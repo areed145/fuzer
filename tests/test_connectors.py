@@ -12,11 +12,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from deltalake import write_deltalake
+from fakeplant.lake import write_parquet
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fakeplant.lake import write_parquet
-from fuzer import connectors, db, ingest
+from fuzer import connectors, ingest
+from fuzer.core import db
 
 
 @pytest.fixture(scope="module")

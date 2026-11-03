@@ -9,8 +9,8 @@ import re
 from datetime import datetime
 
 from . import nel
-from .model import Candidate, Edge
-from .pack import Pack
+from .core.model import Candidate, Edge
+from .core.pack import Pack
 
 
 def norm_serial(serial: str | None) -> str | None:

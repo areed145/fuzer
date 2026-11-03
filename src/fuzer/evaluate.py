@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 
 from . import knowledge, queries
-from .pack import Pack
+from .core.pack import Pack
 
 
 def _pr(tp: int, fp: int, fn: int) -> dict:
@@ -224,7 +224,7 @@ FIGURE = re.compile(r"\[\[figure:(f_[0-9a-f]+)\]\]")
 def _chart_kinds(ids: list[str]) -> list[str]:
     if not ids:
         return []
-    from . import db
+    from .core import db
     with db.connect() as conn:
         return [r["kind"] for r in conn.execute("select kind from assistant_figure where id = any(%s)", (ids,))]
 

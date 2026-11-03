@@ -8,7 +8,7 @@ import json
 import os
 import uuid
 
-from .. import db
+from ..core import db
 
 _team = None
 _sessions: dict[str, object] = {}

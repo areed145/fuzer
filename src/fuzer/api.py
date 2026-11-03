@@ -6,14 +6,22 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from . import db, graph, knowledge, lessons, pipeline, queries
-from .pack import load_pack
+from . import graph, knowledge, lessons, pipeline, queries
+from .core import db
+from .core.pack import load_pack
 from .workflow import engine as work
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -531,9 +539,10 @@ MAX_IMAGES, MAX_IMAGE_BYTES = 4, 5 * 1024 * 1024
 @app.post("/assistant/ask")
 async def assistant_ask(q: Question):
     """Ask the operations assistant (Claude agents). Returns a job id at once; poll /assistant/jobs/{id}."""
-    from .agents import service
     import base64
     import binascii
+
+    from .agents import service
 
     if not q.question.strip():
         raise HTTPException(400, "empty question")

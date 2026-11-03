@@ -8,7 +8,7 @@ import tempfile
 import pytest
 from mcp import Client
 
-from fuzer import db
+from fuzer.core import db
 from fuzer.workflow import engine, worker
 
 
@@ -134,6 +134,7 @@ def test_agent_hands_a_step_to_a_person(conn):
 
 def test_inbox_api(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     item = upset(conn, "inc-api")

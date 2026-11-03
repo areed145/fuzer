@@ -8,7 +8,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from fuzer import db
+from fuzer.core import db
 from fuzer.workflow import bpmn, engine
 
 

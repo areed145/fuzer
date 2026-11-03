@@ -6,8 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, knowledge, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import ingest, knowledge, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -71,6 +72,7 @@ def test_superseded_revisions_left_out(conn):
 
 def test_api_and_unknown_ref(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     r = client.get("/knowledge/search", params={"q": "seal leak", "ref": "44-P-1001B"})

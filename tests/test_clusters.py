@@ -11,8 +11,9 @@ import numpy as np
 import pytest
 
 from fakeplant import okan
-from fuzer import clusters, db, ingest, mcp_server, pipeline, plots, sre
-from fuzer.pack import load_pack
+from fuzer import clusters, ingest, mcp_server, pipeline, plots, sre
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 from fuzer.plots import troubleshooting
 from fuzer.process_model import ProcessModel
 

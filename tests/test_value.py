@@ -11,8 +11,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import api, db, ingest, mcp_server, pipeline, queries, value
-from fuzer.pack import load_pack
+from fuzer import api, ingest, mcp_server, pipeline, queries, value
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 from fuzer.value import Item
 
 PACK = load_pack("okan")

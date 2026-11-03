@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import db, equipment, ingest, mcp_server, pipeline, plots, queries
-from fuzer.pack import load_pack
+from fuzer import equipment, ingest, mcp_server, pipeline, plots, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 from fuzer.plots import maintenance
 
 PACK = load_pack("okan")

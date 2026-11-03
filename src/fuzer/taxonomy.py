@@ -18,8 +18,8 @@ from pathlib import Path
 import yaml
 from rapidfuzz import fuzz, process, utils
 
-from .model import Candidate, Edge
-from .pack import Pack
+from .core.model import Candidate, Edge
+from .core.pack import Pack
 
 STANDARDS_DIR = Path(__file__).parent / "standards"
 SOURCE = "fuzer"  # derived records are attributed to Fuzer itself

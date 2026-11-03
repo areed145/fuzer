@@ -6,8 +6,9 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from . import db, ingest, pipeline
-from .pack import load_pack
+from . import ingest, pipeline
+from .core import db
+from .core.pack import load_pack
 
 
 def main(argv=None):

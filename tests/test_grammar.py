@@ -1,6 +1,6 @@
 import pytest
 
-from fuzer.pack import load_pack
+from fuzer.core.pack import load_pack
 from fuzer.extract import norm_serial
 from fuzer.nel import find_mentions
 

@@ -19,8 +19,8 @@ from pathlib import Path
 from psycopg.types.json import Jsonb
 
 from . import connectors
+from .core.pack import Pack
 from .llm_links import DEFAULT_EFFORT, DEFAULT_MODEL, call, text_hash, usage
-from .pack import Pack
 
 SAMPLE_ROWS = 2000
 PROMPT_VERSION = "2026-10-29.1"

@@ -22,8 +22,9 @@ from pathlib import Path
 
 import dagster as dg
 
-from . import db, ingest, llm_links, llm_pids, pipeline
-from .pack import load_pack
+from . import ingest, llm_links, llm_pids, pipeline
+from .core import db
+from .core.pack import load_pack
 
 
 class Fuzer(dg.ConfigurableResource):

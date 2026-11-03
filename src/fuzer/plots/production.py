@@ -318,7 +318,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figur
 def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None) -> Figure:
     """Debottleneck options ranked by oil gained, coloured by kind."""
     from .. import hydraulics
-    from ..pack import load_pack
+    from ..core.pack import load_pack
 
     out = hydraulics.debottleneck_options(conn, pack or load_pack(), scope, at, limit=15)
     opts = out["options"]

@@ -72,8 +72,9 @@ from pathlib import Path
 import yaml
 
 from . import extract as ex
-from . import nel, units
-from .model import Candidate, CurvePoint, Edge, Limit, Measurement
+from . import nel
+from .core import units
+from .core.model import Candidate, CurvePoint, Edge, Limit, Measurement
 
 DEFAULT_DIR = Path(__file__).parent / "mappings"
 SHAPES = {"records", "hierarchy", "network", "timeseries", "events", "documents", "reference", "geospatial",

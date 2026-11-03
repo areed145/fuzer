@@ -6,8 +6,9 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, knowledge, lessons, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import ingest, knowledge, lessons, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -58,6 +59,7 @@ def test_lesson_scoped_to_its_model(conn):
 
 def test_api(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     rows = client.get("/lessons", params={"status": "all"}).json()

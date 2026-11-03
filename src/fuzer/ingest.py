@@ -153,7 +153,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
     except for watermarked lake tables, which only add and update. Every update or removal keeps
     the previous version in source_record_history. Unchanged datasets are skipped; `full` reads
     everything again and restarts watermarks."""
-    from . import db
+    from .core import db
 
     data_dir = Path(data_dir)
     tabs = tables(conn)

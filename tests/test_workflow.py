@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from fuzer import db
+from fuzer.core import db
 from fuzer.workflow import bpmn, engine, worker
 
 BPMN_DIR = Path(__file__).with_name("bpmn")
@@ -145,7 +145,9 @@ class Spiff:
         self._engine()
 
     def send(self, name: str, payload: dict):
-        from SpiffWorkflow.bpmn.specs.event_definitions.message import MessageEventDefinition
+        from SpiffWorkflow.bpmn.specs.event_definitions.message import (
+            MessageEventDefinition,
+        )
         from SpiffWorkflow.bpmn.util import BpmnEvent
         self.wf.catch(BpmnEvent(MessageEventDefinition(name), payload))
         self._engine()
@@ -162,8 +164,9 @@ class Spiff:
 
 @pytest.fixture
 def spiff_clock():
-    import SpiffWorkflow.bpmn.specs.event_definitions.timer as timer
     from datetime import datetime
+
+    import SpiffWorkflow.bpmn.specs.event_definitions.timer as timer
     offset = [timedelta()]
 
     class Clock(datetime):
@@ -328,6 +331,7 @@ def test_agent_cannot_complete_requires_human_step(conn):
     with pytest.raises(engine.Forbidden):
         engine.claim(conn, review["id"], "agent:reporter")
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     r = client.post(f"/work/tasks/{review['id']}/complete", json={"by": "agent:reporter", "data": {"decision": "ok"}})
@@ -545,6 +549,7 @@ NEW_PROCESS = """<?xml version="1.0" encoding="UTF-8"?>
 def test_new_process_published_and_run_through_the_api(conn):
     quiet(conn)
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     rows = client.post("/work/definitions", json={"xml": NEW_PROCESS, "by": "olga"}).json()
@@ -577,6 +582,7 @@ def test_new_process_published_and_run_through_the_api(conn):
 
 def test_items_without_a_process_and_listing(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     created = client.post("/work/items", json={"type": "lesson_review", "title": "Review lesson 12", "by": "system",

@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from fuzer import db
+from fuzer.core import db
 
 
 @pytest.fixture()

@@ -10,8 +10,9 @@ import pytest
 from mcp import Client
 
 from fakeplant import offshore
-from fuzer import assistant, db, ingest, lessons, llm_links, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import assistant, ingest, lessons, llm_links, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402
@@ -68,6 +69,7 @@ def test_mcp_tool_and_prompt(conn):
 
 def test_feedback(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     client = TestClient(app)
     assert client.post("/feedback", json={"target": "brief:x", "useful": True, "by": "tester"}).status_code == 200

@@ -211,7 +211,7 @@ def draft(f: dict, ask=None, comments: str | None = None, model: str | None = No
         def ask(system, user):
             import anthropic
 
-            from .pricing import cost
+            from .core.pricing import cost
 
             m = model or llm_links.DEFAULT_MODEL
             msg = llm_links.call(anthropic.Anthropic(), {"model": m, "max_tokens": 8000, "system": system,
@@ -323,7 +323,7 @@ def redraft(conn, day: str, ask=None, comments: str | None = None) -> dict:
 def reporter_agent(call) -> dict:
     """The workflow's `draft` step (agent: reporter): Claude drafts the day's latest version, with the ops
     lead's comments if the draft came back."""
-    from . import db
+    from .core import db
 
     day = call.data["report_date"]
     with db.connect() as conn:

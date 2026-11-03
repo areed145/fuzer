@@ -10,8 +10,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import db, ingest, pipeline, replay
-from fuzer.pack import load_pack
+from fuzer import ingest, pipeline, replay
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack("okan")
 SINCE, UNTIL = "2024-11-03T00:00", "2024-11-13T00:00"  # train C trips, a bad level instrument, level upsets

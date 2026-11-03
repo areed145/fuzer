@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import db, ingest, llm_links, pipeline, queries
-from fuzer.pack import load_pack
+from fuzer import ingest, llm_links, pipeline, queries
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402
@@ -84,6 +85,7 @@ def test_notifications_link_to_logged_events(conn):
 
 def test_api_and_ontology(conn):
     from fastapi.testclient import TestClient
+
     from fuzer.api import app
     r = TestClient(app).get(f"/entities/{fid(conn, '20-P-1001B')}/maintenance", params={"limit": 2})
     assert r.status_code == 200 and len(r.json()["recent"]) == 2

@@ -8,8 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import db, graph, ingest, pipeline
-from fuzer.pack import load_pack
+from fuzer import graph, ingest, pipeline
+from fuzer.core import db
+from fuzer.core.pack import load_pack
 
 PACK = load_pack()
 
@@ -173,7 +174,7 @@ def test_search_covers_all_fields(api):
 
 
 def test_snapshot_ingest_removes_and_retires(tmp_path):
-    from fuzer.pack import load_pack
+    from fuzer.core.pack import load_pack
     data = tmp_path / "d"
     offshore.generate(data)
     lines = (data / "oplogs.csv").read_text().splitlines()
