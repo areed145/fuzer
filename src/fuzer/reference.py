@@ -1,9 +1,10 @@
 """Reference pages generated from the code (#134): settings from the registry, CLI commands from argparse,
 the database schema from schema.sql, and the architecture (components, their imports, tables, settings and
-tests; what feeds which entity kinds; the scheduled jobs and the scan's path). A test fails when a committed
+tests; what feeds which entity kinds; the scheduled jobs and the scan's path) and the recorded eval runs. A test fails when a committed
 page is out of date.
 
-    uv run python -m fuzer.reference      # writes docs/settings.md, cli.md, schema.md, architecture.md
+    uv run python -m fuzer.reference      # writes docs/settings.md, cli.md, schema.md, architecture.md,
+                                          # eval-results.md
 """
 
 import argparse
@@ -189,7 +190,71 @@ def architecture_md() -> str:
     return "\n".join(out)
 
 
-PAGES = {"settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md}
+def _pct(v) -> str:
+    return "" if v is None else f"{v:.0%}" if v <= 1 else f"{v:g}"
+
+
+def eval_results_md() -> str:
+    from .evals import ops_eval, runs
+
+    all_runs = runs.load()
+    asst = [r for r in all_runs if r["kind"] == "assistant"]
+    ops = [r for r in all_runs if r["kind"] == "ops"]
+    out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
+           "Record a run with `fuzer eval --agents --record` or `fuzer eval --ops --full --live --record` (both "
+           "cost money), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
+           "[assistant eval](assistant-eval.md).", ""]
+    if asst:
+        out += ["## Operations assistant", "",
+                "Mechanical checks against `answer_keys/assistant.json`: the facts a good answer names, sources "
+                "cited, no plant-operating instructions, the expected specialists asked.", "",
+                "| Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Cost / answer "
+                "| Time / answer |", "|---|---|---|---|---|---|---|---|---|---|"]
+        for r in reversed(asst):
+            out.append(f"| {r['date']} | {r.get('model', '')} | {r['questions']} | {_pct(r['mentions'])} | "
+                       f"{_pct(r['cited'])} | {_pct(r['safe'])} | {_pct(r['routed'])} | {_pct(r.get('charted'))} | "
+                       f"${r['cost_per_answer_usd']:.2f} | {r['seconds_per_answer']:g} s |")
+        last = asst[-1]
+        if last.get("results"):
+            out += ["", f"### Latest run by question ({last['date']})", "",
+                    "| Question | Specialists | Facts | Missing | Citations | Charts | Tool calls | Time | Cost |",
+                    "|---|---|---|---|---|---|---|---|---|"]
+            for q in last["results"]:
+                ask = q.get("question") or ""
+                ask = ask if len(ask) <= 70 else ask[:69].rsplit(" ", 1)[0] + "…"
+                out.append(f"| {q['domain']}: {_cell(ask)} | {', '.join(q.get('specialists') or [])} | {_pct(q['mentions'])} | "
+                           f"{_cell(', '.join(q.get('missing') or []))} | {q['citations']} | "
+                           f"{', '.join(q.get('charts') or [])} | {q.get('tool_calls') or ''} | {q['seconds']:.0f} s | "
+                           f"${q['cost_usd']:.2f} |")
+        out.append("")
+    if ops:
+        out += ["## Operations loop", "",
+                "History replayed with the fake plant's injected upsets: SRE detection, grouping, the "
+                "troubleshooter's diagnosis, daily reports and opportunities.", "",
+                "| Run | Window | Recall | Precision | Upsets (process / instrument / slow / standing) | False upsets "
+                "/ week | First cause right | Diagnosed (named first cause) | Daily reports OK | Gas lift gain error |",
+                "|---|---|---|---|---|---|---|---|---|---|"]
+        for r in reversed(ops):
+            s, g, d, dr, o = (r.get(k) or {} for k in ("sre", "grouping", "diagnosis", "daily_report",
+                                                        "opportunities"))
+            kinds = " / ".join(str(g.get("by_kind", {}).get(k, 0)) for k in ("process", "instrument", "slow",
+                                                                              "standing"))
+            diag = f"{d['scored']} ({_pct(d.get('first_cause_named'))})" if d.get("scored") else "none new"
+            out.append(f"| {r['date']}{'' if r.get('live') else ' (offline)'} | {r['since'][:10]} to "
+                       f"{r['until'][:10]} | {_pct(s.get('recall'))} | {_pct(s.get('precision'))} | {kinds} | "
+                       f"{g.get('false_upsets_per_week', '')} | {_pct(g.get('first_cause_right'))} | {diag} | "
+                       f"{_pct(dr.get('all_checks_ok'))} | "
+                       f"{'' if o.get('worst_gain_error') is None else format(o['worst_gain_error'], '.2%')} |")
+        out += ["", "### Gates", "", "A run fails when a score is under its floor or over its ceiling "
+                "(`src/fuzer/evals/ops_eval.py`), or when recall fell since the last run of the same window.", "",
+                "| Score | Limit |", "|---|---|",
+                *(f"| `{a}.{b}` | at least {v:g} |" for (a, b), v in ops_eval.GATES.items()),
+                *(f"| `{a}.{b}` | at most {v:g} |" for (a, b), v in ops_eval.CEILINGS.items()), ""]
+    return "\n".join(out)
+
+
+PAGES = {"settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
+         "eval-results.md": eval_results_md}
 
 
 def write(docs: Path = ROOT / "docs") -> list[str]:

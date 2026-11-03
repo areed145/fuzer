@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-29",
+  "kind": "assistant",
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "specialist_effort": "medium",
+  "questions": 9,
+  "mentions": 1.0,
+  "cited": 1.0,
+  "safe": 1.0,
+  "routed": 1.0,
+  "charted": null,
+  "cost_usd": 4.91,
+  "cost_per_answer_usd": 0.546,
+  "seconds_per_answer": 71.0,
+  "results": []
+}

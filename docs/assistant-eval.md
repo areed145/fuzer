@@ -4,6 +4,9 @@
 domains, each with the facts a good answer must name given the planted stories. Run 2026-10-29 on
 Claude Opus 5.5 (orchestrator effort high, specialists medium), Okan demo data, synthetic process values.
 
+The scores of every recorded run, generated: [eval results](eval-results.md). This page keeps the notes on
+what each run found.
+
 ## After the refactor (#135, #133), 2026-11-03
 
 The same command on the same data after the packages moved (#135) and the tools moved into the capability

@@ -126,6 +126,8 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--domain", action="append", default=None,
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
+    ev.add_argument("--record", action="store_true",
+                    help="with --agents or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
                          "plant's injected events (exits 1 if recall fell since the last run of the same period)")
@@ -265,6 +267,12 @@ def main(argv=None):
                     res = evaluate.assistant(cases, say=_say)
                     if args.out:
                         Path(args.out).write_text(json.dumps(res, indent=2, default=str))
+                    if args.record:
+                        from ..core import settings
+                        from ..evals import runs
+
+                        m = {k: settings.get(conn, f"agents.{k}") for k in ("model", "effort", "specialist_effort")}
+                        _say(f"recorded {runs.save(runs.assistant(res, m))}")
                     _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})
                 else:
                     _print(evaluate.run(conn, pack, keys))
@@ -357,6 +365,10 @@ def _ops_eval(conn, pack, args, data: Path) -> None:
                                    "until": until.isoformat(timespec="minutes"), "recall": res["sre"]["recall"],
                                    "by_kind": res["sre"]["by_kind"], **res})
         _print(res)
+        if args.record:
+            from ..evals import runs
+
+            _say(f"recorded {runs.save(runs.ops(res, since, until.isoformat(timespec='minutes'), args.live))}")
         bad = ops_eval.gate(res) + [f"recall fell: {k}" for k in prev["recall_dropped"]]
         if bad:
             raise SystemExit("Ops eval failed: " + "; ".join(bad))

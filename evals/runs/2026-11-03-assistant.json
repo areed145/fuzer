@@ -1,0 +1,308 @@
+{
+  "date": "2026-11-03",
+  "kind": "assistant",
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "specialist_effort": "medium",
+  "questions": 14,
+  "mentions": 0.941,
+  "cited": 0.857,
+  "safe": 1.0,
+  "routed": 1.0,
+  "charted": 0.75,
+  "charts_per_answer": 1.71,
+  "looked_at_charts": 0,
+  "cost_usd": 11.8,
+  "cost_per_answer_usd": 0.843,
+  "seconds_per_answer": 86.0,
+  "results": [
+    {
+      "domain": "curves",
+      "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 9,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "troubleshooter"
+      ],
+      "routed": true,
+      "charts": [
+        "vibration",
+        "pump_curve"
+      ],
+      "charted": true,
+      "tool_calls": 30,
+      "seconds": 85.3,
+      "cost_usd": 1.0425
+    },
+    {
+      "domain": "curves",
+      "question": "Why did OK-J12-02's choke stop controlling the rate in 2025?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 9,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "choke",
+        "custom"
+      ],
+      "charted": true,
+      "tool_calls": 43,
+      "seconds": 106.4,
+      "cost_usd": 0.8273
+    },
+    {
+      "domain": "charts",
+      "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 3,
+      "operating_instructions": [],
+      "specialists": [
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "decline",
+        "measurements"
+      ],
+      "charted": true,
+      "tool_calls": 9,
+      "seconds": 68.1,
+      "cost_usd": 0.3495
+    },
+    {
+      "domain": "charts",
+      "question": "Which pipelines are losing wall thickness fastest, and why?",
+      "mentions": 0.67,
+      "missing": [
+        "OK-J03-02"
+      ],
+      "citations": 1,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "custom",
+        "custom"
+      ],
+      "charted": false,
+      "tool_calls": 86,
+      "seconds": 142.4,
+      "cost_usd": 1.5016
+    },
+    {
+      "domain": "troubleshooting",
+      "question": "Why did 20-K-2200B keep tripping in March 2024, and what should we check if it happens again?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 4,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "troubleshooter"
+      ],
+      "routed": true,
+      "charts": [
+        "trend"
+      ],
+      "charted": null,
+      "tool_calls": 31,
+      "seconds": 80.0,
+      "cost_usd": 0.8733
+    },
+    {
+      "domain": "production efficiency",
+      "question": "What was our production efficiency in 2025, and what were the biggest losses?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 9,
+      "operating_instructions": [],
+      "specialists": [
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "bar"
+      ],
+      "charted": null,
+      "tool_calls": 11,
+      "seconds": 55.8,
+      "cost_usd": 0.3242
+    },
+    {
+      "domain": "production surveillance",
+      "question": "How did oil production trend through 2025, and what explains the changes?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 6,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "custom",
+        "bar",
+        "bar"
+      ],
+      "charted": null,
+      "tool_calls": 26,
+      "seconds": 72.4,
+      "cost_usd": 0.6671
+    },
+    {
+      "domain": "constraint management",
+      "question": "What has been limiting production over the last two years, and how does it cascade through the field?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 10,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "custom",
+        "bar"
+      ],
+      "charted": null,
+      "tool_calls": 69,
+      "seconds": 168.5,
+      "cost_usd": 2.0655
+    },
+    {
+      "domain": "production engineering",
+      "question": "Which wells lost the most oil rate in 2025, and why?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 8,
+      "operating_instructions": [],
+      "specialists": [
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "bar",
+        "decline"
+      ],
+      "charted": null,
+      "tool_calls": 22,
+      "seconds": 73.2,
+      "cost_usd": 0.443
+    },
+    {
+      "domain": "reliability",
+      "question": "Who are our bad actors over the last two years, and what are their repeat failure modes?",
+      "mentions": 0.5,
+      "missing": [
+        "MTBF"
+      ],
+      "citations": 3,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance"
+      ],
+      "routed": true,
+      "charts": [
+        "bar",
+        "bar"
+      ],
+      "charted": null,
+      "tool_calls": 27,
+      "seconds": 75.0,
+      "cost_usd": 0.6339
+    },
+    {
+      "domain": "work orders",
+      "question": "What in the work order backlog should we tackle first?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 13,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance"
+      ],
+      "routed": true,
+      "charts": [
+        "custom"
+      ],
+      "charted": null,
+      "tool_calls": 13,
+      "seconds": 68.6,
+      "cost_usd": 0.6544
+    },
+    {
+      "domain": "turnarounds",
+      "question": "What is planned for the next turnaround, and what is missing from its scope?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 2,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance"
+      ],
+      "routed": true,
+      "charts": [
+        "wall_ranking"
+      ],
+      "charted": null,
+      "tool_calls": 7,
+      "seconds": 55.2,
+      "cost_usd": 0.5168
+    },
+    {
+      "domain": "gas lift",
+      "question": "How is lift gas distributed across the headers, and where would moving lift gas between wells gain the most oil?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 3,
+      "operating_instructions": [],
+      "specialists": [
+        "production"
+      ],
+      "routed": true,
+      "charts": [
+        "gas_lift_allocation"
+      ],
+      "charted": null,
+      "tool_calls": 8,
+      "seconds": 55.4,
+      "cost_usd": 0.3897
+    },
+    {
+      "domain": "across domains",
+      "question": "Why does lift gas keep running short, and what should go in the next turnaround to fix it?",
+      "mentions": 1.0,
+      "missing": [],
+      "citations": 12,
+      "operating_instructions": [],
+      "specialists": [
+        "maintenance",
+        "production",
+        "troubleshooter"
+      ],
+      "routed": true,
+      "charts": [
+        "bar",
+        "bar"
+      ],
+      "charted": null,
+      "tool_calls": 47,
+      "seconds": 97.6,
+      "cost_usd": 1.5073
+    }
+  ]
+}

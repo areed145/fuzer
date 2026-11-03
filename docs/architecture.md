@@ -17,7 +17,7 @@ flowchart LR
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 10 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 3 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 11 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 1 module</small>"]
   c_core["Core<br><small>fuzer.core, 14 modules</small>"]
@@ -239,7 +239,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `ops_eval`, `replay`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `ops_eval`, `replay`, `runs`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `ops_eval`, `point_normal` ([schema](schema.md))
 - **Settings:** `opportunities.gas_lift_breakeven` ([settings](settings.md))
