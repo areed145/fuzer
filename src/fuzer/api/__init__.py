@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ..core import db
 from ..workflow import engine as work
-from . import assistant, entities, graph, home, knowledge, ops, settings, sources, workflow
+from . import architecture, assistant, entities, graph, home, knowledge, ops, settings, sources, workflow
 from .deps import PACK, UI_DIST, get_conn, rebuilder  # noqa: F401  (fuzer.api.PACK and the rest, as before)
 
 
@@ -26,6 +26,6 @@ app = FastAPI(title="Fuzer", version="0.1.0", lifespan=lifespan)
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
 
-for module in (home, entities, knowledge, ops, assistant, graph, workflow, settings, sources):  # in this order: FastAPI matches routes in the order they were added
+for module in (home, entities, knowledge, ops, assistant, graph, workflow, settings, sources, architecture):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)

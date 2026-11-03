@@ -556,3 +556,13 @@ tr.setting-edit .row { margin-bottom: 8px; }
 .row input.grow { flex: 1; min-width: 200px; }
 
 .scroll-x { overflow-x: auto; max-width: 100%; }
+
+/* Architecture (#134) */
+.arch { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 20px; }
+.arch-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.arch-card { flex: 1 1 260px; max-width: 420px; margin: 0; }
+.arch-card h3 { margin: 0 0 4px; }
+.arch-card p { margin: 4px 0; }
+.arch-ext { padding: 8px 14px; border: 1px dashed var(--line); border-radius: 8px; font-size: 0.9em; }
+.arch-table { display: inline-block; margin: 0 8px 2px 0; white-space: nowrap; }
+.arch-totals { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; }

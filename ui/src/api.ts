@@ -713,6 +713,19 @@ export interface DailyReport {
   item_id: number | null;
 }
 
+export interface ArchComponent {
+  id: string; title: string; purpose: string; page: string; code: string; modules: number;
+  uses: string[]; writes: string[];
+}
+
+export interface Architecture {
+  components: ArchComponent[];
+  rows: Record<string, number>;
+  jobs: Record<string, string | null>;
+  entities: { kind: string; n: number }[];
+  sources: Record<string, number>;
+}
+
 export interface SourceRow {
   dataset: string;
   connector: string;
@@ -846,6 +859,7 @@ export const api = {
   startStudy: (kind: string, params: Record<string, unknown>, by: string) =>
     request<Study>("POST", "/studies", undefined, { kind, params, by }),
   rerunStudy: (id: number, by: string) => request<Study>("POST", `/studies/${id}/rerun`, { by }),
+  architecture: () => request<Architecture>("GET", "/architecture"),
   sources: () => request<{ data_dir: string; sources: SourceRow[] }>("GET", "/sources"),
   source: (name: string) => request<SourcePreview>("GET", `/sources/${encodeURIComponent(name)}`, { rows: 8 }),
   settings: (project?: string) =>

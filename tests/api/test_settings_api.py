@@ -1,4 +1,5 @@
-"""The Settings page's API (#131): list for a project, set with a reason, reset, history; values checked."""
+"""The Settings page's API (#131): list for a project, set with a reason, reset, history; values checked. And
+the Architecture page's (#134)."""
 
 import os
 import tempfile
@@ -46,3 +47,12 @@ def test_set_reset_and_history(client):
     assert [(x["new"], x["reason"]) for x in h][:2] == [(None, "back to the site value"), (15, "okan floods often")]
     assert client.get("/settings/no.such/history").status_code == 404
     settings._cache.clear()
+
+
+def test_architecture_page(client):
+    """#134: the Architecture page's data: the components as the docs show them, with live counts."""
+    d = client.get("/architecture").json()
+    by = {c["id"]: c for c in d["components"]}
+    assert {"sources", "graph", "ops", "agents", "core"} <= set(by)
+    assert "detection" in by["ops"]["writes"] and "sources" in by["graph"]["uses"]
+    assert d["rows"]["entity"] == 0 and "sre_scan" in d["jobs"] and d["jobs"]["sre_scan"] is None

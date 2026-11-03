@@ -18,7 +18,7 @@ flowchart LR
   c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 10 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 3 modules</small>"]
-  c_api["API<br><small>fuzer.api, 10 modules</small>"]
+  c_api["API<br><small>fuzer.api, 11 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 1 module</small>"]
   c_core["Core<br><small>fuzer.core, 14 modules</small>"]
   c_sources --> c_graph
@@ -175,7 +175,7 @@ Connectors read each source table; mappings turn rows into records, entities and
 - **Uses:** core
 - **Writes:** `curve_digitised`, `dataset_state`, `llm_extraction`, `review_item`, `source_record`, `source_record_history` ([schema](schema.md))
 - **Settings:** `sources.adx.catalog`, `sources.adx.database`, `sources.adx.url`, `sources.pi.url`, `sources.pi.user`, `sources.pi.verify_tls` ([settings](settings.md))
-- **Tests:** 72 in [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
+- **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
 ### Graph and golden records
 
@@ -184,7 +184,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 - **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `knowledge`, `lessons`, `llm_links`, `measurements`, `operations`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
 - **Uses:** core, sources
 - **Writes:** `crosswalk`, `edge`, `entity`, `id_event`, `lesson`, `llm_extraction`, `review_item` ([schema](schema.md))
-- **Tests:** 47 in [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
+- **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 
 ### Analyses
 
@@ -194,7 +194,7 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 - **Uses:** core, graph, sources, workflow
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Settings:** `alarms.failed_start_minutes`, `sre.hops`, `studies.max_points`, `studies.max_values`, `studies.workers` ([settings](settings.md))
-- **Tests:** 56 in [`tests/analysis`](https://github.com/areed145/fuzer/tree/main/tests/analysis)
+- **Tests:** [`tests/analysis`](https://github.com/areed145/fuzer/tree/main/tests/analysis)
 
 ### Operations
 
@@ -204,7 +204,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
 - **Uses:** agents, analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `daily_ops_report`, `detection`, `opportunity`, `register_summary`, `sre_run`, `sre_suppress`, `study`, `upset`, `work_item` ([schema](schema.md))
 - **Settings:** `daily_report.close_cron`, `daily_report.mover_pct`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
-- **Tests:** 48 in [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
+- **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts
 
@@ -213,7 +213,7 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 - **Code:** [`src/fuzer/plots`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots): `general`, `maintenance`, `production`, `troubleshooting`
 - **Uses:** analysis, core, graph, ops, sources
 - **Writes:** `assistant_figure` ([schema](schema.md))
-- **Tests:** 17 in [`tests/plots`](https://github.com/areed145/fuzer/tree/main/tests/plots)
+- **Tests:** [`tests/plots`](https://github.com/areed145/fuzer/tree/main/tests/plots)
 
 ### Work engine
 
@@ -222,7 +222,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
 - **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `engine`
 - **Uses:** nothing else in fuzer
 - **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_token` ([schema](schema.md))
-- **Tests:** 29 in [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
+- **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
 ### Agents and MCP
 
@@ -233,7 +233,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `work_token` ([schema](schema.md))
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:**  ([capabilities](capabilities.md))
-- **Tests:** 31 in [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
+- **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
 
@@ -243,25 +243,25 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `ops_eval`, `point_normal` ([schema](schema.md))
 - **Settings:** `opportunities.gas_lift_breakeven` ([settings](settings.md))
-- **Tests:** 11 in [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
+- **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
 
 ### API
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `deps`, `entities`, `graph`, `home`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assertion`, `dataset_state`, `feedback`, `golden`, `mapping_version`, `pinned_link`, `review_item`, `value_ranking` ([schema](schema.md))
-- **Tests:** 2 in [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
+- **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
 
 ### Command line
 
-`fuzer up` and the other commands. More in [cli](cli.md).
+The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 - **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `up`
 - **Uses:** agents, analysis, core, evals, graph, ops, sources, workflow
 - **Writes:** `llm_extraction` ([schema](schema.md))
-- **Tests:** 6 in [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)
+- **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)
 
 ### Core
 
@@ -271,4 +271,4 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
 - **Uses:** nothing else in fuzer
 - **Writes:** `project`, `setting`, `setting_history` ([schema](schema.md))
 - **Settings:** `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
-- **Tests:** 27 in [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)
+- **Tests:** [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)
