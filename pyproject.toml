@@ -38,7 +38,7 @@ dependencies = [
 fuzer = "fuzer.cli:main"
 
 [dependency-groups]
-# SpiffWorkflow is only the reference the work engine's behaviour is tested against (tests/test_workflow.py).
+# SpiffWorkflow is only the reference the work engine's behaviour is tested against (tests/workflow/test_workflow.py).
 dev = [
     "pytest>=8",
     "httpx>=0.27",
@@ -50,7 +50,7 @@ dev = [
 ]
 
 [tool.uv]
-# agent-framework-anthropic still declares anthropic<2; it runs on the 2.x SDK Fuzer uses (tests/test_agents.py).
+# agent-framework-anthropic still declares anthropic<2; it runs on the 2.x SDK Fuzer uses (tests/agents/test_agents.py).
 override-dependencies = ["anthropic>=2.3"]
 
 [tool.uv.workspace]

@@ -7,6 +7,7 @@ The plant's generated files are shared too: a module that edits its data folder 
 
 import os
 import re
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,12 @@ from pathlib import Path
 import psycopg
 import pytest
 from psycopg.conninfo import make_conninfo
+
+# Tests live in folders by package (tests/<package>/test_*.py); a few share fakes across folders
+# (`from test_llm_links import FakeClaude`), so every test folder is importable.
+for _d in sorted(Path(__file__).parent.iterdir()):
+    if _d.is_dir() and not _d.name.startswith((".", "_")):
+        sys.path.insert(0, str(_d))
 
 # Never pick up a developer's .env: it may point at a real database the tests would reset.
 os.environ["FUZER_ENV_FILE"] = "none"
