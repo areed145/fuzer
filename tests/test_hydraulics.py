@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 
 import pytest
+
 from fuzer.agents import mcp_server
 from fuzer.analysis import calcs, hydraulics
 from fuzer.core.pack import load_pack
