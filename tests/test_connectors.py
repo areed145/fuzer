@@ -16,8 +16,8 @@ from fakeplant.lake import write_parquet
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import connectors, ingest
 from fuzer.core import db
+from fuzer.sources import connectors, ingest
 
 
 @pytest.fixture(scope="module")

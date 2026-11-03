@@ -6,9 +6,10 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from . import ingest, pipeline
+from . import pipeline
 from .core import db
 from .core.pack import load_pack
+from .sources import ingest
 
 
 def main(argv=None):
@@ -162,13 +163,14 @@ def main(argv=None):
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "suggest-mappings":
-                from . import suggest
+                from .sources import suggest
 
                 _print(suggest.run(conn, pack, data, claude=args.claude, datasets=args.table))
             elif args.cmd == "ingest":
                 _print(ingest.ingest(conn, data, full=args.full))
             elif args.cmd == "llm-link":
-                from . import llm_links, llm_pids
+                from . import llm_links
+                from .sources import llm_pids
 
                 opts = {k: v for k, v in {"model": args.model, "effort": args.effort}.items() if v}
                 common = {"limit": args.limit, "workers": args.workers, "batch": args.batch, "force": args.force,
@@ -179,10 +181,10 @@ def main(argv=None):
                 if args.source in ("pids", "all"):
                     result["pids"] = llm_pids.run(conn, pack, **common)
                 if args.source in ("docs", "all"):
-                    from . import llm_docs
+                    from .sources import llm_docs
                     result["docs"] = llm_docs.run(conn, pack, **common)
                 if args.source in ("curves", "all"):  # OEM datasheets -> curve review items
-                    from . import llm_curves
+                    from .sources import llm_curves
                     result["curves"] = llm_curves.run(conn, pack, **common)
                 _print(result)
                 if not (args.dry_run or args.no_rebuild) and any(r.get("stored") for r in result.values()):
@@ -190,7 +192,7 @@ def main(argv=None):
             elif args.cmd == "pid-score":
                 import json as _json
 
-                from . import llm_pids
+                from .sources import llm_pids
 
                 truth = Path(args.truth or data / "pid_truth.json")
                 if not truth.is_file():

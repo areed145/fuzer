@@ -466,7 +466,7 @@ def troubleshoot(what: str) -> str:
 def process_values(ref: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Process values (PI points on the unit and its instruments) around a time: per point min / max /
     mean / last and the provider used. For an incident, at defaults to its start. at is ISO date or time."""
-    from . import timeseries
+    from .sources import timeseries
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
         if err:

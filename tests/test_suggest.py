@@ -11,9 +11,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import connectors, evaluate, ingest, pipeline, suggest
+from fuzer import evaluate, pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import connectors, ingest, suggest
 
 PACK = load_pack()
 

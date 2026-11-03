@@ -15,7 +15,6 @@ import pytest
 from fakeplant import okan
 from fuzer import (
     calcs,
-    ingest,
     mcp_server,
     operations,
     pipeline,
@@ -23,11 +22,11 @@ from fuzer import (
     queries,
     replay,
     signals,
-    timeseries,
 )
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.plots import maintenance, production
+from fuzer.sources import ingest, timeseries
 
 PACK = load_pack("okan")
 EVIDENCE = {"value", "expected", "deviation", "deviation_pct", "flag", "basis", "sources"}

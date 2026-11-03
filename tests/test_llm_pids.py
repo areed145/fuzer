@@ -10,9 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fakeplant import offshore
-from fuzer import ingest, llm_pids, pipeline
+from fuzer import pipeline
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest, llm_pids
 
 PACK = load_pack()
 SHEET = "OSB-44-PID-001"

@@ -9,9 +9,10 @@ import pytest
 from psycopg.types.json import Jsonb
 
 from fakeplant import offshore
-from fuzer import ingest, llm_links, pipeline, queries
+from fuzer import llm_links, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 
 PACK = load_pack()
 

@@ -28,7 +28,7 @@ def write_parquet(csv_path: Path, out_dir: Path, rows_per_file: int = 100_000) -
 
 def to_parquet(out: Path) -> int:
     """Rewrite every table Fuzer has a mapping for as a lake-style Parquet folder."""
-    from fuzer import ingest
+    from fuzer.sources import ingest
 
     n = 0
     for name in ingest.tables():
@@ -42,7 +42,7 @@ def to_parquet(out: Path) -> int:
 
 def clear_lake_folders(out: Path) -> None:
     """A lake folder left from an earlier --format parquet run would win over new CSV exports."""
-    from fuzer import ingest
+    from fuzer.sources import ingest
 
     for name in ingest.tables():
         shutil.rmtree(out / name, ignore_errors=True)

@@ -8,7 +8,7 @@ from . import ChartError, Figure, axis, layout, rnd, stacked, thin
 
 def _window(conn, ids: list[str], at, hours_before, hours_after, max_points=6, step_minutes=None):
     """The same window for every ref: the first sets the centre (its latest incident, unless `at`)."""
-    from .. import timeseries
+    from ..sources import timeseries
 
     series, upsets, out = [], set(), None
     for fid in ids:
@@ -261,7 +261,7 @@ def operating_window(conn, fid: str, since: str, until: str, pack=None) -> Figur
     """A point against its limits (#101): the value with each limit, time inside and outside, and the minutes
     outside per day."""
     from .. import calcs, limits
-    from ..timeseries import _point
+    from ..sources.timeseries import _point
 
     p = _point(conn, fid)
     if not p:

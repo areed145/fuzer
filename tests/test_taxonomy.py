@@ -6,9 +6,10 @@ import tempfile
 import pytest
 
 from fakeplant import offshore
-from fuzer import ingest, pipeline, queries
+from fuzer import pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 from fuzer.taxonomy import Taxonomy
 
 PACK = load_pack()

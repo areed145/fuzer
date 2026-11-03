@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 
 from fakeplant import offshore
-from fuzer import incidents, ingest, llm_links, pipeline, queries
+from fuzer import incidents, llm_links, pipeline, queries
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.sources import ingest
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_llm_links import FakeClaude  # noqa: E402

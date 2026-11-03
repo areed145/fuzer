@@ -8,10 +8,11 @@ from pathlib import Path
 import pytest
 
 from fakeplant import okan
-from fuzer import alarms, ingest, mcp_server, pipeline, plots
+from fuzer import alarms, mcp_server, pipeline, plots
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 from fuzer.plots import troubleshooting
+from fuzer.sources import ingest
 
 PACK = load_pack("okan")
 WEEK = ("2024-11-04T00:00", "2024-11-11T00:00")

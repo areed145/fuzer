@@ -72,7 +72,7 @@ def excursions(conn, pack, since, until, src) -> list[dict]:
 
 
 def stops(conn, pack, since, until, src) -> list[dict]:
-    from .timeseries import _point
+    from .sources.timeseries import _point
 
     sig = {u: s for u, s in limits.run_signals(conn, pack, set(limits.units(conn).values())).items() if "point" in s}
     if not sig:
@@ -184,7 +184,7 @@ def models(conn, pack, since, until, src) -> list[dict]:
     """Equipment against its curve, once a day; a detection while the check flags it."""
     if not _daily(since, until):
         return []
-    from .timeseries import _point
+    from .sources.timeseries import _point
 
     out, when = [], until.isoformat(timespec="minutes")
     first = {}  # a unit's first PI point, to hang the detection on
@@ -275,7 +275,7 @@ DETECTORS = {"excursions": excursions, "stops": stops, "steps": steps, "drifts":
 
 def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None) -> list[dict]:
     """Every detector over one window."""
-    from .timeseries import provider
+    from .sources.timeseries import provider
 
     src = src or provider()
     out = []

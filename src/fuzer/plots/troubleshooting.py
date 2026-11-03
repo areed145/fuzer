@@ -109,7 +109,7 @@ ZONES = {"large": (3.5, 7.1, 11.0), "medium": (2.3, 4.5, 7.1)}
 def vibration(conn, fid: str, at: str | None = None, days: int = 30) -> Figure:
     """Overall vibration on a machine against ISO 20816 zones, bearing / discharge temperature on a
     second axis, incident lead-ins shaded."""
-    from .. import timeseries
+    from ..sources import timeseries
 
     pts = timeseries._unit_points(conn, fid, 40)
     vib = [p for p in pts if (p["uom"] or "") in ("mm/s", "in/s") or "vibration" in (p["description"] or "").lower()]

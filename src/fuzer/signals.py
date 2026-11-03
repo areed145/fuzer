@@ -250,7 +250,7 @@ def detect_changes(times: list[datetime], v: np.ndarray, step: int, window_minut
 # ---- on Fuzer points ------------------------------------------------------------------------------
 
 def _points(conn, fid: str, n: int = 12) -> list[dict]:
-    from . import timeseries
+    from .sources import timeseries
 
     kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()
     if kind and kind["kind"] == "timeseries":
@@ -312,7 +312,8 @@ def instrument_health(conn, pack, fid: str, since: str, until: str, step: int = 
     noisy, out of range, and drift between redundant transmitters. Each finding is evidence
     ({value, expected, flag, basis, sources}) with its span. Reads only up to `until`, so the replay
     can run it. `values` adds what was read ({series: [{point, values}], times}), for a chart."""
-    from . import limits, timeseries
+    from . import limits
+    from .sources import timeseries
 
     src = src or timeseries.provider()
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
@@ -357,7 +358,7 @@ def changes(conn, fid: str, since: str, until: str, step: int | None = None, src
     """Steps, drifts and variance changes on a PI point, or every point on a unit, over [since, until]
     (detect_changes on each), in time order; the `limit` strongest when there are more. The step
     defaults to about 2000 values over the window."""
-    from . import timeseries
+    from .sources import timeseries
 
     src = src or timeseries.provider()
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)

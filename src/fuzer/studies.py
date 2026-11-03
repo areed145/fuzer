@@ -39,7 +39,7 @@ def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3
     """PI points for a scope: a list of timeseries ids; "facility" (every point); an area (every point on
     its tags and wells); any other entity, its points and its instruments' points, plus with `path`
     ("flows_to" or "lift_gas_to", up or down as "flows_to:up") what that path reaches within `depth`."""
-    from . import timeseries
+    from .sources import timeseries
 
     if isinstance(scope, list):
         return [p for p in (timeseries._point(conn, i) for i in scope) if p][:limit]
@@ -82,7 +82,7 @@ def matrix(pts: list[dict], start: datetime, end: datetime, step: int = 10, src=
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    from . import timeseries
+    from .sources import timeseries
 
     src = src or timeseries.provider()
     times = np.arange(np.datetime64(start, "m"), np.datetime64(end, "m") + np.timedelta64(1, "m"),

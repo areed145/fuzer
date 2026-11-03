@@ -221,7 +221,7 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
     the schedule would have had them, and put back afterwards; learn_days None keeps the ones in the
     database. (Learning reaches back before the data starts early in a fake plant's history, which leaves
     the ranges too narrow: start a replay at least `learn_days` in.) `say(msg)` gets progress lines."""
-    from .timeseries import provider
+    from .sources.timeseries import provider
 
     path = Path(data_dir or ".") / "process_model.json"
     if not data_dir or not path.is_file():

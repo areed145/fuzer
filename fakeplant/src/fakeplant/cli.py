@@ -51,9 +51,10 @@ def main(argv=None):
             raise SystemExit(f"No exports in {args.out}; run `fakeplant generate --asset {args.asset}` first.")
         historian.main(args.out, args.host, args.port)
     else:
-        from fuzer import ingest, pipeline
+        from fuzer import pipeline
         from fuzer.core import db
         from fuzer.core.pack import load_pack
+        from fuzer.sources import ingest
 
         pack = load_pack(args.pack or PACKS[args.asset])
         with db.connect() as conn:
