@@ -170,6 +170,11 @@ register(
             "share", "Opportunities", min=0.05, max=10),
     Setting("daily_report.mover_pct", "float", 10.0, "A well test this many percent from the well's previous one is "
             "a mover in the daily report", "Reports", min=1, max=100),
+    Setting("studies.max_points", "int", 2000, "Points an interactive correlation or clustering study reads at most",
+            "Studies", min=10, max=100000),
+    Setting("studies.max_values", "int", 15_000_000, "Values (points x steps) a study reads at once; bigger ones run "
+            "in the background", "Studies", min=10000),
+    Setting("studies.workers", "int", 8, "Threads reading a study's points in parallel", "Studies", min=1, max=64),
 )
 
 
