@@ -11,9 +11,11 @@ what each run found.
 
 `uv run fuzer eval --memory` with `answer_keys/assistant_memory.json` (`fakeplant.okan.MEMORY_QUESTIONS`). Each
 case stores teaching answers as episodes, learns facts from them in order with Claude, then asks a later
-question in a fresh conversation that only memory can answer. In the valve case, the second answer
-(slickline replaced OK-J07-05's valve on 2025-12-14) ends the first fact (valve failed open). In the
-train B case, the cause is the wrong lube oil orifice plate, which is not in the data.
+question in a fresh conversation that only memory can answer. In the valve case, the data holds the
+April 2025 slickline shut-in on OK-J07-05 and a recovery between the June and July tests that no record
+explains. The second answer (a second slickline run on 2025-07-02 replaced the leaking valve) fills
+that gap and ends the first fact (the April valve is leaking). In the train B case, the cause is the
+wrong lube oil orifice plate, which is not in the data.
 
 - **recalled:** the current facts reached the question.
 - **used:** the answer cites a current fact (`fact:<id>`) or names every `must_mention`.
