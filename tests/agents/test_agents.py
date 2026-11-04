@@ -217,6 +217,57 @@ def test_follow_up_keeps_the_history_as_it_was(conn, okan_pack):
     assert follow_up[-1]["content"][0]["text"] == "And the one after?"
 
 
+def test_follow_up_after_a_restart(conn, okan_pack):
+    # Conversations live in Postgres (#93): a new team (a restarted server) carries on a conversation from its
+    # id alone, and Claude gets the first turn back byte for byte, thinking blocks and signatures included.
+    agents = pytest.importorskip("fuzer.agents")
+    from fuzer.agents.history import PostgresHistory
+
+    fake = ThinkingClaude()
+    first = agents.team(agents.client(anthropic_client=fake), history=PostgresHistory())
+    asyncio.run(agents.ask("What's in the next turnaround?", first, first.create_session(session_id="conv-restart")))
+    before = fake.requests[-1]["messages"]
+    assert any(b.get("type") == "thinking" for m in before for b in m["content"] if isinstance(b, dict))
+
+    restarted = agents.team(agents.client(anthropic_client=fake), history=PostgresHistory())
+    asyncio.run(agents.ask("And the one after?", restarted, restarted.create_session(session_id="conv-restart")))
+    follow_up = fake.requests[-1]["messages"]
+    assert follow_up[:len(before)] == before
+    assert follow_up[-1]["content"][0]["text"] == "And the one after?"
+    conn.rollback()
+    n = conn.execute("select count(*) as n from assistant_message where conversation_id = 'conv-restart'").fetchone()["n"]
+    assert n == len(follow_up) + 1  # every message once, however often the harness saved, plus the final answer
+
+
+def test_history_keeps_images_by_reference(conn):
+    pytest.importorskip("fuzer.agents")
+    from agent_framework import Content, Message
+
+    from fuzer.agents import history
+
+    png = b"\x89PNG fake image bytes"
+    asked = [Message(role="user", contents=[Content.from_text("What is this?"), Content.from_data(png, "image/png")]),
+             Message(role="assistant", contents=[Content.from_text("A pump curve.")]),
+             Message(role="user", contents=[Content.from_text("Again"), Content.from_data(png, "image/png")])]
+    history.ensure(conn, "conv-images", "tester", "What is this?")
+    history.append(conn, "conv-images", asked)
+    conn.commit()
+    stored = [r["m"] for r in conn.execute(
+        "select message::text as m from assistant_message where conversation_id = 'conv-images' order by seq")]
+    assert "base64" not in "".join(stored) and history.IMAGE_REF in stored[0]
+    assert conn.execute("select count(*) as n from assistant_image where conversation_id = 'conv-images'"
+                        ).fetchone()["n"] == 1  # the same image twice is kept once
+    back = history.load(conn, "conv-images")
+    assert [m.to_dict() for m in back] == [m.to_dict() for m in asked]
+
+    from datetime import datetime, timedelta, timezone
+    assert history.purge(conn, 0) == 0  # 0 keeps everything
+    assert history.purge(conn, 30, now=datetime.now(timezone.utc) + timedelta(days=31)) >= 1
+    assert not history.exists(conn, "conv-images")
+    assert conn.execute("select count(*) as n from assistant_image where conversation_id = 'conv-images'"
+                        ).fetchone()["n"] == 0
+
+
 def test_specialists_on_their_own_model_and_cost_per_model(conn, okan_pack, monkeypatch):
     agents = pytest.importorskip("fuzer.agents")
     lead, worker = FakeClaude("claude-opus-5-5"), FakeClaude("claude-sonnet-5-5")
@@ -269,18 +320,25 @@ def test_ask_over_the_api(conn, okan_pack, monkeypatch):
     from fastapi.testclient import TestClient
 
     from fuzer.agents import service
+    from fuzer.agents.history import PostgresHistory
     from fuzer.api import app
 
-    monkeypatch.setattr(service, "_team", agents.team(agents.client(anthropic_client=FakeClaude())))
+    monkeypatch.setattr(service, "_team", agents.team(agents.client(anthropic_client=FakeClaude()),
+                                                      history=PostgresHistory()))
     conn.rollback()  # the app's startup schema check must not wait on this test's open transaction
     with TestClient(app) as client:
-        started = client.post("/assistant/ask", json={"question": "What's in the next turnaround?", "by": "tester"})
-        job = started.json()["job_id"]
-        for _ in range(100):
-            out = client.get(f"/assistant/jobs/{job}").json()
-            if out["status"] != "running":
-                break
-            time.sleep(0.05)
+        def run(question, conversation=None):
+            started = client.post("/assistant/ask", json={"question": question, "by": "tester",
+                                                          "conversation_id": conversation}).json()
+            for _ in range(100):
+                out = client.get(f"/assistant/jobs/{started['job_id']}").json()
+                if out["status"] != "running":
+                    return started, out
+                time.sleep(0.05)
+            raise AssertionError("still running")
+
+        started, out = run("What's in the next turnaround?")
+        job, conversation = started["job_id"], started["conversation_id"]
         assert out["status"] == "done" and "20-K-2200B" in out["answer"]
         assert {"agent": "maintenance", "tool": "turnaround_scope", "args": {}} in out["steps"]
         assert out["usage"]["cost_usd"] > 0
@@ -288,6 +346,22 @@ def test_ask_over_the_api(conn, okan_pack, monkeypatch):
         saved = next(a for a in client.get("/assistant/answers").json() if a["id"] == job)
         assert saved["specialists"] == ["maintenance"] and saved["ratings"] == 1 and saved["useful"] == 1
         assert client.get("/assistant/jobs/nope").status_code == 404
+
+        # after a restart: the job is read back from the database, the conversation is listed and reopened,
+        # and a follow-up carries on in it
+        service._jobs.clear()
+        again = client.get(f"/assistant/jobs/{job}").json()
+        assert again["status"] == "done" and again["answer"] == out["answer"] and again["steps"]
+        mine = client.get("/assistant/conversations", params={"by": "tester"}).json()
+        assert mine[0]["id"] == conversation and mine[0]["title"] == "What's in the next turnaround?"
+        follow, _ = run("And the one after?", conversation)
+        assert follow["conversation_id"] == conversation
+        turns = client.get(f"/assistant/conversations/{conversation}").json()["turns"]
+        assert [t["question"] for t in turns] == ["What's in the next turnaround?", "And the one after?"]
+        assert turns[0]["ratings"] == 1
+        assert run("Unknown conversation", "nope")[0]["conversation_id"] != "nope"
+        assert client.delete(f"/assistant/conversations/{conversation}").status_code == 200
+        assert client.get(f"/assistant/conversations/{conversation}").status_code == 404
 
 
 def test_ask_without_a_key_says_so(monkeypatch):

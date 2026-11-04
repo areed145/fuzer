@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type AssistantJob, type Attachment } from "../api";
+import { api, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
 import { useAsync } from "../lib";
 
@@ -43,6 +43,7 @@ function attach(file: File): Promise<Attachment> {
 interface Turn {
   question: string;
   images?: Attachment[];
+  imageUrls?: string[]; // saved images of a reopened conversation
   job?: AssistantJob;
   jobId?: string;
   error?: string;
@@ -51,6 +52,18 @@ interface Turn {
 export function AskPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [conversation, setConversation] = useState<string>();
+  const [listed, setListed] = useState(0); // bumped to reload the conversation list
+  const [openError, setOpenError] = useState<string>();
+  const reopen = async (id: string) => {
+    setOpenError(undefined);
+    try {
+      const c = await api.conversation(id);
+      setConversation(c.id);
+      setTurns(c.turns.map((t) => saved(c.id, t)));
+    } catch (e) {
+      setOpenError(String(e));
+    }
+  };
   const [text, setText] = useState("");
   const [images, setImages] = useState<Attachment[]>([]);
   const [attachError, setAttachError] = useState<string>();
@@ -98,6 +111,9 @@ export function AskPage() {
     return () => clearTimeout(timer);
   }, [running, turns]);
 
+  const finished = turns.filter((t) => t.job && t.job.status !== "running").length;
+  useEffect(() => setListed((n) => n + 1), [finished]);
+
   useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [turns.length]);
 
   return (
@@ -118,6 +134,7 @@ export function AskPage() {
           ))}
         </div>
       )}
+      {openError && <div className="error small">{openError}</div>}
       {turns.map((t, i) => <TurnView key={i} turn={t} />)}
       <div ref={end} />
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
@@ -163,7 +180,8 @@ export function AskPage() {
           <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
         </div>
       </form>
-      <RecentAnswers />
+      <Conversations current={conversation} reload={listed} busy={busy} onOpen={reopen}
+                     onDeleted={(id) => { if (id === conversation) { setTurns([]); setConversation(undefined); } }} />
     </section>
   );
 }
@@ -181,6 +199,9 @@ function TurnView({ turn }: { turn: Turn }) {
         {turn.question}
         {turn.images && turn.images.length > 0 && (
           <div className="question-images">{turn.images.map((im) => <img key={im.url} src={im.url} alt={im.name} />)}</div>
+        )}
+        {turn.imageUrls && turn.imageUrls.length > 0 && (
+          <div className="question-images">{turn.imageUrls.map((u) => <img key={u} src={u} alt="attached" />)}</div>
         )}
       </div>
       <div className="card answer">
@@ -238,19 +259,43 @@ function Rate({ id }: { id: string }) {
   );
 }
 
-function RecentAnswers() {
-  const r = useAsync(() => api.assistantAnswers(), []);
-  const items = (r.data ?? []).filter((a) => a.answer).slice(0, 8);
+/** A saved question and answer as a finished turn. */
+function saved(conversationId: string, t: SavedTurn): Turn {
+  return {
+    question: t.question.replace(/ \[\d+ image\(s\) attached\]$/, ""),
+    imageUrls: t.images.map((sha) => `/assistant/conversations/${encodeURIComponent(conversationId)}/images/${sha}`),
+    jobId: t.id,
+    job: {
+      id: t.id, conversation_id: conversationId, question: t.question, status: t.error ? "error" : "done",
+      answer: t.answer, error: t.error, seconds: t.seconds ?? undefined, specialists: t.specialists,
+      usage: t.usage ?? undefined, steps: t.tools.map((x) => ({ agent: x.agent, tool: x.tool, args: x.args ?? {} })),
+      model_calls: t.usage?.model_calls ?? 0,
+    },
+  };
+}
+
+function Conversations({ current, reload, busy, onOpen, onDeleted }: {
+  current?: string; reload: number; busy: boolean; onOpen: (id: string) => void; onDeleted: (id: string) => void;
+}) {
+  const [gone, setGone] = useState<string[]>([]);
+  const r = useAsync(() => api.conversations(asker()), [reload]);
+  const items = (r.data ?? []).filter((c) => c.turns > 0 && !gone.includes(c.id));
   if (items.length === 0) return null;
   return (
-    <details className="card recent">
-      <summary>Recent questions <span className="muted small">{items.length}</span></summary>
+    <details className="card recent" open>
+      <summary>Your conversations <span className="muted small">{items.length}</span></summary>
       <ul className="plain small">
-        {items.map((a) => (
-          <li key={a.id}>
-            <span className="muted mono">{a.created_at.slice(0, 16).replace("T", " ")}</span> {a.question}{" "}
-            <span className="muted">· {a.by_user} · ${Number(a.usage?.cost_usd ?? 0).toFixed(2)}
-              {a.ratings > 0 && ` · ${a.useful}/${a.ratings} useful`}</span>
+        {items.map((c) => (
+          <li key={c.id}>
+            <span className="muted mono">{c.updated_at.slice(0, 16).replace("T", " ")}</span>{" "}
+            {c.id === current ? <b>{c.title}</b> : (
+              <button className="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</button>
+            )}{" "}
+            <span className="muted">· {c.turns} question{c.turns === 1 ? "" : "s"}</span>{" "}
+            <button className="link muted" disabled={busy} title="Delete this conversation and its answers"
+                    onClick={() => api.deleteConversation(c.id).then(() => { setGone((g) => [...g, c.id]); onDeleted(c.id); })}>
+              delete
+            </button>
           </li>
         ))}
       </ul>

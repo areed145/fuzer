@@ -104,6 +104,8 @@ register(
             env="FUZER_AGENT_SPECIALIST_EFFORT"),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
             "Claude", env="FUZER_AGENT_FALLBACKS"),
+    Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
+            "with its images and answers (0: keep them)", "Claude", min=0),
     Setting("daily_report.close_cron", "str", "0 7 * * *", "When the day is closed and its report drafted (cron)",
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",

@@ -16,7 +16,7 @@ flowchart LR
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 10 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 11 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 12 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 1 module</small>"]
@@ -228,10 +228,10 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.maintenance`, `capabilities.production`, `capabilities.shared`, `capabilities.troubleshooting`, `capabilities.work`, `mcp_server`, `service`, `worker`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.maintenance`, `capabilities.production`, `capabilities.shared`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `service`, `worker`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
-- **Writes:** `assistant_answer`, `work_token` ([schema](schema.md))
-- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `work.lease_seconds` ([settings](settings.md))
+- **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_image`, `assistant_message`, `work_token` ([schema](schema.md))
+- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** maintenance 47, orchestrator 17, production 52, troubleshooter 67 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 

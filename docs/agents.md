@@ -34,6 +34,14 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   starts a background job, and polls `/assistant/jobs/{id}` to show which agent is calling which
   tool. Every answer is stored in `assistant_answer` with its tools, tokens and cost, and engineers
   rate it through `feedback` (`answer:<id>`).
+- **Conversations** are kept in Postgres (`agents/history.py`, #93), so they survive a restart and a
+  follow-up can carry on after one. A MAF history provider writes each message to `assistant_message`
+  as MAF serialises it, in a `json` column (not `jsonb`) so Claude's thinking blocks come back byte for
+  byte, which a follow-up needs. Attached images are stored once per conversation in `assistant_image`
+  and referenced from the messages. `assistant_conversation` holds each conversation's asker, title and
+  dates. The Ask page lists your recent conversations and reopens one (`/assistant/conversations`).
+  The setting `assistant.retention_days` (0 keeps everything) removes conversations idle that long,
+  with their messages, images and answers.
 - **Quality.** `fuzer eval --agents` asks the questions in `answer_keys/assistant.json` (one per
   domain plus one across domains, on Okan). It scores the facts each answer must name, citations,
   absence of operating instructions, and routing to specialists, with cost and time per answer.
