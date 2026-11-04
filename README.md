@@ -1,7 +1,7 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/fuzer-logo-dark.svg">
-    <img src="docs/assets/brand/fuzer-logo.svg" alt="Fuzer" height="56">
+    <img src="docs/assets/brand/fuzer-logo.svg" alt="fuzer" height="56">
   </picture>
 </h1>
 

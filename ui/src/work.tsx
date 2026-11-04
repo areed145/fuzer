@@ -53,7 +53,7 @@ export function when(at: string): string {
 
 export function Actor({ who }: { who: string }) {
   if (who.startsWith("agent:")) return <span className="badge actor-agent">{who.slice(6)} agent</span>;
-  if (who === "system") return <span className="badge actor-system">Fuzer</span>;
+  if (who === "system") return <span className="badge actor-system">fuzer</span>;
   return <strong>{who}</strong>;
 }
 

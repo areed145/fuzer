@@ -1,8 +1,8 @@
-# Fuzer { .fz-visually-hidden }
+# fuzer { .fz-visually-hidden }
 
 <div class="fz-hero">
-  <img src="assets/brand/fuzer-logo.svg#only-light" alt="Fuzer">
-  <img src="assets/brand/fuzer-logo-dark.svg#only-dark" alt="Fuzer">
+  <img src="assets/brand/fuzer-logo.svg#only-light" alt="fuzer">
+  <img src="assets/brand/fuzer-logo-dark.svg#only-dark" alt="fuzer">
   <p>The asset data graph for oil &amp; gas facilities</p>
 </div>
 
