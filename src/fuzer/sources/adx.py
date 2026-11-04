@@ -23,8 +23,16 @@ from .connectors import LiveTable
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
+def _from_settings() -> dict:
+    """The ADX cluster as the settings had it before #225 (they now only seed a connection)."""
+    return {k: settings.get(None, f"sources.adx.{k}") for k in ("url", "database", "catalog")} | {
+        "token": settings.secret(None, "sources.adx.token")}
+
+
 def configured() -> bool:
-    return bool(settings.get(None, "sources.adx.url"))
+    from .connections import default_config
+
+    return bool((default_config("adx") or _from_settings()).get("url"))
 
 
 def quote(s: str) -> str:
@@ -32,13 +40,22 @@ def quote(s: str) -> str:
 
 
 class Client:
-    def __init__(self, url: str | None = None, database: str | None = None, http: httpx.Client | None = None):
-        if not (url := url or settings.get(None, "sources.adx.url")):
-            raise ValueError("no ADX URL: set sources.adx.url (or FUZER_ADX_URL)")
+    """An ADX cluster: `cfg` is a connection's config with its token resolved; without one, the first ADX
+    connection, else the old settings."""
+
+    def __init__(self, url: str | None = None, database: str | None = None, http: httpx.Client | None = None,
+                 cfg: dict | None = None):
+        if cfg is None:
+            from .connections import default_config
+
+            cfg = (None if url else default_config("adx")) or _from_settings()
+        self.cfg = cfg
+        if not (url := url or cfg.get("url")):
+            raise ValueError("no ADX URL: add an adx connection (fuzer sources add-connection)")
         self.url = url.rstrip("/")
-        self.database = database or settings.get(None, "sources.adx.database")
+        self.database = database or cfg.get("database")
         if http is None:
-            token = settings.secret(None, "sources.adx.token")
+            token = cfg.get("token")
             http = httpx.Client(headers={"Authorization": f"Bearer {token}"} if token else {}, timeout=120)
         self.http = http
 
@@ -57,12 +74,13 @@ class SeriesCatalog(LiveTable):
     kind = "adx"
     columns = ["series_id", "pi_point", "description", "units", "values_table", "cluster", "database"]
 
-    def __init__(self, client: Client | None = None):
+    def __init__(self, client: Client | None = None, catalog: str | None = None):
         self.client = client or Client()
+        self.catalog = catalog or self.client.cfg.get("catalog") or "SeriesCatalog"
         super().__init__(f"{self.client.url}/{self.client.database}")
 
     def read(self) -> Iterator[dict]:
-        catalog = settings.get(None, "sources.adx.catalog")
+        catalog = self.catalog
         if not IDENT.match(catalog):
             raise ValueError(f"bad catalog table name {catalog!r}")
         for r in self.client.query(f"{catalog} | project SeriesId, PiPoint, Description, Units, ValuesTable"):

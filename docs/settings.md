@@ -99,14 +99,14 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
-| `sources.pi.url` | str | `` |  | PI Web API base URL (empty: the point list and AF tree come from files). Takes effect on restart. Replaces `FUZER_PI_WEB_API_URL`. |
+| `sources.pi.url` | str | `` |  | PI Web API base URL; seeds a pi_web_api connection in the source catalog (#225). Takes effect on restart. Replaces `FUZER_PI_WEB_API_URL`. |
 | `sources.pi.data_server` | str | `` |  | PI Data Archive to read points from (empty: the first). Replaces `FUZER_PI_DATA_SERVER`. |
 | `sources.pi.af_server` | str | `` |  | PI AF server (empty: the first). Replaces `FUZER_PI_AF_SERVER`. |
 | `sources.pi.af_database` | str | `` |  | PI AF database (empty: the server's first). Replaces `FUZER_PI_AF_DATABASE`. |
 | `sources.pi.user` | str | `` |  | PI Web API user for basic auth (empty: no auth). Replaces `FUZER_PI_USER`. |
 | `sources.pi.password` | secret | `env:FUZER_PI_PASSWORD` |  | Where the PI Web API password is kept. |
 | `sources.pi.verify_tls` | bool | `True` |  | Check the PI Web API's TLS certificate. Replaces `FUZER_PI_VERIFY_TLS`. |
-| `sources.adx.url` | str | `` |  | Azure Data Explorer cluster URL (empty: no ADX series catalog). Takes effect on restart. Replaces `FUZER_ADX_URL`. |
+| `sources.adx.url` | str | `` |  | Azure Data Explorer cluster URL; seeds an adx connection in the source catalog (#225). Takes effect on restart. Replaces `FUZER_ADX_URL`. |
 | `sources.adx.database` | str | `` |  | ADX database. Replaces `FUZER_ADX_DATABASE`. |
 | `sources.adx.catalog` | str | `SeriesCatalog` |  | ADX table listing the series. Replaces `FUZER_ADX_CATALOG`. |
 | `sources.adx.token` | secret | `env:FUZER_ADX_TOKEN` |  | Where the ADX bearer token is kept. |

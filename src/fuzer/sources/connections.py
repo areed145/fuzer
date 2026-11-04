@@ -1,0 +1,321 @@
+"""Connection types (#225): how Fuzer reaches a source system. Each type declares its config and secrets and
+implements one contract, so a new live system (SAP OData, Maximo REST, SQL) plugs in here without touching
+ingest:
+
+    connector(dataset, data_dir)  the dataset's reader: fingerprint(), schema(), rows(since) (connectors.py)
+    test(data_dir, rows)          reach it, authenticate, list what it holds, read a few rows: each step timed
+    discover(data_dir)            the tables, files or feeds it can see
+
+Secrets are references, never values: `env:NAME` reads an environment variable (a secret store later uses
+the same form). Rotating a secret needs no config change; `resolves` says whether a reference finds a value.
+
+Types: folder (a folder of exports: CSV, Parquet, Delta, Excel, JSON, GeoJSON; empty path = the project's data
+folder), pi_web_api (PI points and the AF tree), adx (the ADX series catalog).
+"""
+
+import os
+import time
+from pathlib import Path
+
+from psycopg.types.json import Jsonb
+
+
+class ConnectionError_(ValueError):
+    pass
+
+
+def resolve(ref: str | None) -> str | None:
+    """A secret reference's value: env:NAME reads the environment. None when it finds nothing."""
+    if not ref:
+        return None
+    if ref.startswith("env:"):
+        return os.environ.get(ref[4:]) or None
+    raise ConnectionError_(f"secret references look like env:NAME, not {ref[:12]!r}...")
+
+
+def resolves(secrets: dict) -> dict[str, bool]:
+    return {k: resolve(v) is not None for k, v in (secrets or {}).items()}
+
+
+class Type:
+    name = ""
+    config: dict[str, object] = {}  # field -> default (None: required)
+    secrets: tuple[str, ...] = ()
+    live = True
+
+    def __init__(self, config: dict, secrets: dict):
+        self.cfg = {**{k: v for k, v in self.config.items() if v is not None}, **(config or {})}
+        self.secret_refs = secrets or {}
+
+    def secret(self, name: str) -> str | None:
+        return resolve(self.secret_refs.get(name))
+
+    def connector(self, d: dict, data_dir: Path):
+        raise NotImplementedError
+
+    def discover(self, data_dir: Path) -> list[str]:
+        raise NotImplementedError
+
+    def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
+        raise NotImplementedError
+
+
+def _step(steps: list, name: str, fn):
+    t = time.perf_counter()
+    try:
+        detail = fn()
+        steps.append({"step": name, "ok": True, "ms": round((time.perf_counter() - t) * 1000), "detail": detail})
+        return detail
+    except Exception as e:  # each step reports its own failure; later ones are skipped
+        steps.append({"step": name, "ok": False, "ms": round((time.perf_counter() - t) * 1000),
+                      "detail": f"{type(e).__name__}: {e}"})
+        raise _Stop from e
+
+
+class _Stop(Exception):
+    pass
+
+
+class Folder(Type):
+    name = "folder"
+    config = {"path": ""}
+    live = False
+
+    def root(self, data_dir: Path) -> Path:
+        p = self.cfg.get("path") or ""
+        return Path(data_dir) / p if p and not Path(p).is_absolute() else Path(p or data_dir)
+
+    def connector(self, d: dict, data_dir: Path):
+        from . import connectors
+        from .ingest import READERS, _Manifest
+
+        root = self.root(data_dir)
+        if d.get("reader"):
+            r = READERS[d["reader"]]
+            f = root / (d.get("location") or r.file)
+            return _Manifest(f, r.ref, r.load) if f.is_file() else None
+        if d.get("location"):
+            return connectors.at(root / d["location"], d.get("connector"))  # an absolute location wins
+        c = connectors.find(root, d["name"])
+        if c is not None and d.get("connector") and c.kind != d["connector"]:
+            return None  # the file there isn't the kind the dataset names
+        return c
+
+    def discover(self, data_dir: Path) -> list[str]:
+        from . import connectors
+        from .ingest import READERS
+
+        root = self.root(data_dir)
+        return sorted(set(connectors.datasets(root)) | {n for n, r in READERS.items() if (root / r.file).is_file()})
+
+    def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
+        from . import connectors
+
+        steps: list[dict] = []
+        root = self.root(data_dir)
+        def reach():
+            if not root.is_dir():
+                raise FileNotFoundError(f"no folder {root}")
+            return str(root)
+
+        try:
+            _step(steps, "reach", reach)
+            found = _step(steps, "list", lambda: self.discover(data_dir))
+            tables = [n for n in found if connectors.find(root, n) is not None]
+            if tables:
+                _step(steps, "read", lambda: {"dataset": tables[0], "rows": [
+                    r for _, r in zip(range(rows), connectors.find(root, tables[0]).rows())]})
+        except _Stop:
+            pass
+        return steps
+
+
+class PiWebApi(Type):
+    name = "pi_web_api"
+    config = {"url": None, "data_server": "", "af_server": "", "af_database": "", "user": "", "verify_tls": True}
+    secrets = ("password",)
+    FEEDS = {"pi_points": "PiPoints", "points": "PiPoints", "pi_af": "PiAf", "af": "PiAf"}
+
+    def client(self):
+        from . import pi_web_api
+
+        return pi_web_api.Client(cfg={**self.cfg, "password": self.secret("password")})
+
+    def connector(self, d: dict, data_dir: Path):
+        from . import pi_web_api
+
+        feed = self.FEEDS.get(d.get("location") or d.get("reader") or d["name"])
+        if feed is None:
+            raise ConnectionError_(f"a PI Web API dataset is pi_points or pi_af (location), not {d['name']!r}")
+        return getattr(pi_web_api, feed)(self.client())
+
+    def discover(self, data_dir: Path) -> list[str]:
+        return ["pi_points", "pi_af"]
+
+    def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
+        steps: list[dict] = []
+        try:
+            c = _step(steps, "reach", lambda: self.client())
+            server = _step(steps, "authenticate", lambda: c.data_server())
+            _step(steps, "list", lambda: {"data_server": server["Name"], "af_database": c.af_database()["Name"]})
+            _step(steps, "read", lambda: {"rows": [p["Name"] for _, p in zip(range(rows), c.items(
+                f"dataservers/{server['WebId']}/points"))]})
+        except _Stop:
+            pass
+        return steps
+
+
+class Adx(Type):
+    name = "adx"
+    config = {"url": None, "database": "", "catalog": "SeriesCatalog"}
+    secrets = ("token",)
+
+    def client(self):
+        from . import adx
+
+        return adx.Client(cfg={**self.cfg, "token": self.secret("token")})
+
+    def connector(self, d: dict, data_dir: Path):
+        from . import adx
+
+        return adx.SeriesCatalog(self.client(), catalog=self.cfg.get("catalog"))
+
+    def discover(self, data_dir: Path) -> list[str]:
+        return [r["TableName"] for r in self.client().query(".show tables")] if self.cfg.get("url") else []
+
+    def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
+        from . import adx
+
+        steps: list[dict] = []
+        try:
+            c = _step(steps, "reach", lambda: self.client())
+            cat = self.cfg.get("catalog") or "SeriesCatalog"
+            if not adx.IDENT.match(cat):
+                raise ConnectionError_(f"bad catalog table name {cat!r}")
+            _step(steps, "authenticate", lambda: {"database": c.database})
+            _step(steps, "read", lambda: {"rows": c.query(f"{cat} | take {int(rows)}")})
+        except _Stop:
+            pass
+        return steps
+
+
+TYPES: dict[str, type[Type]] = {t.name: t for t in (Folder, PiWebApi, Adx)}
+
+
+def check(type_: str, config: dict, secrets: dict) -> None:
+    """Raise ValueError unless the type is known, its config has what it needs and secrets are references."""
+    from .catalog import CatalogError
+
+    t = TYPES.get(type_)
+    if t is None:
+        raise CatalogError(f"unknown connection type {type_!r}; one of {sorted(TYPES)}")
+    unknown = set(config or {}) - set(t.config)
+    if unknown:
+        raise CatalogError(f"{type_} has no config {sorted(unknown)}; it takes {sorted(t.config)}")
+    missing = [k for k, v in t.config.items() if v is None and not (config or {}).get(k)]
+    if missing:
+        raise CatalogError(f"{type_} needs {missing}")
+    for k, v in (secrets or {}).items():
+        if k not in t.secrets:
+            raise CatalogError(f"{type_} has no secret {k!r}; it takes {list(t.secrets)}")
+        if not (isinstance(v, str) and v.startswith("env:") and len(v) > 4):
+            raise CatalogError(f"secret {k!r} must be a reference such as env:NAME, never the value")
+
+
+def open_(row: dict) -> Type:
+    return TYPES[row["type"]](row.get("config") or {}, row.get("secrets") or {})
+
+
+def connector(d: dict, data_dir) -> object | None:
+    """The reader for a catalog dataset (as catalog.datasets returns it) through its connection."""
+    row = {"type": d.get("connection_type") or "folder", "config": d.get("connection_config") or {},
+           "secrets": d.get("connection_secrets") or {}}
+    return open_(row).connector(d, Path(data_dir))
+
+
+def test(conn, connection_id: int, data_dir, rows: int = 5) -> dict:
+    """Test a connection step by step; the outcome is kept on the connection (last_test)."""
+    from . import catalog
+
+    c = catalog.connection(conn, connection_id)
+    if not c:
+        raise catalog.CatalogError(f"no connection {connection_id}")
+    steps = open_(c).test(Path(data_dir), rows)
+    out = {"connection": c["name"], "system": c["system"], "type": c["type"], "ok": bool(steps) and all(s["ok"] for s in steps),
+           "steps": steps, "secrets": resolves(c["secrets"])}
+    from ..core.jsonsafe import plain
+
+    conn.execute("update source_connection set last_tested_at = now(), last_test = %s where id = %s",
+                 (Jsonb(plain(out)), connection_id))
+    return out
+
+
+def discover(conn, connection_id: int, data_dir) -> dict:
+    """What a connection can see, and which of it no dataset covers yet (each can become a draft dataset)."""
+    from . import catalog
+
+    c = catalog.connection(conn, connection_id)
+    if not c:
+        raise catalog.CatalogError(f"no connection {connection_id}")
+    seen = open_(c).discover(Path(data_dir))
+    covered = set(catalog.datasets(conn))
+    if c["type"] == "folder":  # the default folder is every system's: covered by any dataset on a folder
+        covered |= {d["location"] for d in catalog.datasets(conn).values() if d.get("location")}
+    return {"connection": c["name"], "system": c["system"], "found": seen, "uncovered": [n for n in seen if n not in covered]}
+
+
+# ---- moving the old settings onto connections ----------------------------------------------------
+
+LEGACY = {  # settings before #225 -> (connection type, systems and their datasets, config keys, secret key)
+    "pi_web_api": ("sources.pi", {"pi": ["pi_points"], "pi_af": ["pi_af"]},
+                   {"url": "url", "data_server": "data_server", "af_server": "af_server", "af_database": "af_database",
+                    "user": "user", "verify_tls": "verify_tls"}, {"password": "password"}),
+    "adx": ("sources.adx", {"adx": ["adx_series"]}, {"url": "url", "database": "database", "catalog": "catalog"},
+            {"token": "token"}),
+}
+
+
+def seed(conn, by: str = "seed") -> list[str]:
+    """A PI Web API or ADX server set in the old settings (sources.pi.*, sources.adx.*) becomes a connection on
+    its systems, and their datasets move onto it. Idempotent: a server already on a connection is skipped."""
+    from ..core import settings
+    from . import catalog
+
+    made = []
+    for type_, (prefix, systems, cfg_keys, secret_keys) in LEGACY.items():
+        if not (url := settings.get(conn, f"{prefix}.url")):
+            continue
+        cfg = {k: settings.get(conn, f"{prefix}.{s}") for k, s in cfg_keys.items()}
+        sec = {k: settings.get(conn, f"{prefix}.{s}") for k, s in secret_keys.items()}
+        sec = {k: v for k, v in sec.items() if v}
+        for sys_name, names in systems.items():
+            if not catalog.system(conn, sys_name):
+                continue
+            have = [c for c in catalog.connections(conn, sys_name) if c["type"] == type_ and c["config"].get("url") == url]
+            c = have[0] if have else catalog.add_connection(conn, sys_name, type_, type_, by, cfg, sec,
+                                                            reason=f"moved from the {prefix}.* settings (#225)")
+            for n in names:
+                d = catalog.dataset(conn, n)
+                if d and d["connection_type"] in (None, "folder"):
+                    catalog.update_dataset(conn, n, by, reason=f"moved to the {type_} connection", connection_id=c["id"])
+            if not have:
+                made.append(f"{sys_name}:{type_}")
+    return made
+
+
+def default_config(type_: str) -> dict | None:
+    """The first enabled connection of a type, as config with its secrets resolved (the time-series providers
+    read values through it); None without one."""
+    from ..core import db
+
+    if not os.environ.get("FUZER_DATABASE_URL") and db._server is None:
+        return None
+    try:
+        with db.connect() as c:
+            r = c.execute("select config, secrets from source_connection where type = %s and enabled order by id limit 1",
+                          (type_,)).fetchone()
+    except Exception:  # no database, or one from before #225
+        return None
+    if not r:
+        return None
+    return {**r["config"], **{k: resolve(v) for k, v in (r["secrets"] or {}).items()}}

@@ -1,8 +1,9 @@
 """Mappings: what each column of a dataset means, as YAML, read by one generic extractor.
 
-One file per source record type (src/fuzer/mappings/, plus any folders in $FUZER_MAPPINGS, plus
-mappings approved in the review queue and stored in mapping_version; later ones override earlier ones
-for the same source and record type):
+Mappings live in the source catalog (catalog.py, #225): the latest approved mapping_version per source and
+record type is the one in use, with its dataset's where-fields (location, connector, key, watermark) from
+source_dataset. The files in src/fuzer/mappings/ seed a fresh database, and are what code without a database
+connection reads. A mapping file:
 
     source: sap
     record_type: equipment
@@ -88,29 +89,38 @@ class MappingError(ValueError):
 
 
 def load(conn=None) -> dict[tuple[str, str], "Mapping"]:
-    """Every mapping by (source, record_type): the built-in files, then $FUZER_MAPPINGS folders, then
-    (with a connection) the latest approved version of each mapping stored in mapping_version."""
-    extra = os.environ.get("FUZER_MAPPINGS", "")
-    files = _load(extra)
-    if conn is None or not conn.execute("select to_regclass('mapping_version') as t").fetchone()["t"]:
-        return files
-    ver = conn.execute("select coalesce(max(id), 0) as v from mapping_version").fetchone()["v"]
-    if not ver:
-        return files
+    """Every mapping in use by (source, record_type): with a connection, the catalog's (seeded from the files the
+    first time); without one, the seed files (src/fuzer/mappings/, then the deprecated $FUZER_MAPPINGS folders)."""
+    if conn is None:
+        return _load(os.environ.get("FUZER_MAPPINGS", ""))
+    from . import catalog
+
+    catalog.ensure(conn)
+    ver = conn.execute("select coalesce(max(id), 0) as v, count(*) filter (where status = 'approved') as n, "
+                       "max(approved_at) as a, (select max(updated_at) from source_dataset) as d "
+                       "from mapping_version").fetchone()
     # the database is part of the key: two databases (tests, projects on separate servers) share version ids
-    key = (extra, f"{conn.info.host}:{conn.info.port}/{conn.info.dbname}", ver)
+    key = (f"{conn.info.host}:{conn.info.port}/{conn.info.dbname}", ver["v"], ver["n"], ver["a"], ver["d"])
     if key not in _APPROVED:
-        merged = dict(files)
-        for r in conn.execute("select distinct on (source, record_type) yaml, id from mapping_version "
-                              "order by source, record_type, id desc"):
-            m = Mapping(yaml.safe_load(r["yaml"]))
-            merged[(m.source, m.record_type)] = m
+        ds = {(d["source"], d["record_type"]): d for d in catalog.datasets(conn).values() if d["record_type"]}
+        out = {}
+        for v in catalog.current_mappings(conn):
+            raw = yaml.safe_load(v["yaml"]) or {}
+            if d := ds.get((v["source"], v["record_type"])):
+                raw = {**{k: x for k, x in raw.items() if k not in WHERE}, "dataset": d["name"],
+                       **{k: d[k] for k in ("location", "connector", "watermark") if d[k]}}
+                if d["key"]:
+                    raw["key"] = d["key"][0] if len(d["key"]) == 1 else list(d["key"])
+            m = Mapping(raw)
+            m.version = v["id"]
+            out[(m.source, m.record_type)] = m
         _APPROVED.clear()
-        _APPROVED[key] = merged
+        _APPROVED[key] = out
     return _APPROVED[key]
 
 
-_APPROVED: dict[tuple[str, str, int], dict] = {}
+WHERE = ("dataset", "key", "watermark", "location", "connector")
+_APPROVED: dict[tuple, dict] = {}
 
 
 @lru_cache(maxsize=8)
@@ -139,6 +149,7 @@ class Mapping:
 
     def __init__(self, raw: dict, path: Path | None = None):
         self.raw, self.path = raw, path
+        self.version: int | None = None  # its mapping_version id, when it came from the catalog
         self._where = f" in {path.name}" if path else ""
         for k in ("source", "record_type", "shape"):
             if not raw.get(k):

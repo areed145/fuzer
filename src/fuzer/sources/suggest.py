@@ -7,7 +7,7 @@
 3. Claude (optional) names the columns rules could only call `code` or `other`, from the headers
    and samples; cached per table in llm_extraction like the other readers, never called by rebuilds.
 4. A draft mapping (mappings.py syntax) goes to the review queue as a `mapping` item. Once accepted
-   (as suggested or edited) it is stored as a new version in mapping_version, and the next ingest
+   (as suggested or edited) it is approved as a new version in the catalog (mapping_version), and the next ingest
    loads the table.
 """
 
@@ -450,21 +450,14 @@ def suggest_table(conn, pack: Pack, dataset: str, c, *, exclude=frozenset(), cla
 
 
 def save(conn, dataset: str, text: str, by: str) -> dict:
-    """Keep an approved mapping for `dataset` as a new version (the next ingest loads the table with it) and
-    close its open review item. Raises ValueError when the YAML isn't a valid mapping for this dataset."""
-    import yaml
+    """Approve a mapping for `dataset` as a new version in the catalog (the next ingest loads the table with it)
+    and close its open review item. Raises ValueError when the YAML isn't a valid mapping for this dataset."""
+    from . import catalog
 
-    from . import mappings
-
-    try:
-        raw = yaml.safe_load(text or "")
-        m = mappings.Mapping(raw if isinstance(raw, dict) else {})
-    except (yaml.YAMLError, mappings.MappingError) as e:
-        raise ValueError(f"mapping is not valid: {e}") from e
+    _, m = catalog._parse(text)
     if m.dataset != dataset:
         raise ValueError(f"mapping must keep dataset: {dataset}")
-    conn.execute("insert into mapping_version (source, record_type, dataset, yaml, approved_by) "
-                 "values (%s, %s, %s, %s, %s)", (m.source, m.record_type, m.dataset, text, by))
+    catalog.propose(conn, text, by, note="saved from the review queue or Sources page", status="approved")
     conn.execute("update review_item set status = 'decided', decision = %s, decided_by = %s, decided_at = now() "
                  "where kind = 'mapping' and subject = %s and status = 'open'",
                  (Jsonb({"decision": "saved", "yaml": text}), by, dataset))

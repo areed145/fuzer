@@ -10,7 +10,7 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 15 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 19 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 16 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
@@ -19,7 +19,7 @@ flowchart LR
   c_agents["Agents and MCP<br><small>fuzer.agents, 12 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 12 modules</small>"]
-  c_cli["Command line<br><small>fuzer.cli, 1 module</small>"]
+  c_cli["Command line<br><small>fuzer.cli, 2 modules</small>"]
   c_core["Core<br><small>fuzer.core, 14 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
@@ -169,12 +169,11 @@ flowchart TD
 
 ### Sources and ingestion
 
-Connectors read each source table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
+The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `connectors`, `curves`, `documents`, `extract`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `suggest`, `timeseries`
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
 - **Uses:** core
-- **Writes:** `curve_digitised`, `dataset_state`, `llm_extraction`, `mapping_version`, `review_item`, `source_record`, `source_record_history` ([schema](schema.md))
-- **Settings:** `sources.adx.catalog`, `sources.adx.database`, `sources.adx.url`, `sources.pi.url`, `sources.pi.user`, `sources.pi.verify_tls` ([settings](settings.md))
+- **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_connection`, `source_dataset`, `source_record`, `source_record_history`, `source_run`, `source_system` ([schema](schema.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
 ### Graph and golden records
@@ -251,14 +250,14 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 
 - **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `jobs`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
-- **Writes:** `assertion`, `dataset_state`, `feedback`, `golden`, `pinned_link`, `review_item`, `value_ranking` ([schema](schema.md))
+- **Writes:** `assertion`, `feedback`, `golden`, `pinned_link`, `review_item`, `source_dataset`, `value_ranking` ([schema](schema.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
 
 ### Command line
 
 The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
-- **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `up`
+- **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `sources`, `up`
 - **Uses:** agents, analysis, core, evals, graph, ops, sources, workflow
 - **Writes:** `llm_extraction` ([schema](schema.md))
 - **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)

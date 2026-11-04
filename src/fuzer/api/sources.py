@@ -72,9 +72,13 @@ def source_load(name: str, body: Load, conn=Depends(get_conn)):
             suggest.save(conn, name, body.yaml, body.by)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+    from ..sources import catalog, connectors
+
+    if catalog.dataset(conn, name) is None:
+        if connectors.find(Path(_data_dir()), name) is None:
+            raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
+        raise HTTPException(400, f"{name} has no mapping: save one first")
     if ingest.dataset(Path(_data_dir()), name, conn) is None:
         raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
-    if name not in ingest.tables(conn) and name not in ingest.FILES:
-        raise HTTPException(400, f"{name} has no mapping: save one first")
     stats = ingest.ingest(conn, _data_dir(), exports=[name])
     return {k: stats.get(k) for k in ("loaded", "unchanged", "held", "records", "inserted", "updated", "removed")}

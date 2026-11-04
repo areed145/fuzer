@@ -44,7 +44,7 @@ def test_unknown_or_unconfigured_provider_is_explicit(monkeypatch):
         timeseries.provider()
     monkeypatch.setenv("FUZER_TIMESERIES", "pi")
     monkeypatch.delenv("FUZER_PI_WEB_API_URL", raising=False)
-    with pytest.raises(ValueError, match="FUZER_PI_WEB_API_URL"):
+    with pytest.raises(ValueError, match="pi_web_api connection"):
         timeseries.provider()
 
 

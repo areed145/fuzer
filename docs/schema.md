@@ -246,23 +246,84 @@ Engineers' ratings of what Fuzer suggests (briefs, reading, lessons), to measure
 | `by_user` | text |  |
 | `created_at` | timestamptz |  |
 
-## `dataset_state`
+## `source_system`
 
-What each dataset looked like when last loaded: an unchanged fingerprint skips it, a changed schema is compared column by column, and position is the watermark for append-only lake tables.
+Sources (#225): the systems of record, how to reach them, what each dataset is and how it loads, as rows (sources/catalog.py). The built-in mapping files only seed a fresh database (`fuzer sources seed`). One catalog per database, like the records it loads.
 
 | Column | Type | Note |
 |---|---|---|
-| `dataset` | text |  |
-| `connector` | text |  |
-| `fingerprint` | text |  |
+| `id` | bigserial |  |
+| `name` | text | what source_record.source says: sap, pi, ec, maximo, ... |
+| `kind` | text, | erp \| historian \| allocation \| documents \| gis \| lab \| logs \| other |
+| `description` | text |  |
+| `owner` | text, | who answers for the system; alerts go to them (#225) |
+| `steward` | text, | who looks after its data in Fuzer |
+| `timezone` | text, | how the source writes dates and numbers, applied before mapping |
+| `encoding` | text |  |
+| `decimal` | text |  |
+| `date_format` | text |  |
+| `rank` | integer, | survivorship: a lower rank wins a field (pack priority order) |
+| `enabled` | boolean |  |
+| `notes` | text, | reliability, known issues |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+## `source_connection`
+
+How to reach a system. Secrets are references (env:NAME), never values. A system can have several.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `system_id` | bigint |  |
+| `name` | text |  |
+| `type` | text | folder \| pi_web_api \| adx (sources/connections.py) |
+| `config` | jsonb |  |
+| `secrets` | jsonb | name -> reference |
+| `enabled` | boolean |  |
+| `last_tested_at` | timestamptz |  |
+| `last_test` | jsonb, | each step of the last test with its outcome and timing |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+## `source_dataset`
+
+One table or feed: where it is, how it loads, and what it held at its last load.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `name` | text |  |
+| `system_id` | bigint |  |
+| `connection_id` | bigint |  |
+| `record_type` | text, | tables: the record type its rows land as |
+| `reader` | text, | nested exports: the named reader (pi_af, ec_network, ...) |
+| `location` | text, | where it is on its connection (default: its name) |
+| `connector` | text, | csv \| parquet \| delta \| excel \| json \| geojson (default: by file) |
+| `key` | text[], | record key columns, joined by ">" |
+| `watermark` | text, | append: rows at or after the last value are read |
+| `load_mode` | text |  |
+| `drift_policy` | text |  |
+| `status` | text |  |
+| `schedule` | text, | cron; empty: loads with refresh_all and the new-exports sensor |
+| `expected_hours` | real, | freshness: a new delivery within this long, else stale |
+| `owner` | text |  |
+| `notes` | text |  |
+| `seeded` | jsonb, | the values the seed gave it: a later seed updates only those |
+| `loaded_with` | text, | state at its last load: connector kind, fingerprint, schema |
+| `fingerprint` | text, | watermark position, rows |
 | `schema` | jsonb |  |
 | `position` | jsonb |  |
 | `rows` | bigint |  |
 | `loaded_at` | timestamptz |  |
+| `checked_at` | timestamptz, | last looked at (unchanged loads too) |
+| `last_run_id` | bigint |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
 
 ## `mapping_version`
 
-Mappings approved in the review queue (suggested for a new table, as is or edited). The latest version per source and record type is used, after the built-in files.
+Mapping versions: what each column means, per source and record type. The latest approved version is the one in use; drafts wait for approval, and a rollback approves a copy of an older one (parent_id).
 
 | Column | Type | Note |
 |---|---|---|
@@ -273,6 +334,50 @@ Mappings approved in the review queue (suggested for a new table, as is or edite
 | `yaml` | text |  |
 | `approved_by` | text |  |
 | `approved_at` | timestamptz |  |
+
+## `source_run`
+
+One row per load of a dataset that changed (unchanged ones only touch source_dataset.checked_at).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `dataset_id` | bigint |  |
+| `dataset` | text |  |
+| `trigger` | text | manual \| schedule \| sensor \| api \| seed |
+| `status` | text | done \| held \| failed |
+| `started_at` | timestamptz |  |
+| `finished_at` | timestamptz |  |
+| `connector` | text |  |
+| `fingerprint` | text |  |
+| `schema` | jsonb |  |
+| `position` | jsonb |  |
+| `mappings` | jsonb, | the mapping version ids in use, by source/record type |
+| `rows_read` | bigint |  |
+| `inserted` | bigint |  |
+| `updated` | bigint |  |
+| `unchanged` | bigint |  |
+| `removed` | bigint |  |
+| `error` | text |  |
+| `detail` | jsonb, | held: the schema drift; failed: what broke |
+| `seconds` | real |  |
+
+## `source_audit`
+
+Every change to the catalog: who, when, what it was and became, and why.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `at` | timestamptz |  |
+| `by` | text |  |
+| `object` | text | system \| connection \| dataset \| mapping \| check \| rule |
+| `object_id` | bigint |  |
+| `name` | text |  |
+| `action` | text | create \| update \| delete \| approve \| rollback \| pause \| ... |
+| `old` | jsonb |  |
+| `new` | jsonb |  |
+| `reason` | text |  |
 
 ## `geo_index`
 
