@@ -57,6 +57,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Admin",
     items: [
+      { label: "Jobs", section: "jobs" },
       { label: "Sources", section: "sources" },
       { label: "Settings", section: "settings" },
       { label: "Architecture", section: "architecture" },
@@ -155,6 +156,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
+  else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
   else if (section === "work" && path[1] === "item") trail.push({ label: `Item ${path[2] ?? ""}`.trim() });
   else if (section === "work" && path[1] === "processes") {
     trail.push({ label: "Processes", to: path[2] ? "/work/processes" : undefined });

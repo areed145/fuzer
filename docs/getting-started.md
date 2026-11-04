@@ -30,6 +30,12 @@ the server, with the scheduled jobs (Dagster, http://127.0.0.1:3000: SRE scans, 
 Later starts reload or re-read only what changed. `uv run fuzer up --fresh` starts over with a clean
 database and keeps Claude's readings.
 
+The web UI's **Jobs** page (under Admin) shows each scheduled job's schedule or sensor, whether it's on, its recent
+runs with their errors, the data checks on the register and what Claude reading has cost, read from Dagster's
+state in `.dagster` (or `$DAGSTER_HOME`). The dot at the foot of the sidebar turns amber or red when a check flags,
+a run failed in the last day or the scheduler isn't running. Set `FUZER_DAGSTER_URL` if the Dagster UI isn't on
+port 3000.
+
 Things to try:
 
 - **Browse** and **Search**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
