@@ -260,9 +260,15 @@ def main(argv=None):
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
                 if args.memory:
-                    if not (keys / "assistant_memory.json").is_file():
-                        raise SystemExit(f"No assistant_memory.json in {keys}.")
-                    res = evaluate.memory(conn, pack, json.loads((keys / "assistant_memory.json").read_text()), say=_say)
+                    if (keys / "assistant_memory.json").is_file():
+                        cases = json.loads((keys / "assistant_memory.json").read_text())
+                    else:  # exports generated before the memory eval: the built-in Okan cases
+                        try:
+                            from fakeplant.okan import MEMORY_QUESTIONS as cases
+                        except ImportError:
+                            raise SystemExit(f"No assistant_memory.json in {keys}.") from None
+                        _say(f"no assistant_memory.json in {keys}: using the built-in Okan cases")
+                    res = evaluate.memory(conn, pack, cases, say=_say)
                     if args.out:
                         Path(args.out).write_text(json.dumps(res, indent=2, default=str))
                     _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})
