@@ -26,7 +26,8 @@ uv run fuzer up           # then open http://127.0.0.1:8000
 
 The first run takes a while. It builds the fake Okan field, loads every source, and has Claude read the operator
 logs, P&ID drawings and document sections (this costs money). Then it builds the register and the web UI and starts
-the server. Later starts reload or re-read only what changed. `uv run fuzer up --fresh` starts over with a clean
+the server, with the scheduled jobs (Dagster, http://127.0.0.1:3000: SRE scans, studies, refreshes) beside it.
+Later starts reload or re-read only what changed. `uv run fuzer up --fresh` starts over with a clean
 database and keeps Claude's readings.
 
 Things to try:

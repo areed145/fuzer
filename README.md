@@ -81,8 +81,9 @@ uv run fuzer up          # then open http://127.0.0.1:8000
 
 The first time, `fuzer up` makes the Okan field demo, loads it, has Claude read the operator logs,
 P&ID drawings and document sections, builds the register and the web UI, and starts the server
-(the Ask page is the operations assistant). Later starts are quick: only what changed is reloaded
-or read. `uv run fuzer up --fresh` starts over with a clean database; Claude's readings are kept, so
+(the Ask page is the operations assistant) and the scheduled jobs (Dagster on http://127.0.0.1:3000:
+SRE scans, studies, refreshes, day close; `--no-jobs` leaves them out). Later starts are quick: only
+what changed is reloaded or read, and readings Claude stored without a rebuild are built in. `uv run fuzer up --fresh` starts over with a clean database; Claude's readings are kept, so
 it doesn't pay to read the same text twice. Without a key everything runs except Claude's reading
 and the assistant.
 
@@ -383,6 +384,9 @@ pipeline to the facilities it reaches. They're scored by distance and checked by
 export FUZER_PROJECT=okan   # the project: its data folder (where exports land) and pack
 uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C to stop)
 ```
+
+`fuzer up` starts the same Dagster process alongside the web UI (its log in `.dagster/dagster.log`), so
+`fuzer jobs` on its own is for running the schedules without the UI, or after `fuzer up --no-jobs`.
 
 - One asset per source export (each loads only its own file, as a full
   snapshot), then `register` (the rebuild), then the Claude readers.

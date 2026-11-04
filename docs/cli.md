@@ -12,6 +12,8 @@ start everything: data, register, drawings, web UI (the one command you need)
 | `--fresh` | start over: empty the database (and make new fake data) |
 | `--port` |  |
 | `--demo` | a fake plant to run: okan (the Okan field), offshore or onshore |
+| `--no-jobs` | don't start Dagster (schedules: SRE scans, studies, refreshes) |
+| `--jobs-port` | port for the Dagster UI |
 
 ## `fuzer ingest`
 

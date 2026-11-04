@@ -25,6 +25,8 @@ def parser() -> argparse.ArgumentParser:
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
     u.add_argument("--port", type=int, default=8000)
     u.add_argument("--demo", help="a fake plant to run: okan (the Okan field), offshore or onshore")
+    u.add_argument("--no-jobs", action="store_true", help="don't start Dagster (schedules: SRE scans, studies, refreshes)")
+    u.add_argument("--jobs-port", type=int, default=3000, help="port for the Dagster UI")
 
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
@@ -164,7 +166,7 @@ def main(argv=None):
     if args.cmd == "up":
         from . import up
 
-        up.up(pack, port=args.port, fresh=args.fresh, demo=args.demo)
+        up.up(pack, port=args.port, fresh=args.fresh, demo=args.demo, jobs=not args.no_jobs, jobs_port=args.jobs_port)
     elif args.cmd == "serve":
         import uvicorn
 
@@ -174,11 +176,9 @@ def main(argv=None):
         import subprocess
         import sys
 
-        home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
-        home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
-        db.database_url()  # with no FUZER_DATABASE_URL, start embedded Postgres before Dagster forks
-        os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
-        sys.exit(subprocess.call([sys.executable, "-m", "dagster", "dev", "-m", "fuzer.ops.jobs", "-p", str(args.port)]))
+        from .up import dagster_command
+
+        sys.exit(subprocess.call(dagster_command(args.port)))
     elif args.cmd in ("ask", "chat"):
         _assistant(args)
     elif args.cmd == "mcp":

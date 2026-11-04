@@ -1,11 +1,14 @@
 """`fuzer up`: one command from nothing to the web UI.
 
 1. Data: the exports in $FUZER_DATA_DIR. With nothing configured, the Okan field demo (made if needed).
-2. Load: ingest, and rebuild only when something changed (a second start is quick).
+2. Load: ingest, and rebuild only when something changed, or when Claude's cached readings are newer
+   than the register (a read that stopped before its rebuild). A second start is quick.
 3. Claude: with ANTHROPIC_API_KEY set, Claude reads whatever it hasn't read yet (operator logs,
    P&ID drawings, document sections), then the register is rebuilt with what it found.
 4. Web UI: built when missing or older than its source.
-5. Serve on http://127.0.0.1:8000.
+5. Jobs: Dagster (schedules and sensors: SRE scans, studies, refreshes, day close) on
+   http://127.0.0.1:3000, its log in .dagster/dagster.log; `--no-jobs` leaves it out.
+6. Serve on http://127.0.0.1:8000. Ctrl+C stops both.
 
 `--fresh` starts over: empties the database and, for the fake plant, makes new data. Claude's
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
@@ -15,6 +18,7 @@ same logs and drawings again. `--demo okan` (or offshore, onshore) picks a fake 
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from ..core import db
@@ -74,7 +78,7 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
     say(f"Data: {stats['records']:,} records read, {changed:,} changed" + (
         f"; {len(stats['unmapped'])} tables without a mapping (Review > New tables after "
         "fuzer suggest-mappings)" if stats.get("unmapped") else ""))
-    if changed or empty:
+    if changed or empty or pipeline.readings_newer(conn):
         say("Building the register ...")
         r = pipeline.rebuild(conn, pack)
         say(f"Register: {r['entities']:,} entities, {r['edges']:,} links")
@@ -108,7 +112,7 @@ def read_with_claude(conn, pack) -> None:
         for err in out.get("errors", [])[:3]:
             say(f"Could not read some {label}: {err}")
     say(f"Claude read {stored:,} item(s) for about ${spent:.2f}")
-    if stored:
+    if pipeline.readings_newer(conn):
         say("Rebuilding the register with what Claude found ...")
         pipeline.rebuild(conn, pack)
 
@@ -148,7 +152,35 @@ def other_asset(conn, pack) -> str | None:
     return row["source_key"] if row and row["source_key"] != pack.facility else None
 
 
-def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None) -> None:
+def dagster_command(port: int) -> list[str]:
+    """`dagster dev` on the Fuzer jobs, with its state in $DAGSTER_HOME (default .dagster) and the same
+    database as this process (embedded Postgres is started first, so the child connects to it)."""
+    home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
+    home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
+    os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
+    return [sys.executable, "-m", "dagster", "dev", "-m", "fuzer.ops.jobs", "-p", str(port)]
+
+
+def start_jobs(port: int) -> subprocess.Popen:
+    cmd = dagster_command(port)
+    log = Path(os.environ["DAGSTER_HOME"]) / "dagster.log"
+    say(f"Jobs (Dagster) on http://127.0.0.1:{port}, log in {log}")
+    with open(log, "ab") as out:
+        return subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
+
+
+def stop_jobs(proc: subprocess.Popen | None) -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    proc.terminate()  # dagster dev stops its webserver and daemon on SIGTERM
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None,
+       jobs: bool = True, jobs_port: int = 3000) -> None:
     if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PACK") and _fake_plant():
         demo = DEFAULT_DEMO  # nothing configured: the Okan field demo
     print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
@@ -166,7 +198,11 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
         load(conn, pack, folder, fresh)
         read_with_claude(conn, pack)
     build_ui()
+    proc = start_jobs(jobs_port) if jobs else None
     print(f"\nFuzer is running: http://{host}:{port}   (Ctrl+C to stop)\n", flush=True)
     import uvicorn
 
-    uvicorn.run("fuzer.api:app", host=host, port=port, log_level="warning")
+    try:
+        uvicorn.run("fuzer.api:app", host=host, port=port, log_level="warning")
+    finally:
+        stop_jobs(proc)
