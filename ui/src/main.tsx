@@ -1,8 +1,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
-import { Logo } from "./brand";
-import { href, notifyChanged, useAsync, useRoute } from "./lib";
+import { notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
@@ -19,6 +18,7 @@ import { Search } from "./pages/Search";
 import { WorkPage } from "./pages/Work";
 import { WorkItemPage } from "./pages/WorkItem";
 import { loadPerson } from "./work";
+import { Breadcrumbs, Sidebar } from "./nav";
 import "./styles.css";
 
 // Graph views pull in Cytoscape; load them only when opened.
@@ -57,71 +57,28 @@ function App() {
   const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
 
   return (
-    <>
-      <nav className="top">
-        <a className="brand" href={href("/")}>
-          <Logo />
-        </a>
-        <a className={section === "" || section === "e" ? "on" : ""} href={href("/")}>
-          Browse
-        </a>
-        <a className={section === "ask" ? "on" : ""} href={href("/ask")}>
-          Ask
-        </a>
-        <a className={section === "ontology" ? "on" : ""} href={href("/ontology")}>
-          Ontology
-        </a>
-        <a className={section === "network" ? "on" : ""} href={href("/network")}>
-          Network
-        </a>
-        <a className={section === "map" ? "on" : ""} href={href("/map")}>
-          Map
-        </a>
-        <a className={section === "downtime" ? "on" : ""} href={href("/downtime")}>
-          Downtime
-        </a>
-        <a className={section === "incidents" ? "on" : ""} href={href("/incidents")}>
-          Incidents
-        </a>
-        <a className={section === "lessons" ? "on" : ""} href={href("/lessons")}>
-          Lessons
-        </a>
-        <a className={section === "reports" ? "on" : ""} href={href("/reports")}>
-          Reports
-        </a>
-        <a className={section === "studies" ? "on" : ""} href={href("/studies")}>
-          Studies
-        </a>
-        <a className={section === "board" ? "on" : ""} href={href("/board")}>
-          Board
-        </a>
-        <a className={section === "work" ? "on" : ""} href={href("/work")}>
-          Work {work > 0 && <span className="count">{work}</span>}
-        </a>
-        <a className={section === "review" ? "on" : ""} href={href("/review")}>
-          Review {openReviews > 0 && <span className="count">{openReviews}</span>}
-        </a>
-        <a className={section === "sources" ? "on" : ""} href={href("/sources")}>
-          Sources
-        </a>
-        <a className={section === "settings" ? "on" : ""} href={href("/settings")}>
-          Settings
-        </a>
-        <a className={section === "architecture" ? "on" : ""} href={href("/architecture")}>
-          Architecture
-        </a>
-        <span className="spacer" />
-        {rebuilding && <span className="badge updating">Updating…</span>}
-        {s?.rebuild.last?.error && <span className="error small">Last update failed</span>}
-        {s && (
-          <span className="muted small">
-            {s.facility} · {Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities ·{" "}
-            {s.edges.toLocaleString()} links · {s.records.toLocaleString()} source records
-          </span>
-        )}
-        {stats.error && <span className="error small">API not reachable</span>}
-      </nav>
+    <div className="app">
+      <Sidebar
+        section={section}
+        badges={{ work, review: openReviews }}
+        status={
+          <>
+            {s && (
+              <div className="facts">
+                <strong>{s.facility}</strong>
+                <span>{Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities</span>
+                <span>{s.edges.toLocaleString()} links</span>
+                <span>{s.records.toLocaleString()} source records</span>
+              </div>
+            )}
+            {rebuilding && <span className="badge updating">Updating…</span>}
+            {s?.rebuild.last?.error && <span className="error small">Last update failed</span>}
+            {stats.error && <span className="error small">API not reachable</span>}
+          </>
+        }
+      />
       <main>
+        <Breadcrumbs path={path} />
         <Suspense fallback={<div className="status">Loading…</div>}>
           {section === "e" && path[1] ? (
             <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
@@ -168,7 +125,7 @@ function App() {
           )}
         </Suspense>
       </main>
-    </>
+    </div>
   );
 }
 
