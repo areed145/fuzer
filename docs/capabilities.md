@@ -4,12 +4,12 @@ Generated from the capability registry (`src/fuzer/agents/capabilities/`, #133);
 
 | Agent | Tools |
 |---|---|
-| orchestrator | 17 |
-| troubleshooter | 67 |
-| production | 52 |
-| maintenance | 47 |
+| orchestrator | 18 |
+| troubleshooter | 68 |
+| production | 53 |
+| maintenance | 48 |
 
-## Shared (47)
+## Shared (48)
 
 Used by every agent or by several specialists.
 
@@ -47,6 +47,7 @@ Used by every agent or by several specialists.
 | `well_performance` | query | ref?, since?, limit? | Well tests. |
 | `gas_lift_network` | query | ref?, since?, limit? | The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through another jacket) -> gas lifted wells. |
 | `link_text` | query | text | Find tags, wells and known plant nicknames ("test sep") in free text and link them to entities. |
+| `recall` | query | ref, include_ended? | What the assistant learned in earlier conversations about an entity and the units it is part of: short dated facts from answers engineers rated useful (or statements they marked to remember). |
 | `plot_trend` | plot | refs, at?, hours_before?, hours_after? | Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded. |
 | `plot_measurements` | plot | ref, quantity?, since?, until? | Chart landed measurements over time on a well, tag, equipment or pipeline (well tests, lab results, wall thickness): a panel per quantity, a line per location. |
 | `plot_xy` | plot | x, y, at?, hours_before?, hours_after? | Chart one PI point against another at the same times (operating envelope), coloured by time, with a straight-line fit and r. |

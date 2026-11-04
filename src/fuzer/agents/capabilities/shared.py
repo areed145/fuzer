@@ -590,6 +590,26 @@ def link_text(text: str) -> list[dict[str, Any]]:
         return _plain(queries.link_text(conn, mcp_server.PACK, text))
 
 
+@capability("all", kind="query")
+def recall(ref: str, include_ended: bool = False) -> dict[str, Any]:
+    """What the assistant learned in earlier conversations about an entity and the units it is part of: short
+    dated facts from answers engineers rated useful (or statements they marked to remember). They are not
+    source records: check them against the data and cite them as `fact:<id>` (learned from a conversation).
+    include_ended adds facts that have since been ended or replaced, with when and by what."""
+    from .. import memory
+
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        scope = memory.units(conn, fid)
+        rows = memory.facts(conn, scope, None if include_ended else "current", 50)
+    keep = ("id", "text", "subject", "entities", "valid_from", "valid_to", "learned_at", "episode", "status",
+            "invalidated_by", "sources")
+    return _plain({"about": fid, "facts": [{k: r[k] for k in keep} for r in rows],
+                   "note": "learned from conversations, not source records"})
+
+
 @capability(kind="query")
 def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Open questions waiting for a person: possible duplicate records ("match") and sources that

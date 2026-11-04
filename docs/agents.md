@@ -42,6 +42,22 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   dates. The Ask page lists your recent conversations and reopens one (`/assistant/conversations`).
   The setting `assistant.retention_days` (0 keeps everything) removes conversations idle that long,
   with their messages, images and answers.
+- **Memory** (`agents/memory.py`, #93) follows Graphiti / Zep (arXiv 2501.13956) in Postgres. Answers in
+  `assistant_answer` are the episodes. When an answer is rated useful (after the rating's response), or an
+  engineer marks a statement "Remember this", one low-effort Claude call extracts at most eight short facts
+  into `assistant_fact`. Each fact has its entities, the period it holds in the plant (`valid_from` /
+  `valid_to`, often open), `learned_at`, and its sources (the answer and the records it cited). The same call
+  sees the current facts on the answer's entities and names the ones each new fact replaces. A replaced fact
+  that shares an entity with the new one is ended (`status` 'ended', `valid_to`, `invalidated_by`), never
+  deleted. Facts that read as reusable lessons also go to the lessons review queue as suggestions. Rating
+  an answer not useful drops the facts learned from it that no engineer has touched.
+- **Recall.** For the entities a question names (`link_text`), the current facts about them and their
+  units go in a "Known from earlier conversations" block. The block is added to the user's turn after the
+  question, so it never changes the history prefix that Claude's thinking blocks are bound to. Answers
+  cite facts as `fact:<id>`, learned from a conversation. `recall(ref)` gives more, and
+  `assistant_answer.recalled` records which facts each question got. The entity page's "What the
+  assistant remembers" lets engineers correct, end or delete facts (`/assistant/facts`). Everyone
+  sees everything for now; group access follows #29.
 - **Quality.** `fuzer eval --agents` asks the questions in `answer_keys/assistant.json` (one per
   domain plus one across domains, on Okan). It scores the facts each answer must name, citations,
   absence of operating instructions, and routing to specialists, with cost and time per answer.

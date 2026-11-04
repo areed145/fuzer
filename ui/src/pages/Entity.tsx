@@ -23,6 +23,7 @@ function EntityMap({ id }: { id: string }) {
 }
 import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard, TrendCard } from "../Trend";
+import { MemoryCard } from "../Memory";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -171,6 +172,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <DowntimeCard id={e.fuzer_id} />
           )}
           {e.kind !== "event" && <Events id={e.fuzer_id} />}
+          {!["timeseries", "document", "document_section", "log_entry"].includes(e.kind) && <MemoryCard id={e.fuzer_id} />}
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
           <HistoryCard id={e.fuzer_id} />
         </>

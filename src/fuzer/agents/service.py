@@ -64,7 +64,7 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
         try:
             out = await ask(question, agent, session, job["trace"], images)
             job.update(status="done", answer=out["answer"], usage=out["usage"], seconds=out["seconds"],
-                       specialists=out["specialists"], tools=out["tools"])
+                       specialists=out["specialists"], tools=out["tools"], recalled=out["recalled"])
         except Exception as e:  # shown on the page; the conversation can carry on
             job.update(status="error", error=f"{type(e).__name__}: {e}")
         _save(job, by)
@@ -90,12 +90,12 @@ def _save(job: dict, by: str) -> None:
         conn.execute(
             """
             insert into assistant_answer (id, conversation_id, question, answer, error, specialists, tools, usage,
-                                          seconds, by_user, images)
-            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing
+                                          seconds, by_user, images, recalled)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing
             """,
             (job["id"], job["conversation_id"], job["question"], job.get("answer"), job.get("error"),
              job.get("specialists") or [], json.dumps(job.get("tools") or []), json.dumps(job.get("usage") or {}),
-             job.get("seconds"), by, job["images"]),
+             job.get("seconds"), by, job["images"], job.get("recalled") or []),
         )
         conn.commit()
 
@@ -108,7 +108,7 @@ def status(job_id: str) -> dict | None:
     steps = [{"agent": t["agent"], "tool": t["tool"], "args": t["args"]} for t in job["trace"] if t["kind"] == "tool"]
     calls = sum(1 for t in job["trace"] if t["kind"] == "model")
     return {k: job.get(k) for k in ("id", "conversation_id", "question", "status", "answer", "error", "usage",
-                                    "seconds", "specialists")} | {"steps": steps, "model_calls": calls}
+                                    "seconds", "specialists", "recalled")} | {"steps": steps, "model_calls": calls}
 
 
 def _saved(job_id: str) -> dict | None:
@@ -121,4 +121,4 @@ def _saved(job_id: str) -> dict | None:
     return {"id": a["id"], "conversation_id": a["conversation_id"], "question": a["question"],
             "status": "error" if a["error"] else "done", "answer": a["answer"], "error": a["error"],
             "usage": a["usage"], "seconds": float(a["seconds"]) if a["seconds"] is not None else None,
-            "specialists": a["specialists"], "steps": steps, "model_calls": (a["usage"] or {}).get("model_calls", 0)}
+            "specialists": a["specialists"], "recalled": a["recalled"], "steps": steps, "model_calls": (a["usage"] or {}).get("model_calls", 0)}
