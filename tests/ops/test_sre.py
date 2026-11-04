@@ -50,6 +50,49 @@ def test_daily_checks_find_the_slow_stories(conn, data):
     assert sre.drifts(conn, PACK, datetime(2024, 7, 1, 6), datetime(2024, 7, 1, 12), src) == []  # once a day
 
 
+class Counting(timeseries.SyntheticProvider):
+    """Counts the series read and the values in them, as a historian would bill them."""
+    reads = read_values = 0
+
+    def series(self, p, start, end, step):
+        out = list(super().series(p, start, end, step))
+        self.reads, self.read_values = self.reads + 1, self.read_values + len(out)
+        return out
+
+
+def test_instruments_read_their_baseline_once_a_day(conn, data, monkeypatch):
+    """#203: a point's usual spread is read from the 2 days before the window's day on its first window of
+    the day and kept; later windows read only themselves. It finds what reading the baseline every window
+    (ending at the window) found, and a fault that starts during the day stays a fault (a baseline read up to
+    each window soaks it up)."""
+    conn.execute("delete from point_baseline")  # another test's scan may have kept the day's already
+    day = datetime(2024, 11, 5)
+    windows = [(day + timedelta(hours=h), day + timedelta(hours=h + 6)) for h in (0, 6, 12, 18)]
+    pts = len([p for p in sre._points(conn) if not any(x.search(p["point"]) or x.search(p["description"] or "")
+                                                       for x in sre._set_by_hand(PACK))])
+    src, reads, new = Counting(data), [], []
+    for a, b in windows:
+        r0 = src.reads
+        new += sre.instruments(conn, PACK, a, b, src)
+        reads.append(src.reads - r0)
+    modes = reads[1] - pts  # the run-signal reads every window makes for its units
+    assert reads[0] == modes + 2 * pts and reads[1:] == [modes + pts] * 3, (reads, pts)
+    assert conn.execute("select count(*) as n from point_baseline where day = %s", (day.date(),)).fetchone()["n"] == pts
+
+    def every_window(conn, src, pts, at, step, days):  # as before #203
+        from fuzer.analysis import signals
+        return {p["id"]: signals.usual_spread(signals._read(src, p, at - timedelta(days=days), at - timedelta(minutes=step),
+                                                            step), step) for p in pts}
+
+    monkeypatch.setattr(sre, "baselines", every_window)
+    old = [d for a, b in windows for d in sre.instruments(conn, PACK, a, b, timeseries.SyntheticProvider(data))]
+    found = lambda ds: {(d["point"], d["key"]) for d in ds}
+    assert found(new) <= found(old) and len(found(new)) >= 0.99 * len(found(old))  # all but a stretch or two at 60 min
+    hunting = [d["start"].hour for d in new if d["point"] == "OK_GGCP:20-LT-2001.PV" and d["key"] == "instrument:noisy"]
+    old_hunting = [d["start"].hour for d in old if d["point"] == "OK_GGCP:20-LT-2001.PV" and d["key"] == "instrument:noisy"]
+    assert max(hunting) >= 18 and max(old_hunting) < 6  # read up to each window, the hunting became its own usual
+
+
 def test_scan_carries_on_from_the_last_run(conn):
     first = sre.scan(conn, PACK, "2024-11-05T00:00", "2024-11-05T12:00")
     assert first["windows"] == 2 and first["new"] > 0

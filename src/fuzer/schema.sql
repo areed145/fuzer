@@ -843,6 +843,17 @@ create table if not exists detection (
 create index if not exists detection_of on detection (point_id, detector, key, start);
 create index if not exists detection_recent on detection (start desc);
 
+-- Each point's usual step-to-step spread over the days before `day` (sre.baselines): the SRE's instrument
+-- checks read it from the historian once a day, not every window (#203). usual null: too few readings.
+create table if not exists point_baseline (
+    point_id    text primary key,
+    day         date not null,
+    step        integer not null,               -- minutes between the values it was worked out from
+    days        integer not null,               -- how many days before `day` it covers
+    usual       double precision,
+    computed_at timestamptz not null default now()
+);
+
 -- Detections grouped by time and plant topology (#96b): one upset per cause, its earliest detection the
 -- likely first cause. Regrouped after each scan; an upset keeps its id (and status, once a person sets it)
 -- while its detections stay together.

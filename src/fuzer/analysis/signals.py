@@ -65,23 +65,37 @@ def _span(times: list[datetime], i: int, j: int, step: int) -> dict:
             "minutes": int(j - i) * step}
 
 
+def _usual(x: np.ndarray, w: int) -> float:
+    u = float(np.nanmedian(rolling_spread(x, w)))
+    return u if np.isfinite(u) and u > 0 else max(spread(np.diff(x)), 1e-9)
+
+
+def usual_spread(baseline: np.ndarray | None, step: int) -> float | None:
+    """A point's usual step-to-step spread over `baseline` (its readings before a window), the yardstick
+    health's stuck and noisy checks use; None when there are too few readings to say."""
+    w = max(6, 60 // step)
+    if baseline is None or len(baseline) <= 3 * w:
+        return None
+    return _usual(np.asarray(baseline, float), w)
+
+
 def health(times: list[datetime], v: np.ndarray, step: int, baseline: np.ndarray | None = None,
            running: np.ndarray | None = None, lo: float | None = None, hi: float | None = None,
-           th: dict | None = None) -> list[dict]:
+           th: dict | None = None, usual: float | None = None) -> list[dict]:
     """Frozen, stuck, noisy and out-of-range stretches of one reading: [{check, start, end, minutes,
-    value, expected}]. `baseline` is the same point before the window (else the window itself sets
-    what's usual); `running` masks the steps its unit runs; lo / hi its instrument range; `th` the
-    thresholds (thresholds(conn), else the defaults)."""
+    value, expected}]. `baseline` is the same point before the window, or `usual` its spread worked out
+    already (usual_spread); with neither the window itself sets what's usual. `running` masks the steps
+    its unit runs; lo / hi its instrument range; `th` the thresholds (thresholds(conn), else the defaults)."""
     th = th or DEFAULTS
     v = np.asarray(v, float)
     run = np.ones(len(v), bool) if running is None else np.asarray(running, bool)
     out = []
     w = max(6, 60 // step)
     s = rolling_spread(v, w)
-    base = np.asarray(baseline, float) if baseline is not None and len(baseline) > 3 * w else v
-    usual = float(np.nanmedian(rolling_spread(base, w)))
-    if not np.isfinite(usual) or usual <= 0:
-        usual = max(spread(np.diff(base)), 1e-9)
+    if usual is None:
+        usual = usual_spread(baseline, step)
+    if usual is None:
+        usual = _usual(v, w)
 
     if lo is not None or hi is not None:
         past = ((v <= lo) if lo is not None else False) | ((v >= hi) if hi is not None else False)
