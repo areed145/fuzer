@@ -311,6 +311,18 @@ def work_person(name: str, p: WorkPerson, conn=Depends(get_conn)):
     return work.set_person(conn, name, p.roles, p.by)
 
 
+@router.delete("/work/people/{name}")
+def work_person_remove(name: str, by: str = work.SYSTEM, conn=Depends(get_conn)):
+    """Take a person off the roster; what they had claimed goes back to its role's queue."""
+    return work.remove_person(conn, name, by)
+
+
+@router.get("/work/roles/summary")
+def work_role_summary(conn=Depends(get_conn)):
+    """Each person role: the processes with steps for it, who holds it and what waits in its queue."""
+    return work.role_summary(conn)
+
+
 @router.post("/work/tick")
 def work_tick(conn=Depends(get_conn)):
     """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes)."""

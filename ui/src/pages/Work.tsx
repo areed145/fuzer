@@ -66,6 +66,7 @@ export function WorkPage({ query }: { query: URLSearchParams }) {
         <div className="status">Type your name to see your work.</div>
       ) : (
         <>
+          {people.data && !me?.roles.length && <NoRoles person={person} known={!!me} />}
           <div className="work-toolbar">
             <div className="tabs">
               {(["mine", "queue"] as Tab[]).map((t) => {
@@ -141,6 +142,23 @@ export function WorkPage({ query }: { query: URLSearchParams }) {
       )}
       {toast && <div className="toast" onClick={() => setToast(undefined)}>{toast}</div>}
     </section>
+  );
+}
+
+/** A person with no roles sees no queue (#202): say so, and what's waiting for each role. */
+function NoRoles({ person, known }: { person: string; known: boolean }) {
+  const roles = useAsync(() => api.workRoleSummary(), []);
+  const waiting = (roles.data ?? []).filter((r) => r.waiting > 0);
+  return (
+    <div className="card small">
+      <b>{person}</b> {known ? "has no roles" : "isn't on the people list yet"}, so no role queue shows here.{" "}
+      <a href={href("/settings")}>Add {known ? "roles" : `${person} and their roles`} in Settings › People</a>.
+      {waiting.length > 0 && (
+        <span className="muted">
+          {" "}Waiting now: {waiting.map((r) => `${r.waiting} for ${r.role.replace(/_/g, " ")}`).join(", ")}.
+        </span>
+      )}
+    </div>
   );
 }
 

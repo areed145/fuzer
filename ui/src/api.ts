@@ -519,6 +519,9 @@ export interface WorkCounts {
   due_soon: number;
 }
 
+/** A person role (#202): the processes with steps for it, who holds it and its unclaimed queue. */
+export type WorkRoleSummary = { role: string; processes: string[]; people: string[]; waiting: number };
+
 /** A row in the inbox: a process step (task_id set) or a work item without a process. */
 export interface WorkRow {
   task_id: number | null;
@@ -891,6 +894,12 @@ export const api = {
     request<unknown>("POST", `/settings/${encodeURIComponent(key)}/reset`, undefined, { scope, project, by, reason }),
   settingHistory: (key: string) => request<SettingChange[]>("GET", `/settings/${encodeURIComponent(key)}/history`),
   workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
+  setWorkPerson: (name: string, roles: string[], by: string) =>
+    request<{ name: string; roles: string[] }>("PUT", `/work/people/${encodeURIComponent(name)}`, undefined, { roles, by }),
+  removeWorkPerson: (name: string, by: string) =>
+    request<{ name: string; released_tasks: number[]; released_items: number[] }>(
+      "DELETE", `/work/people/${encodeURIComponent(name)}`, { by }),
+  workRoleSummary: () => request<WorkRoleSummary[]>("GET", "/work/roles/summary"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
