@@ -84,7 +84,9 @@ def datasets(conn, status: tuple[str, ...] | None = None) -> dict[str, dict]:
     """Datasets by name, each with its system's name (`source`) and its connection (type, config)."""
     return {r["name"]: dict(r) for r in conn.execute(
         """
-        select d.*, s.name as source, c.type as connection_type, c.name as connection_name, c.config as connection_config,
+        select d.*, s.name as source, s.decimal as system_decimal, s.date_format as system_date_format,
+               s.timezone as system_timezone, s.encoding as system_encoding, s.owner as system_owner,
+               c.type as connection_type, c.name as connection_name, c.config as connection_config,
                c.secrets as connection_secrets, c.enabled as connection_enabled
         from source_dataset d join source_system s on s.id = d.system_id
         left join source_connection c on c.id = d.connection_id

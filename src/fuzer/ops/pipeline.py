@@ -21,7 +21,7 @@ from ..graph import (
     spatial,
 )
 from ..graph.resolve import resolve, resolve_keyed, retire_unused, sync_labels
-from ..sources import curves, llm_docs, llm_pids, mappings
+from ..sources import curves, llm_docs, llm_pids, mappings, quality, rules
 from ..sources.extract import extract, link_part_numbers
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
@@ -58,6 +58,7 @@ def rebuild(conn, pack: Pack) -> dict:
     # them instead of sorting on disk (the server default is a few MB).
     conn.execute(f"set local work_mem = '{settings.get(conn, 'db.work_mem')}'")
     lap("wait_for_lock")
+    pack = rules.apply(conn, pack)  # survivorship and matching rules from the source catalog (#225)
 
     cands, extra, pid_sheets = [], [], {}
     text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
@@ -104,6 +105,7 @@ def rebuild(conn, pack: Pack) -> dict:
     lap("taxonomy")
 
     stats |= edges.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
+    coverage = stats.pop("coverage")
     stats["maintenance_event_links"] = edges.link_maintenance_to_events(conn)
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
@@ -128,6 +130,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["incidents"] = len(i_cands)
     retire_unused(conn, set(assigned.values()) | set(d_assigned.values()) | set(i_assigned.values()))
     lap("incidents")
+    stats["sources"] = len(quality.after_rebuild(conn, coverage))  # coverage and match statistics per source
     stats |= lessons.suggest(conn, pack.classification.get("taxonomy", "iso14224"))
     stats["knowledge_changes"] = {k: v for k, v in knowledge.build(conn).items() if k != "rows"}
     conn.execute(

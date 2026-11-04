@@ -227,10 +227,14 @@ def open_(row: dict) -> Type:
 
 
 def connector(d: dict, data_dir) -> object | None:
-    """The reader for a catalog dataset (as catalog.datasets returns it) through its connection."""
+    """The reader for a catalog dataset (as catalog.datasets returns it) through its connection; a CSV is read
+    in its system's encoding."""
     row = {"type": d.get("connection_type") or "folder", "config": d.get("connection_config") or {},
            "secrets": d.get("connection_secrets") or {}}
-    return open_(row).connector(d, Path(data_dir))
+    c = open_(row).connector(d, Path(data_dir))
+    if c is not None and getattr(c, "kind", None) == "csv" and d.get("system_encoding"):
+        c.encoding = d["system_encoding"]
+    return c
 
 
 def test(conn, connection_id: int, data_dir, rows: int = 5) -> dict:
