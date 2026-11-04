@@ -27,6 +27,21 @@ from ..sources.extract import extract, link_part_numbers
 REBUILD_LOCK = 0x46555A  # "FUZ"
 
 
+def readings_newer(conn) -> bool:
+    """Claude has stored readings since the last rebuild (or nothing has been built yet).
+
+    The readers rebuild after storing, but a read that was stopped, failed part way or ran with
+    --no-rebuild leaves its readings cached and unused; later starts see nothing new to read and
+    no changed exports, so without this check they would never rebuild with them."""
+    row = conn.execute(
+        """
+        select (select max(created_at) from llm_extraction) as read,
+               (select updated_at from register_summary where name = 'ontology') as built
+        """
+    ).fetchone()
+    return row["read"] is not None and (row["built"] is None or row["read"] > row["built"])
+
+
 def rebuild(conn, pack: Pack) -> dict:
     timings = {}
     t = time.perf_counter()

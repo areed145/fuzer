@@ -93,3 +93,55 @@ def test_nothing_configured_means_the_okan_demo(monkeypatch):
     except SystemExit:
         pass
     assert seen == ["okan"]
+
+
+def test_rebuilds_when_readings_are_newer_than_the_register(monkeypatch, capsys):
+    """A Claude read that stopped before its rebuild is picked up on the next start."""
+    from fuzer.ops import pipeline
+
+    os.environ.pop("FUZER_DATABASE_URL", None)
+    os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
+    folder = Path(tempfile.mkdtemp(prefix="fzup")) / "plant"
+    monkeypatch.setenv("FUZER_DATA_DIR", str(folder))
+    up.data_folder(fresh=False)
+    with db.connect() as conn:
+        db.reset(conn)
+        up.load(conn, PACK, folder, fresh=False)
+        assert not pipeline.readings_newer(conn)
+        conn.execute("insert into llm_extraction (source, source_key, text_hash, model, prompt_version, result) "
+                     "values ('oplog', 'LOG-1', 'h', 'claude-sonnet-5-5', 'v1', '{}')")
+        conn.commit()
+        assert pipeline.readings_newer(conn)
+        capsys.readouterr()
+        up.load(conn, PACK, folder, fresh=False)  # no export changed, but the reading is unused
+        out = capsys.readouterr().out
+        assert "0 changed" in out and "Building the register" in out
+        assert not pipeline.readings_newer(conn)
+
+
+def test_up_starts_and_stops_dagster(monkeypatch, tmp_path):
+    started, stopped = [], []
+
+    class Proc:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            stopped.append(True)
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(cmd, **kw):
+        started.append(cmd)
+        return Proc()
+
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path / "dg"))
+    monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://x/y")
+    monkeypatch.setattr(up.subprocess, "Popen", popen)
+    proc = up.start_jobs(3123)
+    assert started[0][-5:] == ["dev", "-m", "fuzer.ops.jobs", "-p", "3123"]
+    assert (tmp_path / "dg" / "dagster.log").exists()
+    up.stop_jobs(proc)
+    assert stopped == [True]
+    up.stop_jobs(None)  # --no-jobs
