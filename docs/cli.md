@@ -196,6 +196,7 @@ score search, document links, section failure modes and log reading
 |---|---|
 | `--keys` | folder of answer-key JSON files (default: answer_keys in the exports folder) |
 | `--agents` | also ask the operations assistant the questions in assistant.json (Claude; costs money) |
+| `--memory` | score the assistant's memory with assistant_memory.json: learn from teaching answers, then ask later questions (Claude; costs money; removes what it stored) |
 | `--domain` | with --agents: only the questions in this domain (repeatable), e.g. --domain charts |
 | `--out` | with --agents: also write the full results (answers) to this JSON file |
 | `--record` | with --agents or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |

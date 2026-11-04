@@ -132,10 +132,15 @@ def _period(f: dict) -> str:
 
 
 def entities_of(conn, pack: Pack, answer: dict) -> list[str]:
-    """The entities an answer is about: the Fuzer ids it names and the refs its tools were called with."""
+    """The entities an answer is about: the Fuzer ids it names, the tags and wells in its question and answer, and
+    the refs its tools were called with."""
     from ..graph import queries
 
     ids = list(dict.fromkeys(FUZER_ID.findall(answer.get("answer") or "")))
+    text = f"{answer.get('question') or ''}\n{answer.get('answer') or ''}"
+    for m in queries.link_text(conn, pack, text):
+        if m["fuzer_id"] and m["fuzer_id"] not in ids:
+            ids.append(m["fuzer_id"])
     for t in answer.get("tools") or []:
         ref = (t.get("args") or {}).get("ref")
         if isinstance(ref, str) and ref:
