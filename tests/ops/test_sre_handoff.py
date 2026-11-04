@@ -105,6 +105,10 @@ def test_board_ranks_everything_once(conn, handed_off):
     assert board._links(conn, keys) == [(f"incident:{inc['fuzer_id']}", f"upset:{trip['id']}")]
     valued = [c["effective_usd"] for c in page["cards"] if c["effective_usd"] is not None]
     assert valued == sorted(valued, reverse=True)
+    wo = next(c for c in board.cards(conn, kind="work_order", per_page=200)["cards"]
+              if c["text"] and (w := c["text"].split()[-1]).lower() not in c["title"].lower() and len(w) > 3)
+    word = wo["text"].split()[-1]  # in the description only, not the title
+    assert wo["key"] in {c["key"] for c in board.cards(conn, text=word, per_page=200)["cards"]}
 
     low = page["cards"][len(valued) - 1]
     board.pin(conn, low["records"][-1], "bob", "the ops lead wants this first", rank=1)
