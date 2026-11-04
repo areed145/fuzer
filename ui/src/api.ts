@@ -453,6 +453,30 @@ export interface AssistantAnswer {
   useful: number;
 }
 
+export interface AssistantConversation {
+  id: string;
+  title: string;
+  by_user: string;
+  created_at: string;
+  updated_at: string;
+  turns: number;
+}
+
+export interface SavedTurn {
+  id: string;
+  question: string;
+  answer: string | null;
+  error: string | null;
+  specialists: string[];
+  tools: { agent: string; tool: string; args?: Record<string, unknown> }[];
+  usage: AssistantJob["usage"];
+  seconds: number | null;
+  images: string[];
+  created_at: string;
+  ratings: number;
+  useful: number;
+}
+
 export interface Decision {
   decision: "accept" | "reject" | "choose";
   value?: unknown;
@@ -1041,6 +1065,11 @@ export const api = {
   figure: (id: string) => request<FigureData>("GET", `/figures/${encodeURIComponent(id)}`),
   assistantJob: (id: string) => request<AssistantJob>("GET", `/assistant/jobs/${encodeURIComponent(id)}`),
   assistantAnswers: () => request<AssistantAnswer[]>("GET", "/assistant/answers", { limit: 20 }),
+  conversations: (by?: string) => request<AssistantConversation[]>("GET", "/assistant/conversations", { by, limit: 15 }),
+  conversation: (id: string) =>
+    request<AssistantConversation & { turns: SavedTurn[] }>("GET", `/assistant/conversations/${encodeURIComponent(id)}`),
+  deleteConversation: (id: string) =>
+    request<{ deleted: string }>("DELETE", `/assistant/conversations/${encodeURIComponent(id)}`),
   map: () => request<GeoCollection>("GET", "/map"),
   entityMap: (id: string) => request<GeoCollection>("GET", `/entities/${encodeURIComponent(id)}/map`),
   entityDrawings: (id: string) =>

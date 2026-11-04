@@ -14,6 +14,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.specialist_model` | str | `` |  | Claude model for the specialists (empty: the orchestrator's). Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Replaces `FUZER_AGENT_FALLBACKS`. |
+| `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
 
 ## Schedule
 

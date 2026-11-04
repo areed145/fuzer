@@ -299,6 +299,37 @@ Questions to the operations assistant and its answers, kept so engineers can rat
 | `by_user` | text |  |
 | `created_at` | timestamptz |  |
 
+## `assistant_conversation`
+
+The assistant's conversations (#93): each message as MAF wrote it, in order. `json`, not `jsonb`, so a message comes back exactly as stored (Claude checks its thinking blocks byte for byte). Images are kept once per conversation and referenced from the messages.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | text |  |
+| `by_user` | text |  |
+| `title` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
+## `assistant_message`
+
+| Column | Type | Note |
+|---|---|---|
+| `conversation_id` | text |  |
+| `seq` | int |  |
+| `message` | json |  |
+| `created_at` | timestamptz |  |
+
+## `assistant_image`
+
+| Column | Type | Note |
+|---|---|---|
+| `conversation_id` | text |  |
+| `sha256` | text |  |
+| `media_type` | text |  |
+| `data` | bytea |  |
+| `created_at` | timestamptz |  |
+
 ## `measurement`
 
 Sparse, manual measurements landed from sources (well tests, lab samples, inspection thickness readings), unlike historian values, which stay in PI / ADX. Rebuilt from source records with the graph; values are in the units of units.yaml.
