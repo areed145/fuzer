@@ -10,7 +10,7 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 21 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 22 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 16 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
@@ -18,9 +18,10 @@ flowchart LR
   c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 12 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
-  c_api["API<br><small>fuzer.api, 12 modules</small>"]
+  c_api["API<br><small>fuzer.api, 13 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 2 modules</small>"]
   c_core["Core<br><small>fuzer.core, 14 modules</small>"]
+  c_workflow --> c_sources
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -164,6 +165,7 @@ flowchart TD
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
+| `source_health` | `*/30 * * * *` | Source health: stale data, failed or held loads, failing checks -> work items and alerts. |
 
 ## Each component
 
@@ -171,8 +173,8 @@ flowchart TD
 
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
-- **Uses:** core
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `alerts`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
+- **Uses:** core, workflow
 - **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_system` ([schema](schema.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
@@ -231,7 +233,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** maintenance 48, orchestrator 18, production 53, troubleshooter 68 ([capabilities](capabilities.md))
+- **Tools:** maintenance 50, orchestrator 20, production 55, troubleshooter 70 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
@@ -248,7 +250,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `jobs`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `catalog`, `deps`, `entities`, `graph`, `home`, `jobs`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assertion`, `feedback`, `golden`, `pinned_link`, `review_item`, `source_dataset`, `value_ranking` ([schema](schema.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)

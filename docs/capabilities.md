@@ -4,12 +4,12 @@ Generated from the capability registry (`src/fuzer/agents/capabilities/`, #133);
 
 | Agent | Tools |
 |---|---|
-| orchestrator | 18 |
-| troubleshooter | 68 |
-| production | 53 |
-| maintenance | 48 |
+| orchestrator | 20 |
+| troubleshooter | 70 |
+| production | 55 |
+| maintenance | 50 |
 
-## Shared (48)
+## Shared (50)
 
 Used by every agent or by several specialists.
 
@@ -63,6 +63,8 @@ Used by every agent or by several specialists.
 | `plot_cooler_fouling` | plot | ref, days? | Chart a cooler's daily outlet temperature against its clean baseline and its high limit. |
 | `equipment_curves` | calc | ref | The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening) and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment item or tag, and where they came from (vendor export or an accepted datasheet reading). |
 | `look_at_figure` | query | figure | See a chart you made, as an image. |
+| `source_health` | query | dataset? | How each source dataset is doing (#225): state (ok, stale, held, failed, checks failing, profile drift), when it last loaded against how often it should, failing checks, link coverage and open reviews of its source. |
+| `why_value` | query | ref, field | Why an entity's field says what it says (#225): the rule that chose the value, and each source record that states one, with the mapping version that read it and the load that delivered it. |
 
 ## Orchestrator (1)
 

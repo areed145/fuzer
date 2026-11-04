@@ -804,6 +804,97 @@ export interface SourceSuggestion {
   claude: { usd?: number } | null;
 }
 
+// ---- the source catalog (#225)
+export type Json = Record<string, unknown>;
+export interface SourceHealth {
+  dataset: string; system: string; status: string; state: string; problems: string[]; owner: string | null;
+  last_loaded: string | null; age_hours: number | null; expected_hours: number | null; rows: number | null;
+  row_trend: number[]; failing_checks: { kind: string; column: string | null; value: number | null; blocking: boolean }[];
+  profile_drift: { column: string; change: string }[]; coverage_pct: number | null; shared_pct: number | null;
+  open_reviews: Record<string, number>;
+}
+export interface CatalogConnection {
+  id: number; name: string; type: string; enabled: boolean; config: Json;
+  secrets: Record<string, { ref: string; resolves: boolean }>; last_tested_at: string | null; last_test: ConnectionTest | null;
+}
+export interface CatalogDatasetRow {
+  name: string; record_type: string | null; reader: string | null; status: string; load_mode: string; rows: number | null;
+  loaded_at: string | null; connection: string | null; health: SourceHealth | null;
+}
+export interface CatalogSystem {
+  id: number; name: string; kind: string | null; description: string | null; owner: string | null; steward: string | null;
+  timezone: string | null; encoding: string | null; decimal: string | null; date_format: string | null; rank: number | null;
+  enabled: boolean; notes: string | null; connections: CatalogConnection[]; datasets: CatalogDatasetRow[];
+}
+export interface Catalog {
+  systems: CatalogSystem[];
+  types: { connections: Record<string, { config: Json; secrets: string[] }>; load_modes: string[]; drift_policies: string[];
+           statuses: string[] };
+  check_kinds: Record<string, string>;
+}
+export interface ConnectionTest {
+  ok: boolean; steps: { step: string; ok: boolean; ms: number; detail: unknown }[]; secrets?: Record<string, boolean>;
+}
+export interface MappingVersion {
+  id: number; source: string; record_type: string; yaml: string; status: string; author: string | null; note: string | null;
+  parent_id: number | null; created_at: string; approved_by: string | null; approved_at: string | null; current: boolean;
+}
+export interface SourceRun {
+  id: number; trigger: string; status: string; started_at: string; finished_at: string | null; connector: string | null;
+  rows_read: number | null; inserted: number | null; updated: number | null; unchanged: number | null; removed: number | null;
+  error: string | null; detail: Json | null; seconds: number | null;
+}
+export interface SourceProfile {
+  id: number; taken_at: string; rows: number; sampled: boolean;
+  columns: Record<string, { type: string | null; fill_pct: number; distinct: number | string; top: [string, number][];
+                             samples: string[] }>;
+  key: { duplicates: number; empty: number; examples: string[] } | null;
+  drift: { column: string; change: string; was?: unknown; now?: unknown; values?: string[] }[];
+}
+export interface SourceCheck {
+  id: number; kind: string; column_name: string | null; params: Json; blocking: boolean; enabled: boolean; note: string | null;
+  last_ok: boolean | null; last_value: number | null; last_detail: Json | null; last_at: string | null;
+}
+export interface AuditRow {
+  id: number; at: string; by: string; object: string; name: string | null; action: string; old: Json | null; new: Json | null;
+  reason: string | null;
+}
+export interface DatasetDetail {
+  dataset: Json & { name: string; source: string; status: string; load_mode: string; drift_policy: string;
+                    schedule: string | null; expected_hours: number | null; owner: string | null; key: string[] | null;
+                    location: string | null; connector: string | null; watermark: string | null; reader: string | null;
+                    notes: string | null; record_type: string | null; connection_id: number | null };
+  connection: (CatalogConnection & { system: string }) | null;
+  secrets: Record<string, boolean>;
+  mappings: MappingVersion[];
+  runs: SourceRun[];
+  profiles: SourceProfile[];
+  checks: SourceCheck[];
+  matching: { id: number; built_at: string; source: string; stats: Json }[];
+  health: SourceHealth | null;
+  history: AuditRow[];
+  retire_preview: { records: number; entities_only_here: number; record_types?: string[] };
+}
+export interface ImpactResult {
+  mapping: string; records: number; sampled: boolean; current_version: number | null;
+  entities: { added: number; removed: number; examples: Json[] };
+  links: { added: number; removed: number; examples: Json[] };
+  fields: { changed: number; examples: Json[] };
+  golden_flips: { count: number; examples: Json[] };
+  errors?: { record: string; error: string }[];
+}
+export interface RulesList {
+  ranks: { name: string; rank: number | null; enabled: boolean }[];
+  rules: { id: number; scope: string; name: string; config: Json; updated_by: string; updated_at: string }[];
+}
+export interface WhyValue {
+  entity: string; field: string; value: unknown; source: string; rule: string; priority: string[] | null;
+  review_on_conflict: boolean;
+  assertions: { source: string; record: string; value: unknown; wins: boolean; record_last_changed: string | null;
+                mapping_version: { id: number; author: string | null; approved_at: string | null } | null;
+                run: { id: number; dataset: string; trigger: string; finished_at: string } | null }[];
+}
+
 export interface SourceLoad {
   loaded: string[];
   unchanged: string[];
@@ -1011,6 +1102,48 @@ export const api = {
     request<SourceSuggestion>("POST", `/sources/${encodeURIComponent(name)}/suggest`, undefined, { claude }),
   loadSource: (name: string, yaml: string | null, by: string) =>
     request<SourceLoad>("POST", `/sources/${encodeURIComponent(name)}/load`, undefined, { yaml, by }),
+  catalog: () => request<Catalog>("GET", "/sources/catalog"),
+  dataset: (name: string) => request<DatasetDetail>("GET", `/sources/datasets/${encodeURIComponent(name)}`),
+  editDataset: (name: string, values: Json, by: string, reason?: string) =>
+    request<Json>("PATCH", `/sources/datasets/${encodeURIComponent(name)}`, undefined, { values, by, reason }),
+  datasetAction: (name: string, action: "pause" | "resume", by: string, reason?: string) =>
+    request<Json>("POST", `/sources/datasets/${encodeURIComponent(name)}/${action}`, undefined, { by, reason }),
+  retireDataset: (name: string, retract: boolean, by: string, reason?: string) =>
+    request<Json>("POST", `/sources/datasets/${encodeURIComponent(name)}/retire`, undefined, { retract, by, reason }),
+  runDataset: (name: string, full = false) =>
+    request<SourceLoad & { paused: string[]; profile_drift?: Json }>("POST", `/sources/datasets/${encodeURIComponent(name)}/run`, { full: full ? "true" : undefined }),
+  profileDataset: (name: string) => request<Json>("POST", `/sources/datasets/${encodeURIComponent(name)}/profile`),
+  editSystem: (name: string, values: Json, by: string, reason?: string) =>
+    request<Json>("PATCH", `/sources/systems/${encodeURIComponent(name)}`, undefined, { values, by, reason }),
+  addSystem: (name: string, values: Json, by: string) =>
+    request<Json>("POST", "/sources/systems", undefined, { name, values, by }),
+  addDataset: (name: string, system: string, values: Json, by: string) =>
+    request<Json>("POST", "/sources/datasets", undefined, { name, system, values, by }),
+  addConnection: (system: string, body: { name: string; type: string; config: Json; secrets: Record<string, string>; by: string }) =>
+    request<Json>("POST", `/sources/systems/${encodeURIComponent(system)}/connections`, undefined, body),
+  editConnection: (id: number, values: Json, by: string) =>
+    request<Json>("PATCH", `/sources/connections/${id}`, undefined, { values, by }),
+  testConnection: (id: number) => request<ConnectionTest>("POST", `/sources/connections/${id}/test`),
+  discover: (id: number) => request<{ found: string[]; uncovered: string[] }>("GET", `/sources/connections/${id}/discover`),
+  proposeMapping: (yaml: string, by: string, note?: string) =>
+    request<MappingVersion>("POST", "/sources/mappings", undefined, { yaml, by, note }),
+  approveMapping: (id: number, by: string) => request<Json>("POST", `/sources/mappings/${id}/approve`, undefined, { by }),
+  rollbackMapping: (id: number, by: string, reason?: string) =>
+    request<Json>("POST", `/sources/mappings/${id}/rollback`, undefined, { by, reason }),
+  impact: (body: { yaml?: string; version_id?: number; limit?: number }) => request<ImpactResult>("POST", "/sources/impact", undefined, body),
+  addCheck: (name: string, body: { kind: string; column?: string | null; params: Json; blocking: boolean; by: string }) =>
+    request<Json>("POST", `/sources/datasets/${encodeURIComponent(name)}/checks`, undefined, body),
+  removeCheck: (id: number, by: string) => request<Json>("DELETE", `/sources/checks/${id}`, { by }),
+  rules: () => request<RulesList>("GET", "/sources/rules"),
+  setRule: (scope: string, name: string, config: Json, by: string) =>
+    request<Json>("PUT", `/sources/rules/${scope}/${encodeURIComponent(name)}`, undefined, { config, by }),
+  deleteRule: (scope: string, name: string, by: string) =>
+    request<Json>("DELETE", `/sources/rules/${scope}/${encodeURIComponent(name)}`, { by }),
+  setRank: (system: string, rank: number | null, by: string) =>
+    request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
+  rematch: () => request<Json>("POST", "/sources/rematch"),
+  sourceHealth: () => request<SourceHealth[]>("GET", "/sources/health"),
+  why: (id: string, field: string) => request<WhyValue>("GET", `/sources/why/${encodeURIComponent(id)}/${encodeURIComponent(field)}`),
   settings: (project?: string) =>
     request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
   setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>

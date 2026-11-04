@@ -204,8 +204,31 @@ function LinkedDrawings({ id }: { id: string }) {
   return <DrawingViewer key={sheet.id} id={sheet.id} highlight={d.data!.highlight} title={title} compact />;
 }
 
+/** Why a value says what it says (#225): the rule, and each record that states one with its mapping and load. */
+function Why({ id, field }: { id: string; field: string }) {
+  const w = useAsync(() => api.why(id, field), [id, field]);
+  if (!w.data) return <Status loading={w.loading} error={w.error} />;
+  return (
+    <div className="small why">
+      <div className="muted">
+        Chosen by {w.data.rule === "review" ? "a reviewer" : `priority ${(w.data.priority ?? []).join(" > ")}`}
+        {w.data.review_on_conflict ? "; disagreements go to review" : ""}.
+      </div>
+      {w.data.assertions.map((a, i) => (
+        <div key={i}>
+          <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <span className="badge ok">chosen</span>}{" "}
+          <code className="muted">{a.record}</code>
+          {a.mapping_version && <span className="muted"> · mapping v{a.mapping_version.id}</span>}
+          {a.run && <span className="muted"> · loaded by run {a.run.id} ({a.run.dataset}, {a.run.finished_at.slice(0, 16).replace("T", " ")})</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Fields({ e }: { e: EntityDetail }) {
   const fields = Object.keys(e.golden).sort();
+  const [why, setWhy] = useState<string | null>(null);
   return (
     <section className="card">
       <h2>Values</h2>
@@ -224,7 +247,12 @@ function Fields({ e }: { e: EntityDetail }) {
                     <span>{fmt(g.value)}</span>
                     <SourceBadge source={g.source} />
                     {g.rule === "review" && <span className="badge ok">reviewed</span>}
+                    {g.rule !== "derived" && (
+                      <button className="link small" onClick={() => setWhy(why === f ? null : f)}
+                        title="the records, mapping versions and loads behind this value">why?</button>
+                    )}
                   </div>
+                  {why === f && <Why id={e.fuzer_id} field={f} />}
                   {others.length > 0 ? (
                     <ul className="others">
                       {others.map((v, i) => (

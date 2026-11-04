@@ -779,3 +779,33 @@ def look_at_figure(figure: str) -> list[Any]:
         return [json.dumps({"error": f"no figure {figure!r}"})]
     return [json.dumps(_plain({"figure": row["id"], "title": row["title"], "summary": row["summary"]})),
             Image(data=plots.png(row["spec"]), format="png")]
+
+
+@capability("all", kind="query")
+def source_health(dataset: str | None = None) -> list[dict[str, Any]]:
+    """How each source dataset is doing (#225): state (ok, stale, held, failed, checks failing, profile drift),
+    when it last loaded against how often it should, failing checks, link coverage and open reviews of its
+    source. Check this before an answer rests on data that may be stale or broken.
+
+    dataset optionally limits it to one (sap_equipment, pi_points, oplogs, ...).
+    """
+    from ...sources import quality
+
+    with db.connect() as conn:
+        return quality.health(conn, dataset)
+
+
+@capability("all", kind="query")
+def why_value(ref: str, field: str) -> dict[str, Any]:
+    """Why an entity's field says what it says (#225): the rule that chose the value, and each source record
+    that states one, with the mapping version that read it and the load that delivered it."""
+    from ...sources import impact
+
+    with db.connect() as conn:
+        fid, err = _resolve(conn, ref)
+        if err:
+            return err
+        try:
+            return impact.why(conn, mcp_server.PACK, fid, field)
+        except impact.ImpactError as e:
+            return {"error": str(e)}

@@ -266,6 +266,7 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
             _run(conn, {"d": d, "status": "failed", "connector": c.kind, "fingerprint": fp, "error": f"{type(e).__name__}: {e}"},
                  used, trigger)
         conn.commit()
+        _alert(conn, [d["name"] for d, *_ in plan])
         raise
     for r in [*runs, *counts.values()]:
         run_id = _run(conn, r, used, trigger)
@@ -277,7 +278,25 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
         if r["status"] == "done":
             quality.clear_check_hold(conn, r["d"]["name"])
     conn.commit()
+    _alert(conn, [r["d"]["name"] for r in [*runs, *counts.values()]])
     return {"records": n, **totals, **report}
+
+
+def _alert(conn, names: list[str]) -> None:
+    """Tell the owners of the datasets just loaded about new problems (and close cleared ones). Alerting never
+    fails a load."""
+    import logging
+
+    from . import alerts
+
+    if not names:
+        return
+    try:
+        alerts.check(conn, names)
+        conn.commit()
+    except Exception:  # noqa: BLE001
+        conn.rollback()
+        logging.getLogger(__name__).exception("source alerts failed")
 
 
 def _check(conn, counts: dict[str, dict], report: dict) -> None:
