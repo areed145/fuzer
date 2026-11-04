@@ -104,8 +104,8 @@ production separator on 2024-01-01".
 
 ## Asset packs
 Everything asset-specific lives in `src/fuzer/packs/<name>.yaml`: tag function
-codes, area digits, well platforms, phrase aliases, matching thresholds and
-survivorship rules. A new onshore or downstream asset is a new pack, not new
+codes, area digits, well platforms, phrase aliases, and the matching thresholds and
+survivorship rules that seed the source catalog's rules (edited there afterwards). A new onshore or downstream asset is a new pack, not new
 core code. `onshore_demo` (pads with hundreds of wells on ESPs, SAP + PI + EC
 only, pattern-based well names like `RB 07-03H`, an ESP class the pack adds)
 runs end to end on the same code as the offshore pack; the project (`FUZER_PROJECT`) selects the

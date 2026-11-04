@@ -172,12 +172,14 @@ page) for Claude to read.
 uv run fakeplant historian --asset okan   # fake PI Web API + ADX on :8100
 ```
 
-Then in `.env`: `FUZER_PI_WEB_API_URL=http://127.0.0.1:8100/piwebapi`,
-`FUZER_ADX_URL=http://127.0.0.1:8100` and `FUZER_ADX_DATABASE=OKAN`, and the project's
-`timeseries: adx` (or `pi`) in `projects/<name>.yaml` or `fuzer projects save`. `fuzer ingest` now reads the point list and AF
-tree from PI Web API and the series catalog from ADX, and trends and the
-troubleshooting brief read values from them. The same settings point at a real
-server.
+Then set the servers once: `fuzer settings set sources.pi.url http://127.0.0.1:8100/piwebapi`,
+`sources.adx.url http://127.0.0.1:8100` and `sources.adx.database OKAN` (or `FUZER_PI_WEB_API_URL`,
+`FUZER_ADX_URL`, `FUZER_ADX_DATABASE` in `.env`), and the project's `timeseries: adx` (or `pi`) in
+`projects/<name>.yaml` or `fuzer projects save`. On the next `fuzer ingest` each server becomes a connection in
+the source catalog (`fuzer sources connections`) and `pi_points`, `pi_af` and `adx_series` move onto it: the point
+list and AF tree come from PI Web API and the series catalog from ADX, and trends and the troubleshooting brief
+read values from them. A second PI server is another connection (`fuzer sources add-connection`); passwords and
+tokens are references (`env:NAME`), never values. The same steps point at a real server.
 
 On Okan, the fake values come from a small process model of the plant
 (`process_model.json`, written with the demo data; `src/fuzer/sources/process_model.py`):
@@ -308,26 +310,38 @@ uv run fakeplant generate --size medium --format parquet --out fakeplant/data/la
 uv run fuzer ingest --data fakeplant/data/lake     # unchanged tables are skipped; --full reads all
 ```
 
-`uv run fuzer source list` shows every table in the data folder with its connector, its
-mapping and its state (new, unchanged, changed, held for review, unmapped);
-`uv run fuzer source preview <table>` shows a sample, any column drift since the
-last load, and what the rows would make: the entities and links of a mapped
-table, or the draft mapping rules suggest for a new one. Neither loads anything.
+`uv run fuzer sources list` shows every dataset with its system, connector, mapping, status, load mode and
+state (new, unchanged, changed, held for review, paused), and the tables in the data folder no dataset covers
+(unmapped); `uv run fuzer sources preview <table>` shows a sample, any column drift since the last load, and
+what the rows would make: the entities and links of a mapped table, or the draft mapping rules suggest for a
+new one. Neither loads anything.
 
-Fuzer remembers each table's fingerprint, columns and watermark
-(`dataset_state`). An unchanged table isn't read at all. If a column disappears
-or changes type, the table is held (its records stay as they were) and a
-**Schema changes** item appears in the review queue; accept it to load the new
-shape. Append-only lake tables (operator logs) read only rows at or after the
-last timestamp.
+Each dataset keeps its fingerprint, columns and watermark. An unchanged table isn't read at all. If a column
+disappears or changes type, the table is held (its records stay as they were) and a **Schema changes** item
+appears in the review queue; accept it to load the new shape (a dataset's `drift_policy` can also hold on
+added columns, or ignore changes). Append-only lake tables (operator logs) read only rows at or after the last
+timestamp.
 
-### Mapping files (new sources without code)
+### The source catalog (new sources without code)
 
-What each column means is set in YAML, one file per source record type, in
-[src/fuzer/mappings/](src/fuzer/mappings/). Put extra or site-specific
-mappings in the project's `mappings` folder (later files win for the same
-source and record type). A new table needs only a mapping and its file in the
-data folder:
+Every system of record, its connections, each dataset (where it is, its key, how it loads, its schedule and
+owner) and what each column means are rows in the database, edited on the **Sources** page, through
+`/sources/...` or with `fuzer sources`, and every change is kept with who made it and why
+([docs/sources.md](docs/sources.md)). The mapping files in [src/fuzer/mappings/](src/fuzer/mappings/) seed a
+fresh database (`fuzer sources seed`; it never overwrites what a person changed).
+
+```sh
+uv run fuzer sources show sap_equipment          # connection, mapping versions, recent runs, changes
+uv run fuzer sources edit sap_floc --set schedule="0 * * * *" --set expected_hours=24 --reason "hourly drop"
+uv run fuzer sources add-check sap_equipment not_null --column manufacturer --blocking
+uv run fuzer sources health                      # stale, held, failed, failing checks, profile drift
+uv run fuzer sources impact my_change.yaml       # what a mapping change would do, before approving it
+uv run fuzer sources why <fuzer_id> manufacturer  # the records, mapping version and load behind a value
+uv run fuzer sources export --out review/        # the catalog as YAML, for review or another environment
+```
+
+A new table needs only its file in the data folder and a mapping, from **Sources > New tables**, a suggestion
+(below), or a file (`fuzer sources import instrument_index.yaml`, then `fuzer sources approve <id>`):
 
 ```yaml
 source: einx
@@ -365,7 +379,7 @@ and from values that are keys of records it already holds (an equipment number
 in a work order). Each table becomes a **New tables** item in the review queue
 with the column meanings, why each was chosen, and an editable mapping. Accept
 (or edit and save) it and the next `fuzer ingest` loads the table; approved
-mappings are versioned in Postgres. `fuzer eval` scores the suggestions
+mappings are versions in the source catalog. `fuzer eval` scores the suggestions
 (`schema`) against answer keys for the built-in and incoming fake tables.
 
 ### Map and GIS
@@ -393,8 +407,10 @@ uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C
 `fuzer up` starts the same Dagster process alongside the web UI (its log in `.dagster/dagster.log`), so
 `fuzer jobs` on its own is for running the schedules without the UI, or after `fuzer up --no-jobs`.
 
-- One asset per source export (each loads only its own file, as a full
-  snapshot), then `register` (the rebuild), then the Claude readers.
+- One asset per dataset in the source catalog (each loads only itself, as its
+  load mode says), then `register` (the rebuild), then the Claude readers.
+- **`dataset_schedules` sensor** (on): a dataset with its own schedule (a cron on
+  the Sources page) loads then.
 - **`new_exports` sensor** (on): drop a changed export into the data folder and
   that source is loaded and the register rebuilt, usually within a minute.
 - **Schedules**: `refresh_logs` hourly and `refresh_all` daily at 02:00 (on);
@@ -403,9 +419,12 @@ uv run fuzer jobs                  # Dagster UI on http://127.0.0.1:3000 (Ctrl+C
   entries and 200 drawings. `work_tick` every 5 minutes (on) fires work-engine
   timers and escalates overdue tasks. Times are in the project's timezone (default UTC).
 - **Checks on the register** (warnings): review backlog under 5% of tags and
-  equipment, PI points attached to a tag or well, every tag present in SAP.
-- **Alerts**: failed runs are posted to `FUZER_ALERT_WEBHOOK` (Teams, Slack or any
-  JSON webhook) when it's set.
+  equipment, PI points attached to a tag or well, every tag present in SAP. Each
+  source asset has a check too: its dataset's checks and health.
+- **Alerts**: failed runs are posted to the alert webhook (the setting `alerts.webhook`;
+  Teams, Slack or any JSON webhook) when it's set. `source_health` every 30 minutes
+  opens a work item for a source's owner when it goes stale, fails, is held or its
+  checks fail, and posts it too.
 - Run history lives in `.dagster/` locally; in Azure, Dagster's own storage
   would go in Postgres (`dagster-postgres`).
 
@@ -467,7 +486,7 @@ npm run dev                             # or: live-reload UI at :5173 (keep `fuz
 
 Screens:
 
-- **Browse**: search everything.
+- **Browse**: search everything. **Map**: everything with a location.
 - **Entity detail**: chosen values and what each source says, source records,
   dated links, flow trace, all with an "as of" date. Its **Graph** tab draws
   the neighbourhood (click a node for details, double-click to expand, filter
@@ -477,8 +496,13 @@ Screens:
   its fields, field coverage and feeding sources.
 - **Network**: the whole production / allocation flow, left to right, as of
   any date.
+- **Downtime**, **Incidents**, **Reports**: deferment, upsets on one unit with
+  their events and downtime, and the daily operations report.
+- **Ask**: the operations assistant. **Lessons**: lessons learned. **Studies**:
+  correlation and clustering studies.
+- **Board**: open work ranked by value and risk.
 - **Review**: yes/no on possible matches, pick the right value when sources
-  disagree.
+  disagree, accept changed schemas and new mappings.
 - **Work**: the action inbox. Your tasks and your roles' queue with overdue and
   due-soon counts and filters; claim, release and hand off; the task's form with
   the evidence (agent findings, messages, comments); bulk actions on low-risk
@@ -494,6 +518,13 @@ Screens:
   steps waiting at each element (overdue in red) and those finished recently with
   their median time, to show where work piles up. Task forms are edited in the
   form-js editor; each save is a new version.
+- **Jobs**: the scheduled jobs and their runs. **Sources**: the source catalog:
+  each system's datasets with their health; a dataset's connection (test,
+  discover), how it loads, mapping versions (edit, preview the impact, approve,
+  roll back), runs, profile, checks, match statistics and history; survivorship
+  and match rules; new tables to map and load. **Settings** and
+  **Architecture**. On an entity page, **why?** next to a value shows the
+  records, mapping versions and loads behind it.
 
 ### MCP server (AI agents)
 
@@ -510,7 +541,8 @@ and `send_evidence` (steps that need a person refuse them). The rest are read-on
 `process_values`, `lessons_learned`, ...) and asset-wide operations
 (`production_summary`, `deferment_pareto`, `production_constraints`,
 `well_performance`, `bad_actors`, `work_order_backlog`, `maintenance_compliance`,
-`turnaround_scope`), and `value_score`: the shared value / risk score that ranks upsets,
+`turnaround_scope`), `source_health` and `why_value` (is the data behind an answer fresh, and where a value
+came from), and `value_score`: the shared value / risk score that ranks upsets,
 work, plans and opportunities in money, with every input and source shown. Anything that takes a `ref` accepts a tag in any style, a well,
 a PI point, a source key or a Fuzer ID. Try asking: *"What fed the production
 separator on 2024-01-01, and what changed after?"* or *"Which pumps were
@@ -532,12 +564,15 @@ curl "localhost:8000/work/inbox?person=alice"
 
 | Path | What |
 |---|---|
-| `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds, survivorship rules |
-| `src/fuzer/sources/ingest.py` | Land source exports into `source_record` |
+| `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds; they seed the survivorship and match rules |
+| `src/fuzer/sources/catalog.py` | The source catalog: systems, connections, datasets, mapping versions, seed / export / import, audit |
+| `src/fuzer/sources/ingest.py` | Load each catalog dataset into `source_record`, with runs, profiles and checks |
+| `src/fuzer/sources/connections.py` | Connection types (folder, PI Web API, ADX): connector, test, discover |
+| `src/fuzer/sources/quality.py`, `rules.py`, `impact.py` | Profiles, checks, health; survivorship and match rules; impact preview and lineage |
 | `src/fuzer/graph/operations.py` | Asset-wide queries: production, deferment, constraints, wells, reliability, backlog, TAR |
 | `src/fuzer/agents/` | The operations assistant: agent team, skills, API service |
-| `src/fuzer/sources/connectors.py` | CSV / Parquet / Delta connectors |
-| `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor |
+| `src/fuzer/sources/connectors.py` | CSV / Parquet / Delta / Excel / JSON / GeoJSON readers |
+| `src/fuzer/sources/mappings.py`, `mappings/` | What each source's columns mean; one compiled extractor (the files seed the catalog) |
 | `src/fuzer/sources/extract.py` | Transforms, resolvers and hooks the mappings name |
 | `src/fuzer/core/tags.py`, `nel.py` | Tag / well grammars, text entity linking |
 | `src/fuzer/graph/resolve.py` | Matching, clustering, stable IDs, review queue |
