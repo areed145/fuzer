@@ -1,4 +1,9 @@
-# Fuzer
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/fuzer-logo-dark.svg">
+    <img src="docs/assets/brand/fuzer-logo.svg" alt="Fuzer" height="56">
+  </picture>
+</h1>
 
 Home-built asset data fusion for oil & gas: entity resolution, entity linking,
 and a dated asset graph (physical, flow/allocation, data, documents) across

@@ -1,6 +1,7 @@
 // Small shared hooks and components.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Mark } from "./brand";
 
 /** Hash-based routing: #/ , #/e/<id> , #/review. Keeps the API free to own real paths. */
 export function useRoute(): { path: string[]; query: URLSearchParams } {
@@ -91,7 +92,7 @@ export function Status({ loading, error, empty, children }: {
   children?: ReactNode;
 }) {
   if (error) return <div className="status error">Couldn't load: {error}</div>;
-  if (loading) return <div className="status">Loading…</div>;
+  if (loading) return <div className="status" role="status"><Mark />Loading…</div>;
   if (empty) return <div className="status">{children ?? "Nothing here."}</div>;
   return null;
 }

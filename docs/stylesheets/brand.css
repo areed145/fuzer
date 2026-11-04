@@ -1,0 +1,12 @@
+/* Fuzer brand colours for the docs. Kept in step with the --brand-* tokens in ui/src/styles.css. */
+:root {
+  --md-primary-fg-color: #1d3b5c;
+  --md-primary-fg-color--light: #2c5580;
+  --md-primary-fg-color--dark: #12263b;
+  --md-accent-fg-color: #0f8f9c;
+}
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #12263b;
+  --md-accent-fg-color: #3fc6d4;
+  --md-typeset-a-color: #6fb4ff;
+}
