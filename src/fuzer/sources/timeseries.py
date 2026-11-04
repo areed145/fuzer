@@ -15,11 +15,11 @@ FUZER_TIMESERIES:
 """
 
 import hashlib
-import math
 import os
-import random
 from datetime import datetime, timedelta
 from typing import Protocol
+
+import numpy as np
 
 BASE = {"barg": 18.0, "bar": 1.2, "degC": 65.0, "mm/s": 2.5, "%": 50.0, "rpm": 3600.0, "Sm3/d": 6500.0,
         "psi": 250.0, "degF": 180.0, "Hz": 55.0, "bbl/d": 400.0, "ft": 8.0}
@@ -71,20 +71,32 @@ class SyntheticProvider:
     def values(self, point, uom, start, end, step_minutes, upsets, description=""):
         if self.model and self.model.covers(point):
             return self.model.values(point, start, end, step_minutes)
+        if end < start:
+            return []
         seed = int(hashlib.sha1(point.encode()).hexdigest()[:8], 16)
         base = base_level(uom, description) * (0.85 + (seed % 30) / 100)
-        out, t = [], start
-        while t <= end:
-            rng = random.Random(seed ^ int(t.timestamp() // 60))
-            v = base * (1 + 0.03 * math.sin(t.timestamp() / 5400 + seed % 7) + rng.uniform(-0.015, 0.015))
-            for u in upsets:  # ramp over the 12 h before the upset, recover over 6 h after
-                hours = (t - u).total_seconds() / 3600
-                if -12 <= hours <= 6:
-                    weight = (hours + 12) / 12 if hours <= 0 else max(0.0, 1 - hours / 6)
-                    v *= 1 + (UPSET.get(uom, 1.0) - 1) * weight
-            out.append((t.isoformat(timespec="minutes"), round(v, 3)))
-            t += timedelta(minutes=step_minutes)
-        return out
+        n = int((end - start).total_seconds() // 60 // step_minutes) + 1
+        secs = start.timestamp() + np.arange(n, dtype=float) * step_minutes * 60
+        # The noise at a minute depends only on the point and that minute, so overlapping reads agree.
+        v = base * (1 + 0.03 * np.sin(secs / 5400 + seed % 7) + 0.03 * (_unit_noise(seed, secs // 60) - 0.5))
+        for u in upsets:  # ramp over the 12 h before the upset, recover over 6 h after
+            hours = (secs - u.timestamp()) / 3600
+            weight = np.where(hours <= 0, (hours + 12) / 12, np.maximum(0.0, 1 - hours / 6))
+            v = np.where((hours >= -12) & (hours <= 6), v * (1 + (UPSET.get(uom, 1.0) - 1) * weight), v)
+        step = timedelta(minutes=step_minutes)
+        return [((start + i * step).isoformat(timespec="minutes"), x) for i, x in enumerate(np.round(v, 3).tolist())]
+
+
+def _unit_noise(seed: int, minutes: np.ndarray) -> np.ndarray:
+    """Uniform [0, 1) per (seed, minute), from a splitmix64 hash: one numpy pass instead of one
+    random.Random per value (seeding one cost most of an SRE scan on a big fake plant)."""
+    with np.errstate(over="ignore"):
+        z = (np.uint64(seed) << np.uint64(32)) ^ minutes.astype(np.int64).astype(np.uint64)
+        z = z + np.uint64(0x9E3779B97F4A7C15)
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+        z = z ^ (z >> np.uint64(31))
+    return (z >> np.uint64(11)).astype(float) / float(1 << 53)
 
 
 def provider() -> Provider:
