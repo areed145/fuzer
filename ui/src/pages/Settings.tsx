@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
+import { PeopleCard } from "./People";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -47,6 +48,7 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
         </label>
         <input placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </div>
+      {!f && <PeopleCard by={person} />}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
         No settings match.
       </Status>

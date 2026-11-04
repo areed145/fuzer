@@ -369,6 +369,8 @@ def forms(conn) -> list[dict]:
 
 @_op
 def set_person(conn, name: str, roles: list[str], by: str = SYSTEM) -> dict:
+    if not name.strip() or is_agent(name):
+        raise WorkError("a person needs a name (agents aren't people)")
     unknown = set(roles) - bpmn.PERSON_ROLES
     if unknown:
         raise WorkError(f"unknown roles: {', '.join(sorted(unknown))}")
@@ -385,6 +387,59 @@ def roles_of(conn, name: str) -> list[str]:
 
 def people(conn) -> list[dict]:
     return conn.execute("select name, roles from work_person order by name").fetchall()
+
+
+def role_summary(conn) -> list[dict]:
+    """Each person role (#202): the published processes with steps for it, who holds it and how many
+    unclaimed steps and items wait in its queue."""
+    used: dict[str, set[str]] = {}
+    for r in conn.execute("select id, process_key from work_definition where state = 'published'").fetchall():
+        for n in _definition(conn, r["id"]).nodes.values():
+            if n.type == "userTask" and n.role:
+                used.setdefault(n.role, set()).add(r["process_key"])
+    waiting = {r["role"]: r["n"] for r in conn.execute(
+        """
+        select role, count(*) as n from (
+            select role from work_token where state = 'waiting' and kind = any(%(kinds)s) and assignee is null
+            union all
+            select i.role from work_item i where i.closed_at is null and i.assignee is null
+              and not exists (select 1 from work_process p where p.item_id = i.id)
+        ) q where role is not null group by role
+        """, {"kinds": ["user", "fix"]})}
+    holders: dict[str, list[str]] = {}
+    for p in people(conn):
+        for role in p["roles"]:
+            holders.setdefault(role, []).append(p["name"])
+    return [{"role": role, "processes": sorted(used.get(role, ())), "people": holders.get(role, []),
+             "waiting": waiting.get(role, 0)} for role in sorted(bpmn.PERSON_ROLES)]
+
+
+@_op
+def remove_person(conn, name: str, by: str = SYSTEM, now: datetime | None = None) -> dict:
+    """Take a person off the roster (#202). Steps they had claimed or been handed go back to their
+    role's queue, and so do work items without a process assigned to them."""
+    if not conn.execute("select 1 from work_person where name = %s", (name,)).fetchone():
+        raise NotFound(f"no person '{name}'")
+    run = _Run(conn, by, now)
+    ids = [r["id"] for r in conn.execute(
+        "select id from work_token where state = 'waiting' and kind = any(%s) and assignee = %s order by id",
+        (list(TASK_KINDS), name))]
+    for token_id in ids:
+        proc, t = _locked_task(run, token_id)
+        _update(run, t, assignee=None)
+        run.event("released", proc, t, reason=f"{name} was removed")
+    items = [r["id"] for r in conn.execute(
+        """
+        update work_item i set assignee = null, updated_at = %s
+        where i.closed_at is null and i.assignee = %s and not exists (select 1 from work_process p where p.item_id = i.id)
+        returning i.id
+        """, (run.now, name))]
+    for item_id in items:
+        run.event("released", item_id=item_id, reason=f"{name} was removed")
+    run.flush()
+    conn.execute("delete from work_person where name = %s", (name,))
+    _event(conn, "person_removed", by, data={"person": name, "tasks": ids, "items": items}, at=run.now)
+    return {"name": name, "released_tasks": ids, "released_items": items}
 
 
 # --- running ------------------------------------------------------------------------------------
