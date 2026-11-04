@@ -93,7 +93,11 @@ language's `when` / `unless` can test a column's value for this. Network nodes w
 
 | Table | What it holds |
 |---|---|
-| `source_record` | Raw records exactly as received (JSON), keyed by source + type + key |
+| `source_system`, `source_connection`, `source_dataset` | The source catalog: systems of record, how to reach them, each dataset and its load state ([sources](sources.md)) |
+| `mapping_version` | What each source table's columns mean, versioned; the latest approved one is in use |
+| `source_run`, `source_profile`, `source_check`, `source_check_result` | Load history, a profile per load, data-quality checks and their results |
+| `source_match_stat`, `source_rule`, `source_audit` | Per-source coverage and match statistics after rebuilds; survivorship and match rules; every catalog change |
+| `source_record` | Raw records as received (JSON; a system's number and date formats read), keyed by source + type + key |
 | `source_record_history` | Previous versions of changed or removed source records |
 | `entity` | One row per Fuzer ID, with kind and `merged_into` |
 | `crosswalk` | Source record → Fuzer ID, with how it was matched |

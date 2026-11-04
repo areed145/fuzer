@@ -6,11 +6,29 @@ What's planned. What's done is in the code and the closed issues.
 
 ### Done (on fake data)
 
-Core pipeline, review queue, REST API, web UI (browse, entity detail with graph,
-ontology, flow network, review), MCP server, `medium` fake asset, Claude reading
-operator logs and scanned P&IDs, snapshot ingest, Dagster jobs.
+- **Register:** core pipeline (ingest, resolve, golden, graph), review queue with pinned decisions, dated links,
+  source record history, REST API, MCP server, web UI, projects and settings in the database.
+- **Sources:** the source catalog (#225): systems, connections (folder, PI Web API, ADX), datasets, mapping
+  versions with approval and rollback, runs, profiles, checks, coverage and match statistics, survivorship and
+  match rules, impact preview, lineage, health and alerts to owners, all editable on the Sources page; lake
+  tables, Excel, JSON and GeoJSON readers, suggested mappings, measurements, limits, curves.
+- **Models and maintenance:** equipment models and ISO 14224 classes, SAP notifications, work orders, plans,
+  BOM and spares.
+- **Operational history:** EC DAY001, downtime and deferment, incidents, lessons learned, Claude reading
+  operator logs, scanned P&IDs, documents and OEM curves.
+- **Assistant:** the operations assistant (agent team with skills and charts) with memory of past
+  conversations.
+- **Agentic operations:** operating limits and IOWs, the SRE scan (detection, upsets, hand-off), the BPMN work
+  engine with inbox and modeler, the value-ranked board, the daily operations report, opportunities,
+  back-pressure debottlenecking, correlation and clustering studies, and the replay eval.
+- **Fake plants:** offshore (small, medium, large), Okan with a process model, onshore; a fake PI Web API and ADX.
 
 ### Next
+
+Open now: test the catalog with a new source from the UI alone (#227), real data and Azure (#9 to #14), real
+PI / ADX servers (#15, #16), Teams threads (#22), document access groups (#29), engineer ratings (#221),
+swappable LLM providers (#166), product on flow edges (#205), the SRE baseline cache (#203), DEXPI / CFIHOS
+(#63), stationing and depths (#61), reference data as datasets (#68), calibrated decision models (#94).
 
 The roadmap is tracked in GitHub: one [milestone](https://github.com/areed145/fuzer/milestones) per phase and
 one issue per item (label [`roadmap`](https://github.com/areed145/fuzer/issues?q=label%3Aroadmap)). Each issue
@@ -38,7 +56,8 @@ sections below explain the thinking behind the bigger items.
    lake-table connector (#57), mapping files and generic per-shape extractors
    (#58), schema profiling and suggested mappings (#59), geospatial shape and
    PostGIS (#60), pipeline stationing and well depths (#61), measurements (#62),
-   DEXPI and CFIHOS handover readers (#63).
+   DEXPI and CFIHOS handover readers (#63); the source catalog in the database (#225, done) and its test with
+   a new source added from the UI alone (#227).
 
 ### Operational history and conversations
 

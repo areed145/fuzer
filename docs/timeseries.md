@@ -3,14 +3,17 @@
 Process values from PI and ADX, operating limits and excursions.
 
 ## PI Web API and ADX connectors
-With `FUZER_PI_WEB_API_URL` set, the `pi_points` and `pi_af` datasets load from
+On a `pi_web_api` connection in the source catalog, the `pi_points` and `pi_af` datasets load from
 PI Web API instead of files (`pi_web_api.py`): the point list paged, point and
 element attributes through `/batch`, yielding the same rows as the file exports,
-so mappings don't change. With `FUZER_ADX_URL` set, `adx_series` reads the series
+so mappings don't change. On an `adx` connection, `adx_series` reads the series
 catalog (`adx.py`) and the `adx_series.yaml` mapping merges cluster, database,
 table and series id onto the PI point's timeseries entity. Live datasets have no
 cheap change marker, so the file sensor skips them and the daily `refresh_all`
-loads them; an unchanged server is still skipped by content hash.
+loads them; an unchanged server is still skipped by content hash. Setting `sources.pi.url` or `sources.adx.url`
+(or the old `FUZER_PI_WEB_API_URL`, `FUZER_ADX_URL`) makes the connection on the next load and moves the datasets
+onto it; `fuzer sources test <id>` checks it step by step. The time-series providers read values through the first
+enabled connection of their type.
 
 `uv run fakeplant historian` serves a fake PI Web API and ADX (a small KQL subset)
 over a fake plant's points, with upsets taken from the plant's own downtime and

@@ -62,3 +62,26 @@ Readers: the Reports page (`#/reports`: days, versions, checks, what changed), M
 `get_daily_ops_report(day)`, `GET /reports/daily/{day}`, and `fuzer report --day [--claude]`. On Okan, the
 day of train C's trip (5 November 2024) leads with "Biggest loss: Process trip, 146 Sm3 oil, back at
 10:30" and the trip's downtime record.
+
+## Scheduled jobs
+
+Dagster runs everything on a schedule (`src/fuzer/ops/jobs.py`; `fuzer jobs`, or alongside the UI with `fuzer up`).
+Times are in the project's timezone.
+
+| Job or sensor | When | What |
+|---|---|---|
+| Source assets | on demand, by the jobs below | One per dataset in the source catalog; each loads only itself, as its load mode says |
+| `new_exports` sensor | every minute | A changed export file in the data folder loads that dataset, then rebuilds |
+| `dataset_schedules` sensor | every minute | A dataset with its own cron (`source_dataset.schedule`) loads when it is due, then rebuilds |
+| `refresh_logs` | hourly | Operator logs, then rebuild |
+| `refresh_all` | 02:00 | Every dataset (live PI and ADX ones included), then rebuild |
+| `claude_reading` | 03:00, off by default | Claude reads new log entries, drawings and documents (Batches API, capped) |
+| `work_tick` | every 5 minutes | Work-engine timers and SLA escalations |
+| `sre_scan` | every 6 hours | Detect, group into upsets, prioritise, diagnose (capped) and hand off |
+| `day_close` | `daily_report.close_cron` (07:00) | The daily operations report, debottleneck options, the opportunity scan |
+| `studies_job` | every 5 minutes | Queued correlation and clustering studies |
+| `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
+| `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) |
+
+Asset checks: on the register (review backlog, PI points attached, tags in SAP, downtime reason codes, document
+revisions, flow against piping) and on each source asset (its dataset's checks and health).

@@ -7,11 +7,11 @@ Every step is a file you can open.
 
 Energy Components exports well tests as a table, `ec_well_tests`, with one row per test: well, test date, oil rate,
 water cut, GOR, lift gas and wellhead pressure. The connector for its format (CSV, Parquet, Delta, Excel or JSON)
-reads it. `fuzer source preview ec_well_tests` shows a sample, and what the rows would make, before anything loads.
+reads it through the dataset's connection in the source catalog. `fuzer sources preview ec_well_tests` shows a sample, and what the rows would make, before anything loads.
 
 ## 2. The mapping
 
-[`mappings/ec_well_test.yaml`](https://github.com/areed145/fuzer/blob/main/src/fuzer/mappings/ec_well_test.yaml) says what a row means, with no code:
+[`mappings/ec_well_test.yaml`](https://github.com/areed145/fuzer/blob/main/src/fuzer/mappings/ec_well_test.yaml) says what a row means, with no code. The file seeds the mapping's first version in the source catalog; later edits are new versions, approved on the Sources page (`fuzer sources show ec_well_tests` lists them):
 
 - a **well_test** entity keyed by `test_id`, with its fields;
 - a link from the test to its **well** (`tests`), with the well name normalised by the pack's well grammar, so

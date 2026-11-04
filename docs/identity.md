@@ -42,9 +42,11 @@ points to the winner (`merged_into`). IDs are never reused. Every mint, merge
 and split is logged in `id_event`.
 
 ## Assertions → golden records
-Every field from every source is stored as an **assertion** with where it came
-from. The **golden record** is computed from assertions using per-field rules
-in the asset pack:
+Every field from every source is an **assertion** with where it came from (re-read
+from the entity's records when needed; only a reviewer's choice is stored). The
+**golden record** is computed from assertions using per-field rules, seeded from
+the asset pack and kept in the source catalog (`fuzer sources rules`; the default
+priority is the systems' rank):
 
 ```yaml
 manufacturer: {priority: [review, sap, maximo, jde], review_on_conflict: true}
