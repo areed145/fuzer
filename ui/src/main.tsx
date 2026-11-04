@@ -1,7 +1,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
-import { notifyChanged, useAsync, useRoute } from "./lib";
+import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
@@ -19,6 +19,8 @@ import { WorkPage } from "./pages/Work";
 import { WorkItemPage } from "./pages/WorkItem";
 import { loadPerson } from "./work";
 import { Breadcrumbs, Sidebar } from "./nav";
+import { JobsPage, JobRunPage } from "./pages/Jobs";
+import type { JobsHealth } from "./api";
 import "./styles.css";
 
 // Graph views pull in Cytoscape; load them only when opened.
@@ -36,6 +38,12 @@ function App() {
   const stats = useAsync(() => api.stats(), []);
   const inbox = useAsync(() => (loadPerson() ? api.inbox(loadPerson()) : Promise.resolve(undefined)), []);
   const reload = stats.reload;
+  const jobsHealth = useAsync(() => api.jobsHealth(), []);
+  const reloadHealth = jobsHealth.reload;
+  useEffect(() => {
+    const t = setInterval(reloadHealth, 60_000);
+    return () => clearInterval(t);
+  }, [reloadHealth]);
 
   const s = stats.data;
   const rebuilding = !!s?.rebuild.running;
@@ -72,7 +80,7 @@ function App() {
               </div>
             )}
             {rebuilding && <span className="badge updating">Updating…</span>}
-            {s?.rebuild.last?.error && <span className="error small">Last update failed</span>}
+            <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
             {stats.error && <span className="error small">API not reachable</span>}
           </>
         }
@@ -110,6 +118,10 @@ function App() {
             <ReportsPage query={query} />
           ) : section === "studies" ? (
             <StudiesPage query={query} />
+          ) : section === "jobs" && path[1] === "run" && path[2] ? (
+            <JobRunPage key={path[2]} id={path[2]} />
+          ) : section === "jobs" ? (
+            <JobsPage />
           ) : section === "sources" ? (
             <SourcesPage query={query} />
           ) : section === "settings" ? (
@@ -126,6 +138,20 @@ function App() {
         </Suspense>
       </main>
     </div>
+  );
+}
+
+/** Green / amber / red from the Dagster jobs and the last register update, linking to the Jobs page. */
+function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuildError?: string }) {
+  if (!health && !rebuildError) return null;
+  const level = rebuildError ? "red" : health?.level ?? "unknown";
+  const parts = [rebuildError && "last update failed", health?.available && health.summary].filter(Boolean);
+  const text = parts.join("; ") || "Jobs: no history yet";
+  return (
+    <a className={`health health-${level}`} href={href("/jobs")} title={rebuildError ?? undefined}>
+      <i className="dot" aria-hidden="true" />
+      <span>{text.charAt(0).toUpperCase() + text.slice(1)}</span>
+    </a>
   );
 }
 

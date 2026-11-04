@@ -812,6 +812,82 @@ export interface Study {
   result?: Record<string, unknown> | null;
 }
 
+// --- Jobs (Dagster) #208 ---
+export type HealthLevel = "green" | "amber" | "red" | "unknown";
+
+export interface JobsHealth {
+  level: HealthLevel;
+  available: boolean;
+  failed_runs_24h: number;
+  failing_checks: number;
+  scheduler_running: boolean;
+  summary: string;
+}
+
+export interface JobTick {
+  status: string;
+  time: string | null;
+  skip_reason: string | null;
+  run_keys: string[];
+  error: string | null;
+}
+
+export interface JobTrigger {
+  kind: "schedule" | "sensor";
+  name: string;
+  status: "on" | "off";
+  cron?: string;
+  timezone?: string | null;
+  next_tick?: string | null;
+  description?: string | null;
+  job?: string | null;
+  last_tick: JobTick | null;
+}
+
+export interface JobRunSummary {
+  run_id: string;
+  job: string;
+  status: string;
+  start: string | null;
+  end: string | null;
+  seconds: number | null;
+  trigger: string;
+}
+
+export interface JobCheck {
+  name: string;
+  asset: string;
+  description: string | null;
+  level: "pass" | "warn" | "fail" | "running" | "not_run";
+  metadata: Record<string, unknown>;
+  note: string | null;
+  time: string | null;
+  run_id: string | null;
+}
+
+export interface JobsOverview {
+  available: boolean;
+  dagster: { url: string; reachable: boolean };
+  scheduler: { running: boolean; last_heartbeat: string | null };
+  health: JobsHealth;
+  jobs: { name: string; description: string | null; triggers: JobTrigger[]; last_run: JobRunSummary | null; recent_runs: JobRunSummary[] }[];
+  sensors: JobTrigger[];
+  checks: JobCheck[];
+  claude: {
+    schedule: "on" | "off" | "none";
+    usd_30d: number;
+    limits: Record<string, number | boolean>;
+    runs: (JobRunSummary & { model: string; input_tokens: number; output_tokens: number; usd: number })[];
+  } | null;
+}
+
+export interface JobRunDetail extends JobRunSummary {
+  tags: Record<string, string>;
+  assets: { asset: string; time: string | null; metadata: Record<string, unknown> }[];
+  errors: { step: string | null; kind: string; message: string; error_class: string | null; stack: string | null }[];
+  log_tail: { time: string | null; level: string; step: string | null; message: string }[];
+}
+
 async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -838,6 +914,9 @@ async function requestText(path: string): Promise<string> {
 
 export const api = {
   stats: () => request<Stats>("GET", "/stats"),
+  jobs: () => request<JobsOverview>("GET", "/jobs"),
+  jobsHealth: () => request<JobsHealth>("GET", "/jobs/health"),
+  jobRun: (id: string) => request<JobRunDetail>("GET", `/jobs/runs/${encodeURIComponent(id)}`),
   search: (q: string, kind?: string) => request<SearchHit[]>("GET", "/entities", { q, kind, limit: 200 }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),

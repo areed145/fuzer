@@ -615,3 +615,42 @@ tr.setting-edit .row { margin-bottom: 8px; }
 .arch-ext { padding: 8px 14px; border: 1px dashed var(--line); border-radius: 8px; font-size: 0.9em; }
 .arch-table { display: inline-block; margin: 0 8px 2px 0; white-space: nowrap; }
 .arch-totals { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; }
+
+/* Jobs page and health indicator (#208). */
+.health { display: flex; gap: 6px; align-items: baseline; color: var(--muted); font-size: 12px; }
+.health:hover { color: var(--text); text-decoration: none; }
+.health .dot, .banner .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--muted); }
+.health-green .dot { background: var(--ok); }
+.health-amber .dot { background: var(--warn); }
+.health-red .dot { background: var(--danger); }
+.health-red { color: var(--danger); }
+.banner { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; margin: 12px 0 4px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.banner.health-amber { background: var(--warn-soft); }
+.banner.health-red { border-color: var(--danger); }
+.banner.health-green { background: var(--ok-soft); }
+.banner .dot { width: 10px; height: 10px; }
+.jobs h2 { margin-top: 22px; margin-bottom: 8px; }
+.badge.run-ok { background: var(--ok-soft); color: var(--ok); }
+.badge.run-warn { background: var(--warn-soft); color: var(--warn); }
+.badge.run-fail { background: var(--danger); color: var(--accent-text); }
+.badge.run-updating { background: var(--warn-soft); color: var(--text); }
+.badge.run-key { background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+.trigger { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.trigger + .trigger { margin-top: 4px; }
+table.results tr.static { cursor: default; }
+.run-dots { display: inline-flex; gap: 3px; align-items: center; }
+.run-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; background: var(--line); }
+.run-dot.run-ok { background: var(--ok); }
+.run-dot.run-fail { background: var(--danger); }
+.run-dot.run-updating { background: var(--warn); }
+.run-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jobs-table td:first-child { min-width: 220px; }
+.examples { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; }
+.error-card { border-color: var(--danger); }
+.error-card pre.data { max-height: 260px; overflow: auto; }
+.log-tail td:last-child { white-space: pre-wrap; word-break: break-word; }
+.log-tail tr.log-error td { color: var(--danger); }
+.jobs table.kv td, .jobs table.kv code { overflow-wrap: anywhere; }
+.jobs table.kv { table-layout: fixed; }
+.jobs table.kv th { width: 180px; text-transform: none; }
