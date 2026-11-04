@@ -3,6 +3,16 @@
 Generated from `src/fuzer/schema.sql`; don't edit by hand (`uv run python -m fuzer.reference`).
 One Postgres database; `fuzer` creates or updates it on start (idempotent).
 
+## `schema_version`
+
+Which schema.sql this database is at (its hash): init_schema re-runs this file only when it changed, since its migrations take exclusive locks on busy tables.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | int |  |
+| `hash` | text |  |
+| `applied_at` | timestamptz |  |
+
 ## `source_record`
 
 Raw records exactly as received from each source.

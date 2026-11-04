@@ -4,7 +4,9 @@ Set FUZER_DATABASE_URL to use a real Postgres (e.g. Azure Database for
 PostgreSQL). Without it, an embedded Postgres is started under .fuzer/pgdata.
 """
 
+import hashlib
 import os
+import re
 from pathlib import Path
 
 import psycopg
@@ -32,8 +34,56 @@ def connect(autocommit: bool = False, url: str | None = None) -> psycopg.Connect
     return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit)
 
 
+SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process applies schema.sql at a time
+
+
+def schema_hash() -> str:
+    return hashlib.sha256(SCHEMA.read_bytes()).hexdigest()
+
+
+def _schema_tables() -> list[str]:
+    return re.findall(r"(?im)^create table if not exists (\w+)", SCHEMA.read_text())
+
+
+def _schema_current(conn, current: str) -> bool:
+    """schema.sql is applied unchanged and none of its tables has gone missing since (one read, no locks)."""
+    if _applied_hash(conn) != current:
+        return False
+    tables = _schema_tables()
+    n = conn.execute("select count(*) as n from pg_tables where schemaname = current_schema() and tablename = any(%s)",
+                     (tables,)).fetchone()["n"]
+    return n == len(set(tables))
+
+
+def _applied_hash(conn) -> str | None:
+    if conn.execute("select to_regclass('public.schema_version') as t").fetchone()["t"] is None:
+        return None
+    row = conn.execute("select hash from schema_version where id = 1").fetchone()
+    return row["hash"] if row else None
+
+
 def init_schema(conn) -> None:
-    conn.execute(SCHEMA.read_text())
+    """Bring the database up to schema.sql (idempotent). Every process calls this when it connects.
+
+    schema.sql's migrations (ALTER TABLE ..., dropping old constraints) take exclusive locks on busy tables,
+    so it runs only when it has changed since it was last applied: the usual call is one read of
+    schema_version. Concurrent callers on a new schema take turns on an advisory lock; without these, parallel
+    Dagster steps connecting at once deadlocked against each other's queries."""
+    current = schema_hash()
+    if _schema_current(conn, current):
+        conn.commit()
+        return
+    # Commit first: waiting for the lock while holding locks from earlier reads in this transaction would
+    # deadlock against the caller applying the schema (it needs exclusive locks on those tables).
+    conn.commit()
+    conn.execute("select pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
+    if not _schema_current(conn, current):  # another process may have applied it while we waited
+        conn.execute(SCHEMA.read_text())
+        conn.execute(
+            "insert into schema_version (id, hash) values (1, %s) "
+            "on conflict (id) do update set hash = excluded.hash, applied_at = now()",
+            (current,),
+        )
     conn.commit()
 
 
