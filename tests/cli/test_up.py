@@ -142,6 +142,7 @@ def test_up_starts_and_stops_dagster(monkeypatch, tmp_path):
     proc = up.start_jobs(3123)
     assert started[0][-5:] == ["dev", "-m", "fuzer.ops.jobs", "-p", "3123"]
     assert (tmp_path / "dg" / "dagster.log").exists()
+    assert (tmp_path / "dg" / "dagster.yaml").read_text() == ""  # no "no dagster.yaml" warning, default storage
     up.stop_jobs(proc)
     assert stopped == [True]
     up.stop_jobs(None)  # --no-jobs
