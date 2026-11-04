@@ -305,6 +305,7 @@ create table if not exists assistant_answer (
     created_at      timestamptz not null default now()
 );
 alter table assistant_answer add column if not exists images text[] not null default '{}';  -- assistant_image sha256s
+alter table assistant_answer add column if not exists recalled bigint[] not null default '{}';  -- assistant_fact ids given
 create index if not exists assistant_answer_conversation on assistant_answer (conversation_id, created_at);
 
 -- The assistant's conversations (#93): each message as MAF wrote it, in order. `json`, not `jsonb`, so a
@@ -335,6 +336,30 @@ create table if not exists assistant_image (
     created_at      timestamptz not null default now(),
     primary key (conversation_id, sha256)
 );
+
+-- Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this"
+-- (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts
+-- one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+create table if not exists assistant_fact (
+    id             bigserial primary key,
+    text           text not null,
+    subject        text not null default '',
+    entity_ids     text[] not null,
+    valid_from     date,
+    valid_to       date,
+    learned_at     timestamptz not null default now(),
+    episode        text references assistant_answer (id) on delete set null,
+    sources        jsonb not null default '[]',
+    status         text not null default 'current' check (status in ('current', 'ended')),
+    invalidated_by bigint references assistant_fact (id),
+    by_user        text not null default 'anonymous',
+    edited_by      text,
+    ended_by       text,
+    ended_at       timestamptz,
+    updated_at     timestamptz not null default now()
+);
+create index if not exists assistant_fact_entities on assistant_fact using gin (entity_ids);
+create index if not exists assistant_fact_episode on assistant_fact (episode);
 
 -- Sparse, manual measurements landed from sources (well tests, lab samples, inspection thickness
 -- readings), unlike historian values, which stay in PI / ADX. Rebuilt from source records with the

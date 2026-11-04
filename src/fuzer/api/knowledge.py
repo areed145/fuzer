@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..graph import knowledge, lessons
@@ -47,8 +47,18 @@ class Feedback(BaseModel):
 
 
 @router.post("/feedback")
-def feedback(f: Feedback, conn=Depends(get_conn)):
+def feedback(f: Feedback, background: BackgroundTasks, conn=Depends(get_conn)):
+    """A rating. An assistant answer rated useful is learned from (memory.learn, after the response); one rated
+    not useful has the facts learned from it dropped (#93)."""
+    from ..agents import memory
+
     row = conn.execute("insert into feedback (target, useful, comment, by_user) values (%s, %s, %s, %s) returning id",
                        (f.target, f.useful, f.comment, f.by)).fetchone()
     conn.commit()
+    if f.target.startswith("answer:"):
+        answer_id = f.target.split(":", 1)[1]
+        if f.useful:
+            background.add_task(memory.learn_later, answer_id, None, f.by)
+        else:
+            memory.forget_episode(conn, answer_id)
     return row

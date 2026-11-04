@@ -120,6 +120,83 @@ def assistant_conversation_delete(conversation_id: str, conn=Depends(get_conn)):
     return {"deleted": conversation_id}
 
 
+class Remember(BaseModel):
+    statement: str
+    by: str = "anonymous"
+
+
+@router.post("/assistant/answers/{answer_id}/remember")
+def assistant_remember(answer_id: str, r: Remember, conn=Depends(get_conn)):
+    """An engineer marks a statement in an answer "remember this": Claude turns it into dated facts."""
+    import os
+
+    from ..agents import memory
+    if not r.statement.strip():
+        raise HTTPException(400, "empty statement")
+    if not os.environ.get("ANTHROPIC_API_KEY") and memory._client is memory._DEFAULT_CLIENT:
+        raise HTTPException(503, "Set ANTHROPIC_API_KEY (in .env) to let the assistant remember.")
+    out = memory.learn(conn, deps.PACK, answer_id, r.statement.strip(), r.by)
+    if out.get("error") == "unknown answer":
+        raise HTTPException(404, "unknown answer")
+    return out | {"items": [memory.get(conn, i) for i in out.get("facts", [])]}
+
+
+@router.get("/assistant/facts")
+def assistant_facts(ref: str | None = None, status: str | None = None, limit: int = 100, conn=Depends(get_conn)):
+    """What the assistant remembers: about one entity and its units (ref), or everything; current and ended."""
+    from ..agents import memory
+    from ..graph import queries
+    ids = None
+    if ref:
+        if (fid := queries.resolve_ref(conn, deps.PACK, ref)) is None:
+            raise HTTPException(404, "unknown entity")
+        ids = memory.units(conn, fid)
+    return memory.facts(conn, ids, status, min(limit, 500))
+
+
+class FactEdit(BaseModel):
+    text: str | None = None
+    valid_from: str | None = None
+    valid_to: str | None = None
+    clear: list[Literal["valid_from", "valid_to"]] = []
+    by: str = "anonymous"
+
+
+@router.patch("/assistant/facts/{fact_id}")
+def assistant_fact_edit(fact_id: int, e: FactEdit, conn=Depends(get_conn)):
+    """An engineer corrects a fact's wording or dates."""
+    from ..agents import memory
+    if e.text is not None and not e.text.strip():
+        raise HTTPException(400, "empty text")
+    if (row := memory.correct(conn, fact_id, e.by, e.text and e.text.strip(), e.valid_from, e.valid_to,
+                              tuple(e.clear))) is None:
+        raise HTTPException(404, "unknown fact")
+    return row
+
+
+class FactEnd(BaseModel):
+    valid_to: str | None = None
+    by: str = "anonymous"
+
+
+@router.post("/assistant/facts/{fact_id}/end")
+def assistant_fact_end(fact_id: int, e: FactEnd, conn=Depends(get_conn)):
+    """No longer true: the fact is ended (kept, with its end date), so it is no longer recalled."""
+    from ..agents import memory
+    if not memory.end(conn, fact_id, e.by, e.valid_to):
+        raise HTTPException(404, "unknown or already ended fact")
+    return memory.get(conn, fact_id)
+
+
+@router.delete("/assistant/facts/{fact_id}")
+def assistant_fact_delete(fact_id: int, conn=Depends(get_conn)):
+    """Wrong from the start: the fact is deleted."""
+    from ..agents import memory
+    if not memory.delete(conn, fact_id):
+        raise HTTPException(404, "unknown fact")
+    return {"deleted": fact_id}
+
+
 @router.get("/figures/{figure_id}.html", include_in_schema=False)
 def figure_page(figure_id: str, conn=Depends(get_conn)):
     """One chart as a page of its own (for sharing and for MCP clients)."""

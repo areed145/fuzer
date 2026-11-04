@@ -439,6 +439,7 @@ export interface AssistantJob {
             models: Record<string, { calls: number; cost_usd: number; unpriced?: boolean }> };
   steps: { agent: string; tool: string; args: Record<string, unknown> }[];
   model_calls: number;
+  recalled?: number[];
 }
 
 export interface AssistantAnswer {
@@ -472,9 +473,30 @@ export interface SavedTurn {
   usage: AssistantJob["usage"];
   seconds: number | null;
   images: string[];
+  recalled: number[];
   created_at: string;
   ratings: number;
   useful: number;
+}
+
+export interface AssistantFact {
+  id: number;
+  text: string;
+  subject: string;
+  entity_ids: string[];
+  entities: { id: string; label: string | null }[];
+  valid_from: string | null;
+  valid_to: string | null;
+  learned_at: string;
+  episode: string | null;
+  episode_question: string | null;
+  sources: string[];
+  status: "current" | "ended";
+  invalidated_by: number | null;
+  by_user: string;
+  edited_by: string | null;
+  ended_by: string | null;
+  ended_at: string | null;
 }
 
 export interface Decision {
@@ -1068,6 +1090,16 @@ export const api = {
   conversations: (by?: string) => request<AssistantConversation[]>("GET", "/assistant/conversations", { by, limit: 15 }),
   conversation: (id: string) =>
     request<AssistantConversation & { turns: SavedTurn[] }>("GET", `/assistant/conversations/${encodeURIComponent(id)}`),
+  facts: (ref: string) => request<AssistantFact[]>("GET", "/assistant/facts", { ref }),
+  editFact: (id: number, by: string, edit: { text?: string; valid_from?: string; valid_to?: string;
+                                               clear?: ("valid_from" | "valid_to")[] }) =>
+    request<AssistantFact>("PATCH", `/assistant/facts/${id}`, undefined, { ...edit, by }),
+  endFact: (id: number, by: string, validTo?: string) =>
+    request<AssistantFact>("POST", `/assistant/facts/${id}/end`, undefined, { by, valid_to: validTo }),
+  deleteFact: (id: number) => request<{ deleted: number }>("DELETE", `/assistant/facts/${id}`),
+  remember: (answerId: string, statement: string, by: string) =>
+    request<{ facts: number[]; ended: number[]; items: AssistantFact[] }>(
+      "POST", `/assistant/answers/${encodeURIComponent(answerId)}/remember`, undefined, { statement, by }),
   deleteConversation: (id: string) =>
     request<{ deleted: string }>("DELETE", `/assistant/conversations/${encodeURIComponent(id)}`),
   map: () => request<GeoCollection>("GET", "/map"),

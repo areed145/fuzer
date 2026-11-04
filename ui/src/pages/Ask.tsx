@@ -233,12 +233,51 @@ function TurnView({ turn }: { turn: Turn }) {
                     `${m.replace("claude-", "")}: ${x.calls} calls $${x.cost_usd.toFixed(2)}${x.unpriced ? " (unpriced)" : ""}`).join(" · ")}
                 </span>
               )}
+              {j.recalled && j.recalled.length > 0 && (
+                <span title="Facts learned in earlier conversations that came with this question">
+                  {j.recalled.length} remembered fact{j.recalled.length === 1 ? "" : "s"}
+                </span>
+              )}
               <span className="spacer" />
               <Rate id={j.id} />
             </div>
+            <Remember id={j.id} />
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** "Remember this": an engineer gives a statement from the answer to keep as dated facts. */
+function Remember({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [state, setState] = useState<string>();
+  if (!open) {
+    return (
+      <div className="small">
+        <button className="link" onClick={() => {
+          setText(window.getSelection()?.toString().trim() ?? "");
+          setOpen(true);
+        }} title="Select text in the answer first, or type what to remember">Remember this…</button>
+        {state && <span className="muted"> {state}</span>}
+      </div>
+    );
+  }
+  const send = () => {
+    setState("Remembering…");
+    api.remember(id, text, asker()).then(
+      (r) => { setState(r.items.length ? `Remembered: ${r.items.map((f) => f.text).join(" ")}` : "Nothing to remember in that."); setOpen(false); setText(""); },
+      (e) => setState(String(e)));
+  };
+  return (
+    <div className="row small remember">
+      <input placeholder="What should the assistant remember? (a statement from the answer)" value={text}
+             onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && send()} />
+      <button className="primary" disabled={!text.trim()} onClick={send}>Remember</button>
+      <button className="link" onClick={() => setOpen(false)}>Cancel</button>
+      {state && <span className="muted">{state}</span>}
     </div>
   );
 }
@@ -269,7 +308,7 @@ function saved(conversationId: string, t: SavedTurn): Turn {
       id: t.id, conversation_id: conversationId, question: t.question, status: t.error ? "error" : "done",
       answer: t.answer, error: t.error, seconds: t.seconds ?? undefined, specialists: t.specialists,
       usage: t.usage ?? undefined, steps: t.tools.map((x) => ({ agent: x.agent, tool: x.tool, args: x.args ?? {} })),
-      model_calls: t.usage?.model_calls ?? 0,
+      model_calls: t.usage?.model_calls ?? 0, recalled: t.recalled,
     },
   };
 }

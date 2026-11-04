@@ -82,6 +82,11 @@ The user may attach images (a PI Vision screenshot, a photo of a vibration spect
 Read them yourself and pass what matters to a specialist in words. Values read off an image are
 approximate: say which ones came from the image, and check them against Fuzer's data where it has any.
 
+A question may come with facts "Known from earlier conversations": things engineers and the assistant
+established before, about the entities the question names. Use them, check them against the data, and
+cite each one you rely on as `fact:<id>` (learned from a conversation), never as a source record. Call
+`recall` for what was learned about other entities that come up.
+
 Load the `answering` skill before writing your final answer."""
 
 SPECIALISTS = {
@@ -280,22 +285,42 @@ def ask_sync(question: str, **kw) -> dict:
     return asyncio.run(go())
 
 
+def _remembered(question: str) -> dict | None:
+    """The facts learned in earlier conversations about the entities this question names (memory.context)."""
+    from ..core import db
+    from ..graph import queries
+    from . import memory, mcp_server
+
+    try:
+        with db.connect() as conn:
+            ids = [m["fuzer_id"] for m in queries.link_text(conn, mcp_server.PACK, question) if m["fuzer_id"]]
+            return memory.context(conn, list(dict.fromkeys(ids))) if ids else None
+    except Exception as e:  # memory is a help, never a reason not to answer
+        logging.getLogger(__name__).warning("recall failed: %s", e)
+        return None
+
+
 async def ask(question: str, agent=None, session=None, trace: list | None = None,
-              images: list[tuple[str, bytes]] | None = None) -> dict:
+              images: list[tuple[str, bytes]] | None = None, recall: bool = True) -> dict:
     """One question to the team: the answer, what each agent did (tools, specialist tasks, model calls)
     and the tokens and cost across all of them. Pass `session` to continue a conversation and `trace`
-    (a list) to watch progress while it runs; `images` (media type, bytes) go with the question."""
+    (a list) to watch progress while it runs; `images` (media type, bytes) go with the question. With
+    `recall`, facts learned in earlier conversations about the entities the question names go with it."""
+    from agent_framework import Content, Message
+
     agent = agent or team()
     session = session or agent.create_session()
     trace = [] if trace is None else trace
     token = _trace.set(trace)
     started = time.time()
+    remembered = await asyncio.to_thread(_remembered, question) if recall else None
     try:
-        if images:  # a screenshot, a photo of a spectrum, a datasheet page: Claude reads them with the question
-            from agent_framework import Content, Message
-
+        # The remembered facts go in the user's turn, after the history, so the prefix Claude's thinking blocks
+        # are bound to never changes. Images: a screenshot, a photo of a spectrum, a datasheet page.
+        if images or remembered:
             question = Message(role="user", contents=[Content.from_text(question), *(
-                Content.from_data(data, media_type) for media_type, data in images)])
+                Content.from_data(data, media_type) for media_type, data in images or [])] + (
+                [Content.from_text(remembered["text"])] if remembered else []))
         response = await agent.run(question, session=session)
     finally:
         _trace.reset(token)
@@ -303,4 +328,4 @@ async def ask(question: str, agent=None, session=None, trace: list | None = None
     return {"answer": final_text(response), "seconds": round(time.time() - started, 1), "usage": usage(trace),
             "specialists": sorted({t["agent"] for t in trace if t["kind"] == "tool" and t["agent"] != "orchestrator"}),
             "tools": [{k: t[k] for k in ("agent", "tool", "args", "seconds") if k in t} for t in trace if t["kind"] == "tool"],
-            "session": session}
+            "recalled": remembered["ids"] if remembered else [], "session": session}

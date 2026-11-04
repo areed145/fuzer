@@ -330,6 +330,29 @@ The assistant's conversations (#93): each message as MAF wrote it, in order. `js
 | `data` | bytea |  |
 | `created_at` | timestamptz |  |
 
+## `assistant_fact`
+
+Facts the assistant learned from answers rated useful, or statements an engineer marked "remember this" (#93). Dated in the plant (valid_from / valid_to) and in Fuzer (learned_at). A newer fact that contradicts one ends it (status 'ended', invalidated_by); it is never deleted, except by an engineer.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `text` | text |  |
+| `subject` | text |  |
+| `entity_ids` | text[] |  |
+| `valid_from` | date |  |
+| `valid_to` | date |  |
+| `learned_at` | timestamptz |  |
+| `episode` | text |  |
+| `sources` | jsonb |  |
+| `status` | text |  |
+| `invalidated_by` | bigint |  |
+| `by_user` | text |  |
+| `edited_by` | text |  |
+| `ended_by` | text |  |
+| `ended_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
 ## `measurement`
 
 Sparse, manual measurements landed from sources (well tests, lab samples, inspection thickness readings), unlike historian values, which stay in PI / ADX. Rebuilt from source records with the graph; values are in the units of units.yaml.
