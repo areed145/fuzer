@@ -76,7 +76,7 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
             </a>
           ))}
         </div>
-        <input placeholder="Words in the title" value={text} onChange={(e) => setText(e.target.value)} />
+        <input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />
         {Object.keys(saved).length > 0 && (
           <select value="" onChange={(e) => {
             const s = saved[e.target.value];

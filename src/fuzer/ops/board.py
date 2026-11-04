@@ -239,10 +239,10 @@ def cards(conn, kind: str | None = None, area: str | None = None, unit: str | No
           since: str | None = None, page: int = 1, per_page: int = PAGE, owner: str | None = None,
           facets: bool = False) -> dict:
     """One page of the board in rank order, filtered by kind, area, unit, owner (the person or role its
-    work item is with), words in the title, or new since a time. `facets`: counts by kind, area and owner
+    work item is with), words in the title or description, or new since a time. `facets`: counts by kind, area and owner
     under the same filters, for the views."""
     where = ["(%(kind)s::text is null or c.kind = %(kind)s)", "(%(area)s::text is null or c.area_id = %(area)s)",
-             "(%(unit)s::text is null or c.unit_id = %(unit)s)", "(%(text)s::text is null or c.title ilike %(like)s)",
+             "(%(unit)s::text is null or c.unit_id = %(unit)s)", "(%(text)s::text is null or c.title ilike %(like)s or c.text ilike %(like)s)",
              "(%(since)s::timestamp is null or c.first_seen >= %(since)s::timestamp)",
              f"(%(owner)s::text is null or {OWNER} = %(owner)s)"]
     params = {"kind": kind, "area": area, "unit": unit, "text": text, "like": f"%{text}%", "since": since, "owner": owner,

@@ -25,6 +25,9 @@ orders, 20k log entries (~300k source records, 289k entities, 510k links).
   190 ms (links capped per relationship), 2-step neighbourhood 14 ms, flow trace
   1 ms, ontology 1 ms, incidents 16 ms, review list 7 ms, class members 116 ms,
   class-wide maintenance history 490 ms.
+- **Work board** (large, with a year of open work orders: 3,731 cards): a full
+  refresh 6 s; `GET /board` 15 to 25 ms for a page with any filter, text search
+  or facets, 52 ms for the last page; a card's history 14 ms.
 - **Graph database**: not needed. Traversals Fuzer does (flow traces,
   neighbourhoods, class hierarchies) are milliseconds in Postgres at full size;
   revisit only if multi-asset graphs or deep path queries change that.
