@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
+import { Logo } from "./brand";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
@@ -59,7 +60,7 @@ function App() {
     <>
       <nav className="top">
         <a className="brand" href={href("/")}>
-          Fuzer
+          <Logo />
         </a>
         <a className={section === "" || section === "e" ? "on" : ""} href={href("/")}>
           Browse

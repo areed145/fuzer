@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Fuzer"><title>Fuzer</title>
+<style>.i{stroke:#1d3b5c}.h{fill:#0f8f9c}@media (prefers-color-scheme:dark){.i{stroke:#a9bdd4}.h{fill:#3fc6d4}}</style>
+<defs><mask id="g" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="32" height="32" fill="#fff"/><circle cx="16" cy="16" r="6.6" fill="#000"/></mask></defs>
+<g class="i" fill="none" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" mask="url(#g)"><path d="M16 3.2 27.1 9.6v12.8L16 28.8 4.9 22.4V9.6Z"/><path d="M16 3.2V16m11.1 6.4L16 16M4.9 22.4 16 16"/></g><circle class="h" cx="16" cy="16" r="5"/>
+</svg>

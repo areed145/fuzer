@@ -18,6 +18,10 @@
   --chart-4: #8a4fd1;
   --chart-5: #c4302b;
   --chart-6: #0f8f9c;
+  /* Brand (docs/assets/brand): the Hex hub mark. Ink is the ring and wordmark, hub is the centre. */
+  --brand-ink: #1d3b5c;
+  --brand-hub: #0f8f9c;
+  --brand-word: #1d3b5c;
   --radius: 8px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
@@ -44,6 +48,9 @@
     --chart-4: #b48cff;
     --chart-5: #ff6b66;
     --chart-6: #3fc6d4;
+    --brand-ink: #a9bdd4;
+    --brand-hub: #3fc6d4;
+    --brand-word: #e6e9ee;
     color-scheme: dark;
   }
 }
@@ -98,7 +105,16 @@ nav.top {
 }
 nav.top a { color: var(--muted); font-weight: 500; }
 nav.top a.on { color: var(--text); }
-nav.top .brand { color: var(--text); font-weight: 700; font-size: 16px; }
+nav.top .brand { display: inline-flex; align-items: center; color: var(--text); }
+nav.top .brand:hover { text-decoration: none; }
+nav.top .brand .logo { height: 24px; width: auto; display: block; }
+.mark .ink { stroke: var(--brand-ink); }
+.mark .hub { fill: var(--brand-hub); }
+.mark .word { fill: var(--brand-word); }
+.status .mark { width: 1.4em; height: 1.4em; vertical-align: -0.35em; margin-right: 6px; }
+.status .mark .hub { animation: hub-pulse 1.2s ease-in-out infinite; transform-origin: 16px 16px; }
+@keyframes hub-pulse { 50% { opacity: .35; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .status .mark .hub { animation: none; } }
 nav.top .spacer { flex: 1; }
 .count {
   display: inline-block;
