@@ -1,4 +1,10 @@
-# Fuzer
+# Fuzer { .fz-visually-hidden }
+
+<div class="fz-hero">
+  <img src="assets/brand/fuzer-logo.svg#only-light" alt="Fuzer">
+  <img src="assets/brand/fuzer-logo-dark.svg#only-dark" alt="Fuzer">
+  <p>The asset data graph for oil &amp; gas facilities</p>
+</div>
 
 Fuzer pulls asset data from many systems (SAP, JDE, Maximo, PI and PI AF, Energy Components, P&IDs, operator
 logs), works out which records describe the same real thing, links them into one graph, and runs agents and
