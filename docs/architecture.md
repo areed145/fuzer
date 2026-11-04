@@ -269,6 +269,6 @@ Database, settings, projects and packs, Claude calls, tags and units: used by ev
 
 - **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`
 - **Uses:** nothing else in fuzer
-- **Writes:** `project`, `setting`, `setting_history` ([schema](schema.md))
+- **Writes:** `project`, `schema_version`, `setting`, `setting_history` ([schema](schema.md))
 - **Settings:** `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
 - **Tests:** [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)

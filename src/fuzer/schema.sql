@@ -1,3 +1,11 @@
+-- Which schema.sql this database is at (its hash): init_schema re-runs this file only when it changed, since its
+-- migrations take exclusive locks on busy tables.
+create table if not exists schema_version (
+    id         int primary key check (id = 1),
+    hash       text not null,
+    applied_at timestamptz not null default now()
+);
+
 -- Raw records exactly as received from each source.
 create table if not exists source_record (
     source      text not null,
