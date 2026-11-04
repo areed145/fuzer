@@ -157,6 +157,8 @@ def dagster_command(port: int) -> list[str]:
     database as this process (embedded Postgres is started first, so the child connects to it)."""
     home = Path(os.environ.setdefault("DAGSTER_HOME", str(Path(".dagster").resolve())))
     home.mkdir(exist_ok=True)  # run history, schedules and sensor state live here
+    # Dagster warns on every start without an instance config; an empty one keeps its default (local) storage.
+    (home / "dagster.yaml").touch(exist_ok=True)
     os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
     return [sys.executable, "-m", "dagster", "dev", "-m", "fuzer.ops.jobs", "-p", str(port)]
 
