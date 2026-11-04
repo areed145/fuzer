@@ -12,7 +12,7 @@ name, `key` what was found on it, `end` None while it is still going at the wind
 - drifts: once a day, a slow climb in what wears and fouls (vibration, bearing and discharge
   temperatures, cooler outlets, differential pressure) over the last month.
 - instruments: frozen, stuck, noisy or out-of-range readings (signals.health); instrument work, not
-  upsets.
+  upsets. Each point's usual spread comes from the days before today, read once a day (point_baseline).
 - models: once a day, equipment against its curve (calcs: pump head, choke Cv) and gas lifted wells
   against theirs (a valve failed open).
 
@@ -44,6 +44,7 @@ DRIFTING = re.compile(r"Vibration|Bearing Temp|Discharge Temp|Outlet Temp|Differ
 LEARNED_MINUTES = 60  # a learned-range excursion must last this long (no source set that limit)
 SPE_MINUTES = 120  # a multivariate anomaly lasts this long before it is raised
 MERGE = timedelta(minutes=30)  # the same finding again within this long carries on the one before
+BASELINE_DAYS = 2  # instruments: a point's usual spread over this many days before the window's day
 
 
 def _det(p: dict, unit: str | None, start, end, key: str, detector: str, magnitude=None, evidence=None) -> dict:
@@ -171,21 +172,50 @@ def instruments(conn, pack, since, until, src) -> list[dict]:
     pts = [p for p in _points(conn) if not any(x.search(p["point"]) or x.search(p["description"] or "") for x in skip)]
     step = settings.get(conn, "sre.step_minutes")
     times = _grid(since, until, step)
-    base_a = since - timedelta(days=2)
     run, unit = _running(conn, pack, pts, since, until, src)
     out, th = [], signals.thresholds(conn)
+    usual = baselines(conn, src, pts, since, step, BASELINE_DAYS)
     for p in pts:
+        if p["id"] not in usual:
+            continue  # its baseline couldn't be read
         try:
             v = signals._read(src, p, since, until, step)
-            base = signals._read(src, p, base_a, since - timedelta(minutes=step), step)
         except Exception:
             continue
         lo, hi = signals.RANGES.get(p["uom"] or "", (None, None))
-        for f in signals.health(times, v, step, base, run[p["id"]], lo, hi, th):
+        for f in signals.health(times, v, step, None, run[p["id"]], lo, hi, th, usual=usual[p["id"]]):
             end = datetime.fromisoformat(f["end"])
             out.append(_det(p, unit.get(p["id"]), datetime.fromisoformat(f["start"]), None if end >= until else end,
                             f"instrument:{f['check']}", "instruments", f["value"], {"usual": f["expected"]}))
     return out
+
+
+def baselines(conn, src, pts: list[dict], at: datetime, step: int, days: int) -> dict[str, float | None]:
+    """Each point's usual step-to-step spread (signals.usual_spread) over the `days` before midnight of
+    `at`'s day. Kept in point_baseline, so only a point's first window of the day reads its baseline from
+    the historian (#203); None where there were too few readings (health then judges the window by
+    itself). A point whose baseline couldn't be read is left out."""
+    day = at.replace(hour=0, minute=0, second=0, microsecond=0)
+    have = {r["point_id"]: r["usual"] for r in conn.execute(
+        "select point_id, usual from point_baseline where day = %s and step = %s and days = %s and point_id = any(%s)",
+        (day.date(), step, days, [p["id"] for p in pts]))}
+    new = []
+    for p in pts:
+        if p["id"] in have:
+            continue
+        try:
+            base = signals._read(src, p, day - timedelta(days=days), day - timedelta(minutes=step), step)
+        except Exception:
+            continue
+        have[p["id"]] = signals.usual_spread(base, step)
+        new.append((p["id"], day.date(), step, days, have[p["id"]]))
+    if new:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "insert into point_baseline (point_id, day, step, days, usual) values (%s, %s, %s, %s, %s) "
+                "on conflict (point_id) do update set day = excluded.day, step = excluded.step, days = excluded.days, "
+                "usual = excluded.usual, computed_at = now()", new)
+    return have
 
 
 def models(conn, pack, since, until, src) -> list[dict]:
