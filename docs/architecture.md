@@ -18,7 +18,7 @@ flowchart LR
   c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 10 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
-  c_api["API<br><small>fuzer.api, 11 modules</small>"]
+  c_api["API<br><small>fuzer.api, 12 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 1 module</small>"]
   c_core["Core<br><small>fuzer.core, 14 modules</small>"]
   c_sources --> c_graph
@@ -249,7 +249,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `architecture`, `assistant`, `deps`, `entities`, `graph`, `home`, `jobs`, `knowledge`, `ops`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assertion`, `dataset_state`, `feedback`, `golden`, `pinned_link`, `review_item`, `value_ranking` ([schema](schema.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
