@@ -29,6 +29,19 @@ ACTIONS = {
     "discover": "what a connection can see, and what no dataset covers yet",
     "runs": "load history (of one dataset, or all)",
     "audit": "catalog change history",
+    "profile": "profile a dataset now (kept); without --now, its saved profiles",
+    "checks": "a dataset's checks (or all) with their latest results",
+    "add-check": "DATASET KIND: key_unique | not_null | range | accepted | row_count | freshness | coverage "
+                 "(--column, --set param=value, --blocking)",
+    "remove-check": "a check by id",
+    "health": "per dataset: freshness, last run, failing checks, profile drift, coverage, open reviews",
+    "matching": "match statistics per source after each rebuild",
+    "rules": "survivorship and matching rules, and the systems' rank (the default priority)",
+    "set-rule": "SCOPE NAME: field <field> --set priority=[review,sap] --set review_on_conflict=true, or "
+                "match <kind> --set auto_accept=0.9 --set review_min=0.6",
+    "rank": "SYSTEM N: a system's place in the default priority (lower wins)",
+    "impact": "what a mapping change would do (a file, or a version id), before it is approved",
+    "why": "FUZER_ID FIELD: the records, mapping versions and runs behind a golden value",
 }
 
 
@@ -47,6 +60,9 @@ def add_parser(sub) -> None:
     so.add_argument("--retract", action="store_true", help="retire: remove its records")
     so.add_argument("--keep", action="store_true", help="retire: keep its records as history")
     so.add_argument("--dry-run", action="store_true", help="retire: only show what would go")
+    so.add_argument("--column", default=None, help="add-check: the column it looks at")
+    so.add_argument("--blocking", action="store_true", help="add-check: a failure holds the load")
+    so.add_argument("--now", action="store_true", help="profile: profile it now")
     so.add_argument("--reason", default=None, help="why (kept in the audit log)")
     so.add_argument("--by", default=os.environ.get("USER", "cli"))
 
@@ -69,7 +85,7 @@ def _need(args, n: int, what: str) -> list[str]:
 
 def run(conn, pack, data: Path, args) -> object:
     from ..core.jsonsafe import plain
-    from ..sources import catalog, connections, ingest, preview
+    from ..sources import catalog, connections, impact, ingest, preview, quality, rules
 
     a, by, why = args.action, args.by, args.reason
     if a != "seed":
@@ -141,7 +157,41 @@ def run(conn, pack, data: Path, args) -> object:
             return catalog.runs(conn, args.names[0] if args.names else None)
         elif a == "audit":
             return catalog.audit(conn, args.names[0] if args.names else None)
-    except catalog.CatalogError as e:
+        elif a == "profile":
+            name = _need(args, 1, "a dataset")[0]
+            if not args.now:
+                return quality.profiles(conn, name)
+            out = quality.profile_now(conn, name, data)
+        elif a == "checks":
+            return quality.checks(conn, args.names[0] if args.names else None)
+        elif a == "add-check":
+            name, kind = _need(args, 2, "a dataset and a check kind")[:2]
+            out = quality.add_check(conn, name, kind, by, args.column, _pairs(args.set), args.blocking, why)
+        elif a == "remove-check":
+            quality.remove_check(conn, int(_need(args, 1, "a check id")[0]), by)
+            out = {"removed": int(args.names[0])}
+        elif a == "health":
+            return quality.health(conn, args.names[0] if args.names else None)
+        elif a == "matching":
+            return quality.matching(conn, args.names[0] if args.names else None)
+        elif a == "rules":
+            rules.seed(conn, pack)
+            conn.commit()
+            return rules.listing(conn)
+        elif a == "set-rule":
+            scope, name = _need(args, 2, "a scope (field | match) and a name")[:2]
+            out = rules.set_rule(conn, scope, name, _pairs(args.set), by, why)
+        elif a == "rank":
+            system, rank = _need(args, 2, "a system and its rank")[:2]
+            out = rules.set_rank(conn, system, None if rank in ("none", "-") else int(rank), by, why)
+        elif a == "impact":
+            what = _need(args, 1, "a mapping file or a version id")[0]
+            return impact.preview(conn, pack, version_id=int(what)) if what.isdigit() else \
+                impact.preview(conn, pack, Path(what).read_text())
+        elif a == "why":
+            fid, field = _need(args, 2, "a Fuzer ID and a field")[:2]
+            return impact.why(conn, pack, fid, field)
+    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError) as e:
         conn.rollback()
         raise SystemExit(str(e)) from None
     conn.commit()

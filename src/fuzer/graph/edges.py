@@ -34,11 +34,15 @@ def resolver(assigned: dict, key_index: dict):
 def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_index: dict) -> dict:
     endpoint = resolver(assigned, key_index)
     merged, unresolved = {}, Counter()
+    coverage: dict[str, dict[str, list[int]]] = {}  # source -> rel -> [resolved, total] (#225)
     for e in [e for c in cands for e in c.edges] + extra:
         (src, why_s), (dst, why_d) = endpoint(e.src), endpoint(e.dst)
+        cov = coverage.setdefault(e.source, {}).setdefault(e.rel, [0, 0])
+        cov[1] += 1
         if not (src and dst):
             unresolved[f"{e.rel}: {why_s or why_d}"] += 1
             continue
+        cov[0] += 1
         # The same link stated by several sources becomes one edge listing all of them.
         key = (src, e.rel, dst, _date(e.valid_from))
         if key in merged:
@@ -54,7 +58,7 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
             for (src, rel, dst, valid_from), r in merged.items()]
     sync = db.sync_table(conn, "edge", ["src", "rel", "dst", "valid_from"],
                          ["valid_to", "sources", "confidence", "props"], rows, nullable_keys=("valid_from",))
-    return {"edges": len(rows), "unresolved_edges": dict(unresolved),
+    return {"edges": len(rows), "unresolved_edges": dict(unresolved), "coverage": coverage,
             "edge_changes": {k: v for k, v in sync.items() if k != "rows"}}
 
 

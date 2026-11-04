@@ -18,7 +18,7 @@ from typing import Callable, NamedTuple
 
 from psycopg.types.json import Jsonb
 
-from . import catalog, connections, connectors, mappings
+from . import catalog, connections, connectors, mappings, quality
 
 
 def tables(conn=None) -> dict:
@@ -151,11 +151,18 @@ def dataset(data_dir: Path, name: str, conn=None):
 
 
 def _records(name: str, c, d: dict, since=None):
+    """(source, record_type, key, payload) per record, with the system's number and date formats read
+    (formats.py) before the key is taken."""
+    from .formats import Formats
+
+    fmt = Formats.of(d)
     if d.get("reader"):
-        yield from c.records()
+        for source, rtype, key, payload in c.records():
+            yield source, rtype, key, fmt.row(payload)
         return
     cols = d["key"] or ()
     for row in c.rows(since):
+        row = fmt.row(row)
         yield d["source"], d["record_type"], ">".join(str(row[k]) for k in cols), row
 
 
@@ -232,15 +239,16 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
             top = since[1] if since else None
             # a full read is a snapshot (append too, until its connector reads from a watermark position)
             snap = snapshot and d["load_mode"] != "incremental" and since is None
-            n = 0
+            n, prof = 0, quality.Profiler()
             for source, record_type, key, payload in _records(d["name"], c, d, since):
                 if wm and (v := payload.get(wm)) is not None and (top is None or str(v) > str(top)):
                     top = str(v)
                 n += 1
+                prof.add(payload)
                 yield d["name"], source, record_type, key, Jsonb(payload), snap
-            report["loaded"].append(d["name"])
             counts[d["name"]] = {"d": d, "status": "done", "connector": c.kind, "fingerprint": fp, "schema": schema,
-                                 "position": top, "rows_read": n, "seconds": time.perf_counter() - t0}
+                                 "position": top, "rows_read": n, "seconds": time.perf_counter() - t0,
+                                 "profile": prof.result()}
 
     try:
         conn.execute("drop table if exists source_record_stage")
@@ -249,7 +257,9 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
         n = db.copy_rows(conn, "source_record_stage", ["dataset", "source", "record_type", "source_key", "payload", "snap"],
                          rows())
         conn.execute("analyze source_record_stage")
-        totals = _merge(conn, snapshot, counts)
+        _check(conn, counts, report)
+        totals = _merge(conn, snapshot, {k: v for k, v in counts.items() if v["status"] == "done"})
+        report["loaded"] = [k for k, v in counts.items() if v["status"] == "done"]
     except Exception as e:
         conn.rollback()
         for d, c, fp, schema in plan:
@@ -258,9 +268,34 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
         conn.commit()
         raise
     for r in [*runs, *counts.values()]:
-        _run(conn, r, used, trigger)
+        run_id = _run(conn, r, used, trigger)
+        if "profile" in r:
+            p = quality.save_profile(conn, r["d"], run_id, r["profile"], r.get("key"))
+            if p["drift"]:
+                report.setdefault("profile_drift", {})[r["d"]["name"]] = p["drift"]
+        quality.store_results(conn, r.get("checks") or [], run_id)
+        if r["status"] == "done":
+            quality.clear_check_hold(conn, r["d"]["name"])
     conn.commit()
     return {"records": n, **totals, **report}
+
+
+def _check(conn, counts: dict[str, dict], report: dict) -> None:
+    """Load checks on the staged rows. A dataset with duplicate keys, or failing a blocking check, is held: its
+    staged rows are dropped (its records stay as they were) and a `check` review item says why."""
+    keys = quality.key_stats(conn, list(counts))
+    for name, r in counts.items():
+        r["key"] = keys.get(name)
+        r["checks"] = quality.run_load_checks(conn, r["d"], r["rows_read"], r["key"])
+        failed = [x for x in r["checks"] if not x["ok"] and x["blocking"]]
+        if r["key"]["duplicates"]:
+            failed.insert(0, {"kind": "duplicate keys", "value": r["key"]["duplicates"],
+                              "detail": {"examples": r["key"]["examples"]}})
+        if failed:
+            conn.execute("delete from source_record_stage where dataset = %s", (name,))
+            quality.hold_for_checks(conn, name, failed)
+            r |= {"status": "held", "detail": {"checks": failed}}
+            report["held"].append(name)
 
 
 def _merge(conn, snapshot: bool, counts: dict[str, dict]) -> dict:
@@ -311,7 +346,7 @@ def _merge(conn, snapshot: bool, counts: dict[str, dict]) -> dict:
     return {"inserted": inserted, "updated": updated, "removed": removed}
 
 
-def _run(conn, r: dict, used: dict, trigger: str) -> None:
+def _run(conn, r: dict, used: dict, trigger: str) -> int:
     """One source_run row; a load that went through also moves the dataset's state on."""
     d = r["d"]
     mine = {f"{s}/{t}": used.get(f"{s}/{t}") for s, t in catalog.produces(d)}
@@ -325,6 +360,7 @@ def _run(conn, r: dict, used: dict, trigger: str) -> None:
               r.get("updated", 0 if r["status"] == "done" else None), r.get("unchanged", 0 if r["status"] == "done" else None),
               r.get("removed", 0 if r["status"] == "done" else None), r.get("error"), Jsonb(r.get("detail")),
               round(r["seconds"], 3) if r.get("seconds") is not None else None)).fetchone()
+    run_id = row["id"]
     if r["status"] == "done":
         conn.execute(
             """
@@ -334,3 +370,4 @@ def _run(conn, r: dict, used: dict, trigger: str) -> None:
                   d["id"]))
     else:
         conn.execute("update source_dataset set checked_at = now(), last_run_id = %s where id = %s", (row["id"], d["id"]))
+    return run_id

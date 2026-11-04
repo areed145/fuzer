@@ -362,6 +362,76 @@ One row per load of a dataset that changed (unchanged ones only touch source_dat
 | `detail` | jsonb, | held: the schema drift; failed: what broke |
 | `seconds` | real |  |
 
+## `source_profile`
+
+A profile of each load (sources/quality.py): per column type, fill %, distinct count, top values and samples; the key's duplicates and empties; what changed since the profile before (drift).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `dataset_id` | bigint |  |
+| `run_id` | bigint |  |
+| `taken_at` | timestamptz |  |
+| `rows` | bigint |  |
+| `sampled` | boolean |  |
+| `columns` | jsonb |  |
+| `key` | jsonb |  |
+| `drift` | jsonb |  |
+
+## `source_check`
+
+Expectations per dataset and their results: load checks run before a load is applied (a failing blocking one holds it), freshness and coverage are judged by the health summary and after rebuilds.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `dataset_id` | bigint |  |
+| `kind` | text |  |
+| `'coverage'))` |  |  |
+| `column_name` | text |  |
+| `params` | jsonb |  |
+| `blocking` | boolean |  |
+| `enabled` | boolean |  |
+| `note` | text |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
+## `source_check_result`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `check_id` | bigint |  |
+| `run_id` | bigint |  |
+| `at` | timestamptz |  |
+| `ok` | boolean |  |
+| `value` | double precision |  |
+| `detail` | jsonb |  |
+
+## `source_match_stat`
+
+Per source after each rebuild (90 days kept): link coverage, how its records matched, what it shares with other sources, golden fields won, open reviews.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `built_at` | timestamptz |  |
+| `source` | text |  |
+| `stats` | jsonb |  |
+
+## `source_rule`
+
+Survivorship and matching rules (sources/rules.py): a field's own priority and conflict review, an entity kind's match thresholds. The default priority is the systems' rank. Seeded from the pack.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `scope` | text |  |
+| `name` | text |  |
+| `config` | jsonb |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## `source_audit`
 
 Every change to the catalog: who, when, what it was and became, and why.

@@ -60,18 +60,18 @@ class CsvTable:
     kind = "csv"
     watermarks = False
 
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, path: Path, encoding: str | None = None):
+        self.path, self.encoding = path, encoding or "utf-8"
 
     def fingerprint(self) -> str:
         return _stat([self.path], self.path.parent)
 
     def schema(self) -> list[list[str]]:
-        with self.path.open(newline="") as f:
+        with self.path.open(newline="", encoding=self.encoding) as f:
             return [[c, "string"] for c in next(csv.reader(f), [])]
 
     def rows(self, since=None) -> Iterator[dict]:
-        with self.path.open(newline="") as f:
+        with self.path.open(newline="", encoding=self.encoding) as f:
             yield from csv.DictReader(f)
 
 

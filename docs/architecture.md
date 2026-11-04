@@ -10,7 +10,7 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 19 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 21 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 16 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
@@ -171,9 +171,9 @@ flowchart TD
 
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mappings`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
 - **Uses:** core
-- **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_connection`, `source_dataset`, `source_record`, `source_record_history`, `source_run`, `source_system` ([schema](schema.md))
+- **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_system` ([schema](schema.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
 ### Graph and golden records

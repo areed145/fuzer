@@ -386,6 +386,69 @@ create table if not exists source_run (
 );
 create index if not exists source_run_of on source_run (dataset_id, id desc);
 
+-- A profile of each load (sources/quality.py): per column type, fill %, distinct count, top values and samples;
+-- the key's duplicates and empties; what changed since the profile before (drift).
+create table if not exists source_profile (
+    id         bigserial primary key,
+    dataset_id bigint not null references source_dataset (id) on delete cascade,
+    run_id     bigint,
+    taken_at   timestamptz not null default now(),
+    rows       bigint,
+    sampled    boolean not null default false,
+    columns    jsonb not null,
+    key        jsonb,
+    drift      jsonb
+);
+create index if not exists source_profile_of on source_profile (dataset_id, id desc);
+
+-- Expectations per dataset and their results: load checks run before a load is applied (a failing blocking one
+-- holds it), freshness and coverage are judged by the health summary and after rebuilds.
+create table if not exists source_check (
+    id          bigserial primary key,
+    dataset_id  bigint not null references source_dataset (id) on delete cascade,
+    kind        text not null check (kind in ('key_unique', 'not_null', 'range', 'accepted', 'row_count', 'freshness',
+                                              'coverage')),
+    column_name text,
+    params      jsonb not null default '{}',
+    blocking    boolean not null default false,
+    enabled     boolean not null default true,
+    note        text,
+    created_by  text,
+    created_at  timestamptz not null default now()
+);
+create table if not exists source_check_result (
+    id       bigserial primary key,
+    check_id bigint not null references source_check (id) on delete cascade,
+    run_id   bigint,
+    at       timestamptz not null default now(),
+    ok       boolean not null,
+    value    double precision,
+    detail   jsonb
+);
+create index if not exists source_check_result_of on source_check_result (check_id, id desc);
+
+-- Per source after each rebuild (90 days kept): link coverage, how its records matched, what it shares with
+-- other sources, golden fields won, open reviews.
+create table if not exists source_match_stat (
+    id       bigserial primary key,
+    built_at timestamptz not null default now(),
+    source   text not null,
+    stats    jsonb not null
+);
+create index if not exists source_match_stat_of on source_match_stat (source, id desc);
+
+-- Survivorship and matching rules (sources/rules.py): a field's own priority and conflict review, an entity
+-- kind's match thresholds. The default priority is the systems' rank. Seeded from the pack.
+create table if not exists source_rule (
+    id         bigserial primary key,
+    scope      text not null check (scope in ('field', 'match')),
+    name       text not null,
+    config     jsonb not null,
+    updated_by text not null,
+    updated_at timestamptz not null default now(),
+    unique (scope, name)
+);
+
 -- Every change to the catalog: who, when, what it was and became, and why.
 create table if not exists source_audit (
     id        bigserial primary key,
