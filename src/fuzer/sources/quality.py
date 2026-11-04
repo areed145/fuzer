@@ -34,6 +34,7 @@ CHECK_KINDS = {
     "coverage": "at least params.min_pct % of the source's links resolve (params.rel: one link type)",
 }
 LOAD_CHECKS = ("key_unique", "not_null", "range", "accepted", "row_count")
+SIGNIFICANT = {"fill dropped", "type changed", "column gone"}  # profile drift worth telling someone about
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?")
 _NUM = re.compile(r"^-?\d+([.,]\d+)?([eE][-+]?\d+)?$")
 
@@ -386,11 +387,12 @@ def health(conn, name: str | None = None) -> list[dict]:
         s = stats.get(d["source"]) or {}
         problems = [p for p, on in (("stale", stale), ("held", (("schema", n) in held) or (("check", n) in held)),
                                     ("failed", bool(runs) and runs[0]["status"] == "failed"),
-                                    ("checks failing", bool(failing)), ("profile drift", bool(prof and prof["drift"])))
+                                    ("checks failing", bool(failing)),
+                                    ("profile drift", any(x["change"] in SIGNIFICANT for x in (prof or {}).get("drift") or [])))
                     if on]
         out.append(plain({
             "dataset": n, "system": d["source"], "status": d["status"], "owner": d["owner"],
-            "state": "ok" if not problems else problems[0], "problems": problems,
+            "state": problems[0] if problems else "ok" if d["loaded_at"] else "not loaded", "problems": problems,
             "last_loaded": d["loaded_at"], "last_checked": d["checked_at"], "age_hours": round(age, 1) if age is not None else None,
             "expected_hours": hours, "rows": d["rows"], "row_trend": [r["rows_read"] for r in runs if r["rows_read"] is not None][::-1],
             "last_run": dict(runs[0]) if runs else None, "failing_checks": failing,

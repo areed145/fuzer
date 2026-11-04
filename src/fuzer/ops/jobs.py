@@ -2,11 +2,14 @@
 
     uv run fuzer jobs            # Dagster UI on http://127.0.0.1:3000
 
-Assets: one per source export (each loads only its own file, as a full snapshot), then
+Assets: one per dataset in the source catalog (#225; each loads only itself, as its load mode says), then
 `register` (the rebuild), then the Claude readers. What runs when:
 
 - `new_exports` sensor: a changed export file in the data folder loads that source and rebuilds.
-- `refresh_logs` hourly and `refresh_all` daily (02:00).
+- `dataset_schedules` sensor: a dataset with its own schedule (source_dataset.schedule, a cron) loads then.
+- `refresh_logs` hourly and `refresh_all` daily (02:00); `source_health` every 30 minutes tells owners about
+  stale or broken sources (work items and the alert webhook).
+- Each source asset has a check: its dataset's checks and health.
 - `claude_reading` nightly, off by default because it costs money. Turn it on in the UI.
 - Asset checks on the register flag data-quality problems; failed runs post to
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
@@ -18,7 +21,6 @@ settings llm.model and llm.effort, the day close the setting daily_report.close_
 
 import json
 import os
-import urllib.request
 from pathlib import Path
 
 import dagster as dg
@@ -64,14 +66,16 @@ def export_signature(data_dir: Path, name: str) -> str | None:
 
 
 def _source_asset(name: str):
-    @dg.asset(name=name, group_name="sources", description=f"Loads the {name} dataset (CSV, Parquet, Delta, or a live "
-                                                                 "PI Web API / ADX connection).")
+    @dg.asset(name=name, group_name="sources", description=f"Loads the {name} dataset through its catalog connection "
+                                                                 "(a folder of CSV / Parquet / Delta, or PI Web API / ADX).")
     def load(context: dg.AssetExecutionContext, fuzer: Fuzer) -> dg.MaterializeResult:
-        if (c := ingest.dataset(Path(fuzer.data_dir), name)) is None:
-            context.log.warning(f"{name} not found in {fuzer.data_dir}; nothing loaded")
-            return dg.MaterializeResult(metadata={"dataset": name, "records": 0, "missing": True})
         with fuzer.connect() as conn:
-            stats = ingest.ingest(conn, fuzer.data_dir, [name])
+            if (c := ingest.dataset(Path(fuzer.data_dir), name, conn)) is None:
+                context.log.warning(f"{name} not found through its connection; nothing loaded")
+                return dg.MaterializeResult(metadata={"dataset": name, "records": 0, "missing": True})
+            trigger = "schedule" if context.run.tags.get("dagster/schedule_name") or context.run.tags.get(
+                "fuzer/dataset_schedule") else "sensor" if context.run.tags.get("dagster/sensor_name") else "manual"
+            stats = ingest.ingest(conn, fuzer.data_dir, [name], trigger=trigger)
         if stats["held"]:
             context.log.warning(f"{name} changed schema; held until the schema review is answered")
         return dg.MaterializeResult(metadata={"dataset": name, "connector": c.kind, "path": str(c.path),
@@ -80,7 +84,43 @@ def _source_asset(name: str):
     return load
 
 
-SOURCES = [_source_asset(name) for name in ingest.export_names()]
+def _source_check(name: str):
+    @dg.asset_check(asset=name, name="source_checks", description=f"{name}: its checks pass and it is healthy (#225).")
+    def check(fuzer: Fuzer) -> dg.AssetCheckResult:
+        from ..sources import quality
+
+        with fuzer.connect() as conn:
+            h = (quality.health(conn, name) or [{}])[0]
+        failing = h.get("failing_checks") or []
+        blocking = any(c["blocking"] for c in failing) or {"failed", "held"} & set(h.get("problems") or [])
+        return dg.AssetCheckResult(
+            passed=not h.get("problems"),
+            severity=dg.AssetCheckSeverity.ERROR if blocking else dg.AssetCheckSeverity.WARN,
+            metadata={"state": h.get("state", "unknown"), "problems": dg.MetadataValue.json(h.get("problems") or []),
+                      "failing_checks": dg.MetadataValue.json(failing), "age_hours": h.get("age_hours") or 0})
+    return check
+
+
+def catalog_names() -> list[str]:
+    """The catalog's datasets (not retired), read when the definitions load; the seed files' without a database
+    (an import doesn't start the embedded one)."""
+    if not os.environ.get("FUZER_DATABASE_URL") and db._server is None:
+        return ingest.export_names()
+    try:
+        with db.connect(url=os.environ.get("FUZER_DATABASE_URL")) as conn:
+            db.init_schema(conn)
+            from ..sources import catalog
+
+            catalog.ensure(conn)
+            conn.commit()
+            return list(catalog.datasets(conn, ("active", "paused", "draft")))
+    except Exception:  # noqa: BLE001  (no database yet: the built-in datasets)
+        return ingest.export_names()
+
+
+DATASETS = catalog_names()
+SOURCES = [_source_asset(name) for name in DATASETS]
+SOURCE_CHECKS = [_source_check(name) for name in DATASETS]
 
 
 @dg.asset(group_name="register", deps=SOURCES,
@@ -314,11 +354,26 @@ def studies_job():
     studies_op()
 
 
+@dg.op(description="Tell owners about stale or broken sources, and close what cleared (#225).")
+def source_health_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..sources import alerts
+    with fuzer.connect() as conn:
+        out = alerts.check(conn)
+        conn.commit()
+        context.log.info(f"source health: {out}")
+
+
+@dg.job(description="Source health: stale data, failed or held loads, failing checks -> work items and alerts.")
+def source_health():
+    source_health_op()
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
                                   description="Load every export and rebuild.")
-refresh_logs = dg.define_asset_job("refresh_logs", selection=dg.AssetSelection.assets("oplogs", register),
+refresh_logs = dg.define_asset_job("refresh_logs", selection=dg.AssetSelection.assets(
+                                       *(["oplogs"] if "oplogs" in DATASETS else []), register),
                                    description="Load the operator logs and rebuild.")
 claude_reading = dg.define_asset_job("claude_reading", selection=dg.AssetSelection.groups("claude"),
                                      description="Claude reads new log entries and drawings (costs money).")
@@ -339,7 +394,41 @@ schedules = [
                           default_status=dg.DefaultScheduleStatus.RUNNING),
     dg.ScheduleDefinition(job=day_close, cron_schedule=settings.get(None, "daily_report.close_cron"),
                           execution_timezone=TZ, default_status=dg.DefaultScheduleStatus.RUNNING),
+    dg.ScheduleDefinition(job=source_health, cron_schedule="*/30 * * * *", execution_timezone=TZ,
+                          default_status=dg.DefaultScheduleStatus.RUNNING),
 ]
+
+
+def due(cron: str, since: float, now: float, tz: str = TZ) -> bool:
+    """A cron tick fell in (since, now] (epoch seconds)."""
+    from dagster._utils.schedules import cron_string_iterator
+
+    for t in cron_string_iterator(since, cron, tz):
+        return t.timestamp() <= now
+    return False
+
+
+@dg.sensor(job=refresh_all, minimum_interval_seconds=60, default_status=dg.DefaultSensorStatus.RUNNING,
+           description="Loads each dataset with its own schedule (source_dataset.schedule) when it is due, then rebuilds.")
+def dataset_schedules(context: dg.SensorEvaluationContext, fuzer: Fuzer):
+    import time
+
+    now = time.time()
+    since = float(context.cursor) if context.cursor else now - 60
+    with fuzer.connect() as conn:
+        rows = conn.execute("select name, schedule from source_dataset where status = 'active' "
+                            "and coalesce(schedule, '') <> ''").fetchall()
+    due_now = sorted(r["name"] for r in rows if r["name"] in DATASETS and due(r["schedule"], since, now))
+    missing = [r["name"] for r in rows if r["name"] not in DATASETS]
+    if missing:
+        context.log.warning(f"datasets added since the definitions loaded (reload them to schedule): {missing}")
+    if not due_now:
+        return dg.SensorResult(skip_reason=f"no dataset due ({len(rows)} scheduled)", cursor=str(now))
+    return dg.SensorResult(
+        run_requests=[dg.RunRequest(run_key=f"{','.join(due_now)}@{int(now)}",
+                                    asset_selection=[dg.AssetKey(n) for n in due_now] + [register.key],
+                                    tags={"fuzer/dataset_schedule": ",".join(due_now)})],
+        cursor=str(now))
 
 
 @dg.sensor(job=refresh_all, minimum_interval_seconds=60, default_status=dg.DefaultSensorStatus.RUNNING,
@@ -347,7 +436,7 @@ schedules = [
 def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
     data_dir = Path(fuzer.data_dir)
     seen = json.loads(context.cursor) if context.cursor else {}
-    current = {name: sig for name in ingest.export_names() if (sig := export_signature(data_dir, name))}
+    current = {name: sig for name in DATASETS if (sig := export_signature(data_dir, name))}
     changed = sorted(name for name, sig in current.items() if seen.get(name) != sig)
     if not changed:
         return dg.SkipReason(f"no changed exports in {data_dir}")
@@ -367,20 +456,17 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
     message = f"Fuzer job '{context.dagster_run.job_name}' failed (run {context.dagster_run.run_id[:8]}): " \
               f"{context.failure_event.message}"
     context.log.error(message)
-    from ..core import settings
+    from ..sources import alerts
 
-    if url := settings.secret(None, "alerts.webhook"):
-        req = urllib.request.Request(url, data=json.dumps({"text": message}).encode(),
-                                     headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=10)
+    alerts.post(message)
 
 
 defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
-                  document_revisions, flow_vs_piping],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan, day_close, studies_job],
+                  document_revisions, flow_vs_piping, *SOURCE_CHECKS],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan, day_close, studies_job, source_health],
     schedules=schedules,
-    sensors=[new_exports, alert_on_failure],
+    sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
 )

@@ -1,0 +1,401 @@
+"""The source catalog over HTTP (#225): systems, connections, datasets, mapping versions, checks, rules, runs,
+profiles, health and history; test and discover a connection, preview a mapping change, run, pause and
+retire a dataset. Every change takes `by` (who) and `reason` (kept in the audit log)."""
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from . import deps
+from .deps import get_conn
+
+router = APIRouter(prefix="/sources")
+
+
+def _data_dir() -> str:
+    from .sources import _data_dir as d
+
+    return d()
+
+
+def _do(conn, fn, *args, **kwargs):
+    """Run a catalog change: commit it, or turn a validation error into a 400."""
+    from ..core.jsonsafe import plain
+    from ..sources import catalog, impact, quality, rules
+
+    try:
+        out = fn(*args, **kwargs)
+    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError) as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return plain(out)
+
+
+class Change(BaseModel):
+    values: dict[str, Any] = Field(default_factory=dict)
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+class Named(Change):
+    name: str
+
+
+class NewDataset(Named):
+    system: str
+
+
+class NewConnection(BaseModel):
+    name: str
+    type: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    secrets: dict[str, str] = Field(default_factory=dict)
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+class Text(BaseModel):
+    yaml: str
+    note: str | None = None
+    by: str = "anonymous"
+
+
+class Who(BaseModel):
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+class Retire(Who):
+    retract: bool
+
+
+class NewCheck(BaseModel):
+    kind: str
+    column: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    blocking: bool = False
+    note: str | None = None
+    by: str = "anonymous"
+
+
+class Rule(BaseModel):
+    config: dict[str, Any]
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+class Rank(Who):
+    rank: int | None
+
+
+class Impact(BaseModel):
+    yaml: str | None = None
+    version_id: int | None = None
+    limit: int | None = None
+
+
+# ---- the whole catalog -----------------------------------------------------------------------------
+
+@router.get("/catalog")
+def catalog_view(conn=Depends(get_conn)):
+    """Systems with their connections (secrets shown only as resolving or not) and datasets, with health."""
+    from ..core.jsonsafe import plain
+    from ..sources import catalog, connections, quality
+
+    catalog.ensure(conn)
+    conn.commit()
+    health = {h["dataset"]: h for h in quality.health(conn)}
+    ds = catalog.datasets(conn)
+    systems = []
+    for s in catalog.systems(conn):
+        systems.append({**s, "connections": [{**c, "secrets": {k: {"ref": v, "resolves": connections.resolve(v) is not None}
+                                                               for k, v in (c["secrets"] or {}).items()}}
+                                             for c in catalog.connections(conn, s["name"])],
+                        "datasets": [{"name": n, "record_type": d["record_type"], "reader": d["reader"], "status": d["status"],
+                                      "load_mode": d["load_mode"], "rows": d["rows"], "loaded_at": d["loaded_at"],
+                                      "connection": d["connection_name"], "health": health.get(n)}
+                                     for n, d in ds.items() if d["system_id"] == s["id"]]})
+    return plain({"systems": systems, "types": _types(), "check_kinds": quality.CHECK_KINDS})
+
+
+def _types() -> dict:
+    from ..sources import catalog, connections
+
+    return {"connections": {k: {"config": t.config, "secrets": list(t.secrets)} for k, t in connections.TYPES.items()},
+            "load_modes": catalog.LOAD_MODES, "drift_policies": catalog.DRIFT_POLICIES, "statuses": catalog.STATUSES}
+
+
+@router.get("/health")
+def health(dataset: str | None = None, conn=Depends(get_conn)):
+    from ..sources import quality
+
+    return quality.health(conn, dataset)
+
+
+@router.get("/audit")
+def audit(object: str | None = None, object_id: int | None = None, limit: int = 100, conn=Depends(get_conn)):  # noqa: A002
+    from ..sources import catalog
+
+    return catalog.audit(conn, object, object_id, min(limit, 500))
+
+
+@router.post("/seed")
+def seed(conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.seed, conn)
+
+
+@router.get("/export")
+def export(names: str | None = None, conn=Depends(get_conn)):
+    """The catalog as YAML files (name -> text), for review or another environment."""
+    from ..sources import catalog
+
+    return catalog.export(conn, names.split(",") if names else None)
+
+
+@router.post("/import")
+def import_(body: Text, conn=Depends(get_conn)):
+    """A mapping file becomes a draft version; a systems.yaml updates systems and connections."""
+    from ..sources import catalog
+
+    return _do(conn, catalog.import_, conn, body.yaml, body.by, body.note)
+
+
+# ---- systems and connections -------------------------------------------------------------------
+
+@router.post("/systems")
+def add_system(body: Named, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.add_system, conn, body.name, body.by, body.reason, **body.values)
+
+
+@router.patch("/systems/{name}")
+def edit_system(name: str, body: Change, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.update_system, conn, name, body.by, body.reason, **body.values)
+
+
+@router.post("/systems/{name}/connections")
+def add_connection(name: str, body: NewConnection, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.add_connection, conn, name, body.name, body.type, body.by, body.config, body.secrets, body.reason)
+
+
+@router.patch("/connections/{cid}")
+def edit_connection(cid: int, body: Change, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.update_connection, conn, cid, body.by, body.reason, **body.values)
+
+
+@router.post("/connections/{cid}/test")
+def test_connection(cid: int, rows: int = 5, conn=Depends(get_conn)):
+    from ..sources import connections
+
+    return _do(conn, connections.test, conn, cid, _data_dir(), min(max(rows, 1), 50))
+
+
+@router.get("/connections/{cid}/discover")
+def discover(cid: int, conn=Depends(get_conn)):
+    from ..sources import catalog, connections
+
+    try:
+        return connections.discover(conn, cid, _data_dir())
+    except catalog.CatalogError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+# ---- datasets ----------------------------------------------------------------------------------
+
+@router.post("/datasets")
+def add_dataset(body: NewDataset, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.add_dataset, conn, body.name, body.system, body.by, body.reason, **body.values)
+
+
+@router.get("/datasets/{name}")
+def dataset_detail(name: str, conn=Depends(get_conn)):
+    """One dataset with everything the Sources page tabs show: connection, mapping versions (with YAML), runs,
+    latest profiles, checks, its source's match statistics, health and change history."""
+    from ..core.jsonsafe import plain
+    from ..sources import catalog, connections, quality
+
+    d = catalog.dataset(conn, name)
+    if not d:
+        raise HTTPException(404, f"no dataset {name!r}")
+    vers = [v for s, t in catalog.produces(d) for v in catalog.versions(conn, s, t)]
+    current = {(m["source"], m["record_type"]): m["id"] for m in catalog.current_mappings(conn)}
+    return plain({
+        "dataset": {k: v for k, v in d.items() if not k.startswith(("connection_", "system_"))},
+        "connection": catalog.connection(conn, d["connection_id"]) if d["connection_id"] else None,
+        "secrets": connections.resolves(d["connection_secrets"] or {}),
+        "mappings": [{**v, "current": current.get((v["source"], v["record_type"])) == v["id"]} for v in vers],
+        "runs": catalog.runs(conn, name, 50),
+        "profiles": quality.profiles(conn, name, 5),
+        "checks": quality.checks(conn, name),
+        "matching": quality.matching(conn, d["source"], 20),
+        "health": (quality.health(conn, name) or [None])[0],
+        "history": catalog.audit(conn, "dataset", d["id"], 100),
+        "retire_preview": catalog.retire_preview(conn, name),
+    })
+
+
+@router.patch("/datasets/{name}")
+def edit_dataset(name: str, body: Change, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.update_dataset, conn, name, body.by, body.reason, **body.values)
+
+
+@router.post("/datasets/{name}/run")
+def run_dataset(name: str, full: bool = False, conn=Depends(get_conn)):
+    """Load one dataset now (its records become entities on the next rebuild)."""
+    from ..sources import catalog, ingest
+
+    if not catalog.dataset(conn, name):
+        raise HTTPException(404, f"no dataset {name!r}")
+    stats = ingest.ingest(conn, _data_dir(), exports=[name], full=full, trigger="api")
+    return {k: stats.get(k) for k in ("loaded", "unchanged", "held", "paused", "records", "inserted", "updated", "removed",
+                                      "profile_drift")}
+
+
+@router.post("/datasets/{name}/pause")
+def pause(name: str, body: Who, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.pause, conn, name, body.by, body.reason)
+
+
+@router.post("/datasets/{name}/resume")
+def resume(name: str, body: Who, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.resume, conn, name, body.by, body.reason)
+
+
+@router.post("/datasets/{name}/retire")
+def retire(name: str, body: Retire, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.retire, conn, name, body.by, body.retract, body.reason)
+
+
+@router.post("/datasets/{name}/profile")
+def profile(name: str, conn=Depends(get_conn)):
+    from ..sources import quality
+
+    return _do(conn, quality.profile_now, conn, name, _data_dir())
+
+
+@router.post("/datasets/{name}/checks")
+def add_check(name: str, body: NewCheck, conn=Depends(get_conn)):
+    from ..sources import quality
+
+    return _do(conn, quality.add_check, conn, name, body.kind, body.by, body.column, body.params, body.blocking, body.note)
+
+
+@router.delete("/checks/{check_id}")
+def remove_check(check_id: int, by: str = "anonymous", conn=Depends(get_conn)):
+    from ..sources import quality
+
+    _do(conn, quality.remove_check, conn, check_id, by)
+    return {"removed": check_id}
+
+
+# ---- mapping versions --------------------------------------------------------------------------
+
+@router.post("/mappings")
+def propose(body: Text, conn=Depends(get_conn)):
+    """A new draft mapping version (approve it to use it)."""
+    from ..sources import catalog
+
+    return _do(conn, catalog.propose, conn, body.yaml, body.by, body.note)
+
+
+@router.post("/mappings/{version_id}/approve")
+def approve(version_id: int, body: Who, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.approve, conn, version_id, body.by, body.reason)
+
+
+@router.post("/mappings/{version_id}/rollback")
+def rollback(version_id: int, body: Who, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.rollback, conn, version_id, body.by, body.reason)
+
+
+@router.post("/impact")
+def impact_preview(body: Impact, conn=Depends(get_conn)):
+    """What a mapping (YAML or a stored version) would change against the one in use, before it's approved."""
+    from ..sources import impact
+
+    try:
+        return impact.preview(conn, deps.PACK, body.yaml, body.version_id, body.limit)
+    except impact.ImpactError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+# ---- rules, matching, lineage --------------------------------------------------------------------
+
+@router.get("/rules")
+def rules_list(conn=Depends(get_conn)):
+    from ..sources import rules
+
+    rules.seed(conn, deps.PACK)
+    conn.commit()
+    return rules.listing(conn)
+
+
+@router.put("/rules/{scope}/{name}")
+def set_rule(scope: str, name: str, body: Rule, conn=Depends(get_conn)):
+    from ..sources import rules
+
+    return _do(conn, rules.set_rule, conn, scope, name, body.config, body.by, body.reason)
+
+
+@router.delete("/rules/{scope}/{name}")
+def delete_rule(scope: str, name: str, by: str = "anonymous", conn=Depends(get_conn)):
+    from ..sources import rules
+
+    _do(conn, rules.delete_rule, conn, scope, name, by)
+    return {"deleted": f"{scope}:{name}"}
+
+
+@router.put("/systems/{name}/rank")
+def set_rank(name: str, body: Rank, conn=Depends(get_conn)):
+    from ..sources import rules
+
+    return _do(conn, rules.set_rank, conn, name, body.rank, body.by, body.reason)
+
+
+@router.get("/matching")
+def matching(source: str | None = None, conn=Depends(get_conn)):
+    from ..sources import quality
+
+    return quality.matching(conn, source)
+
+
+@router.get("/why/{fuzer_id}/{field}")
+def why(fuzer_id: str, field: str, conn=Depends(get_conn)):
+    """Why an entity's field says what it says: rule, records, mapping versions and runs."""
+    from ..sources import impact
+
+    try:
+        return impact.why(conn, deps.PACK, fuzer_id, field)
+    except impact.ImpactError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/rematch")
+def rematch():
+    """Re-derive entities after a mapping or rule change (a rebuild in the background)."""
+    return deps.rebuilder.request()

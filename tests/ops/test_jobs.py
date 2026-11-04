@@ -93,3 +93,16 @@ def test_check_flags_tag_missing_from_sap(fuzer):
 def test_work_tick_job_runs(fuzer):
     result = jobs.work_tick.execute_in_process(resources={"fuzer": fuzer})
     assert result.success
+
+
+def test_datasets_have_checks_and_their_own_schedules():
+    """#225: a source asset and a check per catalog dataset; a dataset's cron is due when a tick falls in the window."""
+    from datetime import datetime, timezone
+
+    from fuzer.ops import jobs
+
+    assert jobs.SOURCE_CHECKS and len(jobs.SOURCE_CHECKS) == len(jobs.SOURCES)
+    names = {s.name for s in jobs.defs.sensors}
+    assert {"dataset_schedules", "new_exports"} <= names and "source_health" in {j.name for j in jobs.defs.jobs}
+    t = datetime(2025, 1, 1, 9, 59, tzinfo=timezone.utc).timestamp()
+    assert jobs.due("0 * * * *", t, t + 120, "UTC") and not jobs.due("0 * * * *", t + 120, t + 180, "UTC")
