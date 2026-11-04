@@ -161,8 +161,10 @@ def test_lessons_go_to_the_review_queue(conn):
 
 def test_recall_tool(conn, okan_pack):
     out = mcp_server.recall("OK-J07-05")
-    assert out["facts"] and all(f["status"] == "current" for f in out["facts"])
-    assert any(f["status"] == "ended" for f in mcp_server.recall("OK-J07-05", include_ended=True)["facts"])
+    assert out["facts"] and "ended" not in out
+    with_ended = mcp_server.recall("OK-J07-05", include_ended=True)
+    assert with_ended["ended"] and all("id" not in f for f in with_ended["ended"])  # history, never cited
+    assert any(f["replaced_by"] and f["replaced_by"].startswith("fact:") for f in with_ended["ended"])
     assert "learned from conversations" in out["note"]
 
 

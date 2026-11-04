@@ -132,15 +132,18 @@ AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor
 # comes later, in a fresh conversation, and only memory can answer it.
 MEMORY_QUESTIONS = [
     {"name": "valve repair", "teach": [
-        {"question": "Why does OK-J07-05 make less oil when we give it more lift gas?",
-         "answer": "OK-J07-05's operating gas lift valve has failed open: the well tests since 2025-03-10 show more "
-                   "lift gas and less oil, so gas is passing through the failed valve instead of lifting from the "
-                   "orifice depth."},
-        {"question": "Was OK-J07-05's gas lift valve fixed?",
-         "answer": "Yes. The engineer confirmed slickline replaced OK-J07-05's failed gas lift valve on 2025-12-14 "
-                   "(dummy pulled, new orifice valve set at 2,140 m MD); the valve is no longer failed."}],
-     "question": "Is OK-J07-05's gas lift valve still failed, and what was done about it?",
-     "must_mention": ["slickline", "2025-12-14"]},
+        # The data holds the April 2025 slickline shut-in (OKDT-00015) and a recovery between the June and July
+        # tests that no record explains; memory fills that gap.
+        {"question": "Why is OK-J07-05 still down on oil after the April 2025 valve change?",
+         "answer": "The gas lift valve slickline set during the 2025-04-15 to 2025-04-19 shut-in is leaking: the "
+                   "April and June well tests show more lift gas and less oil, so OK-J07-05's operating gas lift "
+                   "valve is still passing gas."},
+        {"question": "What brought OK-J07-05 back in July 2025?",
+         "answer": "The well services engineer confirmed a second slickline run on 2025-07-02 replaced the leaking "
+                   "valve set in April with a new orifice valve at 2,140 m MD. The 2025-07-09 test shows oil back at "
+                   "41 Sm3/d, and the valve is no longer leaking. The job was never logged in SAP."}],
+     "question": "What fixed OK-J07-05's gas lift problem in 2025, and is its valve still leaking?",
+     "must_mention": ["2025-07-02"]},
     {"name": "train B cause", "teach": [
         {"question": "What was behind 20-K-2200B's trips in March 2024?",
          "answer": "The strip-down engineers did after the March 2024 trips found the thrust bearing on 20-K-2200B was "

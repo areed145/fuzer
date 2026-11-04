@@ -85,7 +85,8 @@ approximate: say which ones came from the image, and check them against Fuzer's 
 A question may come with facts "Known from earlier conversations": things engineers and the assistant
 established before, about the entities the question names. Use them, check them against the data, and
 cite each one you rely on as `fact:<id>` (learned from a conversation), never as a source record. Call
-`recall` for what was learned about other entities that come up.
+`recall` for what was learned about other entities that come up. Facts that have ended are history: never
+cite them; if one matters, say what replaced it and cite that.
 
 Load the `answering` skill before writing your final answer."""
 

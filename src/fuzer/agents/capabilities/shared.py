@@ -595,7 +595,8 @@ def recall(ref: str, include_ended: bool = False) -> dict[str, Any]:
     """What the assistant learned in earlier conversations about an entity and the units it is part of: short
     dated facts from answers engineers rated useful (or statements they marked to remember). They are not
     source records: check them against the data and cite them as `fact:<id>` (learned from a conversation).
-    include_ended adds facts that have since been ended or replaced, with when and by what."""
+    include_ended adds `ended`: facts that are no longer true, as history only, with what replaced them.
+    Ended facts carry no id because they must not be cited; cite the fact that replaced them."""
     from .. import memory
 
     with db.connect() as conn:
@@ -604,10 +605,15 @@ def recall(ref: str, include_ended: bool = False) -> dict[str, Any]:
             return err
         scope = memory.units(conn, fid)
         rows = memory.facts(conn, scope, None if include_ended else "current", 50)
-    keep = ("id", "text", "subject", "entities", "valid_from", "valid_to", "learned_at", "episode", "status",
-            "invalidated_by", "sources")
-    return _plain({"about": fid, "facts": [{k: r[k] for k in keep} for r in rows],
-                   "note": "learned from conversations, not source records"})
+    keep = ("id", "text", "subject", "entities", "valid_from", "valid_to", "learned_at", "episode", "sources")
+    out = {"about": fid, "facts": [{k: r[k] for k in keep} for r in rows if r["status"] == "current"],
+           "note": "learned from conversations, not source records"}
+    if include_ended:
+        out["ended"] = [{"text": r["text"], "subject": r["subject"], "valid_from": r["valid_from"],
+                         "valid_to": r["valid_to"], "ended_at": r["ended_at"], "ended_by": r["ended_by"],
+                         "replaced_by": f"fact:{r['invalidated_by']}" if r["invalidated_by"] else None}
+                        for r in rows if r["status"] == "ended"]
+    return _plain(out)
 
 
 @capability(kind="query")
