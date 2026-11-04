@@ -212,9 +212,12 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
         default_options=_options(effort), **kw)
 
 
-def team(chat=None, effort: str | None = None, specialist_effort: str | None = None, specialist_chat=None):
+def team(chat=None, effort: str | None = None, specialist_effort: str | None = None, specialist_chat=None,
+         history=None):
     """The orchestrator agent, with the specialists as its background agents. The specialists use their
-    own model when FUZER_AGENT_SPECIALIST_MODEL is set (or specialist_chat is given)."""
+    own model when FUZER_AGENT_SPECIALIST_MODEL is set (or specialist_chat is given). `history` (a MAF
+    HistoryProvider, e.g. history.PostgresHistory) keeps the orchestrator's conversations; without one they
+    live in the session. The specialists' tasks are one question long, so their history stays in memory."""
     from agent_framework._feature_stage import ExperimentalWarning
 
     warnings.filterwarnings("ignore", category=ExperimentalWarning)  # background agents: pinned MAF version
@@ -228,7 +231,8 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description)
                    for name, (description, instructions) in SPECIALISTS.items()]
     return _agent(chat, "orchestrator", ORCHESTRATOR, effort, "Fuzer operations assistant",
-                  background_agents=specialists, background_agents_wait_timeout_seconds=600)
+                  background_agents=specialists, background_agents_wait_timeout_seconds=600,
+                  **({"history_provider": history} if history is not None else {}))
 
 
 def final_text(response) -> str:

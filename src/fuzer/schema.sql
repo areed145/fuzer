@@ -304,6 +304,37 @@ create table if not exists assistant_answer (
     by_user         text not null default 'anonymous',
     created_at      timestamptz not null default now()
 );
+alter table assistant_answer add column if not exists images text[] not null default '{}';  -- assistant_image sha256s
+create index if not exists assistant_answer_conversation on assistant_answer (conversation_id, created_at);
+
+-- The assistant's conversations (#93): each message as MAF wrote it, in order. `json`, not `jsonb`, so a
+-- message comes back exactly as stored (Claude checks its thinking blocks byte for byte). Images are kept
+-- once per conversation and referenced from the messages.
+create table if not exists assistant_conversation (
+    id         text primary key,
+    by_user    text not null default 'anonymous',
+    title      text not null default '',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+create index if not exists assistant_conversation_recent on assistant_conversation (by_user, updated_at desc);
+
+create table if not exists assistant_message (
+    conversation_id text not null references assistant_conversation (id) on delete cascade,
+    seq             int not null,
+    message         json not null,
+    created_at      timestamptz not null default now(),
+    primary key (conversation_id, seq)
+);
+
+create table if not exists assistant_image (
+    conversation_id text not null references assistant_conversation (id) on delete cascade,
+    sha256          text not null,
+    media_type      text not null,
+    data            bytea not null,
+    created_at      timestamptz not null default now(),
+    primary key (conversation_id, sha256)
+);
 
 -- Sparse, manual measurements landed from sources (well tests, lab samples, inspection thickness
 -- readings), unlike historian values, which stay in PI / ADX. Rebuilt from source records with the

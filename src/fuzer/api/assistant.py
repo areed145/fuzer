@@ -86,6 +86,40 @@ def assistant_job(job_id: str):
     return out
 
 
+@router.get("/assistant/conversations")
+def assistant_conversations(by: str | None = None, limit: int = 30, conn=Depends(get_conn)):
+    """Recent conversations (yours with `by`), newest first."""
+    from ..agents import history
+    return history.conversations(conn, by, limit)
+
+
+@router.get("/assistant/conversations/{conversation_id}")
+def assistant_conversation(conversation_id: str, conn=Depends(get_conn)):
+    """A conversation's questions and answers, to reopen it and carry on."""
+    from ..agents import history
+    if (c := history.conversation(conn, conversation_id)) is None:
+        raise HTTPException(404, "unknown conversation")
+    return c
+
+
+@router.get("/assistant/conversations/{conversation_id}/images/{sha}", include_in_schema=False)
+def assistant_image(conversation_id: str, sha: str, conn=Depends(get_conn)):
+    """An image attached to a question."""
+    from ..agents import history
+    if (im := history.image(conn, conversation_id, sha)) is None:
+        raise HTTPException(404, "unknown image")
+    return Response(bytes(im["data"]), media_type=im["media_type"])
+
+
+@router.delete("/assistant/conversations/{conversation_id}")
+def assistant_conversation_delete(conversation_id: str, conn=Depends(get_conn)):
+    """Delete a conversation with its messages, images and answers."""
+    from ..agents import history
+    if not history.delete(conn, conversation_id):
+        raise HTTPException(404, "unknown conversation")
+    return {"deleted": conversation_id}
+
+
 @router.get("/figures/{figure_id}.html", include_in_schema=False)
 def figure_page(figure_id: str, conn=Depends(get_conn)):
     """One chart as a page of its own (for sharing and for MCP clients)."""

@@ -1,17 +1,21 @@
-"""The operations assistant behind the API: one team per server process, conversations kept in memory,
-and each question run as a background job the web page polls for progress (the tools each agent is
-calling) and then the answer. Answers are saved in assistant_answer so engineers can rate them.
+"""The operations assistant behind the API: one team per server process, and each question run as a
+background job the web page polls for progress (the tools each agent is calling) and then the answer.
+Conversations are kept in Postgres (history.PostgresHistory, #93): each question gets a fresh session on
+its conversation id and the history is loaded from the database, so a follow-up works after a restart.
+Answers are saved in assistant_answer so engineers can rate them.
 """
 
 import asyncio
+import hashlib
 import json
 import os
+import time
 import uuid
 
-from ..core import db
+from ..core import db, settings
 
 _team = None
-_sessions: dict[str, object] = {}
+_purged_at = 0.0
 _jobs: dict[str, dict] = {}
 _tasks: set[asyncio.Task] = set()
 MAX_JOBS = 200
@@ -25,10 +29,11 @@ def team():
     global _team
     if _team is None:
         from . import team as make_team
+        from .history import PostgresHistory
 
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise Unavailable("Set ANTHROPIC_API_KEY (in .env) to use the operations assistant.")
-        _team = make_team()
+        _team = make_team(history=PostgresHistory())
     return _team
 
 
@@ -36,14 +41,20 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
           images: list[tuple[str, bytes]] | None = None) -> dict:
     """Start answering in the background; returns the job id and conversation id at once. `images`
     (media type, bytes) go to Claude with the question."""
-    from . import ask
+    from . import ask, history
 
     agent = team()
-    conversation_id = conversation_id if conversation_id in _sessions else uuid.uuid4().hex
-    session = _sessions.setdefault(conversation_id, agent.create_session())
+    with db.connect() as conn:
+        _purge(conn)
+        if not history.exists(conn, conversation_id):
+            conversation_id = uuid.uuid4().hex
+            history.ensure(conn, conversation_id, by, question)
+            conn.commit()
+    session = agent.create_session(session_id=conversation_id)
     job_id = uuid.uuid4().hex[:16]
     job = {"id": job_id, "conversation_id": conversation_id, "status": "running",
            "question": question + (f" [{len(images)} image(s) attached]" if images else ""),
+           "images": [hashlib.sha256(data).hexdigest() for _, data in images or []],
            "trace": [], "answer": None, "error": None}
     _jobs[job_id] = job
     while len(_jobs) > MAX_JOBS:
@@ -64,17 +75,27 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
     return {"job_id": job_id, "conversation_id": conversation_id}
 
 
+def _purge(conn) -> None:
+    """Drop conversations past assistant.retention_days, at most once an hour."""
+    global _purged_at
+    if time.time() - _purged_at > 3600:
+        _purged_at = time.time()
+        from .history import purge
+
+        purge(conn, settings.get(conn, "assistant.retention_days"))
+
+
 def _save(job: dict, by: str) -> None:
     with db.connect() as conn:
         conn.execute(
             """
             insert into assistant_answer (id, conversation_id, question, answer, error, specialists, tools, usage,
-                                          seconds, by_user)
-            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing
+                                          seconds, by_user, images)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing
             """,
             (job["id"], job["conversation_id"], job["question"], job.get("answer"), job.get("error"),
              job.get("specialists") or [], json.dumps(job.get("tools") or []), json.dumps(job.get("usage") or {}),
-             job.get("seconds"), by),
+             job.get("seconds"), by, job["images"]),
         )
         conn.commit()
 
@@ -83,8 +104,21 @@ def status(job_id: str) -> dict | None:
     """Where a job is: the steps so far (which agent called which tool), then the answer."""
     job = _jobs.get(job_id)
     if job is None:
-        return None
+        return _saved(job_id)
     steps = [{"agent": t["agent"], "tool": t["tool"], "args": t["args"]} for t in job["trace"] if t["kind"] == "tool"]
     calls = sum(1 for t in job["trace"] if t["kind"] == "model")
     return {k: job.get(k) for k in ("id", "conversation_id", "question", "status", "answer", "error", "usage",
                                     "seconds", "specialists")} | {"steps": steps, "model_calls": calls}
+
+
+def _saved(job_id: str) -> dict | None:
+    """A finished job from assistant_answer (after a restart the in-memory job is gone)."""
+    with db.connect() as conn:
+        a = conn.execute("select * from assistant_answer where id = %s", (job_id,)).fetchone()
+    if a is None:
+        return None
+    steps = [{"agent": t["agent"], "tool": t["tool"], "args": t.get("args") or {}} for t in a["tools"] or []]
+    return {"id": a["id"], "conversation_id": a["conversation_id"], "question": a["question"],
+            "status": "error" if a["error"] else "done", "answer": a["answer"], "error": a["error"],
+            "usage": a["usage"], "seconds": float(a["seconds"]) if a["seconds"] is not None else None,
+            "specialists": a["specialists"], "steps": steps, "model_calls": (a["usage"] or {}).get("model_calls", 0)}
