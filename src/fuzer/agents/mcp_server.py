@@ -77,7 +77,7 @@ name, a PI point name or a source record key. Every value carries the source it 
 when you answer. If a ref is ambiguous the tool returns candidates; pick one or ask the user.
 """
 
-server = MCPServer(name="fuzer", title="Fuzer asset graph", version="0.1.0", instructions=INSTRUCTIONS)
+server = MCPServer(name="fuzer", title="fuzer asset graph", version="0.1.0", instructions=INSTRUCTIONS)
 # Each tool declares the agents that use it and its kind (#133). Charts are read-only like queries: a chart
 # is kept (assistant_figure) so the answer can show it, but no plant or register data changes, and clients
 # shouldn't ask for approval per chart.

@@ -21,7 +21,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Fuzer", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan)
 
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")

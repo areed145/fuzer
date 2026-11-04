@@ -34,7 +34,7 @@ export function Mark({ title }: { title?: string }) {
 export function Logo() {
   const id = useId();
   return (
-    <svg className="mark logo" viewBox="0 0 96.51 32" role="img" aria-label="Fuzer">
+    <svg className="mark logo" viewBox="0 0 96.51 32" role="img" aria-label="fuzer">
       <HexHub maskId={`fz-${id}`} />
       <path className="word" d={WORDMARK} />
     </svg>
