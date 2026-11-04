@@ -127,6 +127,29 @@ AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor
 
 # Questions for the operations assistant, one per domain plus one across domains, with what a good answer
 # must name (case-insensitive; a list means any of these) given the planted stories. `fuzer eval --agents` scores them (costs money).
+# The assistant's memory (#93): what an engineer worked out with the assistant before, which the data does not
+# hold. Teaching answers are learned from in order (the second valve answer ends the first fact); the question
+# comes later, in a fresh conversation, and only memory can answer it.
+MEMORY_QUESTIONS = [
+    {"name": "valve repair", "teach": [
+        {"question": "Why does OK-J07-05 make less oil when we give it more lift gas?",
+         "answer": "OK-J07-05's operating gas lift valve has failed open: the well tests since 2025-03-10 show more "
+                   "lift gas and less oil, so gas is passing through the failed valve instead of lifting from the "
+                   "orifice depth."},
+        {"question": "Was OK-J07-05's gas lift valve fixed?",
+         "answer": "Yes. The engineer confirmed slickline replaced OK-J07-05's failed gas lift valve on 2025-12-14 "
+                   "(dummy pulled, new orifice valve set at 2,140 m MD); the valve is no longer failed."}],
+     "question": "Is OK-J07-05's gas lift valve still failed, and what was done about it?",
+     "must_mention": ["slickline", "2025-12-14"]},
+    {"name": "train B cause", "teach": [
+        {"question": "What was behind 20-K-2200B's trips in March 2024?",
+         "answer": "The strip-down engineers did after the March 2024 trips found the thrust bearing on 20-K-2200B was "
+                   "starved of oil: the 2023 overhaul had fitted the wrong lube oil orifice plate (RO-2200B-4, 3 mm "
+                   "instead of 5 mm). It was not the anti-surge controller."}],
+     "question": "20-K-2200B is showing rising bearing temperature again. What should we check first?",
+     "must_mention": ["orifice"]},
+]
+
 ASSISTANT_QUESTIONS = [
     {"domain": "curves", "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
      "must_mention": ["10-P-1001A", "wear ring", "head"], "specialists": ["maintenance"], "charts": ["pump_curve"]},
@@ -868,6 +891,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
+    (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
     (out / "process_model.json").write_text(json.dumps(model))

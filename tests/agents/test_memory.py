@@ -220,3 +220,47 @@ def test_people_stay_in_charge_over_the_api(conn, okan_pack, monkeypatch):
         # rated not useful later: the untouched facts from it go, the engineer's ended one stays
         client.post("/feedback", json={"target": "answer:m-e1", "useful": False, "by": "other"})
         assert client.get("/assistant/facts", params={"ref": "OK-J07-05", "status": "ended"}).json()
+
+
+class CitingClaude(PlainClaude):
+    """The orchestrator citing the first remembered fact it was given."""
+
+    async def create(self, **kw):
+        import re
+
+        from anthropic.types.beta import BetaMessage
+
+        self.requests.append(kw)
+        last = kw["messages"][-1]["content"]
+        ids = re.findall(r"fact:(\d+)", " ".join(b.get("text", "") for b in last if isinstance(b, dict)))
+        text = f"Per fact:{ids[0]} slickline replaced it on 2025-12-14; check the orifice." if ids else "No idea."
+        return BetaMessage.model_validate({
+            "id": "msg_fake", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
+            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn", "stop_sequence": None,
+            "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 0,
+                      "cache_creation_input_tokens": 0}})
+
+
+def test_memory_eval(conn, okan_pack):
+    agents = pytest.importorskip("fuzer.agents")
+    from fakeplant import okan
+    from fuzer.evals import evaluate
+
+    extractor = FakeExtractor(
+        [{"text": "OK-J07-05's gas lift valve failed open.", "subject": "gas lift valve condition",
+          "refs": ["OK-J07-05"], "valid_from": "2025-03-10"}],
+        [{"text": "Slickline replaced OK-J07-05's gas lift valve on 2025-12-14.", "subject": "gas lift valve condition",
+          "refs": ["OK-J07-05"], "valid_from": "2025-12-14",
+          "replaces": lambda remembered: [f["id"] for f in remembered if "failed open" in f["text"]]}],
+        [{"text": "20-K-2200B's thrust bearing was starved by the wrong lube oil orifice plate.",
+          "subject": "trip cause", "refs": ["20-K-2200B"], "valid_from": "2024-03-01"}])
+    before = conn.execute("select count(*) as n from assistant_fact").fetchone()["n"]
+    team = agents.team(agents.client(anthropic_client=CitingClaude()))
+    res = evaluate.memory(conn, PACK, okan.MEMORY_QUESTIONS, team=team, learn_client=extractor)
+    valve, train = res["results"]
+    assert valve["learned"] == 2 and valve["ended"] >= 1 and valve["recalled"] and valve["used"]
+    assert valve["cited_ended"] == [] and train["recalled"] and train["used"]
+    assert res["recalled"] == 1.0 and res["cited_ended"] == 0
+    # nothing the eval stored is left behind
+    assert conn.execute("select count(*) as n from assistant_fact").fetchone()["n"] == before
+    assert not conn.execute("select 1 from assistant_answer where id like 'eval-%'").fetchone()

@@ -241,7 +241,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 - **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `ops_eval`, `replay`, `runs`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
-- **Writes:** `ops_eval`, `point_normal` ([schema](schema.md))
+- **Writes:** `assistant_answer`, `assistant_fact`, `lesson`, `ops_eval`, `point_normal` ([schema](schema.md))
 - **Settings:** `opportunities.gas_lift_breakeven` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
 

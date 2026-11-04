@@ -7,6 +7,21 @@ Claude Opus 5.5 (orchestrator effort high, specialists medium), Okan demo data, 
 The scores of every recorded run, generated: [eval results](eval-results.md). This page keeps the notes on
 what each run found.
 
+## Memory (#93)
+
+`uv run fuzer eval --memory` with `answer_keys/assistant_memory.json` (`fakeplant.okan.MEMORY_QUESTIONS`). Each
+case stores teaching answers as episodes, learns facts from them in order with Claude, then asks a later
+question in a fresh conversation that only memory can answer. In the valve case, the second answer
+(slickline replaced OK-J07-05's valve on 2025-12-14) ends the first fact (valve failed open). In the
+train B case, the cause is the wrong lube oil orifice plate, which is not in the data.
+
+- **recalled:** the current facts reached the question.
+- **used:** the answer cites a current fact (`fact:<id>`) or names every `must_mention`.
+- **cited_ended:** facts the answer cites that had been ended. It should be 0.
+
+The eval removes everything it stored (answers, facts, lesson suggestions). The tests run it with a
+scripted Claude. No live baseline has been recorded yet.
+
 ## After the refactor (#135, #133), 2026-11-03
 
 The same command on the same data after the packages moved (#135) and the tools moved into the capability

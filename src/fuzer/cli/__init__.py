@@ -125,6 +125,9 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--keys", default=None, help="folder of answer-key JSON files (default: answer_keys in the exports folder)")
     ev.add_argument("--agents", action="store_true",
                     help="also ask the operations assistant the questions in assistant.json (Claude; costs money)")
+    ev.add_argument("--memory", action="store_true",
+                    help="score the assistant's memory with assistant_memory.json: learn from teaching answers, then "
+                         "ask later questions (Claude; costs money; removes what it stored)")
     ev.add_argument("--domain", action="append", default=None,
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents: also write the full results (answers) to this JSON file")
@@ -256,7 +259,14 @@ def main(argv=None):
                 keys = Path(args.keys or data / "answer_keys")
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
-                if args.agents:
+                if args.memory:
+                    if not (keys / "assistant_memory.json").is_file():
+                        raise SystemExit(f"No assistant_memory.json in {keys}.")
+                    res = evaluate.memory(conn, pack, json.loads((keys / "assistant_memory.json").read_text()), say=_say)
+                    if args.out:
+                        Path(args.out).write_text(json.dumps(res, indent=2, default=str))
+                    _print({**res, "results": [{k: v for k, v in r.items() if k != "answer"} for r in res["results"]]})
+                elif args.agents:
                     if not (keys / "assistant.json").is_file():
                         raise SystemExit(f"No assistant.json in {keys}.")
                     cases = json.loads((keys / "assistant.json").read_text())

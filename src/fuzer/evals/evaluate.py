@@ -14,6 +14,10 @@ asset an engineer curates the same files (a few dozen good questions go a long w
   assistant.json     [{domain, question, must_mention: [..], specialists: [..], charts: [figure kinds]}]
                      (only with --agents: it asks the Claude agents every question, which costs money;
                      `charts`, when given, is met by any one of those kinds of chart in the answer)
+  assistant_memory.json [{name, teach: [{question, answer}], question, must_mention: [..]}]
+                     (only with --memory: the assistant learns from the teaching answers in order, a later one
+                     possibly contradicting an earlier one, then answers the question in a fresh conversation;
+                     scores recall of the current facts and that no ended fact is cited (#93))
 """
 
 import json
@@ -304,3 +308,76 @@ def run(conn, pack: Pack, keys_dir) -> dict:
     if (cases := load("schema.json")) is not None:
         out["schema"] = schema(conn, pack, cases, keys_dir.parent)
     return out
+
+
+FACT = re.compile(r"\bfact:(\d+)\b")
+
+
+def memory(conn, pack: Pack, cases: list[dict], team=None, learn_client=None, say=None) -> dict:
+    """The assistant's memory (#93): for each case, the teaching answers are stored as episodes rated useful and
+    learned from (Claude extracts the facts; later answers may end earlier facts), then the question is asked in
+    a fresh conversation. Scored: the current facts reached the question (recalled), the answer used them (cites
+    a current fact or names every must_mention), and it cites no ended fact. Everything the eval stored (answers,
+    facts, lesson suggestions) is removed afterwards."""
+    import asyncio
+    import uuid
+
+    from .. import agents
+    from ..agents import memory as mem
+
+    results = []
+    for i, c in enumerate(cases, 1):
+        if say:
+            say(f"memory case {i}/{len(cases)}: {c['name']}")
+        run = uuid.uuid4().hex[:8]
+        episodes, facts, ended, lessons, learn_usd = [], [], [], [], 0.0
+        try:
+            for k, t in enumerate(c["teach"]):
+                aid = f"eval-{run}-{k}"
+                conn.execute("insert into assistant_answer (id, conversation_id, question, answer, by_user) "
+                             "values (%s, %s, %s, %s, 'eval')", (aid, f"eval-{run}", t["question"], t["answer"]))
+                conn.commit()
+                episodes.append(aid)
+                out = mem.learn(conn, pack, aid, by="eval", client=learn_client)
+                facts += out.get("facts", [])
+                ended += out.get("ended", [])
+                lessons += out.get("lessons", [])
+                u = out.get("usage") or {}
+                learn_usd += _learn_cost(u)
+            current = [f for f in facts if f not in ended]
+            asked = agents.ask_sync(c["question"]) if team is None else asyncio.run(agents.ask(c["question"], team))
+            text = asked["answer"] or ""
+            cited = {int(x) for x in FACT.findall(text)}
+            missing = [m for m in c.get("must_mention", []) if not _mentions(text, m)]
+            results.append({
+                "name": c["name"], "question": c["question"], "learned": len(facts), "ended": len(ended),
+                "recalled": bool(set(asked["recalled"]) & set(current)),
+                "used": bool(cited & set(current)) or (bool(c.get("must_mention")) and not missing),
+                "cited_ended": sorted(cited & set(ended)), "missing": missing,
+                "cost_usd": round(asked["usage"]["cost_usd"] + learn_usd, 4), "seconds": asked["seconds"],
+                "answer": text})
+        finally:
+            conn.rollback()
+            conn.execute("update assistant_fact set invalidated_by = null where invalidated_by = any(%s)", (facts,))
+            conn.execute("delete from assistant_fact where id = any(%s) or episode = any(%s)", (facts, episodes))
+            conn.execute("delete from lesson where id = any(%s)", (lessons,))
+            conn.execute("delete from assistant_answer where id = any(%s)", (episodes,))
+            conn.commit()
+        if say:
+            r = results[-1] if results and results[-1]["name"] == c["name"] else None
+            if r:
+                say(f"  learned {r['learned']} (ended {r['ended']}), recalled {r['recalled']}, used {r['used']}, "
+                    f"cited ended {r['cited_ended'] or 'none'}, ${r['cost_usd']:.2f}")
+    n = len(results) or 1
+    return {"cases": len(results), "recalled": round(sum(r["recalled"] for r in results) / n, 3),
+            "used": round(sum(r["used"] for r in results) / n, 3),
+            "cited_ended": sum(len(r["cited_ended"]) for r in results),
+            "cost_usd": round(sum(r["cost_usd"] for r in results), 2), "results": results}
+
+
+def _learn_cost(u: dict) -> float:
+    from ..core import llm
+    from ..core.pricing import cost
+
+    usd, _ = cost(llm.model(), u.get("input_tokens", 0), u.get("output_tokens", 0), u.get("cache_read_tokens", 0), 0)
+    return usd
