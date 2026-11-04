@@ -82,7 +82,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
             raise HTTPException(400, "schema items take accept (load with the new columns) or reject (keep holding)")
         if d.decision == "accept":
             # The new columns become the expected ones; the next ingest loads the dataset.
-            conn.execute("update dataset_state set schema = %s where dataset = %s", (Jsonb(p["new"]), p["dataset"]))
+            conn.execute("update source_dataset set schema = %s where name = %s", (Jsonb(p["new"]), p["dataset"]))
     elif item["kind"] == "curve":  # a datasheet Claude read: accept as read, or choose with corrections
         if d.decision != "reject":
             from ..sources import llm_curves

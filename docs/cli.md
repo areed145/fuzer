@@ -38,16 +38,47 @@ draft mappings for tables that have none (review queue)
 | `--table` | only this table (repeatable); default: every unmapped table |
 | `--claude` | ask Claude about columns rules can't name (costs money) |
 
-## `fuzer source`
+## `fuzer sources`
 
-sources (#132): list the tables in the data folder, or preview one before it loads
+the source catalog (#225): systems, connections, datasets, mappings, runs
 
 | Argument | What it does |
 |---|---|
-| `action` (list / preview) |  |
-| `table` | preview: the table (dataset) name |
-| `--data` | exports folder (default: $FUZER_DATA_DIR or data) |
-| `--rows` | preview: sample rows |
+| `action` (list / show / preview / seed / export / import / approve / rollback / run / pause / resume / retire / edit / add-dataset / add-system / edit-system / add-connection / edit-connection / connections / test / discover / runs / audit) | list: datasets in the catalog and tables in the data folder no dataset covers, with their state; show: one dataset: system, connection, mapping versions, recent runs and changes; preview: sample rows, schema drift and what the rows would become; seed: import the built-in mapping files (never overwrites what a person changed); export: write the catalog as YAML (mapping files and systems.yaml), for review and other environments; import: a mapping file becomes a draft version; systems.yaml updates systems and connections; approve: make a draft mapping version the one in use; rollback: put an older mapping version back in use (as a new version); run: load datasets now (all active ones, or the named ones); pause: stop loading a dataset; its records stay; resume: start loading a paused dataset again; retire: stop loading a dataset for good: --retract removes its records, --keep keeps them as history; edit: change a dataset (--set field=value): load_mode, drift_policy, schedule, key, location, ...; add-dataset: add a dataset to a system (--set field=value); add-system: add a system of record (--set field=value); edit-system: change a system (--set field=value): owner, timezone, decimal, date_format, rank, ...; add-connection: add a connection to a system: NAME TYPE (--config k=v, --secret k=env:NAME); edit-connection: change a connection by id (--config k=v, --secret k=env:NAME, --set enabled=false); connections: the connections, and whether their secrets resolve; test: test a connection by id: reach, authenticate, list, read a few rows; discover: what a connection can see, and what no dataset covers yet; runs: load history (of one dataset, or all); audit: catalog change history |
+| `names` | dataset, system, connection id or file names, as the action needs |
+| `--data` | the project's data folder (default: $FUZER_DATA_DIR or data) |
+| `--rows` | preview, test: sample rows |
+| `--set` | field values (YAML scalars) |
+| `--config` | connection config |
+| `--secret` | connection secret reference |
+| `--out` | export: folder to write the files to (default: print them) |
+| `--full` | run: read every dataset again, even unchanged ones |
+| `--retract` | retire: remove its records |
+| `--keep` | retire: keep its records as history |
+| `--dry-run` | retire: only show what would go |
+| `--reason` | why (kept in the audit log) |
+| `--by` |  |
+
+## `fuzer source`
+
+
+
+| Argument | What it does |
+|---|---|
+| `action` (list / show / preview / seed / export / import / approve / rollback / run / pause / resume / retire / edit / add-dataset / add-system / edit-system / add-connection / edit-connection / connections / test / discover / runs / audit) | list: datasets in the catalog and tables in the data folder no dataset covers, with their state; show: one dataset: system, connection, mapping versions, recent runs and changes; preview: sample rows, schema drift and what the rows would become; seed: import the built-in mapping files (never overwrites what a person changed); export: write the catalog as YAML (mapping files and systems.yaml), for review and other environments; import: a mapping file becomes a draft version; systems.yaml updates systems and connections; approve: make a draft mapping version the one in use; rollback: put an older mapping version back in use (as a new version); run: load datasets now (all active ones, or the named ones); pause: stop loading a dataset; its records stay; resume: start loading a paused dataset again; retire: stop loading a dataset for good: --retract removes its records, --keep keeps them as history; edit: change a dataset (--set field=value): load_mode, drift_policy, schedule, key, location, ...; add-dataset: add a dataset to a system (--set field=value); add-system: add a system of record (--set field=value); edit-system: change a system (--set field=value): owner, timezone, decimal, date_format, rank, ...; add-connection: add a connection to a system: NAME TYPE (--config k=v, --secret k=env:NAME); edit-connection: change a connection by id (--config k=v, --secret k=env:NAME, --set enabled=false); connections: the connections, and whether their secrets resolve; test: test a connection by id: reach, authenticate, list, read a few rows; discover: what a connection can see, and what no dataset covers yet; runs: load history (of one dataset, or all); audit: catalog change history |
+| `names` | dataset, system, connection id or file names, as the action needs |
+| `--data` | the project's data folder (default: $FUZER_DATA_DIR or data) |
+| `--rows` | preview, test: sample rows |
+| `--set` | field values (YAML scalars) |
+| `--config` | connection config |
+| `--secret` | connection secret reference |
+| `--out` | export: folder to write the files to (default: print them) |
+| `--full` | run: read every dataset again, even unchanged ones |
+| `--retract` | retire: remove its records |
+| `--keep` | retire: keep its records as history |
+| `--dry-run` | retire: only show what would go |
+| `--reason` | why (kept in the audit log) |
+| `--by` |  |
 
 ## `fuzer serve`
 

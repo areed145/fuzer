@@ -40,11 +40,9 @@ def parser() -> argparse.ArgumentParser:
     sm.add_argument("--table", action="append", help="only this table (repeatable); default: every unmapped table")
     sm.add_argument("--claude", action="store_true", help="ask Claude about columns rules can't name (costs money)")
 
-    so = sub.add_parser("source", help="sources (#132): list the tables in the data folder, or preview one before it loads")
-    so.add_argument("action", choices=["list", "preview"])
-    so.add_argument("table", nargs="?", help="preview: the table (dataset) name")
-    so.add_argument("--data", default=None, help="exports folder (default: $FUZER_DATA_DIR or data)")
-    so.add_argument("--rows", type=int, default=5, help="preview: sample rows")
+    from . import sources as sources_cli
+
+    sources_cli.add_parser(sub)
 
     s = sub.add_parser("serve", help="run the API")
     s.add_argument("--host", default="127.0.0.1")
@@ -206,21 +204,20 @@ def main(argv=None):
                 db.init_schema(conn)  # idempotent; picks up new tables without a reset
             if args.cmd == "reset":
                 db.reset(conn)
-            elif args.cmd == "source":
-                from ..sources import preview
+            elif args.cmd in ("sources", "source"):
+                from . import sources as sources_cli
 
-                if args.action == "list":
-                    _print(preview.listing(conn, data))
-                elif not args.table:
-                    raise SystemExit("source preview needs a table (fuzer source list shows them)")
-                else:
-                    _print(preview.preview(conn, pack, data, args.table, args.rows))
+                out = sources_cli.run(conn, pack, data, args)
+                print(out) if isinstance(out, str) else _print(out)
             elif args.cmd == "suggest-mappings":
                 from ..sources import suggest
 
                 _print(suggest.run(conn, pack, data, claude=args.claude, datasets=args.table))
             elif args.cmd == "ingest":
-                _print(ingest.ingest(conn, data, full=args.full))
+                from ..sources import catalog
+
+                seeded = catalog.seed(conn)  # built-in mapping changes since the last run (never over a person's edit)
+                _print({**ingest.ingest(conn, data, full=args.full), **({"seeded": seeded} if seeded else {})})
             elif args.cmd == "llm-link":
                 from ..graph import llm_links
                 from ..sources import llm_pids

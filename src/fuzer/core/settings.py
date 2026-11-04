@@ -178,8 +178,9 @@ register(
     Setting("studies.max_values", "int", 15_000_000, "Values (points x steps) a study reads at once; bigger ones run "
             "in the background", "Studies", min=10000),
     Setting("studies.workers", "int", 8, "Threads reading a study's points in parallel", "Studies", min=1, max=64),
-    # Sources (#132): live systems configured like everything else; secrets are references, never values.
-    Setting("sources.pi.url", "str", "", "PI Web API base URL (empty: the point list and AF tree come from files)",
+    # Sources (#132). Since #225 these only seed a connection in the source catalog (fuzer sources connections):
+    # the first time a URL is set, it becomes a connection and pi_points / pi_af / adx_series move onto it.
+    Setting("sources.pi.url", "str", "", "PI Web API base URL; seeds a pi_web_api connection in the source catalog (#225)",
             "Sources", restart=True, env="FUZER_PI_WEB_API_URL"),
     Setting("sources.pi.data_server", "str", "", "PI Data Archive to read points from (empty: the first)", "Sources",
             env="FUZER_PI_DATA_SERVER"),
@@ -192,7 +193,7 @@ register(
             "Sources"),
     Setting("sources.pi.verify_tls", "bool", True, "Check the PI Web API's TLS certificate", "Sources",
             env="FUZER_PI_VERIFY_TLS"),
-    Setting("sources.adx.url", "str", "", "Azure Data Explorer cluster URL (empty: no ADX series catalog)", "Sources",
+    Setting("sources.adx.url", "str", "", "Azure Data Explorer cluster URL; seeds an adx connection in the source catalog (#225)", "Sources",
             restart=True, env="FUZER_ADX_URL"),
     Setting("sources.adx.database", "str", "", "ADX database", "Sources", env="FUZER_ADX_DATABASE"),
     Setting("sources.adx.catalog", "str", "SeriesCatalog", "ADX table listing the series", "Sources",

@@ -72,6 +72,10 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
             conn.execute("drop table keep_llm")
             conn.commit()
     db.init_schema(conn)
+    from ..sources import catalog
+
+    if seeded := catalog.seed(conn):  # built-in mappings that changed (never over a person's edit)
+        say(f"Sources: {', '.join(f'{len(v)} {k}' for k, v in seeded.items())} from the built-in mappings")
     stats = ingest.ingest(conn, folder)
     changed = stats["inserted"] + stats["updated"] + stats["removed"]
     empty = not conn.execute("select 1 from entity limit 1").fetchone()

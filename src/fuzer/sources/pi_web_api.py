@@ -24,19 +24,35 @@ PAGE = 1000
 BATCH = 500
 
 
+def _from_settings() -> dict:
+    """The PI server as the settings had it before #225 (they now only seed a connection)."""
+    return {k: settings.get(None, f"sources.pi.{k}") for k in ("url", "data_server", "af_server", "af_database", "user",
+                                                               "verify_tls")} | {"password": settings.secret(None, "sources.pi.password")}
+
+
 def configured() -> bool:
-    return bool(settings.get(None, "sources.pi.url"))
+    from .connections import default_config
+
+    return bool((default_config("pi_web_api") or _from_settings()).get("url"))
 
 
 class Client:
-    def __init__(self, url: str | None = None, http: httpx.Client | None = None):
-        if not (url := url or settings.get(None, "sources.pi.url")):
-            raise ValueError("no PI Web API URL: set sources.pi.url (or FUZER_PI_WEB_API_URL)")
+    """A PI Web API server: `cfg` is a connection's config with its password resolved (sources/connections.py);
+    without one, the first PI Web API connection, else the old settings."""
+
+    def __init__(self, url: str | None = None, http: httpx.Client | None = None, cfg: dict | None = None):
+        if cfg is None:
+            from .connections import default_config
+
+            cfg = (None if url else default_config("pi_web_api")) or _from_settings()
+        self.cfg = cfg
+        if not (url := url or cfg.get("url")):
+            raise ValueError("no PI Web API URL: add a pi_web_api connection (fuzer sources add-connection)")
         self.url = url.rstrip("/")
         if http is None:
-            user = settings.get(None, "sources.pi.user")
-            http = httpx.Client(auth=(user, settings.secret(None, "sources.pi.password") or "") if user else None,
-                                verify=settings.get(None, "sources.pi.verify_tls"), timeout=120)
+            user = cfg.get("user")
+            http = httpx.Client(auth=(user, cfg.get("password") or "") if user else None,
+                                verify=cfg.get("verify_tls", True), timeout=120)
         self.http = http
 
     def get(self, resource: str, **params) -> dict:
@@ -68,18 +84,18 @@ class Client:
 
     def _pick(self, path: str, key: str) -> dict:
         items = self.get(path)["Items"]
-        want = settings.get(None, key)
+        want = self.cfg.get(key)
         found = next((x for x in items if x["Name"] == want), None) if want else (items[0] if items else None)
         if found is None:
             raise LookupError(f"{key}={want!r} not found at {self.url}/{path}" if want else f"nothing at {path}")
         return found
 
     def data_server(self) -> dict:
-        return self._pick("dataservers", "sources.pi.data_server")
+        return self._pick("dataservers", "data_server")
 
     def af_database(self) -> dict:
-        server = self._pick("assetservers", "sources.pi.af_server")
-        return self._pick(f"assetservers/{server['WebId']}/assetdatabases", "sources.pi.af_database")
+        server = self._pick("assetservers", "af_server")
+        return self._pick(f"assetservers/{server['WebId']}/assetdatabases", "af_database")
 
 
 class PiPoints(LiveTable):

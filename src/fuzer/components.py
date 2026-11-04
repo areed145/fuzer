@@ -11,8 +11,9 @@ GITHUB = "https://github.com/areed145/fuzer/tree/main/"
 
 # The components, in the order data moves through them. The rest of the page is read from the code.
 COMPONENTS = {
-    "sources": ("Sources and ingestion", "Connectors read each source table; mappings turn rows into records, "
-                "entities and links; Claude reads logs, P&IDs and documents.", "sources.md"),
+    "sources": ("Sources and ingestion", "The source catalog (systems, connections, datasets, mapping versions, "
+                "runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; "
+                "Claude reads logs, P&IDs and documents.", "sources.md"),
     "graph": ("Graph and golden records", "Resolves records into one entity per real thing, links them, and "
               "answers queries over the graph.", "identity.md"),
     "analysis": ("Analyses", "Signals, limits, calcs, hydraulics, studies and clustering over the graph and the "
