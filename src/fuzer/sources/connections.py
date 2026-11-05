@@ -82,8 +82,25 @@ class Folder(Type):
     live = False
 
     def root(self, data_dir: Path) -> Path:
+        """Where the folder is: an absolute path; a relative one in the data folder, else the repository, else the
+        folder Fuzer runs from (the first that exists); no path: the data folder."""
         p = self.cfg.get("path") or ""
-        return Path(data_dir) / p if p and not Path(p).is_absolute() else Path(p or data_dir)
+        if not p:
+            return Path(data_dir)
+        if Path(p).is_absolute():
+            return Path(p)
+        from ..resources import ROOT
+
+        tried = [Path(data_dir) / p, ROOT / p, Path.cwd() / p]
+        return next((t for t in tried if t.is_dir()), tried[0])
+
+    def check_path(self, data_dir: Path) -> None:
+        root = self.root(data_dir)
+        if not root.is_dir():
+            from ..resources import ROOT
+
+            raise ConnectionError_(f"no folder {root}: give an absolute path, or one relative to the data folder "
+                                   f"({data_dir}) or the repository ({ROOT})")
 
     def connector(self, d: dict, data_dir: Path):
         from . import connectors
@@ -107,6 +124,7 @@ class Folder(Type):
         from . import connectors
         from .ingest import READERS
 
+        self.check_path(data_dir)
         root = self.root(data_dir)
         if connectors.is_table_folder(root):  # the path is one table (a Delta or Parquet folder): that table
             return [root.name]
