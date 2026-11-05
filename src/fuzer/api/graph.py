@@ -1,4 +1,4 @@
-"""Ontology, graph and network views, lookup, the review queue and rebuilds."""
+"""Graph and network views, lookup, the review queue and rebuilds."""
 
 from datetime import date
 from typing import Any, Literal
@@ -12,11 +12,6 @@ from . import deps
 from .deps import get_conn
 
 router = APIRouter()
-
-
-@router.get("/ontology")
-def ontology(conn=Depends(get_conn)):
-    return queries.ontology(conn)
 
 
 @router.get("/graph/{fuzer_id}")

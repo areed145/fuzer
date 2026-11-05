@@ -38,7 +38,10 @@ SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process appl
 
 
 def schema_hash() -> str:
-    return hashlib.sha256(SCHEMA.read_bytes()).hexdigest()
+    """schema.sql and the shipped ontology (#241), which is seeded with it."""
+    from .ontology import BUILTIN
+
+    return hashlib.sha256(SCHEMA.read_bytes() + BUILTIN.read_bytes()).hexdigest()
 
 
 def _schema_tables() -> list[str]:
@@ -79,6 +82,9 @@ def init_schema(conn) -> None:
     conn.execute("select pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
     if not _schema_current(conn, current):  # another process may have applied it while we waited
         conn.execute(SCHEMA.read_text())
+        from . import ontology
+
+        ontology.seed(conn, commit=False)  # in this transaction, under the lock
         conn.execute(
             "insert into schema_version (id, hash) values (1, %s) "
             "on conflict (id) do update set hash = excluded.hash, applied_at = now()",

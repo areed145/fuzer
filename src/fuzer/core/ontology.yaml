@@ -1,0 +1,314 @@
+# The data model Fuzer ships (#241): every entity kind and link type the built-in mappings, rebuild and
+# Claude's reading produce. Seeded into ontology_kind / ontology_relation; a person's edit in the UI is
+# kept over a later change here. Kinds and link types a project adds live only in the database.
+#
+# kind:     label, group (how the Ontology page groups kinds), colour (mid-tone, reads on light and dark),
+#           label_field (the golden field shown as its name, when it isn't the key), description.
+# relation: label, view (the Ontology page's link views), dated (has from/to dates), from / to (the kinds
+#           allowed at each end; empty means any), description.
+
+groups: [Physical, Equipment, Production, Data, Maintenance, Events, Documents, Planning]
+
+views:
+  physical: Physical
+  classes: Classes & models
+  flow: Flow / allocation
+  data: Data
+  documents: Documents & logs
+  events: Events
+  maintenance: Maintenance
+  production: Downtime & reports
+  incidents: Incidents
+  knowledge: Documents
+  planning: Planning
+
+kinds:
+  facility:
+    label: Facility
+    group: Physical
+    colour: "#5f6b7a"
+    description: A production facility or installation; the top of the physical hierarchy.
+  area:
+    label: Area
+    group: Physical
+    colour: "#1f9e9e"
+    description: A part of a facility (a module, train, jacket or platform).
+  tag:
+    label: Tag
+    group: Physical
+    colour: "#2f7bd8"
+    description: A functional position such as 20-P-1001B. The tag stays when the equipment at it is swapped.
+  pipeline:
+    label: Pipeline
+    group: Physical
+    colour: "#4f8a8b"
+    description: A pipeline or flowline between areas or facilities.
+  well:
+    label: Well
+    group: Physical
+    colour: "#8a5cd6"
+    description: A well (A-07); sidetracks are their own wells ("A-07 ST1").
+  equipment:
+    label: Equipment
+    group: Equipment
+    colour: "#d9822b"
+    description: The physical item installed at a tag, identified by serial number.
+  equipment_model:
+    label: Equipment model
+    group: Equipment
+    colour: "#b5651d"
+    description: A manufacturer and model.
+  equipment_class:
+    label: Equipment class
+    group: Equipment
+    colour: "#3f6e8c"
+    description: An ISO 14224 category, class or type (ISO14224:PU.CE is centrifugal pumps).
+  material:
+    label: Material
+    group: Equipment
+    colour: "#9c7a54"
+    description: A spare part or material master record.
+  allocation_node:
+    label: Allocation node
+    group: Production
+    colour: "#c4a000"
+    description: A node in the Energy Components allocation network.
+  daily_report:
+    label: Daily production record
+    group: Production
+    colour: "#95a5a6"
+    description: The Energy Components DAY001 record of a day's allocated production.
+  downtime:
+    label: Downtime
+    group: Production
+    colour: "#e67e22"
+    description: An Energy Components deferment record; affects a well or the facility, caused by tags, with lost oil.
+  well_test:
+    label: Well test
+    group: Production
+    colour: "#6c5ce7"
+    description: A well test result.
+  timeseries:
+    label: Time series
+    group: Data
+    colour: "#2a9d5c"
+    description: A PI point.
+  notification:
+    label: Notification
+    group: Maintenance
+    colour: "#c0392b"
+    description: An SAP PM notification, with its ISO 14224 failure mode and mechanism.
+  work_order:
+    label: Work order
+    group: Maintenance
+    colour: "#7f8c3d"
+    description: An SAP PM work order, with its maintenance activity.
+  maintenance_plan:
+    label: Maintenance plan
+    group: Maintenance
+    colour: "#6b8e23"
+    description: A preventive maintenance or inspection plan.
+  log_entry:
+    label: Log entry
+    group: Events
+    colour: "#a0679b"
+    description: An operator log entry.
+  event:
+    label: Event
+    group: Events
+    colour: "#d6455d"
+    description: A trip, start, changeover, shut-in, choke change, alarm, leak or instrument fault, read from operator logs by Claude.
+  incident:
+    label: Incident
+    group: Events
+    colour: "#8e44ad"
+    description: An upset on one unit, grouping its events, downtime and notifications.
+  document:
+    label: Document
+    group: Documents
+    colour: "#7b8794"
+    description: A P&ID sheet, OEM manual, troubleshooting guide or procedure revision.
+  document_section:
+    label: Document section
+    group: Documents
+    colour: "#a5b1c2"
+    description: A section of a document, with its heading, page and text.
+
+relations:
+  part_of:
+    label: part of
+    view: physical
+    description: Containment in the physical or document hierarchy.
+    from: [area, tag, well, document_section]
+    to: [facility, area, tag, well, document]
+  installed_at:
+    label: installed at
+    view: physical
+    dated: true
+    description: Equipment installed at a tag, for a period.
+    from: [equipment]
+    to: [tag]
+  sidetrack_of:
+    label: sidetrack of
+    view: physical
+    description: A sidetrack and the well it was drilled from.
+    from: [well]
+    to: [well]
+  located_at:
+    label: located at
+    view: physical
+    description: Manifolds and wells on the jacket or platform they are on.
+    from: [allocation_node, well]
+    to: [area]
+  starts_at:
+    label: starts at
+    view: physical
+    description: Where a pipeline starts.
+    from: [pipeline]
+    to: [area, facility]
+  ends_at:
+    label: ends at
+    view: physical
+    description: Where a pipeline ends.
+    from: [pipeline]
+    to: [area, facility]
+  classified_as:
+    label: classified as
+    view: classes
+    description: A tag or equipment and its ISO 14224 class.
+    from: [tag, equipment]
+    to: [equipment_class]
+  instance_of:
+    label: instance of
+    view: classes
+    description: Equipment and its manufacturer model.
+    from: [equipment]
+    to: [equipment_model]
+  is_a:
+    label: is a
+    view: classes
+    description: A model's class, or a class's parent class.
+    from: [equipment_model, equipment_class]
+    to: [equipment_class]
+  uses_part:
+    label: uses part
+    view: classes
+    description: Equipment and the spare parts it takes.
+    from: [equipment]
+    to: [material]
+  flows_to:
+    label: flows to
+    view: flow
+    dated: true
+    description: Production and allocation flow.
+    from: [well, tag, allocation_node]
+    to: [tag, allocation_node]
+  lift_gas_to:
+    label: lift gas to
+    view: flow
+    dated: true
+    description: The gas lift network, from compression through lift gas headers and manifolds to gas lifted wells.
+    from: [tag, allocation_node]
+    to: [tag, allocation_node, well]
+  pipes_to:
+    label: pipes to
+    view: flow
+    description: Piping between tags, read from P&IDs.
+    from: [tag]
+    to: [tag]
+  has_timeseries:
+    label: has time series
+    view: data
+    description: A tag or well and its PI points.
+    from: [tag, well]
+    to: [timeseries]
+  tests:
+    label: tests
+    view: data
+    description: A well test and the well it tested.
+    from: [well_test]
+    to: [well]
+  mentions:
+    label: mentions
+    view: documents
+    description: A document, log or record whose text names an entity.
+    from: []
+    to: []
+  reports:
+    label: reports
+    view: events
+    description: A log entry or record and the event it reports.
+    from: [log_entry, downtime, daily_report]
+    to: [event]
+  involves:
+    label: involves
+    view: events
+    description: An event and the tags, wells or areas it involves, with a role.
+    from: [event]
+    to: [tag, well, area]
+  related_to:
+    label: related to
+    view: events
+    description: A notification and the event it relates to.
+    from: [notification]
+    to: [event]
+  concerns:
+    label: concerns
+    view: maintenance
+    description: A notification, work order or plan and the tag or equipment it is for.
+    from: [notification, work_order, maintenance_plan]
+    to: [tag, equipment]
+  for_notification:
+    label: for notification
+    view: maintenance
+    description: A work order and the notification it was raised for.
+    from: [work_order]
+    to: [notification]
+  affects:
+    label: affects
+    view: production
+    description: Downtime and the well or facility it deferred.
+    from: [downtime]
+    to: [well, facility]
+  caused_by:
+    label: caused by
+    view: production
+    description: Downtime and the tags that caused it.
+    from: [downtime]
+    to: [tag]
+  reports_on:
+    label: reports on
+    view: production
+    description: A daily production record and the facility it is for.
+    from: [daily_report]
+    to: [facility]
+  about:
+    label: about
+    view: incidents
+    description: An incident and the unit it happened on.
+    from: [incident]
+    to: [tag, well]
+  includes:
+    label: includes
+    view: incidents
+    description: An incident and the events, downtime and notifications grouped into it.
+    from: [incident]
+    to: [event, downtime, notification]
+  applies_to:
+    label: applies to
+    view: knowledge
+    description: A document or section and the models, classes, tags or wells it applies to.
+    from: [document, document_section]
+    to: []
+  supersedes:
+    label: supersedes
+    view: knowledge
+    description: A document revision and the one it replaces.
+    from: [document]
+    to: [document]
+  refers_to:
+    label: refers to
+    view: documents
+    description: A generic reference from a record to an entity, made by a suggested mapping. Replace it with a specific link type when one fits.
+    from: []
+    to: []
