@@ -71,6 +71,9 @@ def _op(fn):
     @wraps(fn)
     def run(conn, *args, **kwargs):
         try:
+            from . import roles
+
+            roles.refresh(conn)  # roles are data: the checks and lanes read them
             out = fn(conn, *args, **kwargs)
             conn.commit()
             return out
@@ -386,7 +389,7 @@ def roles_of(conn, name: str) -> list[str]:
 
 
 def people(conn) -> list[dict]:
-    return conn.execute("select name, roles from work_person order by name").fetchall()
+    return conn.execute("select name, roles, away_until, delegate, note from work_person order by name").fetchall()
 
 
 def role_summary(conn) -> list[dict]:
@@ -545,15 +548,25 @@ def _step(run: _Run, proc: dict, t: dict) -> None:
         case "parallelGateway":
             _parallel(run, proc, t, n)
         case "userTask":
-            sla = bpmn.parse_duration(n.attrs.get("sla", ""))
+            from . import roles
+
+            sla = bpmn.parse_duration(n.attrs.get("sla", "")) or roles.sla_of(run.conn, n.role)
             assignee = n.attrs.get("assignee")
             if assignee and assignee.startswith("="):
                 assignee = bpmn.evaluate(assignee[1:], _scope(run, proc))
-            t = _update(run, t, state="waiting", kind="user", role=n.role, assignee=assignee or None,
+            how = "named" if assignee else None
+            if not assignee and (assignee := roles.pick(run.conn, n.role, run.now)):
+                how = "auto"  # the role assigns round-robin or to the least loaded
+            covering = roles.covering(run.conn, assignee, run.now) if assignee else None
+            t = _update(run, t, state="waiting", kind="user", role=n.role, assignee=covering or None,
                         requires_human=n.requires_human, due_at=run.now + sla if sla else None)
             _boundaries(run, proc, t, n)
             run.event("step_started", proc, t, step=n.label, role=n.role, assignee=t["assignee"],
                       due=t["due_at"].isoformat() if t["due_at"] else None)
+            if how == "auto":
+                run.event("auto_assigned", proc, t, to=assignee, role=n.role)
+            if covering and covering != assignee:
+                run.event("delegated", proc, t, **{"for": assignee, "to": covering})
         case "serviceTask":
             t = _update(run, t, state="waiting", kind="agent", role=n.agent, run_after=run.now)
             _boundaries(run, proc, t, n)
@@ -871,6 +884,12 @@ def hand_off(conn, token_id: int, by: str, to: str, reason: str | None = None, n
         role, person = (to.split(":", 1)[1], None) if to.startswith("role:") else (None, to)
         if role and role not in bpmn.PERSON_ROLES:
             raise WorkError(f"unknown role '{role}'")
+        if person:
+            from . import roles
+
+            if (cover := roles.covering(conn, person, run.now)) != person:
+                run.event("delegated", proc, t, **{"for": person, "to": cover})
+                person = cover
         cols = {"assignee": person, "claimed_by": None, "lease_until": None}
         if role:
             cols["role"] = role
@@ -991,8 +1010,10 @@ def tick(conn, now: datetime | None = None, limit: int = 1000) -> dict:
     now = now or utcnow()
     due = conn.execute("select id, process_id from work_token where state = 'waiting' and kind = 'timer' and due_at <= %s "
                        "order by due_at, id limit %s", (now, limit)).fetchall()
+    # past its SLA and not escalated since it was last due (an escalation to a role with an SLA sets a new due time)
     late = conn.execute("select id, process_id from work_token where state = 'waiting' and kind = 'user' and due_at <= %s "
-                        "and escalated_at is null order by due_at, id limit %s", (now, limit)).fetchall()
+                        "and (escalated_at is null or escalated_at < due_at) order by due_at, id limit %s",
+                        (now, limit)).fetchall()
     conn.commit()
     fired = sum(_tick_timer(conn, r["process_id"], r["id"], now) for r in due)
     escalated = sum(_escalate(conn, r["process_id"], r["id"], now) for r in late)
@@ -1021,16 +1042,28 @@ def _escalate(conn, process_id: int, token_id: int, now: datetime) -> int:
     if proc is None:
         return 0
     t = conn.execute("select * from work_token where id = %s", (token_id,)).fetchone()
-    if t["state"] != "waiting" or t["kind"] != "user" or t["escalated_at"] or t["due_at"] > now:
+    if t["state"] != "waiting" or t["kind"] != "user" or t["due_at"] > now or (
+            t["escalated_at"] and t["escalated_at"] >= t["due_at"]):
         return 0
+    from . import roles
+
     n = run.defn(proc).nodes[t["element"]]
     holder = t["assignee"] or f"the {t['role']} queue"
-    to = n.attrs.get("escalateTo")
-    why = (f"SLA {n.attrs.get('sla', '')} on '{n.label}' passed at {t['due_at']:%Y-%m-%d %H:%M} UTC "
+    hops = conn.execute("select count(*) as n from work_event where token_id = %s and kind = 'escalated'",
+                        (token_id,)).fetchone()["n"]
+    # the step's own escalateTo first; after that (and for steps naming none) the role's escalation chain
+    to = n.attrs.get("escalateTo") if hops == 0 and n.attrs.get("escalateTo") else roles.escalation_target(conn, t["role"], None)
+    if hops >= roles.MAX_HOPS or to == t["role"]:
+        to = None
+    sla_text = n.attrs.get("sla") if hops == 0 and n.attrs.get("sla") else (roles.role(conn, t["role"]) or {}).get("default_sla")
+    sla_part = f"SLA {sla_text}" if sla_text else "SLA"
+    why = (f"{sla_part} on '{n.label}' passed at {t['due_at']:%Y-%m-%d %H:%M} UTC "
            f"while it was with {holder}") + (f"; moved to the {to} queue" if to else "")
     cols = {"escalated_at": now}
     if to:
-        cols |= {"role": to, "assignee": None}
+        cols |= {"role": to, "assignee": roles.pick(conn, to, now)}
+        if (sla := roles.sla_of(conn, to)) and hops + 1 < roles.MAX_HOPS:
+            cols["due_at"] = now + sla  # the next role gets its own SLA, and escalates on from there
     _update(run, t, **cols)
     run.event("escalated", proc, t, why=why, **{"from": holder, "to": f"role:{to}" if to else holder,
                                                  "due": t["due_at"].isoformat()})
@@ -1125,6 +1158,51 @@ def transition(conn, item_id: int, state: str, by: str, reason: str | None = Non
 
 
 @_op
+def set_item(conn, item_id: int, by: str, reason: str | None = None, priority: float | None = None,
+             due: datetime | None = None, now: datetime | None = None) -> dict:
+    """Change a case's priority or due date. On a case with a process, the priority goes into its process data (the
+    item follows it) and a new due date moves its open person steps' due times (their SLA clock)."""
+    run = _Run(conn, by, now)
+    item = _item(conn, item_id, lock=True)
+    procs = [r["id"] for r in conn.execute("select id from work_process where item_id = %s and state = 'running'",
+                                           (item_id,))]
+    changed = {}
+    if priority is not None:
+        conn.execute("update work_item set priority = %s, updated_at = %s where id = %s", (priority, run.now, item_id))
+        for pid in procs:
+            proc = run.proc(pid)
+            proc["data"] = {**proc["data"], "priority": priority}
+        changed["priority"] = {"from": item["priority"], "to": priority}
+    if due is not None:
+        if procs:
+            for t in conn.execute("select * from work_token where item_id = %s and state = 'waiting' and kind = any(%s)",
+                                  (item_id, ["user", "fix"])).fetchall():
+                _update(run, t, due_at=due)
+        else:
+            conn.execute("update work_item set due = %s, updated_at = %s where id = %s", (due, run.now, item_id))
+        changed["due"] = {"from": item["due"].isoformat() if item["due"] else None, "to": due.isoformat()}
+    if not changed:
+        raise WorkError("nothing to change: give a priority or a due date")
+    _event(conn, "item_changed", by, item_id=item_id, data={**changed, "reason": reason}, at=run.now)
+    run.items.add(item_id)
+    run.flush()
+    return {"item_id": item_id, **changed}
+
+
+def reassign_item(conn, item_id: int, by: str, to: str, reason: str | None = None, now: datetime | None = None) -> dict:
+    """Give everything open on a case to a person or a role's queue: each open person step is handed off (or the
+    item itself, for a case without a process)."""
+    tasks = [r["id"] for r in conn.execute(
+        "select id from work_token where item_id = %s and state = 'waiting' and kind = any(%s) order by id",
+        (item_id, ["user", "fix"]))]
+    if not tasks:
+        return assign_item(conn, item_id, by, to, reason)
+    for token_id in tasks:
+        hand_off(conn, token_id, by, to, reason, now)
+    return {"item_id": item_id, "to": to, "tasks": tasks}
+
+
+@_op
 def assign_item(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
     """Hand off an item without a process (a person, `role:<role>` or `agent:<role>`)."""
     item = _item(conn, item_id, lock=True)
@@ -1196,12 +1274,19 @@ _ITEMS = """
 
 
 def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200, now: datetime | None = None) -> dict:
-    """A person's open tasks ('mine': claimed by or assigned to them) and their roles' queue (unclaimed)."""
+    """A person's open tasks ('mine': claimed by or assigned to them, or to someone away whom they cover) and their
+    roles' queue (unclaimed)."""
+    from . import roles as roles_
+
     now = now or utcnow()
     roles = roles if roles is not None else roles_of(conn, person)
-    args = {"person": person, "roles": roles, "now": now, "limit": limit, "kinds": ["user", "fix"]}
-    mine = conn.execute(_TASKS.format(who="t.assignee = %(person)s"), args).fetchall() + \
-        conn.execute(_ITEMS.format(who="i.assignee = %(person)s"), args).fetchall()
+    covering = roles_.covered_by(conn, person, now)
+    args = {"person": person, "people": [person, *covering], "roles": roles, "now": now, "limit": limit,
+            "kinds": ["user", "fix"]}
+    mine = conn.execute(_TASKS.format(who="t.assignee = any(%(people)s)"), args).fetchall() + \
+        conn.execute(_ITEMS.format(who="i.assignee = any(%(people)s)"), args).fetchall()
+    for r in mine:
+        r["covering_for"] = r["assignee"] if r["assignee"] != person else None
     queue = conn.execute(_TASKS.format(who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall() + \
         conn.execute(_ITEMS.format(who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall()
     soon = now + DUE_SOON
@@ -1210,7 +1295,7 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
     def counts(rows):
         return {"total": len(rows), "overdue": sum(bool(r["overdue"]) for r in rows),
                 "due_soon": sum(1 for r in rows if r["due_at"] and now <= r["due_at"] < soon)}
-    return {"person": person, "roles": roles, "mine": mine, "queue": queue,
+    return {"person": person, "roles": roles, "covering": covering, "mine": mine, "queue": queue,
             "counts": {"mine": counts(mine), "queue": counts(queue)}}
 
 

@@ -711,6 +711,22 @@ People by name and the roles they hold (everyone sees everything; Entra groups l
 | `name` | text |  |
 | `roles` | text[] |  |
 
+## `work_role`
+
+Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims it), round_robin or least_loaded among the role's members who aren't away.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `kind` | text |  |
+| `description` | text |  |
+| `default_sla` | text, | ISO 8601 duration |
+| `escalate_to` | text |  |
+| `assignment` | text |  |
+| `last_assigned` | text, | round_robin: who got the last one |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## `work_item`
 
 | Column | Type | Note |

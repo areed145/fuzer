@@ -46,7 +46,7 @@ def role(client, name: str) -> dict:
 def test_add_change_and_remove_a_person(client):
     assert client.put("/work/people/bea", json={"roles": ["engineer"], "by": "olga"}).json() == \
         {"name": "bea", "roles": ["engineer"]}
-    assert {"name": "bea", "roles": ["engineer"]} in client.get("/work/people").json()
+    assert {"name": "bea", "roles": ["engineer"]} in [{k: p[k] for k in ("name", "roles")} for p in client.get("/work/people").json()]
     client.put("/work/people/bea", json={"roles": ["engineer", "ops_lead"], "by": "olga"})
     assert client.get("/work/inbox", params={"person": "bea"}).json()["roles"] == ["engineer", "ops_lead"]
     assert client.put("/work/people/bea", json={"roles": ["wizard"], "by": "olga"}).status_code == 400
@@ -87,3 +87,26 @@ def test_removing_a_person_puts_their_claimed_work_back_in_its_queue(conn, clien
     assert task in {r["task_id"] for r in queue} and item in {r["item_id"] for r in queue}
     kinds = [r["kind"] for r in conn.execute("select kind from work_event where actor = 'olga' order by id desc limit 3")]
     assert kinds[0] == "person_removed" and "released" in kinds
+
+
+def test_roles_routing_and_cases_api(client):
+    """The Teams & routing and Cases pages' API: roles catalog and edits, away with a delegate, workload,
+    process statistics and instances, and case actions."""
+    cat = client.get("/work/roles/catalog").json()
+    eng = next(r for r in cat if r["name"] == "engineer")
+    assert eng["kind"] == "person" and "members" in eng and "uncovered" in eng
+    r = client.put("/work/roles/hse_advisor", json={"by": "olga", "kind": "person", "description": "HSE",
+                                                    "default_sla": "PT12H", "escalate_to": "ops_lead"})
+    assert r.status_code == 200 and r.json()["default_sla"] == "PT12H"
+    assert client.put("/work/roles/hse_advisor", json={"by": "olga", "default_sla": "soon"}).status_code == 400
+    assert client.delete("/work/roles/hse_advisor", params={"by": "olga"}).status_code == 200
+    client.put("/work/people/zed", json={"roles": ["engineer"], "by": "olga"})
+    client.put("/work/people/yan", json={"roles": ["engineer"], "by": "olga"})
+    away = client.put("/work/people/zed/away", json={"by": "zed", "until": "2099-01-01T00:00:00Z", "delegate": "yan"})
+    assert away.status_code == 200 and away.json()["delegate"] == "yan"
+    w = client.get("/work/workload").json()
+    assert any(p["name"] == "zed" and p["away"] for p in w["people"]) and "agents" in w
+    stats = client.get("/work/stats").json()
+    assert stats and {"running", "median_h", "sla_breach_pct"} <= set(stats[0])
+    key = stats[0]["process_key"]
+    assert isinstance(client.get("/work/instances", params={"process_key": key, "state": "all"}).json(), list)

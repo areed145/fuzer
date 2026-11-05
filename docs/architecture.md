@@ -15,7 +15,7 @@ flowchart LR
   c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 2 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 3 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 12 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 13 modules</small>"]
@@ -220,9 +220,9 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `engine`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `engine`, `roles`
 - **Uses:** nothing else in fuzer
-- **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_token` ([schema](schema.md))
+- **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
 ### Agents and MCP
