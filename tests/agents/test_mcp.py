@@ -73,6 +73,9 @@ def test_link_text(call):
 def test_get_ontology(call):
     o = call("get_ontology")
     assert any(r["rel"] == "installed_at" and r["src_kind"] == "equipment" for r in o["relations"])
+    tag = next(k for k in o["kinds"] if k["kind"] == "tag")
+    assert tag["description"].startswith("A functional position")  # declared meaning, for Claude (#241)
+    assert o["link_types"]["installed_at"]["dated"] and o["undefined"] == []
 
 
 def test_get_events_without_claude_results(call):

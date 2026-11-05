@@ -221,6 +221,13 @@ export interface OntologyKind {
   count: number;
   fields: { field: string; count: number }[];
   sources: { source: string; records: number }[];
+  /** Whether the ontology declares this kind (#241); the rest only when it does. */
+  declared?: boolean;
+  label?: string;
+  description?: string;
+  group?: string | null;
+  colour?: string | null;
+  status?: OntologyStatus;
 }
 
 export interface OntologyRelation {
@@ -230,12 +237,80 @@ export interface OntologyRelation {
   n: number;
   dated: number;
   sources: string[];
+  declared?: boolean;
+  /** Its link type allows these two kinds. */
+  allowed?: boolean;
+  view?: string | null;
+  label?: string;
+}
+
+export type OntologyStatus = "core" | "custom" | "draft";
+
+/** A declared entity kind (#241). */
+export interface KindDef {
+  name: string;
+  label: string;
+  description: string;
+  group: string | null;
+  colour: string | null;
+  label_field: string | null;
+  status: OntologyStatus;
+  edited: boolean;
+  updated_by: string;
+  updated_at: string;
+  count?: number;
+}
+
+/** A declared link type (#241); empty from / to kinds means any kind. */
+export interface RelationDef {
+  name: string;
+  label: string;
+  description: string;
+  view: string | null;
+  dated: boolean;
+  from_kinds: string[];
+  to_kinds: string[];
+  status: OntologyStatus;
+  edited: boolean;
+  updated_by: string;
+  updated_at: string;
+  count?: number;
+}
+
+export interface OntologyDeclared {
+  groups: string[];
+  views: { id: string; label: string }[];
+  kinds: KindDef[];
+  relations: RelationDef[];
 }
 
 export interface Ontology {
   kinds: OntologyKind[];
   relations: OntologyRelation[];
+  groups: string[];
+  views: { id: string; label: string }[];
+  model: { kinds: KindDef[]; relations: RelationDef[] };
+  needs_definition: {
+    kinds: string[];
+    relations: string[];
+    not_allowed: { src_kind: string; rel: string; dst_kind: string; n: number }[];
+  };
 }
+
+export interface OntologyChange {
+  id: number;
+  at: string;
+  by: string;
+  object: "kind" | "relation";
+  name: string;
+  action: string;
+  old: Record<string, unknown> | null;
+  new: Record<string, unknown> | null;
+  reason: string | null;
+}
+
+export type KindIn = Partial<Pick<KindDef, "name" | "label" | "description" | "group" | "colour" | "label_field" | "status">>;
+export type RelationIn = Partial<Pick<RelationDef, "name" | "label" | "description" | "view" | "dated" | "from_kinds" | "to_kinds" | "status">>;
 
 export interface FuzerEvent {
   id: string;
@@ -997,6 +1072,8 @@ export interface MapperForm {
   entity_key: { column: string; as: string | null } | null; columns: MapperColumn[]; kept: string[];
   choices: { targets: Record<string, string>; field_as: Record<string, string>; key_as: Record<string, string> };
   profile?: Record<string, { samples?: string[]; type?: string; fill_pct?: number }>;
+  /** What it makes that the ontology doesn't declare or allow (#241). */
+  warnings?: string[];
 }
 
 export interface SourceLoad {
@@ -1251,7 +1328,7 @@ export const api = {
   rematch: () => request<Json>("POST", "/sources/rematch"),
   mapperForm: (yaml: string, opts: { columns?: string[]; dataset?: string } = {}) =>
     request<MapperForm>("POST", "/sources/mapper/form", undefined, { yaml, ...opts }),
-  mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),
+  mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string; warnings: string[] }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),
   sourceStatus: () => request<RebuildStatus>("GET", "/sources/status"),
   deleteDataset: (name: string, by: string, reason?: string) =>
     request<Json>("DELETE", `/sources/datasets/${encodeURIComponent(name)}`, { by, reason }),
@@ -1387,6 +1464,21 @@ export const api = {
   drawing: (id: string) => request<Drawing>("GET", `/documents/${encodeURIComponent(id)}/drawing`),
   documentsFor: (id: string) => request<DocRef[]>("GET", `/entities/${encodeURIComponent(id)}/documents`),
   ontology: () => request<Ontology>("GET", "/ontology"),
+  ontologyDeclared: () => request<OntologyDeclared>("GET", "/ontology/declared"),
+  ontologyHistory: (object?: "kind" | "relation", name?: string) =>
+    request<OntologyChange[]>("GET", "/ontology/history", { object, name }),
+  kindAdd: (k: KindIn, by: string, reason?: string) =>
+    request<KindDef>("POST", "/ontology/kinds", undefined, { ...k, by, reason }),
+  kindUpdate: (name: string, k: KindIn, by: string, reason?: string) =>
+    request<KindDef>("PUT", `/ontology/kinds/${encodeURIComponent(name)}`, undefined, { ...k, by, reason }),
+  kindDelete: (name: string, by: string, reason?: string) =>
+    request<KindDef>("DELETE", `/ontology/kinds/${encodeURIComponent(name)}`, { by, reason }),
+  relationAdd: (r: RelationIn, by: string, reason?: string) =>
+    request<RelationDef>("POST", "/ontology/relations", undefined, { ...r, by, reason }),
+  relationUpdate: (name: string, r: RelationIn, by: string, reason?: string) =>
+    request<RelationDef>("PUT", `/ontology/relations/${encodeURIComponent(name)}`, undefined, { ...r, by, reason }),
+  relationDelete: (name: string, by: string, reason?: string) =>
+    request<RelationDef>("DELETE", `/ontology/relations/${encodeURIComponent(name)}`, { by, reason }),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
   network: (asOf?: string, rel: "flows_to" | "lift_gas_to" | "pipes_to" = "flows_to") =>

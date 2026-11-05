@@ -133,14 +133,21 @@ kinds:
     group: Documents
     colour: "#a5b1c2"
     description: A section of a document, with its heading, page and text.
+  activity:
+    label: Activity
+    group: Planning
+    colour: "#16a085"
+    description: >-
+      A project, WBS element or activity in a schedule (Primavera P6, MS Project), with planned, baseline and
+      actual dates and percent complete. A project is a top-level activity; the rest are part of their parent.
 
 relations:
   part_of:
     label: part of
     view: physical
-    description: Containment in the physical or document hierarchy.
-    from: [area, tag, well, document_section]
-    to: [facility, area, tag, well, document]
+    description: Containment in the physical, document or schedule hierarchy.
+    from: [area, tag, well, document_section, activity]
+    to: [facility, area, tag, well, document, activity]
   installed_at:
     label: installed at
     view: physical
@@ -157,21 +164,21 @@ relations:
   located_at:
     label: located at
     view: physical
-    description: Manifolds and wells on the jacket or platform they are on.
-    from: [allocation_node, well]
-    to: [area]
+    description: Manifolds and wells on the jacket or platform they are on; a scheduled activity and the plant it is planned on.
+    from: [allocation_node, well, activity]
+    to: [area, facility, tag, well]
   starts_at:
     label: starts at
     view: physical
     description: Where a pipeline starts.
     from: [pipeline]
-    to: [area, facility]
+    to: [area, facility, tag]
   ends_at:
     label: ends at
     view: physical
     description: Where a pipeline ends.
     from: [pipeline]
-    to: [area, facility]
+    to: [area, facility, tag]
   classified_as:
     label: classified as
     view: classes
@@ -255,9 +262,9 @@ relations:
   concerns:
     label: concerns
     view: maintenance
-    description: A notification, work order or plan and the tag or equipment it is for.
+    description: A notification, work order or plan and the tag, equipment, area or facility it is for.
     from: [notification, work_order, maintenance_plan]
-    to: [tag, equipment]
+    to: [tag, equipment, area, facility]
   for_notification:
     label: for notification
     view: maintenance
@@ -306,6 +313,12 @@ relations:
     description: A document revision and the one it replaces.
     from: [document]
     to: [document]
+  executes:
+    label: executes
+    view: planning
+    description: A scheduled activity and the work order that carries it out.
+    from: [activity]
+    to: [work_order]
   refers_to:
     label: refers to
     view: documents

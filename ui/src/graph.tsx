@@ -9,26 +9,8 @@ import type { Subgraph } from "./api";
 cytoscape.use(dagre);
 cytoscape.use(fcose);
 
-/** Entity colours come from the active theme so graph views follow light and dark mode. */
-export const kindColor = (kind: string) => {
-  const css = getComputedStyle(document.documentElement);
-  return css.getPropertyValue(`--kind-${kind}`).trim() || css.getPropertyValue("--kind-other").trim();
-};
-
-/** Link types grouped by the ontology "view" they belong to. */
-export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [
-  { id: "physical", label: "Physical", rels: ["part_of", "installed_at", "sidetrack_of"] },
-  { id: "classes", label: "Classes & models", rels: ["classified_as", "instance_of", "is_a"] },
-  { id: "flow", label: "Flow / allocation", rels: ["flows_to"] },
-  { id: "data", label: "Data", rels: ["has_timeseries"] },
-  { id: "documents", label: "Documents & logs", rels: ["mentions"] },
-  { id: "events", label: "Events", rels: ["reports", "involves", "related_to"] },
-  { id: "maintenance", label: "Maintenance", rels: ["concerns", "for_notification"] },
-  { id: "production", label: "Downtime & reports", rels: ["affects", "caused_by", "reports_on"] },
-  { id: "incidents", label: "Incidents", rels: ["about", "includes"] },
-  { id: "knowledge", label: "Documents", rels: ["applies_to", "supersedes"] },
-];
-export const ALL_RELS = REL_VIEWS.flatMap((v) => v.rels);
+export { ALL_RELS, KIND_COLORS, REL_VIEWS, applyOntology, kindColor } from "./kinds";
+import { kindColor } from "./kinds";
 
 export type LayoutName = "force" | "flow" | "tree";
 

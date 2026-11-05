@@ -5,6 +5,8 @@ tag, well, equipment or place it names, or use it as the key. `form` reads a map
 the form back over the original mapping, so anything the form doesn't show (hooks, mentions, measurements,
 limits, links of other shapes, fields built from templates) is kept exactly as it was and listed as `kept`.
 
+    A link's target is one of TARGETS (a resolver), or "kind:<name>": an entity of that kind by its key as written.
+
     form = {source, record_type, shape, dataset, key: [columns], kind, entity_key: {column, as} | None,
             columns: [{name, field: {name, as} | None, link: {rel, target, keep} | None}], kept: [what isn't shown]}
 """
@@ -48,6 +50,16 @@ def _target(to) -> str | None:
     for name, spec in TARGETS.items():
         if all(to.get(k) == v for k, v in spec.items()) and set(to) - {"from"} == set(spec):
             return name
+    if set(to) == {"kind", "from"} and isinstance(to["kind"], str):
+        return f"kind:{to['kind']}"  # any kind in the ontology, by its key as written (#241)
+    return None
+
+
+def _target_spec(target: str) -> dict | None:
+    if target in TARGETS:
+        return dict(TARGETS[target])
+    if target.startswith("kind:") and target[5:]:
+        return {"kind": target[5:]}
     return None
 
 
@@ -109,6 +121,55 @@ def form(text: str, columns: list[str] | None = None) -> dict:
                               "key_as": {k or "": v for k, v in KEY_AS.items()}}})
 
 
+# the kinds each resolver can land on (`as:` in an endpoint), for checking a mapping against the ontology
+RESOLVER_KINDS = {"tag": ["tag"], "well": ["well"], "serial": ["equipment"], "tag_or_well": ["tag", "well"],
+                  "facility_or_well": ["facility", "well"], "floc": ["facility", "area", "tag"]}
+
+
+def produces(text: str, ref_kind=lambda ref: None) -> list[tuple[str, str, str | None]]:
+    """What a mapping makes, for core.ontology.check_mapping (#241): ("", kind, None) for its entity and
+    (rel, kind, target kind) for each link whose ends can be read from the YAML. `ref_kind(ref)` gives the
+    entity kind of a `ref: source:record_type` endpoint. A resolver that may land on several kinds gives one
+    entry per kind; one this can't tell is checked for its link type only."""
+    try:
+        raw = yaml.safe_load(text or "") or {}
+    except yaml.YAMLError:
+        return []
+    if not isinstance(raw, dict):
+        return []
+    ent = raw.get("entity") if isinstance(raw.get("entity"), dict) else {}
+    kind = ent.get("kind") if isinstance(ent.get("kind"), str) else None
+    out: list[tuple[str, str, str | None]] = [("", kind, None)] if kind else []
+
+    def ends(spec) -> list[str | None]:
+        specs = spec if isinstance(spec, list) else [spec]
+        kinds: list[str | None] = []
+        for s in specs:
+            if not isinstance(s, dict):
+                continue
+            if isinstance(s.get("kind"), str):
+                kinds.append(s["kind"])
+            elif isinstance(s.get("ref"), str):
+                kinds.append(ref_kind(s["ref"]))
+            elif s.get("as") in RESOLVER_KINDS:
+                kinds += RESOLVER_KINDS[s["as"]]
+            else:
+                kinds.append(None)
+        return kinds or [None]
+    for link in raw.get("links") or []:
+        if not isinstance(link, dict) or not isinstance(link.get("rel"), str):
+            continue
+        src = ends(link["from"]) if "from" in link else [kind]
+        for a in src:
+            for b in ends(link.get("to")):
+                if a is not None:
+                    out.append((link["rel"], a, b))
+    for m in raw.get("mentions") or []:
+        if isinstance(m, dict) and kind:
+            out.append((m.get("rel") or "mentions", kind, None))
+    return out
+
+
 def to_yaml(f: dict, base: str) -> str:
     """The form written over the original mapping: what the form shows is replaced, everything else is kept."""
     from .catalog import _parse
@@ -128,8 +189,8 @@ def to_yaml(f: dict, base: str) -> str:
             a = c["field"].get("as") or None
             name = c["field"]["name"]
             managed_fields.append(name if name == c["name"] and not a else [name, {"from": c["name"], "as": a} if a else c["name"]])
-        if c.get("link") and c["link"].get("target") in TARGETS:
-            spec = {**TARGETS[c["link"]["target"]], "from": c["name"]}
+        if c.get("link") and (spec := _target_spec(c["link"].get("target") or "")):
+            spec = {**spec, "from": c["name"]}
             to = {k: spec[k] for k in ("kind", "from", "as") if k in spec}
             managed_links.append({"rel": c["link"].get("rel") or "concerns", "to": to, **(c["link"].get("keep") or {})})
     # keep what the form doesn't show: fields and links it couldn't read

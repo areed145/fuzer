@@ -5,7 +5,7 @@ import json
 from typing import Any, Literal
 
 from ...core import db
-from ...graph import edges, queries
+from ...graph import edges, ontology, queries
 from ...workflow import engine as work
 from .. import mcp_server
 from ..mcp_server import (
@@ -30,11 +30,20 @@ def get_stats() -> dict[str, Any]:
 
 @capability("all", kind="query")
 def get_ontology() -> dict[str, Any]:
-    """The data model as it exists in Fuzer: entity kinds with counts, fields and feeding sources,
-    and which link types connect which kinds (with counts and sources). Call this first when unsure
-    what can be asked."""
+    """The data model: entity kinds with what each is, counts, fields and feeding sources; which link
+    types connect which kinds (with counts and sources); and what each link type means. Includes kinds
+    and link types added for this asset. Call this first when unsure what can be asked."""
     with db.connect() as conn:
-        return _plain(queries.ontology(conn))
+        m = ontology.model(conn)
+    return _plain({
+        "kinds": [{k: v for k, v in kind.items() if k in ("kind", "label", "description", "count", "fields", "sources")}
+                  for kind in m["kinds"]],
+        "relations": [{k: v for k, v in r.items() if k in ("src_kind", "rel", "dst_kind", "n", "dated", "sources")}
+                      for r in m["relations"]],
+        "link_types": {r["name"]: {"description": r["description"], "from": r["from_kinds"] or "any",
+                                   "to": r["to_kinds"] or "any", "dated": r["dated"]} for r in m["model"]["relations"]},
+        "undefined": m["needs_definition"]["kinds"] + m["needs_definition"]["relations"],
+    })
 
 
 @capability("all", kind="query")

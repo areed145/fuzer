@@ -1,10 +1,10 @@
-import { Button, Input, Table } from "../../ui";
+import { Button, Input, Select, Table } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
 import { useEffect, useRef, useState } from "react";
-import { api, type MapperColumn, type MapperForm } from "../../api";
-import { Status } from "../../lib";
-import { useAction } from "./common";
+import { api, type MapperColumn, type MapperForm, type OntologyDeclared } from "../../api";
+import { Status, href, useAsync } from "../../lib";
+import { reviewer, useAction } from "./common";
 
 export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChange }: {
   yaml: string;
@@ -48,13 +48,16 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
 }) {
   const [form, setForm] = useState<MapperForm | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const model = useAsync(() => api.ontologyDeclared(), []);
   const last = useRef(text);
   const timer = useRef<number | undefined>(undefined);
   // read the form from the text when it changed from outside (opened, YAML edited, undo)
   useEffect(() => {
     if (form && text === last.current) return;
     last.current = text;
-    api.mapperForm(text, { columns, dataset }).then((f) => { setForm(f); setError(null); }, (e: Error) => setError(e.message));
+    api.mapperForm(text, { columns, dataset }).then((f) => { setForm(f); setWarnings(f.warnings ?? []); setError(null); },
+      (e: Error) => setError(e.message));
   }, [text]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (error && !form) return <p className="error small">{error}: edit it as YAML.</p>;
   if (!form) return <Status loading />;
@@ -62,7 +65,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
     setForm(f);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      api.mapperYaml(f, last.current).then((r) => { last.current = r.yaml; setError(null); onText(r.yaml); },
+      api.mapperYaml(f, last.current).then((r) => { last.current = r.yaml; setWarnings(r.warnings); setError(null); onText(r.yaml); },
         (e: Error) => setError(e.message));
     }, 350);
   };
@@ -79,8 +82,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
       <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>Each record is</th><td>
-            <input value={form.kind ?? ""} placeholder="entity kind, e.g. activity, equipment, tag"
-              onChange={(e) => update({ ...form, kind: e.target.value || null })} />
+            <KindSelect model={model.data} value={form.kind} onChange={(kind) => { update({ ...form, kind }); model.reload(); }} />
             <span className="muted"> record type </span>
             <Input width="sm" value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} />
           </td></tr>
@@ -130,19 +132,79 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                     link: e.target.value ? { rel: c.link?.rel ?? "concerns", target: e.target.value, keep: c.link?.keep ?? {} } : null })}>
                     <option value="">nothing</option>
                     {Object.entries(form.choices.targets).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {c.link?.target.startsWith("kind:") && !model.data?.kinds.some((k) => `kind:${k.name}` === c.link!.target) && (
+                      <option value={c.link.target}>{c.link.target.slice(5)} (not in the ontology)</option>)}
+                    {model.data && (
+                      <optgroup label="Any kind, by its key">
+                        {model.data.kinds.map((k) => <option key={k.name} value={`kind:${k.name}`}>{k.label.toLowerCase()} (by key)</option>)}
+                      </optgroup>
+                    )}
                   </select>{" "}
-                  {c.link && <Input width="xs" value={c.link.rel} title="the link's name (relationship)"
-                    onChange={(e) => setCol(i, { link: { ...c.link!, rel: e.target.value } })} />}
+                  {c.link && <RelSelect model={model.data} value={c.link.rel}
+                    onChange={(rel) => setCol(i, { link: { ...c.link!, rel } })} />}
                 </td>
               </tr>
             ))}
           </tbody>
         </Table>
       </div>
+      {warnings.length > 0 && (
+        <div className="small">
+          <b>Against the ontology</b> <a href={href("/ontology", { tab: "model" })}>(define kinds and link types)</a>
+          <ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+        </div>
+      )}
       {form.kept.length > 0 && (
         <p className="muted small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>
       )}
       {error && <p className="error small">{error}</p>}
     </>
+  );
+}
+
+/** The entity kind, picked from the ontology (#241); "new kind…" adds a draft kind to describe later. */
+function KindSelect({ model, value, onChange }: {
+  model?: OntologyDeclared; value: string | null; onChange: (kind: string | null) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const known = !value || !model || model.kinds.some((k) => k.name === value);
+  const add = async () => {
+    const name = prompt("Name of the new kind (lower case, words joined with _), e.g. activity")?.trim();
+    if (!name) return;
+    try {
+      await api.kindAdd({ name, status: "draft" }, reviewer(), "made while mapping a dataset");
+      setError(null);
+      onChange(name);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  return (
+    <>
+      <Select width="sm" value={value ?? ""} onChange={(e) => (e.target.value === "+" ? add() : onChange(e.target.value || null))}>
+        <option value="">no entity (records only)</option>
+        {!known && <option value={value!}>{value} (not in the ontology)</option>}
+        {model?.groups.map((g) => {
+          const ks = model.kinds.filter((k) => k.group === g);
+          return ks.length ? <optgroup key={g} label={g}>{ks.map((k) => <option key={k.name} value={k.name}>{k.label}</option>)}</optgroup> : null;
+        })}
+        {model && model.kinds.some((k) => !k.group) && (
+          <optgroup label="Other">{model.kinds.filter((k) => !k.group).map((k) => <option key={k.name} value={k.name}>{k.label}</option>)}</optgroup>
+        )}
+        <option value="+">new kind…</option>
+      </Select>
+      {error && <span className="error"> {error}</span>}
+    </>
+  );
+}
+
+/** A link's type, picked from the ontology's link types (#241). */
+function RelSelect({ model, value, onChange }: { model?: OntologyDeclared; value: string; onChange: (rel: string) => void }) {
+  const known = !model || model.relations.some((r) => r.name === value);
+  return (
+    <Select width="sm" value={value} title="the link's type (Ontology > Kinds & link types)" onChange={(e) => onChange(e.target.value)}>
+      {!known && <option value={value}>{value} (not in the ontology)</option>}
+      {model?.relations.map((r) => <option key={r.name} value={r.name} title={r.description}>{r.name}</option>)}
+    </Select>
   );
 }

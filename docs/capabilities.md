@@ -15,7 +15,7 @@ Used by every agent or by several specialists.
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
-| `get_ontology` | query |  | The data model as it exists in Fuzer: entity kinds with counts, fields and feeding sources, and which link types connect which kinds (with counts and sources). |
+| `get_ontology` | query |  | The data model: entity kinds with what each is, counts, fields and feeding sources; which link types connect which kinds (with counts and sources); and what each link type means. |
 | `search` | query | query, kind?, limit? | Find entities by tag, well, PI point, serial number, source key or description text. |
 | `get_entity` | query | ref, as_of? | Everything Fuzer knows about one entity: chosen values (with source and any disagreeing sources), the source records merged into it, and its links grouped by relationship. |
 | `trace_flow` | query | ref, direction?, as_of?, max_depth?, network? | Follow a flow network from an entity. |
