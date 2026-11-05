@@ -1,3 +1,4 @@
+import { Button } from "../../ui";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
 import { useState } from "react";
@@ -130,9 +131,9 @@ export function RebuildBanner() {
           .join(", ")} since it was built{s.data.built_at ? ` (${when(s.data.built_at)})` : ""}. A rebuild turns them into
           entities, links and values.</>}
       </span>
-      {!running && <button className="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch(), () => {
+      {!running && <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch(), () => {
         setTimeout(s.reload, 1500);
-      })}>Rebuild now</button>}
+      })}>Rebuild now</Button>}
       {a.error && <span className="error">{a.error}</span>}
     </div>
   );

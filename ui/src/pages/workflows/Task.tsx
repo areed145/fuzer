@@ -1,3 +1,4 @@
+import { Button, PageHeader, Card as UICard } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -26,7 +27,7 @@ export function TaskPage({ id }: { id: number }) {
   return (
     <section>
       <div className="row spread">
-        <h1>{t.name ?? t.element}</h1>
+        <PageHeader>{t.name ?? t.element}</PageHeader>
         <Due at={t.due_at} closed={!waiting} />
       </div>
       <p className="small muted">
@@ -43,10 +44,10 @@ export function TaskPage({ id }: { id: number }) {
           ) : t.kind === "agent" ? (
             <p className="muted">The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
           ) : (
-            <div className="card">
+            <UICard className="">
               <div className="actions">
-                {!t.assignee && <button className="primary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(id, person), view.reload)}>Claim it</button>}
-                {t.assignee === person && <button className="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</button>}
+                {!t.assignee && <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(id, person), view.reload)}>Claim it</Button>}
+                {t.assignee === person && <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</Button>}
                 {others && <span className="small muted">{t.assignee} has it.</span>}
               </div>
               {others ? null : t.kind === "fix" ? <FixForm busy={!!a.busy} onRetry={complete} />
@@ -55,7 +56,7 @@ export function TaskPage({ id }: { id: number }) {
                     <TaskForm schema={v.form.schema} data={v.data} busy={!!a.busy} onSubmit={complete} />
                   </Suspense>
                 ) : <NoteForm element={t.element} missing={v.form?.key} busy={!!a.busy} onSubmit={complete} />}
-            </div>
+            </UICard>
           )}
           {waiting && <HandOff id={id} person={person} requiresHuman={t.requires_human} onDone={() => setDone(`Handed off "${t.name ?? t.element}".`)} />}
           {a.error && <p className="error small">{a.error}</p>}
@@ -80,7 +81,7 @@ function HandOff({ id, person, requiresHuman, onDone }: { id: number; person: st
       <div className="actions">
         <AssignPicker value={to} onChange={setTo} agents={!requiresHuman} />
         <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</button>
+        <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>
       </div>
       {requiresHuman && <p className="muted">This step needs a person: it can't go to an agent.</p>}
       {a.error && <p className="error">{a.error}</p>}
@@ -101,7 +102,7 @@ function FixForm({ busy, onRetry }: { busy: boolean; onRetry: (data: Record<stri
       <p className="small">Correct the process data the step tripped on, then retry it.</p>
       <textarea className="mono" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
-        <button className="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</button>
+        <Button variant="primary" disabled={busy || !data} onClick={() => data && onRetry(data)}>Retry step</Button>
         {!data && <span className="error small">Not valid JSON.</span>}
       </div>
     </div>
@@ -117,7 +118,7 @@ function NoteForm({ element, missing, busy, onSubmit }: {
       {missing && <p className="small muted">Form “{missing}” isn't loaded; completing with a note.</p>}
       <textarea rows={3} placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="actions">
-        <button className="primary" disabled={busy} onClick={() => onSubmit(note ? { [`${element}_note`]: note } : {})}>Complete</button>
+        <Button variant="primary" disabled={busy} onClick={() => onSubmit(note ? { [`${element}_note`]: note } : {})}>Complete</Button>
       </div>
     </div>
   );
@@ -130,7 +131,7 @@ function Evidence({ v }: { v: WorkTaskView }) {
     return e.agents.map((a) => ({ a, old: seen.has(a.element ?? "") || !seen.add(a.element ?? "") }));
   }, [e.agents]);
   return (
-    <div className="card evidence">
+    <UICard className="evidence">
       <h3>Evidence</h3>
       {e.subjects.length > 0 && (
         <p className="small">About {e.subjects.map((s, i) => (
@@ -150,6 +151,6 @@ function Evidence({ v }: { v: WorkTaskView }) {
       ))}
       {!e.agents.length && !e.messages.length && <p className="small muted">What started the process:</p>}
       {!e.agents.length && <DataView data={v.data} />}
-    </div>
+    </UICard>
   );
 }

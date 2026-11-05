@@ -1,3 +1,4 @@
+import { PageHeader, Table } from "../../ui";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
 import { useState } from "react";
 import { api } from "../../api";
@@ -15,7 +16,7 @@ export function SourcesPage({ query }: { query: URLSearchParams }) {
     return (
       <section>
         <p className="small"><a href={href("/sources")}>Sources</a> › Add a source</p>
-        <h1>Add a source</h1>
+        <PageHeader>Add a source</PageHeader>
         <p className="muted">
           Five steps: the system the data comes from, where it is, which table, what its rows mean, and how it should load.
           Nothing is loaded until the last step.
@@ -30,7 +31,7 @@ export function SourcesPage({ query }: { query: URLSearchParams }) {
   return (
     <section>
       <div className="row spread">
-        <h1>Sources</h1>
+        <PageHeader>Sources</PageHeader>
         <a className="button primary" href={href("/sources", { view: "add" })}>+ Add a source</a>
       </div>
       <p className="muted">
@@ -82,7 +83,7 @@ function Datasets() {
                 <input type="checkbox" checked={absent} onChange={(e) => setAbsent(e.target.checked)} /> show {rows.length - here.length} with no data here</label>
             )}
           </div>
-          <table className="results">
+          <Table variant="results">
             <thead>
               <tr><th>Dataset</th><th>System</th><th>Health</th><th>Last run</th><th>Owner</th><th>Schedule</th><th>Records</th><th>Loaded</th></tr>
             </thead>
@@ -101,7 +102,7 @@ function Datasets() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </>
       )}
     </>

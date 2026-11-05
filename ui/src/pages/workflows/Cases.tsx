@@ -1,3 +1,4 @@
+import { Button, Input, PageHeader, Table, Card as UICard } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -24,7 +25,7 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
   const rows = [...(list.data?.items ?? [])].sort(state === "open" ? byUrgency : () => 0);
   return (
     <section>
-      <h1>Cases</h1>
+      <PageHeader>Cases</PageHeader>
       <p className="muted">Every piece of work: an upset, a daily report, a source issue, an IOW breach. Each moves through its
         process; open one for where it is, who has it and its history.</p>
       <div className="row wrap">
@@ -43,13 +44,13 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}
       <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && rows.length === 0}>No cases match.</Status>
       {rows.length > 0 && (
-        <table className="results">
+        <Table variant="results">
           <thead><tr><th /><th>Case</th><th>Kind</th><th>State / step</th><th>With</th><th>Due</th><th>Priority</th><th>Opened</th></tr></thead>
           <tbody>
             {rows.map((r) => <CaseLine key={r.id} r={r} picked={picked.has(r.id)}
               toggle={() => setPicked((s) => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })} />)}
           </tbody>
-        </table>
+        </Table>
       )}
     </section>
   );
@@ -75,15 +76,15 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
   const [reason, setReason] = useState("");
   const a = useAct();
   return (
-    <div className="card bulk-bar actions">
+    <UICard className="bulk-bar actions">
       <strong>{ids.length} selected</strong> give everything open on them to
       <AssignPicker value={to} onChange={setTo} />
       <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <button className="primary" disabled={!to || !!a.busy}
+      <Button variant="primary" disabled={!to || !!a.busy}
         onClick={() => a.run("go", async () => { for (const id of ids) await api.reassignCase(id, person, to, reason || undefined); }, onDone)}>
-        Reassign</button>
+        Reassign</Button>
       {a.error && <span className="error small">{a.error}</span>}
-    </div>
+    </UICard>
   );
 }
 
@@ -100,7 +101,7 @@ export function CasePage({ id }: { id: number }) {
     <section>
       <div className="entity-head">
         <div>
-          <h1>{it.title}</h1>
+          <PageHeader>{it.title}</PageHeader>
           <div className="row small">
             <span className="badge">{it.type.replace(/_/g, " ")}</span>
             <span className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</span>
@@ -118,7 +119,7 @@ export function CasePage({ id }: { id: number }) {
       </div>
       {!closed && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
-        <div className="card">
+        <UICard className="">
           <h3>Waiting on</h3>
           <ul className="plain">
             {open.map((s) => (
@@ -130,7 +131,7 @@ export function CasePage({ id }: { id: number }) {
               </li>
             ))}
           </ul>
-        </div>
+        </UICard>
       )}
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
@@ -149,25 +150,25 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const a = useAct();
   const hasProcess = it.processes.some((p) => p.state === "running");
   return (
-    <div className="card inset">
+    <UICard className="inset">
       <div className="row wrap">
         <span className="small">Give it to</span> <AssignPicker value={to} onChange={setTo} />
-        <button className="secondary" disabled={!to || !!a.busy}
-          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</button>
+        <Button variant="secondary" disabled={!to || !!a.busy}
+          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Reassign</Button>
         <span className="small">Priority</span>
-        <input value={priority} onChange={(e) => setPriority(e.target.value)} style={{ width: "6em" }} />
+        <Input width="xs" value={priority} onChange={(e) => setPriority(e.target.value)} />
         <span className="small">Due</span>
         <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
-        <button className="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
+        <Button variant="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
           onClick={() => a.run("set", () => api.setCase(it.id, person, {
             ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
-            ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</button>
+            ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
         <input placeholder="why (kept in its history)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        {!hasProcess && <button className="secondary" disabled={!!a.busy}
-          onClick={() => a.run("close", () => api.transitionCase(it.id, person, "done", reason || undefined), reload)}>Close as done</button>}
+        {!hasProcess && <Button variant="secondary" disabled={!!a.busy}
+          onClick={() => a.run("close", () => api.transitionCase(it.id, person, "done", reason || undefined), reload)}>Close as done</Button>}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
 
@@ -180,7 +181,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
     flows: [...p.path, ...p.open].map((s) => s.flow).filter((f): f is string => !!f),
   }), [p, focus]);
   return (
-    <div className="card">
+    <UICard className="">
       <div className="row spread">
         <h3>
           <a href={processHref(p.process_key)}>{p.process_key}</a> <span className="muted small">v{p.version} · {p.state}{p.outcome ? `: ${p.outcome}` : ""}</span>
@@ -188,9 +189,9 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
         <span className="small muted">
           {p.correlation_key && <>key <span className="mono">{p.correlation_key}</span> · </>}started {when(p.started_at)} by {p.started_by}
           {p.state === "running" && person && reload && (
-            <> · <button className="link" disabled={!!a.busy}
+            <> · <Button variant="link" disabled={!!a.busy}
               onClick={() => confirm("Cancel this process? Its open steps are cancelled.") &&
-                a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel process</button></>
+                a.run("cancel", () => api.cancelProcess(p.id, person, "cancelled from the case page"), reload)}>cancel process</Button></>
           )}
         </span>
       </div>
@@ -198,7 +199,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
       <details className="small"><summary>Process data</summary><DataView data={p.data} /></details>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
 
@@ -206,7 +207,7 @@ export function Timeline({ it, person }: { it: WorkItem; person: string }) {
   const [text, setText] = useState("");
   const a = useAct();
   return (
-    <div className="card">
+    <UICard className="">
       <h3>History</h3>
       <ol className="timeline">
         {it.events.map((e) => {
@@ -222,9 +223,9 @@ export function Timeline({ it, person }: { it: WorkItem; person: string }) {
       <div className="actions">
         <input placeholder="Add a comment" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && text && a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))} />
-        <button disabled={!text || !!a.busy} onClick={() => a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))}>Comment</button>
+        <Button disabled={!text || !!a.busy} onClick={() => a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))}>Comment</Button>
         {a.error && <span className="error small">{a.error}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }

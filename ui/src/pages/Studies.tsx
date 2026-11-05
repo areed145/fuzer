@@ -1,3 +1,4 @@
+import { Button, PageHeader, Table, Card as UICard } from "../ui";
 import { useState } from "react";
 import { api } from "../api";
 import { FigureView } from "../Figure";
@@ -14,7 +15,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
   const open = query.get("id");
   return (
     <section>
-      <h1>Studies</h1>
+      <PageHeader>Studies</PageHeader>
       <p className="muted">
         Correlation and clustering runs kept with their parameters and results, to re-run, cite (study:&lt;id&gt;) or attach
         to a work item. Big ones run in the background.
@@ -22,7 +23,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
       <NewStudy onDone={list.reload} />
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (
-        <table className="results">
+        <Table variant="results">
           <tbody>
             {list.data.map((s) => (
               <tr key={s.id}>
@@ -32,7 +33,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       {open && <StudyDetail key={open} id={Number(open)} reload={list.reload} />}
     </section>
@@ -64,7 +65,7 @@ function NewStudy({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <div className="card row small">
+    <UICard className="row small">
       <select value={kind} onChange={(e) => setKind(e.target.value)}>
         {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
@@ -74,9 +75,9 @@ function NewStudy({ onDone }: { onDone: () => void }) {
       )}
       <input placeholder="since (YYYY-MM-DDTHH:MM)" value={since} onChange={(e) => setSince(e.target.value)} />
       <input placeholder="until" value={until} onChange={(e) => setUntil(e.target.value)} />
-      <button className="primary" onClick={run}>Run</button>
+      <Button variant="primary" onClick={run}>Run</Button>
       {error && <span className="error">{error}</span>}
-    </div>
+    </UICard>
   );
 }
 
@@ -91,7 +92,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
           <h2>study:{d.id} <span className="muted small">{d.kind} · {d.status}</span></h2>
           <p className="small">{d.summary ?? d.error}</p>
           <pre className="small">{JSON.stringify(d.params, null, 1)}</pre>
-          <button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</button>
+          <Button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</Button>
           {d.figure_id && <FigureView id={d.figure_id} />}
           {d.result && <details><summary>Results</summary><pre className="small">{JSON.stringify(d.result, null, 1).slice(0, 20000)}</pre></details>}
         </>

@@ -1,3 +1,4 @@
+import { Button, Table, Card as UICard } from "../ui";
 import { useState } from "react";
 import { api, type WorkRoleSummary } from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
@@ -17,7 +18,7 @@ export function PeopleCard({ by }: { by: string }) {
   };
   const all = roles.data ?? [];
   return (
-    <div className="card" id="people">
+    <UICard className="" id="people">
       <h2>People</h2>
       <p className="muted small">
         Who can take work in Fuzer, and their roles. The Work tab shows each person the unclaimed steps of their
@@ -25,7 +26,7 @@ export function PeopleCard({ by }: { by: string }) {
       </p>
       <Status loading={people.loading && !people.data} error={people.error || roles.error} />
       {people.data && (
-        <table className="settings">
+        <Table variant="settings">
           <thead>
             <tr><th>Name</th><th>Roles</th><th /></tr>
           </thead>
@@ -37,11 +38,11 @@ export function PeopleCard({ by }: { by: string }) {
               <PersonRow key={p.name} name={p.name} roles={p.roles} all={all} by={by} changed={changed} />
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       <AddPerson all={all} by={by} taken={(people.data ?? []).map((p) => p.name)} changed={changed} />
       {message && <div className="status small">{message}</div>}
-    </div>
+    </UICard>
   );
 }
 
@@ -108,14 +109,14 @@ function PersonRow({ name, roles, all, by, changed }: {
       <td><b>{name}</b></td>
       <td><RolePicker all={all} value={value} onChange={setValue} /></td>
       <td className="row small">
-        {dirty && <button className="primary" disabled={busy} onClick={save}>Save</button>}
+        {dirty && <Button variant="primary" disabled={busy} onClick={save}>Save</Button>}
         {confirming ? (
           <>
-            <button disabled={busy} onClick={remove}>Remove {name}</button>
-            <button disabled={busy} onClick={() => setConfirming(false)}>Keep</button>
+            <Button disabled={busy} onClick={remove}>Remove {name}</Button>
+            <Button disabled={busy} onClick={() => setConfirming(false)}>Keep</Button>
           </>
         ) : (
-          <button disabled={busy} onClick={() => setConfirming(true)}>Remove</button>
+          <Button disabled={busy} onClick={() => setConfirming(true)}>Remove</Button>
         )}
         {error && <span className="error">{error}</span>}
       </td>
@@ -140,10 +141,10 @@ function AddPerson({ all, by, taken, changed }: {
     <div className="row small">
       <input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
       <RolePicker all={all} value={roles} onChange={setRoles} />
-      <button className="primary" disabled={busy || !n || taken.includes(n)} onClick={add}
+      <Button variant="primary" disabled={busy || !n || taken.includes(n)} onClick={add}
         title={taken.includes(n) ? `${n} is already here: change their roles above` : undefined}>
         Add person
-      </button>
+      </Button>
       {error && <span className="error">{error}</span>}
     </div>
   );

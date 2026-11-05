@@ -1,3 +1,4 @@
+import { Bar, Button, PageHeader, Table } from "../ui";
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
@@ -77,7 +78,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
     <article className="entity">
       <header className="entity-head">
         <div>
-          <h1 className="mono">{e.label ?? e.fuzer_id}</h1>
+          <PageHeader className="mono">{e.label ?? e.fuzer_id}</PageHeader>
           <div className="row">
             <KindBadge kind={e.kind} />
             <span className="muted mono small">{e.fuzer_id}</span>
@@ -88,9 +89,9 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           As of
           <input type="date" value={asOf} onChange={(x) => setAsOf(x.target.value)} />
           {asOf && (
-            <button className="link" onClick={() => setAsOf("")}>
+            <Button variant="link" onClick={() => setAsOf("")}>
               clear
-            </button>
+            </Button>
           )}
         </label>
       </header>
@@ -233,7 +234,7 @@ function Fields({ e }: { e: EntityDetail }) {
     <section className="card">
       <h2>Values</h2>
       <p className="muted small">The chosen value, which source it came from, and what every other source says.</p>
-      <table className="kv">
+      <Table variant="keyValue">
         <tbody>
           {fields.map((f) => {
             const g = e.golden[f];
@@ -248,8 +249,8 @@ function Fields({ e }: { e: EntityDetail }) {
                     <SourceBadge source={g.source} />
                     {g.rule === "review" && <span className="badge ok">reviewed</span>}
                     {g.rule !== "derived" && (
-                      <button className="link small" onClick={() => setWhy(why === f ? null : f)}
-                        title="the records, mapping versions and loads behind this value">why?</button>
+                      <Button variant="link" className="small" onClick={() => setWhy(why === f ? null : f)}
+                        title="the records, mapping versions and loads behind this value">why?</Button>
                     )}
                   </div>
                   {why === f && <Why id={e.fuzer_id} field={f} />}
@@ -269,7 +270,7 @@ function Fields({ e }: { e: EntityDetail }) {
             );
           })}
         </tbody>
-      </table>
+      </Table>
     </section>
   );
 }
@@ -279,7 +280,7 @@ function Records({ e }: { e: EntityDetail }) {
     <section className="card">
       <h2>Source records</h2>
       <p className="muted small">Every record in every system that Fuzer decided is this same thing.</p>
-      <table className="list">
+      <Table variant="list">
         <tbody>
           {e.records.map((r) => (
             <tr key={`${r.source}:${r.record_type}:${r.source_key}`}>
@@ -294,7 +295,7 @@ function Records({ e }: { e: EntityDetail }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
       <div className="keys">
         {e.keys.map((k) => (
           <span key={`${k.kind}:${k.key}`} className="badge key mono" title={k.kind}>
@@ -361,12 +362,12 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
       <div className="row spread">
         <h2>Flow trace {asOf && <span className="muted small">on {asOf}</span>}</h2>
         <div className="tabs">
-          <button className={direction === "up" ? "on" : ""} onClick={() => setDirection("up")}>
+          <Button className={direction === "up" ? "on" : ""} onClick={() => setDirection("up")}>
             Upstream
-          </button>
-          <button className={direction === "down" ? "on" : ""} onClick={() => setDirection("down")}>
+          </Button>
+          <Button className={direction === "down" ? "on" : ""} onClick={() => setDirection("down")}>
             Downstream
-          </button>
+          </Button>
         </div>
       </div>
       <Status loading={rows.loading && !rows.data} error={rows.error} empty={rows.data?.length === 0}>
@@ -446,9 +447,7 @@ function MaintenanceCard({ id }: { id: string }) {
             {m.data.failure_modes.map((f) => (
               <li key={f.code ?? "none"}>
                 <span>{f.name ?? "Not coded"}</span>
-                <span className="bar">
-                  <span style={{ width: `${(100 * f.count) / top}%` }} />
-                </span>
+                <Bar className="bar" value={(100 * f.count) / top} />
                 <span className="muted small">{f.count}</span>
               </li>
             ))}
@@ -556,7 +555,7 @@ function KnowledgeCard({ id }: { id: string }) {
       </ul>
       <form className="actions" onSubmit={(ev) => { ev.preventDefault(); setAsked(q.trim()); }}>
         <input value={q} placeholder="Ask the documents, e.g. what causes high vibration?" onChange={(ev) => setQ(ev.target.value)} />
-        <button disabled={!q.trim()}>Search</button>
+        <Button disabled={!q.trim()}>Search</Button>
       </form>
       {asked && (
         <ul className="timeline">
@@ -615,7 +614,7 @@ function SparesCard({ id }: { id: string }) {
   return (
     <section className="card">
       <h2>Spare parts</h2>
-      <table className="list">
+      <Table variant="list">
         <tbody>
           {parts.data.map((p) => (
             <tr key={p.fuzer_id}>
@@ -627,7 +626,7 @@ function SparesCard({ id }: { id: string }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     </section>
   );
 }

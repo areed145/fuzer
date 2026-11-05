@@ -1,3 +1,4 @@
+import { Button, PageHeader, Table, Card as UICard } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -84,7 +85,7 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <h1>Processes</h1>
+      <PageHeader>Processes</PageHeader>
       <p className="muted">
         How work moves between agents and people, and how each process is doing. Each process is a BPMN diagram: edit a draft,
         check it, compare it with the published version, and publish (needs the workflow admin role). Running cases stay on the
@@ -94,7 +95,7 @@ export function ProcessesPage() {
       <NeedName person={person} />
       <Status loading={defs.loading} error={defs.error} />
       {groups.length > 0 && (
-        <table className="list">
+        <Table variant="list">
           <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
             <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th /></tr></thead>
           <tbody>
@@ -118,26 +119,26 @@ export function ProcessesPage() {
               );
             })}
           </tbody>
-        </table>
+        </Table>
       )}
 
       {person && (
-        <div className="card">
+        <UICard className="">
           <h3>New process</h3>
           <div className="actions">
             <input placeholder="key, e.g. lesson_review" value={key} onChange={(e) => setKey(e.target.value.trim())} />
             <input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-            <button className="primary" disabled={!keyOk} onClick={create}>Create draft</button>
+            <Button variant="primary" disabled={!keyOk} onClick={create}>Create draft</Button>
             <span className="muted small">or</span>
-            <button onClick={() => file.current?.click()}>Import .bpmn</button>
+            <Button onClick={() => file.current?.click()}>Import .bpmn</Button>
             <input ref={file} type="file" accept=".bpmn,.xml" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </div>
           {key && !keyOk && <p className="small error">{taken ? "That key is taken; open it above to edit." : "A key is lower case letters, digits and _."}</p>}
           {error && <p className="small error">{error}</p>}
-        </div>
+        </UICard>
       )}
 
-      <div className="card">
+      <UICard className="">
         <div className="row spread">
           <h3>Task forms</h3>
           {person && <a className="small" href={href("/processes/forms/new")}>New form</a>}
@@ -151,7 +152,7 @@ export function ProcessesPage() {
             </li>
           ))}
         </ul>
-      </div>
+      </UICard>
     </section>
   );
 }
@@ -174,7 +175,7 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
   return (
     <section>
       <div className="row spread">
-        <h1>{title} <span className="mono small muted">{processKey}</span></h1>
+        <PageHeader>{title} <span className="mono small muted">{processKey}</span></PageHeader>
         <div className="tabs">
           {PROCESS_TABS.map(([k, label]) => (
             <a key={k} className={tab === k ? "on" : ""} href={href(`/processes/${processKey}`, { tab: k })}>{label}</a>
@@ -331,27 +332,27 @@ function ModelTab({ def, defs, draft, reload }: {
         <span className="spacer" />
         {editable ? (
           <>
-            <button disabled={!person || !!busy || !dirty} onClick={onSave}>Save draft</button>
-            <button disabled={!person || !!busy} onClick={onCheck}>Check</button>
-            <button disabled={!person || !!busy} onClick={onCompare}>{compare ? "Hide comparison" : "Compare with published"}</button>
-            <button className="primary" disabled={!person || !admin || !!busy} onClick={onPublish}
-              title={admin ? "" : `Publishing needs the ${ADMIN.replace(/_/g, " ")} role`}>Publish</button>
+            <Button disabled={!person || !!busy || !dirty} onClick={onSave}>Save draft</Button>
+            <Button disabled={!person || !!busy} onClick={onCheck}>Check</Button>
+            <Button disabled={!person || !!busy} onClick={onCompare}>{compare ? "Hide comparison" : "Compare with published"}</Button>
+            <Button variant="primary" disabled={!person || !admin || !!busy} onClick={onPublish}
+              title={admin ? "" : `Publishing needs the ${ADMIN.replace(/_/g, " ")} role`}>Publish</Button>
           </>
         ) : draft ? (
           <a href={href(`/processes/${def.process_key}`, { v: String(draft.id) })}>Open draft v{draft.version}</a>
         ) : (
-          <button className="primary" disabled={!person || !!busy} onClick={() => onDraft(def.state === "published" ? undefined : def.id)}>
+          <Button variant="primary" disabled={!person || !!busy} onClick={() => onDraft(def.state === "published" ? undefined : def.id)}>
             {def.state === "published" ? "Edit as a new draft" : `New draft from v${def.version}`}
-          </button>
+          </Button>
         )}
-        <button disabled={!xml} onClick={onDownload}>Download .bpmn</button>
+        <Button disabled={!xml} onClick={onDownload}>Download .bpmn</Button>
       </div>
       {editable && !admin && person && <p className="small muted">You can edit and check drafts; publishing needs the workflow admin role.</p>}
       {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
       <NeedName person={person} />
 
       {problems.length > 0 && (
-        <div className="card problems">
+        <UICard className="problems">
           <h3>Problems</h3>
           <ul className="plain">
             {problems.map((p, i) => (
@@ -361,7 +362,7 @@ function ModelTab({ def, defs, draft, reload }: {
               </li>
             ))}
           </ul>
-        </div>
+        </UICard>
       )}
 
       {xmlError && <div className="status error">Couldn't load the diagram: {xmlError}</div>}
@@ -380,9 +381,9 @@ function Comparison({ compare, onPick }: { compare: WorkCompare; onPick: (id: st
   const { xml } = useXml(compare.against?.id);
   const classes = useMemo(() => Object.fromEntries(compare.changes.filter((c) => c.change !== "added")
     .map((c) => [c.element, c.change === "removed" ? "fz-removed" : "fz-changed"])), [compare]);
-  if (!compare.against) return <div className="card"><h3>Comparison</h3><p className="small muted">Nothing published yet: everything is new.</p></div>;
+  if (!compare.against) return <UICard className=""><h3>Comparison</h3><p className="small muted">Nothing published yet: everything is new.</p></UICard>;
   return (
-    <div className="card">
+    <UICard className="">
       <h3>Changes against v{compare.against.version} ({compare.against.state})</h3>
       {compare.changes.length === 0 ? <p className="small muted">No changes to what the engine runs (moving shapes doesn't count).</p> : (
         <ul className="plain changes">
@@ -399,7 +400,7 @@ function Comparison({ compare, onPick }: { compare: WorkCompare; onPick: (id: st
           <BpmnView xml={xml} classes={classes} />
         </Suspense>
       )}
-    </div>
+    </UICard>
   );
 }
 
@@ -456,7 +457,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
           </select>
         </label>
         <span className="small muted">{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</span>
-        <button onClick={m.reload}>Refresh</button>
+        <Button onClick={m.reload}>Refresh</Button>
       </div>
       <Status loading={m.loading && !m.data} error={m.error} />
       {xml && (
@@ -469,10 +470,10 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
         <span><i className="dot fz-legend-late" /> some of it overdue</span>
       </div>
       {m.data && (
-        <div className="card">
+        <UICard className="">
           <h3>Steps</h3>
           {rows.length === 0 ? <p className="small muted">Nothing waiting and nothing finished in this period.</p> : (
-            <table className="list">
+            <Table variant="list">
               <thead><tr><th>Step</th><th>Waiting</th><th>Overdue</th><th>Oldest wait</th><th>Done ({days} d)</th><th>Median time</th></tr></thead>
               <tbody>
                 {rows.map(([id, c]) => (
@@ -486,14 +487,14 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           )}
           {ended.length > 0 && (
             <p className="small muted">
               Ended in the last {days} d: {ended.map((p) => `${p.n} ${p.outcome ?? p.state} (v${p.version})`).join(", ")}
             </p>
           )}
-        </div>
+        </UICard>
       )}
     </>
   );
@@ -559,10 +560,10 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
   return (
     <section>
       <div className="row spread">
-        <h1>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</h1>
+        <PageHeader>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</PageHeader>
         <div className="actions">
           {dirty && <span className="badge soon">unsaved changes</span>}
-          <button className="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</button>
+          <Button variant="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</Button>
         </div>
       </div>
       <p className="muted small">
@@ -612,7 +613,7 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
   ];
   return (
     <>
-      <table className="kv"><tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
+      <Table variant="keyValue"><tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></Table>
       <p className="small muted">Where work piles up: <a href={href(`/processes/${processKey}`, { tab: "monitor" })}>Monitor</a>. Who does each step
         and when it escalates: <a href={href(`/processes/${processKey}`, { tab: "routing" })}>SLAs &amp; routing</a>.</p>
     </>
@@ -631,7 +632,7 @@ function RunningTab({ processKey }: { processKey: string }) {
       </div>
       <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && !list.data.length}>None.</Status>
       {list.data && list.data.length > 0 && (
-        <table className="results">
+        <Table variant="results">
           <thead><tr><th>Case</th><th>Waiting on</th><th>Age</th><th>Version</th><th>Started by</th><th /></tr></thead>
           <tbody>
             {list.data.map((i) => (
@@ -649,13 +650,13 @@ function RunningTab({ processKey }: { processKey: string }) {
                 <td className="small">v{i.version}</td>
                 <td className="small"><Actor who={i.started_by} /></td>
                 <td>{i.state === "running" && person && (
-                  <button className="link small" disabled={!!a.busy}
-                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the process page"), list.reload)}>cancel</button>
+                  <Button variant="link" className="small" disabled={!!a.busy}
+                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the process page"), list.reload)}>cancel</Button>
                 )}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       {a.error && <p className="error small">{a.error}</p>}
     </>
@@ -669,7 +670,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
     <>
       <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply
         (edit them under <a href={href("/teams")}>Teams &amp; routing</a>). Change a step's own settings in the Model tab.</p>
-      <table className="list">
+      <Table variant="list">
         <thead><tr><th>Step</th><th>Done by</th><th>Assigned</th><th>SLA</th><th>When it passes, goes to</th><th>Form</th></tr></thead>
         <tbody>
           {r.data.map((s) => (
@@ -685,7 +686,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { Button, PageHeader, Table, Card as UICard } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
@@ -30,12 +31,12 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
   const groups = [...new Set(rows.map((s) => s.group))];
   return (
     <section>
-      <h1>Settings</h1>
+      <PageHeader>Settings</PageHeader>
       <p className="muted">
         Thresholds, caps, models and schedules. A project value beats the global one, which beats the default. Each
         change needs a reason and is kept in the setting's history. Changes are recorded as <b>{person}</b>.
       </p>
-      <div className="card row small">
+      <UICard className="row small">
         <label>
           Project{" "}
           <select
@@ -47,15 +48,15 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
           </select>
         </label>
         <input placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
-      </div>
+      </UICard>
       {!f && <PeopleCard by={person} />}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
         No settings match.
       </Status>
       {groups.map((g) => (
-        <div className="card" key={g}>
+        <UICard className="" key={g}>
           <h2>{g}</h2>
-          <table className="settings">
+          <Table variant="settings">
             <thead>
               <tr>
                 <th>Setting</th><th>Value</th><th>Default</th><th>Range</th><th>Last changed</th><th />
@@ -74,8 +75,8 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
                 />
               ))}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </UICard>
       ))}
     </section>
   );
@@ -103,7 +104,7 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
         <td className="muted">{show(s.default)}</td>
         <td className="muted small">{range(s)}</td>
         <td className="muted small">{s.updated_by ? `${s.updated_by}, ${when(s.updated_at)}` : ""}</td>
-        <td><button onClick={toggle}>{open ? "Close" : "Change"}</button></td>
+        <td><Button onClick={toggle}>{open ? "Close" : "Change"}</Button></td>
       </tr>
       {open && (
         <tr className="setting-edit">
@@ -169,11 +170,11 @@ function Editor({ s, project, person, saved }: {
         />
       )}
       <input className="grow" placeholder="reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <button className="primary" disabled={busy} onClick={save}>Save</button>
-      <button disabled={busy || current === null} onClick={reset}
+      <Button variant="primary" disabled={busy} onClick={save}>Save</Button>
+      <Button disabled={busy || current === null} onClick={reset}
         title={scope === "project" ? "back to the global value" : "back to the default"}>
         Reset
-      </button>
+      </Button>
       {error && <span className="error">{error}</span>}
     </div>
   );
@@ -185,7 +186,7 @@ function History({ settingKey }: { settingKey: string }) {
   if (!h.data) return null;
   if (h.data.length === 0) return <p className="muted small">Never changed: it has always been the default.</p>;
   return (
-    <table className="list small">
+    <Table variant="list" density="compact">
       <tbody>
         {h.data.map((c, i) => (
           <tr key={i}>
@@ -197,6 +198,6 @@ function History({ settingKey }: { settingKey: string }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </Table>
   );
 }

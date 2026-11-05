@@ -4,22 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoCollection, GeoFeature } from "./api";
 import { entityHref } from "./lib";
 
-// Pipeline services: fixed colours (validated categorical palette), gas services dashed so colour isn't
-// the only cue. Unknown services fall back to grey.
-const SERVICES: { key: string; label: string; color: string; dash?: string }[] = [
-  { key: "production flowline", label: "Production flowline", color: "#0072B2" },
-  { key: "oil export", label: "Oil export", color: "#E69F00" },
-  { key: "gas lift", label: "Gas lift", color: "#009E73", dash: "6 6" },
-  { key: "gas export", label: "Gas export", color: "#D55E00", dash: "14 6" },
-  { key: "gas", label: "Gas", color: "#CC79A7", dash: "2 6" },
-  { key: "production trunkline", label: "Production trunkline", color: "#56B4E9" },
+// Gas services are dashed so colour is not the only cue.
+const SERVICES: { key: string; label: string; token: string; dash?: string }[] = [
+  { key: "production flowline", label: "Production flowline", token: "--map-flow" },
+  { key: "oil export", label: "Oil export", token: "--map-oil" },
+  { key: "gas lift", label: "Gas lift", token: "--map-gas-lift", dash: "6 6" },
+  { key: "gas export", label: "Gas export", token: "--map-gas-export", dash: "14 6" },
+  { key: "gas", label: "Gas", token: "--map-gas", dash: "2 6" },
+  { key: "production trunkline", label: "Production trunkline", token: "--map-trunkline" },
 ];
 const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "area", label: "Platforms, jackets, pads", radius: 7 },
   { key: "facility", label: "Plants and terminals", radius: 8 },
   { key: "well", label: "Wells", radius: 3 },
 ];
-const OTHER = "#7a8594";
+const themeValue = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const tip = (f: GeoFeature) =>
@@ -77,6 +76,19 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   const layer = useRef<L.LayerGroup | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showTiles, setShowTiles] = useState(basemap);
+  const [themeVersion, setThemeVersion] = useState(0);
+  useEffect(() => {
+    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setThemeVersion((n) => n + 1);
+    scheme.addEventListener("change", update);
+    return () => scheme.removeEventListener("change", update);
+  }, []);
+  const colors = {
+    outline: themeValue("--map-outline"), label: themeValue("--map-label"), well: themeValue("--map-well"),
+    other: themeValue("--map-other"), abandoned: themeValue("--map-abandoned"), focus: themeValue("--map-focus"),
+  };
+  const serviceColors = Object.fromEntries(SERVICES.map((s) => [s.key, themeValue(s.token)]));
+  const other = colors.other;
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -118,10 +130,10 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
       const isFocus = f.id === focus;
       const abandoned = f.properties.status === "abandoned";
       const weight = Math.max(2, Math.min(6, Number(f.properties.diameter_in ?? 6) / 3)) + (isFocus ? 3 : 0);
-      L.geoJSON(f as GeoJSON.Feature, { style: { color: "#ffffff", weight: weight + 3, opacity: 0.9 } }).addTo(g);
+      L.geoJSON(f as GeoJSON.Feature, { style: { color: colors.outline, weight: weight + 3, opacity: 0.9 } }).addTo(g);
       L.geoJSON(f as GeoJSON.Feature, {
         style: {
-          color: abandoned ? OTHER : (s?.color ?? OTHER),
+          color: abandoned ? colors.abandoned : (s ? serviceColors[s.key] : other),
           weight,
           dashArray: abandoned ? "2 8" : s?.dash,
           opacity: 0.95,
@@ -138,9 +150,9 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
       const r = (POINTS.find((p) => p.key === kind)?.radius ?? 5) + (isFocus ? 4 : 0);
       L.circleMarker([lat, lon], {
         radius: r,
-        color: "#ffffff",
+        color: colors.outline,
         weight: kind === "well" ? 1 : 2,
-        fillColor: isFocus ? "#c4302b" : kind === "well" ? "#5f6b7a" : "#1b1f24",
+        fillColor: isFocus ? colors.focus : kind === "well" ? colors.well : colors.label,
         fillOpacity: 1,
       })
         .bindTooltip(tip(f))
@@ -151,7 +163,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
       const bounds = L.geoJSON({ type: "FeatureCollection", features: shown } as GeoJSON.FeatureCollection).getBounds();
       if (bounds.isValid()) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
     }
-  }, [data, hidden, focus]);
+  }, [data, hidden, focus, themeVersion]);
 
   const toggle = (k: string) =>
     setHidden((h) => {
@@ -161,10 +173,10 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
       return n;
     });
   const entries: { key: string; label: string; color: string; dash?: string; line: boolean }[] = [
-    ...SERVICES.map((s) => ({ key: `line:${s.key}`, label: s.label, color: s.color, dash: s.dash, line: true })),
-    { key: "line:other", label: "Other lines", color: OTHER, line: true },
-    { key: "line:abandoned", label: "Abandoned", color: OTHER, dash: "2 8", line: true },
-    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: p.key === "well" ? "#5f6b7a" : "#1b1f24", line: false })),
+    ...SERVICES.map((s) => ({ key: `line:${s.key}`, label: s.label, color: serviceColors[s.key], dash: s.dash, line: true })),
+    { key: "line:other", label: "Other lines", color: other, line: true },
+    { key: "line:abandoned", label: "Abandoned", color: colors.abandoned, dash: "2 8", line: true },
+    ...POINTS.map((p) => ({ key: `point:${p.key}`, label: p.label, color: p.key === "well" ? colors.well : colors.label, line: false })),
   ].filter((e) => counts[e.key]);
 
   return (

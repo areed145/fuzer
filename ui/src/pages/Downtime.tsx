@@ -1,3 +1,4 @@
+import { Bar, PageHeader } from "../ui";
 import { useState } from "react";
 import { api, type RankRow } from "../api";
 import { Status, entityHref, useAsync } from "../lib";
@@ -17,7 +18,7 @@ export function DowntimePage() {
     <section>
       <div className="row spread">
         <div>
-          <h1>Downtime</h1>
+          <PageHeader>Downtime</PageHeader>
           <p className="muted">
             Lost production from Energy Components downtime records, ranked by what caused it. Causes come from the
             equipment named in each record's comment.
@@ -80,9 +81,7 @@ function Ranking({ title, rows, named }: { title: string; rows?: RankRow[]; name
                 r.label
               )}
             </span>
-            <span className="bar">
-              <span style={{ width: `${(100 * r.lost_oil_sm3) / top}%` }} />
-            </span>
+            <Bar className="bar" value={(100 * r.lost_oil_sm3) / top} />
             <span className="muted small">{fmt(r.lost_oil_sm3)}</span>
           </li>
         ))}

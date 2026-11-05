@@ -1,3 +1,4 @@
+import { Button, Input, PageHeader, Table } from "../ui";
 import { useEffect, useState } from "react";
 import { api, type BoardCard, type BoardFilter } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync, useDebounced } from "../lib";
@@ -63,7 +64,7 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
 
   return (
     <section>
-      <h1>Work board</h1>
+      <PageHeader>Work board</PageHeader>
       <p className="muted">
         Every outstanding piece of work in one list, ranked by value: SAP backlog, PMs and inspections, incidents and
         upsets the SRE found, workflow items, opportunities, reviews and projects. One card per piece of work.
@@ -86,7 +87,7 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
             {Object.keys(saved).map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
         )}
-        <button onClick={save}>Save filter</button>
+        <Button onClick={save}>Save filter</Button>
         <ProjectButton />
       </div>
       {view === "new" && (
@@ -94,20 +95,20 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
       )}
       {group && facets && (
         <div className="chips">
-          <button className={!filter[group as keyof BoardFilter] ? "chip on" : "chip"} onClick={() => setOne(group as keyof BoardFilter, undefined)}>
+          <Button className={!filter[group as keyof BoardFilter] ? "chip on" : "chip"} onClick={() => setOne(group as keyof BoardFilter, undefined)}>
             all
-          </button>
+          </Button>
           {group === "area"
             ? facets.area.map((a) => (
-              <button key={a.id ?? "none"} className={filter.area === a.id ? "chip on" : "chip"}
+              <Button key={a.id ?? "none"} className={filter.area === a.id ? "chip on" : "chip"}
                 onClick={() => setOne("area", a.id ?? undefined)} disabled={!a.id}>
                 {a.label ?? "no area"} <span className="muted">{a.n}</span>
-              </button>))
+              </Button>))
             : Object.entries(facets[group as "owner" | "kind"]).map(([k, n]) => (
-              <button key={k} className={filter[group as keyof BoardFilter] === k ? "chip on" : "chip"}
+              <Button key={k} className={filter[group as keyof BoardFilter] === k ? "chip on" : "chip"}
                 onClick={() => setOne(group as keyof BoardFilter, k)}>
                 {k.replace("_", " ")} <span className="muted">{n}</span>
-              </button>))}
+              </Button>))}
         </div>
       )}
       <Status loading={board.loading && !board.data} error={board.error} empty={board.data?.total === 0}>
@@ -122,8 +123,8 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
             {board.data.cards.map((c) => <Card key={c.key} card={c} reload={board.reload} />)}
           </ol>
           <div className="row">
-            <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-            <button disabled={page * board.data.per_page >= board.data.total} onClick={() => setPage(page + 1)}>Next</button>
+            <Button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+            <Button disabled={page * board.data.per_page >= board.data.total} onClick={() => setPage(page + 1)}>Next</Button>
           </div>
         </>
       )}
@@ -143,7 +144,7 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{money(c.effective_usd)}</strong>
-        <button className="link" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</button>
+        <Button variant="link" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</Button>
       </div>
       <div className="row small muted">
         {c.unit && c.unit_id && <a href={entityHref(c.unit_id)}>{c.unit}</a>}
@@ -165,7 +166,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
       {c.text && <p className="small">{c.text}</p>}
       {c.reason && <p className="small">{c.reason}{c.moved && c.moved !== "new" && ` · ${c.moved}`}</p>}
       {Object.keys(parts).length > 0 && (
-        <table className="small">
+        <Table density="compact">
           <tbody>
             {Object.entries(parts).map(([k, p]) => (
               <tr key={k}><td>{k}</td><td>{p.status === "unknown" ? "unknown" : money(p.value_usd)}</td></tr>
@@ -173,7 +174,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
             {c.breakdown.urgency && <tr><td>urgency</td><td>× {c.breakdown.urgency.factor}</td></tr>}
             {c.breakdown.effort && <tr><td>effort</td><td>{money(c.breakdown.effort.value_usd)}</td></tr>}
           </tbody>
-        </table>
+        </Table>
       )}
       {c.breakdown.unknown && c.breakdown.unknown.length > 0 && (
         <p className="muted small">Not known: {c.breakdown.unknown.join(", ")}</p>
@@ -219,12 +220,12 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
   return (
     <div className="row small">
       <span>Pin to rank</span>
-      <input style={{ width: 60 }} value={rank} onChange={(e) => setRank(e.target.value)} />
+      <Input width="xs" value={rank} onChange={(e) => setRank(e.target.value)} />
       <span>or value $</span>
-      <input style={{ width: 100 }} value={value} onChange={(e) => setValue(e.target.value)} />
+      <Input width="sm" value={value} onChange={(e) => setValue(e.target.value)} />
       <input placeholder="Why (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <button disabled={!reason || (!rank && !value)} onClick={() => send()}>Pin</button>
-      {c.pinned && <button onClick={() => send(true)}>Unpin</button>}
+      <Button disabled={!reason || (!rank && !value)} onClick={() => send()}>Pin</Button>
+      {c.pinned && <Button onClick={() => send(true)}>Unpin</Button>}
       {error && <span className="error">{error}</span>}
     </div>
   );
@@ -240,5 +241,5 @@ function ProjectButton() {
     notifyChanged();
     window.location.reload();
   };
-  return <button onClick={add}>Add project</button>;
+  return <Button onClick={add}>Add project</Button>;
 }

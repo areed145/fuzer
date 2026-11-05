@@ -1,3 +1,4 @@
+import { Button, Input, PageHeader, Table } from "../../ui";
 /** Teams & routing: the roles steps go to (what they're for, their default SLA, where overdue work goes, how it's
  * assigned), the people who hold them (workload, away and who covers), and the agents (their queues and failures). */
 import { useState } from "react";
@@ -21,7 +22,7 @@ export function TeamsPage({ query }: { query: URLSearchParams }) {
   const uncovered = persons.filter((r) => r.uncovered);
   return (
     <section>
-      <h1>Teams &amp; routing</h1>
+      <PageHeader>Teams &amp; routing</PageHeader>
       <p className="muted">Who does the work. Each step goes to a role; a role's default SLA covers steps that set none, overdue
         steps move along its escalation, and its assignment decides whether steps wait to be claimed or go to someone. People
         away hand their steps to whoever covers for them.</p>
@@ -35,7 +36,7 @@ export function TeamsPage({ query }: { query: URLSearchParams }) {
       <h2>People</h2>
       <People people={work.data.people} roles={persons} person={person} reload={reload} />
       <h2>Agents</h2>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <thead><tr><th>Agent</th><th>What it does</th><th>Steps waiting</th><th>Retrying</th><th>Used in</th></tr></thead>
         <tbody>
           {roles.data.filter((r) => r.kind === "agent").map((r) => {
@@ -47,7 +48,7 @@ export function TeamsPage({ query }: { query: URLSearchParams }) {
             );
           })}
         </tbody>
-      </table>
+      </Table>
       {work.data.agent_failures.length > 0 && (
         <details className="small">
           <summary>Recent agent failures ({work.data.agent_failures.length})</summary>
@@ -76,9 +77,9 @@ function RoleCard({ r, roles, person, open, reload }: { r: WorkRoleRow; roles: W
           {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${r.escalate_to}`}</span>
         {r.uncovered && <span className="badge late"> no one available</span>}
       </summary>
-      <table className="kv small">
+      <Table variant="keyValue" density="compact">
         <tbody>
-          <tr><th>What it's for</th><td><input value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} style={{ width: "30em" }} /></td></tr>
+          <tr><th>What it's for</th><td><Input width="lg" value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} /></td></tr>
           <tr><th>Default SLA</th><td><input value={v.default_sla} placeholder="e.g. PT4H, P1D (empty: steps set their own)"
             onChange={(e) => setV({ ...v, default_sla: e.target.value })} /> <span className="muted">for steps that set none</span></td></tr>
           <tr><th>When it passes, goes to</th><td>
@@ -96,13 +97,13 @@ function RoleCard({ r, roles, person, open, reload }: { r: WorkRoleRow; roles: W
           <tr><th>Used in</th><td>{r.processes.length ? r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)
             : <span className="muted">no published process</span>}</td></tr>
         </tbody>
-      </table>
+      </Table>
       <div className="row">
-        <button className="primary" disabled={!changed || !!a.busy}
+        <Button variant="primary" disabled={!changed || !!a.busy}
           onClick={() => a.run("save", () => api.setRole(r.name, { description: v.description || null, default_sla: v.default_sla || null,
-            escalate_to: v.escalate_to || null, assignment: v.assignment }, person), reload)}>Save</button>
+            escalate_to: v.escalate_to || null, assignment: v.assignment }, person), reload)}>Save</Button>
         {!r.processes.length && !r.members.length && (
-          <button className="link" disabled={!!a.busy} onClick={() => a.run("del", () => api.deleteRole(r.name, person), reload)}>delete role</button>
+          <Button variant="link" disabled={!!a.busy} onClick={() => a.run("del", () => api.deleteRole(r.name, person), reload)}>delete role</Button>
         )}
         {r.waiting > 0 && <a className="small" href={href("/cases", { who: `role:${r.name}` })}>see its {r.waiting} waiting</a>}
       </div>
@@ -119,10 +120,10 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
   return (
     <div className="row">
       <input placeholder="new role, e.g. integrity_engineer" value={name} onChange={(e) => setName(e.target.value)} />
-      <input placeholder="what it's for" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ width: "24em" }} />
+      <Input width="lg" placeholder="what it's for" value={desc} onChange={(e) => setDesc(e.target.value)} />
       <select value={kind} onChange={(e) => setKind(e.target.value as "person" | "agent")}><option value="person">people</option><option value="agent">an agent</option></select>
-      <button className="secondary" disabled={!name || !!a.busy}
-        onClick={() => a.run("add", () => api.setRole(name, { kind, description: desc || null }, person), () => { setName(""); setDesc(""); reload(); })}>Add role</button>
+      <Button variant="secondary" disabled={!name || !!a.busy}
+        onClick={() => a.run("add", () => api.setRole(name, { kind, description: desc || null }, person), () => { setName(""); setDesc(""); reload(); })}>Add role</Button>
       {a.error && <span className="error small">{a.error}</span>}
     </div>
   );
@@ -133,14 +134,14 @@ function People({ people, roles, person, reload }: { people: WorkloadPerson[]; r
   const a = useAct();
   return (
     <>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <thead><tr><th>Person</th><th>Roles</th><th>Has</th><th>Overdue</th><th>Away</th><th /></tr></thead>
         <tbody>{people.map((p) => <PersonRow key={p.name} p={p} roles={roles} people={people} person={person} reload={reload} />)}</tbody>
-      </table>
+      </Table>
       <div className="row">
         <input placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="secondary" disabled={!name || !!a.busy}
-          onClick={() => a.run("add", () => api.setWorkPerson(name.trim(), [], person), () => { setName(""); reload(); })}>Add</button>
+        <Button variant="secondary" disabled={!name || !!a.busy}
+          onClick={() => a.run("add", () => api.setWorkPerson(name.trim(), [], person), () => { setName(""); reload(); })}>Add</Button>
         {a.error && <span className="error small">{a.error}</span>}
       </div>
     </>
@@ -167,7 +168,7 @@ function PersonRow({ p, roles, people, person, reload }: { p: WorkloadPerson; ro
       <td>{p.overdue ? <span className="badge late">{p.overdue}</span> : 0}</td>
       <td>
         {p.away ? <>until {when(p.away_until!)}{p.delegate && `, ${p.delegate} covers`}{" "}
-          <button className="link" onClick={() => a.run("back", () => api.setAway(p.name, person, null), reload)}>back now</button></>
+          <Button variant="link" onClick={() => a.run("back", () => api.setAway(p.name, person, null), reload)}>back now</Button></>
           : awayOpen ? (
             <span className="row">
               <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
@@ -175,14 +176,14 @@ function PersonRow({ p, roles, people, person, reload }: { p: WorkloadPerson; ro
                 <option value="">steps go back to the queue</option>
                 {people.filter((x) => x.name !== p.name).map((x) => <option key={x.name} value={x.name}>{x.name} covers</option>)}
               </select>
-              <button className="secondary" disabled={!until || !!a.busy}
-                onClick={() => a.run("away", () => api.setAway(p.name, person, new Date(until).toISOString(), delegate || null), () => { setAwayOpen(false); reload(); })}>Set</button>
+              <Button variant="secondary" disabled={!until || !!a.busy}
+                onClick={() => a.run("away", () => api.setAway(p.name, person, new Date(until).toISOString(), delegate || null), () => { setAwayOpen(false); reload(); })}>Set</Button>
             </span>
-          ) : <button className="link" onClick={() => setAwayOpen(true)}>set away</button>}
+          ) : <Button variant="link" onClick={() => setAwayOpen(true)}>set away</Button>}
       </td>
-      <td><button className="link" disabled={!!a.busy}
+      <td><Button variant="link" disabled={!!a.busy}
         onClick={() => confirm(`Take ${p.name} off the roster? What they have goes back to its queues.`) &&
-          a.run("rm", () => api.removeWorkPerson(p.name, person), reload)}>remove</button>
+          a.run("rm", () => api.removeWorkPerson(p.name, person), reload)}>remove</Button>
         {a.error && <div className="error">{a.error}</div>}</td>
     </tr>
   );

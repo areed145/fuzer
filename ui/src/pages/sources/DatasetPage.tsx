@@ -1,3 +1,4 @@
+import { Button, PageHeader, Table, Card as UICard } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -24,7 +25,7 @@ export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
     <section>
       <p className="small"><a href={href("/sources")}>Sources</a> › {ds.source}</p>
       <div className="row spread">
-        <h1><code>{name}</code> <HealthBadge h={x.health} /></h1>
+        <PageHeader><code>{name}</code> <HealthBadge h={x.health} /></PageHeader>
         <span className="muted small">{ds.source} · {ds.record_type ?? ds.reader} · {ds.status}</span>
       </div>
       <LastLoad d={x} reload={d.reload} />
@@ -68,9 +69,9 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         </p>
       )}
       <div className="row">
-        <button className="primary" disabled={!!a.busy}
+        <Button variant="primary" disabled={!!a.busy}
           onClick={() => a.run("run", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>
-          {a.busy ? "Loading…" : "Load again"}</button>
+          {a.busy ? "Loading…" : "Load again"}</Button>
         {done && <Loaded r={done} />}
       </div>
       {a.error && <p className="error">{a.error}</p>}
@@ -96,20 +97,20 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       <div className="row">
-        <button className="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })}>
-          {a.busy === "run" ? "Loading…" : "Load now"}</button>
-        <button className="secondary" disabled={!!a.busy || !d.connection}
-          onClick={() => a.run("test", () => api.testConnection(d.connection!.id), setTest)}>Test connection</button>
-        <button className="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
-          Profile now</button>
+        <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })}>
+          {a.busy === "run" ? "Loading…" : "Load now"}</Button>
+        <Button variant="secondary" disabled={!!a.busy || !d.connection}
+          onClick={() => a.run("test", () => api.testConnection(d.connection!.id), setTest)}>Test connection</Button>
+        <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
+          Profile now</Button>
         {done && <Loaded r={done} />}
         {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "connection ok" : "connection failed"}</span>}
       </div>
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {a.error && <p className="error small">{a.error}</p>}
-      <table className="kv">
+      <Table variant="keyValue">
         <tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody>
-      </table>
+      </Table>
       {h && h.problems.length > 0 && <p className="error small">Needs a look: {h.problems.join(", ")}.</p>}
       {(d.work_items.length > 0 || d.reviews.length > 0) && (
         <>
@@ -164,7 +165,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   );
   return (
     <>
-      <table className="kv">
+      <Table variant="keyValue">
         <tbody>
           <tr><th>How it loads</th><td>
             {Object.keys(LOAD_HELP).map((m) => (
@@ -189,10 +190,10 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <tr><th>Owner</th><td>{field("owner", "who answers for it")}</td></tr>
           <tr><th>Notes</th><td>{field("notes")}</td></tr>
         </tbody>
-      </table>
+      </Table>
       <details>
         <summary className="small">Advanced: connection, key, location, reader, watermark</summary>
-        <table className="kv">
+        <Table variant="keyValue">
           <tbody>
             <tr><th>Connection</th><td>
               <select value={v.connection_id} onChange={(e) => setV({ ...v, connection_id: e.target.value })}>
@@ -203,12 +204,12 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             <tr><th>Reader</th><td>{field("connector", "default: by the file (csv, parquet, delta, excel, json, geojson)")}</td></tr>
             <tr><th>Watermark</th><td>{field("watermark", "a column that only grows (append loads)")}</td></tr>
           </tbody>
-        </table>
+        </Table>
       </details>
       <div className="row">
         <input placeholder="why (kept in the history)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <button className="primary" disabled={!changed || !!a.busy} onClick={save}>Save</button>
-        {changed && <button className="secondary" onClick={() => setV(init)}>Undo</button>}
+        <Button variant="primary" disabled={!changed || !!a.busy} onClick={save}>Save</Button>
+        {changed && <Button variant="secondary" onClick={() => setV(init)}>Undo</Button>}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
       <Lifecycle d={d} reload={reload} />
@@ -220,35 +221,35 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const a = useAction();
   const ds = d.dataset, p = d.retire_preview;
   return (
-    <div className="card danger">
+    <UICard className="danger">
       <h3>Stop or remove</h3>
       <div className="row">
-        {ds.status === "active" && <button className="secondary" disabled={!!a.busy}
-          onClick={() => a.run("pause", () => api.datasetAction(ds.name, "pause", reviewer()), reload)}>Pause loading</button>}
-        {ds.status === "paused" && <button className="secondary" disabled={!!a.busy}
-          onClick={() => a.run("resume", () => api.datasetAction(ds.name, "resume", reviewer()), reload)}>Resume loading</button>}
+        {ds.status === "active" && <Button variant="secondary" disabled={!!a.busy}
+          onClick={() => a.run("pause", () => api.datasetAction(ds.name, "pause", reviewer()), reload)}>Pause loading</Button>}
+        {ds.status === "paused" && <Button variant="secondary" disabled={!!a.busy}
+          onClick={() => a.run("resume", () => api.datasetAction(ds.name, "resume", reviewer()), reload)}>Resume loading</Button>}
         <span className="muted small">Paused: its records stay, nothing loads.</span>
       </div>
       {ds.status !== "retired" && (
         <div className="row">
-          <button className="secondary" disabled={!!a.busy}
-            onClick={() => a.run("keep", () => api.retireDataset(ds.name, false, reviewer()), reload)}>Retire, keep records</button>
-          <button className="secondary" disabled={!!a.busy}
+          <Button variant="secondary" disabled={!!a.busy}
+            onClick={() => a.run("keep", () => api.retireDataset(ds.name, false, reviewer()), reload)}>Retire, keep records</Button>
+          <Button variant="secondary" disabled={!!a.busy}
             onClick={() => confirm(`Retire ${ds.name} and remove its ${p.records} records?`) &&
-              a.run("retract", () => api.retireDataset(ds.name, true, reviewer()), reload)}>Retire and remove records</button>
+              a.run("retract", () => api.retireDataset(ds.name, true, reviewer()), reload)}>Retire and remove records</Button>
           <span className="muted small">For a source you've stopped using: {p.records.toLocaleString()} records,
             {" "}{p.entities_only_here.toLocaleString()} entities only it holds.</span>
         </div>
       )}
       <div className="row">
-        <button className="secondary" disabled={!!a.busy}
+        <Button variant="secondary" disabled={!!a.busy}
           onClick={() => confirm(`Delete ${ds.name}, its ${p.records} records, runs, checks and (unless shared) mapping?`) &&
             a.run("delete", () => api.deleteDataset(ds.name, reviewer()), () => { location.hash = href("/sources"); })}>
-          Delete dataset</button>
+          Delete dataset</Button>
         <span className="muted small">Undo adding it (a mistake): everything about it goes; the history keeps the change.</span>
       </div>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
 
@@ -261,14 +262,14 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
     <>
       {drafts.length > 0 && !review && (
         <p className="notice small">{drafts.length} draft{drafts.length === 1 ? "" : "s"} waiting:{" "}
-          {drafts.map((m) => <button key={m.id} className="link" onClick={() => setReview(m)}>review version {m.id}</button>)}</p>
+          {drafts.map((m) => <Button key={m.id} variant="link" onClick={() => setReview(m)}>review version {m.id}</Button>)}</p>
       )}
       {review && <ReviewVersion v={review} current={current} reload={reload} close={() => setReview(null)} />}
       <h3>Edit <span className="muted small">changes become a draft; you see what it would do before approving it</span></h3>
       <MappingEditor key={current.id} yaml={current.yaml} dataset={d.dataset.name}
         onSave={(text, note) => api.proposeMapping(text, reviewer(), note).then((v) => { reload(); setReview({ ...v, current: false }); })} />
       <h3>Versions</h3>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <thead><tr><th>#</th><th>Mapping</th><th>Status</th><th>By</th><th>Note</th><th>When</th><th /></tr></thead>
         <tbody>
           {d.mappings.map((m) => (
@@ -276,12 +277,12 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
               <td>{m.id}</td><td><code>{m.source}/{m.record_type}</code></td>
               <td>{m.current ? <span className="badge ok">in use</span> : m.status === "retired" ? <span className="muted">discarded</span> : m.status}</td>
               <td>{m.author ?? m.approved_by}</td><td className="muted">{m.note}</td><td className="muted">{when(m.created_at)}</td>
-              <td>{!m.current && m.status !== "retired" && <button className="link" onClick={() => setReview(m)}>
-                {m.status === "draft" ? "review" : "compare / roll back"}</button>}</td>
+              <td>{!m.current && m.status !== "retired" && <Button variant="link" onClick={() => setReview(m)}>
+                {m.status === "draft" ? "review" : "compare / roll back"}</Button>}</td>
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     </>
   );
 }
@@ -294,22 +295,22 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
   const a = useAction();
   const draft = v.status === "draft";
   return (
-    <div className="card inset">
-      <h3>Version {v.id} against version {current.id} (in use) <button className="link small" onClick={close}>close</button></h3>
+    <UICard className="inset">
+      <h3>Version {v.id} against version {current.id} (in use) <Button variant="link" className="small" onClick={close}>close</Button></h3>
       <Diff from={current.yaml} to={v.yaml} />
       <h3>What it would do</h3>
       {impact.data ? <Impact r={impact.data} /> : <Status loading={impact.loading} error={impact.error} />}
       <div className="row">
-        <button className="primary" disabled={!!a.busy || !impact.data}
+        <Button variant="primary" disabled={!!a.busy || !impact.data}
           onClick={() => a.run("go", () => (draft ? api.approveMapping(v.id, reviewer()) : api.rollbackMapping(v.id, reviewer())),
             () => { close(); reload(); })}>
-          {draft ? "Approve: use this version" : "Roll back to this version"}</button>
-        {draft && <button className="secondary" disabled={!!a.busy}
-          onClick={() => a.run("discard", () => api.discardMapping(v.id, reviewer()), () => { close(); reload(); })}>Discard draft</button>}
+          {draft ? "Approve: use this version" : "Roll back to this version"}</Button>
+        {draft && <Button variant="secondary" disabled={!!a.busy}
+          onClick={() => a.run("discard", () => api.discardMapping(v.id, reviewer()), () => { close(); reload(); })}>Discard draft</Button>}
         <span className="muted small">It takes effect on the next load and rebuild.</span>
       </div>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
 
@@ -337,14 +338,14 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       <div className="row">
-        <button className="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(d.dataset.name), (r) => { setDone(r); reload(); })}>
-          {a.busy === "run" ? "Loading…" : "Load now"}</button>
-        <button className="secondary" disabled={!!a.busy} title="read everything again, even if unchanged"
-          onClick={() => a.run("full", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>Full reload</button>
+        <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(d.dataset.name), (r) => { setDone(r); reload(); })}>
+          {a.busy === "run" ? "Loading…" : "Load now"}</Button>
+        <Button variant="secondary" disabled={!!a.busy} title="read everything again, even if unchanged"
+          onClick={() => a.run("full", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>Full reload</Button>
         {done && <Loaded r={done} />}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
-      <table className="list small">
+      <Table variant="list" density="compact">
         <thead><tr><th>#</th><th>When</th><th>Trigger</th><th>Status</th><th>Read</th><th>New</th><th>Changed</th><th>Same</th><th>Removed</th><th>s</th><th /></tr></thead>
         <tbody>
           {d.runs.map((r) => (
@@ -356,7 +357,7 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
       {d.runs.length === 0 && <p className="muted small">Not loaded yet.</p>}
     </>
   );
@@ -381,25 +382,25 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       {d.suggested_checks.length > 0 && (
-        <div className="card inset">
+        <UICard className="inset">
           <h3>Suggested from its profile</h3>
           <ul className="small plain">
             {d.suggested_checks.map((s, i) => (
               <li key={i}>
-                <button className="secondary" disabled={!!a.busy}
+                <Button variant="secondary" disabled={!!a.busy}
                   onClick={() => a.run(`s${i}`, () => api.addCheck(d.dataset.name, { kind: s.kind, column: s.column, params: s.params,
-                    blocking: s.blocking, by: reviewer() }), reload)}>Add</button>{" "}
+                    blocking: s.blocking, by: reviewer() }), reload)}>Add</Button>{" "}
                 <strong>{s.kind}</strong>{s.column && <> on <code>{s.column}</code></>} {JSON.stringify(s.params) !== "{}" &&
                   <code className="muted">{JSON.stringify(s.params)}</code>}{s.blocking && " (holds the load)"}
                 <span className="muted"> · {s.why}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </UICard>
       )}
       <h3>Checks <span className="muted small">duplicate keys always hold a load</span></h3>
       {d.checks.length > 0 ? (
-        <table className="list small">
+        <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Column</th><th>Params</th><th>Holds the load</th><th>Last</th><th>Value</th><th /></tr></thead>
           <tbody>
             {d.checks.map((c) => (
@@ -409,11 +410,11 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                 <td>{c.last_ok === null ? <span className="muted">not run</span> :
                   <span className={`badge ${c.last_ok ? "ok" : ""}`}>{c.last_ok ? "pass" : "fail"}</span>}</td>
                 <td>{c.last_value ?? ""}</td>
-                <td><button className="link" onClick={() => a.run("rm", () => api.removeCheck(c.id, reviewer()), reload)}>remove</button></td>
+                <td><Button variant="link" onClick={() => a.run("rm", () => api.removeCheck(c.id, reviewer()), reload)}>remove</Button></td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       ) : <p className="muted small">None yet.</p>}
       <details>
         <summary className="small">Add a check by hand</summary>
@@ -424,7 +425,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <input placeholder="column" value={column} onChange={(e) => setColumn(e.target.value)} />
           <input className="mono" placeholder='params, e.g. {"min": 0, "max": 100}' value={params} onChange={(e) => setParams(e.target.value)} />
           <label className="small"><input type="checkbox" checked={blocking} onChange={(e) => setBlocking(e.target.checked)} /> holds the load</label>
-          <button className="primary" disabled={!!a.busy} onClick={add}>Add</button>
+          <Button variant="primary" disabled={!!a.busy} onClick={add}>Add</Button>
         </div>
       </details>
       {a.error && <p className="error small">{a.error}</p>}
@@ -433,7 +434,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       {p?.drift?.length ? <p className="small">Since the profile before: {p.drift.map((x) => `${x.column} ${x.change}`).join("; ")}</p> : null}
       {p ? (
         <div className="scroll-x">
-          <table className="list small">
+          <Table variant="list" density="compact">
             <thead><tr><th>Column</th><th>Type</th><th>Filled</th><th>Distinct</th><th>Top values</th><th>Samples</th></tr></thead>
             <tbody>
               {Object.entries(p.columns).map(([k, c]) => (
@@ -441,7 +442,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                   <td className="muted">{c.top.map(([val, n]) => `${val} (${n})`).join(", ")}</td><td className="muted">{c.samples.join(", ")}</td></tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       ) : <p className="muted small">No profile yet: one is kept with every load.</p>}
     </>
@@ -465,14 +466,14 @@ function Matching({ d }: { d: DatasetDetail }) {
         {Object.keys(s.open_reviews ?? {}).length === 0 && "none"}
       </p>
       {cov.by_rel && (
-        <table className="list">
+        <Table variant="list">
           <thead><tr><th>Link</th><th>Resolved</th><th>Of</th><th>%</th></tr></thead>
           <tbody>
             {Object.entries(cov.by_rel as Record<string, [number, number]>).map(([rel, [ok, tot]]) => (
               <tr key={rel}><td>{rel}</td><td>{ok}</td><td>{tot}</td><td>{tot ? Math.round((100 * ok) / tot) : "–"}</td></tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       <p className="muted">Which source wins a field: <a href={href("/sources", { view: "rules" })}>Rules</a>.</p>
     </div>
@@ -481,7 +482,7 @@ function Matching({ d }: { d: DatasetDetail }) {
 
 function History({ d }: { d: DatasetDetail }) {
   return (
-    <table className="list small">
+    <Table variant="list" density="compact">
       <thead><tr><th>When</th><th>Who</th><th>What</th><th>Was</th><th>Now</th><th>Why</th></tr></thead>
       <tbody>
         {d.history.map((h) => (
@@ -489,6 +490,6 @@ function History({ d }: { d: DatasetDetail }) {
             <td className="muted">{cell(h.old)}</td><td>{cell(h.new)}</td><td className="muted">{h.reason}</td></tr>
         ))}
       </tbody>
-    </table>
+    </Table>
   );
 }

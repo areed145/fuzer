@@ -1,3 +1,4 @@
+import { Button, PageHeader, Card as UICard } from "../ui";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync } from "../lib";
@@ -9,7 +10,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
     <section>
       <div className="row spread">
         <div>
-          <h1>Lessons learned</h1>
+          <PageHeader>Lessons learned</PageHeader>
           <p className="muted">
             Drafted from incidents and the corrective work that closed them, per equipment model and failure mode.
             Approved lessons show up in document search for every piece of equipment of that model.
@@ -39,7 +40,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
     notifyChanged();
   };
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>{lesson.title}</h3>
         <span className="muted small">
@@ -59,11 +60,11 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
         </ul>
       </details>
       <div className="actions">
-        {lesson.status !== "approved" && <button className="primary" disabled={busy} onClick={() => decide("approve")}>Approve</button>}
-        {text !== lesson.text && <button disabled={busy} onClick={() => decide("edit")}>Save edits</button>}
-        {lesson.status !== "rejected" && <button disabled={busy} onClick={() => decide("reject")}>Reject</button>}
+        {lesson.status !== "approved" && <Button variant="primary" disabled={busy} onClick={() => decide("approve")}>Approve</Button>}
+        {text !== lesson.text && <Button disabled={busy} onClick={() => decide("edit")}>Save edits</Button>}
+        {lesson.status !== "rejected" && <Button disabled={busy} onClick={() => decide("reject")}>Reject</Button>}
         {lesson.decided_by && <span className="muted small">last decided by {lesson.decided_by}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }

@@ -9,28 +9,11 @@ import type { Subgraph } from "./api";
 cytoscape.use(dagre);
 cytoscape.use(fcose);
 
-// Mid-tone colours that read on both the light and dark backgrounds.
-export const KIND_COLORS: Record<string, string> = {
-  facility: "#5f6b7a",
-  area: "#1f9e9e",
-  tag: "#2f7bd8",
-  equipment: "#d9822b",
-  timeseries: "#2a9d5c",
-  well: "#8a5cd6",
-  allocation_node: "#c4a000",
-  document: "#7b8794",
-  log_entry: "#a0679b",
-  event: "#d6455d",
-  equipment_model: "#b5651d",
-  equipment_class: "#3f6e8c",
-  notification: "#c0392b",
-  work_order: "#7f8c3d",
-  downtime: "#e67e22",
-  daily_report: "#95a5a6",
-  incident: "#8e44ad",
-  document_section: "#a5b1c2",
+/** Entity colours come from the active theme so graph views follow light and dark mode. */
+export const kindColor = (kind: string) => {
+  const css = getComputedStyle(document.documentElement);
+  return css.getPropertyValue(`--kind-${kind}`).trim() || css.getPropertyValue("--kind-other").trim();
 };
-export const kindColor = (kind: string) => KIND_COLORS[kind] ?? "#8d98a7";
 
 /** Link types grouped by the ontology "view" they belong to. */
 export const REL_VIEWS: { id: string; label: string; rels: string[] }[] = [

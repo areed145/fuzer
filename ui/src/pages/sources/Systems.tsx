@@ -1,3 +1,4 @@
+import { Button, Input, Table, Card as UICard } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState } from "react";
@@ -39,9 +40,9 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
       <input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
       <input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
       <input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
-      <button className="secondary" disabled={!name || !!a.busy}
+      <Button variant="secondary" disabled={!name || !!a.busy}
         onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
-          () => { onDone(name); setName(""); })}>Add system</button>
+          () => { onDone(name); setName(""); })}>Add system</Button>
       {a.error && <span className="error small">{a.error}</span>}
     </div>
   );
@@ -59,26 +60,26 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
         <code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
           {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span>
       </summary>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <tbody>
           {SYSTEM_FIELDS.map(([k, label, hint]) => (
             <tr key={k}><th>{label}</th><td><input placeholder={hint} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></td></tr>
           ))}
         </tbody>
-      </table>
-      <button className="primary" disabled={!changed.length || !!a.busy}
+      </Table>
+      <Button variant="primary" disabled={!changed.length || !!a.busy}
         onClick={() => a.run("save", () => api.editSystem(s.name, Object.fromEntries(changed.map(([k]) =>
-          [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</button>
+          [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</Button>
       {a.error && <p className="error small">{a.error}</p>}
       <h3>Connections</h3>
       {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
       {adding ? (
         <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />
-      ) : <button className="secondary" onClick={() => setAdding(true)}>+ Add a connection</button>}
+      ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ Add a connection</Button>}
       {s.datasets.length === 0 && (
         <p className="small">
-          <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete system ${s.name} and its connections?`) &&
-            a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</button>
+          <Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Delete system ${s.name} and its connections?`) &&
+            a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</Button>
           <span className="muted"> (it has no datasets)</span>
         </p>
       )}
@@ -100,26 +101,26 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
         <span key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</span>
       ))}{" "}
       {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</span>}{" "}
-      <button className="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
-        {a.busy === "test" ? "testing…" : "test"}</button>
-      <button className="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
-        what it holds</button>
-      <button className="link" onClick={() => setEditing(!editing)}>edit</button>
-      <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete connection ${c.name}?`) &&
-        a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</button>
+      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
+        {a.busy === "test" ? "testing…" : "test"}</Button>
+      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
+        what it holds</Button>
+      <Button variant="link" onClick={() => setEditing(!editing)}>edit</Button>
+      <Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Delete connection ${c.name}?`) &&
+        a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</Button>
       {editing && (
         <div className="row wrap">
           {Object.keys({ ...(c.type === "folder" ? { path: "" } : {}), ...c.config }).map((k) => (
             <label key={k} className="small">{k}{" "}
-              <input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+              <Input width={k === "path" ? "full" : "md"} value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
                 placeholder={k === "path" ? "absolute, or relative to the data folder or the repository (or one Delta / Parquet table folder)" : ""}
-                style={{ width: k === "path" ? "36em" : "14em" }} />
+              />
             </label>
           ))}
-          <button className="primary" disabled={!!a.busy}
+          <Button variant="primary" disabled={!!a.busy}
             onClick={() => a.run("save", () => api.editConnection(c.id, {
               config: Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== "")) }, reviewer()),
-              () => { setEditing(false); setFound(null); reload(); })}>Save</button>
+              () => { setEditing(false); setFound(null); reload(); })}>Save</Button>
         </div>
       )}
       {test && !test.ok && <TestSteps steps={test.steps} />}
@@ -165,14 +166,14 @@ export function ConnectionForm({ system, types, onDone }: { system: string; type
     return a.run("save", () => api.addConnection(system, { name: name || type, type, config, secrets, by: reviewer() }), onDone);
   };
   return (
-    <div className="card inset">
+    <UICard className="inset">
       <div className="row">
         <select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
           {Object.keys(types).map((k) => <option key={k} value={k}>{k === "folder" ? "folder of exports / lake" : k}</option>)}
         </select>
         <input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <tbody>
           {Object.entries(t.config).map(([k, dflt]) => (
             <tr key={k}>
@@ -187,9 +188,9 @@ export function ConnectionForm({ system, types, onDone }: { system: string; type
               <td><input value={sec[k] ?? ""} onChange={(e) => setSec({ ...sec, [k]: e.target.value })} placeholder="env:VARIABLE_NAME" /></td></tr>
           ))}
         </tbody>
-      </table>
-      <button className="primary" disabled={!!a.busy} onClick={save}>{a.busy ? "Adding…" : "Add connection"}</button>
+      </Table>
+      <Button variant="primary" disabled={!!a.busy} onClick={save}>{a.busy ? "Adding…" : "Add connection"}</Button>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
