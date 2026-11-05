@@ -1,3 +1,4 @@
+import { Button, PageHeader, Card as UICard } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -118,7 +119,7 @@ export function AskPage() {
 
   return (
     <section className="ask">
-      <h1>Ask</h1>
+      <PageHeader>Ask</PageHeader>
       <p className="muted">
         An orchestrator and three specialists (troubleshooting, production, maintenance) answer from Fuzer's linked
         data: SAP, PI, Energy Components, P&IDs, logs and documents. Every fact links to where it came from. Read
@@ -127,10 +128,10 @@ export function AskPage() {
       {turns.length === 0 && (
         <div className="examples">
           {EXAMPLES.map(([label, q]) => (
-            <button key={label} className="example" onClick={() => ask(q)}>
+            <Button key={label} className="example" onClick={() => ask(q)}>
               <span className="muted small">{label}</span>
               <span>{q}</span>
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -158,23 +159,23 @@ export function AskPage() {
             {images.map((im, k) => (
               <span key={im.url} className="attachment">
                 <img src={im.url} alt={im.name} />
-                <button type="button" aria-label={`Remove ${im.name}`}
-                        onClick={() => setImages((xs) => xs.filter((_, j) => j !== k))}>×</button>
+                <Button type="button" aria-label={`Remove ${im.name}`}
+                        onClick={() => setImages((xs) => xs.filter((_, j) => j !== k))}>×</Button>
               </span>
             ))}
           </div>
         )}
         {attachError && <div className="error small">{attachError}</div>}
         <div className="row">
-          <button className="primary" type="submit" disabled={busy || !text.trim()}>{busy ? "Working…" : "Ask"}</button>
+          <Button variant="primary" type="submit" disabled={busy || !text.trim()}>{busy ? "Working…" : "Ask"}</Button>
           <label className="button" title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
             Attach image
             <input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
                    onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
           </label>
           {turns.length > 0 && (
-            <button type="button" className="link" disabled={busy}
-                    onClick={() => { setTurns([]); setConversation(undefined); }}>New conversation</button>
+            <Button type="button" variant="link" disabled={busy}
+                    onClick={() => { setTurns([]); setConversation(undefined); }}>New conversation</Button>
           )}
           <span className="spacer" />
           <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
@@ -204,7 +205,7 @@ function TurnView({ turn }: { turn: Turn }) {
           <div className="question-images">{turn.imageUrls.map((u) => <img key={u} src={u} alt="attached" />)}</div>
         )}
       </div>
-      <div className="card answer">
+      <UICard className="answer">
         {turn.error && <div className="error small">{turn.error}</div>}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
@@ -244,7 +245,7 @@ function TurnView({ turn }: { turn: Turn }) {
             <Remember id={j.id} />
           </>
         )}
-      </div>
+      </UICard>
     </div>
   );
 }
@@ -257,10 +258,10 @@ function Remember({ id }: { id: string }) {
   if (!open) {
     return (
       <div className="small">
-        <button className="link" onClick={() => {
+        <Button variant="link" onClick={() => {
           setText(window.getSelection()?.toString().trim() ?? "");
           setOpen(true);
-        }} title="Select text in the answer first, or type what to remember">Remember this…</button>
+        }} title="Select text in the answer first, or type what to remember">Remember this…</Button>
         {state && <span className="muted"> {state}</span>}
       </div>
     );
@@ -275,8 +276,8 @@ function Remember({ id }: { id: string }) {
     <div className="row small remember">
       <input placeholder="What should the assistant remember? (a statement from the answer)" value={text}
              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && send()} />
-      <button className="primary" disabled={!text.trim()} onClick={send}>Remember</button>
-      <button className="link" onClick={() => setOpen(false)}>Cancel</button>
+      <Button variant="primary" disabled={!text.trim()} onClick={send}>Remember</Button>
+      <Button variant="link" onClick={() => setOpen(false)}>Cancel</Button>
       {state && <span className="muted">{state}</span>}
     </div>
   );
@@ -290,8 +291,8 @@ function Rate({ id }: { id: string }) {
   const send = (useful: boolean) => api.feedback(`answer:${id}`, useful, asker(), comment || undefined).then(() => setSent(useful));
   return (
     <span className="rate-inline">
-      Useful? <button onClick={() => send(true)}>Yes</button>{" "}
-      <button onClick={() => (open ? send(false) : setOpen(true))}>No</button>
+      Useful? <Button onClick={() => send(true)}>Yes</Button>{" "}
+      <Button onClick={() => (open ? send(false) : setOpen(true))}>No</Button>
       {open && <input placeholder="What was wrong or missing?" value={comment} onChange={(e) => setComment(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && send(false)} />}
     </span>
@@ -328,13 +329,13 @@ function Conversations({ current, reload, busy, onOpen, onDeleted }: {
           <li key={c.id}>
             <span className="muted mono">{c.updated_at.slice(0, 16).replace("T", " ")}</span>{" "}
             {c.id === current ? <b>{c.title}</b> : (
-              <button className="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</button>
+              <Button variant="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</Button>
             )}{" "}
             <span className="muted">· {c.turns} question{c.turns === 1 ? "" : "s"}</span>{" "}
-            <button className="link muted" disabled={busy} title="Delete this conversation and its answers"
+            <Button variant="link" className="muted" disabled={busy} title="Delete this conversation and its answers"
                     onClick={() => api.deleteConversation(c.id).then(() => { setGone((g) => [...g, c.id]); onDeleted(c.id); })}>
               delete
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

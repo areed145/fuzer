@@ -1,3 +1,4 @@
+import { Button, Input, Table, Card as UICard } from "../../ui";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
@@ -11,14 +12,14 @@ function Step({ n, title, done, open, summary, onEdit, children }: {
   children?: ReactNode;
 }) {
   return (
-    <div className={`card step${open ? " current" : ""}`}>
+    <UICard className={` step${open ? " current" : ""}`}>
       <h2>
         <span className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</span> {title}{" "}
         {done && !open && <span className="muted small">{summary}</span>}{" "}
-        {done && !open && onEdit && <button className="link small" onClick={onEdit}>change</button>}
+        {done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}
       </h2>
       {open && children}
-    </div>
+    </UICard>
   );
 }
 
@@ -71,7 +72,7 @@ function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null
           <option value="">choose a system…</option>
           {cat.systems.map((s) => <option key={s.id} value={s.name}>{s.name}{s.kind ? ` (${s.kind})` : ""}</option>)}
         </select>
-        <button className="primary" disabled={!pick} onClick={() => onPick(pick)}>Continue</button>
+        <Button variant="primary" disabled={!pick} onClick={() => onPick(pick)}>Continue</Button>
       </div>
       <p className="small">Or a new one:</p>
       <NewSystem onDone={onPick} />
@@ -93,25 +94,25 @@ function PickConnection({ s, types, dataDir, onPick }: { s: CatalogSystem; types
       </p>
       {s.connections.map((c) => (
         <div key={c.id} className="row">
-          <button className="secondary" onClick={() => onPick(c.id)}>Use <code>{c.name}</code></button>
+          <Button variant="secondary" onClick={() => onPick(c.id)}>Use <code>{c.name}</code></Button>
           <span className="small">{c.type} <span className="muted">{c.display}</span></span>
-          <button className="link small" disabled={!!a.busy}
-            onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</button>
+          <Button variant="link" className="small" disabled={!!a.busy}
+            onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</Button>
           {tested[c.id] && <span className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</span>}
           {tested[c.id] && !tested[c.id].ok && <TestSteps steps={tested[c.id].steps} />}
         </div>
       ))}
       {!hasDataFolder && (
         <div className="row">
-          <button className="secondary" disabled={!!a.busy} onClick={() => a.run("files", () => api.addConnection(s.name,
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("files", () => api.addConnection(s.name,
             { name: "files", type: "folder", config: {}, secrets: {}, by: reviewer() }), (c) => onPick(Number(c.id)))}>
-            Use the project data folder</button>
+            Use the project data folder</Button>
           <span className="small muted">{dataDir}</span>
         </div>
       )}
       {adding ? (
         <ConnectionForm system={s.name} types={types} onDone={(c) => onPick(Number(c.id))} />
-      ) : <button className="secondary" onClick={() => setAdding(true)}>+ A new connection</button>}
+      ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ A new connection</Button>}
       {a.error && <p className="error small">{a.error}</p>}
     </>
   );
@@ -127,7 +128,7 @@ function PickTable({ connection, onPick }: { connection: number; onPick: (t: str
       {test.data && !test.data.ok && <><p className="error small">The connection test failed:</p><TestSteps steps={test.data.steps} /></>}
       {fresh.length === 0 && <p className="muted small">Everything this connection holds is already a dataset.</p>}
       <div className="row wrap">
-        {fresh.map((x) => <button key={x.table} className="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></button>)}
+        {fresh.map((x) => <Button key={x.table} variant="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></Button>)}
       </div>
       {t.data.tables.length > fresh.length && (
         <p className="muted small">Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</p>
@@ -156,31 +157,31 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
         <p className="small notice">
           Its dates look like <code>{d.date_hint.example}</code>. Set <code>{d.system}</code>'s date format to{" "}
           <code>{d.date_hint.date_format}</code> so they are read as dates?{" "}
-          <button className="secondary" disabled={!!a.busy}
+          <Button variant="secondary" disabled={!!a.busy}
             onClick={() => a.run("fmt", () => api.editSystem(d.system, { date_format: d.date_hint!.date_format }, reviewer(),
-              "dates in the export's local format"), () => p.reload())}>Set it</button>
+              "dates in the export's local format"), () => p.reload())}>Set it</Button>
         </p>
       )}
       <h3>Sample</h3>
       <div className="scroll-x">
-        <table className="list small">
+        <Table variant="list" density="compact">
           <thead><tr>{cols.map((x) => <th key={x}>{x} <span className="muted">{d.suggested.columns[x]?.meaning}</span></th>)}</tr></thead>
           <tbody>{d.sample.map((r, i) => <tr key={i}>{cols.map((x) => <td key={x}>{cell(r[x])}</td>)}</tr>)}</tbody>
-        </table>
+        </Table>
       </div>
       <h3>Mapping <span className="muted small">suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</span></h3>
       <div className="row">
         <input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
         <input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />
-        <button className="secondary" onClick={() => { setText(null); setOpts({ ...opts, dataset: dataset || undefined, record_type: rtype || undefined }); }}>
-          Suggest again</button>
-        <button className="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
-          onClick={() => { setText(null); setOpts({ ...opts, claude: true }); }}>Ask Claude</button>
+        <Button variant="secondary" onClick={() => { setText(null); setOpts({ ...opts, dataset: dataset || undefined, record_type: rtype || undefined }); }}>
+          Suggest again</Button>
+        <Button variant="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
+          onClick={() => { setText(null); setOpts({ ...opts, claude: true }); }}>Ask Claude</Button>
       </div>
       <MappingEditor key={d.suggested.yaml} yaml={initial?.yaml ?? d.suggested.yaml} columns={cols} samples={d.sample}
         onChange={setText} />
       <div className="row">
-        <button className="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</button>
+        <Button variant="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</Button>
         {text !== null && <span className="muted small">edited</span>}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
@@ -197,7 +198,7 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
   const a = useAction();
   return (
     <>
-      <table className="list small">
+      <Table variant="list" density="compact">
         <tbody>
           <tr><th>Load mode</th><td>
             <select value={mode} onChange={(e) => setMode(e.target.value)}>
@@ -211,17 +212,17 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
               <option value="0 6 * * 1">weekly, Monday 06:00</option>
             </select></td></tr>
           <tr><th>Expect a delivery every</th><td>
-            <input value={hours} onChange={(e) => setHours(e.target.value)} placeholder="hours (empty: no expectation)" style={{ width: "14em" }} />
+            <Input width="md" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="hours (empty: no expectation)" />
             <span className="muted"> stale after that, and its owner is told</span></td></tr>
           <tr><th>Owner</th><td><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
         </tbody>
-      </table>
-      <button className="primary" disabled={!!a.busy}
+      </Table>
+      <Button variant="primary" disabled={!!a.busy}
         onClick={() => a.run("add", () => api.addTable(connection, table, {
           yaml, by: reviewer(), values: { load_mode: mode, schedule: schedule || null, owner: who || null,
                                           expected_hours: hours ? Number(hours) : null } }), onDone)}>
         {a.busy ? "Saving and loading…" : "Save and load"}
-      </button>
+      </Button>
       {a.error && <p className="error small">{a.error}</p>}
     </>
   );
@@ -233,14 +234,14 @@ function AddResult({ r }: { r: AddTableResult }) {
   const checks = (r.run?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
   const open = (tab: string) => href("/sources", { view: "dataset", name: r.dataset, tab });
   return (
-    <div className={`card ${held ? "warn" : ""}`}>
+    <UICard className={` ${held ? "warn" : ""}`}>
       <h2>{held ? "Saved, but the first load is held" : "Added and loaded"}</h2>
       {!held && r.load && (
         <p>
           <code>{r.dataset}</code>: {r.load.records.toLocaleString()} records ({r.load.inserted} new). They become entities on
           the next rebuild.{" "}
-          <button className="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch())}>
-            {a.busy ? "Rebuilding…" : "Rebuild now"}</button>
+          <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch())}>
+            {a.busy ? "Rebuilding…" : "Rebuild now"}</Button>
         </p>
       )}
       {held && (
@@ -265,7 +266,7 @@ function AddResult({ r }: { r: AddTableResult }) {
         and suggested checks</a> · <a href={href("/sources", { view: "add" })}>Add another source</a>
       </p>
       {a.error && <p className="error small">{a.error}</p>}
-    </div>
+    </UICard>
   );
 }
 
@@ -274,8 +275,8 @@ function LoadAgain({ name }: { name: string }) {
   const [done, setDone] = useState<SourceLoad | null>(null);
   return (
     <div className="row">
-      <button className="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(name, true), setDone)}>
-        {a.busy ? "Loading…" : "Load again"}</button>
+      <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(name, true), setDone)}>
+        {a.busy ? "Loading…" : "Load again"}</Button>
       <span className="small muted">after fixing it</span>
       {done && <Loaded r={done} />}
       {a.error && <span className="error small">{a.error}</span>}

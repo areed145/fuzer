@@ -1,3 +1,4 @@
+import { Button, PageHeader, Table, Card as UICard } from "../../ui";
 /** Inbox: everything waiting for you, most urgent first: escalated to you, assigned to you (and to anyone you're
  * covering for), unclaimed in your roles' queues; plus the data review queue's count. */
 import { useState } from "react";
@@ -13,7 +14,7 @@ export function InboxPage() {
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
-  if (!person) return <section><h1>Inbox</h1><p>Say who you are in the sidebar (bottom left) to see your work.</p></section>;
+  if (!person) return <section><PageHeader>Inbox</PageHeader><p>Say who you are in the sidebar (bottom left) to see your work.</p></section>;
   if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
   const d = inbox.data;
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -29,7 +30,7 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <h1>Inbox</h1>
+      <PageHeader>Inbox</PageHeader>
       <p className="row small">
         <span className="badge">{d.mine.length} assigned to you</span>
         <span className="badge">{d.queue.length} unclaimed in your roles ({d.roles.join(", ") || "none"})</span>
@@ -61,12 +62,12 @@ function Group({ title, rows, person, picked, toggle, hint }: {
 }) {
   if (!rows.length) return null;
   return (
-    <div className="card">
+    <UICard className="">
       <h2>{title} <span className="muted small">{rows.length}{hint ? ` · ${hint}` : ""}</span></h2>
-      <table className="results inbox">
+      <Table variant="results">
         <tbody>{rows.map((r) => <Row key={`${r.task_id ?? "i"}-${r.item_id}`} r={r} person={person} picked={picked} toggle={toggle} />)}</tbody>
-      </table>
-    </div>
+      </Table>
+    </UICard>
   );
 }
 
@@ -89,7 +90,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
       <td className="nowrap"><Due at={r.due_at} /></td>
       <td className="nowrap">
         {r.task_id && !r.assignee && (
-          <button className="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(r.task_id!, person))}>Claim</button>
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("claim", () => api.claim(r.task_id!, person))}>Claim</Button>
         )}{" "}
         <a className="button" href={open}>Open</a>
         {a.error && <div className="error small">{a.error}</div>}
@@ -104,15 +105,15 @@ function Bulk({ rows, person, onDone }: { rows: WorkRow[]; person: string; onDon
   const shared = rows.map((r) => r.bulk).reduce((x, y) => x.filter((l) => y.includes(l)));
   const [msg, setMsg] = useState<string | null>(null);
   return (
-    <div className="card bulk-bar actions">
+    <UICard className="bulk-bar actions">
       <strong>{rows.length} selected</strong>
       <input placeholder="reason (kept on each case)" value={reason} onChange={(e) => setReason(e.target.value)} />
       {shared.length ? shared.map((l) => (
-        <button key={l} className="primary" disabled={!!a.busy} onClick={() => a.run(l, () => api.bulkComplete(rows.map((r) => r.task_id!), person, l, reason || undefined),
-          (out) => { setMsg(`${l}: ${out.done.length} done${out.refused.length ? `, ${out.refused.length} refused` : ""}`); onDone(); })}>{l}</button>
+        <Button key={l} variant="primary" disabled={!!a.busy} onClick={() => a.run(l, () => api.bulkComplete(rows.map((r) => r.task_id!), person, l, reason || undefined),
+          (out) => { setMsg(`${l}: ${out.done.length} done${out.refused.length ? `, ${out.refused.length} refused` : ""}`); onDone(); })}>{l}</Button>
       )) : <span className="muted small">These steps share no bulk action.</span>}
       {msg && <span className="small">{msg}</span>}
       {a.error && <span className="error small">{a.error}</span>}
-    </div>
+    </UICard>
   );
 }

@@ -1,3 +1,4 @@
+import { Button, PageHeader } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -7,7 +8,7 @@ export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
   return (
     <section>
-      <h1>Incidents</h1>
+      <PageHeader>Incidents</PageHeader>
       <p className="muted">
         Logged events, downtime records and SAP notifications on the same piece of plant within a few days of each
         other, grouped into one upset. Newest first.
@@ -292,8 +293,8 @@ function Rate({ target }: { target: string }) {
           <textarea className="lesson-text" rows={2} placeholder="What was missing or wrong? (optional)"
                     value={comment} onChange={(e) => setComment(e.target.value)} />
           <div className="row">
-            <button className="primary" onClick={() => send(true)}>Useful</button>
-            <button onClick={() => send(false)}>Not useful</button>
+            <Button variant="primary" onClick={() => send(true)}>Useful</Button>
+            <Button onClick={() => send(false)}>Not useful</Button>
           </div>
         </>
       )}

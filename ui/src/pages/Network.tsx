@@ -1,3 +1,4 @@
+import { Button, PageHeader } from "../ui";
 import { useMemo, useState } from "react";
 import { api, type GraphNode } from "../api";
 import { GraphCanvas, Legend, subgraphElements } from "../graph";
@@ -19,7 +20,7 @@ export function Network() {
     <section>
       <div className="row spread">
         <div>
-          <h1>Flow network</h1>
+          <PageHeader>Flow network</PageHeader>
           <p className="muted">
             {rel === "lift_gas_to"
               ? "Gas lift from Energy Components: compression → lift gas headers → jacket gas lift manifolds (some through another jacket) → gas lifted wells."
@@ -30,17 +31,17 @@ export function Network() {
           </p>
         </div>
         <div className="tabs">
-          <button className={rel === "flows_to" ? "on" : ""} onClick={() => setRel("flows_to")}>Allocation (EC)</button>
-          <button className={rel === "lift_gas_to" ? "on" : ""} onClick={() => setRel("lift_gas_to")}>Gas lift (EC)</button>
-          <button className={rel === "pipes_to" ? "on" : ""} onClick={() => setRel("pipes_to")}>Piping (P&IDs)</button>
+          <Button className={rel === "flows_to" ? "on" : ""} onClick={() => setRel("flows_to")}>Allocation (EC)</Button>
+          <Button className={rel === "lift_gas_to" ? "on" : ""} onClick={() => setRel("lift_gas_to")}>Gas lift (EC)</Button>
+          <Button className={rel === "pipes_to" ? "on" : ""} onClick={() => setRel("pipes_to")}>Piping (P&IDs)</Button>
         </div>
         <label className="asof">
           As of
           <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           {asOf && (
-            <button className="link" onClick={() => setAsOf("")}>
+            <Button variant="link" onClick={() => setAsOf("")}>
               all dates
-            </button>
+            </Button>
           )}
         </label>
       </div>
@@ -78,7 +79,7 @@ export function NodePanel({ node, onExpand }: { node: GraphNode; onExpand?: () =
         <a className="button" href={href(`/e/${encodeURIComponent(node.id)}`, { tab: "graph" })}>
           Graph from here
         </a>
-        {onExpand && <button onClick={onExpand}>Expand</button>}
+        {onExpand && <Button onClick={onExpand}>Expand</Button>}
       </div>
     </>
   );

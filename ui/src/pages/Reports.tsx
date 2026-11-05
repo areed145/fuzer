@@ -1,3 +1,4 @@
+import { Button, PageHeader } from "../ui";
 import { useState } from "react";
 import { api } from "../api";
 import { Markdown } from "../Markdown";
@@ -8,7 +9,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
   const day = query.get("day") ?? days.data?.[0]?.day;
   return (
     <section>
-      <h1>Daily reports</h1>
+      <PageHeader>Daily reports</PageHeader>
       <p className="muted">
         What happened each production day and what it means, drafted from the day's records with every line cited.
         The ops lead reviews and publishes each one in Work.
@@ -44,7 +45,7 @@ function Report({ day }: { day: string }) {
             <div className="row small muted">
               <span>Version</span>
               {d.versions.map((v) => (
-                <button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>{v}</button>
+                <Button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>{v}</Button>
               ))}
               <span>drafted by {d.drafted_by}</span>
               {d.usage?.cost_usd !== undefined && <span>${d.usage.cost_usd.toFixed(2)}</span>}

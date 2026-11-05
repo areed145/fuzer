@@ -1,5 +1,6 @@
 import { api, type Stats } from "../api";
 import { KindBadge, Status, entityHref, fmt, href, useAsync, useDebounced } from "../lib";
+import { Button, PageHeader, Table } from "../ui";
 
 export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const q = query.get("q") ?? "";
@@ -12,6 +13,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
+      <PageHeader>Search</PageHeader>
       <input
         className="search"
         autoFocus
@@ -20,13 +22,13 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
         onChange={(e) => go({ q: e.target.value })}
       />
       <div className="chips">
-        <button className={!kind ? "chip on" : "chip"} onClick={() => go({ kind: undefined })}>
+        <Button className={!kind ? "chip on" : "chip"} onClick={() => go({ kind: undefined })}>
           all
-        </button>
+        </Button>
         {Object.entries(stats?.entities ?? {}).map(([k, n]) => (
-          <button key={k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
+          <Button key={k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
             {k.replace("_", " ")} <span className="muted">{n.toLocaleString()}</span>
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -34,7 +36,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
         No matches for “{q}”.
       </Status>
       {hits.data && hits.data.length > 0 && (
-        <table className="results">
+        <Table variant="results">
           <thead>
             <tr>
               <th>Name</th>
@@ -57,7 +59,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
       {hits.data?.length === 200 && <p className="muted small">Showing the first 200. Narrow your search.</p>}
     </section>

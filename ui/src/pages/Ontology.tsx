@@ -1,3 +1,4 @@
+import { Bar, Button, PageHeader } from "../ui";
 import { useMemo, useState } from "react";
 import { api, type Ontology as OntologyData } from "../api";
 import { GraphCanvas, Legend, REL_VIEWS, kindColor } from "../graph";
@@ -20,7 +21,7 @@ export function Ontology() {
     <section>
       <div className="row spread">
         <div>
-          <h1>Ontology</h1>
+          <PageHeader>Ontology</PageHeader>
           <p className="muted">
             The data model as it exists in Fuzer right now: each circle is a kind of thing (sized by how many there
             are), each arrow a kind of link between them, with how many links exist. Click anything for details.
@@ -29,9 +30,9 @@ export function Ontology() {
       </div>
       <div className="chips">
         {[{ id: "all", label: "All views" }, ...REL_VIEWS].map((v) => (
-          <button key={v.id} className={view === v.id ? "chip on" : "chip"} onClick={() => setView(v.id)}>
+          <Button key={v.id} className={view === v.id ? "chip on" : "chip"} onClick={() => setView(v.id)}>
             {v.label}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="graph-layout">
@@ -104,9 +105,7 @@ function OntologyPanel({ o, selected }: { o: OntologyData; selected: string | nu
             return (
               <li key={f.field}>
                 <span>{f.field.replace("_", " ")}</span>
-                <span className="bar">
-                  <span style={{ width: `${pct}%` }} />
-                </span>
+                <Bar className="bar" value={pct} />
                 <span className="muted small">{pct}%</span>
               </li>
             );

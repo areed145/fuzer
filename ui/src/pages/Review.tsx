@@ -13,6 +13,7 @@ import {
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
+import { Bar, Button, PageHeader, Table, Card as UICard } from "../ui";
 
 const NAME_KEY = "fuzer.reviewer";
 
@@ -72,6 +73,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
+      <PageHeader>Review</PageHeader>
       <div className="row spread">
         <div className="tabs">
           <a className={kind === "match" ? "on" : ""} href={href("/review", { kind: "match" })}>
@@ -170,13 +172,13 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
   const { busy, error, run } = useBusy(onDecide);
   const fields = [...new Set([...Object.keys(p.left.fields), ...Object.keys(p.right.fields)])].sort();
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>Same item? <span className="muted small">#{id}</span></h3>
         <Score value={p.score} />
       </div>
       <p className="muted small">{p.why}</p>
-      <table className="compare">
+      <Table variant="compare">
         <thead>
           <tr>
             <th />
@@ -200,17 +202,17 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
             );
           })}
         </tbody>
-      </table>
+      </Table>
       <div className="actions">
-        <button className="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
+        <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
           Same item
-        </button>
-        <button disabled={busy} onClick={() => run({ decision: "reject" })}>
+        </Button>
+        <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Different items
-        </button>
+        </Button>
         {error && <span className="error">{error}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }
 
@@ -219,7 +221,7 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
   const [text, setText] = useState(p.yaml);
   const s = p.suggestion;
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>
           <span className="mono">{p.dataset}</span> <span className="muted small">#{id}</span>
@@ -230,7 +232,7 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
         </span>
       </div>
       <p className="muted small mono">{p.path}</p>
-      <table className="compare">
+      <Table variant="compare">
         <thead>
           <tr>
             <th>column</th>
@@ -261,7 +263,7 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
             );
           })}
         </tbody>
-      </table>
+      </Table>
       <textarea
         className="mono yaml"
         spellCheck={false}
@@ -270,19 +272,19 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
         onChange={(e) => setText(e.target.value)}
       />
       <div className="actions">
-        <button
-          className="primary"
+        <Button
+          variant="primary"
           disabled={busy}
           onClick={() => run(text === p.yaml ? { decision: "accept" } : { decision: "choose", value: text })}
         >
           {text === p.yaml ? "Accept mapping" : "Save edited mapping"}
-        </button>
-        <button disabled={busy} onClick={() => run({ decision: "reject" })}>
+        </Button>
+        <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Not now
-        </button>
+        </Button>
         {error && <span className="error">{error}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }
 
@@ -292,7 +294,7 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
   const now = new Map(p.new);
   const columns = [...new Set([...was.keys(), ...now.keys()])];
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>
           <span className="mono">{p.dataset}</span> changed columns <span className="muted small">#{id}</span>
@@ -300,7 +302,7 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
         <span className="muted small">{p.connector}</span>
       </div>
       <p className="muted small mono">{p.path}</p>
-      <table className="compare">
+      <Table variant="compare">
         <thead>
           <tr>
             <th>column</th>
@@ -317,17 +319,17 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
       <div className="actions">
-        <button className="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
+        <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
           Expected, load it
-        </button>
-        <button disabled={busy} onClick={() => run({ decision: "reject" })}>
+        </Button>
+        <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Keep on hold
-        </button>
+        </Button>
         {error && <span className="error">{error}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }
 
@@ -342,7 +344,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
   const [custom, setCustom] = useState("");
   const distinct = [...new Map(p.values.map((v) => [fmt(v.value), v])).values()];
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>
           <a href={entityHref(p.fuzer_id)} className="mono">
@@ -363,13 +365,13 @@ function ConflictCard({ id, label, description, p, onDecide }: {
                 <SourceBadge key={`${x.source}:${x.source_key}`} source={x.source} />
               ))}
               {current && <span className="muted small">current</span>}
-              <button
+              <Button
                 disabled={busy}
                 className={current ? "primary" : ""}
                 onClick={() => run(current ? { decision: "accept" } : { decision: "choose", value: v.value })}
               >
                 Use this
-              </button>
+              </Button>
             </li>
           );
         })}
@@ -382,19 +384,17 @@ function ConflictCard({ id, label, description, p, onDecide }: {
         }}
       >
         <input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
-        <button disabled={busy || !custom.trim()}>Save</button>
+        <Button disabled={busy || !custom.trim()}>Save</Button>
         {error && <span className="error">{error}</span>}
       </form>
-    </div>
+    </UICard>
   );
 }
 
 function Score({ value }: { value: number }) {
   return (
     <span className="score" title="Match score (0–1)">
-      <span className="bar">
-        <span style={{ width: `${Math.round(value * 100)}%` }} />
-      </span>
+      <Bar className="bar" value={Math.round(value * 100)} />
       {value.toFixed(2)}
     </span>
   );
@@ -425,7 +425,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
   const [text, setText] = useState(() => JSON.stringify(p.reading, null, 1));
   const r = p.reading;
   return (
-    <div className="card review">
+    <UICard className="review">
       <div className="row spread">
         <h3>
           {p.manufacturer} {p.model} <span className="muted small">#{id}</span>
@@ -449,21 +449,21 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
       {editing && <textarea className="mono small" rows={14} value={text} onChange={(e) => setText(e.target.value)} />}
       <div className="actions">
         {editing ? (
-          <button className="primary" disabled={busy} onClick={() => {
+          <Button variant="primary" disabled={busy} onClick={() => {
             try {
               run({ decision: "choose", value: JSON.parse(text) });
             } catch {
               run({ decision: "choose", value: "not json" });
             }
-          }}>Save corrected curve</button>
+          }}>Save corrected curve</Button>
         ) : (
-          <button className="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>Matches the sheet, use it</button>
+          <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>Matches the sheet, use it</Button>
         )}
-        <button disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Cancel" : "Correct values"}</button>
-        <button disabled={busy} onClick={() => run({ decision: "reject" })}>Wrong, don't use</button>
+        <Button disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Cancel" : "Correct values"}</Button>
+        <Button disabled={busy} onClick={() => run({ decision: "reject" })}>Wrong, don't use</Button>
         {error && <span className="error">{error}</span>}
       </div>
-    </div>
+    </UICard>
   );
 }
 
@@ -472,7 +472,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
 function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onDecide: (d: { decision: "accept" }) => void }) {
   const failed = p.failed ?? [];
   return (
-    <div className="card">
+    <UICard className="">
       <h2>#{id} <code>{p.dataset}</code> <span className="muted small">held load</span></h2>
       <ul className="small">
         {failed.map((f, i) => (
@@ -482,8 +482,8 @@ function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onD
       </ul>
       <div className="row">
         <a className="button primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</a>
-        <button className="secondary" onClick={() => onDecide({ decision: "accept" })}>Seen</button>
+        <Button variant="secondary" onClick={() => onDecide({ decision: "accept" })}>Seen</Button>
       </div>
-    </div>
+    </UICard>
   );
 }

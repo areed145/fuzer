@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, Legend, subgraphElements, type LayoutName } from "../graph";
@@ -44,23 +45,23 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
       <div className="graph-toolbar">
         <div className="tabs">
           {[1, 2].map((d) => (
-            <button key={d} className={depth === d ? "on" : ""} onClick={() => setDepth(d)}>
+            <Button key={d} className={depth === d ? "on" : ""} onClick={() => setDepth(d)}>
               {d} {d === 1 ? "step" : "steps"}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="chips">
           {ALL_RELS.map((r) => (
-            <button key={r} className={rels.includes(r) ? "chip on" : "chip"} onClick={() => toggleRel(r)}>
+            <Button key={r} className={rels.includes(r) ? "chip on" : "chip"} onClick={() => toggleRel(r)}>
               {r.replace("_", " ")}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="tabs">
           {(["force", "flow", "tree"] as const).map((l) => (
-            <button key={l} className={layout === l ? "on" : ""} onClick={() => setLayout(l)}>
+            <Button key={l} className={layout === l ? "on" : ""} onClick={() => setLayout(l)}>
               {l === "force" ? "Web" : l === "flow" ? "Left → right" : "Top ↓ down"}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

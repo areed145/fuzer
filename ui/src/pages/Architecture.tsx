@@ -1,3 +1,4 @@
+import { PageHeader, Table, Card as UICard } from "../ui";
 import { api, type ArchComponent, type Architecture } from "../api";
 import { Status, useAsync } from "../lib";
 
@@ -19,7 +20,7 @@ export function ArchitecturePage() {
   const by = Object.fromEntries(d.components.map((c) => [c.id, c]));
   return (
     <section>
-      <h1>Architecture</h1>
+      <PageHeader>Architecture</PageHeader>
       <p className="muted">
         The parts of Fuzer, from the source systems down to the app, with what each holds now. Data flows down the
         page; each part uses the ones above it, and they all use core. The <a href={`${SITE}architecture/`}>architecture
@@ -41,25 +42,25 @@ export function ArchitecturePage() {
         <div className="arch-row">{by.core && <Card c={by.core} rows={d.rows} />}</div>
       </div>
       <div className="grid">
-        <div className="card">
+        <UICard className="">
           <h2>Scheduled jobs</h2>
-          <table className="list small">
+          <Table variant="list" density="compact">
             <thead><tr><th>Job</th><th>Last did something</th></tr></thead>
             <tbody>
               {Object.entries(d.jobs).map(([j, t]) => (
                 <tr key={j}><td>{JOB_LABEL[j] ?? j}</td><td className={t ? "" : "muted"}>{ago(t)}</td></tr>
               ))}
             </tbody>
-          </table>
-        </div>
-        <div className="card">
+          </Table>
+        </UICard>
+        <UICard className="">
           <h2>Entities by kind</h2>
-          <table className="list small">
+          <Table variant="list" density="compact">
             <tbody>
               {d.entities.map((e) => <tr key={e.kind}><td>{e.kind}</td><td>{n(e.n)}</td></tr>)}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </UICard>
       </div>
     </section>
   );
@@ -68,7 +69,7 @@ export function ArchitecturePage() {
 function Card({ c, rows }: { c: ArchComponent; rows: Record<string, number> }) {
   const uses = c.uses.filter((u) => u !== "core");
   return (
-    <div className="card arch-card">
+    <UICard className="arch-card">
       <h3>{c.title} <span className="muted small">fuzer.{c.id}</span></h3>
       <p className="small">{c.purpose}</p>
       {uses.length > 0 && <p className="small muted">Uses {uses.join(", ")}</p>}
@@ -83,6 +84,6 @@ function Card({ c, rows }: { c: ArchComponent; rows: Record<string, number> }) {
         <a href={c.code} target="_blank" rel="noreferrer">Code</a> ({c.modules} modules) ·{" "}
         <a href={`${SITE}${c.page.replace(/\.md$/, "/")}`} target="_blank" rel="noreferrer">Docs</a>
       </p>
-    </div>
+    </UICard>
   );
 }

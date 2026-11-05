@@ -1,3 +1,4 @@
+import { PageHeader } from "../ui";
 import { api } from "../api";
 import { MapView } from "../MapView";
 import { Status, useAsync } from "../lib";
@@ -9,7 +10,7 @@ export function MapPage() {
   return (
     <section>
       <div className="row spread">
-        <h1>Map</h1>
+        <PageHeader>Map</PageHeader>
         <span className="muted small">
           {n.toLocaleString()} located things{m.data?.truncated ? " (first 20,000)" : ""} · click one to open it
         </span>

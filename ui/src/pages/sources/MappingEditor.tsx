@@ -1,3 +1,4 @@
+import { Button, Input, Table } from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
 import { useEffect, useRef, useState } from "react";
@@ -32,9 +33,9 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
       {onSave && (
         <div className="row">
           <input placeholder="what changed and why" value={note} onChange={(e) => setNote(e.target.value)} />
-          <button className="primary" disabled={!!a.busy || text === yaml} onClick={() => a.run("save", () => onSave(text, note || undefined))}>
-            Save as draft</button>
-          {text !== yaml && <button className="secondary" onClick={() => set(yaml)}>Undo edits</button>}
+          <Button variant="primary" disabled={!!a.busy || text === yaml} onClick={() => a.run("save", () => onSave(text, note || undefined))}>
+            Save as draft</Button>
+          {text !== yaml && <Button variant="secondary" onClick={() => set(yaml)}>Undo edits</Button>}
         </div>
       )}
       {a.error && <p className="error small">{a.error}</p>}
@@ -75,13 +76,13 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
   const names = form.columns.map((c) => c.name);
   return (
     <>
-      <table className="kv small">
+      <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>Each record is</th><td>
             <input value={form.kind ?? ""} placeholder="entity kind, e.g. activity, equipment, tag"
               onChange={(e) => update({ ...form, kind: e.target.value || null })} />
             <span className="muted"> record type </span>
-            <input value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} style={{ width: "12em" }} />
+            <Input width="sm" value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} />
           </td></tr>
           <tr><th>Record key</th><td>
             <select multiple value={form.key} onChange={(e) => update({ ...form, key: Array.from(e.target.selectedOptions, (o) => o.value) })}
@@ -105,9 +106,9 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
             </td></tr>
           )}
         </tbody>
-      </table>
+      </Table>
       <div className="scroll-x">
-        <table className="list small mapper">
+        <Table variant="mapping" density="compact">
           <thead><tr><th>Column</th><th>Sample</th><th>Keep as a field</th><th>Links the record to</th></tr></thead>
           <tbody>
             {form.columns.map((c, i) => (
@@ -118,7 +119,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                   <input type="checkbox" checked={!!c.field}
                     onChange={(e) => setCol(i, { field: e.target.checked ? { name: c.name, as: null } : null })} />{" "}
                   {c.field && <>
-                    <input value={c.field.name} onChange={(e) => setCol(i, { field: { ...c.field!, name: e.target.value } })} style={{ width: "10em" }} />{" "}
+                    <Input width="sm" value={c.field.name} onChange={(e) => setCol(i, { field: { ...c.field!, name: e.target.value } })} />{" "}
                     <select value={c.field.as ?? ""} onChange={(e) => setCol(i, { field: { ...c.field!, as: e.target.value || null } })}>
                       {Object.entries(form.choices.field_as).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
@@ -130,13 +131,13 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                     <option value="">nothing</option>
                     {Object.entries(form.choices.targets).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>{" "}
-                  {c.link && <input value={c.link.rel} title="the link's name (relationship)" style={{ width: "9em" }}
+                  {c.link && <Input width="xs" value={c.link.rel} title="the link's name (relationship)"
                     onChange={(e) => setCol(i, { link: { ...c.link!, rel: e.target.value } })} />}
                 </td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
       {form.kept.length > 0 && (
         <p className="muted small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>

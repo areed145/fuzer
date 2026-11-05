@@ -1,3 +1,4 @@
+import { PageHeader, Table, Card as UICard } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, useAsync } from "../lib";
@@ -35,7 +36,7 @@ export function JobsPage() {
   return (
     <section className="jobs">
       <div className="row spread">
-        <h1>Jobs</h1>
+        <PageHeader>Jobs</PageHeader>
         {o.data && <DagsterLink d={o.data.dagster} />}
       </div>
       <p className="muted">
@@ -45,10 +46,10 @@ export function JobsPage() {
       </p>
       <Status loading={o.loading && !o.data} error={o.error} />
       {o.data && !o.data.available && (
-        <div className="card">
+        <UICard className="">
           <p>Dagster hasn't run on this machine yet, so there is no job history. Start it with <code>uv run fuzer up</code> (or
           {" "}<code>uv run fuzer jobs</code> on its own).</p>
-        </div>
+        </UICard>
       )}
       {o.data?.available && <Overview o={o.data} />}
     </section>
@@ -82,7 +83,7 @@ function Overview({ o }: { o: JobsOverview }) {
 
       <h2>Jobs</h2>
       <div className="scroll-x">
-        <table className="results jobs-table">
+        <Table variant="results" className="first-column-wide">
           <thead>
             <tr><th>Job</th><th>Runs when</th><th>Last run</th><th>Next</th><th>Recent runs</th></tr>
           </thead>
@@ -108,23 +109,23 @@ function Overview({ o }: { o: JobsOverview }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       <h2>Data checks</h2>
       <p className="muted small">Checks on the register after each rebuild. They flag problems without blocking the rebuild.</p>
       <div className="scroll-x">
-        <table className="list jobs-checks">
+        <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Result</th><th>Details</th><th>Checked</th></tr></thead>
           <tbody>
             {o.checks.map((c) => <CheckRow key={`${c.asset}.${c.name}`} c={c} />)}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       <h2>Sensors</h2>
       <div className="scroll-x">
-        <table className="list">
+        <Table variant="list">
           <thead><tr><th>Sensor</th><th>State</th><th>Last evaluation</th><th>Outcome</th></tr></thead>
           <tbody>
             {o.sensors.map((s) => (
@@ -141,7 +142,7 @@ function Overview({ o }: { o: JobsOverview }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       {o.claude && <ClaudeSpend c={o.claude} />}
@@ -233,7 +234,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
   return (
     <>
       <h2>Claude spend</h2>
-      <div className="card">
+      <UICard className="">
         <p className="small">
           The nightly <code>claude_reading</code> job is <OnOff on={c.schedule === "on"} />
           {c.schedule !== "on" && " (off by default because it costs money; turn it on in Dagster)"}.
@@ -245,7 +246,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
           </p>
         )}
         {c.runs.length > 0 && (
-          <table className="list small">
+          <Table variant="list" density="compact">
             <thead><tr><th>Run</th><th>Status</th><th>Model</th><th>Tokens in / out</th><th>Cost</th></tr></thead>
             <tbody>
               {c.runs.map((r) => (
@@ -258,9 +259,9 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         )}
-      </div>
+      </UICard>
     </>
   );
 }
@@ -279,7 +280,7 @@ export function JobRunPage({ id }: { id: string }) {
   return (
     <section className="jobs">
       <div className="row">
-        <h1><code>{d.job}</code></h1>
+        <PageHeader><code>{d.job}</code></PageHeader>
         <RunBadge status={d.status} />
       </div>
       <p className="muted small">
@@ -292,7 +293,7 @@ export function JobRunPage({ id }: { id: string }) {
         <>
           <h2>What went wrong</h2>
           {d.errors.map((e, i) => (
-            <div key={i} className="card error-card">
+            <UICard key={i} className="error-card">
               <div className="small muted">{e.step ? <>step <code>{e.step}</code></> : "run"}{e.error_class && <> · {e.error_class}</>}</div>
               <pre className="data">{e.message}</pre>
               {e.stack && (
@@ -301,7 +302,7 @@ export function JobRunPage({ id }: { id: string }) {
                   <pre className="data">{e.stack}</pre>
                 </details>
               )}
-            </div>
+            </UICard>
           ))}
         </>
       )}
@@ -311,16 +312,16 @@ export function JobRunPage({ id }: { id: string }) {
           <h2>Materialized</h2>
           <div className="grid">
             {d.assets.map((a) => (
-              <div key={a.asset} className="card">
+              <UICard key={a.asset} className="">
                 <h3><code>{a.asset}</code></h3>
-                <table className="kv small">
+                <Table variant="keyValue" density="compact" headingCase="verbatim">
                   <tbody>
                     {Object.entries(a.metadata).map(([k, v]) => (
                       <tr key={k}><th>{k.replace(/_/g, " ")}</th><td>{fmtValue(v)}</td></tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </Table>
+              </UICard>
             ))}
           </div>
         </>
@@ -329,15 +330,15 @@ export function JobRunPage({ id }: { id: string }) {
       {tags.length > 0 && (
         <>
           <h2>Tags</h2>
-          <table className="kv small">
+          <Table variant="keyValue" density="compact" headingCase="verbatim">
             <tbody>{tags.map(([k, v]) => <tr key={k}><th>{k}</th><td><code>{v}</code></td></tr>)}</tbody>
-          </table>
+          </Table>
         </>
       )}
 
       <h2>Log (last {d.log_tail.length})</h2>
       <div className="scroll-x">
-        <table className="list small log-tail">
+        <Table variant="list" density="compact" className="wrap-last-column">
           <thead><tr><th>Time</th><th>Level</th><th>Step</th><th>Message</th></tr></thead>
           <tbody>
             {d.log_tail.map((l, i) => (
@@ -349,7 +350,7 @@ export function JobRunPage({ id }: { id: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
     </section>
   );
