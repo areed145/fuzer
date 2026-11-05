@@ -68,6 +68,11 @@
   --kind-daily_report: #95a5a6;
   --kind-incident: #8e44ad;
   --kind-document_section: #a5b1c2;
+  --kind-activity: #16a085;
+  --kind-pipeline: #4f8a8b;
+  --kind-material: #9c7a54;
+  --kind-maintenance_plan: #6b8e23;
+  --kind-well_test: #6c5ce7;
   --kind-other: #8d98a7;
   /* Brand (docs/assets/brand): the Hex hub mark. Ink is the ring and wordmark, hub is the centre. */
   --brand-ink: #1d3b5c;
@@ -129,6 +134,11 @@
     --kind-daily_report: #bac7c8;
     --kind-incident: #c49be8;
     --kind-document_section: #c4cfdf;
+    --kind-activity: #48c9b0;
+    --kind-pipeline: #7fbcbd;
+    --kind-material: #c9a57c;
+    --kind-maintenance_plan: #9cc65a;
+    --kind-well_test: #a29bfe;
     --kind-other: #a7b2c0;
     --brand-ink: #a9bdd4;
     --brand-hub: #3fc6d4;
