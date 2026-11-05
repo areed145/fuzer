@@ -24,7 +24,8 @@ export const NAV: NavGroup[] = [
   {
     label: "Explore",
     items: [
-      { label: "Browse", section: "", also: ["e"] },
+      { label: "Home", section: "" },
+      { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
       { label: "Ontology", section: "ontology" },

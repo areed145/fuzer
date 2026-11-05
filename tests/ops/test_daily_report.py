@@ -32,6 +32,8 @@ def test_last_week_every_line_cited_and_matching(conn):
         assert out["version"] == 1 and out["item_id"], out
         r = daily_report.get(conn, day)
         assert r["checks"]["ok"], r["checks"]
+        assert r["facts"]["day"] == day
+        assert "Headline" in r["facts"]["sections"]
         rec = daily_report._day001(conn, day)
         assert f"Oil {float(rec['oil_sm3']):,.0f} Sm3" in r["markdown"] and rec["id"] in r["markdown"]
         assert [line for line in r["markdown"].splitlines() if line.startswith("## ")] == \
@@ -41,9 +43,13 @@ def test_last_week_every_line_cited_and_matching(conn):
 
 def test_a_trip_day_leads_with_the_trip(conn):
     daily_report.close_day(conn, PACK, "2024-11-05")
-    head = daily_report.get(conn, "2024-11-05")["markdown"].split("## 2.")[0]
+    report = daily_report.get(conn, "2024-11-05")
+    head = report["markdown"].split("## 2.")[0]
+    headline = report["facts"]["sections"]["Headline"]
     trip = conn.execute("select fuzer_id from golden where field = 'start' and value #>> '{}' = '2024-11-05T05:30'").fetchone()
     assert "Biggest loss: Process trip, 146 Sm3 oil, back at 10:30" in head and trip["fuzer_id"] in head
+    assert any("Biggest loss: Process trip, 146 Sm3 oil" in fact["text"] for fact in headline)
+    assert any("7-day average" in fact["text"] for fact in report["facts"]["sections"]["Production and deferment"])
 
 
 def test_late_records_make_a_new_version(conn):

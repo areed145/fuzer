@@ -199,6 +199,14 @@ def all_incidents(since: str | None = None, until: str | None = None, limit: int
     return queries.incidents(conn, None, since, until, min(limit, 1000))
 
 
+@router.get("/upsets")
+def all_upsets(status: str | None = "detected", kind: str | None = "process", limit: int = 50,
+               conn=Depends(get_conn)):
+    """Newest upsets, detected by default."""
+    from ..ops import sre
+    return sre.upsets(conn, status=status, kind=kind, limit=min(limit, 1000))
+
+
 @router.get("/entities/{fuzer_id}/incidents")
 def entity_incidents(fuzer_id: str, since: str | None = None, until: str | None = None, limit: int = 50,
                      conn=Depends(get_conn)):

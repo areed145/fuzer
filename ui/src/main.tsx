@@ -23,6 +23,7 @@ import { Identity } from "./Identity";
 import { loadPerson } from "./work";
 import { Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
+import { HomePage } from "./pages/Home";
 import type { JobsHealth } from "./api";
 import "./styles.css";
 
@@ -65,6 +66,7 @@ function App() {
   }, [rebuilding, wasRebuilding]);
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
+  const navSection = !section && query.has("q") ? "browse" : section;
   const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
   // The old Work pages' links (#/work, #/work/item/3, #/work/processes/upset, #/work/forms/x) still land right.
   useEffect(() => {
@@ -80,7 +82,7 @@ function App() {
   return (
     <div className="app">
       <Sidebar
-        section={section}
+        section={navSection}
         badges={{ work, review: openReviews }}
         status={
           <>
@@ -102,7 +104,13 @@ function App() {
       <main>
         <Breadcrumbs path={path} />
         <Suspense fallback={<div className="status">Loading…</div>}>
-          {section === "e" && path[1] ? (
+          {section === "" && query.has("q") ? (
+            <Search query={query} stats={s} />
+          ) : section === "" ? (
+            <HomePage query={query} stats={s} statsLoading={stats.loading} statsError={stats.error} />
+          ) : section === "browse" ? (
+            <Search query={query} stats={s} />
+          ) : section === "e" && path[1] ? (
             <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
           ) : section === "ask" ? (
             <AskPage />
