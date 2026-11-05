@@ -64,6 +64,13 @@ reason. DAY001 daily reports become `daily_report` entities with their figures,
 reader covers operator logs, daily report comments and downtime comments, each
 cached per record.
 
+## Project schedules
+
+A schedule export (Primavera P6, MS Project) lands as `activity` entities: a project is a top-level activity
+and the rest are `part_of` their parent. Each activity is `located_at` the tag, area, facility or well it is
+planned on (the location column, read as a FLOC) and `executes` its SAP work order when it names one. The
+mapping is written from the Sources page; `tests/sources/test_schedule_activities.py` has a complete one.
+
 ## Incidents
 Logged events (`involves`), downtime (`caused_by`) and notifications (`concerns`)
 are signals on a tag; instrument tags roll up to the equipment tag they're
