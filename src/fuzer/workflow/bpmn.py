@@ -34,6 +34,7 @@ NS = {"bpmn": BPMN, "fuzer": FUZER}
 
 PERSON_ROLES = {"engineer", "ops_lead", "production_engineer", "maintenance_planner", "operator", "workflow_admin"}
 AGENT_ROLES = {"sre", "troubleshooter", "production", "maintenance", "reporter"}
+ROLE_SLA: dict[str, str] = {}  # a role's default SLA (work_role, loaded by roles.refresh): a step without one uses it
 
 FLOW_NODES = {"startEvent", "endEvent", "userTask", "serviceTask", "exclusiveGateway", "parallelGateway",
               "intermediateCatchEvent", "boundaryEvent", "callActivity"}
@@ -299,8 +300,8 @@ def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Proble
     if sla:
         if parse_duration(sla) is None:
             out.append(Problem(n.id, f"SLA '{sla}' isn't an ISO 8601 duration"))
-    elif not timers:
-        out.append(Problem(n.id, "a person's task needs an SLA (fuzer:sla or a timer boundary event)"))
+    elif not timers and not ROLE_SLA.get(n.role or ""):
+        out.append(Problem(n.id, "a person's task needs an SLA (fuzer:sla, a timer boundary event, or its role's default)"))
     return out
 
 

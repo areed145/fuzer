@@ -258,7 +258,9 @@ GOOD = ('<bpmn:startEvent id="s"/><bpmn:userTask id="u" fuzer:role="engineer" fu
     (GOOD.replace('fuzer:role="engineer"', 'fuzer:role="wizard"'), "u", "unknown role 'wizard'"),
     (GOOD.replace('<bpmn:userTask id="u" fuzer:role="engineer" fuzer:sla="PT1H"/>',
                   '<bpmn:serviceTask id="u" fuzer:agent="oracle"/>'), "u", "unknown agent 'oracle'"),
-    (GOOD.replace(' fuzer:sla="PT1H"', ""), "u", "needs an SLA"),
+    # no SLA on the step and none on its role (workflow_admin has no default; engineer's P1D would cover it)
+    (GOOD.replace(' fuzer:sla="PT1H"', "").replace('fuzer:role="engineer"', 'fuzer:role="workflow_admin"'), "u",
+     "needs an SLA"),
     (GOOD + '<bpmn:userTask id="orphan" fuzer:role="engineer" fuzer:sla="PT1H"/>', "orphan", "can't be reached"),
     ('<bpmn:laneSet><bpmn:lane id="l" name="Agents" fuzer:agent="troubleshooter"><bpmn:flowNodeRef>u</bpmn:flowNodeRef>'
      '</bpmn:lane></bpmn:laneSet>' + GOOD.replace('fuzer:role="engineer"', 'fuzer:requiresHuman="true"'), "u",

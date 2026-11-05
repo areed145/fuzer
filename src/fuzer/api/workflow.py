@@ -327,3 +327,121 @@ def work_role_summary(conn=Depends(get_conn)):
 def work_tick(conn=Depends(get_conn)):
     """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes)."""
     return work.tick(conn)
+
+
+
+# --- roles, routing and escalation; cases; process statistics ----------------------------------------
+
+class RoleIn(BaseModel):
+    by: str
+    kind: str | None = None
+    description: str | None = None
+    default_sla: str | None = None
+    escalate_to: str | None = None
+    assignment: str | None = None
+
+
+class AwayIn(BaseModel):
+    by: str
+    until: datetime | None = None
+    delegate: str | None = None
+    note: str | None = None
+
+
+class ItemChange(BaseModel):
+    by: str
+    reason: str | None = None
+    priority: float | None = None
+    due: datetime | None = None
+
+
+class ItemReassign(BaseModel):
+    by: str
+    to: str
+    reason: str | None = None
+
+
+def _role_error(fn, *args, **kwargs):
+    from ..workflow import roles
+
+    try:
+        out = fn(*args, **kwargs)
+    except roles.RoleError as e:
+        raise HTTPException(400, str(e)) from e
+    return out
+
+
+@router.get("/work/roles/catalog")
+def work_roles_catalog(conn=Depends(get_conn)):
+    """Every role (person and agent): description, default SLA, where overdue steps go, how steps are assigned,
+    members (and who's away), the processes that use it, and what waits in its queue."""
+    from ..workflow import roles
+
+    out = roles.listing(conn, work.utcnow())
+    conn.commit()
+    return out
+
+
+@router.put("/work/roles/{name}")
+def work_role_set(name: str, r: RoleIn, conn=Depends(get_conn)):
+    from ..workflow import roles
+
+    values = {k: v for k, v in r.model_dump(exclude={"by"}).items() if v is not None or k in r.model_fields_set}
+    out = _role_error(roles.set_role, conn, name, r.by, **values)
+    conn.commit()
+    return out
+
+
+@router.delete("/work/roles/{name}")
+def work_role_delete(name: str, by: str, conn=Depends(get_conn)):
+    from ..workflow import roles
+
+    out = _role_error(roles.delete_role, conn, name, by)
+    conn.commit()
+    return out
+
+
+@router.put("/work/people/{name}/away")
+def work_person_away(name: str, a: AwayIn, conn=Depends(get_conn)):
+    """Away until a time, with who covers (until empty: back)."""
+    from ..workflow import roles
+
+    out = _role_error(roles.set_away, conn, name, a.by, a.until, a.delegate, a.note)
+    conn.commit()
+    return out
+
+
+@router.get("/work/workload")
+def work_workload(conn=Depends(get_conn)):
+    """Steps per person and per role queue (overdue, escalated), who's away, agent queues and recent agent failures."""
+    from ..workflow import roles
+
+    return roles.workload(conn, work.utcnow())
+
+
+@router.get("/work/stats")
+def work_stats(days: int = 30, conn=Depends(get_conn)):
+    """Per published process: running, waiting and overdue steps, finished, cycle time, SLA breaches."""
+    from ..workflow import roles
+
+    return roles.process_stats(conn, work.utcnow(), min(max(days, 1), 365))
+
+
+@router.get("/work/instances")
+def work_instances(process_key: str, state: str | None = "running", limit: int = 200, conn=Depends(get_conn)):
+    """A process's instances with their open steps (who has them, due, overdue, escalated) and age."""
+    from ..workflow import roles
+
+    return roles.instances(conn, process_key, work.utcnow(), None if state == "all" else state, min(limit, 1000))
+
+
+@router.post("/work/items/{item_id}/set")
+def work_item_set(item_id: int, c: ItemChange, conn=Depends(get_conn)):
+    """Change a case's priority or due date (a running process: its open steps' due times)."""
+    return work.set_item(conn, item_id, c.by, c.reason, c.priority, c.due)
+
+
+@router.post("/work/items/{item_id}/reassign")
+def work_item_reassign(item_id: int, r: ItemReassign, conn=Depends(get_conn)):
+    """Give everything open on a case to a person or a role's queue (role:<role>)."""
+    return work.reassign_item(conn, item_id, r.by, r.to, r.reason)

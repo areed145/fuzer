@@ -714,6 +714,27 @@ create table if not exists work_person (
     name  text primary key,
     roles text[] not null default '{}'
 );
+-- Away and covered (#workflows): while a person is away, steps assigned to them go to their delegate (or back to
+-- the queue), and auto-assignment skips them.
+alter table work_person add column if not exists away_until timestamptz;
+alter table work_person add column if not exists delegate text;
+alter table work_person add column if not exists note text;
+
+-- Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's
+-- default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else
+-- the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims
+-- it), round_robin or least_loaded among the role's members who aren't away.
+create table if not exists work_role (
+    name          text primary key,
+    kind          text not null check (kind in ('person', 'agent')),
+    description   text,
+    default_sla   text,                         -- ISO 8601 duration
+    escalate_to   text,
+    assignment    text not null default 'queue' check (assignment in ('queue', 'round_robin', 'least_loaded')),
+    last_assigned text,                         -- round_robin: who got the last one
+    updated_by    text,
+    updated_at    timestamptz not null default now()
+);
 
 create table if not exists work_item (
     id          bigserial primary key,
