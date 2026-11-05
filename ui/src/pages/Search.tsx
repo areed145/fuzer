@@ -9,7 +9,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   const hits = useAsync(() => api.search(debounced, kind), [debounced, kind]);
 
   const go = (next: { q?: string; kind?: string }) =>
-    window.location.replace(href("/", { q: next.q ?? q, kind: "kind" in next ? next.kind : kind }));
+    window.location.replace(href("/browse", { q: next.q ?? q, kind: "kind" in next ? next.kind : kind }));
 
   return (
     <section>

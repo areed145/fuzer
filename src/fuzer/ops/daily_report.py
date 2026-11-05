@@ -349,8 +349,8 @@ def get(conn, day: str, version: int | None = None) -> dict | None:
     if not r:
         return None
     versions = [v["version"] for v in conn.execute("select version from daily_ops_report where day = %s order by version", (day,))]
-    return _plain({k: r[k] for k in ("day", "version", "markdown", "checks", "drafted_by", "changes", "usage", "seconds",
-                                     "item_id", "created_at")} | {"versions": versions})
+    return _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "checks", "drafted_by", "changes",
+                                     "usage", "seconds", "item_id", "created_at")} | {"versions": versions})
 
 
 def days(conn, limit: int = 30) -> list[dict]:

@@ -309,6 +309,22 @@ export interface Incident {
   event_types?: string[];
 }
 
+export interface Upset {
+  id: number;
+  kind: string;
+  status: string;
+  start: string;
+  end: string | null;
+  detections: number;
+  work_item_id: number | null;
+  priority_usd: number | null;
+  first_unit: string | null;
+  first_detector: string | null;
+  first_key: string | null;
+  first_point: string | null;
+  units: (string | null)[];
+}
+
 export interface TimelineItem {
   id: string;
   kind: string;
@@ -800,6 +816,7 @@ export interface DailyReport {
   version: number;
   versions: number[];
   markdown: string;
+  facts: { sections: Record<string, { text: string; cites: string[] }[]> };
   drafted_by: string;
   checks: { ok: boolean; uncited_lines: string[]; unknown_citations: string[]; unknown_numbers: string[] };
   changes: Record<string, { added: string[]; removed: string[] }> | null;
@@ -1158,6 +1175,8 @@ export const api = {
   incidents: (id?: string) =>
     request<{ total: number; items: Incident[] }>(
       "GET", id ? `/entities/${encodeURIComponent(id)}/incidents` : "/incidents", { limit: 100 }),
+  upsets: (status?: string, kind?: string, limit = 50) =>
+    request<Upset[]>("GET", "/upsets", { status, kind, limit }),
   incidentTimeline: (id: string) => request<TimelineItem[]>("GET", `/incidents/${encodeURIComponent(id)}/timeline`),
   similarIncidents: (id: string) =>
     request<(Incident & { score: number; same_unit: boolean })[]>("GET", `/incidents/${encodeURIComponent(id)}/similar`),
