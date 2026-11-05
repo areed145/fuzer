@@ -211,6 +211,49 @@ def discover(cid: int, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+class AddTable(BaseModel):
+    yaml: str
+    values: dict[str, Any] = Field(default_factory=dict)  # load_mode, schedule, expected_hours, owner, ...
+    by: str = "anonymous"
+    load: bool = True
+
+
+@router.get("/connections/{cid}/tables")
+def connection_tables(cid: int, conn=Depends(get_conn)):
+    """What a connection holds, and which dataset (if any) reads each table: new ones first."""
+    from ..sources import onboard
+
+    try:
+        return onboard.tables(conn, cid, _data_dir())
+    except onboard.OnboardError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.get("/connections/{cid}/tables/{table}")
+def connection_table(cid: int, table: str, claude: bool = False, dataset: str | None = None,
+                     record_type: str | None = None, conn=Depends(get_conn)):
+    """A table on a connection: sample, columns, a date-format hint and a mapping suggested for its system."""
+    from ..sources import onboard
+
+    try:
+        return onboard.preview(conn, deps.PACK, cid, table, _data_dir(), claude=claude, dataset=dataset,
+                               record_type=record_type)
+    except onboard.OnboardError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/connections/{cid}/tables/{table}")
+def add_table(cid: int, table: str, body: AddTable, conn=Depends(get_conn)):
+    """Save a table as a dataset on this connection with the mapping (approved), and load it."""
+    from ..sources import catalog, onboard
+
+    try:
+        return onboard.add(conn, deps.PACK, cid, table, body.yaml, body.by, _data_dir(), body.values, body.load)
+    except (onboard.OnboardError, catalog.CatalogError) as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+
+
 # ---- datasets ----------------------------------------------------------------------------------
 
 @router.post("/datasets")
@@ -233,7 +276,7 @@ def dataset_detail(name: str, conn=Depends(get_conn)):
     vers = [v for s, t in catalog.produces(d) for v in catalog.versions(conn, s, t)]
     current = {(m["source"], m["record_type"]): m["id"] for m in catalog.current_mappings(conn)}
     return plain({
-        "dataset": {k: v for k, v in d.items() if not k.startswith(("connection_", "system_"))},
+        "dataset": {k: v for k, v in d.items() if k == "connection_id" or not k.startswith(("connection_", "system_"))},
         "connection": catalog.connection(conn, d["connection_id"]) if d["connection_id"] else None,
         "secrets": connections.resolves(d["connection_secrets"] or {}),
         "mappings": [{**v, "current": current.get((v["source"], v["record_type"])) == v["id"]} for v in vers],

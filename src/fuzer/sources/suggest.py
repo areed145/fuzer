@@ -180,7 +180,13 @@ def references(conn, prof: dict, rows_by_col: dict[str, list[str]], exclude: set
 def pick_key(prof: dict) -> str | None:
     """The row's own id: a full, unique column, preferring one whose header says id / number / code."""
     keyable = [c["name"] for c in prof["columns"] if c["unique"] and c["filled"] == 1]
-    return next((c for c in keyable if ID_HINT.search(_norm(c))), None) or (keyable[0] if keyable else None)
+    found = next((c for c in keyable if ID_HINT.search(_norm(c))), None) or (keyable[0] if keyable else None)
+    if found:
+        return found
+    # an export with a few repeated ids still has an id column: the load holds it for the duplicates (#225)
+    nearly = [c for c in prof["columns"] if c["filled"] == 1 and c["rows"] and c["distinct"] >= 0.95 * c["rows"]
+              and ID_HINT.search(_norm(c["name"]))]
+    return max(nearly, key=lambda c: c["distinct"])["name"] if nearly else None
 
 
 def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None = None) -> dict:

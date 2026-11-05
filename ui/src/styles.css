@@ -363,6 +363,17 @@ a.button, label.button {
   background: var(--panel); color: var(--text); font-weight: 500;
 }
 a.button:hover, label.button:hover { border-color: var(--accent); text-decoration: none; }
+a.button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+/* Sources: add-a-source steps */
+.card.step h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; }
+.card.step.current { border-color: var(--accent); }
+.card.step:not(.current) { padding-top: 10px; padding-bottom: 10px; }
+.card.inset { background: var(--bg); box-shadow: none; }
+.card.warn { border-color: var(--warn); background: var(--warn-soft); }
+.notice { background: var(--warn-soft); padding: 8px 10px; border-radius: 6px; }
+.row.wrap { flex-wrap: wrap; }
+.conn { padding: 4px 0; border-bottom: 1px solid var(--line); }
 
 @media (max-width: 800px) {
   main { padding: 16px; }

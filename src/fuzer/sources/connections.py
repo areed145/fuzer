@@ -261,10 +261,10 @@ def discover(conn, connection_id: int, data_dir) -> dict:
     c = catalog.connection(conn, connection_id)
     if not c:
         raise catalog.CatalogError(f"no connection {connection_id}")
+    from .onboard import _covered
+
     seen = open_(c).discover(Path(data_dir))
-    covered = set(catalog.datasets(conn))
-    if c["type"] == "folder":  # the default folder is every system's: covered by any dataset on a folder
-        covered |= {d["location"] for d in catalog.datasets(conn).values() if d.get("location")}
+    covered = _covered(conn, c)
     return {"connection": c["name"], "system": c["system"], "found": seen, "uncovered": [n for n in seen if n not in covered]}
 
 

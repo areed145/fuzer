@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  api, type CatalogSystem, type DatasetDetail, type ImpactResult, type Json, type SourceHealth, type SourceLoad,
-  type SourcePreview,
+  api, type AddTableResult, type Catalog, type CatalogConnection, type CatalogSystem, type DatasetDetail,
+  type ImpactResult, type Json, type SourceHealth, type SourceLoad, type TablePreview,
 } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
 
@@ -56,92 +56,266 @@ function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
 
 export function SourcesPage({ query }: { query: URLSearchParams }) {
   const view = query.get("view") ?? "datasets";
-  const open = query.get("name");
+  if (view === "add") {
+    return (
+      <section>
+        <h1>Add a source</h1>
+        <p className="muted">
+          Five steps: the system the data comes from, where it is, which table, what its rows mean, and how it should
+          load. Nothing is loaded until the last step. <a href={href("/sources")}>Back to sources</a>
+        </p>
+        <AddWizard system={query.get("system")} connection={query.get("connection")} table={query.get("table")} />
+      </section>
+    );
+  }
   return (
     <section>
-      <h1>Sources</h1>
+      <div className="row spread">
+        <h1>Sources</h1>
+        <a className="button primary" href={href("/sources", { view: "add" })}>+ Add a source</a>
+      </div>
       <p className="muted">
-        Every system of record, how Fuzer reaches it, and each dataset it delivers: where it is, how it loads, its
-        mapping versions, runs, profile, checks and how well its records match. Changes are kept with who made them and
-        why. A new table in the data folder can be mapped and loaded from <em>New tables</em>.
+        Every system of record, how Fuzer reaches it, and each dataset it delivers. Open a dataset for its connection,
+        mapping versions, runs, profile, checks, how well it matches and its history. Every change is kept with who
+        made it and why.
       </p>
       <div className="tabs">
-        {[["datasets", "Datasets"], ["tables", "New tables"], ["rules", "Rules"]].map(([k, label]) => (
+        {[["datasets", "Datasets"], ["systems", "Systems & connections"], ["rules", "Rules"]].map(([k, label]) => (
           <a key={k} className={view === k ? "on" : ""} href={href("/sources", { view: k })}>{label}</a>
         ))}
       </div>
-      {view === "datasets" && <Datasets open={open} tab={(query.get("tab") as Tab) || "connection"} />}
-      {view === "tables" && <NewTables open={open} />}
+      {view === "datasets" && <Datasets open={query.get("name")} tab={(query.get("tab") as Tab) || "connection"} />}
+      {view === "systems" && <Systems />}
       {view === "rules" && <Rules />}
     </section>
   );
 }
 
-// ---- datasets by system -----------------------------------------------------------------------------
+// ---- datasets -----------------------------------------------------------------------------------------
 
 function Datasets({ open, tab }: { open: string | null; tab: Tab }) {
   const cat = useAsync(() => api.catalog(), []);
+  const [filter, setFilter] = useState("");
+  const [problems, setProblems] = useState(false);
+  const rows = (cat.data?.systems ?? []).flatMap((s) => s.datasets.map((d) => ({ s, d })));
+  const count = (st: string) => rows.filter(({ d }) => d.health?.state === st).length;
+  const shown = rows.filter(({ s, d }) =>
+    (!filter || `${s.name} ${d.name} ${d.record_type ?? ""}`.toLowerCase().includes(filter.toLowerCase())) &&
+    (!problems || (d.health?.problems.length ?? 0) > 0));
   return (
     <>
-      <Status loading={cat.loading && !cat.data} error={cat.error} empty={cat.data?.systems.length === 0}>
-        No sources yet.
+      <Status loading={cat.loading && !cat.data} error={cat.error} empty={!!cat.data && rows.length === 0}>
+        No datasets yet: <a href={href("/sources", { view: "add" })}>add a source</a>.
       </Status>
       {open && <DatasetPanel key={open} name={open} tab={tab} onChanged={cat.reload} />}
-      {cat.data && cat.data.systems.map((s) => <SystemCard key={s.id} s={s} open={open} />)}
-      {cat.data && <AddSystem onDone={cat.reload} />}
+      {rows.length > 0 && (
+        <>
+          <div className="row">
+            <span className="small">
+              {rows.length} datasets in {cat.data!.systems.length} systems:{" "}
+              {["ok", "not loaded", "stale", "held", "failed", "checks failing", "profile drift"].map((st) =>
+                count(st) ? <span key={st} className={`badge ${STATE[st] ?? ""}`}>{count(st)} {st}</span> : null)}
+            </span>
+            <input placeholder="filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <label className="small"><input type="checkbox" checked={problems} onChange={(e) => setProblems(e.target.checked)} /> problems only</label>
+          </div>
+          <table className="results">
+            <thead>
+              <tr><th>System</th><th>Dataset</th><th>Health</th><th>Status</th><th>Load</th><th>Connection</th><th>Rows</th><th>Loaded</th></tr>
+            </thead>
+            <tbody>
+              {shown.map(({ s, d }) => (
+                <tr key={d.name} className={open === d.name ? "selected" : ""}
+                  onClick={() => (location.hash = href("/sources", { view: "datasets", name: d.name }))}>
+                  <td><code>{s.name}</code></td>
+                  <td><code>{d.name}</code> <span className="muted small">{d.record_type ?? d.reader}</span></td>
+                  <td><HealthBadge h={d.health} /></td>
+                  <td>{d.status}</td>
+                  <td className="muted small">{d.load_mode}</td>
+                  <td className="muted small">{d.connection}</td>
+                  <td>{d.rows?.toLocaleString() ?? ""}</td>
+                  <td className="muted small">{when(d.loaded_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </>
   );
 }
 
-function SystemCard({ s, open }: { s: CatalogSystem; open: string | null }) {
+// ---- systems and connections --------------------------------------------------------------------------
+
+const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
+  ["kind", "Kind", "erp, historian, planning, ..."], ["owner", "Owner", "who answers for it; alerts go to them"],
+  ["steward", "Steward", "who looks after its data"], ["date_format", "Date format", "e.g. %d/%m/%Y; empty: ISO"],
+  ["decimal", "Decimal mark", ", for a decimal comma"], ["timezone", "Timezone", "e.g. Europe/London"],
+  ["encoding", "Encoding", "CSV text, e.g. latin-1"], ["rank", "Survivorship rank", "lower wins a field"],
+  ["notes", "Notes", "reliability, known issues"],
+];
+
+function Systems() {
+  const cat = useAsync(() => api.catalog(), []);
   return (
-    <div className="card">
-      <h2>
-        <code>{s.name}</code> <span className="muted small">{s.kind ?? ""}{s.owner ? ` · owner ${s.owner}` : ""}
-          {s.rank !== null ? ` · rank ${s.rank}` : ""}{!s.enabled ? " · disabled" : ""}</span>
-      </h2>
-      {s.datasets.length > 0 ? (
-        <table className="results">
-          <thead>
-            <tr><th>Dataset</th><th>Health</th><th>Status</th><th>Load</th><th>Connection</th><th>Rows</th><th>Loaded</th></tr>
-          </thead>
-          <tbody>
-            {s.datasets.map((d) => (
-              <tr key={d.name} className={open === d.name ? "selected" : ""}
-                onClick={() => (location.hash = href("/sources", { view: "datasets", name: d.name }))}>
-                <td><code>{d.name}</code> <span className="muted small">{d.record_type ?? d.reader}</span></td>
-                <td><HealthBadge h={d.health} /></td>
-                <td>{d.status}</td>
-                <td className="muted small">{d.load_mode}</td>
-                <td className="muted small">{d.connection}</td>
-                <td>{d.rows?.toLocaleString() ?? ""}</td>
-                <td className="muted small">{when(d.loaded_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <p className="muted small">No datasets.</p>}
+    <>
+      <p className="muted small">
+        A system is where records come from (its name is what records say as their source). A connection is how Fuzer
+        reaches it: a folder of exports (empty path: the project's data folder), PI Web API or ADX. Secrets are
+        references such as <code>env:PI_PASSWORD</code>, never the value.
+      </p>
+      <NewSystem onDone={cat.reload} />
+      <Status loading={cat.loading && !cat.data} error={cat.error} />
+      {cat.data?.systems.map((s) => <SystemCard key={s.id} s={s} cat={cat.data!} reload={cat.reload} />)}
+    </>
+  );
+}
+
+function NewSystem({ onDone }: { onDone: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("");
+  const [owner, setOwner] = useState("");
+  const a = useAction();
+  return (
+    <div className="row">
+      <input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
+      <input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
+      <input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
+      <button className="secondary" disabled={!name || !!a.busy}
+        onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
+          () => { onDone(name); setName(""); })}>Add system</button>
+      {a.error && <span className="error small">{a.error}</span>}
     </div>
   );
 }
 
-function AddSystem({ onDone }: { onDone: () => void }) {
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState("");
+function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload: () => void }) {
+  const [vals, setVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(SYSTEM_FIELDS.map(([k]) => [k, s[k] == null ? "" : String(s[k])])));
+  const [adding, setAdding] = useState(false);
   const a = useAction();
+  const changed = SYSTEM_FIELDS.filter(([k]) => vals[k] !== (s[k] == null ? "" : String(s[k])));
   return (
     <details className="card">
-      <summary>Add a system of record</summary>
-      <div className="row">
-        <input placeholder="name (what its records say as source)" value={name} onChange={(e) => setName(e.target.value)} />
-        <input placeholder="kind (erp, historian, ...)" value={kind} onChange={(e) => setKind(e.target.value)} />
-        <button className="primary" disabled={!name || !!a.busy}
-          onClick={() => a.run("add", () => api.addSystem(name, kind ? { kind } : {}, reviewer()), () => { setName(""); onDone(); })}>
-          Add
-        </button>
-      </div>
+      <summary>
+        <code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
+          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span>
+      </summary>
+      <table className="list small">
+        <tbody>
+          {SYSTEM_FIELDS.map(([k, label, hint]) => (
+            <tr key={k}><th>{label}</th><td><input placeholder={hint} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></td></tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="primary" disabled={!changed.length || !!a.busy}
+        onClick={() => a.run("save", () => api.editSystem(s.name, Object.fromEntries(changed.map(([k]) =>
+          [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</button>
       {a.error && <p className="error small">{a.error}</p>}
+      <h3>Connections</h3>
+      {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} />)}
+      {adding ? (
+        <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />
+      ) : <button className="secondary" onClick={() => setAdding(true)}>+ Add a connection</button>}
     </details>
+  );
+}
+
+function ConnectionRow({ c, system }: { c: CatalogConnection; system: string }) {
+  const a = useAction();
+  const [test, setTest] = useState(c.last_test);
+  const [found, setFound] = useState<{ table: string; dataset: string | null }[] | null>(null);
+  return (
+    <div className="small conn">
+      <code>{c.name}</code> {c.type} <span className="muted">{JSON.stringify(c.config)}</span>{" "}
+      {Object.entries(c.secrets).map(([k, v]) => (
+        <span key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</span>
+      ))}{" "}
+      {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</span>}{" "}
+      <button className="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
+        {a.busy === "test" ? "testing…" : "test"}</button>
+      <button className="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
+        what it holds</button>
+      {test && !test.ok && <TestSteps steps={test.steps} />}
+      {found && <TableList tables={found} system={system} connection={c.id} />}
+      {a.error && <span className="error"> {a.error}</span>}
+    </div>
+  );
+}
+
+function TestSteps({ steps }: { steps: { step: string; ok: boolean; ms: number; detail: unknown }[] }) {
+  return (
+    <ul className="small">
+      {steps.map((s) => (
+        <li key={s.step}><span className={`badge ${s.ok ? "ok" : ""}`}>{s.ok ? "ok" : "failed"}</span> {s.step}{" "}
+          <span className="muted">{s.ms} ms · {cell(s.detail)}</span></li>
+      ))}
+    </ul>
+  );
+}
+
+function TableList({ tables, system, connection }: { tables: { table: string; dataset: string | null }[]; system: string;
+                                                      connection: number }) {
+  if (!tables.length) return <p className="muted small">It holds no tables Fuzer can read.</p>;
+  return (
+    <ul className="small">
+      {tables.map((t) => (
+        <li key={t.table}>
+          <code>{t.table}</code>{" "}
+          {t.dataset ? <a className="muted" href={href("/sources", { view: "datasets", name: t.dataset })}>loaded as {t.dataset}</a>
+            : <a href={href("/sources", { view: "add", system, connection: String(connection), table: t.table })}>add it</a>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A new connection: its type's config fields and secret references, then a test. */
+function ConnectionForm({ system, types, onDone }: { system: string; types: Catalog["types"]["connections"];
+                                                      onDone: (c: Json) => void }) {
+  const [type, setType] = useState("folder");
+  const [name, setName] = useState("");
+  const [cfg, setCfg] = useState<Record<string, string>>({});
+  const [sec, setSec] = useState<Record<string, string>>({});
+  const a = useAction();
+  const t = types[type] ?? { config: {}, secrets: [] };
+  const save = () => {
+    const config: Json = {};
+    for (const [k, dflt] of Object.entries(t.config)) {
+      const v = cfg[k];
+      if (v === undefined || v === "") continue;
+      config[k] = typeof dflt === "boolean" ? v === "true" : v;
+    }
+    const secrets = Object.fromEntries(Object.entries(sec).filter(([, v]) => v));
+    return a.run("save", () => api.addConnection(system, { name: name || type, type, config, secrets, by: reviewer() }), onDone);
+  };
+  return (
+    <div className="card inset">
+      <div className="row">
+        <select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
+          {Object.keys(types).map((k) => <option key={k} value={k}>{k === "folder" ? "folder of exports / lake" : k}</option>)}
+        </select>
+        <input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <table className="list small">
+        <tbody>
+          {Object.entries(t.config).map(([k, dflt]) => (
+            <tr key={k}>
+              <th>{k}{dflt === null ? " *" : ""}</th>
+              <td><input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+                placeholder={k === "path" ? "absolute, or relative to the project's data folder; empty: the data folder itself"
+                  : dflt === null ? "required" : `default ${String(dflt) || "none"}`} /></td>
+            </tr>
+          ))}
+          {t.secrets.map((k) => (
+            <tr key={k}><th>{k} (secret)</th>
+              <td><input value={sec[k] ?? ""} onChange={(e) => setSec({ ...sec, [k]: e.target.value })} placeholder="env:VARIABLE_NAME" /></td></tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="primary" disabled={!!a.busy} onClick={save}>{a.busy ? "Adding…" : "Add connection"}</button>
+      {a.error && <p className="error small">{a.error}</p>}
+    </div>
   );
 }
 
@@ -237,8 +411,9 @@ function ConnectionTab({ d, reload }: { d: DatasetDetail; reload: () => void }) 
       )}
       {found && (
         <p className="small">
-          {found.length ? <>Not covered by any dataset: {found.map((n) => (
-            <a key={n} href={href("/sources", { view: "tables", name: n })}><code>{n}</code> </a>))}</> : "Everything it holds is covered."}
+          {found.length ? <>Not a dataset yet: {found.map((n) => (
+            <a key={n} href={href("/sources", { view: "add", system: d.dataset.source, connection: String(c!.id), table: n })}>
+              <code>{n}</code> </a>))}</> : "Everything it holds is a dataset."}
         </p>
       )}
       <h3>How it loads</h3>
@@ -609,100 +784,273 @@ function Rules() {
   );
 }
 
-// ---- tables no dataset covers yet -----------------------------------------------------------------
+// ---- add a source ------------------------------------------------------------------------------------
 
-function NewTables({ open }: { open: string | null }) {
-  const list = useAsync(() => api.sources(), []);
-  const fresh = list.data?.sources.filter((s) => s.state === "unmapped") ?? [];
+const LOAD_HELP: Record<string, string> = {
+  snapshot: "each delivery is the whole table: records no longer in it are removed",
+  incremental: "deliveries add and change records; nothing is removed",
+  append: "only rows at or after the last watermark value are read (lake tables)",
+};
+
+function Step({ n, title, done, open, summary, onEdit, children }: {
+  n: number; title: string; done: boolean; open: boolean; summary?: ReactNode; onEdit?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={`card step${open ? " current" : ""}`}>
+      <h2>
+        <span className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</span> {title}{" "}
+        {done && !open && <span className="muted small">{summary}</span>}{" "}
+        {done && !open && onEdit && <button className="link small" onClick={onEdit}>change</button>}
+      </h2>
+      {open && children}
+    </div>
+  );
+}
+
+function AddWizard({ system, connection, table }: { system: string | null; connection: string | null; table: string | null }) {
+  const cat = useAsync(() => api.catalog(), []);
+  const [step, setStep] = useState(table ? 4 : connection ? 3 : system ? 2 : 1);
+  const [sys, setSys] = useState<string | null>(system);
+  const [conn, setConn] = useState<number | null>(connection ? Number(connection) : null);
+  const [tbl, setTbl] = useState<string | null>(table);
+  const [mapping, setMapping] = useState<{ yaml: string; dataset: string } | null>(null);
+  const [result, setResult] = useState<AddTableResult | null>(null);
+  if (!cat.data) return <Status loading={cat.loading} error={cat.error} />;
+  const s = cat.data.systems.find((x) => x.name === sys);
+  const c = s?.connections.find((x) => x.id === conn);
   return (
     <>
-      <p className="muted small">
-        Tables in the data folder{list.data ? ` (${list.data.data_dir})` : ""} that no dataset covers. Open one to see a
-        sample and a suggested mapping; save it to add the dataset and load it.
-      </p>
-      <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && fresh.length === 0}>
-        Every table in the data folder is a dataset.
-      </Status>
-      {fresh.length > 0 && (
-        <table className="results">
-          <thead><tr><th>Table</th><th>Connector</th></tr></thead>
-          <tbody>
-            {fresh.map((s) => (
-              <tr key={s.dataset} onClick={() => (location.hash = href("/sources", { view: "tables", name: s.dataset }))}>
-                <td><code>{s.dataset}</code></td><td>{s.connector}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {open && <Preview key={open} name={open} />}
+      <Step n={1} title="Which system is it from?" done={!!s} open={step === 1} summary={<code>{sys}</code>} onEdit={() => setStep(1)}>
+        <PickSystem cat={cat.data} value={sys} onPick={(name) => { setSys(name); setConn(null); setTbl(null); cat.reload(); setStep(2); }} />
+      </Step>
+      <Step n={2} title="Where is the data?" done={!!c} open={step === 2 && !!s}
+        summary={c && <><code>{c.name}</code> ({c.type}) {JSON.stringify(c.config)}</>} onEdit={() => setStep(2)}>
+        {s && <PickConnection s={s} types={cat.data.types.connections}
+          onPick={(id) => { setConn(id); setTbl(null); cat.reload(); setStep(3); }} />}
+      </Step>
+      <Step n={3} title="Which table?" done={!!tbl && step > 3} open={step === 3 && !!c} summary={<code>{tbl}</code>}
+        onEdit={() => setStep(3)}>
+        {c && <PickTable connection={c.id} onPick={(t) => { setTbl(t); setMapping(null); setStep(4); }} />}
+      </Step>
+      <Step n={4} title="What do its rows mean?" done={!!mapping && step > 4} open={step === 4 && !!tbl && conn !== null}
+        summary={mapping && <>dataset <code>{mapping.dataset}</code></>} onEdit={() => setStep(4)}>
+        {tbl && conn !== null && <MapTable connection={conn} table={tbl} initial={mapping}
+          onDone={(m) => { setMapping(m); setStep(5); }} />}
+      </Step>
+      <Step n={5} title="How should it load?" done={!!result} open={step === 5 && !!mapping} summary="">
+        {mapping && conn !== null && tbl && <LoadSettings connection={conn} table={tbl} yaml={mapping.yaml} owner={s?.owner ?? ""}
+          onDone={(r) => { setResult(r); setStep(6); }} />}
+      </Step>
+      {result && <AddResult r={result} />}
     </>
   );
 }
 
-function Preview({ name }: { name: string }) {
-  const p = useAsync(() => api.source(name), [name]);
-  if (!p.data) return <Status loading={p.loading} error={p.error} />;
-  const d: SourcePreview = p.data;
-  const cols = d.sample.length ? Object.keys(d.sample[0]) : (d.schema ?? []).map(([c]) => c);
+function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null; onPick: (name: string) => void }) {
+  const [pick, setPick] = useState(value ?? "");
   return (
-    <div className="card">
-      <h2><code>{d.dataset}</code> <span className="muted small">{d.connector} · {d.path}</span></h2>
+    <>
+      <p className="muted small">The system of record the data comes from. Its name is what the records will say as their source.</p>
+      <div className="row">
+        <select value={pick} onChange={(e) => setPick(e.target.value)}>
+          <option value="">choose a system…</option>
+          {cat.systems.map((s) => <option key={s.id} value={s.name}>{s.name}{s.kind ? ` (${s.kind})` : ""}</option>)}
+        </select>
+        <button className="primary" disabled={!pick} onClick={() => onPick(pick)}>Continue</button>
+      </div>
+      <p className="small">Or a new one:</p>
+      <NewSystem onDone={onPick} />
+    </>
+  );
+}
+
+function PickConnection({ s, types, onPick }: { s: CatalogSystem; types: Catalog["types"]["connections"]; onPick: (id: number) => void }) {
+  const [adding, setAdding] = useState(false);
+  const a = useAction();
+  const [tested, setTested] = useState<Record<number, Awaited<ReturnType<typeof api.testConnection>>>>({});
+  return (
+    <>
+      <p className="muted small">
+        How Fuzer reaches <code>{s.name}</code>. A folder connection with no path reads the project's data folder;
+        give it a path for anywhere else (a lake, an export drop).
+      </p>
+      {s.connections.map((c) => (
+        <div key={c.id} className="row">
+          <button className="secondary" onClick={() => onPick(c.id)}>Use <code>{c.name}</code></button>
+          <span className="small">{c.type} <span className="muted">{JSON.stringify(c.config)}</span></span>
+          <button className="link small" disabled={!!a.busy}
+            onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</button>
+          {tested[c.id] && <span className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</span>}
+          {tested[c.id] && !tested[c.id].ok && <TestSteps steps={tested[c.id].steps} />}
+        </div>
+      ))}
+      {adding ? (
+        <ConnectionForm system={s.name} types={types} onDone={(c) => onPick(Number(c.id))} />
+      ) : <button className="secondary" onClick={() => setAdding(true)}>+ A new connection</button>}
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
+  );
+}
+
+function PickTable({ connection, onPick }: { connection: number; onPick: (t: string) => void }) {
+  const t = useAsync(() => api.connectionTables(connection), [connection]);
+  const test = useAsync(() => api.testConnection(connection), [connection]);
+  if (!t.data) return <Status loading={t.loading} error={t.error} />;
+  const fresh = t.data.tables.filter((x) => !x.dataset);
+  return (
+    <>
+      {test.data && !test.data.ok && <><p className="error small">The connection test failed:</p><TestSteps steps={test.data.steps} /></>}
+      {fresh.length === 0 && <p className="muted small">Everything this connection holds is already a dataset.</p>}
+      <div className="row wrap">
+        {fresh.map((x) => <button key={x.table} className="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></button>)}
+      </div>
+      {t.data.tables.length > fresh.length && (
+        <p className="muted small">Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</p>
+      )}
+    </>
+  );
+}
+
+function MapTable({ connection, table, initial, onDone }: { connection: number; table: string;
+  initial: { yaml: string; dataset: string } | null; onDone: (m: { yaml: string; dataset: string }) => void }) {
+  const [opts, setOpts] = useState<{ claude?: boolean; dataset?: string; record_type?: string }>({});
+  const p = useAsync(() => api.tablePreview(connection, table, opts), [connection, table, JSON.stringify(opts)]);
+  const [text, setText] = useState<string | null>(initial?.yaml ?? null);
+  const [dataset, setDataset] = useState("");
+  const [rtype, setRtype] = useState("");
+  const a = useAction();
+  if (!p.data) return <Status loading={p.loading} error={p.error} />;
+  const d: TablePreview = p.data;
+  const yaml = text ?? d.suggested.yaml;
+  const cols = d.sample.length ? Object.keys(d.sample[0]) : (d.schema ?? []).map(([x]) => x);
+  const datasetOf = (y: string) => /^dataset:\s*(\S+)/m.exec(y)?.[1] ?? d.suggested.dataset;
+  return (
+    <>
+      <p className="small muted">{d.connector} · {d.path}</p>
+      {d.date_hint && (
+        <p className="small notice">
+          Its dates look like <code>{d.date_hint.example}</code>. Set <code>{d.system}</code>'s date format to{" "}
+          <code>{d.date_hint.date_format}</code> so they are read as dates?{" "}
+          <button className="secondary" disabled={!!a.busy}
+            onClick={() => a.run("fmt", () => api.editSystem(d.system, { date_format: d.date_hint!.date_format }, reviewer(),
+              "dates in the export's local format"), () => p.reload())}>Set it</button>
+        </p>
+      )}
       <h3>Sample</h3>
       <div className="scroll-x">
         <table className="list small">
-          <thead><tr>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-          <tbody>
-            {d.sample.map((r, i) => <tr key={i}>{cols.map((c) => <td key={c}>{cell(r[c])}</td>)}</tr>)}
-          </tbody>
+          <thead><tr>{cols.map((x) => <th key={x}>{x} <span className="muted">{d.suggested.columns[x]?.meaning}</span></th>)}</tr></thead>
+          <tbody>{d.sample.map((r, i) => <tr key={i}>{cols.map((x) => <td key={x}>{cell(r[x])}</td>)}</tr>)}</tbody>
         </table>
       </div>
-      {d.suggested ? <AddSource name={d.dataset} yaml={d.suggested.yaml} /> : (
-        <p className="small">It has a dataset: <a href={href("/sources", { view: "datasets", name: d.dataset })}>open it</a>.</p>
+      <h3>Mapping <span className="muted small">suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</span></h3>
+      <div className="row">
+        <input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
+        <input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />
+        <button className="secondary" onClick={() => { setText(null); setOpts({ ...opts, dataset: dataset || undefined, record_type: rtype || undefined }); }}>
+          Suggest again</button>
+        <button className="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
+          onClick={() => { setText(null); setOpts({ ...opts, claude: true }); }}>Ask Claude</button>
+      </div>
+      <textarea className="yaml mono" rows={Math.min(26, yaml.split("\n").length + 1)} value={yaml}
+        onChange={(e) => setText(e.target.value)} spellCheck={false} />
+      <div className="row">
+        <button className="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</button>
+        {text !== null && <button className="secondary" onClick={() => setText(null)}>Undo edits</button>}
+      </div>
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
+  );
+}
+
+function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: number; table: string; yaml: string;
+  owner: string; onDone: (r: AddTableResult) => void }) {
+  const [mode, setMode] = useState("snapshot");
+  const [schedule, setSchedule] = useState("");
+  const [hours, setHours] = useState("");
+  const [who, setWho] = useState(owner);
+  const a = useAction();
+  return (
+    <>
+      <table className="list small">
+        <tbody>
+          <tr><th>Load mode</th><td>
+            <select value={mode} onChange={(e) => setMode(e.target.value)}>
+              {Object.keys(LOAD_HELP).map((m) => <option key={m}>{m}</option>)}
+            </select> <span className="muted">{LOAD_HELP[mode]}</span></td></tr>
+          <tr><th>Schedule</th><td>
+            <select value={schedule} onChange={(e) => setSchedule(e.target.value)}>
+              <option value="">with the daily refresh (02:00) and when its file changes</option>
+              <option value="0 * * * *">hourly</option>
+              <option value="0 6 * * *">daily at 06:00</option>
+              <option value="0 6 * * 1">weekly, Monday 06:00</option>
+            </select></td></tr>
+          <tr><th>Expect a delivery every</th><td>
+            <input value={hours} onChange={(e) => setHours(e.target.value)} placeholder="hours (empty: no expectation)" style={{ width: "14em" }} />
+            <span className="muted"> stale after that, and its owner is told</span></td></tr>
+          <tr><th>Owner</th><td><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
+        </tbody>
+      </table>
+      <button className="primary" disabled={!!a.busy}
+        onClick={() => a.run("add", () => api.addTable(connection, table, {
+          yaml, by: reviewer(), values: { load_mode: mode, schedule: schedule || null, owner: who || null,
+                                          expected_hours: hours ? Number(hours) : null } }), onDone)}>
+        {a.busy ? "Saving and loading…" : "Save and load"}
+      </button>
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
+  );
+}
+
+function AddResult({ r }: { r: AddTableResult }) {
+  const a = useAction();
+  const held = (r.load?.held.length ?? 0) > 0;
+  const checks = (r.run?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
+  const open = (tab: string) => href("/sources", { view: "datasets", name: r.dataset, tab });
+  return (
+    <div className={`card ${held ? "warn" : ""}`}>
+      <h2>{held ? "Saved, but the first load is held" : "Added and loaded"}</h2>
+      {!held && r.load && (
+        <p>
+          <code>{r.dataset}</code>: {r.load.records.toLocaleString()} records ({r.load.inserted} new). They become entities on
+          the next rebuild.{" "}
+          <button className="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch())}>
+            {a.busy ? "Rebuilding…" : "Rebuild now"}</button>
+        </p>
       )}
+      {held && (
+        <>
+          <p>The dataset <code>{r.dataset}</code> and its mapping are saved; nothing was loaded because:</p>
+          <ul>
+            {(checks ?? []).map((c, i) => (
+              <li key={i}>
+                {c.kind === "duplicate keys"
+                  ? <>the export repeats {c.value} key{c.value === 1 ? "" : "s"} ({(c.detail?.examples ?? []).join(", ")}). Fix the
+                    export, or pick another key on the dataset's Connection tab, then load again from Runs.</>
+                  : <>the {c.kind} check failed ({c.value}). See its Checks tab.</>}
+              </li>
+            ))}
+            {!checks && <li>its columns changed: answer the schema item on the <a href={href("/review", { kind: "schema" })}>Review</a> page.</li>}
+          </ul>
+        </>
+      )}
+      <p className="small">
+        <a href={open("connection")}>Open the dataset</a> · <a href={open("runs")}>Runs</a> · <a href={open("profile")}>Profile</a>
+        {" "}· <a href={open("checks")}>Add checks</a> · <a href={href("/sources", { view: "add" })}>Add another source</a>
+      </p>
+      {a.error && <p className="error small">{a.error}</p>}
     </div>
   );
 }
 
 function Loaded({ r }: { r: SourceLoad }) {
-  if (r.held.length) return <p className="error small">Held: its columns changed or a check failed. See the Review page.</p>;
+  if (r.held.length) return <p className="error small">Held: its columns changed or a check failed. See the Runs and Review pages.</p>;
   if (r.unchanged.length) return <p className="small muted">Unchanged since the last load: nothing to do.</p>;
   return (
     <p className="small">
       Loaded {r.records.toLocaleString()} records ({r.inserted} new, {r.updated} changed, {r.removed} removed). They
       become entities on the next rebuild.
     </p>
-  );
-}
-
-/** A table with no mapping: the draft from rules (or Claude), edited here, saved and loaded in one step. */
-function AddSource({ name, yaml }: { name: string; yaml: string }) {
-  const [text, setText] = useState(yaml);
-  const [note, setNote] = useState<string | null>(null);
-  const [done, setDone] = useState<SourceLoad | null>(null);
-  const a = useAction();
-  const ask = () => a.run("claude", () => api.suggestSource(name, true), (s) => {
-    setText(s.yaml);
-    const named = Object.values(s.columns).filter((c) => c.by === "claude").length;
-    setNote(named ? `Claude named ${named} column${named > 1 ? "s" : ""} the rules couldn't.` : "Nothing left for Claude to name.");
-  });
-  return (
-    <>
-      <h3>Add this table <span className="muted small">a draft from rules: check what each column means</span></h3>
-      <textarea className="yaml mono" rows={Math.min(24, text.split("\n").length + 1)} value={text}
-        onChange={(e) => setText(e.target.value)} spellCheck={false} disabled={!!done} />
-      <div className="row">
-        <button className="primary" onClick={() => a.run("load", () => api.loadSource(name, text, reviewer()), setDone)}
-          disabled={!!a.busy || !!done}>{a.busy === "load" ? "Loading…" : "Save mapping and load"}</button>
-        <button className="secondary" onClick={ask} disabled={!!a.busy || !!done}
-          title="Claude names the columns the rules could only call code or other (costs money; cached)">
-          {a.busy === "claude" ? "Asking Claude…" : "Ask Claude"}
-        </button>
-        {text !== yaml && !done && <button className="secondary" onClick={() => setText(yaml)}>Undo edits</button>}
-      </div>
-      {note && <p className="small muted">{note}</p>}
-      {a.error && <p className="error small">{a.error}</p>}
-      {done && <><Loaded r={done} /> <a className="small" href={href("/sources", { view: "datasets", name })}>Open the dataset</a></>}
-    </>
   );
 }
