@@ -62,19 +62,19 @@ def test_add_edit_and_delete(conn):
     with pytest.raises(OntologyError, match="already exists"):
         ontology.add_kind(conn, "project", "ana")
     with pytest.raises(OntologyError, match="unknown kind"):
-        ontology.add_relation(conn, "executes", "ana", from_kinds=["activity"], to_kinds=["work_order"])
-    ontology.add_kind(conn, "activity", "ana", status="draft")
-    r = ontology.add_relation(conn, "executes", "ana", view="planning", from_kinds=["activity"], to_kinds=["work_order"])
-    assert r["from_kinds"] == ["activity"] and r["status"] == "custom"
-    assert ontology.update_kind(conn, "activity", "ana", status="custom", label="Activity")["edited"]
+        ontology.add_relation(conn, "closes_out", "ana", from_kinds=["milestone"], to_kinds=["work_order"])
+    ontology.add_kind(conn, "milestone", "ana", status="draft")
+    r = ontology.add_relation(conn, "closes_out", "ana", view="planning", from_kinds=["milestone"], to_kinds=["work_order"])
+    assert r["from_kinds"] == ["milestone"] and r["status"] == "custom"
+    assert ontology.update_kind(conn, "milestone", "ana", status="custom", label="Milestone")["edited"]
     with pytest.raises(OntologyError, match="stays core"):
         ontology.update_kind(conn, "tag", "ana", status="custom")
     with pytest.raises(OntologyError, match="can't be deleted"):
         ontology.delete_kind(conn, "tag", "ana")
-    ontology.delete_kind(conn, "activity", "ana", "not needed")
-    assert ontology.relation(conn, "executes")["from_kinds"] == []  # no longer allowed anywhere
-    ontology.delete_relation(conn, "executes", "ana")
-    assert [h["action"] for h in ontology.history(conn, "kind", "activity")] == ["delete", "update", "create"]
+    ontology.delete_kind(conn, "milestone", "ana", "not needed")
+    assert ontology.relation(conn, "closes_out")["from_kinds"] == []  # no longer allowed anywhere
+    ontology.delete_relation(conn, "closes_out", "ana")
+    assert [h["action"] for h in ontology.history(conn, "kind", "milestone")] == ["delete", "update", "create"]
 
 
 def test_undeclared_kinds_and_links_need_a_definition(conn):
