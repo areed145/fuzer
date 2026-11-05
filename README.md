@@ -493,18 +493,20 @@ Screens:
   dated links, flow trace, all with an "as of" date. Its **Graph** tab draws
   the neighbourhood (click a node for details, double-click to expand, filter
   by link type, choose a layout).
-- **Ontology**: the data model as a diagram (kinds sized by count, link types
-  with counts) with physical / flow / data / documents views; click a kind for
-  its fields, field coverage and feeding sources.
 - **Network**: the whole production / allocation flow, left to right, as of
   any date.
-- **Downtime**, **Incidents**, **Reports**: deferment, upsets on one unit with
-  their events and downtime, and the daily operations report.
+- **Downtime**, **Incidents**, **Daily reports**: deferment by cause, upsets on
+  one unit with their events and downtime, and the daily operations report,
+  reviewed and published on its page.
 - **Ask**: the operations assistant. **Lessons**: lessons learned. **Studies**:
   correlation and clustering studies.
-- **Priorities** (Operations): open work ranked by value and risk.
-- **Review**: yes/no on possible matches, pick the right value when sources
-  disagree, accept changed schemas and new mappings, held loads.
+- **Work board** (Operations): open work ranked by value and risk.
+- **Admin**: **Ontology** is the data model: a diagram of the register (kinds
+  sized by count, link types with counts) and the kinds and link types
+  themselves, defined and described there, with what a new dataset brings that
+  needs a definition. **Data review**: yes/no on possible matches, pick the right
+  value when sources disagree, accept changed schemas and new mappings, held
+  loads. **Sources**, **Jobs**, **Settings**, and a link to these docs.
 - **Workflows**: **Inbox** is everything waiting for you, most urgent first
   (escalated to you, assigned to you or to someone you cover for, unclaimed in
   your roles), with inline claim and bulk actions; a task opens as a page with its

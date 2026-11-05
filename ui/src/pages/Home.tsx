@@ -214,7 +214,7 @@ function IncidentsCard() {
       <div className="home-subsection">
         <div className="row spread">
           <h3>Open upsets</h3>
-          <a href={href("/board")}>Priorities</a>
+          <a href={href("/board")}>Work board</a>
         </div>
         <Status loading={upsets.loading && !upsets.data} error={upsets.error}
           empty={upsets.data !== undefined && openUpsets.length === 0}>

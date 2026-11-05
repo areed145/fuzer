@@ -79,7 +79,7 @@ to), **Runs**,
 in the register yet, with **Rebuild now**. **Systems & connections** edits each system and its connections (shown in
 words: the project data folder, a path, a server) and lists what each connection holds, with an *add it* link per
 new table; a system added here gets no connection until it needs one. **Rules** edits ranks and rules. Held loads
-also show on the Review page (**Held loads**), linked to their dataset.
+also show on the Data review page (**Held loads**), linked to their dataset.
 The API behind Add a source: `GET /sources/connections/{id}/tables`,
 `GET /sources/connections/{id}/tables/{table}` (preview and suggestion) and `POST` to the same path (save and load).
 

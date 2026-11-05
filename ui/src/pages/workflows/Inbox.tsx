@@ -30,7 +30,10 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader>Inbox</PageHeader>
+      <PageHeader subtitle={<>The workflow steps waiting on you: assigned to you, or unclaimed in your roles' queues. Every
+        case is under <a href={href("/cases")}>Cases</a>; all outstanding work ranked by value is
+        the <a href={href("/board")}>Work board</a>; register data waiting for a decision is
+        in <a href={href("/review")}>Data review</a>.</>}>Inbox</PageHeader>
       <p className="row small">
         <span className="badge">{d.mine.length} assigned to you</span>
         <span className="badge">{d.queue.length} unclaimed in your roles ({d.roles.join(", ") || "none"})</span>

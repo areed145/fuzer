@@ -11,7 +11,8 @@ export function IncidentsPage() {
       <PageHeader>Incidents</PageHeader>
       <p className="muted">
         Logged events, downtime records and SAP notifications on the same piece of plant within a few days of each
-        other, grouped into one upset. Newest first.
+        other, grouped into one upset. Newest first. Lost production ranked by cause is
+        under <a href={href("/downtime")}>Downtime</a>; each day's story is in <a href={href("/reports")}>Daily reports</a>.
       </p>
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
         No incidents yet.

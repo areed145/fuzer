@@ -1,10 +1,9 @@
 """Fuzer's components as data (#134): each package with its purpose, its modules, the fuzer packages it
-imports and the tables it writes, read from the source. docs/architecture.md and the app's Architecture page
+imports and the tables it writes, read from the source. docs/architecture.md
 both show it. Imports nothing from fuzer, so any layer can use it."""
 
 import ast
 import re
-from functools import lru_cache
 from pathlib import Path
 
 GITHUB = "https://github.com/areed145/fuzer/tree/main/"
@@ -58,16 +57,3 @@ def _tables() -> list[str]:
     return re.findall(r"create table if not exists (\w+)", (PKG / "schema.sql").read_text())
 
 
-@lru_cache(maxsize=1)
-def components() -> list[dict]:
-    """The components as data, for the app's Architecture page: what architecture.md shows, without the
-    diagrams' layout."""
-    tables = _tables()
-    out = []
-    for p, (title, purpose, page) in COMPONENTS.items():
-        src = _source(p)
-        out.append({"id": p, "title": title, "purpose": purpose, "page": page, "code": f"{GITHUB}src/fuzer/{p}",
-                    "modules": sum(1 for f in (PKG / p).rglob("*.py") if f.name != "__init__.py"),
-                    "uses": sorted(_imports(p)),
-                    "writes": sorted({t for t in tables if re.search(rf"(insert into|update|delete from) {t}\b", src)})})
-    return out

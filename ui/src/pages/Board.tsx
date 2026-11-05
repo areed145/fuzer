@@ -67,7 +67,9 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
       <PageHeader>Work board</PageHeader>
       <p className="muted">
         Every outstanding piece of work in one list, ranked by value: SAP backlog, PMs and inspections, incidents and
-        upsets the SRE found, workflow items, opportunities, reviews and projects. One card per piece of work.
+        upsets the SRE found, workflow items, opportunities, reviews and projects. One card per piece of work. The
+        steps waiting on you are in your <a href={href("/inbox")}>Inbox</a>; each workflow case, with its history, is
+        under <a href={href("/cases")}>Cases</a>.
       </p>
       <div className="row">
         <div className="tabs">

@@ -27,7 +27,9 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader>Cases</PageHeader>
       <p className="muted">Every piece of work: an upset, a daily report, a source issue, an IOW breach. Each moves through its
-        process; open one for where it is, who has it and its history.</p>
+        process; open one for where it is, who has it and its history. The steps waiting on you are in
+        your <a href={href("/inbox")}>Inbox</a>; all outstanding work ranked by value, workflow or not, is
+        the <a href={href("/board")}>Work board</a>.</p>
       <div className="row wrap">
         <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
