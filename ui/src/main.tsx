@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
+import { applyOntology } from "./kinds";
 import { href, notifyChanged, useAsync, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
@@ -43,6 +44,9 @@ function App() {
   const inbox = useAsync(() => (loadPerson() ? api.inbox(loadPerson()) : Promise.resolve(undefined)), []);
   const reload = stats.reload;
   const jobsHealth = useAsync(() => api.jobsHealth(), []);
+  // Kind colours and link views come from the ontology (#241); re-render once they're in.
+  const declared = useAsync(() => api.ontologyDeclared().then((o) => { applyOntology(o); return o; }), []);
+  void declared.data;
   const reloadHealth = jobsHealth.reload;
   useEffect(() => {
     const t = setInterval(reloadHealth, 60_000);
@@ -115,7 +119,7 @@ function App() {
           ) : section === "ask" ? (
             <AskPage />
           ) : section === "ontology" ? (
-            <Ontology />
+            <Ontology query={query} />
           ) : section === "network" ? (
             <Network />
           ) : section === "map" ? (
