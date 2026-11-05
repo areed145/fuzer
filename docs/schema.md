@@ -1066,3 +1066,50 @@ Projects (#131): what one name selects (pack, data folder, mappings, time-series
 | `config` | jsonb |  |
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
+
+## `ontology_kind`
+
+The data model as data (#241): entity kinds and link types. core/ontology.yaml seeds the core rows; a person's edit (edited) is kept over a later change to the file. from_kinds / to_kinds empty means any kind.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `label` | text |  |
+| `description` | text |  |
+| `"group"` | text |  |
+| `colour` | text |  |
+| `label_field` | text |  |
+| `status` | text |  |
+| `edited` | boolean |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+## `ontology_relation`
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `label` | text |  |
+| `description` | text |  |
+| `view` | text |  |
+| `dated` | boolean |  |
+| `from_kinds` | text[] |  |
+| `to_kinds` | text[] |  |
+| `status` | text |  |
+| `edited` | boolean |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+## `ontology_audit`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `at` | timestamptz |  |
+| `by` | text |  |
+| `object` | text | kind \| relation |
+| `name` | text |  |
+| `action` | text | create \| update \| delete \| rename |
+| `old` | jsonb |  |
+| `new` | jsonb |  |
+| `reason` | text |  |
