@@ -14,6 +14,7 @@ start everything: data, register, drawings, web UI (the one command you need)
 | `--demo` | a fake plant to run: okan (the Okan field), offshore or onshore |
 | `--no-jobs` | don't start Dagster (schedules: SRE scans, studies, refreshes) |
 | `--jobs-port` | port for the Dagster UI |
+| `--no-worker` | don't start the agent worker (runs workflow agent steps such as daily report drafts) |
 
 ## `fuzer ingest`
 

@@ -27,6 +27,8 @@ def parser() -> argparse.ArgumentParser:
     u.add_argument("--demo", help="a fake plant to run: okan (the Okan field), offshore or onshore")
     u.add_argument("--no-jobs", action="store_true", help="don't start Dagster (schedules: SRE scans, studies, refreshes)")
     u.add_argument("--jobs-port", type=int, default=3000, help="port for the Dagster UI")
+    u.add_argument("--no-worker", action="store_true",
+                   help="don't start the agent worker (runs workflow agent steps such as daily report drafts)")
 
 
     i = sub.add_parser("ingest", help="load source exports into Postgres")
@@ -167,7 +169,8 @@ def main(argv=None):
     if args.cmd == "up":
         from . import up
 
-        up.up(pack, port=args.port, fresh=args.fresh, demo=args.demo, jobs=not args.no_jobs, jobs_port=args.jobs_port)
+        up.up(pack, port=args.port, fresh=args.fresh, demo=args.demo, jobs=not args.no_jobs, jobs_port=args.jobs_port,
+              worker=not args.no_worker)
     elif args.cmd == "serve":
         import uvicorn
 

@@ -87,10 +87,12 @@ uv run fuzer up          # then open http://127.0.0.1:8000
 The first time, `fuzer up` makes the Okan field demo, loads it, has Claude read the operator logs,
 P&ID drawings and document sections, builds the register and the web UI, and starts the server
 (the Ask page is the operations assistant) and the scheduled jobs (Dagster on http://127.0.0.1:3000:
-SRE scans, studies, refreshes, day close; `--no-jobs` leaves them out). Later starts are quick: only
+SRE scans, studies, refreshes, day close; `--no-jobs` leaves them out) and the agent worker, which runs
+the workflow's agent steps such as drafting each daily report (log in `.fuzer/worker.log`; `--no-worker`
+leaves it out). Later starts are quick: only
 what changed is reloaded or read, and readings Claude stored without a rebuild are built in. `uv run fuzer up --fresh` starts over with a clean database; Claude's readings are kept, so
 it doesn't pay to read the same text twice. Without a key everything runs except Claude's reading
-and the assistant.
+the assistant and the agent worker.
 
 ### Okan field demo
 
@@ -451,7 +453,7 @@ activities. The starting processes (`upset`, `daily_report`, `iow_breach`) are i
 
 ```sh
 uv run fuzer work load      # import and publish the starting processes
-uv run fuzer work worker    # run agent steps with the assistant's specialists (Claude; costs money)
+uv run fuzer work worker    # run agent steps with the assistant's specialists (Claude; costs money; fuzer up starts one)
 uv run fuzer work tick      # fire due timers and escalate overdue tasks once (Dagster does it every 5 min)
 ```
 

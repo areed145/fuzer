@@ -8,7 +8,10 @@
 4. Web UI: built when missing or older than its source.
 5. Jobs: Dagster (schedules and sensors: SRE scans, studies, refreshes, day close) on
    http://127.0.0.1:3000, its log in .dagster/dagster.log; `--no-jobs` leaves it out.
-6. Serve on http://127.0.0.1:8000. Ctrl+C stops both.
+6. Agent worker: `fuzer work worker`, which runs the workflow's agent steps (drafting daily reports,
+   specialists' proposals), its log in .fuzer/worker.log. It needs ANTHROPIC_API_KEY: without one it
+   isn't started, so the steps wait instead of failing over to a person. `--no-worker` leaves it out.
+7. Serve on http://127.0.0.1:8000. Ctrl+C stops all of them.
 
 `--fresh` starts over: empties the database and, for the fake plant, makes new data. Claude's
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
@@ -175,10 +178,30 @@ def start_jobs(port: int) -> subprocess.Popen:
         return subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
 
 
-def stop_jobs(proc: subprocess.Popen | None) -> None:
+def worker_command(pack) -> list[str]:
+    """`fuzer work worker` for this pack, on the same database as this process."""
+    os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
+    return [sys.executable, "-c", "from fuzer.cli import main; main()", "--pack", pack.name, "work", "worker"]
+
+
+def start_worker(pack) -> subprocess.Popen | None:
+    """The agent worker, unless there's no ANTHROPIC_API_KEY (its steps would fail and go to a person)."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        say("Agent worker not started: agent steps (daily report drafts, ...) wait until ANTHROPIC_API_KEY "
+            "is in .env and fuzer up runs again.")
+        return None
+    cmd = worker_command(pack)
+    log = Path(".fuzer").resolve() / "worker.log"
+    log.parent.mkdir(exist_ok=True)
+    say(f"Agent worker (workflow agent steps), log in {log}")
+    with open(log, "ab") as out:
+        return subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
+
+
+def stop_process(proc: subprocess.Popen | None) -> None:
     if proc is None or proc.poll() is not None:
         return
-    proc.terminate()  # dagster dev stops its webserver and daemon on SIGTERM
+    proc.terminate()  # dagster dev stops its webserver and daemon on SIGTERM; the worker just exits
     try:
         proc.wait(timeout=30)
     except subprocess.TimeoutExpired:
@@ -186,7 +209,7 @@ def stop_jobs(proc: subprocess.Popen | None) -> None:
 
 
 def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None,
-       jobs: bool = True, jobs_port: int = 3000) -> None:
+       jobs: bool = True, jobs_port: int = 3000, worker: bool = True) -> None:
     if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PACK") and _fake_plant():
         demo = DEFAULT_DEMO  # nothing configured: the Okan field demo
     print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
@@ -205,10 +228,12 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
         read_with_claude(conn, pack)
     build_ui()
     proc = start_jobs(jobs_port) if jobs else None
+    agents = start_worker(pack) if worker else None
     print(f"\nFuzer is running: http://{host}:{port}   (Ctrl+C to stop)\n", flush=True)
     import uvicorn
 
     try:
         uvicorn.run("fuzer.api:app", host=host, port=port, log_level="warning")
     finally:
-        stop_jobs(proc)
+        stop_process(agents)
+        stop_process(proc)

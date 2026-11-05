@@ -143,6 +143,22 @@ def test_up_starts_and_stops_dagster(monkeypatch, tmp_path):
     assert started[0][-5:] == ["dev", "-m", "fuzer.ops.jobs", "-p", "3123"]
     assert (tmp_path / "dg" / "dagster.log").exists()
     assert (tmp_path / "dg" / "dagster.yaml").read_text() == ""  # no "no dagster.yaml" warning, default storage
-    up.stop_jobs(proc)
+    up.stop_process(proc)
     assert stopped == [True]
-    up.stop_jobs(None)  # --no-jobs
+    up.stop_process(None)  # --no-jobs
+
+
+def test_up_starts_the_agent_worker(monkeypatch, tmp_path, capsys):
+    started = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://x/y")
+    monkeypatch.setattr(up.subprocess, "Popen", lambda cmd, **kw: started.append(cmd) or object())
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert up.start_worker(load_pack("okan")) is None and not started  # steps wait rather than fail to a person
+    assert "Agent worker not started" in capsys.readouterr().out
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    assert up.start_worker(load_pack("okan")) is not None
+    assert started[0][-4:] == ["--pack", "okan", "work", "worker"]
+    assert (tmp_path / ".fuzer" / "worker.log").exists()
