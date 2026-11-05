@@ -108,16 +108,40 @@ def catalog_view(conn=Depends(get_conn)):
     conn.commit()
     health = {h["dataset"]: h for h in quality.health(conn)}
     ds = catalog.datasets(conn)
+    last = {r["dataset_id"]: r["status"] for r in conn.execute(
+        "select distinct on (dataset_id) dataset_id, status from source_run order by dataset_id, id desc")}
+    data_dir = _data_dir()
+
+    def present(d) -> bool:  # its data is there (a live system is taken as there)
+        if d["connection_type"] not in (None, "folder"):
+            return True
+        try:
+            return connections.connector(d, data_dir) is not None
+        except Exception:  # noqa: BLE001
+            return False
+
     systems = []
     for s in catalog.systems(conn):
-        systems.append({**s, "connections": [{**c, "secrets": {k: {"ref": v, "resolves": connections.resolve(v) is not None}
-                                                               for k, v in (c["secrets"] or {}).items()}}
+        systems.append({**s, "connections": [{**c, "display": connections.display(c, data_dir),
+                                              "secrets": {k: {"ref": v, "resolves": connections.resolve(v) is not None}
+                                                          for k, v in (c["secrets"] or {}).items()}}
                                              for c in catalog.connections(conn, s["name"])],
                         "datasets": [{"name": n, "record_type": d["record_type"], "reader": d["reader"], "status": d["status"],
                                       "load_mode": d["load_mode"], "rows": d["rows"], "loaded_at": d["loaded_at"],
-                                      "connection": d["connection_name"], "health": health.get(n)}
+                                      "connection": d["connection_name"], "owner": d["owner"] or d["system_owner"],
+                                      "schedule": d["schedule"], "last_run": last.get(d["id"]),
+                                      "present": d["fingerprint"] is not None or present(d), "health": health.get(n)}
                                      for n, d in ds.items() if d["system_id"] == s["id"]]})
-    return plain({"systems": systems, "types": _types(), "check_kinds": quality.CHECK_KINDS})
+    return plain({"systems": systems, "types": _types(), "check_kinds": quality.CHECK_KINDS, "data_dir": data_dir,
+                  "rebuild": quality.rebuild_status(conn)})
+
+
+@router.get("/status")
+def status(conn=Depends(get_conn)):
+    """Whether a rebuild would apply changes (loads, mappings, rules), and whether one is running."""
+    from ..sources import quality
+
+    return {**quality.rebuild_status(conn), "running": deps.rebuilder.status()}
 
 
 def _types() -> dict:
@@ -168,9 +192,10 @@ def import_(body: Text, conn=Depends(get_conn)):
 
 @router.post("/systems")
 def add_system(body: Named, conn=Depends(get_conn)):
+    """A system with no connection yet (add the one it needs: the project data folder, another folder, a server)."""
     from ..sources import catalog
 
-    return _do(conn, catalog.add_system, conn, body.name, body.by, body.reason, **body.values)
+    return _do(conn, catalog.add_system, conn, body.name, body.by, body.reason, files=False, **body.values)
 
 
 @router.patch("/systems/{name}")
@@ -285,6 +310,16 @@ def dataset_detail(name: str, conn=Depends(get_conn)):
         "checks": quality.checks(conn, name),
         "matching": quality.matching(conn, d["source"], 20),
         "health": (quality.health(conn, name) or [None])[0],
+        "connection_display": connections.display(catalog.connection(conn, d["connection_id"]) or {}, _data_dir())
+        if d["connection_id"] else None,
+        "next_load": quality.next_load(d["schedule"]),
+        "suggested_checks": quality.suggest_checks(conn, name),
+        "work_items": [dict(r) for r in conn.execute(
+            "select id, title, state, assignee, role, created_at from work_item where type = 'source_issue' "
+            "and payload->>'dataset' = %s and state not in ('done', 'cancelled') order by id desc", (name,))],
+        "reviews": [dict(r) for r in conn.execute(
+            "select id, kind, created_at from review_item where subject = %s and kind in ('schema', 'check') "
+            "and status = 'open'", (name,))],
         "history": catalog.audit(conn, "dataset", d["id"], 100),
         "retire_preview": catalog.retire_preview(conn, name),
     })

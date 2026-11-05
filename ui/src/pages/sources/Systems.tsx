@@ -1,0 +1,195 @@
+/** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
+ * see what each connection holds. */
+import { useState } from "react";
+import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json } from "../../api";
+import { Status, href, useAsync } from "../../lib";
+import { TestSteps, reviewer, useAction } from "./common";
+
+const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
+  ["kind", "Kind", "erp, historian, planning, ..."], ["owner", "Owner", "who answers for it; alerts go to them"],
+  ["steward", "Steward", "who looks after its data"], ["date_format", "Date format", "e.g. %d/%m/%Y; empty: ISO"],
+  ["decimal", "Decimal mark", ", for a decimal comma"], ["timezone", "Timezone", "e.g. Europe/London"],
+  ["encoding", "Encoding", "CSV text, e.g. latin-1"], ["rank", "Survivorship rank", "lower wins a field"],
+  ["notes", "Notes", "reliability, known issues"],
+];
+
+export function Systems() {
+  const cat = useAsync(() => api.catalog(), []);
+  return (
+    <>
+      <p className="muted small">
+        A system is where records come from (its name is what records say as their source). A connection is how Fuzer
+        reaches it: a folder of exports (empty path: the project's data folder), PI Web API or ADX. Secrets are
+        references such as <code>env:PI_PASSWORD</code>, never the value.
+      </p>
+      <NewSystem onDone={cat.reload} />
+      <Status loading={cat.loading && !cat.data} error={cat.error} />
+      {cat.data?.systems.map((s) => <SystemCard key={s.id} s={s} cat={cat.data!} reload={cat.reload} />)}
+    </>
+  );
+}
+
+export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("");
+  const [owner, setOwner] = useState("");
+  const a = useAction();
+  return (
+    <div className="row">
+      <input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
+      <input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
+      <input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
+      <button className="secondary" disabled={!name || !!a.busy}
+        onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
+          () => { onDone(name); setName(""); })}>Add system</button>
+      {a.error && <span className="error small">{a.error}</span>}
+    </div>
+  );
+}
+
+function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload: () => void }) {
+  const [vals, setVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(SYSTEM_FIELDS.map(([k]) => [k, s[k] == null ? "" : String(s[k])])));
+  const [adding, setAdding] = useState(false);
+  const a = useAction();
+  const changed = SYSTEM_FIELDS.filter(([k]) => vals[k] !== (s[k] == null ? "" : String(s[k])));
+  return (
+    <details className="card">
+      <summary>
+        <code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
+          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span>
+      </summary>
+      <table className="list small">
+        <tbody>
+          {SYSTEM_FIELDS.map(([k, label, hint]) => (
+            <tr key={k}><th>{label}</th><td><input placeholder={hint} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></td></tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="primary" disabled={!changed.length || !!a.busy}
+        onClick={() => a.run("save", () => api.editSystem(s.name, Object.fromEntries(changed.map(([k]) =>
+          [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</button>
+      {a.error && <p className="error small">{a.error}</p>}
+      <h3>Connections</h3>
+      {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
+      {adding ? (
+        <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />
+      ) : <button className="secondary" onClick={() => setAdding(true)}>+ Add a connection</button>}
+      {s.datasets.length === 0 && (
+        <p className="small">
+          <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete system ${s.name} and its connections?`) &&
+            a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</button>
+          <span className="muted"> (it has no datasets)</span>
+        </p>
+      )}
+    </details>
+  );
+}
+
+function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: string; reload: () => void }) {
+  const a = useAction();
+  const [test, setTest] = useState(c.last_test);
+  const [found, setFound] = useState<{ table: string; dataset: string | null }[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [cfg, setCfg] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(c.config).map(([k, v]) => [k, v == null ? "" : String(v)])));
+  return (
+    <div className="small conn">
+      <code>{c.name}</code> {c.type} <span className="muted">{c.display ?? JSON.stringify(c.config)}</span>{" "}
+      {Object.entries(c.secrets).map(([k, v]) => (
+        <span key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</span>
+      ))}{" "}
+      {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</span>}{" "}
+      <button className="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
+        {a.busy === "test" ? "testing…" : "test"}</button>
+      <button className="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
+        what it holds</button>
+      <button className="link" onClick={() => setEditing(!editing)}>edit</button>
+      <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete connection ${c.name}?`) &&
+        a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</button>
+      {editing && (
+        <div className="row wrap">
+          {Object.keys({ ...(c.type === "folder" ? { path: "" } : {}), ...c.config }).map((k) => (
+            <label key={k} className="small">{k}{" "}
+              <input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+                placeholder={k === "path" ? "the folder holding the tables, or one Delta / Parquet table folder" : ""}
+                style={{ width: k === "path" ? "36em" : "14em" }} />
+            </label>
+          ))}
+          <button className="primary" disabled={!!a.busy}
+            onClick={() => a.run("save", () => api.editConnection(c.id, {
+              config: Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== "")) }, reviewer()),
+              () => { setEditing(false); setFound(null); reload(); })}>Save</button>
+        </div>
+      )}
+      {test && !test.ok && <TestSteps steps={test.steps} />}
+      {found && <TableList tables={found} system={system} connection={c.id} />}
+      {a.error && <span className="error"> {a.error}</span>}
+    </div>
+  );
+}
+
+function TableList({ tables, system, connection }: { tables: { table: string; dataset: string | null }[]; system: string;
+                                                      connection: number }) {
+  if (!tables.length) return <p className="muted small">It holds no tables Fuzer can read.</p>;
+  return (
+    <ul className="small">
+      {tables.map((t) => (
+        <li key={t.table}>
+          <code>{t.table}</code>{" "}
+          {t.dataset ? <a className="muted" href={href("/sources", { view: "dataset", name: t.dataset })}>loaded as {t.dataset}</a>
+            : <a href={href("/sources", { view: "add", system, connection: String(connection), table: t.table })}>add it</a>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A new connection: its type's config fields and secret references, then a test. */
+export function ConnectionForm({ system, types, onDone }: { system: string; types: Catalog["types"]["connections"];
+                                                      onDone: (c: Json) => void }) {
+  const [type, setType] = useState("folder");
+  const [name, setName] = useState("");
+  const [cfg, setCfg] = useState<Record<string, string>>({});
+  const [sec, setSec] = useState<Record<string, string>>({});
+  const a = useAction();
+  const t = types[type] ?? { config: {}, secrets: [] };
+  const save = () => {
+    const config: Json = {};
+    for (const [k, dflt] of Object.entries(t.config)) {
+      const v = cfg[k];
+      if (v === undefined || v === "") continue;
+      config[k] = typeof dflt === "boolean" ? v === "true" : v;
+    }
+    const secrets = Object.fromEntries(Object.entries(sec).filter(([, v]) => v));
+    return a.run("save", () => api.addConnection(system, { name: name || type, type, config, secrets, by: reviewer() }), onDone);
+  };
+  return (
+    <div className="card inset">
+      <div className="row">
+        <select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
+          {Object.keys(types).map((k) => <option key={k} value={k}>{k === "folder" ? "folder of exports / lake" : k}</option>)}
+        </select>
+        <input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <table className="list small">
+        <tbody>
+          {Object.entries(t.config).map(([k, dflt]) => (
+            <tr key={k}>
+              <th>{k}{dflt === null ? " *" : ""}</th>
+              <td><input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+                placeholder={k === "path" ? "the folder holding the tables (absolute, or relative to the data folder); empty: the data folder"
+                  : dflt === null ? "required" : `default ${String(dflt) || "none"}`} /></td>
+            </tr>
+          ))}
+          {t.secrets.map((k) => (
+            <tr key={k}><th>{k} (secret)</th>
+              <td><input value={sec[k] ?? ""} onChange={(e) => setSec({ ...sec, [k]: e.target.value })} placeholder="env:VARIABLE_NAME" /></td></tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="primary" disabled={!!a.busy} onClick={save}>{a.busy ? "Adding…" : "Add connection"}</button>
+      {a.error && <p className="error small">{a.error}</p>}
+    </div>
+  );
+}

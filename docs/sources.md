@@ -63,11 +63,20 @@ which table (what the connection holds, new ones first), what its rows mean (a s
 system, and a mapping suggested for the system, by rules or Claude, to edit), and how it loads (load mode,
 schedule, expected delivery, owner). Save and load creates the dataset and its approved mapping and loads it; a
 held first load says why (duplicate keys with examples, a failing check, changed columns) and where to fix it.
-**Datasets** lists every dataset with its health (filter, problems only); one opens with Connection (test,
-discover, how it loads, pause, resume, retire), Mapping (versions, editor, impact, draft, approve, roll back),
-Runs, Profile, Checks, Matching and History. **Systems & connections** edits each system (owner, formats, rank)
-and its connections, and lists what each connection holds with an *add it* link per new table. **Rules** edits
-ranks and rules. The API behind Add a source: `GET /sources/connections/{id}/tables`,
+**Datasets** lists every dataset with its health, last run, owner and schedule (filter, problems only; datasets whose
+data isn't in this project are hidden unless asked for). Each dataset has its own page: a header with its health
+and, when its last load was held or failed, why and **Load again**; then **Overview** (connection, how and when it
+loads, owner, records, open work items and review items, quick actions), **Settings** (how it loads, what to do
+when columns change, schedule, expected delivery, owner; connection, key, location, reader and watermark under
+Advanced; pause, retire or delete), **Mapping** (edit to a draft; a draft or an older version is shown as a line diff
+against the one in use with what it would do to the register, then approved or rolled back to), **Runs**,
+**Quality** (checks suggested from the profile, one click to add; checks and their results; the profile),
+**Matching** and **History**. A banner on the Sources pages says when loads, mapping versions or rule changes aren't
+in the register yet, with **Rebuild now**. **Systems & connections** edits each system and its connections (shown in
+words: the project data folder, a path, a server) and lists what each connection holds, with an *add it* link per
+new table; a system added here gets no connection until it needs one. **Rules** edits ranks and rules. Held loads
+also show on the Review page (**Held loads**), linked to their dataset.
+The API behind Add a source: `GET /sources/connections/{id}/tables`,
 `GET /sources/connections/{id}/tables/{table}` (preview and suggestion) and `POST` to the same path (save and load).
 
 ## Connectors, shapes and mappings

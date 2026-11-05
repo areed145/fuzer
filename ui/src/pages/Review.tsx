@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  type HeldLoadPayload,
   api,
   type ConflictPayload,
   type CurvePayload,
@@ -25,7 +26,8 @@ function loadName(): string {
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
-  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ? asked : "match";
+  const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
+    asked === "check" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = useState(loadName);
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -59,6 +61,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           ? d.decision === "accept"
             ? `Saved #${item.id}. ${item.payload.dataset} loads with its new columns on the next ingest.`
             : `Saved #${item.id}. ${item.payload.dataset} stays on hold.`
+          : item.kind === "check"
+            ? `Saved #${item.id}. Load ${item.payload.dataset} again once it's fixed.`
           : `Saved #${item.id}. The chosen value is live.`,
     );
     notifyChanged();
@@ -85,6 +89,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "curve" ? "on" : ""} href={href("/review", { kind: "curve" })}>
             Datasheet curves <span className="muted">{stats?.open_reviews.curve ?? 0}</span>
           </a>
+          <a className={kind === "check" ? "on" : ""} href={href("/review", { kind: "check" })}>
+            Held loads <span className="muted">{stats?.open_reviews.check ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -101,6 +108,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? "Curves Claude read off OEM datasheets. Compare its reading with the sheet; accept, correct, or reject. Only accepted curves are used in charts."
           : kind === "schema"
             ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
+          : kind === "check"
+            ? "A dataset's last load was held: it repeated keys or failed a check that holds the load, so its records stay as they were. Fix it at the source (or the check), then load it again from its page."
             : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
       </p>
 
@@ -122,6 +131,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <CurveCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "schema" ? (
           <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "check" ? (
+          <HeldLoadCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
           <ConflictCard
             key={item.id}
@@ -451,6 +462,27 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
         <button disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Cancel" : "Correct values"}</button>
         <button disabled={busy} onClick={() => run({ decision: "reject" })}>Wrong, don't use</button>
         {error && <span className="error">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+
+/** A load held by its checks (#225): why, and the dataset to fix it on. */
+function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onDecide: (d: { decision: "accept" }) => void }) {
+  const failed = p.failed ?? [];
+  return (
+    <div className="card">
+      <h2>#{id} <code>{p.dataset}</code> <span className="muted small">held load</span></h2>
+      <ul className="small">
+        {failed.map((f, i) => (
+          <li key={i}>{f.kind === "duplicate keys" ? `repeats ${f.value} key${f.value === 1 ? "" : "s"}` : `${f.kind} failed (${f.value})`}
+            {f.detail?.examples?.length ? <span className="muted"> e.g. {f.detail.examples.join(", ")}</span> : null}</li>
+        ))}
+      </ul>
+      <div className="row">
+        <a className="button primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</a>
+        <button className="secondary" onClick={() => onDecide({ decision: "accept" })}>Seen</button>
       </div>
     </div>
   );

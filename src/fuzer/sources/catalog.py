@@ -168,7 +168,8 @@ def _check_dataset(values: dict) -> None:
             raise CatalogError("schedule is a cron expression with five fields, e.g. '0 * * * *'")
 
 
-def add_system(conn, name: str, by: str, reason: str | None = None, **values) -> dict:
+def add_system(conn, name: str, by: str, reason: str | None = None, files: bool = True, **values) -> dict:
+    """A system of record; `files` also gives it a connection to the project's data folder (the seed's way)."""
     if system(conn, name):
         raise CatalogError(f"system {name!r} already exists")
     _changes({}, values, SYSTEM_FIELDS)
@@ -176,7 +177,8 @@ def add_system(conn, name: str, by: str, reason: str | None = None, **values) ->
     row = conn.execute(f"insert into source_system ({', '.join(cols)}) values ({', '.join(['%s'] * len(cols))}) "
                        "returning *", [name, *values.values()]).fetchone()
     _audit(conn, by, "system", row, "create", new=dict(row), reason=reason)
-    add_connection(conn, name, "files", "folder", by, reason="every system starts with the project's data folder")
+    if files:
+        add_connection(conn, name, "files", "folder", by, reason="every system starts with the project's data folder")
     return dict(row)
 
 

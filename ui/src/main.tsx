@@ -7,7 +7,7 @@ import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
 import { ArchitecturePage } from "./pages/Architecture";
-import { SourcesPage } from "./pages/Sources";
+import { SourcesPage } from "./pages/sources";
 import { StudiesPage } from "./pages/Studies";
 import { Entity } from "./pages/Entity";
 import { Review } from "./pages/Review";
