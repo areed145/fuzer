@@ -832,6 +832,19 @@ What the SRE's detectors found in the process data (sre.py): an ongoing one is e
 | `last_run` | bigint |  |
 | `found_at` | timestamptz |  |
 
+## `point_baseline`
+
+Each point's usual step-to-step spread over the days before `day` (sre.baselines): the SRE's instrument checks read it from the historian once a day, not every window (#203). usual null: too few readings.
+
+| Column | Type | Note |
+|---|---|---|
+| `point_id` | text |  |
+| `day` | date |  |
+| `step` | integer | minutes between the values it was worked out from |
+| `days` | integer | how many days before `day` it covers |
+| `usual` | double precision |  |
+| `computed_at` | timestamptz |  |
+
 ## `upset`
 
 Detections grouped by time and plant topology (#96b): one upset per cause, its earliest detection the likely first cause. Regrouped after each scan; an upset keeps its id (and status, once a person sets it) while its detections stay together.

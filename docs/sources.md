@@ -57,10 +57,18 @@ it. A change takes effect on the next rebuild (`POST /sources/rematch`).
 **Scheduling.** Dagster has a source asset and a `source_checks` asset check per dataset; a dataset with its own
 cron loads then (`dataset_schedules` sensor); `source_health` runs every 30 minutes.
 
-**On the Sources page** each system lists its datasets with their health. A dataset opens with Connection (test,
-discover, how it loads, pause, resume, retire with or without its records), Mapping (versions, editor, impact,
-draft, approve, roll back), Runs, Profile, Checks, Matching and History; Rules edits ranks and rules; New tables
-maps and loads a table no dataset covers.
+**On the Sources page**, **+ Add a source** walks through five steps: the system the data comes from (or a new
+one), where it is (one of its connections, or a new one: a folder anywhere, PI Web API, ADX; tested on the spot),
+which table (what the connection holds, new ones first), what its rows mean (a sample, a date-format hint for the
+system, and a mapping suggested for the system, by rules or Claude, to edit), and how it loads (load mode,
+schedule, expected delivery, owner). Save and load creates the dataset and its approved mapping and loads it; a
+held first load says why (duplicate keys with examples, a failing check, changed columns) and where to fix it.
+**Datasets** lists every dataset with its health (filter, problems only); one opens with Connection (test,
+discover, how it loads, pause, resume, retire), Mapping (versions, editor, impact, draft, approve, roll back),
+Runs, Profile, Checks, Matching and History. **Systems & connections** edits each system (owner, formats, rank)
+and its connections, and lists what each connection holds with an *add it* link per new table. **Rules** edits
+ranks and rules. The API behind Add a source: `GET /sources/connections/{id}/tables`,
+`GET /sources/connections/{id}/tables/{table}` (preview and suggestion) and `POST` to the same path (save and load).
 
 ## Connectors, shapes and mappings
 

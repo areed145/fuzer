@@ -895,6 +895,23 @@ export interface WhyValue {
                 run: { id: number; dataset: string; trigger: string; finished_at: string } | null }[];
 }
 
+export interface ConnectionTables {
+  connection: string; system: string; type: string; tables: { table: string; dataset: string | null }[];
+}
+export interface TablePreview {
+  connection: string; system: string; table: string; connector: string | null; path: string;
+  schema: [string, string][] | null; sample: Record<string, unknown>[]; covered_by: string | null;
+  date_hint: { date_format: string; example: string; certain: boolean } | null;
+  suggested: { yaml: string; key: string | null; dataset: string; record_type: string;
+               columns: Record<string, { meaning: string; by: string }> };
+  claude: Json | null;
+}
+export interface AddTableResult {
+  dataset: string; mapping_version: number;
+  load?: { loaded: string[]; held: string[]; records: number; inserted: number; updated: number; removed: number };
+  run?: SourceRun | null; health?: SourceHealth | null;
+}
+
 export interface SourceLoad {
   loaded: string[];
   unchanged: string[];
@@ -1142,6 +1159,12 @@ export const api = {
   setRank: (system: string, rank: number | null, by: string) =>
     request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
   rematch: () => request<Json>("POST", "/sources/rematch"),
+  connectionTables: (id: number) => request<ConnectionTables>("GET", `/sources/connections/${id}/tables`),
+  tablePreview: (id: number, table: string, opts: { claude?: boolean; dataset?: string; record_type?: string } = {}) =>
+    request<TablePreview>("GET", `/sources/connections/${id}/tables/${encodeURIComponent(table)}`,
+      { claude: opts.claude ? "true" : undefined, dataset: opts.dataset, record_type: opts.record_type }),
+  addTable: (id: number, table: string, body: { yaml: string; values: Json; by: string; load?: boolean }) =>
+    request<AddTableResult>("POST", `/sources/connections/${id}/tables/${encodeURIComponent(table)}`, undefined, body),
   sourceHealth: () => request<SourceHealth[]>("GET", "/sources/health"),
   why: (id: string, field: string) => request<WhyValue>("GET", `/sources/why/${encodeURIComponent(id)}/${encodeURIComponent(field)}`),
   settings: (project?: string) =>

@@ -22,6 +22,10 @@ def main(argv=None):
     d = sub.add_parser("demo", help="reset the Fuzer database, generate, ingest and rebuild")
     d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/<asset>)")
     d.add_argument("--pack", default=None, help="asset pack (default: the asset's own pack)")
+    sc = sub.add_parser("schedules", help="Okan project schedules as a Delta table, a source with no mapping (#227)")
+    sc.add_argument("--out", default="fakeplant/data/okan_lake", help="lake folder (the table is <out>/project_schedules)")
+    sc.add_argument("--okan", default="fakeplant/data/okan", help="the Okan exports it is built from")
+    sc.add_argument("--update", action="store_true", help="write version 1: progress moves, a finish slips, a row goes")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
     h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/<asset>)")
     h.add_argument("--asset", choices=ASSETS, default="offshore")
@@ -44,6 +48,12 @@ def main(argv=None):
 
     if args.cmd == "generate":
         _print(generate(args))
+    elif args.cmd == "schedules":
+        from . import schedules
+
+        if not (Path(args.okan) / "sap_work_orders.csv").is_file():
+            raise SystemExit(f"No Okan exports in {args.okan}; run `fakeplant generate --asset okan` first.")
+        _print(schedules.write(Path(args.okan), Path(args.out), args.update))
     elif args.cmd == "historian":
         from . import historian
 

@@ -137,3 +137,35 @@ def test_rules_health_alerts_and_lineage(client):
 
     assert any(x["dataset"] == "sap_equipment" for x in shared.source_health())
     assert shared.why_value(fid, "manufacturer")["source"] == "sap"
+
+
+def test_add_a_source_from_another_folder(client, okan_data, tmp_path):
+    """The Add a source flow: a new system, a folder connection to a lake outside the data folder, its tables, a
+    preview with a suggested mapping for the system and a date-format hint, then save and load in one step."""
+    from fakeplant import schedules
+
+    schedules.write(okan_data, tmp_path / "lake")
+    ok(client.post("/sources/systems", json={"name": "schedule", "values": {"kind": "planning"}, "by": "ana"}))
+    c = ok(client.post("/sources/systems/schedule/connections",
+                       json={"name": "lake", "type": "folder", "config": {"path": str(tmp_path / "lake")}, "by": "ana"}))
+    t = ok(client.get(f"/sources/connections/{c['id']}/tables"))
+    assert t["tables"][0] == {"table": "project_schedules", "dataset": None}
+
+    p = ok(client.get(f"/sources/connections/{c['id']}/tables/project_schedules"))
+    assert p["connector"] == "delta" and len(p["sample"]) == 8 and p["covered_by"] is None
+    assert p["date_hint"]["date_format"] == "%d/%m/%Y"
+    assert p["suggested"]["key"] == "activity_id" and "source: schedule" in p["suggested"]["yaml"]
+    ok(client.patch("/sources/systems/schedule", json={"values": {"date_format": "%d/%m/%Y"}, "by": "ana"}))
+    assert ok(client.get(f"/sources/connections/{c['id']}/tables/project_schedules"))["date_hint"] is None
+
+    bad = client.post(f"/sources/connections/{c['id']}/tables/project_schedules",
+                      json={"yaml": p["suggested"]["yaml"].replace("source: schedule", "source: other"), "by": "ana"})
+    assert bad.status_code == 400 and "system's name" in bad.json()["detail"]
+    out = ok(client.post(f"/sources/connections/{c['id']}/tables/project_schedules",
+                         json={"yaml": p["suggested"]["yaml"], "values": {"owner": "ana", "schedule": "0 6 * * *"},
+                               "by": "ana"}))
+    assert out["load"]["held"] == ["project_schedules"]  # the export repeats one activity id
+    assert out["run"]["detail"]["checks"][0]["kind"] == "duplicate keys" and out["health"]["state"] == "held"
+    d = ok(client.get("/sources/datasets/project_schedules"))["dataset"]
+    assert d["connection_id"] == c["id"] and d["owner"] == "ana" and d["source"] == "schedule"
+    assert ok(client.get(f"/sources/connections/{c['id']}/tables"))["tables"][0]["dataset"] == "project_schedules"

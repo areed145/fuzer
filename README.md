@@ -518,11 +518,13 @@ Screens:
   steps waiting at each element (overdue in red) and those finished recently with
   their median time, to show where work piles up. Task forms are edited in the
   form-js editor; each save is a new version.
-- **Jobs**: the scheduled jobs and their runs. **Sources**: the source catalog:
-  each system's datasets with their health; a dataset's connection (test,
-  discover), how it loads, mapping versions (edit, preview the impact, approve,
-  roll back), runs, profile, checks, match statistics and history; survivorship
-  and match rules; new tables to map and load. **Settings** and
+- **Jobs**: the scheduled jobs and their runs. **Sources**: the source catalog.
+  **+ Add a source** walks through system, connection (any folder, PI Web API or
+  ADX), table, mapping (suggested, with a date-format hint) and how it loads,
+  then saves and loads it. Datasets lists them all with their health; a dataset
+  opens with its connection, how it loads, mapping versions (edit, preview the
+  impact, approve, roll back), runs, profile, checks, match statistics and
+  history. Systems & connections and Rules edit the rest. **Settings** and
   **Architecture**. On an entity page, **why?** next to a value shows the
   records, mapping versions and loads behind it.
 
