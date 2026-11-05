@@ -230,9 +230,10 @@ def delete_relation(conn, name: str, by: str, reason: str | None = None) -> dict
     return old
 
 
-def seed(conn, by: str = SEED) -> dict:
+def seed(conn, by: str = SEED, commit: bool = True) -> dict:
     """Put the shipped model in the database: add what's missing, follow the file for core rows nobody has
-    edited, and leave edited and custom rows alone. Returns what was added and updated."""
+    edited, and leave edited and custom rows alone. Returns what was added and updated. Schema init runs it
+    inside its own transaction (commit=False)."""
     b = builtin()
     report = {"kinds_added": [], "kinds_updated": [], "relations_added": [], "relations_updated": []}
     have = {r["name"]: r for r in conn.execute("select * from ontology_kind")}
@@ -261,14 +262,9 @@ def seed(conn, by: str = SEED) -> dict:
                          "to_kinds = %s, updated_by = %s, updated_at = now() where name = %s",
                          (r["label"], r["description"], r["view"], r["dated"], r["from_kinds"], r["to_kinds"], by, name))
             report["relations_updated"].append(name)
-    conn.commit()
+    if commit:
+        conn.commit()
     return {k: v for k, v in report.items() if v}
-
-
-def ensure(conn) -> None:
-    """Seed once: an empty ontology gets the shipped model (schema init calls this)."""
-    if not conn.execute("select 1 from ontology_kind limit 1").fetchone():
-        seed(conn)
 
 
 # ---- checking a mapping ----------------------------------------------------------------------------------

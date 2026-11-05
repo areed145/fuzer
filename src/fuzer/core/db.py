@@ -84,8 +84,7 @@ def init_schema(conn) -> None:
         conn.execute(SCHEMA.read_text())
         from . import ontology
 
-        ontology.seed(conn)  # commits; the advisory lock is per transaction, so take it again
-        conn.execute("select pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
+        ontology.seed(conn, commit=False)  # in this transaction, under the lock
         conn.execute(
             "insert into schema_version (id, hash) values (1, %s) "
             "on conflict (id) do update set hash = excluded.hash, applied_at = now()",
