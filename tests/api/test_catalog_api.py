@@ -169,3 +169,31 @@ def test_add_a_source_from_another_folder(client, okan_data, tmp_path):
     d = ok(client.get("/sources/datasets/project_schedules"))["dataset"]
     assert d["connection_id"] == c["id"] and d["owner"] == "ana" and d["source"] == "schedule"
     assert ok(client.get(f"/sources/connections/{c['id']}/tables"))["tables"][0]["dataset"] == "project_schedules"
+
+
+def test_a_table_folder_as_the_path_and_undoing_a_dataset(client, okan_data, tmp_path):
+    """A connection pointed at the Delta table folder itself offers that table (never its part files); a dataset
+    added by mistake is deleted with its records; a connection in use can't be deleted."""
+    from fakeplant import schedules
+
+    schedules.write(okan_data, tmp_path / "lake")
+    ok(client.post("/sources/systems", json={"name": "p6", "by": "ana"}))
+    c = ok(client.post("/sources/systems/p6/connections", json={
+        "name": "table", "type": "folder", "config": {"path": str(tmp_path / "lake" / "project_schedules")}, "by": "ana"}))
+    assert ok(client.get(f"/sources/connections/{c['id']}/tables"))["tables"] == [{"table": "project_schedules", "dataset": None}]
+    assert ok(client.post(f"/sources/connections/{c['id']}/test"))["ok"]
+    p = ok(client.get(f"/sources/connections/{c['id']}/tables/project_schedules"))
+    out = ok(client.post(f"/sources/connections/{c['id']}/tables/project_schedules",
+                         json={"yaml": p["suggested"]["yaml"].replace("dataset: project_schedules", "dataset: p6_schedules"),
+                               "by": "ana"}))
+    assert out["dataset"] == "p6_schedules" and out["load"]["held"] == ["p6_schedules"]
+
+    assert client.delete(f"/sources/connections/{c['id']}", params={"by": "ana"}).status_code == 400  # in use
+    gone = ok(client.delete("/sources/datasets/p6_schedules", params={"by": "ana", "reason": "added by mistake"}))
+    assert gone["deleted"] == "p6_schedules"
+    assert client.get("/sources/datasets/p6_schedules").status_code == 404
+    with db.connect() as conn:
+        assert not conn.execute("select 1 from mapping_version where source = 'p6'").fetchone()
+    ok(client.delete(f"/sources/connections/{c['id']}", params={"by": "ana"}))
+    ok(client.delete("/sources/systems/p6", params={"by": "ana"}))
+    assert ok(client.get("/sources/audit", params={"object": "system"}))[0]["action"] == "delete"

@@ -18,6 +18,9 @@ ACTIONS = {
     "pause": "stop loading a dataset; its records stay",
     "resume": "start loading a paused dataset again",
     "retire": "stop loading a dataset for good: --retract removes its records, --keep keeps them as history",
+    "delete": "undo adding a dataset: its records, its mapping (when nothing else uses it) and the dataset go",
+    "delete-connection": "a connection by id (no dataset may read through it)",
+    "delete-system": "a system with no datasets, and its connections",
     "edit": "change a dataset (--set field=value): load_mode, drift_policy, schedule, key, location, ...",
     "add-dataset": "add a dataset to a system (--set field=value)",
     "add-system": "add a system of record (--set field=value)",
@@ -124,6 +127,12 @@ def run(conn, pack, data: Path, args) -> object:
             if args.retract == args.keep:
                 raise SystemExit("retire needs --retract (remove its records) or --keep (keep them as history)")
             out = catalog.retire(conn, name, by, retract=args.retract, reason=why)
+        elif a == "delete":
+            out = catalog.delete_dataset(conn, _need(args, 1, "a dataset")[0], by, why)
+        elif a == "delete-connection":
+            out = catalog.delete_connection(conn, int(_need(args, 1, "a connection id")[0]), by, why)
+        elif a == "delete-system":
+            out = catalog.delete_system(conn, _need(args, 1, "a system")[0], by, why)
         elif a == "edit":
             out = catalog.update_dataset(conn, _need(args, 1, "a dataset")[0], by, why, **_pairs(args.set))
         elif a == "add-dataset":

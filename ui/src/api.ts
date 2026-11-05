@@ -1159,6 +1159,10 @@ export const api = {
   setRank: (system: string, rank: number | null, by: string) =>
     request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
   rematch: () => request<Json>("POST", "/sources/rematch"),
+  deleteDataset: (name: string, by: string, reason?: string) =>
+    request<Json>("DELETE", `/sources/datasets/${encodeURIComponent(name)}`, { by, reason }),
+  deleteConnection: (id: number, by: string) => request<Json>("DELETE", `/sources/connections/${id}`, { by }),
+  deleteSystem: (name: string, by: string) => request<Json>("DELETE", `/sources/systems/${encodeURIComponent(name)}`, { by }),
   connectionTables: (id: number) => request<ConnectionTables>("GET", `/sources/connections/${id}/tables`),
   tablePreview: (id: number, table: string, opts: { claude?: boolean; dataset?: string; record_type?: string } = {}) =>
     request<TablePreview>("GET", `/sources/connections/${id}/tables/${encodeURIComponent(table)}`,

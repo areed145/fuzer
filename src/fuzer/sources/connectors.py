@@ -330,18 +330,24 @@ def live(name: str):
     """The live connector for dataset `name` when its system is configured, else None."""
     from . import adx, pi_web_api
 
-    if pi_web_api.configured() and name in pi_web_api.DATASETS:
-        return pi_web_api.DATASETS[name]()
-    if adx.configured() and name in adx.DATASETS:
-        return adx.DATASETS[name]()
+    # no catalog here (a caller without a database): only the settings say whether a live system is set
+    if name in pi_web_api.DATASETS and (cfg := pi_web_api._from_settings()).get("url"):
+        return pi_web_api.DATASETS[name](pi_web_api.Client(cfg=cfg))
+    if name in adx.DATASETS and (cfg := adx._from_settings()).get("url"):
+        return adx.DATASETS[name](adx.Client(cfg=cfg))
     return None
+
+
+def is_table_folder(folder: Path) -> bool:
+    """A folder that is itself one table: a Delta table, Parquet part files, or key=value partitions."""
+    return folder.is_dir() and ((folder / "_delta_log").is_dir() or any(folder.glob("*.parquet")) or
+                                any(p.is_dir() and "=" in p.name for p in folder.iterdir()))
 
 
 def find(data_dir: Path, name: str):
     """The connector for table `name` in data_dir, or None when it isn't there."""
     folder = data_dir / name
-    if folder.is_dir() and ((folder / "_delta_log").is_dir() or any(folder.glob("*.parquet")) or
-                            any(p.is_dir() and "=" in p.name for p in folder.iterdir())):  # key=value partitions
+    if is_table_folder(folder):
         return ParquetTable(folder)
     if (data_dir / f"{name}.parquet").is_file():
         return ParquetTable(data_dir / f"{name}.parquet")
@@ -383,7 +389,10 @@ def at(path: Path, kind: str | None = None):
 def datasets(data_dir: Path) -> list[str]:
     """Every table name in data_dir a connector can read (an Excel workbook: one per sheet). A `.json` file
     is read when a mapping names it, but isn't offered as a new table: fake plants and exports keep other
-    JSON beside their tables (manifests, process models)."""
+    JSON beside their tables (manifests, process models). Inside a Parquet or Delta table folder there are no
+    tables of their own: its part files are one table (the folder)."""
+    if is_table_folder(data_dir):
+        return []
     names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")} | \
             {p.stem for p in data_dir.glob("*.geojson")} | {p.stem for p in data_dir.glob("*.jsonl")}
     names |= {p.name for p in data_dir.iterdir() if p.is_dir() and find(data_dir, p.name)}

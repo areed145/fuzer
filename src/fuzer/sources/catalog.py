@@ -326,6 +326,53 @@ def retire(conn, name: str, by: str, retract: bool, reason: str | None = None) -
     return {**preview, "status": "retired", "retracted": retract}
 
 
+def delete_dataset(conn, name: str, by: str, reason: str | None = None) -> dict:
+    """Undo adding a dataset: its records are removed (kept in source_record_history), the mapping versions of
+    record types only it delivers are deleted, and the dataset with its runs, profiles and checks goes. For a
+    source that is just finished, retire it instead (its history stays)."""
+    d = dataset(conn, name)
+    if not d:
+        raise CatalogError(f"no dataset {name!r}")
+    preview = retire_preview(conn, name)
+    others = {p for n, x in datasets(conn).items() if n != name for p in produces(x)}
+    for source, rtype in produces(d):
+        conn.execute("insert into source_record_history (source, record_type, source_key, payload, first_seen, change) "
+                     "select source, record_type, source_key, payload, first_seen, 'removed' from source_record "
+                     "where source = %s and record_type = %s", (source, rtype))
+        conn.execute("delete from source_record where source = %s and record_type = %s", (source, rtype))
+        if (source, rtype) not in others:
+            conn.execute("delete from mapping_version where source = %s and record_type = %s", (source, rtype))
+    conn.execute("update review_item set status = 'stale' where kind in ('schema', 'check') and subject = %s "
+                 "and status = 'open'", (name,))
+    conn.execute("delete from source_dataset where id = %s", (d["id"],))
+    _audit(conn, by, "dataset", d, "delete", old={k: v for k, v in d.items() if k in DATASET_FIELDS}, reason=reason)
+    return {**preview, "deleted": name}
+
+
+def delete_connection(conn, connection_id: int, by: str, reason: str | None = None) -> dict:
+    c = connection(conn, connection_id)
+    if not c:
+        raise CatalogError(f"no connection {connection_id}")
+    used = [r["name"] for r in conn.execute("select name from source_dataset where connection_id = %s", (connection_id,))]
+    if used:
+        raise CatalogError(f"datasets read through it: {', '.join(used)}; delete them or move them first")
+    conn.execute("delete from source_connection where id = %s", (connection_id,))
+    _audit(conn, by, "connection", c, "delete", old={k: c[k] for k in CONNECTION_FIELDS}, reason=reason)
+    return {"deleted": c["name"]}
+
+
+def delete_system(conn, name: str, by: str, reason: str | None = None) -> dict:
+    s = system(conn, name)
+    if not s:
+        raise CatalogError(f"no system {name!r}")
+    used = [r["name"] for r in conn.execute("select name from source_dataset where system_id = %s", (s["id"],))]
+    if used:
+        raise CatalogError(f"it has datasets: {', '.join(used)}; delete them first")
+    conn.execute("delete from source_system where id = %s", (s["id"],))  # its connections go with it
+    _audit(conn, by, "system", s, "delete", old={k: s[k] for k in SYSTEM_FIELDS}, reason=reason)
+    return {"deleted": name}
+
+
 # ---- mapping versions ----------------------------------------------------------------------------
 
 def _parse(text: str):

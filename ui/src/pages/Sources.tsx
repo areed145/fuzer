@@ -213,18 +213,28 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
           [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</button>
       {a.error && <p className="error small">{a.error}</p>}
       <h3>Connections</h3>
-      {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} />)}
+      {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
       {adding ? (
         <ConnectionForm system={s.name} types={cat.types.connections} onDone={() => { setAdding(false); reload(); }} />
       ) : <button className="secondary" onClick={() => setAdding(true)}>+ Add a connection</button>}
+      {s.datasets.length === 0 && (
+        <p className="small">
+          <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete system ${s.name} and its connections?`) &&
+            a.run("delsys", () => api.deleteSystem(s.name, reviewer()), reload)}>Delete this system</button>
+          <span className="muted"> (it has no datasets)</span>
+        </p>
+      )}
     </details>
   );
 }
 
-function ConnectionRow({ c, system }: { c: CatalogConnection; system: string }) {
+function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: string; reload: () => void }) {
   const a = useAction();
   const [test, setTest] = useState(c.last_test);
   const [found, setFound] = useState<{ table: string; dataset: string | null }[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [cfg, setCfg] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(c.config).map(([k, v]) => [k, v == null ? "" : String(v)])));
   return (
     <div className="small conn">
       <code>{c.name}</code> {c.type} <span className="muted">{JSON.stringify(c.config)}</span>{" "}
@@ -236,6 +246,24 @@ function ConnectionRow({ c, system }: { c: CatalogConnection; system: string }) 
         {a.busy === "test" ? "testing…" : "test"}</button>
       <button className="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
         what it holds</button>
+      <button className="link" onClick={() => setEditing(!editing)}>edit</button>
+      <button className="link" disabled={!!a.busy} onClick={() => confirm(`Delete connection ${c.name}?`) &&
+        a.run("del", () => api.deleteConnection(c.id, reviewer()), reload)}>delete</button>
+      {editing && (
+        <div className="row wrap">
+          {Object.keys({ ...(c.type === "folder" ? { path: "" } : {}), ...c.config }).map((k) => (
+            <label key={k} className="small">{k}{" "}
+              <input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+                placeholder={k === "path" ? "the folder holding the tables, or one Delta / Parquet table folder" : ""}
+                style={{ width: k === "path" ? "36em" : "14em" }} />
+            </label>
+          ))}
+          <button className="primary" disabled={!!a.busy}
+            onClick={() => a.run("save", () => api.editConnection(c.id, {
+              config: Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== "")) }, reviewer()),
+              () => { setEditing(false); setFound(null); reload(); })}>Save</button>
+        </div>
+      )}
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {found && <TableList tables={found} system={system} connection={c.id} />}
       {a.error && <span className="error"> {a.error}</span>}
@@ -303,7 +331,7 @@ function ConnectionForm({ system, types, onDone }: { system: string; types: Cata
             <tr key={k}>
               <th>{k}{dflt === null ? " *" : ""}</th>
               <td><input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
-                placeholder={k === "path" ? "absolute, or relative to the project's data folder; empty: the data folder itself"
+                placeholder={k === "path" ? "the folder holding the tables (absolute, or relative to the data folder); empty: the data folder"
                   : dflt === null ? "required" : `default ${String(dflt) || "none"}`} /></td>
             </tr>
           ))}
@@ -331,7 +359,7 @@ function DatasetPanel({ name, tab, onChanged }: { name: string; tab: Tab; onChan
           · {x.dataset.status}</span> <HealthBadge h={x.health} />{" "}
         <a className="small" href={href("/sources", { view: "datasets" })}>close</a>
       </h2>
-      {x.health && x.health.problems.length > 0 && <p className="error small">{x.health.problems.join(", ")}</p>}
+      <LastLoad d={x} reload={reload} />
       <div className="tabs">
         {TABS.map((t) => (
           <a key={t} className={tab === t ? "on" : ""} href={href("/sources", { view: "datasets", name, tab: t })}>
@@ -453,8 +481,62 @@ function ConnectionTab({ d, reload }: { d: DatasetDetail; reload: () => void }) 
         )}
       </div>
       {d.dataset.status !== "retired" && <RetireBox d={d} reload={reload} />}
+      <DeleteBox d={d} />
       {a.error && <p className="error small">{a.error}</p>}
     </>
+  );
+}
+
+/** Why the last load didn't go through, and a button to load again once it's fixed. */
+function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
+  const a = useAction();
+  const [done, setDone] = useState<SourceLoad | null>(null);
+  const last = d.runs[0];
+  const stuck = last && (last.status === "held" || last.status === "failed");
+  const problems = d.health?.problems ?? [];
+  if (!stuck && !problems.length && !done) return null;
+  const checks = (last?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
+  return (
+    <div className={`notice small${stuck ? "" : " quiet"}`}>
+      {stuck && last.status === "failed" && <p>The last load failed: {last.error}</p>}
+      {stuck && last.status === "held" && (
+        <p>
+          The last load ({when(last.finished_at)}) was held, so its records weren't changed:{" "}
+          {checks ? checks.map((c) => c.kind === "duplicate keys"
+            ? `the export repeats ${c.value} key${c.value === 1 ? "" : "s"} (${(c.detail?.examples ?? []).join(", ")})`
+            : `the ${c.kind} check failed (${c.value})`).join("; ")
+            : <>its columns changed (answer it on <a href={href("/review", { kind: "schema" })}>Review</a>)</>}.
+          {" "}Fix it (the export, the key on this tab, or the check), then load again.
+        </p>
+      )}
+      {!stuck && problems.length > 0 && <p>Needs a look: {problems.join(", ")}.</p>}
+      <div className="row">
+        <button className="primary" disabled={!!a.busy}
+          onClick={() => a.run("run", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>
+          {a.busy ? "Loading…" : "Load again"}</button>
+        {done && <Loaded r={done} />}
+      </div>
+      {a.error && <p className="error">{a.error}</p>}
+    </div>
+  );
+}
+
+function DeleteBox({ d }: { d: DatasetDetail }) {
+  const a = useAction();
+  const p = d.retire_preview;
+  return (
+    <details>
+      <summary className="small">Delete this dataset</summary>
+      <p className="small">
+        Undo adding it: its {p.records.toLocaleString()} records, its runs, profiles and checks, and its mapping (when no
+        other dataset uses it) go. The change is kept in the history. To stop a source you've been using, retire it instead.
+      </p>
+      <button className="secondary" disabled={!!a.busy}
+        onClick={() => confirm(`Delete ${d.dataset.name} and its ${p.records} records?`) &&
+          a.run("delete", () => api.deleteDataset(d.dataset.name, reviewer()),
+            () => { location.hash = href("/sources", { view: "datasets" }); })}>Delete {d.dataset.name}</button>
+      {a.error && <p className="error small">{a.error}</p>}
+    </details>
   );
 }
 
@@ -1035,6 +1117,7 @@ function AddResult({ r }: { r: AddTableResult }) {
           </ul>
         </>
       )}
+      {held && <LoadAgain name={r.dataset} />}
       <p className="small">
         <a href={open("connection")}>Open the dataset</a> · <a href={open("runs")}>Runs</a> · <a href={open("profile")}>Profile</a>
         {" "}· <a href={open("checks")}>Add checks</a> · <a href={href("/sources", { view: "add" })}>Add another source</a>
@@ -1052,5 +1135,20 @@ function Loaded({ r }: { r: SourceLoad }) {
       Loaded {r.records.toLocaleString()} records ({r.inserted} new, {r.updated} changed, {r.removed} removed). They
       become entities on the next rebuild.
     </p>
+  );
+}
+
+
+function LoadAgain({ name }: { name: string }) {
+  const a = useAction();
+  const [done, setDone] = useState<SourceLoad | null>(null);
+  return (
+    <div className="row">
+      <button className="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(name, true), setDone)}>
+        {a.busy ? "Loading…" : "Load again"}</button>
+      <span className="small muted">after fixing it</span>
+      {done && <Loaded r={done} />}
+      {a.error && <span className="error small">{a.error}</span>}
+    </div>
   );
 }

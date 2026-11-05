@@ -330,6 +330,28 @@ def retire(name: str, body: Retire, conn=Depends(get_conn)):
     return _do(conn, catalog.retire, conn, name, body.by, body.retract, body.reason)
 
 
+@router.delete("/datasets/{name}")
+def delete_dataset(name: str, by: str = "anonymous", reason: str | None = None, conn=Depends(get_conn)):
+    """Undo adding a dataset: its records, its mapping (when nothing else uses it) and the dataset go."""
+    from ..sources import catalog
+
+    return _do(conn, catalog.delete_dataset, conn, name, by, reason)
+
+
+@router.delete("/connections/{cid}")
+def delete_connection(cid: int, by: str = "anonymous", reason: str | None = None, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.delete_connection, conn, cid, by, reason)
+
+
+@router.delete("/systems/{name}")
+def delete_system(name: str, by: str = "anonymous", reason: str | None = None, conn=Depends(get_conn)):
+    from ..sources import catalog
+
+    return _do(conn, catalog.delete_system, conn, name, by, reason)
+
+
 @router.post("/datasets/{name}/profile")
 def profile(name: str, conn=Depends(get_conn)):
     from ..sources import quality
