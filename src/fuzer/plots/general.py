@@ -303,7 +303,7 @@ def loss_waterfall(conn, since: str, until: str, pack=None) -> Figure:
     from ..analysis import value
     from ..graph import operations
 
-    days = operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+    days = operations._rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                             {"s": since, "u": until})
     if not days:
         raise ChartError("no DAY001 reports in that period")
@@ -368,7 +368,7 @@ def flare(conn, since: str, until: str) -> Figure:
     """Daily flare and lift gas from DAY001, and the flare's CO2 per barrel of oil (an estimate)."""
     from ..graph import operations
 
-    days = sorted(operations._rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+    days = sorted(operations._rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                                    {"s": since, "u": until}), key=lambda d: d["f"]["report_date"])
     if not days:
         raise ChartError("no DAY001 reports in that period")

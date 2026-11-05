@@ -65,7 +65,7 @@
   --kind-notification: #c0392b;
   --kind-work_order: #7f8c3d;
   --kind-downtime: #e67e22;
-  --kind-daily_report: #95a5a6;
+  --kind-production_day: #95a5a6;
   --kind-incident: #8e44ad;
   --kind-document_section: #a5b1c2;
   --kind-activity: #16a085;
@@ -131,7 +131,7 @@
     --kind-notification: #ff7771;
     --kind-work_order: #c2cc76;
     --kind-downtime: #f5a13d;
-    --kind-daily_report: #bac7c8;
+    --kind-production_day: #bac7c8;
     --kind-incident: #c49be8;
     --kind-document_section: #c4cfdf;
     --kind-activity: #48c9b0;
@@ -319,6 +319,8 @@ main { width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; 
 @keyframes pulse { 50% { opacity: 0.55; } }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 .badge.key { background: var(--bg); border: 1px solid var(--line); }
+.badge.warn { background: var(--warn-soft); color: var(--text); }
+.badge.on { outline: 2px solid var(--accent); outline-offset: 1px; }
 .kind-tag { background: #e6f0fb; color: #0b4f99; }
 .kind-equipment { background: #fdeee0; color: #8a4a0b; }
 .kind-timeseries { background: #e9f6ef; color: #1a6b41; }

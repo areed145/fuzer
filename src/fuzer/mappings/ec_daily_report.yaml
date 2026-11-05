@@ -5,7 +5,7 @@ shape: events
 dataset: ec_day001
 key: report_date
 entity:
-  kind: daily_report
+  kind: production_day
   fields:
     - report_date
     - comments

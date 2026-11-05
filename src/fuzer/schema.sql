@@ -1105,3 +1105,16 @@ create table if not exists ontology_audit (
     reason text
 );
 create index if not exists ontology_audit_of on ontology_audit (object, name, id desc);
+
+-- #242: the EC DAY001 record of a day's allocated production is the `production_day` kind ("daily report" is the
+-- drafted narrative in daily_ops_report). Renamed in place so Fuzer IDs stay; idempotent.
+update entity set kind = 'production_day' where kind = 'daily_report';
+update entity_key set kind = 'production_day' where kind = 'daily_report';
+update ontology_kind set name = 'production_day' where name = 'daily_report'
+    and not exists (select 1 from ontology_kind where name = 'production_day');
+delete from ontology_kind where name = 'daily_report' and status = 'core';
+update ontology_relation set from_kinds = array_replace(from_kinds, 'daily_report', 'production_day'),
+    to_kinds = array_replace(to_kinds, 'daily_report', 'production_day')
+    where 'daily_report' = any(from_kinds) or 'daily_report' = any(to_kinds);
+update register_summary set value = replace(value::text, '"daily_report"', '"production_day"')::jsonb
+    where name = 'ontology' and value::text like '%"daily_report"%';

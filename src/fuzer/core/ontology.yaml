@@ -73,8 +73,8 @@ kinds:
     group: Production
     colour: "#c4a000"
     description: A node in the Energy Components allocation network.
-  daily_report:
-    label: Daily production record
+  production_day:
+    label: Production day
     group: Production
     colour: "#95a5a6"
     description: The Energy Components DAY001 record of a day's allocated production.
@@ -245,7 +245,7 @@ relations:
     label: reports
     view: events
     description: A log entry or record and the event it reports.
-    from: [log_entry, downtime, daily_report]
+    from: [log_entry, downtime, production_day]
     to: [event]
   involves:
     label: involves
@@ -286,8 +286,8 @@ relations:
   reports_on:
     label: reports on
     view: production
-    description: A daily production record and the facility it is for.
-    from: [daily_report]
+    description: A production day and the facility it is for.
+    from: [production_day]
     to: [facility]
   about:
     label: about

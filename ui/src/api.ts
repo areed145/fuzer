@@ -898,6 +898,22 @@ export interface DailyReport {
   usage: { cost_usd?: number } | null;
   seconds: number | null;
   item_id: number | null;
+  /** Where the day's review stands (#242), with the open step to act on. */
+  review: DailyReview | null;
+  /** The EC DAY001 record behind it. */
+  production_day: string | null;
+}
+
+export type DailyStatus = "drafting" | "awaiting review" | "sent back" | "published" | "needs a fix" | "no review" | string;
+
+export interface DailyReview {
+  item_id: number;
+  status: DailyStatus;
+  outcome: string | null;
+  closed_at: string | null;
+  comments: string | null;
+  step: { id: number; element: string; name: string | null; kind: string; assignee: string | null; role: string | null;
+    due_at: string | null; error: string | null } | null;
 }
 
 export interface ArchComponent {
@@ -1271,7 +1287,8 @@ export const api = {
     request<unknown>("POST", "/board/pins", undefined, { key, by, reason, rank: rank ?? null, value_usd: value_usd ?? null }),
   boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
     request<unknown>("POST", "/board/projects", undefined, p),
-  dailyReports: () => request<{ day: string; version: number; drafted_by: string; ok: boolean }[]>("GET", "/reports/daily"),
+  dailyReports: () => request<{ day: string; version: number; drafted_by: string; ok: boolean; item_id: number | null;
+    status: DailyStatus }[]>("GET", "/reports/daily"),
   dailyReport: (day: string, version?: number) => request<DailyReport>("GET", `/reports/daily/${day}`, { version }),
   studies: () => request<Study[]>("GET", "/studies"),
   study: (id: number) => request<Study>("GET", `/studies/${id}`),

@@ -20,7 +20,7 @@ def as_of(conn) -> str:
     row = conn.execute(
         """
         select max(g.value #>> '{}') as d from golden g join entity e on e.fuzer_id = g.fuzer_id
-        where e.kind = 'daily_report' and g.field = 'report_date'
+        where e.kind = 'production_day' and g.field = 'report_date'
         """
     ).fetchone()
     return row["d"] or date.today().isoformat()
@@ -79,7 +79,7 @@ def production_summary(conn, since: str | None = None, until: str | None = None,
     """Oil actual against potential (production efficiency), gas export, lift gas and flare per month or
     week, with deferred oil by reason from downtime. Default: the last 12 months."""
     since, until = _window(conn, since, until)
-    days = _rows(conn, "daily_report", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+    days = _rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                  {"s": since, "u": until})
     period = (lambda d: d[:7]) if by == "month" else (
         lambda d: (date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())).isoformat())
