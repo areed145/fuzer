@@ -202,7 +202,7 @@ function CheckRow({ c }: { c: JobCheck }) {
           <div className="examples">
             {examples.slice(0, 8).map((ex, i) => {
               const label = exampleLabel(ex);
-              return label ? <a key={i} href={href("/", { q: label })}>{label}</a> : <code key={i}>{JSON.stringify(ex).slice(0, 60)}</code>;
+              return label ? <a key={i} href={href("/browse", { q: label })}>{label}</a> : <code key={i}>{JSON.stringify(ex).slice(0, 60)}</code>;
             })}
             {examples.length > 8 && <span className="muted">+{examples.length - 8} more</span>}
           </div>

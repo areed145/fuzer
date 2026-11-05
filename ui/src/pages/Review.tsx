@@ -73,7 +73,11 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
-      <PageHeader>Review</PageHeader>
+      <PageHeader subtitle={<>
+        Register data waiting for a person's decision: records that may be the same thing, sources that disagree on a
+        value, and tables whose columns changed. Each decision is kept and applied on the next rebuild. Workflow steps
+        waiting on you are in your <a href={href("/inbox")}>Inbox</a>.
+      </>}>Data review</PageHeader>
       <div className="row spread">
         <div className="tabs">
           <a className={kind === "match" ? "on" : ""} href={href("/review", { kind: "match" })}>

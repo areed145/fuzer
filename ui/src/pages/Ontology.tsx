@@ -227,7 +227,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
             </li>
           ))}
         </ul>
-        <a href={href("/", { kind: kind.kind })}>Browse all {words(kind.kind)} →</a>
+        <a href={href("/browse", { kind: kind.kind })}>Browse all {words(kind.kind)} →</a>
       </>
     );
   }

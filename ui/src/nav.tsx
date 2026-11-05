@@ -12,6 +12,8 @@ export interface NavItem {
   /** Other first segments that count as this page (entity pages belong to Browse). */
   also?: string[];
   badge?: Badge;
+  /** A link out of the app (opens in a new tab) instead of a page. */
+  external?: string;
 }
 
 export interface NavGroup {
@@ -28,16 +30,15 @@ export const NAV: NavGroup[] = [
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
-      { label: "Ontology", section: "ontology" },
     ],
   },
   {
     label: "Operations",
     items: [
-      { label: "Priorities", section: "board" },
+      { label: "Work board", section: "board" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
-      { label: "Reports", section: "reports" },
+      { label: "Daily reports", section: "reports" },
     ],
   },
   {
@@ -55,16 +56,17 @@ export const NAV: NavGroup[] = [
       { label: "Cases", section: "cases" },
       { label: "Processes", section: "processes" },
       { label: "Teams & routing", section: "teams" },
-      { label: "Review", section: "review", badge: "review" },
     ],
   },
   {
     label: "Admin",
     items: [
-      { label: "Jobs", section: "jobs" },
+      { label: "Ontology", section: "ontology" },
+      { label: "Data review", section: "review", badge: "review" },
       { label: "Sources", section: "sources" },
+      { label: "Jobs", section: "jobs" },
       { label: "Settings", section: "settings" },
-      { label: "Architecture", section: "architecture" },
+      { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },
 ];
@@ -132,11 +134,12 @@ export function Sidebar({ section, badges, status }: {
                   return (
                     <li key={item.label}>
                       <a
-                        href={href(`/${item.section}`)}
+                        href={item.external ?? href(`/${item.section}`)}
                         className={on ? "on" : undefined}
                         aria-current={on ? "page" : undefined}
+                        {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
-                        <span>{item.label}</span>
+                        <span>{item.label}{item.external && <span aria-hidden="true"> ↗</span>}</span>
                         {count > 0 && <span className="count">{count}</span>}
                       </a>
                     </li>

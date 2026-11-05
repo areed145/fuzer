@@ -1,7 +1,7 @@
 import { Bar, PageHeader } from "../ui";
 import { useState } from "react";
 import { api, type RankRow } from "../api";
-import { Status, entityHref, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync } from "../lib";
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
@@ -21,7 +21,9 @@ export function DowntimePage() {
           <PageHeader>Downtime</PageHeader>
           <p className="muted">
             Lost production from Energy Components downtime records, ranked by what caused it. Causes come from the
-            equipment named in each record's comment.
+            equipment named in each record's comment. The same records grouped with events and notifications into
+            upsets per unit are under <a href={href("/incidents")}>Incidents</a>; each day's story is
+            in <a href={href("/reports")}>Daily reports</a>.
           </p>
         </div>
         <label className="asof">
