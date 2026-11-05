@@ -391,7 +391,7 @@ def datasets(data_dir: Path) -> list[str]:
     is read when a mapping names it, but isn't offered as a new table: fake plants and exports keep other
     JSON beside their tables (manifests, process models). Inside a Parquet or Delta table folder there are no
     tables of their own: its part files are one table (the folder)."""
-    if is_table_folder(data_dir):
+    if not data_dir.is_dir() or is_table_folder(data_dir):
         return []
     names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")} | \
             {p.stem for p in data_dir.glob("*.geojson")} | {p.stem for p in data_dir.glob("*.jsonl")}

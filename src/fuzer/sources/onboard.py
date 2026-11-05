@@ -54,7 +54,10 @@ def _covered(conn, c: dict) -> dict[str, str]:
 def tables(conn, connection_id: int, data_dir) -> dict:
     """What a connection holds: each table with the dataset that covers it (None: not loaded yet), new ones first."""
     c = _connection(conn, connection_id)
-    found = connections.open_(c).discover(Path(data_dir))
+    try:
+        found = connections.open_(c).discover(Path(data_dir))
+    except connections.ConnectionError_ as e:
+        raise OnboardError(str(e)) from e
     cov = _covered(conn, c)
     rows = [{"table": t, "dataset": cov.get(t)} for t in found]
     return {"connection": c["name"], "system": c["system"], "type": c["type"],

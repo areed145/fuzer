@@ -2,6 +2,7 @@
 profiles, health and history; test and discover a connection, preview a mapping change, run, pause and
 retire a dataset. Every change takes `by` (who) and `reason` (kept in the audit log)."""
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -205,16 +206,32 @@ def edit_system(name: str, body: Change, conn=Depends(get_conn)):
     return _do(conn, catalog.update_system, conn, name, body.by, body.reason, **body.values)
 
 
+def _folder_exists(type_: str, config: dict) -> None:
+    """A folder connection must point at a folder that is there (a typo otherwise only shows up later)."""
+    from ..sources import connections
+
+    if type_ == "folder":
+        try:
+            connections.Folder(config or {}, {}).check_path(Path(_data_dir()))
+        except connections.ConnectionError_ as e:
+            raise HTTPException(400, str(e)) from e
+
+
 @router.post("/systems/{name}/connections")
 def add_connection(name: str, body: NewConnection, conn=Depends(get_conn)):
     from ..sources import catalog
 
+    _folder_exists(body.type, body.config)
     return _do(conn, catalog.add_connection, conn, name, body.name, body.type, body.by, body.config, body.secrets, body.reason)
 
 
 @router.patch("/connections/{cid}")
 def edit_connection(cid: int, body: Change, conn=Depends(get_conn)):
     from ..sources import catalog
+
+    old = catalog.connection(conn, cid) or {}
+    if "config" in body.values:
+        _folder_exists(body.values.get("type", old.get("type")), body.values["config"])
 
     return _do(conn, catalog.update_connection, conn, cid, body.by, body.reason, **body.values)
 
@@ -251,7 +268,7 @@ def connection_tables(cid: int, conn=Depends(get_conn)):
     try:
         return onboard.tables(conn, cid, _data_dir())
     except onboard.OnboardError as e:
-        raise HTTPException(404, str(e)) from e
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/connections/{cid}/tables/{table}")

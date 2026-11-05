@@ -251,3 +251,23 @@ def test_column_mapper_api(client):
     assert "[sap_number, equnr]" in out and out.startswith("#")
     bad = client.post("/sources/mapper/yaml", json={"form": {**f, "shape": "nope"}, "yaml": text})
     assert bad.status_code == 400
+
+
+def test_folder_paths(client, okan_data, tmp_path, monkeypatch):
+    """A relative folder path is found in the data folder, else the repository, else the working folder; a folder
+    that isn't there is refused when the connection is saved, and a connection whose folder went away says so."""
+    from fakeplant import schedules
+
+    lake = tmp_path / "lake"
+    schedules.write(okan_data, lake)
+    monkeypatch.chdir(tmp_path)  # "lake" is relative to the working folder, not the data folder
+    ok(client.post("/sources/systems", json={"name": "paths", "by": "ana"}))
+    c = ok(client.post("/sources/systems/paths/connections",
+                       json={"name": "rel", "type": "folder", "config": {"path": "lake"}, "by": "ana"}))
+    assert ok(client.get(f"/sources/connections/{c['id']}/tables"))["tables"][0]["table"] == "project_schedules"
+    bad = client.post("/sources/systems/paths/connections",
+                      json={"name": "typo", "type": "folder", "config": {"path": "no/such/lake"}, "by": "ana"})
+    assert bad.status_code == 400 and "no folder" in bad.json()["detail"]
+    shutil.rmtree(lake)
+    gone = client.get(f"/sources/connections/{c['id']}/tables")
+    assert gone.status_code == 400 and "no folder" in gone.json()["detail"]

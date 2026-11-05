@@ -112,7 +112,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
           {Object.keys({ ...(c.type === "folder" ? { path: "" } : {}), ...c.config }).map((k) => (
             <label key={k} className="small">{k}{" "}
               <input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
-                placeholder={k === "path" ? "the folder holding the tables, or one Delta / Parquet table folder" : ""}
+                placeholder={k === "path" ? "absolute, or relative to the data folder or the repository (or one Delta / Parquet table folder)" : ""}
                 style={{ width: k === "path" ? "36em" : "14em" }} />
             </label>
           ))}
@@ -178,7 +178,7 @@ export function ConnectionForm({ system, types, onDone }: { system: string; type
             <tr key={k}>
               <th>{k}{dflt === null ? " *" : ""}</th>
               <td><input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
-                placeholder={k === "path" ? "the folder holding the tables (absolute, or relative to the data folder); empty: the data folder"
+                placeholder={k === "path" ? "the folder holding the tables: absolute, or relative to the data folder or the repository; empty: the data folder"
                   : dflt === null ? "required" : `default ${String(dflt) || "none"}`} /></td>
             </tr>
           ))}
