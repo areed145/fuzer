@@ -1065,3 +1065,43 @@ create table if not exists project (
     updated_by text not null,
     updated_at timestamptz not null default now()
 );
+
+-- The data model as data (#241): entity kinds and link types. core/ontology.yaml seeds the core rows; a
+-- person's edit (edited) is kept over a later change to the file. from_kinds / to_kinds empty means any kind.
+create table if not exists ontology_kind (
+    name        text primary key,
+    label       text not null,
+    description text not null default '',
+    "group"     text,
+    colour      text,
+    label_field text,
+    status      text not null default 'custom' check (status in ('core', 'custom', 'draft')),
+    edited      boolean not null default false,
+    updated_by  text not null,
+    updated_at  timestamptz not null default now()
+);
+create table if not exists ontology_relation (
+    name        text primary key,
+    label       text not null,
+    description text not null default '',
+    view        text,
+    dated       boolean not null default false,
+    from_kinds  text[] not null default '{}',
+    to_kinds    text[] not null default '{}',
+    status      text not null default 'custom' check (status in ('core', 'custom', 'draft')),
+    edited      boolean not null default false,
+    updated_by  text not null,
+    updated_at  timestamptz not null default now()
+);
+create table if not exists ontology_audit (
+    id     bigserial primary key,
+    at     timestamptz not null default now(),
+    by     text not null,
+    object text not null,                       -- kind | relation
+    name   text not null,
+    action text not null,                       -- create | update | delete | rename
+    old    jsonb,
+    new    jsonb,
+    reason text
+);
+create index if not exists ontology_audit_of on ontology_audit (object, name, id desc);

@@ -2,6 +2,21 @@
 
 The entity kinds, how they link and the tables that hold them.
 
+## The ontology is data (#241)
+
+Entity kinds and link types are declared in the database (`ontology_kind`, `ontology_relation`), not only
+implied by what the mappings happen to produce. Fuzer ships its model in `src/fuzer/core/ontology.yaml`
+(status `core`), seeded whenever the schema is applied; a person's edit to a core kind or link type is kept
+over a later change to the file. A project adds its own (`custom`), and a kind made while writing a mapping,
+before anyone has described it, is a `draft`.
+
+Each kind has a label, description, group and colour; each link type a label, description, view, whether it
+is dated, and the kinds allowed at each end (none listed means any). `GET /ontology` returns the register's
+kinds and links next to what is declared, and what needs a definition: kinds and link types nobody declared,
+and links between kinds their link type doesn't allow. Every change is kept in `ontology_audit` with who and
+why. Renaming a custom kind rewrites the register (Fuzer IDs stay) and gives each mapping that makes it a new
+approved version; core kinds are used by name in the code and are renamed in a release.
+
 ## Tags are not equipment
 A **tag** (functional location, e.g. `20-P-1001B`) is a position in the process.
 **Equipment** is the physical item installed there (the pump with serial
