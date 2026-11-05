@@ -92,7 +92,6 @@ flowchart LR
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
   src_sap[/"sap"/]
-  kind_daily_report(["daily_report"])
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
@@ -103,14 +102,15 @@ flowchart LR
   kind_notification(["notification"])
   kind_pipeline(["pipeline"])
   kind_plant_hierarchy__facility__area__tag__well(["plant hierarchy: facility, area, tag, well"])
+  kind_production_day(["production_day"])
   kind_timeseries(["timeseries"])
   kind_well(["well"])
   kind_well_test(["well_test"])
   kind_work_order(["work_order"])
   src_adx --> kind_timeseries
-  src_ec --> kind_daily_report
   src_ec --> kind_downtime
   src_ec --> kind_plant_hierarchy__facility__area__tag__well
+  src_ec --> kind_production_day
   src_ec --> kind_well_test
   src_edms --> kind_document
   src_edms --> kind_document_section

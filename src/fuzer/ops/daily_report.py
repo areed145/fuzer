@@ -54,7 +54,7 @@ def _day001(conn, d: str) -> dict | None:
     r = conn.execute(
         """
         select e.fuzer_id as id, jsonb_object_agg(g.field, g.value) as f from entity e join golden g using (fuzer_id)
-        where e.kind = 'daily_report' group by 1 having jsonb_object_agg(g.field, g.value) ->> 'report_date' = %s
+        where e.kind = 'production_day' group by 1 having jsonb_object_agg(g.field, g.value) ->> 'report_date' = %s
         """, (d,)).fetchone()
     return {"id": r["id"], **{k: v for k, v in r["f"].items()}} if r else None
 
@@ -247,6 +247,9 @@ def _val(n: str) -> float:
     return round(abs(float(n.replace(",", ""))), 1)
 
 
+HEADING = re.compile(r"^\*\*\s*\d+\.\s+[^*\[\]]+\*\*\s*(nothing to report\.?)?$", re.IGNORECASE)
+
+
 def check(markdown: str, f: dict) -> dict:
     """Lines with no citation, citations that aren't in the facts, and numbers that aren't in the facts."""
     allowed = {c for xs in f["sections"].values() for x in xs for c in x["cites"]}
@@ -259,6 +262,8 @@ def check(markdown: str, f: dict) -> dict:
     for line in markdown.splitlines():
         s = line.strip()
         if not s or s.startswith("#") or s == "- Nothing to report." or s.lower().startswith("nothing to report"):
+            continue
+        if HEADING.match(s):  # a section heading written in bold instead of with # (Claude does both)
             continue
         cites = [c.strip() for m in CITE.findall(s) for c in m.split(",")]
         if not cites:
@@ -349,16 +354,71 @@ def get(conn, day: str, version: int | None = None) -> dict | None:
     if not r:
         return None
     versions = [v["version"] for v in conn.execute("select version from daily_ops_report where day = %s order by version", (day,))]
-    return _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "checks", "drafted_by", "changes",
-                                     "usage", "seconds", "item_id", "created_at")} | {"versions": versions})
+    item = conn.execute("select item_id from daily_ops_report where day = %s and item_id is not null "
+                        "order by version desc limit 1", (day,)).fetchone()
+    review = _reviews(conn, [item["item_id"]]).get(item["item_id"]) if item else None
+    prod = _day001(conn, str(day))
+    return _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "drafted_by", "changes", "usage", "seconds",
+                                     "item_id", "created_at")} | {"checks": _recheck(r), "versions": versions, "review": review,
+                                                                  "production_day": prod["id"] if prod else None})
 
 
 def days(conn, limit: int = 30) -> list[dict]:
-    return [_plain(dict(r)) for r in conn.execute(
+    """Days with a report, newest first, each with its latest version and where its review stands (#242)."""
+    rows = [_plain({k: r[k] for k in ("day", "version", "drafted_by", "created_at", "item_id")} | {"ok": _recheck(r)["ok"]})
+            for r in conn.execute(
         """
-        select distinct on (day) day, version, drafted_by, (checks ->> 'ok')::boolean as ok, created_at
-        from daily_ops_report order by day desc, version desc limit %s
+        select distinct on (day) day, version, drafted_by, markdown, facts, checks, created_at,
+               (select item_id from daily_ops_report x where x.day = r.day and x.item_id is not null
+                order by version desc limit 1) as item_id
+        from daily_ops_report r order by day desc, version desc limit %s
         """, (limit,))]
+    reviews = _reviews(conn, [r["item_id"] for r in rows if r["item_id"]])
+    return [r | {"status": (reviews.get(r["item_id"]) or {}).get("status", "no review")} for r in rows]
+
+
+def _recheck(r) -> dict:
+    """The stored draft checked again, so a fix to `check` shows on drafts made before it."""
+    try:
+        return check(r["markdown"], r["facts"]) if r.get("facts") and r.get("markdown") else r["checks"]
+    except (KeyError, TypeError):
+        return r["checks"]
+
+
+def _reviews(conn, item_ids: list[int]) -> dict[int, dict]:
+    """Where each report's `daily_report` case stands: drafting (the reporter agent has it), awaiting review,
+    sent back (being redrafted with the reviewer's comments), published or closed; with the open step, so the
+    Reports page can review it in place."""
+    if not item_ids:
+        return {}
+    items = {r["id"]: r for r in conn.execute("select id, state, outcome, closed_at from work_item where id = any(%s)",
+                                               (item_ids,))}
+    steps = {}
+    for t in conn.execute(
+            """select distinct on (t.item_id) t.item_id, t.id, t.element, t.name, t.kind, t.assignee, t.role, t.due_at,
+                      t.error, p.data ->> 'review_comments' as comments
+               from work_token t join work_process p on p.id = t.process_id
+               where t.item_id = any(%s) and t.state = 'waiting' and t.kind in ('user', 'agent', 'fix')
+               order by t.item_id, t.id desc""", (item_ids,)):
+        steps[t["item_id"]] = dict(t)
+    out = {}
+    for i, it in items.items():
+        step = steps.get(i)
+        if it["closed_at"]:
+            status = "published" if (it["outcome"] or "").lower() == "published" else it["state"]
+        elif step and step["kind"] == "user":
+            status = "awaiting review"
+        elif step and step["kind"] == "agent":
+            status = "sent back" if step["comments"] else "drafting"
+        elif step:
+            status = "needs a fix"
+        else:
+            status = it["state"]
+        out[i] = _plain({"item_id": i, "status": status, "outcome": it["outcome"], "closed_at": it["closed_at"],
+                         "comments": step["comments"] if step else None,
+                         "step": {k: step[k] for k in ("id", "element", "name", "kind", "assignee", "role", "due_at", "error")}
+                         if step else None})
+    return out
 
 
 def _plain(x):

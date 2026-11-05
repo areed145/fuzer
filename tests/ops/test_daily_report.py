@@ -2,6 +2,7 @@
 late records make a new version with what changed; Claude's draft (a recorded one here) is checked for
 uncited lines and numbers not in the records; the reporter step and the tools."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
@@ -100,6 +101,9 @@ def test_claude_draft_is_checked(conn):
     c = daily_report.check(bad, r and daily_report.latest(conn, "2024-11-05")["facts"])
     assert c["uncited_lines"] == ["- Production will recover to 7,600 Sm3 tomorrow."]
     assert c["unknown_citations"] == ["fz-made-up-0123456789"] and set(c["unknown_numbers"]) == {"7,600", "6,123"}
+    bold = re.sub(r"(?m)^## (\d+\. .+)$", r"**\1**", good)  # headings in bold, as Claude sometimes writes them
+    assert bold != good and daily_report.check(bold, daily_report.latest(conn, "2024-11-05")["facts"])["ok"]
+    assert daily_report.check("**Oil was fine**", daily_report.latest(conn, "2024-11-05")["facts"])["uncited_lines"]
 
 
 def test_reporter_step_and_tools(conn, monkeypatch):
@@ -126,3 +130,26 @@ def test_reporter_step_and_tools(conn, monkeypatch):
     client = TestClient(api.app)
     assert client.get("/reports/daily").json()[0]["day"] == "2025-12-30"
     assert client.get("/reports/daily/1999-01-01").status_code == 404
+
+    # #242: the Reports page shows where each day's review stands and reviews it in place
+    statuses = {d["day"]: d["status"] for d in client.get("/reports/daily").json()}
+    assert statuses[day] == "awaiting review"
+    rv = client.get(f"/reports/daily/{day}").json()["review"]
+    assert rv["status"] == "awaiting review" and rv["step"]["element"] == "review" and rv["step"]["kind"] == "user"
+    task = rv["step"]["id"]
+    assert client.post(f"/work/tasks/{task}/claim", json={"by": "olga"}).status_code == 200
+    r = client.post(f"/work/tasks/{task}/complete", json={"by": "olga", "data": {
+        "review_decision": "revise", "review_comments": "lead with the trip"}})
+    assert r.status_code == 200, r.text
+    rv = client.get(f"/reports/daily/{day}").json()["review"]
+    assert rv["status"] == "sent back" and rv["comments"] == "lead with the trip" and rv["step"]["kind"] == "agent"
+    while worker.run_once(conn, {"reporter": daily_report.reporter_agent}):
+        pass
+    rv = client.get(f"/reports/daily/{day}").json()["review"]
+    assert rv["status"] == "awaiting review"
+    task = rv["step"]["id"]
+    client.post(f"/work/tasks/{task}/claim", json={"by": "olga"}).raise_for_status()
+    client.post(f"/work/tasks/{task}/complete", json={"by": "olga", "data": {"review_decision": "publish"}}).raise_for_status()
+    rv = client.get(f"/reports/daily/{day}").json()["review"]
+    assert rv["status"] == "published" and rv["step"] is None
+    assert {d["day"]: d["status"] for d in client.get("/reports/daily").json()}[day] == "published"
