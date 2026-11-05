@@ -49,7 +49,7 @@ function Report({ day }: { day: string }) {
               <span>drafted by {d.drafted_by}</span>
               {d.usage?.cost_usd !== undefined && <span>${d.usage.cost_usd.toFixed(2)}</span>}
               {d.seconds !== null && <span>{d.seconds} s</span>}
-              {d.item_id && <a href={href(`/work/item/${d.item_id}`)}>review in Work</a>}
+              {d.item_id && <a href={href(`/cases/${d.item_id}`)}>review in Work</a>}
             </div>
             <Markdown text={d.markdown} />
           </section>

@@ -116,7 +116,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <h3>Open</h3>
           <ul className="small">
             {d.work_items.map((w) => (
-              <li key={`w${w.id}`}><a href={href(`/work/item/${w.id}`)}>work item {w.id}</a>: {w.title}{" "}
+              <li key={`w${w.id}`}><a href={href(`/cases/${w.id}`)}>work item {w.id}</a>: {w.title}{" "}
                 <span className="muted">({w.assignee ?? w.role ?? "unassigned"}, {when(w.created_at)})</span></li>
             ))}
             {d.reviews.map((r) => (

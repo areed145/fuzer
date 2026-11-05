@@ -1247,7 +1247,10 @@ def list_items(conn, state: str | None = "open", type: str | None = None, assign
         f"""
         select i.id, i.type, i.title, i.subjects, i.state, i.outcome, i.step, i.priority, i.assignee, i.role, i.due,
                i.created_by, i.source, i.created_at, i.updated_at, i.closed_at,
-               i.due < %(now)s and i.closed_at is null as overdue
+               i.due < %(now)s and i.closed_at is null as overdue,
+               (select p.process_key from work_process p where p.item_id = i.id order by p.id limit 1) as process_key,
+               exists (select 1 from work_token t where t.item_id = i.id and t.state = 'waiting'
+                       and t.escalated_at is not null) as escalated
         from work_item i where {cond}
         order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s offset %(offset)s
         """, args).fetchall()

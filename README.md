@@ -500,24 +500,23 @@ Screens:
   their events and downtime, and the daily operations report.
 - **Ask**: the operations assistant. **Lessons**: lessons learned. **Studies**:
   correlation and clustering studies.
-- **Board**: open work ranked by value and risk.
+- **Priorities** (Operations): open work ranked by value and risk.
 - **Review**: yes/no on possible matches, pick the right value when sources
-  disagree, accept changed schemas and new mappings.
-- **Work**: the action inbox. Your tasks and your roles' queue with overdue and
-  due-soon counts and filters; claim, release and hand off; the task's form with
-  the evidence (agent findings, messages, comments); bulk actions on low-risk
-  steps. Each work item has a page with its process diagram (path taken and the
-  step it waits on) and its full history.
-- **Processes** (from the Work page): the bpmn-js modeler, with the palette, append
-  buttons and wrench menu cut down to the subset the engine runs, and a Fuzer
-  properties panel (lane roles and agents, `requiresHuman`, SLA and escalation,
-  the task's form, gateway conditions and default, timers, messages, called
-  process, score thresholds). Edit a draft, check it (problems are listed and
-  marked on the diagram), compare it with the published version (changes listed
-  and marked; moving shapes isn't a change), and publish. **Monitor** draws the
-  steps waiting at each element (overdue in red) and those finished recently with
-  their median time, to show where work piles up. Task forms are edited in the
-  form-js editor; each save is a new version.
+  disagree, accept changed schemas and new mappings, held loads.
+- **Workflows**: **Inbox** is everything waiting for you, most urgent first
+  (escalated to you, assigned to you or to someone you cover for, unclaimed in
+  your roles), with inline claim and bulk actions; a task opens as a page with its
+  form, evidence, hand-off and where it sits in its process. **Cases** lists every
+  piece of work (filter by kind, state, person or role, overdue; bulk reassign);
+  a case page has its process diagram, open steps, details, history and actions
+  (reassign, priority, due date, close, cancel). **Processes** lists each process
+  with its health (running, overdue, cycle time, SLA missed); each opens with
+  Overview, Running (its cases), Model (the bpmn-js modeler: draft, check,
+  compare, publish), Monitor (where work piles up) and SLAs & routing (who does
+  each step, its SLA and where it escalates). **Teams & routing** edits roles
+  (default SLA, escalation, round-robin or least-loaded assignment), people (roles,
+  workload, away with who covers) and shows agents' queues and failures. Who you
+  are is set once in the sidebar.
 - **Jobs**: the scheduled jobs and their runs. **Sources**: the source catalog.
   **+ Add a source** walks through system, connection (any folder, PI Web API or
   ADX), table, mapping (suggested, with a date-format hint) and how it loads,

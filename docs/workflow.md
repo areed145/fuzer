@@ -1,6 +1,43 @@
 # Workflow and scheduled jobs
 
-The work board, daily reports and the jobs that run on a schedule.
+Workflows (who does what, by when, and what happens when it's late), the work board, daily reports and the jobs
+that run on a schedule.
+
+## Workflows
+
+Work moves through BPMN processes on Fuzer's own engine (`workflow/engine.py`): person steps, agent steps,
+timers, messages and called processes, every step a row, every change an event. The Workflows section is where
+people do it and manage it:
+
+- **Inbox** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, assigned to you (or to
+  someone away you cover for), unclaimed in your roles' queues. A task opens as a page: its form and evidence,
+  claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
+  history. Who you are is set once, in the sidebar.
+- **Cases** (`#/cases`): every work item, open or closed, with filters and bulk reassign; a case page shows its
+  process diagram, open steps, details and history, and takes reassign, priority, due date (on a running process,
+  its open steps' SLA clock), close and cancel.
+- **Processes** (`#/processes`): each process with its health (running, steps waiting and overdue, median and p90
+  cycle time, share of person steps that missed their SLA); a process opens with Overview, Running (its cases),
+  Model (draft, check, compare, publish), Monitor (where work piles up) and SLAs & routing.
+- **Teams & routing** (`#/teams`): roles, people and agents.
+
+**Routing and escalation are data** (`workflow/roles.py`, `work_role`, `work_person`):
+
+- A **role** is a person role or an agent role, with what it's for, a **default SLA** for person steps that set
+  none, **escalate_to** (where an overdue step goes when the step names nowhere itself) and an **assignment**:
+  steps wait in the queue to be claimed, or go to members round-robin or to the least loaded. Roles are edited on
+  Teams & routing; the BPMN checks read them, so a new role can be used in a process straight away.
+- **Escalation**: when a person step's SLA passes (the `work_tick` job, every 5 minutes), it moves to the step's
+  `escalateTo`, then along the role chain, each hop with the next role's own SLA, up to three hops. The reason
+  (which SLA, who had it) is kept on the case.
+- **Away**: a person can be away until a time, with a delegate. What they hold, and anything assigned or handed to
+  them while away, goes to the delegate (or back to the role's queue when no one covers); auto-assignment skips
+  them; the delegate's inbox shows what was theirs.
+- A role nobody available holds, but a published process uses, is flagged: its steps would wait.
+
+API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|transition`, `/work/tasks/{id}/...`,
+`/work/stats`, `/work/instances`, `/work/definitions/{id}/routing`, `/work/roles/catalog`, `/work/roles/{name}`,
+`/work/people/{name}` and `/work/people/{name}/away`, `/work/workload`.
 
 ## The work board
 

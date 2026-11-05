@@ -15,8 +15,11 @@ import { DowntimePage } from "./pages/Downtime";
 import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
-import { WorkPage } from "./pages/Work";
-import { WorkItemPage } from "./pages/WorkItem";
+import { InboxPage } from "./pages/workflows/Inbox";
+import { TaskPage } from "./pages/workflows/Task";
+import { CasePage, CasesPage } from "./pages/workflows/Cases";
+import { TeamsPage } from "./pages/workflows/Teams";
+import { Identity } from "./Identity";
 import { loadPerson } from "./work";
 import { Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
@@ -63,6 +66,16 @@ function App() {
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
   const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
+  // The old Work pages' links (#/work, #/work/item/3, #/work/processes/upset, #/work/forms/x) still land right.
+  useEffect(() => {
+    if (section !== "work") return;
+    const task = query.get("task");
+    const to = path[1] === "item" && path[2] ? `/cases/${path[2]}`
+      : path[1] === "processes" ? `/processes${path[2] ? `/${path[2]}` : ""}`
+      : path[1] === "forms" && path[2] ? `/processes/forms/${path[2]}`
+      : task ? `/inbox/task/${task}` : "/inbox";
+    location.replace(href(to, Object.fromEntries([...query.entries()].filter(([k]) => k !== "task" && k !== "tab"))));
+  }, [section, path, query]);
 
   return (
     <div className="app">
@@ -81,6 +94,7 @@ function App() {
             )}
             {rebuilding && <span className="badge updating">Updating…</span>}
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
+            <Identity />
             {stats.error && <span className="error small">API not reachable</span>}
           </>
         }
@@ -104,16 +118,22 @@ function App() {
             <IncidentsPage />
           ) : section === "lessons" ? (
             <LessonsPage query={query} />
-          ) : section === "work" && path[1] === "processes" && path[2] ? (
-            <ProcessPage key={path[2]} processKey={path[2]} query={query} />
-          ) : section === "work" && path[1] === "processes" ? (
-            <ProcessesPage />
-          ) : section === "work" && path[1] === "forms" && path[2] ? (
+          ) : section === "inbox" && path[1] === "task" && path[2] ? (
+            <TaskPage key={path[2]} id={Number(path[2])} />
+          ) : section === "inbox" || section === "work" ? (
+            <InboxPage />
+          ) : section === "cases" && path[1] ? (
+            <CasePage key={path[1]} id={Number(path[1])} />
+          ) : section === "cases" ? (
+            <CasesPage query={query} />
+          ) : section === "processes" && path[1] === "forms" && path[2] ? (
             <FormPage key={path[2]} formKey={path[2]} query={query} />
-          ) : section === "work" && path[1] === "item" && path[2] ? (
-            <WorkItemPage id={Number(path[2])} />
-          ) : section === "work" ? (
-            <WorkPage query={query} />
+          ) : section === "processes" && path[1] ? (
+            <ProcessPage key={path[1]} processKey={path[1]} query={query} />
+          ) : section === "processes" ? (
+            <ProcessesPage />
+          ) : section === "teams" ? (
+            <TeamsPage query={query} />
           ) : section === "reports" ? (
             <ReportsPage query={query} />
           ) : section === "studies" ? (
