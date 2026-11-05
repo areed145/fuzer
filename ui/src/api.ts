@@ -152,7 +152,7 @@ export interface Drawing {
   findings: { text: string; kind: string; issue: string }[];
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -172,11 +172,16 @@ export interface CurvePayload {
   reading: CurveReading;
 }
 
+export interface HeldLoadPayload {
+  dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
+}
+
 export type ReviewItem =
   | { id: number; kind: "match"; subject: string; status: string; label: null; payload: MatchPayload }
   | { id: number; kind: "schema"; subject: string; status: string; label: null; payload: SchemaPayload }
   | { id: number; kind: "mapping"; subject: string; status: string; label: null; payload: MappingPayload }
   | { id: number; kind: "curve"; subject: string; status: string; label: null; payload: CurvePayload }
+  | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
   | {
       id: number;
       kind: "conflict";
@@ -814,12 +819,13 @@ export interface SourceHealth {
   open_reviews: Record<string, number>;
 }
 export interface CatalogConnection {
-  id: number; name: string; type: string; enabled: boolean; config: Json;
+  id: number; name: string; type: string; enabled: boolean; config: Json; display?: string;
   secrets: Record<string, { ref: string; resolves: boolean }>; last_tested_at: string | null; last_test: ConnectionTest | null;
 }
 export interface CatalogDatasetRow {
   name: string; record_type: string | null; reader: string | null; status: string; load_mode: string; rows: number | null;
-  loaded_at: string | null; connection: string | null; health: SourceHealth | null;
+  loaded_at: string | null; connection: string | null; health: SourceHealth | null; owner: string | null;
+  schedule: string | null; last_run: string | null; present: boolean;
 }
 export interface CatalogSystem {
   id: number; name: string; kind: string | null; description: string | null; owner: string | null; steward: string | null;
@@ -831,7 +837,14 @@ export interface Catalog {
   types: { connections: Record<string, { config: Json; secrets: string[] }>; load_modes: string[]; drift_policies: string[];
            statuses: string[] };
   check_kinds: Record<string, string>;
+  data_dir: string;
+  rebuild: RebuildStatus;
 }
+export interface RebuildStatus {
+  built_at: string | null; needed: boolean; changes: { what: string; count: number; last: string }[];
+  running?: { running: boolean; pending: boolean; last: Json | null };
+}
+export interface SuggestedCheck { kind: string; column: string | null; params: Json; blocking: boolean; why: string }
 export interface ConnectionTest {
   ok: boolean; steps: { step: string; ok: boolean; ms: number; detail: unknown }[]; secrets?: Record<string, boolean>;
 }
@@ -874,6 +887,11 @@ export interface DatasetDetail {
   health: SourceHealth | null;
   history: AuditRow[];
   retire_preview: { records: number; entities_only_here: number; record_types?: string[] };
+  connection_display: string | null;
+  next_load: string | null;
+  suggested_checks: SuggestedCheck[];
+  work_items: { id: number; title: string; state: string; assignee: string | null; role: string | null; created_at: string }[];
+  reviews: { id: number; kind: string; created_at: string }[];
 }
 export interface ImpactResult {
   mapping: string; records: number; sampled: boolean; current_version: number | null;
@@ -1159,6 +1177,7 @@ export const api = {
   setRank: (system: string, rank: number | null, by: string) =>
     request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
   rematch: () => request<Json>("POST", "/sources/rematch"),
+  sourceStatus: () => request<RebuildStatus>("GET", "/sources/status"),
   deleteDataset: (name: string, by: string, reason?: string) =>
     request<Json>("DELETE", `/sources/datasets/${encodeURIComponent(name)}`, { by, reason }),
   deleteConnection: (id: number, by: string) => request<Json>("DELETE", `/sources/connections/${id}`, { by }),

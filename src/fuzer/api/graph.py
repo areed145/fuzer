@@ -89,6 +89,9 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
             if d.decision == "choose" and not isinstance(d.value, dict):
                 raise HTTPException(400, "choose needs the corrected reading")
             llm_curves.accept(conn, item, d.by, d.value if d.decision == "choose" else None)
+    elif item["kind"] == "check":  # a held load (#225): fixed at the source, then loaded again from its dataset
+        if d.decision == "choose":
+            raise HTTPException(400, "held-load items take accept (seen) or reject")
     elif item["kind"] == "match":
         if d.decision == "choose":
             raise HTTPException(400, "match items take accept or reject")

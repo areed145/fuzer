@@ -400,3 +400,79 @@ def health(conn, name: str | None = None) -> list[dict]:
             "shared_pct": s.get("shared_pct"), "open_reviews": s.get("open_reviews") or {},
         }))
     return out
+
+
+# ---- suggestions ---------------------------------------------------------------------------------
+
+_PCT = re.compile(r"(^|_)(pct|percent|percentage)(_|$)|%", re.IGNORECASE)
+_REQUIRED = re.compile(r"(^|_)(id|key|number|no|tag)$", re.IGNORECASE)
+_CODED = re.compile(r"(^|_)(status|state|type|class|category|priority|phase|kind|flag|uom|unit|grade|criticality)$",
+                    re.IGNORECASE)
+
+
+def suggest_checks(conn, name: str) -> list[dict]:
+    """Checks worth adding to a dataset, read off its latest profile (and not there yet): each {kind, column,
+    params, blocking, why}. Duplicate keys always hold a load, so key_unique isn't suggested."""
+    from . import catalog
+
+    d = catalog.dataset(conn, name)
+    if not d:
+        return []
+    p = conn.execute("select columns, rows from source_profile where dataset_id = %s order by id desc limit 1",
+                     (d["id"],)).fetchone()
+    if not p:
+        return []
+    have = {(c["kind"], c["column_name"]) for c in conn.execute(
+        "select kind, column_name from source_check where dataset_id = %s", (d["id"],))}
+    out = []
+
+    def add(kind, column, params, why, blocking=False):
+        if (kind, column) not in have:
+            out.append({"kind": kind, "column": column, "params": params, "blocking": blocking, "why": why})
+
+    for col, c in (p["columns"] or {}).items():
+        if c.get("fill_pct") == 100.0 and (col in (d["key"] or []) or _REQUIRED.search(col)):
+            add("not_null", col, {}, f"{col} is always filled now; a gap would mean a broken export", col in (d["key"] or []))
+        if c.get("type") == "number" and _PCT.search(col):
+            add("range", col, {"min": 0, "max": 100}, f"{col} looks like a percentage")
+        if c.get("coded") and c.get("values") and len(c["values"]) <= 10 and c.get("type") == "text" and _CODED.search(col):
+            add("accepted", col, {"values": c["values"]}, f"{col} holds a few codes: {', '.join(c['values'][:6])}")
+    if (p["rows"] or 0) >= 20 and d["load_mode"] == "snapshot":
+        add("row_count", None, {"pct": 50}, "a snapshot that halves or doubles is usually a broken export")
+    if d["schedule"] and not d["expected_hours"]:
+        add("freshness", None, {"hours": 48}, "it has a schedule, so a missing delivery should be noticed")
+    return out
+
+
+def next_load(cron: str | None, tz: str | None = None) -> str | None:
+    """When a dataset's own schedule next loads it (ISO, project timezone); None without one."""
+    import os
+    import time
+
+    if not cron:
+        return None
+    try:
+        from dagster._utils.schedules import cron_string_iterator
+
+        return next(cron_string_iterator(time.time(), cron, tz or os.environ.get("FUZER_TIMEZONE") or "UTC")).isoformat(
+            timespec="minutes")
+    except Exception:  # noqa: BLE001  (a cron Dagster can't read: shown as not scheduled)
+        return None
+
+
+def rebuild_status(conn) -> dict:
+    """Whether loads, mappings or rules changed since the register was last built (a rebuild applies them)."""
+    built = conn.execute("select updated_at from register_summary where name = 'ontology'").fetchone()
+    built = built["updated_at"] if built else None
+    changes = []
+    for what, sql in (
+            ("loads", "select max(finished_at) as t, count(*) as n from source_run where status = 'done' "
+                      "and coalesce(inserted, 0) + coalesce(updated, 0) + coalesce(removed, 0) > 0 and finished_at > %(b)s"),
+            ("mappings", "select max(approved_at) as t, count(*) as n from mapping_version where status = 'approved' "
+                         "and approved_at > %(b)s"),
+            ("rules", "select max(updated_at) as t, count(*) as n from source_rule where updated_by <> 'seed' "
+                      "and updated_at > %(b)s")):
+        r = conn.execute(sql, {"b": built or "-infinity"}).fetchone()
+        if r["n"]:
+            changes.append({"what": what, "count": r["n"], "last": r["t"]})
+    return plain({"built_at": built, "needed": bool(changes), "changes": changes})

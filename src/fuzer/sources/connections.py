@@ -228,6 +228,17 @@ def check(type_: str, config: dict, secrets: dict) -> None:
             raise CatalogError(f"secret {k!r} must be a reference such as env:NAME, never the value")
 
 
+def display(row: dict, data_dir=None) -> str:
+    """A connection in words: the project data folder (and where it is), a folder path, a server URL."""
+    cfg = row.get("config") or {}
+    if row.get("type") == "folder":
+        if not cfg.get("path"):
+            return f"project data folder ({data_dir})" if data_dir else "project data folder"
+        p = Path(cfg["path"])
+        return str(p if p.is_absolute() or not data_dir else Path(data_dir) / p)
+    return cfg.get("url") or row.get("type", "")
+
+
 def open_(row: dict) -> Type:
     return TYPES[row["type"]](row.get("config") or {}, row.get("secrets") or {})
 

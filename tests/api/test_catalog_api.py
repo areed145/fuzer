@@ -197,3 +197,39 @@ def test_a_table_folder_as_the_path_and_undoing_a_dataset(client, okan_data, tmp
     ok(client.delete(f"/sources/connections/{c['id']}", params={"by": "ana"}))
     ok(client.delete("/sources/systems/p6", params={"by": "ana"}))
     assert ok(client.get("/sources/audit", params={"object": "system"}))[0]["action"] == "delete"
+
+
+def test_what_a_dataset_page_shows(client, okan_data, tmp_path):
+    """The dataset page's extras (#225 UI): suggested checks from the profile, its open work items and review items,
+    a readable connection, whether a rebuild is needed; a held-load review item can be answered; a system added
+    from the page gets no connection until it needs one; datasets whose data isn't here say so."""
+    from fakeplant import schedules
+
+    schedules.write(okan_data, tmp_path / "lake")
+    sys_ = ok(client.post("/sources/systems", json={"name": "plan", "by": "ana"}))
+    assert sys_["name"] == "plan"
+    cat = ok(client.get("/sources/catalog"))
+    plan = next(s for s in cat["systems"] if s["name"] == "plan")
+    assert plan["connections"] == []  # no automatic files connection
+    files = next(c for s in cat["systems"] if s["name"] == "sap" for c in s["connections"])
+    assert files["display"].startswith("project data folder (")
+    absent = [d["name"] for s in cat["systems"] for d in s["datasets"] if not d["present"]]
+    assert "adx_series" in absent and "sap_equipment" not in absent  # no ADX export in this folder
+
+    c = ok(client.post("/sources/systems/plan/connections",
+                       json={"name": "lake", "type": "folder", "config": {"path": str(tmp_path / "lake")}, "by": "ana"}))
+    p = ok(client.get(f"/sources/connections/{c['id']}/tables/project_schedules"))
+    yaml_text = p["suggested"]["yaml"].replace("dataset: project_schedules", "dataset: plan_schedules")
+    ok(client.post(f"/sources/connections/{c['id']}/tables/project_schedules", json={"yaml": yaml_text, "by": "ana"}))
+    d = ok(client.get("/sources/datasets/plan_schedules"))
+    assert d["connection_display"] == str(tmp_path / "lake")
+    assert d["reviews"] and d["reviews"][0]["kind"] == "check"
+    assert d["work_items"] and "held" in d["work_items"][0]["title"]
+    kinds = {(s["kind"], s["column"]) for s in d["suggested_checks"]}
+    assert ("range", "percent_complete") in kinds and ("accepted", "status") in kinds and ("row_count", None) in kinds
+
+    rid = d["reviews"][0]["id"]
+    ok(client.post(f"/review/{rid}", json={"decision": "accept", "by": "ana"}))
+    assert ok(client.get("/sources/datasets/plan_schedules"))["reviews"] == []
+    st = ok(client.get("/sources/status"))
+    assert {"needed", "changes", "running"} <= set(st)
