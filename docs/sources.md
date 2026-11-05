@@ -68,8 +68,12 @@ data isn't in this project are hidden unless asked for). Each dataset has its ow
 and, when its last load was held or failed, why and **Load again**; then **Overview** (connection, how and when it
 loads, owner, records, open work items and review items, quick actions), **Settings** (how it loads, what to do
 when columns change, schedule, expected delivery, owner; connection, key, location, reader and watermark under
-Advanced; pause, retire or delete), **Mapping** (edit to a draft; a draft or an older version is shown as a line diff
-against the one in use with what it would do to the register, then approved or rolled back to), **Runs**,
+Advanced; pause, retire or delete), **Mapping** (edited column by column: what each column is kept as, with a name and
+type, and what it links the record to (a tag, a well, equipment, a functional location, a tag or a well), the record
+key and what records are matched on; the YAML stays under Advanced, and anything the form doesn't show (hooks,
+measurements, links of other shapes) is kept as it is. An edit becomes a draft; a draft or an older version is shown
+as a line diff against the one in use with what it would do to the register, then approved, discarded or rolled back
+to), **Runs**,
 **Quality** (checks suggested from the profile, one click to add; checks and their results; the profile),
 **Matching** and **History**. A banner on the Sources pages says when loads, mapping versions or rule changes aren't
 in the register yet, with **Rebuild now**. **Systems & connections** edits each system and its connections (shown in

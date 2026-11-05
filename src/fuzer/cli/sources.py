@@ -14,6 +14,7 @@ ACTIONS = {
     "import": "a mapping file becomes a draft version; systems.yaml updates systems and connections",
     "approve": "make a draft mapping version the one in use",
     "rollback": "put an older mapping version back in use (as a new version)",
+    "discard": "set a draft mapping version aside without using it",
     "run": "load datasets now (all active ones, or the named ones)",
     "pause": "stop loading a dataset; its records stay",
     "resume": "start loading a paused dataset again",
@@ -114,6 +115,8 @@ def run(conn, pack, data: Path, args) -> object:
             out = [catalog.import_(conn, Path(f).read_text(), by, why) for f in _need(args, 1, "a file")]
         elif a == "approve":
             out = catalog.approve(conn, int(_need(args, 1, "a version id")[0]), by, why)
+        elif a == "discard":
+            out = catalog.discard(conn, int(_need(args, 1, "a version id")[0]), by, why)
         elif a == "rollback":
             out = catalog.rollback(conn, int(_need(args, 1, "a version id")[0]), by, why)
         elif a == "run":

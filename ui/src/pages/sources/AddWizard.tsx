@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { LOAD_HELP, Loaded, TestSteps, cell, reviewer, useAction } from "./common";
+import { MappingEditor } from "./MappingEditor";
 import { ConnectionForm, NewSystem } from "./Systems";
 
 function Step({ n, title, done, open, summary, onEdit, children }: {
@@ -145,7 +146,7 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
   const a = useAction();
   if (!p.data) return <Status loading={p.loading} error={p.error} />;
   const d: TablePreview = p.data;
-  const yaml = text ?? d.suggested.yaml;
+  const yaml = text ?? initial?.yaml ?? d.suggested.yaml;
   const cols = d.sample.length ? Object.keys(d.sample[0]) : (d.schema ?? []).map(([x]) => x);
   const datasetOf = (y: string) => /^dataset:\s*(\S+)/m.exec(y)?.[1] ?? d.suggested.dataset;
   return (
@@ -176,11 +177,11 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
         <button className="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
           onClick={() => { setText(null); setOpts({ ...opts, claude: true }); }}>Ask Claude</button>
       </div>
-      <textarea className="yaml mono" rows={Math.min(26, yaml.split("\n").length + 1)} value={yaml}
-        onChange={(e) => setText(e.target.value)} spellCheck={false} />
+      <MappingEditor key={d.suggested.yaml} yaml={initial?.yaml ?? d.suggested.yaml} columns={cols} samples={d.sample}
+        onChange={setText} />
       <div className="row">
         <button className="primary" onClick={() => onDone({ yaml, dataset: datasetOf(yaml) })}>Continue</button>
-        {text !== null && <button className="secondary" onClick={() => setText(null)}>Undo edits</button>}
+        {text !== null && <span className="muted small">edited</span>}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
     </>
