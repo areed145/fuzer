@@ -445,6 +445,16 @@ def approve(conn, version_id: int, by: str, reason: str | None = None) -> dict:
     return dict(row)
 
 
+def discard(conn, version_id: int, by: str, reason: str | None = None) -> dict:
+    """Set a draft aside (status retired): it stays in the history but isn't offered any more."""
+    v = conn.execute("select * from mapping_version where id = %s", (version_id,)).fetchone()
+    if not v or v["status"] != "draft":
+        raise CatalogError(f"version {version_id} isn't a draft")
+    conn.execute("update mapping_version set status = 'retired' where id = %s", (version_id,))
+    _audit(conn, by, "mapping", {"id": version_id, "name": f"{v['source']}/{v['record_type']}"}, "discard", reason=reason)
+    return {"discarded": version_id}
+
+
 def rollback(conn, version_id: int, by: str, reason: str | None = None) -> dict:
     """Put an older version back in use, as a new approved version copying it (history stays linear)."""
     v = conn.execute("select * from mapping_version where id = %s", (version_id,)).fetchone()

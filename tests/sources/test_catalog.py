@@ -124,6 +124,11 @@ def test_mapping_versions_approve_and_roll_back(conn, data):
     assert acts[:3] == ["rollback", "approve", "approve"]
     with pytest.raises(catalog.CatalogError, match="not valid"):
         catalog.propose(conn, "source: sap\n", "ana")
+    spare = catalog.propose(conn, text + "\n# spare\n", "ana")
+    catalog.discard(conn, spare["id"], "ana")
+    assert catalog.versions(conn, "sap", "equipment")[0]["status"] == "retired"
+    with pytest.raises(catalog.CatalogError, match="isn't a draft"):
+        catalog.discard(conn, spare["id"], "ana")
 
 
 def test_retire_keeps_or_retracts(conn, data):

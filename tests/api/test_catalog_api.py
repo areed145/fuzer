@@ -233,3 +233,21 @@ def test_what_a_dataset_page_shows(client, okan_data, tmp_path):
     assert ok(client.get("/sources/datasets/plan_schedules"))["reviews"] == []
     st = ok(client.get("/sources/status"))
     assert {"needed", "changes", "running"} <= set(st)
+
+
+def test_column_mapper_api(client):
+    """The Mapping tab's column form: a loaded dataset's columns (with samples) beside what its mapping does, and the
+    form written back as YAML."""
+    from fuzer.sources import ingest
+
+    with db.connect() as conn:
+        ingest.ingest(conn, client.data, ["sap_equipment"], full=True)
+    text = ok(client.get("/sources/datasets/sap_equipment"))["mappings"][0]["yaml"]
+    f = ok(client.post("/sources/mapper/form", json={"yaml": text, "dataset": "sap_equipment"}))
+    cols = {c["name"]: c for c in f["columns"]}
+    assert "equnr" in cols and cols["equnr"]["field"] is None and f["profile"]["equnr"]["samples"]
+    cols["equnr"]["field"] = {"name": "sap_number", "as": None}
+    out = ok(client.post("/sources/mapper/yaml", json={"form": f, "yaml": text}))["yaml"]
+    assert "[sap_number, equnr]" in out and out.startswith("#")
+    bad = client.post("/sources/mapper/yaml", json={"form": {**f, "shape": "nope"}, "yaml": text})
+    assert bad.status_code == 400

@@ -522,8 +522,8 @@ Screens:
   **+ Add a source** walks through system, connection (any folder, PI Web API or
   ADX), table, mapping (suggested, with a date-format hint) and how it loads,
   then saves and loads it. Datasets lists them all with their health; a dataset
-  opens with its connection, how it loads, mapping versions (edit, preview the
-  impact, approve, roll back), runs, profile, checks, match statistics and
+  opens with its connection, how it loads, its mapping (edited column by column,
+  YAML under Advanced; a draft shows its diff and impact before approval), runs, profile, checks, match statistics and
   history. Systems & connections and Rules edit the rest. **Settings** and
   **Architecture**. On an entity page, **why?** next to a value shows the
   records, mapping versions and loads behind it.

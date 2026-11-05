@@ -426,6 +426,14 @@ def approve(version_id: int, body: Who, conn=Depends(get_conn)):
     return _do(conn, catalog.approve, conn, version_id, body.by, body.reason)
 
 
+@router.post("/mappings/{version_id}/discard")
+def discard(version_id: int, body: Who, conn=Depends(get_conn)):
+    """Set a draft aside without using it."""
+    from ..sources import catalog
+
+    return _do(conn, catalog.discard, conn, version_id, body.by, body.reason)
+
+
 @router.post("/mappings/{version_id}/rollback")
 def rollback(version_id: int, body: Who, conn=Depends(get_conn)):
     from ..sources import catalog
@@ -441,6 +449,53 @@ def impact_preview(body: Impact, conn=Depends(get_conn)):
     try:
         return impact.preview(conn, deps.PACK, body.yaml, body.version_id, body.limit)
     except impact.ImpactError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+class MapperForm(BaseModel):
+    yaml: str
+    columns: list[str] | None = None
+    dataset: str | None = None
+
+
+class MapperYaml(BaseModel):
+    form: dict[str, Any]
+    yaml: str
+
+
+@router.post("/mapper/form")
+def mapper_form(body: MapperForm, conn=Depends(get_conn)):
+    """A mapping as the column form; with a dataset, its columns from the latest profile, with samples."""
+    from ..sources import mapper, quality
+
+    from ..sources import catalog
+
+    columns, samples = body.columns, {}
+    if body.dataset and (p := (quality.profiles(conn, body.dataset, 1) or [None])[0]):
+        columns = columns or list(p["columns"])
+        samples = {k: {"samples": v.get("samples"), "type": v.get("type"), "fill_pct": v.get("fill_pct")}
+                   for k, v in p["columns"].items()}
+    elif body.dataset and (d := catalog.dataset(conn, body.dataset)) and d["record_type"]:
+        # loaded before profiles were kept: its columns from the last load, samples from stored records
+        columns = columns or [c[0] for c in d["schema"] or []]
+        recs = [r["payload"] for r in conn.execute(
+            "select payload from source_record where source = %s and record_type = %s limit 3", (d["source"], d["record_type"]))]
+        columns = columns or list(dict.fromkeys(k for r in recs for k in r))
+        samples = {k: {"samples": [str(r[k]) for r in recs if r.get(k) not in (None, "")][:3]} for k in columns or []}
+    try:
+        return {**mapper.form(body.yaml, columns), "profile": samples}
+    except mapper.MapperError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.post("/mapper/yaml")
+def mapper_yaml(body: MapperYaml):
+    """The column form written over the mapping: everything the form doesn't show is kept."""
+    from ..sources import catalog, mapper
+
+    try:
+        return {"yaml": mapper.to_yaml(body.form, body.yaml)}
+    except (mapper.MapperError, catalog.CatalogError) as e:
         raise HTTPException(400, str(e)) from e
 
 

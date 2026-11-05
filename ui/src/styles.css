@@ -671,3 +671,7 @@ table.results tr.static { cursor: default; }
 .jobs table.kv td, .jobs table.kv code { overflow-wrap: anywhere; }
 .jobs table.kv { table-layout: fixed; }
 .jobs table.kv th { width: 180px; text-transform: none; }
+table.mapper td { vertical-align: middle; }
+table.mapper input[type="checkbox"] { margin-right: 4px; }
+.tabs.small > * { padding: 3px 10px; font-size: 13px; }
+.tabs > a { cursor: pointer; }

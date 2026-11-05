@@ -930,6 +930,17 @@ export interface AddTableResult {
   run?: SourceRun | null; health?: SourceHealth | null;
 }
 
+export interface MapperColumn {
+  name: string; field: { name: string; as: string | null } | null;
+  link: { rel: string; target: string; keep: Json } | null;
+}
+export interface MapperForm {
+  source: string; record_type: string; shape: string; dataset: string | null; key: string[]; kind: string | null;
+  entity_key: { column: string; as: string | null } | null; columns: MapperColumn[]; kept: string[];
+  choices: { targets: Record<string, string>; field_as: Record<string, string>; key_as: Record<string, string> };
+  profile?: Record<string, { samples?: string[]; type?: string; fill_pct?: number }>;
+}
+
 export interface SourceLoad {
   loaded: string[];
   unchanged: string[];
@@ -1163,6 +1174,7 @@ export const api = {
   proposeMapping: (yaml: string, by: string, note?: string) =>
     request<MappingVersion>("POST", "/sources/mappings", undefined, { yaml, by, note }),
   approveMapping: (id: number, by: string) => request<Json>("POST", `/sources/mappings/${id}/approve`, undefined, { by }),
+  discardMapping: (id: number, by: string) => request<Json>("POST", `/sources/mappings/${id}/discard`, undefined, { by }),
   rollbackMapping: (id: number, by: string, reason?: string) =>
     request<Json>("POST", `/sources/mappings/${id}/rollback`, undefined, { by, reason }),
   impact: (body: { yaml?: string; version_id?: number; limit?: number }) => request<ImpactResult>("POST", "/sources/impact", undefined, body),
@@ -1177,6 +1189,9 @@ export const api = {
   setRank: (system: string, rank: number | null, by: string) =>
     request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
   rematch: () => request<Json>("POST", "/sources/rematch"),
+  mapperForm: (yaml: string, opts: { columns?: string[]; dataset?: string } = {}) =>
+    request<MapperForm>("POST", "/sources/mapper/form", undefined, { yaml, ...opts }),
+  mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),
   sourceStatus: () => request<RebuildStatus>("GET", "/sources/status"),
   deleteDataset: (name: string, by: string, reason?: string) =>
     request<Json>("DELETE", `/sources/datasets/${encodeURIComponent(name)}`, { by, reason }),

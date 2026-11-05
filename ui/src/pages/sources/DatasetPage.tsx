@@ -274,9 +274,9 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {d.mappings.map((m) => (
             <tr key={m.id}>
               <td>{m.id}</td><td><code>{m.source}/{m.record_type}</code></td>
-              <td>{m.current ? <span className="badge ok">in use</span> : m.status}</td>
+              <td>{m.current ? <span className="badge ok">in use</span> : m.status === "retired" ? <span className="muted">discarded</span> : m.status}</td>
               <td>{m.author ?? m.approved_by}</td><td className="muted">{m.note}</td><td className="muted">{when(m.created_at)}</td>
-              <td>{!m.current && <button className="link" onClick={() => setReview(m)}>
+              <td>{!m.current && m.status !== "retired" && <button className="link" onClick={() => setReview(m)}>
                 {m.status === "draft" ? "review" : "compare / roll back"}</button>}</td>
             </tr>
           ))}
@@ -304,6 +304,8 @@ function ReviewVersion({ v, current, reload, close }: { v: MappingVersion; curre
           onClick={() => a.run("go", () => (draft ? api.approveMapping(v.id, reviewer()) : api.rollbackMapping(v.id, reviewer())),
             () => { close(); reload(); })}>
           {draft ? "Approve: use this version" : "Roll back to this version"}</button>
+        {draft && <button className="secondary" disabled={!!a.busy}
+          onClick={() => a.run("discard", () => api.discardMapping(v.id, reviewer()), () => { close(); reload(); })}>Discard draft</button>}
         <span className="muted small">It takes effect on the next load and rebuild.</span>
       </div>
       {a.error && <p className="error small">{a.error}</p>}
