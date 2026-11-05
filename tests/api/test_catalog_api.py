@@ -246,9 +246,14 @@ def test_column_mapper_api(client):
     f = ok(client.post("/sources/mapper/form", json={"yaml": text, "dataset": "sap_equipment"}))
     cols = {c["name"]: c for c in f["columns"]}
     assert "equnr" in cols and cols["equnr"]["field"] is None and f["profile"]["equnr"]["samples"]
+    assert f["warnings"] == []  # everything it makes is in the ontology (#241)
     cols["equnr"]["field"] = {"name": "sap_number", "as": None}
-    out = ok(client.post("/sources/mapper/yaml", json={"form": f, "yaml": text}))["yaml"]
-    assert "[sap_number, equnr]" in out and out.startswith("#")
+    r = ok(client.post("/sources/mapper/yaml", json={"form": f, "yaml": text}))
+    out = r["yaml"]
+    assert "[sap_number, equnr]" in out and out.startswith("#") and r["warnings"] == []
+    f["kind"] = "gadget"
+    r = ok(client.post("/sources/mapper/yaml", json={"form": f, "yaml": text}))
+    assert any("kind 'gadget' isn't in the ontology" in w for w in r["warnings"])
     bad = client.post("/sources/mapper/yaml", json={"form": {**f, "shape": "nope"}, "yaml": text})
     assert bad.status_code == 400
 

@@ -50,6 +50,8 @@ class), instance_of (equipment -> model), is_a (model -> class, class -> parent)
 involves (event -> tag / well, with a role). Events (trips, starts, changeovers, shut-ins, choke changes,
 alarms, leaks, instrument faults, ...) were read from operator logs by Claude; each cites its log entry. Dated links have from/to dates; pass
 as_of=YYYY-MM-DD to see what was true on a day.
+Kinds and link types added for this asset (from new datasets) are described by `get_ontology`, with
+what each means and which kinds each link type joins.
 
 Measurements that aren't in PI (well tests, lab results at sample points, wall thickness at CMLs) are
 landed and kept: `measurements(ref)` returns them per quantity and location next to process values.

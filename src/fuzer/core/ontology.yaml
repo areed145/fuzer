@@ -165,13 +165,13 @@ relations:
     view: physical
     description: Where a pipeline starts.
     from: [pipeline]
-    to: [area, facility]
+    to: [area, facility, tag]
   ends_at:
     label: ends at
     view: physical
     description: Where a pipeline ends.
     from: [pipeline]
-    to: [area, facility]
+    to: [area, facility, tag]
   classified_as:
     label: classified as
     view: classes
@@ -255,9 +255,9 @@ relations:
   concerns:
     label: concerns
     view: maintenance
-    description: A notification, work order or plan and the tag or equipment it is for.
+    description: A notification, work order or plan and the tag, equipment, area or facility it is for.
     from: [notification, work_order, maintenance_plan]
-    to: [tag, equipment]
+    to: [tag, equipment, area, facility]
   for_notification:
     label: for notification
     view: maintenance

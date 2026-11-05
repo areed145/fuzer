@@ -1072,6 +1072,8 @@ export interface MapperForm {
   entity_key: { column: string; as: string | null } | null; columns: MapperColumn[]; kept: string[];
   choices: { targets: Record<string, string>; field_as: Record<string, string>; key_as: Record<string, string> };
   profile?: Record<string, { samples?: string[]; type?: string; fill_pct?: number }>;
+  /** What it makes that the ontology doesn't declare or allow (#241). */
+  warnings?: string[];
 }
 
 export interface SourceLoad {
@@ -1326,7 +1328,7 @@ export const api = {
   rematch: () => request<Json>("POST", "/sources/rematch"),
   mapperForm: (yaml: string, opts: { columns?: string[]; dataset?: string } = {}) =>
     request<MapperForm>("POST", "/sources/mapper/form", undefined, { yaml, ...opts }),
-  mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),
+  mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string; warnings: string[] }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),
   sourceStatus: () => request<RebuildStatus>("GET", "/sources/status"),
   deleteDataset: (name: string, by: string, reason?: string) =>
     request<Json>("DELETE", `/sources/datasets/${encodeURIComponent(name)}`, { by, reason }),

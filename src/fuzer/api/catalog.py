@@ -500,20 +500,37 @@ def mapper_form(body: MapperForm, conn=Depends(get_conn)):
         columns = columns or list(dict.fromkeys(k for r in recs for k in r))
         samples = {k: {"samples": [str(r[k]) for r in recs if r.get(k) not in (None, "")][:3]} for k in columns or []}
     try:
-        return {**mapper.form(body.yaml, columns), "profile": samples}
+        return {**mapper.form(body.yaml, columns), "profile": samples, "warnings": ontology_warnings(conn, body.yaml)}
     except mapper.MapperError as e:
         raise HTTPException(400, str(e)) from e
 
 
+def ontology_warnings(conn, text: str) -> list[str]:
+    """What the mapping makes that the ontology doesn't declare or allow (#241)."""
+    from ..core import ontology
+    from ..sources import catalog, mapper
+
+    current = None
+
+    def ref_kind(ref: str) -> str | None:
+        nonlocal current
+        if current is None:
+            current = {f"{m['source']}:{m['record_type']}": m["yaml"] for m in catalog.current_mappings(conn)}
+        made = mapper.produces(current.get(ref, ""))
+        return made[0][1] if made and not made[0][0] else None
+    return ontology.check_mapping(conn, mapper.produces(text, ref_kind))
+
+
 @router.post("/mapper/yaml")
-def mapper_yaml(body: MapperYaml):
+def mapper_yaml(body: MapperYaml, conn=Depends(get_conn)):
     """The column form written over the mapping: everything the form doesn't show is kept."""
     from ..sources import catalog, mapper
 
     try:
-        return {"yaml": mapper.to_yaml(body.form, body.yaml)}
+        text = mapper.to_yaml(body.form, body.yaml)
     except (mapper.MapperError, catalog.CatalogError) as e:
         raise HTTPException(400, str(e)) from e
+    return {"yaml": text, "warnings": ontology_warnings(conn, text)}
 
 
 # ---- rules, matching, lineage --------------------------------------------------------------------
