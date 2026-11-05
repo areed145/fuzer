@@ -140,7 +140,7 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         <span className="rank mono">{c.rank}</span>
         {c.moved && <span className={`badge ${c.moved === "new" ? "ok" : up ? "ok" : ""}`} title={c.moved}>{c.moved.split(":")[0]}</span>}
         <span className="badge">{c.kind.replace("_", " ")}</span>
-        {c.item_id ? <a href={href(`/work/item/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
+        {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{money(c.effective_usd)}</strong>
         <button className="link" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</button>
@@ -184,7 +184,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
           const id = r.split(":").slice(1).join(":");
           return (
             <span key={r} className="mono">
-              {id.startsWith("fz-") ? <a href={entityHref(id)}>{r}</a> : r.startsWith("work_item:") ? <a href={href(`/work/item/${id}`)}>{r}</a> : r}{" "}
+              {id.startsWith("fz-") ? <a href={entityHref(id)}>{r}</a> : r.startsWith("work_item:") ? <a href={href(`/cases/${id}`)}>{r}</a> : r}{" "}
             </span>
           );
         })}

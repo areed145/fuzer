@@ -33,6 +33,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Operations",
     items: [
+      { label: "Priorities", section: "board" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
       { label: "Reports", section: "reports" },
@@ -47,10 +48,12 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    label: "Work",
+    label: "Workflows",
     items: [
-      { label: "Board", section: "board" },
-      { label: "Work", section: "work", badge: "work" },
+      { label: "Inbox", section: "inbox", also: ["work"], badge: "work" },
+      { label: "Cases", section: "cases" },
+      { label: "Processes", section: "processes" },
+      { label: "Teams & routing", section: "teams" },
       { label: "Review", section: "review", badge: "review" },
     ],
   },
@@ -157,14 +160,13 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
   else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
-  else if (section === "work" && path[1] === "item") trail.push({ label: `Item ${path[2] ?? ""}`.trim() });
-  else if (section === "work" && path[1] === "processes") {
-    trail.push({ label: "Processes", to: path[2] ? "/work/processes" : undefined });
-    if (path[2]) trail.push({ label: path[2] });
-  } else if (section === "work" && path[1] === "forms") {
+  else if (section === "inbox" && path[1] === "task") trail.push({ label: `Task ${path[2] ?? ""}`.trim() });
+  else if (section === "cases" && path[1]) trail.push({ label: `Case ${path[1]}` });
+  else if (section === "processes" && path[1] === "forms") {
     trail.push({ label: "Forms" });
     if (path[2]) trail.push({ label: path[2] });
-  } else return null;
+  } else if (section === "processes" && path[1]) trail.push({ label: path[1] });
+  else return null;
   return (
     <nav className="crumbs" aria-label="Breadcrumb">
       <ol>

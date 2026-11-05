@@ -596,11 +596,52 @@ export interface WorkRow {
   process_id: number | null;
   process_key: string | null;
   bulk: string[];
+  covering_for?: string | null;
+}
+
+// ---- workflows: roles, routing, cases, process statistics
+export interface WorkRoleRow {
+  name: string; kind: "person" | "agent"; description: string | null; default_sla: string | null;
+  escalate_to: string | null; assignment: "queue" | "round_robin" | "least_loaded"; updated_by: string | null;
+  members: { name: string; away: boolean; away_until: string | null; delegate: string | null }[];
+  processes: string[]; waiting: number; overdue: number; escalated: number; uncovered: boolean;
+}
+export interface WorkloadPerson {
+  name: string; roles: string[]; assigned: number; overdue: number; away: boolean; away_until: string | null;
+  delegate: string | null; note: string | null;
+}
+export interface Workload {
+  people: WorkloadPerson[];
+  roles: Record<string, { waiting: number; overdue: number; escalated: number }>;
+  agents: { role: string; waiting: number; failing: number }[];
+  agent_failures: { at: string; actor: string; item_id: number | null; data: Record<string, unknown>; title: string | null }[];
+}
+export interface ProcessStats {
+  process_key: string; name: string | null; version: number; running: number; finished: number; median_h: number | null;
+  p90_h: number | null; waiting: number; overdue: number; steps: number; breached: number; sla_breach_pct: number | null;
+}
+export interface StepRouting {
+  element: string; step: string; kind: "person" | "agent"; role: string | null; sla: string | null;
+  sla_from: "step" | "role" | null; escalation: string[]; escalation_from: "step" | "role" | null;
+  assignment: string | null; form: string | null; requires_human: boolean; fallback_role: string | null;
+}
+export interface ProcessInstance {
+  id: number; item_id: number; title: string; priority: number | null; state: string; outcome: string | null;
+  started_at: string; ended_at: string | null; started_by: string; version: number; age_h: number;
+  open_steps: { task_id: number; step: string; kind: string; role: string | null; assignee: string | null;
+                due_at: string | null; overdue: boolean | null; escalated: boolean }[];
+}
+export interface CaseRow {
+  id: number; type: string; title: string; subjects: string[]; state: string; outcome: string | null; step: string | null;
+  priority: number | null; assignee: string | null; role: string | null; due: string | null; created_by: string;
+  source: string | null; created_at: string; updated_at: string; closed_at: string | null; overdue: boolean | null;
+  process_key: string | null; escalated: boolean;
 }
 
 export interface WorkInbox {
   person: string;
   roles: string[];
+  covering?: string[];
   mine: WorkRow[];
   queue: WorkRow[];
   counts: { mine: WorkCounts; queue: WorkCounts };
@@ -1212,7 +1253,7 @@ export const api = {
   resetSetting: (key: string, scope: SettingScope, project: string | null, by: string, reason: string) =>
     request<unknown>("POST", `/settings/${encodeURIComponent(key)}/reset`, undefined, { scope, project, by, reason }),
   settingHistory: (key: string) => request<SettingChange[]>("GET", `/settings/${encodeURIComponent(key)}/history`),
-  workPeople: () => request<{ name: string; roles: string[] }[]>("GET", "/work/people"),
+  workPeople: () => request<{ name: string; roles: string[]; away_until?: string | null; delegate?: string | null }[]>("GET", "/work/people"),
   setWorkPerson: (name: string, roles: string[], by: string) =>
     request<{ name: string; roles: string[] }>("PUT", `/work/people/${encodeURIComponent(name)}`, undefined, { roles, by }),
   removeWorkPerson: (name: string, by: string) =>
@@ -1245,6 +1286,29 @@ export const api = {
     request<{ key: string; version: number; schema: Record<string, unknown> }>("GET", `/work/forms/${encodeURIComponent(key)}`),
   saveForm: (schema: Record<string, unknown>, by: string) =>
     request<{ key: string; version: number }>("POST", "/work/forms", { by }, schema),
+  rolesCatalog: () => request<WorkRoleRow[]>("GET", "/work/roles/catalog"),
+  setRole: (name: string, values: Partial<Pick<WorkRoleRow, "kind" | "description" | "default_sla" | "escalate_to" | "assignment">>,
+            by: string) => request<WorkRoleRow>("PUT", `/work/roles/${encodeURIComponent(name)}`, undefined, { ...values, by }),
+  deleteRole: (name: string, by: string) => request<unknown>("DELETE", `/work/roles/${encodeURIComponent(name)}`, { by }),
+  setAway: (name: string, by: string, until: string | null, delegate?: string | null, note?: string | null) =>
+    request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
+  workload: () => request<Workload>("GET", "/work/workload"),
+  workRouting: (definitionId: number) => request<StepRouting[]>("GET", `/work/definitions/${definitionId}/routing`),
+  workStats: (days = 30) => request<ProcessStats[]>("GET", "/work/stats", { days }),
+  workInstances: (processKey: string, state = "running") =>
+    request<ProcessInstance[]>("GET", "/work/instances", { process_key: processKey, state }),
+  cases: (f: { state?: string; type?: string; assignee?: string; role?: string; overdue?: boolean; q?: string; limit?: number }) =>
+    request<{ items: CaseRow[]; total: number; overdue: number; due_soon: number }>("GET", "/work/items", {
+      state: f.state, type: f.type, assignee: f.assignee, role: f.role, overdue: f.overdue === undefined ? undefined : String(f.overdue),
+      q: f.q, limit: f.limit ?? 200 }),
+  setCase: (id: number, by: string, values: { priority?: number; due?: string; reason?: string }) =>
+    request<unknown>("POST", `/work/items/${id}/set`, undefined, { by, ...values }),
+  reassignCase: (id: number, by: string, to: string, reason?: string) =>
+    request<unknown>("POST", `/work/items/${id}/reassign`, undefined, { by, to, reason }),
+  transitionCase: (id: number, by: string, state: string, reason?: string) =>
+    request<unknown>("POST", `/work/items/${id}/transition`, undefined, { by, state, reason }),
+  cancelProcess: (id: number, by: string, reason?: string) =>
+    request<unknown>("POST", `/work/processes/${id}/cancel`, undefined, { by, state: "cancelled", reason }),
   claim: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/claim`, undefined, { by }),
   release: (id: number, by: string) => request<unknown>("POST", `/work/tasks/${id}/release`, undefined, { by }),
   complete: (id: number, by: string, data: Record<string, unknown>) =>

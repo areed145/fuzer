@@ -2,11 +2,12 @@
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
 
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type Modeler from "bpmn-js/lib/Modeler";
-import { api, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
+import { api, type ProcessStats, type WorkChange, type WorkCompare, type WorkDefinition, type WorkProblem } from "../api";
+import { caseHref, taskHref, useAct } from "./workflows/shared";
 import { Status, href, useAsync } from "../lib";
-import { Actor, span, usePerson, when } from "../work";
+import { Actor, Due, holder, span, usePerson, when } from "../work";
 import { blankProcess, focusElement } from "../bpmnSubset";
 
 const BpmnModeler = lazy(() => import("../BpmnModeler"));
@@ -30,7 +31,7 @@ function useAdmin(person: string) {
 
 function NeedName({ person }: { person: string }) {
   if (person) return null;
-  return <div className="status">Set your name on the <a href={href("/work")}>Work</a> page to edit processes.</div>;
+  return <div className="status">Say who you are in the sidebar (bottom left) to edit processes.</div>;
 }
 
 const download = (name: string, text: string, type: string) => {
@@ -43,8 +44,12 @@ const download = (name: string, text: string, type: string) => {
 
 // --- list ---------------------------------------------------------------------------------------------
 
+const hours = (h: number | null) => (h == null ? "–" : h < 48 ? `${h} h` : `${Math.round(h / 24)} d`);
+
 export function ProcessesPage() {
   const defs = useAsync(() => api.workDefinitions(), []);
+  const stats = useAsync(() => api.workStats(), []);
+  const statOf = (k: string): ProcessStats | undefined => stats.data?.find((x) => x.process_key === k);
   const forms = useAsync(() => api.workForms(), []);
   const [person] = usePerson();
   const [key, setKey] = useState("");
@@ -63,7 +68,7 @@ export function ProcessesPage() {
   const create = async () => {
     try {
       await api.importDefinition(blankProcess(key, name || key), person);
-      location.hash = href(`/work/processes/${key}`);
+      location.hash = href(`/processes/${key}`);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -71,7 +76,7 @@ export function ProcessesPage() {
   const upload = async (f: File) => {
     try {
       const rows = await api.importDefinition(await f.text(), person);
-      location.hash = href(`/work/processes/${rows[0].process_key}`, { v: String(rows[0].id) });
+      location.hash = href(`/processes/${rows[0].process_key}`, { v: String(rows[0].id) });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -79,29 +84,35 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <p className="small"><a href={href("/work")}>← Work</a></p>
       <h1>Processes</h1>
       <p className="muted">
-        How work moves between agents and people. Each process is a BPMN diagram: edit a draft, check it, compare it with
-        the published version, and publish (needs the workflow admin role). Running items stay on the version they started with.
+        How work moves between agents and people, and how each process is doing. Each process is a BPMN diagram: edit a draft,
+        check it, compare it with the published version, and publish (needs the workflow admin role). Running cases stay on the
+        version they started with. Who does each step, its SLA and where it escalates are on each process's SLAs &amp; routing
+        tab; roles themselves are under <a href={href("/teams")}>Teams &amp; routing</a>.
       </p>
       <NeedName person={person} />
       <Status loading={defs.loading} error={defs.error} />
       {groups.length > 0 && (
         <table className="list">
-          <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th /></tr></thead>
+          <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
+            <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th /></tr></thead>
           <tbody>
             {groups.map(([k, vs]) => {
               const pub = vs.find((d) => d.state === "published");
               const draft = vs.find((d) => isOpenDraft(d, vs));
               return (
                 <tr key={k}>
-                  <td><a href={href(`/work/processes/${k}`)}><strong>{pub?.name ?? vs[0].name ?? k}</strong></a> <span className="mono small muted">{k}</span></td>
+                  <td><a href={href(`/processes/${k}`)}><strong>{pub?.name ?? vs[0].name ?? k}</strong></a> <span className="mono small muted">{k}</span></td>
                   <td>{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
                   <td>{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">—</span>}</td>
-                  <td>{vs.reduce((n, d) => n + d.running, 0)}</td>
+                  <td><a href={href(`/processes/${k}`, { tab: "running" })}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
+                  <td>{statOf(k)?.waiting ?? ""}</td>
+                  <td>{statOf(k)?.overdue ? <span className="badge late">{statOf(k)!.overdue}</span> : ""}</td>
+                  <td className="small">{statOf(k) && `${hours(statOf(k)!.median_h)} / ${hours(statOf(k)!.p90_h)}`}</td>
+                  <td className="small">{statOf(k)?.sla_breach_pct != null ? `${statOf(k)!.sla_breach_pct}%` : "–"}</td>
                   <td className="small">
-                    <a href={href(`/work/processes/${k}`)}>Model</a> · <a href={href(`/work/processes/${k}`, { tab: "monitor" })}>Monitor</a>
+                    <a href={href(`/processes/${k}`, { tab: "model" })}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })}>Monitor</a>
                   </td>
                 </tr>
               );
@@ -129,13 +140,13 @@ export function ProcessesPage() {
       <div className="card">
         <div className="row spread">
           <h3>Task forms</h3>
-          {person && <a className="small" href={href("/work/forms/new")}>New form</a>}
+          {person && <a className="small" href={href("/processes/forms/new")}>New form</a>}
         </div>
         <Status loading={forms.loading} error={forms.error} empty={!forms.loading && !forms.data?.length}>No forms yet.</Status>
         <ul className="plain">
           {forms.data?.map((f) => (
             <li key={f.key} className="row small">
-              <a className="mono" href={href(`/work/forms/${f.key}`)}>{f.key}</a>
+              <a className="mono" href={href(`/processes/forms/${f.key}`)}>{f.key}</a>
               <span className="muted">v{f.version} · <Actor who={f.created_by} /> {when(f.created_at)}</span>
             </li>
           ))}
@@ -147,8 +158,12 @@ export function ProcessesPage() {
 
 // --- one process: model and monitor -------------------------------------------------------------------
 
+const PROCESS_TABS = [["overview", "Overview"], ["running", "Running"], ["model", "Model"], ["monitor", "Monitor"],
+                      ["routing", "SLAs & routing"]] as const;
+
 export function ProcessPage({ processKey, query }: { processKey: string; query: URLSearchParams }) {
-  const tab = query.get("tab") === "monitor" ? "monitor" : "model";
+  const asked = query.get("tab");
+  const tab = PROCESS_TABS.some(([k]) => k === asked) ? asked! : "overview";
   const defs = useAsync(() => api.workDefinitions(processKey), [processKey]);
   const list = defs.data ?? [];
   const published = list.find((d) => d.state === "published");
@@ -158,20 +173,22 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
 
   return (
     <section>
-      <p className="small"><a href={href("/work/processes")}>← Processes</a></p>
       <div className="row spread">
         <h1>{title} <span className="mono small muted">{processKey}</span></h1>
         <div className="tabs">
-          <a className={tab === "model" ? "on" : ""} href={href(`/work/processes/${processKey}`)}>Model</a>
-          <a className={tab === "monitor" ? "on" : ""} href={href(`/work/processes/${processKey}`, { tab: "monitor" })}>Monitor</a>
+          {PROCESS_TABS.map(([k, label]) => (
+            <a key={k} className={tab === k ? "on" : ""} href={href(`/processes/${processKey}`, { tab: k })}>{label}</a>
+          ))}
         </div>
       </div>
       <Status loading={defs.loading && !defs.data} error={defs.error} empty={!defs.loading && !list.length}>
-        No process '{processKey}'. <a href={href("/work/processes")}>Create one</a>.
+        No process '{processKey}'. <a href={href("/processes")}>Create one</a>.
       </Status>
-      {chosen && (tab === "model"
-        ? <ModelTab key={chosen.id} def={chosen} defs={list} draft={draft} reload={defs.reload} />
-        : <MonitorTab processKey={processKey} defs={list} published={published} />)}
+      {chosen && tab === "overview" && <OverviewTab processKey={processKey} defs={list} published={published} />}
+      {chosen && tab === "running" && <RunningTab processKey={processKey} />}
+      {chosen && tab === "model" && <ModelTab key={chosen.id} def={chosen} defs={list} draft={draft} reload={defs.reload} />}
+      {chosen && tab === "monitor" && <MonitorTab processKey={processKey} defs={list} published={published} />}
+      {chosen && tab === "routing" && <RoutingTab def={published ?? chosen} />}
     </section>
   );
 }
@@ -180,7 +197,7 @@ function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefi
   return (
     <label className="small row">
       Version
-      <select value={current.id} onChange={(e) => (location.hash = href(`/work/processes/${current.process_key}`, { v: e.target.value }))}>
+      <select value={current.id} onChange={(e) => (location.hash = href(`/processes/${current.process_key}`, { v: e.target.value }))}>
         {defs.map((d) => (
           <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
         ))}
@@ -293,7 +310,7 @@ function ModelTab({ def, defs, draft, reload }: {
   });
   const onDraft = (fromId?: number) => run("draft", async () => {
     const d = await api.draftDefinition(def.process_key, person, fromId);
-    location.hash = href(`/work/processes/${def.process_key}`, { v: String(d.id) });
+    location.hash = href(`/processes/${def.process_key}`, { v: String(d.id) });
     reload();
   });
   const onDownload = () => run("download", async () => {
@@ -321,7 +338,7 @@ function ModelTab({ def, defs, draft, reload }: {
               title={admin ? "" : `Publishing needs the ${ADMIN.replace(/_/g, " ")} role`}>Publish</button>
           </>
         ) : draft ? (
-          <a href={href(`/work/processes/${def.process_key}`, { v: String(draft.id) })}>Open draft v{draft.version}</a>
+          <a href={href(`/processes/${def.process_key}`, { v: String(draft.id) })}>Open draft v{draft.version}</a>
         ) : (
           <button className="primary" disabled={!person || !!busy} onClick={() => onDraft(def.state === "published" ? undefined : def.id)}>
             {def.state === "published" ? "Edit as a new draft" : `New draft from v${def.version}`}
@@ -527,7 +544,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       else delete out.fuzer;
       const r = await api.saveForm(out, person);
       setDirty(false);
-      if (isNew) location.hash = href(`/work/forms/${r.key}`);
+      if (isNew) location.hash = href(`/processes/forms/${r.key}`);
       else {
         setVersion(r.version);
         setMsg({ text: `Saved v${r.version}. Tasks use the latest version from now on.` });
@@ -541,7 +558,6 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
 
   return (
     <section>
-      <p className="small"><a href={href("/work/processes")}>← Processes</a></p>
       <div className="row spread">
         <h1>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</h1>
         <div className="actions">
@@ -576,5 +592,100 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
         <textarea className="mono" rows={5} value={bulk} onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
       </details>
     </section>
+  );
+}
+
+
+// --- overview, running cases, SLAs & routing --------------------------------------------------------------
+
+function OverviewTab({ processKey, defs, published }: { processKey: string; defs: WorkDefinition[]; published?: WorkDefinition }) {
+  const stats = useAsync(() => api.workStats(), []);
+  const s = stats.data?.find((x) => x.process_key === processKey);
+  const facts: [string, ReactNode][] = [
+    ["Published", published ? <>v{published.version} {published.published_at && <span className="muted">{when(published.published_at)}</span>}</> : "not yet"],
+    ["Versions", defs.map((d) => `v${d.version} ${d.state}`).join(", ")],
+    ["Running", s ? <a href={href(`/processes/${processKey}`, { tab: "running" })}>{s.running} cases</a> : "–"],
+    ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<span className="badge late">{s.overdue} overdue</span>)</> : null}</> : "–"],
+    ["Finished (30 days)", s?.finished ?? "–"],
+    ["Cycle time (30 days)", s ? `median ${hours(s.median_h)}, 90% within ${hours(s.p90_h)}` : "–"],
+    ["SLA missed (30 days)", s?.sla_breach_pct != null ? `${s.sla_breach_pct}% of ${s.steps} person steps` : "no person steps yet"],
+  ];
+  return (
+    <>
+      <table className="kv"><tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
+      <p className="small muted">Where work piles up: <a href={href(`/processes/${processKey}`, { tab: "monitor" })}>Monitor</a>. Who does each step
+        and when it escalates: <a href={href(`/processes/${processKey}`, { tab: "routing" })}>SLAs &amp; routing</a>.</p>
+    </>
+  );
+}
+
+function RunningTab({ processKey }: { processKey: string }) {
+  const [state, setState] = useState("running");
+  const list = useAsync(() => api.workInstances(processKey, state), [processKey, state]);
+  const [person] = usePerson();
+  const a = useAct();
+  return (
+    <>
+      <div className="tabs small">
+        {["running", "completed", "cancelled", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
+      </div>
+      <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && !list.data.length}>None.</Status>
+      {list.data && list.data.length > 0 && (
+        <table className="results">
+          <thead><tr><th>Case</th><th>Waiting on</th><th>Age</th><th>Version</th><th>Started by</th><th /></tr></thead>
+          <tbody>
+            {list.data.map((i) => (
+              <tr key={i.id}>
+                <td><a href={caseHref(i.item_id)}>{i.title}</a>{i.state !== "running" && <span className="badge"> {i.state}{i.outcome ? `: ${i.outcome}` : ""}</span>}</td>
+                <td className="small">
+                  {i.open_steps.map((t) => (
+                    <div key={t.task_id}>
+                      {t.kind === "agent" ? t.step : <a href={taskHref(t.task_id)}>{t.step}</a>} <span className="muted">with {holder(t.assignee, t.role, t.kind)}</span>{" "}
+                      {t.escalated && <span className="badge late">escalated</span>} <Due at={t.due_at} />
+                    </div>
+                  ))}
+                </td>
+                <td className="small">{hours(Math.round(i.age_h))}</td>
+                <td className="small">v{i.version}</td>
+                <td className="small"><Actor who={i.started_by} /></td>
+                <td>{i.state === "running" && person && (
+                  <button className="link small" disabled={!!a.busy}
+                    onClick={() => confirm(`Cancel "${i.title}"?`) && a.run(`c${i.id}`, () => api.cancelProcess(i.id, person, "cancelled from the process page"), list.reload)}>cancel</button>
+                )}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
+  );
+}
+
+function RoutingTab({ def }: { def: WorkDefinition }) {
+  const r = useAsync(() => api.workRouting(def.id), [def.id]);
+  if (!r.data) return <Status loading={r.loading} error={r.error} />;
+  return (
+    <>
+      <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply
+        (edit them under <a href={href("/teams")}>Teams &amp; routing</a>). Change a step's own settings in the Model tab.</p>
+      <table className="list">
+        <thead><tr><th>Step</th><th>Done by</th><th>Assigned</th><th>SLA</th><th>When it passes, goes to</th><th>Form</th></tr></thead>
+        <tbody>
+          {r.data.map((s) => (
+            <tr key={s.element}>
+              <td><strong>{s.step}</strong>{s.requires_human && <span className="badge human"> needs a person</span>}</td>
+              <td>{s.kind === "agent" ? <>{s.role} agent{s.fallback_role && <span className="muted small"> (fails to {s.fallback_role})</span>}</>
+                : <a href={href("/teams", { role: s.role ?? "" })}>{s.role}</a>}</td>
+              <td className="small">{s.kind === "person" ? (s.assignment ?? "queue").replace("_", " ") : "agent worker"}</td>
+              <td>{s.sla ?? <span className="muted">none</span>} {s.sla_from === "role" && <span className="muted small">(role default)</span>}</td>
+              <td className="small">{s.escalation.length ? s.escalation.join(" → ") : <span className="muted">stays with its role</span>}
+                {s.escalation_from === "role" && <span className="muted"> (role chain)</span>}</td>
+              <td className="small">{s.form ? <a className="mono" href={href(`/processes/forms/${s.form}`)}>{s.form}</a> : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }

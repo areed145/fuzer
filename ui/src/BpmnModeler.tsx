@@ -314,8 +314,8 @@ function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any;
           {[...new Set([...ctx.forms, ...(bo.form ? [bo.form] : [])])].sort().map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
         <small>
-          {bo.form && <><a href={href(`/work/forms/${bo.form}`)} target="_blank" rel="noreferrer">Edit {bo.form}</a> · </>}
-          <a href={href("/work/forms/new", { key: bo.form ? undefined : `${ed.process?.id ?? "form"}-${bo.id}` })} target="_blank" rel="noreferrer">New form</a>
+          {bo.form && <><a href={href(`/processes/forms/${bo.form}`)} target="_blank" rel="noreferrer">Edit {bo.form}</a> · </>}
+          <a href={href("/processes/forms/new", { key: bo.form ? undefined : `${ed.process?.id ?? "form"}-${bo.id}` })} target="_blank" rel="noreferrer">New form</a>
           {" "}(opens in a new tab; the field keys become process data for conditions)
         </small>
       </label>

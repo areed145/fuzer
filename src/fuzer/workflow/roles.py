@@ -186,19 +186,32 @@ def set_away(conn, person: str, by: str, until: datetime | None, delegate: str |
             raise RoleError(f"no person {delegate!r} to cover")
     conn.execute("update work_person set away_until = %s, delegate = %s, note = %s where name = %s",
                  (until, delegate if until else None, note if until else None, person))
+    moved = []
+    if until and until > engine.utcnow():  # what they hold now goes to whoever covers, else back to its queue
+        cover = covering(conn, delegate, engine.utcnow()) if delegate else None
+        for t in conn.execute("update work_token set assignee = %s, claimed_by = null, lease_until = null "
+                              "where state = 'waiting' and kind in ('user', 'fix') and assignee = %s returning id, item_id, process_id",
+                              (cover, person)).fetchall():
+            moved.append(t["id"])
+            engine._event(conn, "delegated" if cover else "released", by, t["item_id"], t["process_id"], t["id"],
+                          data={"for": person, "to": cover, "reason": f"{person} is away"})
+            engine._sync_item(conn, t["item_id"], engine.utcnow())
     engine._event(conn, "away_set", by, data={"person": person, "until": until.isoformat() if until else None,
-                                              "delegate": delegate})
+                                              "delegate": delegate, "moved": moved})
     return dict(conn.execute("select * from work_person where name = %s", (person,)).fetchone())
 
 
 def covering(conn, person: str | None, now: datetime) -> str | None:
-    """Who a step for `person` goes to: their delegate while they're away (following a chain of delegates), else them."""
+    """Who a step for `person` goes to: their delegate while they're away (following a chain of delegates), nobody (the
+    role's queue) when they're away with no one covering, else them."""
     seen = set()
     while person and person not in seen:
         seen.add(person)
         r = conn.execute("select away_until, delegate from work_person where name = %s", (person,)).fetchone()
-        if not r or not (r["away_until"] and r["away_until"] > now) or not r["delegate"]:
+        if not r or not (r["away_until"] and r["away_until"] > now):
             return person
+        if not r["delegate"]:
+            return None
         person = r["delegate"]
     return person
 
@@ -326,3 +339,31 @@ def instances(conn, process_key: str, now: datetime, state: str | None = "runnin
         where p.process_key = %(key)s and (%(state)s::text is null or p.state = %(state)s)
         group by p.id, i.id, d.version order by p.started_at desc limit %(limit)s
         """, {"key": process_key, "state": state, "now": now, "limit": limit})]
+
+
+def routing(conn, definition_id: int) -> list[dict]:
+    """Each step of a process version as it will route: who does it (role, or agent), its SLA (the step's, else its
+    role's default), where it goes when that passes (the step's escalateTo, else the role chain), how the role
+    assigns, the form, and whether it needs a person."""
+    from . import engine
+
+    refresh(conn)
+    p = engine._definition(conn, definition_id)
+    rows = {r["name"]: dict(r) for r in conn.execute("select * from work_role")}
+    out = []
+    for n in p.nodes.values():
+        if n.type not in ("userTask", "serviceTask"):
+            continue
+        r = rows.get(n.role or n.agent or "") or {}
+        chain, seen, cur = [], set(), n.attrs.get("escalateTo") or r.get("escalate_to")
+        while cur and cur not in seen and len(chain) < MAX_HOPS:
+            chain.append(cur)
+            seen.add(cur)
+            cur = (rows.get(cur) or {}).get("escalate_to")
+        out.append({"element": n.id, "step": n.label, "kind": "person" if n.type == "userTask" else "agent",
+                    "role": n.role or n.agent, "sla": n.attrs.get("sla") or r.get("default_sla"),
+                    "sla_from": "step" if n.attrs.get("sla") else ("role" if r.get("default_sla") else None),
+                    "escalation": chain, "escalation_from": "step" if n.attrs.get("escalateTo") else ("role" if chain else None),
+                    "assignment": r.get("assignment"), "form": n.attrs.get("form"), "requires_human": n.requires_human,
+                    "fallback_role": n.attrs.get("fallbackRole")})
+    return out

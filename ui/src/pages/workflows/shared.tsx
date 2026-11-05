@@ -1,0 +1,68 @@
+/** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
+import { useState } from "react";
+import { api, type WorkRow } from "../../api";
+import { href, notifyChanged, useAsync } from "../../lib";
+
+export const taskHref = (id: number) => href(`/inbox/task/${id}`);
+export const caseHref = (id: number) => href(`/cases/${id}`);
+export const processHref = (key: string, tab?: string) => href(`/processes/${key}`, tab ? { tab } : undefined);
+
+/** Most urgent first: overdue (longest first), then due soonest, then highest priority. */
+export function byUrgency<T extends { due_at?: string | null; due?: string | null; priority: number | null }>(a: T, b: T) {
+  const due = (x: T) => (x.due_at ?? x.due) ? new Date((x.due_at ?? x.due)!).getTime() : Infinity;
+  return due(a) - due(b) || (b.priority ?? -1) - (a.priority ?? -1);
+}
+
+export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kind" | "escalated_at"> & { covering_for?: string | null } }) {
+  return (
+    <>
+      {row.requires_human && <span className="badge human">needs a person</span>}
+      {row.kind === "fix" && <span className="badge late">failed: fix and retry</span>}
+      {row.escalated_at && <span className="badge late">escalated</span>}
+      {row.covering_for && <span className="badge">covering for {row.covering_for}</span>}
+    </>
+  );
+}
+
+/** A person or a role's queue (role:<role>), optionally an agent (agent:<role>). */
+export function AssignPicker({ value, onChange, agents = false }: { value: string; onChange: (v: string) => void; agents?: boolean }) {
+  const people = useAsync(() => api.workPeople(), []);
+  const roles = useAsync(() => api.rolesCatalog(), []);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">choose…</option>
+      <optgroup label="People">
+        {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
+      </optgroup>
+      <optgroup label="Role queues">
+        {(roles.data ?? []).filter((r) => r.kind === "person").map((r) => <option key={r.name} value={`role:${r.name}`}>{r.name} queue</option>)}
+      </optgroup>
+      {agents && (
+        <optgroup label="Agents">
+          {(roles.data ?? []).filter((r) => r.kind === "agent").map((r) => <option key={r.name} value={`agent:${r.name}`}>{r.name} agent</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
+}
+
+/** A button's async action with busy and error state; success refreshes every view. */
+export function useAct() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async <T,>(name: string, fn: () => Promise<T>, after?: (r: T) => void) => {
+    setBusy(name);
+    setError(null);
+    try {
+      const r = await fn();
+      after?.(r);
+      notifyChanged();
+      return r;
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return { busy, error, run };
+}

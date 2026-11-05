@@ -129,3 +129,19 @@ def test_case_actions_stats_and_instances(conn):
     assert inst[0]["item_id"] == item and inst[0]["open_steps"][0]["role"] == "ops_lead"
     w = roles.workload(conn, T0)
     assert any(p["name"] == "alice" and p["assigned"] >= 1 for p in w["people"])
+
+
+def test_away_moves_what_they_hold(conn):
+    publish(conn, "held", "engineer", "PT1H")
+    item = engine.start(conn, "held", {}, "olga", now=T0)["item_id"]
+    t = task_of(conn, item)
+    engine.claim(conn, t["id"], "alice", now=T0)
+    roles.set_away(conn, "alice", "alice", datetime.now(timezone.utc) + timedelta(days=3), delegate="bob")
+    conn.commit()
+    assert task_of(conn, item)["assignee"] == "bob"
+    roles.set_away(conn, "bob", "bob", datetime.now(timezone.utc) + timedelta(days=3))  # bob away too, no one covers
+    conn.commit()
+    assert task_of(conn, item)["assignee"] is None  # back in the engineer queue
+    roles.set_away(conn, "alice", "alice", None)
+    roles.set_away(conn, "bob", "bob", None)
+    conn.commit()

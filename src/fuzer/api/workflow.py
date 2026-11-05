@@ -445,3 +445,11 @@ def work_item_set(item_id: int, c: ItemChange, conn=Depends(get_conn)):
 def work_item_reassign(item_id: int, r: ItemReassign, conn=Depends(get_conn)):
     """Give everything open on a case to a person or a role's queue (role:<role>)."""
     return work.reassign_item(conn, item_id, r.by, r.to, r.reason)
+
+
+@router.get("/work/definitions/{definition_id}/routing")
+def work_routing(definition_id: int, conn=Depends(get_conn)):
+    """Each step of a process version as it routes: role, SLA (step or role default), escalation chain, assignment."""
+    from ..workflow import roles
+
+    return roles.routing(conn, definition_id)
