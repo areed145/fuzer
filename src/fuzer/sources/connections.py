@@ -90,6 +90,8 @@ class Folder(Type):
         from .ingest import READERS, _Manifest
 
         root = self.root(data_dir)
+        if connectors.is_table_folder(root) and not d.get("reader"):  # the path is the table itself
+            return connectors.at(root, d.get("connector"))
         if d.get("reader"):
             r = READERS[d["reader"]]
             f = root / (d.get("location") or r.file)
@@ -106,6 +108,8 @@ class Folder(Type):
         from .ingest import READERS
 
         root = self.root(data_dir)
+        if connectors.is_table_folder(root):  # the path is one table (a Delta or Parquet folder): that table
+            return [root.name]
         return sorted(set(connectors.datasets(root)) | {n for n, r in READERS.items() if (root / r.file).is_file()})
 
     def test(self, data_dir: Path, rows: int = 5) -> list[dict]:
@@ -121,8 +125,10 @@ class Folder(Type):
         try:
             _step(steps, "reach", reach)
             found = _step(steps, "list", lambda: self.discover(data_dir))
-            tables = [n for n in found if connectors.find(root, n) is not None]
-            if tables:
+            if connectors.is_table_folder(root):
+                _step(steps, "read", lambda: {"dataset": root.name, "rows": [
+                    r for _, r in zip(range(rows), connectors.at(root).rows())]})
+            elif tables := [n for n in found if connectors.find(root, n) is not None]:
                 _step(steps, "read", lambda: {"dataset": tables[0], "rows": [
                     r for _, r in zip(range(rows), connectors.find(root, tables[0]).rows())]})
         except _Stop:
