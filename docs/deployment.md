@@ -25,6 +25,31 @@ source exports or demo data. Import your asset data after deployment. If the
 application needs Claude features, set `ANTHROPIC_API_KEY` in the Render
 service's environment; the API and UI can start without it.
 
+### Okan sample on Render
+
+For a separate sample deployment, create a Blueprint using `render-demo.yaml`
+as its Blueprint file. It provisions a **new, dedicated** database and uses
+`Dockerfile.demo` to generate the repository's synthetic Okan exports, including
+the process model used for synthetic time series. The first startup ingests and
+builds the register before serving requests; this can take longer than subsequent
+starts. If initialization is interrupted, the next startup retries it. Once
+complete, later starts leave the database untouched. The bootstrap refuses a
+database with existing tables and never resets it; do not point it at a real or
+shared database.
+
+The sample uses fictional data, not a live facility. Its Blueprint runs only the
+web service: Dagster schedules and the workflow agent worker are not started,
+and Claude readings are not generated automatically. Ask requires an
+`ANTHROPIC_API_KEY`; adding one may incur usage charges. The selected plans are
+paid, and the initial build may require larger plans depending on available
+memory and startup time.
+
+**Access control:** the application does not provide authentication for this
+deployment. The UI and API include write actions, and an API key would enable
+chargeable assistant requests. Restrict access outside the application before
+sharing it; do not use this sample for sensitive data. This Blueprint prepares
+the deployment but does not itself create or verify a live Render service.
+
 ## Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work

@@ -19,7 +19,7 @@ flowchart LR
   c_agents["Agents and MCP<br><small>fuzer.agents, 12 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 13 modules</small>"]
-  c_cli["Command line<br><small>fuzer.cli, 2 modules</small>"]
+  c_cli["Command line<br><small>fuzer.cli, 3 modules</small>"]
   c_core["Core<br><small>fuzer.core, 15 modules</small>"]
   c_workflow --> c_sources
   c_sources --> c_graph
@@ -259,7 +259,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 
 The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
-- **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `sources`, `up`
+- **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `demo_seed`, `sources`, `up`
 - **Uses:** agents, analysis, core, evals, graph, ops, sources, workflow
 - **Writes:** `llm_extraction` ([schema](schema.md))
 - **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)

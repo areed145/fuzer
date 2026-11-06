@@ -373,6 +373,12 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .grid + .card, .grid + section { margin-top: 16px; }
 .home-search { display: flex; gap: 8px; margin: 14px 0 16px; }
 .home-search input { flex: 1; min-width: 0; }
+.home-guide { margin-bottom: 16px; }
+.home-guide-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+.home-guide-links a { display: grid; align-content: start; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; }
+.home-guide-links a:hover { background: var(--accent-soft); }
+.home-guide-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-guide-links span { color: var(--muted); font-size: 13px; }
 .home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .home-card { min-width: 0; margin-bottom: 0; }
 .home-today { grid-column: 1 / -1; }
