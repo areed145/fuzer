@@ -147,7 +147,7 @@ def add(conn, pack, connection_id: int, table: str, text: str, by: str, data_dir
     out = {"dataset": name, "mapping_version": v["id"]}
     if load:
         stats = ingest.ingest(conn, data_dir, [name], trigger="api")
-        out["load"] = {k: stats.get(k) for k in ("loaded", "held", "records", "inserted", "updated", "removed")}
+        out["load"] = stats
         run = catalog.runs(conn, name, 1)
         out["run"] = run[0] if run else None
         out["health"] = (quality.health(conn, name) or [None])[0]

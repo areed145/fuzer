@@ -122,6 +122,62 @@ def test_catalog_view_never_initializes_or_mutates_configuration(client, monkeyp
         assert conn.execute("select count(*) as n from source_audit").fetchone()["n"] == before
 
 
+@pytest.mark.parametrize("endpoint", ["datasets/{name}/run", "{name}/load"])
+def test_load_entrypoints_share_missing_paused_and_unavailable_semantics(client, endpoint):
+    from fuzer.sources import catalog
+
+    def load(name):
+        return client.post("/sources/" + endpoint.format(name=name), json={})
+
+    assert load("not_a_dataset").status_code == 404
+    with db.connect() as conn:
+        d = catalog.dataset(conn, "sap_equipment")
+        catalog.update_dataset(conn, "sap_equipment", "test", location="absent_ingestion_parity.csv")
+        conn.commit()
+        before = len(catalog.runs(conn, "sap_equipment"))
+    try:
+        unavailable = load("sap_equipment")
+        assert unavailable.status_code == 404 and "inspect Sources connection" in unavailable.json()["detail"]
+        with db.connect() as conn:
+            assert len(catalog.runs(conn, "sap_equipment")) == before
+            catalog.pause(conn, "sap_equipment", "test")
+            conn.commit()
+        result = ok(load("sap_equipment"))
+        assert result["paused"] == ["sap_equipment"] and result["loaded"] == [] and result["records"] == 0
+    finally:
+        with db.connect() as conn:
+            catalog.update_dataset(conn, "sap_equipment", "test", location=d["location"])
+            catalog.resume(conn, "sap_equipment", "test")
+            conn.commit()
+
+
+@pytest.mark.parametrize("endpoint", ["datasets/{name}/run", "{name}/load"])
+def test_load_entrypoints_return_the_shared_result_once_and_propagate_failure(client, endpoint, monkeypatch):
+    from fuzer.sources import ingest
+
+    calls = []
+    result = {"loaded": [], "held": ["sap_equipment"], "unchanged": [], "paused": [],
+              "records": 0, "inserted": 0, "updated": 0, "removed": 0, "unmapped": [],
+              "profile_drift": {"sap_equipment": {"changed": True}}}
+
+    def run(conn, data, exports, **kwargs):
+        calls.append((exports, kwargs))
+        return result
+
+    monkeypatch.setattr(ingest, "ingest", run)
+    url = "/sources/" + endpoint.format(name="sap_equipment")
+    assert ok(client.post(url, json={})) == result
+    assert calls == [(["sap_equipment"], {"trigger": "api", **({"full": False} if endpoint.startswith("datasets/") else {})})]
+
+    def fail(*args, **kwargs):
+        calls.append("failed")
+        raise RuntimeError("connector read failed")
+
+    monkeypatch.setattr(ingest, "ingest", fail)
+    with pytest.raises(RuntimeError, match="connector read failed"):
+        client.post(url, json={})
+    assert calls[-1] == "failed" and len(calls) == 2  # no hidden execution or retry
+
 def test_rules_health_alerts_and_lineage(client):
     from fuzer.core.pack import load_pack
     from fuzer.ops import pipeline

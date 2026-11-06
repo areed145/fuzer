@@ -23,6 +23,10 @@ Distinguish a saved decision or rebuild request from completed ingestion/rebuild
 to the dataset's Runs/Quality and scheduler diagnostics to Jobs, never invent a second run model.
 After ambiguous failures, tell users to inspect recorded state before a deliberate retry; do not
 silently replay. Keep reader controls explanatory and enforce permissions on the server.
+Source loads share `sources.ingest.ingest` selection, validation and result semantics across adapters.
+Explicit missing inputs must fail; repeated dataset names execute once. Only bulk/scheduler discovery
+may skip optional absent exports, reporting `missing` rather than `loaded`. Preserve held/paused/unchanged
+outcomes and failed-run propagation; do not add transport-specific load rules or retry execution.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,

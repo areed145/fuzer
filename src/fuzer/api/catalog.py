@@ -288,10 +288,16 @@ def connection_table(cid: int, table: str, claude: bool = False, dataset: str | 
 @router.post("/connections/{cid}/tables/{table}")
 def add_table(cid: int, table: str, body: AddTable, conn=Depends(get_conn)):
     """Save a table as a dataset on this connection with the mapping (approved), and load it."""
-    from ..sources import catalog, onboard
+    from ..sources import catalog, connections, ingest, onboard
 
     try:
         return onboard.add(conn, deps.PACK, cid, table, body.yaml, body.by, _data_dir(), body.values, body.load)
+    except (ingest.DatasetNotFound, ingest.DatasetUnavailable) as e:
+        conn.rollback()
+        raise HTTPException(404, str(e)) from e
+    except connections.ConnectionError_ as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
     except (onboard.OnboardError, catalog.CatalogError) as e:
         conn.rollback()
         raise HTTPException(400, str(e)) from e
@@ -353,13 +359,16 @@ def edit_dataset(name: str, body: Change, conn=Depends(get_conn)):
 @router.post("/datasets/{name}/run")
 def run_dataset(name: str, full: bool = False, conn=Depends(get_conn)):
     """Load one dataset now (its records become entities on the next rebuild)."""
-    from ..sources import catalog, ingest
+    from ..sources import connections, ingest
 
-    if not catalog.dataset(conn, name):
-        raise HTTPException(404, f"no dataset {name!r}")
-    stats = ingest.ingest(conn, _data_dir(), exports=[name], full=full, trigger="api")
-    return {k: stats.get(k) for k in ("loaded", "unchanged", "held", "paused", "records", "inserted", "updated", "removed",
-                                      "profile_drift")}
+    try:
+        return ingest.ingest(conn, _data_dir(), exports=[name], full=full, trigger="api")
+    except (ingest.DatasetNotFound, ingest.DatasetUnavailable) as e:
+        conn.rollback()
+        raise HTTPException(404, str(e)) from e
+    except connections.ConnectionError_ as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
 
 
 @router.post("/datasets/{name}/pause")
