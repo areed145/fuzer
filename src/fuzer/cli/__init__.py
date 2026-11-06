@@ -19,12 +19,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--project", default=None,
                    help="project (#131): picks the pack, data folder, mappings and time-series provider "
                         "(default: $FUZER_PROJECT; `fuzer projects list` shows them)")
-    p.add_argument("--pack", default=None, help="asset pack (default: the project's, else $FUZER_PACK or offshore_demo)")
+    p.add_argument("--pack", default=None, help="asset pack (default: the project's, else $FUZER_PACK or okan)")
     sub = p.add_subparsers(dest="cmd", required=True)
     u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
     u.add_argument("--port", type=int, default=8000)
-    u.add_argument("--demo", help="a fake plant to run: okan (the Okan field), offshore or onshore")
+    u.add_argument("--demo", choices=["okan"], help="the Okan field")
     u.add_argument("--no-jobs", action="store_true", help="don't start Dagster (schedules: SRE scans, studies, refreshes)")
     u.add_argument("--jobs-port", type=int, default=3000, help="port for the Dagster UI")
     u.add_argument("--no-worker", action="store_true",

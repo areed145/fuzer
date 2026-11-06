@@ -34,7 +34,7 @@ setting wells' injection rate and casing pressure, oil from lift gas by each
 well's performance curve, wellhead pressure through an equal-percentage choke,
 pump head and power from a quadratic curve, a hunting level transmitter, and
 liquid carryover between vessels. On Okan, 998 points are modelled; the rest,
-and the offshore asset, keep the per-point signals. A month of 12 points reads
+and the Okan asset, keep the per-point signals. A month of 12 points reads
 in about 20 ms.
 
 ## Operating limits, IOWs and excursions

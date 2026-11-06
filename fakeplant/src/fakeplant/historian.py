@@ -1,6 +1,6 @@
 """A fake plant historian: the parts of PI Web API and Azure Data Explorer that Fuzer uses.
 
-    uv run fakeplant historian --asset okan        # http://127.0.0.1:8100
+    uv run fakeplant historian                    # http://127.0.0.1:8100
 
 One small web server, two faces over the same signals:
 
@@ -16,7 +16,7 @@ The point list and AF tree come from the fake exports (pi_points, pi_af.json). V
 deterministic synthetic signals (fuzer.sources.timeseries.SyntheticProvider), and the upsets in them come
 from the plant's own records, not from Fuzer: each downtime record and each operator log entry about
 a trip, vibration, leak, alarm etc. upsets the points whose tag shares the area and loop number of
-the first tag it names (20-P-1001B -> 20-VT-1001B, 20PT1001B). So trends lead into incidents the way they would on a real
+the first tag it names (20-K-2200B -> 20-VT-2200B, 20PT2200B). So trends lead into incidents the way they would on a real
 historian.
 """
 
@@ -41,7 +41,7 @@ LOOP = re.compile(r"(?<![0-9])(\d{2})[-_ ]?[A-Z]{1,4}[-_ ]?(\d{3,4}[A-Z]?)(?![0-
 
 
 def loops(text: str) -> set[tuple[str, str]]:
-    """(area, loop number) for every tag in text: 20-P-1001B, 20VT1001B and OSB:20-PT-1001B.DACA all give
+    """(area, loop number) for every tag in text: 20-P-1001B, 20VT1001B and OK_GGCP:20-PT-1001B.PV all give
     ('20', '1001B')."""
     return {(m.group(1), m.group(2)) for m in LOOP.finditer(text.upper())}
 

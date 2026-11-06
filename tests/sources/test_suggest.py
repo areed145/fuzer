@@ -16,9 +16,9 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def setup(offshore_db):
-    c = offshore_db.conn
-    yield c, offshore_db.data
+def setup(okan_db):
+    c = okan_db.conn
+    yield c, okan_db.data
 
 
 class FakeClaude:

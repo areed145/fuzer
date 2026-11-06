@@ -15,7 +15,7 @@ from deltalake import write_deltalake
 from fakeplant.lake import write_parquet
 from fastapi.testclient import TestClient
 
-from fakeplant import offshore
+from fakeplant import okan
 from fuzer.core import db
 from fuzer.sources import connectors, ingest
 
@@ -25,7 +25,7 @@ def exports():
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    offshore.generate(data)
+    okan.generate(data)
     return data
 
 

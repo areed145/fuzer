@@ -5,46 +5,34 @@ import json
 import os
 from pathlib import Path
 
-from . import lake, offshore
+from . import lake, okan
 
 # All fake output lives here, one folder per asset (git-ignored).
 DATA = Path(__file__).resolve().parents[2] / "data"
-ASSETS = ["offshore", "onshore", "okan"]
-PACKS = {"offshore": "offshore_demo", "onshore": "onshore_demo", "okan": "okan"}  # asset -> Fuzer asset pack
-ASSET_FOR_PACK = {pack: asset for asset, pack in PACKS.items()}
+PACKS = {"okan": "okan"}
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="fakeplant", description="Fake source exports for Fuzer.")
     sub = p.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("generate", help="write fake source exports")
-    g.add_argument("--out", default=None, help="output folder (default: fakeplant/data/<asset>)")
+    g.add_argument("--out", default=None, help="output folder (default: fakeplant/data/okan)")
     d = sub.add_parser("demo", help="reset the Fuzer database, generate, ingest and rebuild")
-    d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/<asset>)")
-    d.add_argument("--pack", default=None, help="asset pack (default: the asset's own pack)")
+    d.add_argument("--data", dest="out", default=None, help="output folder (default: fakeplant/data/okan)")
+    d.add_argument("--pack", choices=["okan"], default="okan", help="asset pack")
     sc = sub.add_parser("schedules", help="Okan project schedules as a Delta table, a source with no mapping (#227)")
     sc.add_argument("--out", default="fakeplant/data/okan_lake", help="lake folder (the table is <out>/project_schedules)")
     sc.add_argument("--okan", default="fakeplant/data/okan", help="the Okan exports it is built from")
     sc.add_argument("--update", action="store_true", help="write version 1: progress moves, a finish slips, a row goes")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
-    h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/<asset>)")
-    h.add_argument("--asset", choices=ASSETS, default="offshore")
+    h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/okan)")
     h.add_argument("--host", default="127.0.0.1")
     h.add_argument("--port", type=int, default=8100)
     for x in (g, d):
-        x.add_argument("--seed", type=int, default=7)
-        x.add_argument("--asset", choices=ASSETS, default="offshore",
-                       help="offshore: the small test platform; onshore: an ESP field; okan: the Okan field demo")
-        x.add_argument("--size", choices=list(offshore.SIZES), default="small",
-                       help="small: hand-checked test asset; medium: about 1/10 of a real offshore asset")
-        x.add_argument("--areas", type=int, help="override number of process areas (max 90)")
-        x.add_argument("--trains", type=int, help="override equipment trains per area (1-10)")
-        x.add_argument("--wells", type=int, help="override number of wells")
-        x.add_argument("--logs", type=int, help="override number of operator log entries")
         x.add_argument("--format", choices=["csv", "parquet"], default="csv",
                        help="parquet writes each table as a lake-style folder of Parquet part files")
     args = p.parse_args(argv)
-    args.out = args.out or str(DATA / args.asset)
+    args.out = args.out or str(DATA / "okan")
 
     if args.cmd == "generate":
         _print(generate(args))
@@ -52,13 +40,13 @@ def main(argv=None):
         from . import schedules
 
         if not (Path(args.okan) / "sap_work_orders.csv").is_file():
-            raise SystemExit(f"No Okan exports in {args.okan}; run `fakeplant generate --asset okan` first.")
+            raise SystemExit(f"No Okan exports in {args.okan}; run `fakeplant generate` first.")
         _print(schedules.write(Path(args.okan), Path(args.out), args.update))
     elif args.cmd == "historian":
         from . import historian
 
         if not Path(args.out).is_dir():
-            raise SystemExit(f"No exports in {args.out}; run `fakeplant generate --asset {args.asset}` first.")
+            raise SystemExit(f"No exports in {args.out}; run `fakeplant generate` first.")
         historian.main(args.out, args.host, args.port)
     else:
         from fuzer.core import db
@@ -66,7 +54,7 @@ def main(argv=None):
         from fuzer.ops import pipeline
         from fuzer.sources import ingest
 
-        pack = load_pack(args.pack or PACKS[args.asset])
+        pack = load_pack(args.pack)
         with db.connect() as conn:
             db.reset(conn)
             _print({"generated": generate(args)})
@@ -76,25 +64,14 @@ def main(argv=None):
             print(f"\nPoint Fuzer at this data with FUZER_DATA_DIR={args.out} (in .env) for ingest, eval and jobs.")
 
 
-def make(out, asset: str = "offshore", size: str = "small") -> dict:
+def make(out) -> dict:
     """A fake plant in `out` with default settings (used by `fuzer up`)."""
-    return generate(argparse.Namespace(out=str(out), asset=asset, seed=7, size=size, areas=None, trains=None,
-                                       wells=None, logs=None, format="csv"))
+    return generate(argparse.Namespace(out=str(out), format="csv"))
 
 
 def generate(args) -> dict:
     out = Path(args.out)
-    if args.asset == "onshore":
-        from . import onshore
-
-        stats = onshore.generate(out)
-    elif args.asset == "okan":
-        from . import okan
-
-        stats = okan.generate(out)
-    else:
-        stats = offshore.generate(out, args.seed, size=args.size, areas=args.areas, trains=args.trains,
-                                  wells=args.wells, logs=args.logs)
+    stats = okan.generate(out)
     if args.format == "parquet":
         stats["parquet_tables"] = lake.to_parquet(out)
     else:

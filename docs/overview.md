@@ -6,9 +6,8 @@ Fuzer is our own version of the core of Cognite Data Fusion. It pulls asset data
 from many systems, works out which records describe the same real thing, links
 them into one graph, and serves that graph to apps, AI agents and engineers.
 
-The first target is one medium offshore asset (20–60 wells, 50k–150k tags,
-100k–300k PI points, a few thousand P&ID sheets). The core must not be specific
-to offshore: onshore, midstream and downstream assets plug in as **asset packs**.
+The current reference project is the Okan field demo. Asset-specific behavior is
+isolated in an **asset pack**; Okan is the only supported pack and project.
 
 ## Decisions
 
@@ -103,10 +102,8 @@ Edges have `valid_from` / `valid_to`, so you can trace "which wells fed the
 production separator on 2024-01-01".
 
 ## Asset packs
-Everything asset-specific lives in `src/fuzer/packs/<name>.yaml`: tag function
-codes, area digits, well platforms, phrase aliases, and the matching thresholds and
-survivorship rules that seed the source catalog's rules (edited there afterwards). A new onshore or downstream asset is a new pack, not new
-core code. `onshore_demo` (pads with hundreds of wells on ESPs, SAP + PI + EC
-only, pattern-based well names like `RB 07-03H`, an ESP class the pack adds)
-runs end to end on the same code as the offshore pack; the project (`FUZER_PROJECT`) selects the
-pack for the API, MCP server and jobs.
+Everything asset-specific lives in `src/fuzer/packs/okan.yaml`: tag function
+codes, area digits, well platforms, phrase aliases, and matching thresholds and
+survivorship rules that seed the source catalog's rules (edited there afterwards).
+The `okan` project (`FUZER_PROJECT`) selects the pack for the API, MCP server and
+jobs.

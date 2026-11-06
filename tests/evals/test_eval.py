@@ -10,9 +10,9 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def scores(offshore_db):
-    c = offshore_db.conn
-    data = offshore_db.data
+def scores(okan_db):
+    c = okan_db.conn
+    data = okan_db.data
     return evaluate.run(c, PACK, data / "answer_keys")
 
 

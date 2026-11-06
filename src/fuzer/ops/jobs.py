@@ -36,7 +36,7 @@ class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack to use."""
 
     data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
-    pack: str = os.environ.get("FUZER_PACK", "offshore_demo")
+    pack: str = os.environ.get("FUZER_PACK", "okan")
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
 
     def connect(self):

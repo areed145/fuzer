@@ -29,7 +29,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import curves, docs, limits, measurements, pid, process
-from .offshore import (
+from .common import (
     ACTIONS,
     CAUSES,
     DAMAGE_TEXT,
@@ -711,7 +711,7 @@ def generate(out, seed: int = 11) -> dict:
                               "longitude": place[a][0], "latitude": place[a][1]}} for a in jacket_at]
     for fid, name, at in [("EGP", "Escravos Gas Plant", EGP_AT), ("ESCRAVOS", "Escravos crude terminal", TERMINAL_AT)]:
         feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": list(at)},
-                      "properties": {"facility_id": fid, "floc": fid, "name": name, "type": "onshore plant",
+                      "properties": {"facility_id": fid, "floc": fid, "name": name, "type": "field facility",
                                      "water_depth_m": 0, "install_year": 1997, "longitude": at[0], "latitude": at[1]}})
     lines = []
 
@@ -904,6 +904,9 @@ def generate(out, seed: int = 11) -> dict:
           "on_sheet": ["head", "efficiency"] if c["kind"] == "pump" else list(c["series"])}
          for m, c in sorted(oem.items())],
         indent=1))
+    from . import incoming
+
+    incoming.generate(out, equipment, floc, [w["name"] for w in wells])
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
             "gas_producers": len(gas_wells), "equipment": len(equipment), "flocs": len(floc), "pi_points": len(points),

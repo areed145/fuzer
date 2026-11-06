@@ -12,7 +12,7 @@ from fuzer.ops import pipeline
 from fuzer.sources import llm_pids
 
 PACK = load_pack()
-SHEET = "OSB-44-PID-001"
+SHEET = "OKAN-20-PID-005"
 
 
 class FakeVision:
@@ -29,6 +29,7 @@ class FakeVision:
         assert sum(1 for b in content if b["type"] == "image") == 4  # 2200 x 1500 -> 2 x 2 tiles
         sheet = next(b["text"] for b in content if b["type"] == "text").split()[1].rstrip(".")
         truth = self.truth[sheet]
+        width, height = truth["size"]
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
             tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
                     for x in truth["tags"]]
@@ -40,20 +41,20 @@ class FakeVision:
         # Positions as Claude gives them: a tile number and pixels within that tile (tiles here aren't shrunk).
         where = {x["key"]: x for x in truth["tags"]}
         for key in where:
-            if key == "44-TT-2001":
+            if key == "20-TT-2200B":
                 continue  # missed
             text = key if key.split("-")[1] in ("P", "V", "K", "E") else key.split("-", 1)[1]  # bubbles have no area
-            if key == "44-VT-1001B":
+            if key == "20-VT-2200B":
                 text = "VT-1OO1B"  # O for 0: not a tag
             x, y = where[key]["x"], where[key]["y"]
-            boxes = llm_pids.tile_boxes(2200, 1500)
+            boxes = llm_pids.tile_boxes(width, height)
             tile = next(i for i, b in enumerate(boxes, 1) if b[0] <= x < b[2] and b[1] <= y < b[3])
             box = boxes[tile - 1]
             tags.append({"text": text, "kind": "equipment" if text == key else "instrument", "confidence": 0.9,
                          "tile": tile, "x": x - box[0], "y": y - box[1]})
         tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300},
                  {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300}]
-        data = {"title_block": {"drawing_number": SHEET, "title": "AREA 44 - WATER INJECTION", "revision": "D"},
+        data = {"title_block": {"drawing_number": SHEET, "title": "AREA 20 - TRAIN B", "revision": "D"},
                 "tags": tags, "connections": [{"from": ln["from"], "to": ln["to"], "line": ln["text"]}
                                               for ln in truth["lines"]]}
         return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
@@ -61,9 +62,9 @@ class FakeVision:
 
 
 @pytest.fixture(scope="module")
-def setup(offshore_db):
-    c = offshore_db.conn
-    data = offshore_db.data
+def setup(okan_db):
+    c = okan_db.conn
+    data = okan_db.data
     yield c, json.loads((data / "pid_truth.json").read_text())
 
 
@@ -91,7 +92,7 @@ def test_tiles_stay_within_size_limit(setup):
     from PIL import Image
     t = llm_pids.tiles(p["image_path"])
     assert len(t) == 4 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
-    assert [box for _, _, box in t] == llm_pids.tile_boxes(2200, 1500)
+    assert [box for _, _, box in t] == llm_pids.tile_boxes(2200, 1880)
 
 
 def test_every_drawn_sheet_but_smart_is_read(setup):
@@ -105,22 +106,22 @@ def test_every_drawn_sheet_but_smart_is_read(setup):
 def test_read_link_and_score(setup, read):
     conn, truth = setup
     out, fake = read
-    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 2  # the scan and the text PDF
+    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 7
 
     result = conn.execute("select result from llm_extraction where source = 'pid' and source_key = %s",
                           (SHEET,)).fetchone()["result"]
-    assert len(result["mentions"]) == 10
+    assert len(result["mentions"]) == 28
     issues = {f["issue"] for f in result["findings"] if f["kind"] not in ("connection", "title_block")}
     assert issues == {"not a tag", "not in register"} and result["lines"][0]["text"] == '6"-P-44479-A1'
     # Positions come back in sheet pixels, close to where the generator drew each tag.
     drawn = {x["key"]: x for x in truth[SHEET]["tags"]}
     for m in result["mentions"]:
         assert abs(m["x"] - drawn[m["key"]]["x"]) <= 2 and abs(m["y"] - drawn[m["key"]]["y"]) <= 2
-    assert result["size"] == [2200, 1500]
+    assert result["size"] == truth[SHEET]["size"]
 
     s = llm_pids.score(conn, {SHEET: truth[SHEET]})
-    assert s["recall"] == round(10 / 12, 3) and s["precision"] == 1.0
-    assert set(s["problems"][0]["missed"]) == {"44-TT-2001", "44-VT-1001B"}
+    assert s["recall"] == round(28 / 30, 3) and s["precision"] == 1.0
+    assert set(s["problems"][0]["missed"]) == {"20-TT-2200B", "20-VT-2200B"}
     assert s["piping"] == {"recall": 1.0, "precision": 1.0}
 
 
@@ -130,7 +131,7 @@ def test_drawing_endpoint_places_readings(setup, read):
     client = TestClient(app)
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
     d = client.get(f"/documents/{fid}/drawing").json()
-    assert (d["width"], d["height"], d["format"]) == (2200, 1500, "image") and d["read_by"]
+    assert (d["width"], d["height"], d["format"]) == (2200, 1880, "image") and d["read_by"]
     status = {m["status"] for m in d["marks"]}
     assert status == {"linked", "not_a_tag", "not_in_register", "line"}
     linked = [m for m in d["marks"] if m["status"] == "linked"]
@@ -149,7 +150,7 @@ def test_drawings_for_an_entity(setup, read):
     from fuzer.graph import queries
     client = TestClient(app)
     sheet = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
-    tag = queries.resolve_ref(conn, PACK, "44-P-1001A")
+    tag = queries.resolve_ref(conn, PACK, "20-K-2200B")
     d = client.get(f"/entities/{tag}/drawings").json()
     assert sheet in [x["id"] for x in d["drawings"]] and d["highlight"] == [tag]
     marks = client.get(f"/documents/{sheet}/drawing").json()["marks"]

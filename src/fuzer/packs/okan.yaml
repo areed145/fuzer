@@ -1,5 +1,5 @@
 # Asset pack for the Okan field demo (NMA business unit, South Offshore area). Fake data made by
-# `fakeplant generate --asset okan`. Installations are two-digit areas of the field "OKAN":
+# `fakeplant generate`. Installations are two-digit areas of the field "OKAN":
 #   10 OKA_PP (production platform)    20 OK_GGCP (gas gathering and compression, trains A/B/C)
 #   30 OKA_ST1, 40 OKA_ST2 (satellites) 50 OKA_NWP (new wells platform)   61-84 jackets OKJ-01..24
 name: okan

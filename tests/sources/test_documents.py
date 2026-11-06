@@ -13,10 +13,10 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def setup(offshore_db):
-    c = offshore_db.conn
-    data = offshore_db.data
-    yield c, offshore_db.data, json.loads((data / "documents.json").read_text())
+def setup(okan_db):
+    c = okan_db.conn
+    data = okan_db.data
+    yield c, okan_db.data, json.loads((data / "documents.json").read_text())
 
 
 def fid(conn, ref):
@@ -64,13 +64,13 @@ def test_guides_and_procedures_link_by_tag_and_class(setup):
 
 def test_sections_are_entities_that_mention_tags(setup):
     conn, _, _ = setup
-    guide = fid(conn, "TG-23-001 rev A")
+    guide = fid(conn, "TG-20-001 rev A")
     secs = conn.execute("select src from edge where dst = %s and rel = 'part_of'", (guide,)).fetchall()
     assert len(secs) >= 2
     mentioned = {r["label"] for r in conn.execute(
         "select l.label from edge e join entity_label l on l.fuzer_id = e.dst "
         "where e.src = any(%s) and e.rel = 'mentions'", ([s["src"] for s in secs],))}
-    assert {"23-K-1001A", "23-E-3001A"} <= mentioned
+    assert {"20-K-2200B", "20-K-2300A"} <= mentioned
 
 
 def test_file_endpoint_and_search(setup):

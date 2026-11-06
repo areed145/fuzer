@@ -17,8 +17,8 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn(offshore_db):
-    c = offshore_db.conn
+def conn(okan_db):
+    c = okan_db.conn
     lessons.MIN_INCIDENTS = 1
     pipeline.rebuild(c, PACK)  # the reader picks candidates from the register
     llm_links.run(c, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
@@ -28,10 +28,10 @@ def conn(offshore_db):
 
 
 def test_brief_for_the_vibration_incident(conn):
-    jan = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-P-1001B"))["items"]
-               if i["start"] == "2024-01-01")
-    b = assistant.brief(conn, PACK, jan["id"])
-    assert b["about"]["label"] == "20-P-1001B" and b["incident"]["timeline"]
+    march = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-K-2200B"))["items"]
+                 if i["start"].startswith("2024-03"))
+    b = assistant.brief(conn, PACK, march["id"])
+    assert b["about"]["label"] == "20-K-2200B" and b["incident"]["timeline"]
     assert "VIB" in b["incident"]["failure_modes"]
     assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
     assert len(b["spares"]) == 3 and b["documents"]
@@ -40,8 +40,8 @@ def test_brief_for_the_vibration_incident(conn):
 
 
 def test_brief_for_a_tag_uses_its_latest_incident(conn):
-    b = assistant.brief(conn, PACK, queries.resolve_ref(conn, PACK, "23-K-1001A"))
-    assert b["incident"] and b["about"]["label"] == "23-K-1001A"
+    b = assistant.brief(conn, PACK, queries.resolve_ref(conn, PACK, "20-K-2200B"))
+    assert b["incident"] and b["about"]["label"] == "20-K-2200B"
 
 
 def test_mcp_tool_and_prompt(conn):
@@ -49,12 +49,12 @@ def test_mcp_tool_and_prompt(conn):
 
     async def go():
         async with Client(server, raise_exceptions=True) as client:
-            brief = (await client.call_tool("troubleshooting_brief", {"ref": "20-P-1001B"})).structured_content
+            brief = (await client.call_tool("troubleshooting_brief", {"ref": "20-K-2200B"})).structured_content
             prompts = [p.name for p in (await client.list_prompts()).prompts]
             return brief, prompts
 
     brief, prompts = asyncio.run(go())
-    assert brief["about"]["label"] == "20-P-1001B" and "troubleshoot" in prompts
+    assert brief["about"]["label"] == "20-K-2200B" and "troubleshoot" in prompts
 
 
 def test_feedback(conn):

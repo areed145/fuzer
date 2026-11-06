@@ -1,7 +1,7 @@
 # Glossary
 
-**Asset pack.** What makes Fuzer fit one kind of asset (offshore, onshore, ...): tag grammar, entity kinds, limits,
-and the source priorities and match thresholds that seed the source catalog's rules. See [overview](overview.md).
+**Asset pack.** Asset-specific tag grammar, entity kinds, limits, source priorities and match thresholds that seed
+the source catalog's rules. Okan is the only supported pack. See [overview](overview.md).
 
 **Assertion.** One source's value for one field of one entity (re-read from its record; a reviewer's choice is
 stored). Golden records are chosen from assertions.

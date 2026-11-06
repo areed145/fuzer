@@ -15,9 +15,9 @@ from fuzer.sources import catalog, connections, ingest, mappings
 
 
 @pytest.fixture
-def data(offshore_data):
+def data(okan_data):
     d = Path(tempfile.mkdtemp(prefix="fzcat"))
-    shutil.copytree(offshore_data, d, dirs_exist_ok=True)
+    shutil.copytree(okan_data, d, dirs_exist_ok=True)
     return d
 
 

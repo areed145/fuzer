@@ -8,17 +8,15 @@ PACK = load_pack()
 
 
 @pytest.mark.parametrize("text,area,expected", [
-    ("OSB-20-PT1001A", None, "20-PT-1001A"),
-    ("OSB.20PT1001A.PV", None, "20-PT-1001A"),
-    ("OSB:23-PT-1001A.DACA.PV", None, "23-PT-1001A"),
-    ("27PT1001A_PV", None, "27-PT-1001A"),
-    ("OIL EXPORT PUMP - 27-P1001-A", None, "27-P-1001A"),
-    ("OSB/20/P-1001A", "20", "20-P-1001A"),
-    ("PT\n1001A", "27", "27-PT-1001A"),
-    ("44P1001B", None, "44-P-1001B"),
-    ("20-V-2001", None, "20-V-2001"),
+    ("OK_GGCP:20-PT-3003.PV", None, "20-PT-3003"),
+    ("OKA_PP.10PT3001.PV", None, "10-PT-3001"),
+    ("OKA_ST1:30-FT-3002.PV", None, "30-FT-3002"),
+    ("20PT3003", None, "20-PT-3003"),
+    ("20-PT-3003", None, "20-PT-3003"),
+    ("PT3003", "20", "20-PT-3003"),
+    ("PT\n3003", "20", "20-PT-3003"),
     ("PT-1001A", None, None),          # no area and no context
-    ("OSB.A07.WHP", None, None),        # a well point, not a tag
+    ("OK_J07_03.WHP", None, None),        # a well point, not a tag
 ])
 def test_tag_parse(text, area, expected):
     assert PACK.tags.parse(text, default_area=area) == expected
@@ -30,8 +28,9 @@ def test_suffix_does_not_eat_next_word():
 
 
 @pytest.mark.parametrize("text,expected", [
-    ("A07", "A-07"), ("A-7", "A-07"), ("OSB_A-07", "A-07"), ("OSB-WELL-A07A", "A-07 ST1"),
-    ("OSB_A-07 ST1", "A-07 ST1"), ("OSB.A07ST1.WHP", "A-07 ST1"), ("20-PT-1001A", None),
+    ("OK-J07-03", "OK-J07-03"), ("OKAN_J07_03", "OK-J07-03"),
+    ("OKAN-WELL-OKJ07-03", "OK-J07-03"), ("OK-NWP-G2", "OK-NWP-G2"),
+    ("20-PT-3003", None),
 ])
 def test_well_parse(text, expected):
     assert PACK.wells.parse(text) == expected
@@ -42,6 +41,5 @@ def test_serial_normalization():
 
 
 def test_mentions_prefer_longest_alias():
-    ms = find_mentions("Lined up A-03 to test separator, LT-2002 hunting", PACK)
-    assert [(m.kind, m.key) for m in ms] == [
-        ("well", "A-03"), ("tag", "20-V-2002"), ("tag_noarea", "LT-2002")]
+    ms = find_mentions("Train B down on OK_GGCP, lift gas short to OKA_ST2", PACK)
+    assert {"OKAN-20", "OKAN-40"} <= {m.key for m in ms}

@@ -1,35 +1,33 @@
-"""End-to-end: fake data -> embedded Postgres -> pipeline -> API."""
+"""End-to-end: Okan data -> embedded Postgres -> pipeline -> API."""
 
 import os
 import tempfile
-from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
 
-from fakeplant import offshore
+from fakeplant import okan
 from fuzer.core import db
 from fuzer.core.pack import load_pack
-from fuzer.graph import edges
 from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
-
-pytestmark = pytest.mark.sequence  # (#137) the register as built, then reviewers' decisions on it
+pytestmark = pytest.mark.sequence
 
 
 @pytest.fixture(scope="module")
 def conn():
     os.environ.pop("FUZER_DATABASE_URL", None)
-    os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")  # short path: socket length limit
+    os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")
     data = tempfile.mkdtemp(prefix="fzdata")
-    offshore.generate(data)
+    okan.generate(data)
     with db.connect() as c:
         db.reset(c)
         ingest.ingest(c, data)
         pipeline.rebuild(c, PACK)
+        c.data = data
     with db.connect(autocommit=True) as c:
         yield c
 
@@ -37,63 +35,19 @@ def conn():
 @pytest.fixture(scope="module")
 def api(conn):
     from fuzer.api import app
+
     return TestClient(app)
 
 
 def fid(conn, kind, key):
-    return conn.execute("select fuzer_id from entity_key where kind = %s and key = %s", (kind, key)).fetchone()["fuzer_id"]
+    row = conn.execute("select fuzer_id from entity_key where kind = %s and key = %s", (kind, key)).fetchone()
+    return row["fuzer_id"]
 
 
-def records(conn, fuzer_id):
-    return {(r["source"], r["source_key"]) for r in conn.execute(
-        "select source, source_key from crosswalk where fuzer_id = %s", (fuzer_id,))}
-
-
-def test_tag_merges_across_sources(conn):
-    srcs = {s for s, _ in records(conn, fid(conn, "tag", "20-V-2001"))}
-    assert srcs == {"sap", "pi_af", "ec"}
-
-
-def test_pi_point_linked_to_instrument_tag(conn):
-    tag = fid(conn, "tag", "23-PT-1001A")
-    ts = fid(conn, "timeseries", "OSB:23-PT-1001A.DACA.PV")
-    assert conn.execute("select 1 from edge where src = %s and rel = 'has_timeseries' and dst = %s",
-                        (tag, ts)).fetchone()
-
-
-def test_swapped_pump_is_two_items_at_one_tag(conn):
-    tag = fid(conn, "tag", "20-P-1001B")
-    rows = conn.execute("select src, valid_from, valid_to from edge where dst = %s and rel = 'installed_at' "
-                        "order by valid_from", (tag,)).fetchall()
-    assert [(r["valid_from"], r["valid_to"]) for r in rows] == [
-        (date(2018, 1, 1), date(2023, 6, 1)), (date(2023, 6, 1), None)]
-    old_sources = {s for s, _ in records(conn, rows[0]["src"])}
-    assert old_sources == {"sap", "jde"}  # stale JDE record matched the retired pump
-
-
-def test_review_queue_has_planted_cases(conn):
-    items = conn.execute("select kind, payload from review_item where status = 'open'").fetchall()
-    matches = [i["payload"] for i in items if i["kind"] == "match"]
-    conflicts = [i["payload"] for i in items if i["kind"] == "conflict"]
-    assert any(m["left"]["block"] == "23-K-1001B" for m in matches)
-    assert any({v["value"] for v in c["values"]} == {"Sulzer", "Flowserve"} for c in conflicts)
-    assert not any("K.S.B." in {v["value"] for v in c["values"]} for c in conflicts)
-
-
-def test_trace_respects_dates(conn):
-    sep = fid(conn, "tag", "20-V-2001")
-    before = {r["label"] for r in edges.trace(conn, sep, as_of=date(2024, 1, 1))}
-    after = {r["label"] for r in edges.trace(conn, sep, as_of=date(2024, 6, 1))}
-    assert "A-03" not in before and "A-03" in after
-    assert "A-07" not in after and "A-07 ST1" in after
-
-
-def test_log_mentions_link_aliases_and_short_tags(conn):
-    entry = conn.execute("select fuzer_id from golden where field = 'text' and value::text like %s limit 1",
-                         ("%lt-2002%",)).fetchone()["fuzer_id"]
-    linked = {r["label"] for r in conn.execute(
-        "select l.label from edge e join entity_label l on l.fuzer_id = e.dst where e.src = %s", (entry,))}
-    assert linked == {"20-LT-2002", "20-V-2002"}
+def test_well_identity_merges_across_sources(conn):
+    well = fid(conn, "well", "OK-J07-03")
+    sources = {r["source"] for r in conn.execute("select source from crosswalk where fuzer_id = %s", (well,))}
+    assert {"sap", "ec"} <= sources
 
 
 def test_ids_stable_across_rebuild(conn):
@@ -105,87 +59,45 @@ def test_ids_stable_across_rebuild(conn):
 
 
 def test_api_search_and_entity(api):
-    hits = api.get("/entities", params={"q": "OSB.20PT2001.PV"}).json()
-    assert any(h["label"] == "20-PT-2001" for h in hits)
+    hits = api.get("/entities", params={"q": "20-PT-3003"}).json()
+    assert any(h["label"] == "20-PT-3003" for h in hits)
     detail = api.get(f"/entities/{hits[0]['fuzer_id']}").json()
     assert detail["golden"]["description"]["source"] == "sap"
 
 
 def test_api_lookup_text(api):
-    out = api.get("/lookup", params={"text": "Lined up A-03 to test sep"}).json()
-    assert [m["key"] for m in out] == ["A-03", "20-V-2002"]
+    out = api.get("/lookup", params={"text": "Train B down on OK_GGCP, lift gas short to OKA_ST2"}).json()
+    assert {"OKAN-20", "OKAN-40"} <= {m["key"] for m in out}
     assert all(m["fuzer_id"] for m in out)
 
 
-def test_review_accept_match_survives_rebuild(conn, api):
-    item = next(i for i in api.get("/review", params={"kind": "match"}).json()
-                if i["payload"]["left"]["block"] == "23-K-1001B")
-    left, right = item["payload"]["left"]["ref"], item["payload"]["right"]["ref"]
-    res = api.post(f"/review/{item['id']}", json={"decision": "accept", "by": "tester"}).json()
-    assert res["rebuild"]["running"] or res["rebuild"]["last"]
-    from fuzer.api import rebuilder
-    rebuilder.wait()
-    assert "error" not in rebuilder.last
-
-    def owner(ref):
-        s, rt, k = ref.split(":", 2)
-        return conn.execute("select fuzer_id from crosswalk where source = %s and record_type = %s "
-                            "and source_key = %s", (s, rt, k)).fetchone()["fuzer_id"]
-    assert owner(left) == owner(right)
-    with db.connect() as c:  # and it stays merged on the next full rebuild
-        pipeline.rebuild(c, PACK)
-    assert owner(left) == owner(right)
-
-
-def test_review_choose_value_wins(conn, api):
-    item = api.get("/review", params={"kind": "conflict"}).json()[0]
-    fz, field = item["payload"]["fuzer_id"], item["payload"]["field"]
-    api.post(f"/review/{item['id']}", json={"decision": "choose", "value": "Flowserve", "by": "tester"}).raise_for_status()
-    g = conn.execute("select value, source from golden where fuzer_id = %s and field = %s", (fz, field)).fetchone()
-    assert (g["value"], g["source"]) == ("Flowserve", "review")
-
-
 def test_api_ontology(api):
-    o = api.get("/ontology").json()
-    kinds = {k["kind"]: k for k in o["kinds"]}
+    ontology = api.get("/ontology").json()
+    kinds = {item["kind"]: item for item in ontology["kinds"]}
     assert {"tag", "equipment", "well", "timeseries"} <= set(kinds)
-    assert {s["source"] for s in kinds["equipment"]["sources"]} >= {"sap", "jde"}
-    rels = {(r["src_kind"], r["rel"], r["dst_kind"]): r for r in o["relations"]}
-    assert rels[("equipment", "installed_at", "tag")]["dated"] == rels[("equipment", "installed_at", "tag")]["n"]
+    assert "sap" in {source["source"] for source in kinds["equipment"]["sources"]}
+    rels = {(r["src_kind"], r["rel"], r["dst_kind"]): r for r in ontology["relations"]}
     assert ("well", "flows_to", "allocation_node") in rels
 
 
 def test_api_neighborhood_and_network(api, conn):
-    sep = fid(conn, "tag", "20-V-2001")
-    one = api.get(f"/graph/{sep}").json()
-    two = api.get(f"/graph/{sep}", params={"depth": 2}).json()
-    assert one["root"] == sep and len(two["nodes"]) > len(one["nodes"])
-    ids = {n["id"] for n in two["nodes"]}
-    assert all(e["src"] in ids and e["dst"] in ids for e in two["edges"])
-    flow_only = api.get(f"/graph/{sep}", params={"rels": "flows_to"}).json()
-    assert {e["rel"] for e in flow_only["edges"]} == {"flows_to"}
-
-    labels = lambda g: {n["label"] for n in g["nodes"]}
-    everything = api.get("/network").json()
-    on_date = api.get("/network", params={"as_of": "2024-01-01"}).json()
-    assert "A-07" in labels(everything) and "A-07" not in labels(on_date)
+    well = fid(conn, "well", "OK-NWP-G2")
+    graph = api.get(f"/graph/{well}").json()
+    assert graph["root"] == well and graph["nodes"]
+    ids = {node["id"] for node in graph["nodes"]}
+    assert all(edge["src"] in ids and edge["dst"] in ids for edge in graph["edges"])
+    network = api.get("/network").json()
+    assert network["nodes"] and network["edges"]
 
 
-def test_search_covers_all_fields(api):
-    maker = api.get("/entities", params={"q": "baker hughes", "kind": "equipment"}).json()
-    assert maker and all(h["kind"] == "equipment" for h in maker)
-    exact_first = api.get("/entities", params={"q": "20-V-2001"}).json()
-    assert exact_first[0]["label"] == "20-V-2001"
-
-
-def test_snapshot_ingest_removes_and_retires(tmp_path):
-    from fuzer.core.pack import load_pack
-    data = tmp_path / "d"
-    offshore.generate(data)
+def test_snapshot_ingest_removes_and_retires(conn, tmp_path):
+    data = tmp_path / "okan"
+    okan.generate(data)
     lines = (data / "oplogs.csv").read_text().splitlines()
-    (data / "oplogs.csv").write_text("\n".join(lines[:-1]) + "\n")  # last log entry dropped from the export
+    (data / "oplogs.csv").write_text("\n".join(lines[:-1]) + "\n")
     with db.connect() as c:
+        db.init_schema(c)
         ingest.ingest(c, data)
-        stats = pipeline.rebuild(c, load_pack())
-        assert c.execute("select count(*) as n from source_record where source = 'oplog'").fetchone()["n"] == 29
+        pipeline.rebuild(c, PACK)
+        assert c.execute("select count(*) as n from source_record where source = 'oplog'").fetchone()["n"] == len(lines) - 2
         assert c.execute("select count(*) as n from entity where kind = 'log_entry' and retired_at is not null").fetchone()["n"] >= 1

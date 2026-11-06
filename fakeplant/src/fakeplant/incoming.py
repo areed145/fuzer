@@ -9,7 +9,7 @@ import random
 import re
 from pathlib import Path
 
-from .offshore import _write_csv
+from .common import _write_csv
 
 ROLES = ["Day CRO", "Night CRO", "OIM", "Production Tech", "Maintenance Lead"]
 UNITS = ["barg", "degC", "mm/s", "%", "m3/h"]
@@ -45,7 +45,7 @@ BUILT_IN = {
 
 
 def _tag(floc: str) -> str:
-    """OSB-20-P1001B -> 20-P-1001B, the way a contractor writes it."""
+    """OKAN-20-P1001B -> 20-P-1001B, the way a contractor writes it."""
     _, area, rest = floc.split("-", 2)
     m = re.match(r"([A-Z]+)(\d+[A-Z]?)$", rest)
     return f"{area}-{m.group(1)}-{m.group(2)}" if m else f"{area}-{rest}"
@@ -97,7 +97,8 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
     write_parquet(inc / "well_tests.csv", inc / "well_tests")
     (inc / "well_tests.csv").unlink()
 
-    truth = [{"dir": ".", "dataset": name, "key": key, "columns": cols} for name, (key, cols) in BUILT_IN.items()]
+    truth = [{"dir": ".", "dataset": name, "key": key, "columns": cols} for name, (key, cols) in BUILT_IN.items()
+             if (out / f"{name}.csv").is_file() or (out / f"{name}.json").is_file()]
     truth += [
         {"dir": "incoming", "dataset": "contractor_equipment_list", "key": "Tag No.", "columns": {
             "Tag No.": "tag", "Equipment Description": "description", "Mfr": "manufacturer", "Model No": "model",

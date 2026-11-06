@@ -15,11 +15,11 @@ pytestmark = pytest.mark.sequence
 
 
 @pytest.fixture(scope="module")
-def client(offshore_data):
+def client(okan_data):
     from fastapi.testclient import TestClient
 
     data = Path(tempfile.mkdtemp(prefix="fzcatapi"))
-    shutil.copytree(offshore_data, data, dirs_exist_ok=True)
+    shutil.copytree(okan_data, data, dirs_exist_ok=True)
     mp = pytest.MonkeyPatch()
     mp.delenv("FUZER_DATABASE_URL", raising=False)
     mp.setenv("FUZER_PGDATA", os.environ.get("FUZER_PGDATA") or tempfile.mkdtemp(prefix="fzpg"))
@@ -103,7 +103,7 @@ def test_rules_health_alerts_and_lineage(client):
 
     with db.connect() as conn:
         ingest.ingest(conn, client.data)
-        pipeline.rebuild(conn, load_pack("offshore_demo"))
+        pipeline.rebuild(conn, load_pack("okan"))
 
     r = ok(client.get("/sources/rules"))
     assert any(x["name"] == "sap" and x["rank"] for x in r["ranks"]) and any(x["scope"] == "match" for x in r["rules"])

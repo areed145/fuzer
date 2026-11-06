@@ -56,10 +56,9 @@ def test_refuses_to_mix_assets():
     with db.connect() as conn:
         db.reset(conn)
         conn.execute("insert into source_record (source, record_type, source_key, payload) "
-                     "values ('sap', 'floc', 'OSB', '{\"parent\": \"\"}')")
+                     "values ('sap', 'floc', 'OTHER', '{\"parent\": \"\"}')")
         conn.commit()
-        assert up.other_asset(conn, load_pack("okan")) == "OSB"
-        assert up.other_asset(conn, load_pack("offshore_demo")) is None
+        assert up.other_asset(conn, load_pack("okan")) == "OTHER"
 
 
 def test_fresh_keeps_claude_readings(monkeypatch):
