@@ -95,16 +95,20 @@ root_package = "fuzer"
 [[tool.importlinter.contracts]]
 name = "Layers (#135): a module imports only from its own layer and the ones below"
 type = "layers"
+containers = ["fuzer"]
+exhaustive = true
+# Existing root utilities are not domain layers: source introspection, generated docs and data paths.
+exhaustive_ignores = ["components", "reference", "resources"]
 layers = [
-    "fuzer.cli",
-    "fuzer.api | fuzer.evals",
-    "fuzer.agents",
-    "fuzer.ops : fuzer.plots",
-    "fuzer.analysis",
-    "fuzer.graph",
-    "fuzer.sources",
-    "fuzer.workflow",
-    "fuzer.core",
+    "cli",
+    "api | evals",
+    "agents",
+    "ops : plots",
+    "analysis",
+    "graph",
+    "sources",
+    "workflow",
+    "core",
 ]
 ignore_imports = [
     # The SRE hand-off's default diagnosis asks the troubleshooter at run time; callers can pass their own `ask`.
