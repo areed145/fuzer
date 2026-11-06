@@ -127,8 +127,9 @@ def test_unknown_components_and_extra_properties_are_rejected():
 def test_agent_uses_tool_only_output_and_validates_it():
     class FakeMessages:
         def create(self, **kwargs):
-            assert kwargs["tool_choice"] == {"type": "tool", "name": "draft_workflow"}
+            assert kwargs["tool_choice"] == {"type": "auto"}
             assert len(kwargs["tools"]) == 1
+            assert kwargs["tools"][0]["strict"] is True
             assert "description" in kwargs["messages"][0]["content"]
             return SimpleNamespace(content=[SimpleNamespace(type="tool_use", name="draft_workflow", input=proposal())])
     draft = workflow.generate("Inspect anomalies and changed data", {}, client=SimpleNamespace(messages=FakeMessages()))
