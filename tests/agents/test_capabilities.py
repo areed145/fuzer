@@ -19,6 +19,12 @@ def test_every_tool_is_declared_once_with_a_kind_and_a_docstring():
         mcp_server.capability("nobody")
 
 
+def test_capabilities_are_grouped_by_domain():
+    modules = {c.fn.__module__.rsplit(".", 1)[-1] for c in capabilities.REGISTRY.values()}
+    assert {"graph", "operations", "sources", "studies", "plots"} <= modules
+    assert "shared" not in modules
+
+
 def test_agent_tool_lists_come_from_the_registry():
     tools = agents.TOOLS
     assert set(tools) == set(capabilities.AGENTS)
