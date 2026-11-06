@@ -308,10 +308,14 @@ def work_order_backlog(conn, as_of_date: str | None = None, limit: int = 20) -> 
             out[str(i[key])] += 1
         return dict(sorted(out.items()))
     buckets = {"0-30 d": 0, "31-90 d": 0, "91-180 d": 0, "over 180 d": 0, "future": 0}
+    by_age_priority: dict[str, dict[str, int]] = {b: {} for b in buckets}
     for i in items:
         a = i["age_days"]
-        buckets["future" if a is None or a < 0 else "0-30 d" if a <= 30 else "31-90 d" if a <= 90
-                else "91-180 d" if a <= 180 else "over 180 d"] += 1
+        bucket = ("future" if a is None or a < 0 else "0-30 d" if a <= 30 else "31-90 d" if a <= 90
+                  else "91-180 d" if a <= 180 else "over 180 d")
+        buckets[bucket] += 1
+        priority = str(i["priority"])
+        by_age_priority[bucket][priority] = by_age_priority[bucket].get(priority, 0) + 1
     overdue = sorted((i for i in items if i["overdue_days"]), key=lambda i: (i["priority"] or "9", -i["overdue_days"]))
     unplanned = [{"id": n["id"], "notification": n["label"], "created": n["f"].get("created"),
                   "priority": n["f"].get("priority"), "tag": (tags.get(n["id"]) or {}).get("label"),
@@ -319,6 +323,7 @@ def work_order_backlog(conn, as_of_date: str | None = None, limit: int = 20) -> 
                  for n in notes if n["id"] not in planned]
     return {"as_of": today, "source": "SAP work orders and notifications", "open_orders": len(items),
             "by_priority": count("priority"), "by_type": count("type"), "by_age": buckets,
+            "by_age_priority": by_age_priority,
             "overdue": len(overdue), "overdue_items": overdue[:limit],
             "in_a_turnaround": sum(1 for i in items if i["revision"]),
             "oldest": sorted((i for i in items if i["age_days"] is not None and i["age_days"] >= 0),

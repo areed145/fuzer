@@ -23,9 +23,17 @@ BUILTIN = {
     "operator": ("person", "Control room and field operators", "PT4H", "ops_lead"),
     "workflow_admin": ("person", "Designs and publishes processes, manages roles", None, None),
     "sre": ("agent", "Agentic SRE: detects and groups upsets", None, None),
-    "troubleshooter": ("agent", "Diagnoses upsets from the graph and process data", None, None),
-    "production": ("agent", "Production analyses", None, None),
-    "maintenance": ("agent", "Maintenance history, drafts notifications", None, None),
+    "production-surveillance": ("agent", "Production trends, deferment, constraints and gas lift", None, None),
+    "wells-subsurface": ("agent", "Well history, tests and intervention candidates", None, None),
+    "field-operations-facilities": ("agent", "Diagnoses upsets from the graph and process data", None, None),
+    "maintenance-integrity": ("agent", "Maintenance history, integrity, drafts notifications", None, None),
+    "work-management-supply-chain": ("agent", "Work backlog, job readiness and spares", None, None),
+    "hse-incident-management": ("agent", "Incident evidence for accountable HSE review", None, None),
+    "asset-performance-reporting": ("agent", "Cross-domain summaries", None, None),
+    # Retired names, still served so steps already in flight on published definitions finish (agents/worker.py).
+    "troubleshooter": ("agent", "Retired: now field-operations-facilities", None, None),
+    "production": ("agent", "Retired: now production-surveillance", None, None),
+    "maintenance": ("agent", "Retired: now maintenance-integrity", None, None),
     "reporter": ("agent", "Drafts the daily operations report", None, None),
 }
 ASSIGNMENTS = ("queue", "round_robin", "least_loaded")

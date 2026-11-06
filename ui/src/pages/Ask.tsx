@@ -1,7 +1,7 @@
 import "../styles/ask.css";
 import { Button, ButtonLabel, PageHeader, Card as UICard, Input , Badge as UIBadge} from "../ui";
 import { useEffect, useRef, useState } from "react";
-import { api, type AssistantJob, type Attachment, type SavedTurn } from "../api";
+import { api, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
 import { useAsync } from "../lib";
 import { loadPerson } from "../work";
@@ -14,6 +14,9 @@ const EXAMPLES: [string, string][] = [
   ["Reliability", "Who are our bad actors, and what are their repeat failure modes?"],
   ["Work orders", "What in the work order backlog should we tackle first?"],
   ["Turnaround", "What is in scope for the next turnaround, and what is missing from it?"],
+  ["Job readiness", "Which open jobs have spares out of stock, and what can't Fuzer tell us about their readiness?"],
+  ["Incidents", "Give me the recorded timeline and corrective work for the latest incident on 20-K-2200B."],
+  ["Reporting", "Summarize the latest period's production, losses and work backlog with their dates and gaps."],
   ["Across domains", "Why does lift gas keep running short, and what should go in the next turnaround to fix it?"],
 ];
 
@@ -47,6 +50,8 @@ interface Turn {
 }
 
 export function AskPage() {
+  const catalog = useAsync(() => api.assistantCatalog(), []);
+  const labels = Object.fromEntries((catalog.data?.agents ?? []).map((a) => [a.id, a.label]));
   const [turns, setTurns] = useState<Turn[]>([]);
   const [conversation, setConversation] = useState<string>();
   const [listed, setListed] = useState(0); // bumped to reload the conversation list
@@ -136,7 +141,8 @@ export function AskPage() {
         </div>
       )}
       {openError && <div className="error small">{openError}</div>}
-      {turns.map((t, i) => <TurnView key={i} turn={t} />)}
+      <Specialists catalog={catalog} />
+      {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} />)}
       <div ref={end} />
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
         <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
@@ -187,9 +193,51 @@ export function AskPage() {
   );
 }
 
-const agentLabel = (id: string) => id.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+type Catalog = ReturnType<typeof useAsync<AssistantCatalog>>;
 
-function TurnView({ turn }: { turn: Turn }) {
+/** A name from the catalog; ids it doesn't list (retired ones in saved conversations) read as words. */
+const agentLabel = (labels: Record<string, string>, id: string) =>
+  labels[id] ?? id.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+
+/** Who can answer, and what none of them can. Reading it runs nothing; asking never depends on it. */
+function Specialists({ catalog }: { catalog: Catalog }) {
+  if (catalog.error) {
+    return (
+      <p className="muted small" role="status">
+        The list of specialists could not be loaded. You can still ask a question.{" "}
+        <Button variant="link" onClick={catalog.reload}>Try again</Button>
+      </p>
+    );
+  }
+  if (catalog.loading && !catalog.data) return <p className="muted small" role="status">Loading specialists…</p>;
+  const specialists = catalog.data?.agents?.filter((a) => a.personas.length > 0) ?? [];
+  if (specialists.length === 0) return null;
+  const labels = Object.fromEntries(catalog.data!.agents.map((a) => [a.id, a.label]));
+  return (
+    <details className="card recent ask-specialists">
+      <summary>Who answers: {specialists.length} {specialists.length === 1 ? "specialist" : "specialists"}, and what they can't do</summary>
+      <ul className="specialist-list">
+        {specialists.map((a) => (
+          <li key={a.id}>
+            <b>{a.label}</b>
+            <div>{a.description}</div>
+            <div className="muted small">For: {a.personas.join("; ")}</div>
+            <div className="muted small">People decide: {a.human_decisions.join(" ")}</div>
+          </li>
+        ))}
+      </ul>
+      <h3>Not available yet</h3>
+      <p className="muted small">These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</p>
+      <ul className="specialist-gaps">
+        {catalog.data!.unavailable.map((u) => (
+          <li key={u.capability}>{u.capability} <span className="muted small">({agentLabel(labels, u.agent)}: {u.needed})</span></li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function TurnView({ turn, labels }: { turn: Turn; labels: Record<string, string> }) {
   const j = turn.job;
   const steps = j?.steps ?? [];
   return (
@@ -212,7 +260,7 @@ function TurnView({ turn }: { turn: Turn }) {
             {steps.length > 0 && (
               <ul className="steps small muted">
                 {steps.slice(-6).map((s, i) => (
-                  <li key={i}><b>{agentLabel(s.agent)}</b> · {s.tool.replaceAll("_", " ")}
+                  <li key={i}><b>{agentLabel(labels, s.agent)}</b> · {s.tool.replaceAll("_", " ")}
                     {Object.keys(s.args).length > 0 && <span className="mono"> {JSON.stringify(s.args)}</span>}</li>
                 ))}
               </ul>
@@ -224,7 +272,7 @@ function TurnView({ turn }: { turn: Turn }) {
           <>
             <Markdown text={j.answer} />
             <div className="row small muted answer-meta">
-              {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map(agentLabel).join(", ")}</span>}
+              {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map((id) => agentLabel(labels, id)).join(", ")}</span>}
               <span>{steps.length} tool calls · {j.seconds} s · ${j.usage?.cost_usd.toFixed(2)}</span>
               {j.usage && (
                 <span title="Calls and cost per model, as reported by the API">

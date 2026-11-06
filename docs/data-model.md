@@ -109,7 +109,7 @@ language's `when` / `unless` can test a column's value for this. Network nodes w
   - per well: supply path, oil per lift gas, and response to more gas (slope of rate on injection,
     decline removed)
   - least and most responsive wells, and wells lifting mostly water
-- **Agents.** The production specialist's `gas-lift` skill explains the method; the troubleshooting
+- **Agents.** The `gas-lift` skill explains the method; the troubleshooting
   skill traces a dead well's lift gas supply.
 
 ## Data model (Postgres)

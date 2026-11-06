@@ -95,18 +95,18 @@ def test_upset_workflow_on_a_fake_incident(conn):
     def open_task(element):
         return engine.item(conn, out["item_id"])["processes"][0]["open"][0] | {"element_expected": element}
 
-    def diagnose(call):  # stands in for the troubleshooter agent: reads the incident's signals from Fuzer
+    def diagnose(call):  # stands in for the diagnosing agent: reads the incident's signals from Fuzer
         signals = queries.incident_timeline(conn, call.data["incident_id"])
         return {"diagnosis": f"{len(signals)} signals", "proposed_action": "inspect 20-K-2200B"}
 
     engine.complete(conn, open_task("triage")["id"], "alice", {"triage": "real"})
-    assert worker.run_once(conn, {"troubleshooter": diagnose}, "w")
+    assert worker.run_once(conn, {"field-operations-facilities": diagnose}, "w")
     approve = open_task("approve")
     assert approve["element"] == "approve"
     with pytest.raises(engine.Forbidden):
-        engine.complete(conn, approve["id"], "agent:troubleshooter", {"approval": "approved"})
+        engine.complete(conn, approve["id"], "agent:field-operations-facilities", {"approval": "approved"})
     engine.complete(conn, approve["id"], "alice", {"approval": "approved"})
-    assert worker.run_once(conn, {"maintenance": lambda call: {"notification_draft": "inspect"}}, "w")
+    assert worker.run_once(conn, {"maintenance-integrity": lambda call: {"notification_draft": "inspect"}}, "w")
     engine.complete(conn, open_task("raise_notification")["id"], "pat", {})
     from datetime import timedelta
     engine.tick(conn, now=engine.utcnow() + timedelta(hours=7))

@@ -86,7 +86,7 @@ def compile_bpmn(draft: Draft, key: str, name: str) -> str:
         if set(params) - allowed or any(len(v) > 8000 for v in params.values()):
             raise ValueError(f"unsupported parameters on step '{step.id}'")
         if step.component in ("anomaly", "data"):
-            params.setdefault("agent", "troubleshooter")
+            params.setdefault("agent", "field-operations-facilities")
             params.setdefault("instructions", "Use detections to inspect anomalies for the subjects; report evidence."
                               if step.component == "anomaly" else
                               "Use detect_changes to inspect new or changed data for the subjects; report evidence.")

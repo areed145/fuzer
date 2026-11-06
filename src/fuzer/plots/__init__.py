@@ -128,9 +128,29 @@ def check(fig: Figure) -> None:
     walk(fig.layout)
 
 
+ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def coverage(fig: Figure) -> dict:
+    """What every chart must be able to say about itself: the dates its points span, how many are missing
+    (a gap plotted as nothing), how many records back it and whose numbers they are. No dates on the x axis
+    means the window is in the chart's own summary."""
+    dates, points, missing = [], 0, 0
+    for t in fig.data:
+        xs, ys = t.get("x"), t.get("y")
+        if isinstance(xs, list):
+            dates += [str(x)[:10] for x in xs if isinstance(x, str) and ISO_DATE.match(x)]
+        if isinstance(ys, list):
+            points += len(ys)
+            missing += sum(y is None for y in ys)
+    return {"from": min(dates, default=None), "to": max(dates, default=None), "points": points,
+            "missing_points": missing, "source_records": len(fig.sources), "provenance": fig.by}
+
+
 def store(conn, fig: Figure, params: dict) -> dict:
     """Check and keep a figure; return what the agent sees."""
     check(fig)
+    fig.summary = {**fig.summary, "coverage": coverage(fig)}
     fid = "f_" + secrets.token_hex(5)
     conn.execute(
         "insert into assistant_figure (id, kind, title, params, spec, summary, sources, by_source) "

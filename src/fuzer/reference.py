@@ -91,7 +91,7 @@ SCAN = [  # the scheduled scan, step by step: (function, what it does, the table
     ("ops.jobs:sre_scan", "every 6 hours", None),
     ("ops.sre:scan", "detectors read the process values since the last run", "detection"),
     ("ops.sre:regroup", "detections close in time and in the plant model become one upset", "upset"),
-    ("ops.sre_handoff:handoff", "the troubleshooter diagnoses new upsets; each becomes a work item", "work_item"),
+    ("ops.sre_handoff:handoff", "the assistant diagnoses new upsets; each becomes a work item", "work_item"),
     ("ops.board:cards", "upsets, work, opportunities and reviews ranked by value", "board_card"),
     ("ops.daily_report:close_day", "the day's facts and a drafted report, checked against them", "daily_ops_report"),
 ]
@@ -227,7 +227,7 @@ def eval_results_md() -> str:
     if ops:
         out += ["## Operations loop", "",
                 "History replayed with the fake plant's injected upsets: SRE detection, grouping, the "
-                "troubleshooter's diagnosis, daily reports and opportunities.", "",
+                "assistant's diagnosis, daily reports and opportunities.", "",
                 "| Run | Window | Recall | Precision | Upsets (process / instrument / slow / standing) | False upsets "
                 "/ week | First cause right | Diagnosed (named first cause) | Daily reports OK | Gas lift gain error |",
                 "|---|---|---|---|---|---|---|---|---|---|"]

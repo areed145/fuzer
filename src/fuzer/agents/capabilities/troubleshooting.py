@@ -1,4 +1,4 @@
-"""The troubleshooter's tools: incidents, upsets, process values, equipment and its charts. Declared with `capability`
+"""Tools for a unit or upset: incidents, process values, limits, equipment and charts. Declared with `capability`
 (#133); mcp_server serves them."""
 
 from typing import Any, Literal
@@ -17,7 +17,7 @@ from ..mcp_server import (
 )
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", kind="query")
 def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
     """Equipment removals and installs (swaps) across the facility, newest first.
     since (YYYY-MM-DD) limits to changes on or after that date."""
@@ -39,7 +39,7 @@ def equipment_changes(since: str | None = None) -> list[dict[str, Any]]:
     return _plain(rows)
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", "hse-incident-management", kind="query")
 def incident_detail(ref: str) -> dict[str, Any]:
     """One incident's timeline (every event, downtime record and notification in it, in order), the most
     similar past incidents on the same unit or class (how those went is often the best clue), and suggested
@@ -54,7 +54,7 @@ def incident_detail(ref: str) -> dict[str, Any]:
                        "suggested_reading": knowledge.for_incident(conn, fid, 5)})
 
 
-@capability("troubleshooter", kind="query")
+@capability("wells-subsurface", "field-operations-facilities", "hse-incident-management", kind="query")
 def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
     """How the source records behind an entity changed: which system, when, and each field's old and new
     value (e.g. a manufacturer corrected in SAP, a description edited, a record removed from an export)."""
@@ -65,7 +65,7 @@ def record_history(ref: str, limit: int = 20) -> dict[str, Any]:
         return _plain({"for": fid, "changes": queries.record_history(conn, mcp_server.PACK, fid, min(limit, 200))})
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", kind="query")
 def troubleshooting_brief(ref: str) -> dict[str, Any]:
     """Start here when troubleshooting. For an incident, tag or piece of equipment: what happened (timeline),
     similar past incidents and how they ended, engineer-approved lessons for its model / class, manual and
@@ -79,7 +79,7 @@ def troubleshooting_brief(ref: str) -> dict[str, Any]:
         return _plain(assistant.brief(conn, mcp_server.PACK, fid))
 
 
-@capability("troubleshooter", kind="calc")
+@capability("field-operations-facilities", kind="calc")
 def instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Can the readings be trusted? On a PI point, or every point on a unit: frozen (no change while the
     unit runs), stuck (jitter collapsed), noisy (hunting: jitter several times its usual), out of range,
@@ -95,7 +95,7 @@ def instrument_health(ref: str, since: str | None = None, until: str | None = No
         return _plain(signals.instrument_health(conn, mcp_server.PACK, fid, since, until))
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", kind="query")
 def detections(since: str | None = None, detector: Literal["excursions", "stops", "steps", "drifts", "instruments",
                                                            "models"] | None = None, limit: int = 100) -> dict[str, Any]:
     """What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit,
@@ -108,7 +108,7 @@ def detections(since: str | None = None, detector: Literal["excursions", "stops"
     return _plain({"detections": rows, "count": len(rows)})
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", "hse-incident-management", kind="query")
 def get_upsets(since: str | None = None, status: Literal["detected", "confirmed", "resolved", "false_alarm"] | None = None,
                kind: Literal["process", "instrument", "slow", "standing"] = "process", limit: int = 30) -> dict[str, Any]:
     """Upsets the SRE found in the process data (#96), newest first: detections close in time and connected
@@ -122,7 +122,7 @@ def get_upsets(since: str | None = None, status: Literal["detected", "confirmed"
     return _plain({"upsets": rows, "count": len(rows)})
 
 
-@capability("troubleshooter", kind="query")
+@capability("field-operations-facilities", "hse-incident-management", kind="query")
 def upset_detail(upset_id: int) -> dict[str, Any]:
     """One upset: its detections in time order (the first is the likely first cause), with evidence, and
     how many on each unit."""
@@ -132,7 +132,10 @@ def upset_detail(upset_id: int) -> dict[str, Any]:
     return _plain(out) if out else {"error": f"no upset {upset_id}"}
 
 
-@capability("troubleshooter", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def correlate(target: str, scope: str | list[str] = "facility", since: str | None = None, until: str | None = None,
               max_lag_minutes: int = 360, path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up",
                                                         "lift_gas_to:down"] | None = None,
@@ -159,7 +162,10 @@ def correlate(target: str, scope: str | list[str] = "facility", since: str | Non
             return {"error": str(e)}
 
 
-@capability("troubleshooter", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def correlation_matrix(scope: str | list[str], since: str | None = None, until: str | None = None,
                        path: Literal["flows_to:up", "flows_to:down", "lift_gas_to:up", "lift_gas_to:down"] | None = None,
                        method: Literal["pearson", "spearman"] = "pearson", top: int = 15) -> dict[str, Any]:
@@ -179,7 +185,7 @@ def correlation_matrix(scope: str | list[str], since: str | None = None, until: 
     return _plain({k: v for k, v in out.items() if k not in ("matrix", "ids")} | {"order": out["order"][:60]})
 
 
-@capability("troubleshooter", kind="calc")
+@capability("production-surveillance", "field-operations-facilities", kind="calc")
 def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
     """Operating modes of a unit, train or list of points over a window: stopped (its run signals) and its
     running regimes (k-means on the points that carry them: fouling, a new setpoint), with each mode's share,
@@ -196,7 +202,7 @@ def cluster_modes(scope: str | list[str], since: str, until: str, k: int | None 
     return _plain({k_: v for k_, v in out.items() if k_ not in ("times", "labels")})
 
 
-@capability("troubleshooter", kind="calc")
+@capability("field-operations-facilities", "maintenance-integrity", kind="calc")
 def cluster_events(since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """SRE upsets grouped by signature (which kinds of unit raised which findings): recurring upset types."""
     from ...analysis import clusters
@@ -207,7 +213,7 @@ def cluster_events(since: str | None = None, until: str | None = None) -> dict[s
             return {"error": str(e)}
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", "hse-incident-management", kind="plot")
 def plot_incident(ref: str) -> dict[str, Any]:
     """Chart an incident on one page (an incident, or a unit's latest): the process values that moved
     most in the lead-in, stacked, with its log events, trips, notifications and downtime as markers."""
@@ -215,7 +221,10 @@ def plot_incident(ref: str) -> dict[str, Any]:
     return _chart(troubleshooting.incident, {}, {"fid": ref})
 
 
-@capability("troubleshooter", kind="plot")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="plot"
+)
 def plot_correlation(ref: str, at: str | None = None, hours_before: int = 72, hours_after: int = 12,
                      upstream: bool = True, target: str | None = None) -> dict[str, Any]:
     """Chart how the process values on a unit (and on what feeds it) move together, as a correlation
@@ -227,7 +236,7 @@ def plot_correlation(ref: str, at: str | None = None, hours_before: int = 72, ho
                   {"fid": ref, "target": target})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", kind="plot")
 def plot_instrument_health(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy,
     frozen or stuck, out of range, apart from its redundant twin). Default window: the last 14 days."""
@@ -236,7 +245,7 @@ def plot_instrument_health(ref: str, since: str | None = None, until: str | None
                   {"since": since, "until": until}, {"fid": ref})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("production-surveillance", "field-operations-facilities", kind="plot")
 def plot_changes(ref: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Chart a point's or a unit's readings with the steps and jitter changes detect_changes finds marked
     and drifts shaded. Default window: the last 14 days."""
@@ -244,7 +253,7 @@ def plot_changes(ref: str, since: str | None = None, until: str | None = None) -
     return _chart(troubleshooting.changes, {"since": since, "until": until}, {"fid": ref})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", "hse-incident-management", kind="plot")
 def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Chart each unit's state (running, startup, stopped, transition) as swimlanes over a window: an upset
     spreading through a train or the plant. scope: a unit or area (default: everything with a run signal)."""
@@ -253,7 +262,7 @@ def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dic
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", "hse-incident-management", kind="plot")
 def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Chart alarms per 10 minutes over a window against the flood line, with floods, chattering, standing
     alarms and the bad actors in the summary."""
@@ -262,7 +271,7 @@ def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, A
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", "hse-incident-management", kind="plot")
 def plot_propagation(upset_id: int) -> dict[str, Any]:
     """Chart an SRE upset on the plant model: units coloured by when each was first detected, plant model
     links between them, the likely first cause marked."""
@@ -270,7 +279,7 @@ def plot_propagation(upset_id: int) -> dict[str, Any]:
     return _chart(troubleshooting.propagation, {"upset": upset_id})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("field-operations-facilities", "maintenance-integrity", kind="plot")
 def plot_operating_window(ref: str, since: str, until: str) -> dict[str, Any]:
     """Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day."""
     from ...plots import general
@@ -278,7 +287,7 @@ def plot_operating_window(ref: str, since: str, until: str) -> dict[str, Any]:
                   {"fid": ref})
 
 
-@capability("troubleshooter", kind="plot")
+@capability("production-surveillance", "field-operations-facilities", kind="plot")
 def plot_modes(scope: str | list[str], since: str, until: str, k: int | None = None) -> dict[str, Any]:
     """Chart a unit's operating modes over time as a coloured strip under its regime-carrying point."""
     from ...plots import troubleshooting

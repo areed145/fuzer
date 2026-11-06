@@ -272,7 +272,7 @@ def monitor(conn, process_key: str, definition_id: int | None = None, days: int 
             "elements": {r.pop("element"): r for r in rows}, "processes": procs}
 
 def roles() -> dict:
-    return {"person": sorted(bpmn.PERSON_ROLES), "agent": sorted(bpmn.AGENT_ROLES)}
+    return {"person": sorted(bpmn.PERSON_ROLES), "agent": sorted(bpmn.AGENT_ROLES - bpmn.RETIRED_AGENT_ROLES)}
 
 def export_bpmn(conn, definition_id: int) -> str:
     row = conn.execute("select xml from work_definition where id = %s", (definition_id,)).fetchone()

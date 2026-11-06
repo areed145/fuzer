@@ -114,7 +114,7 @@ def release(conn, token_id: int, by: str, now: datetime | None = None) -> dict:
 
 @_op
 def hand_off(conn, token_id: int, by: str, to: str, reason: str | None = None, now: datetime | None = None) -> dict:
-    """Give a step to a person (`alice`), a role's queue (`role:ops_lead`) or an agent (`agent:troubleshooter`)."""
+    """Give a step to a person (`alice`), a role's queue (`role:ops_lead`) or an agent (`agent:maintenance-integrity`)."""
     run = _Run(conn, by, now)
     proc, t = _locked_task(run, token_id)
     _waiting_task(t)

@@ -9,7 +9,11 @@ Start with `get_daily_ops_report` for its recorded production date and cited ope
 time window, use `production_summary`, `deferment_pareto`, and `production_constraints`; add `well_performance`
 when the question concerns well tests or well-level production. For maintenance and work context, use
 `bad_actors`, `work_order_backlog`, `maintenance_compliance`, and `turnaround_scope` as applicable. `value_score`
-can compare recorded risk and value inputs when those inputs are present.
+can compare recorded risk and value inputs when those inputs are present; `plot_score_breakdown` shows why one item
+ranks above another. `opportunities` lists scanned gains for a trade-off summary.
+
+For charts, use `plot_loss_waterfall(since, until)` for potential against actual, `plot_bad_actors` for reliability,
+`plot_backlog` and `plot_compliance` for work, and `compare_periods` for before and after a change.
 
 Keep dates, time windows, units, evidence IDs, and missing-data caveats with every numeric claim. A daily report is
 historical to its recorded report date, not necessarily live. Do not derive commercial or production-accounting

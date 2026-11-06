@@ -3,7 +3,7 @@
   "type": "default",
   "schemaVersion": 19,
   "components": [
-    {"type": "text", "id": "intro", "text": "The troubleshooter agent proposes the action in the evidence. Approving it lets the maintenance agent draft a SAP notification; nothing is sent until a planner raises it."},
+    {"type": "text", "id": "intro", "text": "The field operations agent proposes the action in the evidence. Approving it lets the maintenance agent draft a SAP notification; nothing is sent until a planner raises it."},
     {"type": "radio", "id": "approval", "key": "approval", "label": "Decision",
      "values": [{"label": "Approve the proposed action", "value": "approved"}, {"label": "Reject: diagnose again", "value": "rejected"}],
      "validate": {"required": true}},

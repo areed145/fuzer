@@ -7,8 +7,8 @@ specialists, which can run at the same time (MAF background agents). The shared 
 defines their persona coverage, skills, prerequisites, constraints and human-decision boundaries.
 
 Each agent gets its registered Fuzer tools (the MCP server's tool functions, called in-process; all
-read-only) and the existing skills assigned to its domain (names and descriptions up front, body
-loaded when needed).
+read-only), the skills assigned to it (names and descriptions up front, body loaded when needed) and a
+prompt built from its catalog entry, so its evidence limits and human decisions reach the model.
 Nothing here can act on the plant.
 
 The agent provider, models and efforts are settings (#131):
@@ -66,6 +66,7 @@ together when a question spans domains. Each specialist is read-only and has a n
 Domain routing:
 [SPECIALIST_ROUTING]
 
+Pick by what is being asked, not by which words appear. "Not for" names where a neighbouring question belongs.
 Answer simple lookups (what is X, where is it, what's connected to it) yourself. Hand domain work to
 your specialists, and combine their findings into one answer. A specialist may report missing evidence;
 do not route a question as if the catalog implies the required source or model exists.
@@ -85,10 +86,11 @@ cite each one you rely on as `fact:<id>` (learned from a conversation), never as
 `recall` for what was learned about other entities that come up. Facts that have ended are history: never
 cite them; if one matters, say what replaced it and cite that.
 
-Load the `answering` skill before writing your final answer."""
+Load the `answering` skill before writing your final answer.
 
-SPECIALISTS = {agent.id: (agent.description, agent.instructions)
-               for agent in AGENT_CATALOG if agent.id != "orchestrator"}
+[BOUNDARIES]"""
+
+SPECIALISTS = {agent.id: (agent.description, agent.prompt) for agent in AGENT_CATALOG if agent.id != "orchestrator"}
 REPORT = ("Report back to the orchestrator, not the end user: findings first, with numbers, dates and the Fuzer id "
           "or source record behind each fact, then what you could not find. Keep it under 400 words. If you made "
           "charts, include each `[[figure:<id>]]` marker on its own line with one sentence on what it shows.")
@@ -243,9 +245,8 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
     from .capabilities import tools_by_agent
 
     # Our own markdown skills (no scripts), so loading them needs no approval.
-    skills = SkillsProvider.from_paths([*(SKILLS / path for path in AGENT_BY_ID[name].skill_paths),
-                                        SKILLS / "shared"], script_extensions=(),
-                                       disable_load_skill_approval=True,
+    skills = SkillsProvider.from_paths([SKILLS / path for path in AGENT_BY_ID[name].skill_paths],
+                                       script_extensions=(), disable_load_skill_approval=True,
                                        disable_read_skill_resource_approval=True)
     return create_harness_agent(
         chat, name=name, description=description, agent_instructions=instructions,
@@ -276,9 +277,11 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description,
                           model=specialist_chat_model)
                    for name, (description, instructions) in SPECIALISTS.items()]
-    routing = "\n".join(f"- {agent.id}: {agent.description}" for agent in AGENT_CATALOG if agent.id != "orchestrator")
-    return _agent(chat, "orchestrator", ORCHESTRATOR.replace("[SPECIALIST_ROUTING]", routing),
-                  effort, "Fuzer operations assistant",
+    routing = "\n".join(f"- {agent.id}: {agent.description} Not for: {agent.not_for}"
+                        for agent in AGENT_CATALOG if agent.id != "orchestrator")
+    prompt = ORCHESTRATOR.replace("[SPECIALIST_ROUTING]", routing).replace(
+        "[BOUNDARIES]", AGENT_BY_ID["orchestrator"].boundaries)
+    return _agent(chat, "orchestrator", prompt, effort, "Fuzer operations assistant",
                   model=orchestrator_model, background_agents=specialists,
                   background_agents_wait_timeout_seconds=600,
                   **({"history_provider": history} if history is not None else {}))

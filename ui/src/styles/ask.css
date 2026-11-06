@@ -16,6 +16,10 @@
 .ask-box textarea { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
   border-radius: 6px; padding: 8px; resize: vertical; margin-bottom: 8px; }
 .recent summary { cursor: pointer; }
+.ask-specialists summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.specialist-list, .specialist-gaps { margin: 8px 0 0; padding-left: 18px; }
+.specialist-list li { padding: 4px 0; overflow-wrap: anywhere; }
+.specialist-gaps li { padding: 2px 0; overflow-wrap: anywhere; }
 .md p { margin: 0 0 10px; line-height: 1.55; }
 .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; line-height: 1.55; }
 .md h3, .md h4 { margin: 14px 0 6px; }

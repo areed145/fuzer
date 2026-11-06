@@ -294,13 +294,13 @@ haven't been handed off are handled highest priority first:
 - **Priority:** each is scored by #100 from its first-cause unit's oil lost per day to downtime,
   criticality and failure rate. One still going is due now; a recovered one is scored as a repeat.
 - **Diagnosis:** while the run's cap allows (`ClaudeSettings.max_upset_diagnoses`, 10, and
-  `max_sre_usd`, $5), the operations assistant's troubleshooter diagnoses it. It returns likely causes
+  `max_sre_usd`, $5), the operations assistant's Field Operations & Facilities specialist diagnoses it. It returns likely causes
   with confidence, the records that support each (a cause with none is marked uncited), what would
   confirm or rule each out, and proposed actions for people. A JSON block at the end gives the fields.
 - **Work item:** each upset starts the `upset` process, or adds evidence to its open one. The work item
   carries the priority breakdown and the diagnosis for the engineer's triage.
 
-An upset over the cap still gets its work item, and the workflow's troubleshooter step diagnoses it
+An upset over the cap still gets its work item, and the workflow's diagnose step diagnoses it
 after triage. When an engineer triages one as a false alarm, the upset is marked and its first
 detection's pattern (point, detector, finding) goes in `sre_suppress`, so it isn't handed off again.
 `fuzer sre --handoff` does the same by hand.
@@ -428,7 +428,7 @@ At 80 Sm3/d of oil per bar, that matches the model's own response to the 2-bar c
 opportunities, and they appear on the work board.
 
 **Charts:** `plot_pressure_profile`, `plot_backpressure_sensitivity`, `plot_choke_criticality`,
-`plot_dp_drift` and `plot_debottleneck`. The production specialist's new `back-pressure` skill works
+`plot_dp_drift` and `plot_debottleneck`. The `back-pressure` skill works
 through these steps: classify the wells, find the drop, what a bar is worth, the next constraint, the
 options, and the uncertainty. `constraint-management` points to it.
 

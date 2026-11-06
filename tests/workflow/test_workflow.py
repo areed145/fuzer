@@ -504,13 +504,13 @@ def test_upset_runs_detected_to_resolved(conn):
                                                     "subjects": ["fz-unit-1"], "priority": 125000}, "agent:sre")
     item = out["item_id"]
     engine.complete(conn, task(conn, item, "triage")["id"], "alice", {"triage": "real"})
-    troubleshooter = {"troubleshooter": lambda call: {"diagnosis": "LT-1001 drift", "proposed_action": "recalibrate LT-1001"}}
-    maintenance = {"maintenance": lambda call: {"notification_draft": {"text": "Recalibrate LT-1001", "priority": 2}}}
+    troubleshooter = {"field-operations-facilities": lambda call: {"diagnosis": "LT-1001 drift", "proposed_action": "recalibrate LT-1001"}}
+    maintenance = {"maintenance-integrity": lambda call: {"notification_draft": {"text": "Recalibrate LT-1001", "priority": 2}}}
     now = engine.utcnow()
     assert worker.run_once(conn, troubleshooter, "w", now=now)
     approve = task(conn, item, "approve")
     with pytest.raises(engine.Forbidden):
-        engine.complete(conn, approve["id"], "agent:troubleshooter", {"approval": "approved"})
+        engine.complete(conn, approve["id"], "agent:field-operations-facilities", {"approval": "approved"})
     engine.complete(conn, approve["id"], "alice", {"approval": "approved", "reason": "matches the trend"})
     assert worker.run_once(conn, maintenance, "w")
     engine.set_person(conn, "pat", ["maintenance_planner"])
@@ -525,7 +525,7 @@ def test_upset_runs_detected_to_resolved(conn):
                  ("raise_notification", "recheck"), ("recheck", "confirm"), ("confirm", "resolved")]:
         assert path.index(a) < path.index(b)
     kinds = [(e["kind"], e["actor"]) for e in detail["events"]]
-    assert ("agent_result", "agent:troubleshooter") in kinds and ("completed", "alice") in kinds
+    assert ("agent_result", "agent:field-operations-facilities") in kinds and ("completed", "alice") in kinds
     assert ("completed", "pat") in kinds and ("timer_fired", "system") in kinds and kinds[-1][0] == "state_changed"
 
 

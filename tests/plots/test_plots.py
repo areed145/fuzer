@@ -108,6 +108,31 @@ def test_reliability_and_bad_actors(conn):
 
 # --- troubleshooting ----------------------------------------------------------------------------
 
+def test_backlog_and_compliance(conn):
+    fig = maintenance.backlog(conn)
+    s = fig.summary
+    assert s["open_orders"] == sum(s["by_age"].values()) == sum(s["by_priority"].values()) > 0
+    assert sum(sum(t["y"]) for t in fig.data) == s["open_orders"]  # every order is plotted, in one bar
+    assert fig.layout["barmode"] == "stack" and "count" in fig.layout["yaxis"]["title"]["text"]
+    assert s["as_of"] in fig.title and "SAP" in s["source"]
+
+    fig = maintenance.compliance(conn)
+    s = fig.summary
+    assert sum(sum(t["y"]) for t in fig.data) == sum(k["plans"] for k in s["summary"].values())
+    assert [t["name"] for t in fig.data][0] == "overdue" and "condition" in s["note"]  # a date, not a verdict
+    assert s["as_of"] in fig.title
+
+
+def test_every_stored_chart_says_what_it_covers(conn):
+    fig = maintenance.backlog(conn)
+    out = plots.store(conn, fig, {})
+    assert out["summary"]["coverage"]["provenance"] == "fuzer" and out["summary"]["coverage"]["points"] > 0
+    gap = plots.Figure("t", "t", [{"type": "scatter", "x": ["2025-01-01", "2025-01-03"], "y": [1.0, None]}],
+                       plots.layout("t", "day", "Sm3/d"), {}, ["fz-1"])
+    assert plots.coverage(gap) == {"from": "2025-01-01", "to": "2025-01-03", "points": 2, "missing_points": 1,
+                                   "source_records": 1, "provenance": "fuzer"}
+
+
 def test_incident_correlation_and_vibration(conn):
     k = fid(conn, "20-K-2200B")
     inc = troubleshooting.incident(conn, k)
