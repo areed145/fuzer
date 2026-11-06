@@ -1,4 +1,5 @@
-import { Button, PageHeader } from "../ui";
+import "../styles/events.css";
+import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -39,11 +40,11 @@ export function IncidentList({ items }: { items: Incident[] }) {
           <div className="what">
             <a href={entityHref(i.id)}>{i.description}</a>
             <div className="row small muted">
-              {i.downtime_records > 0 && <span className="badge event-type">downtime</span>}
+              {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
               {i.events > 0 && <span>{i.events} events</span>}
               {i.notifications > 0 && <span>{i.notifications} notifications</span>}
               {i.lost_oil_sm3 > 0 && <span>{Math.round(i.lost_oil_sm3).toLocaleString()} Sm³ lost</span>}
-              {i.failure_modes?.map((m) => <span key={m} className="badge">{m}</span>)}
+              {i.failure_modes?.map((m) => <UIBadge key={m} className="badge">{m}</UIBadge>)}
             </div>
           </div>
         </li>
@@ -67,7 +68,7 @@ function RatingProgress() {
   if (!r.data || r.data.incidents === 0) return null;
   const next = r.data.items.filter((i) => i.ratings === 0).slice(0, 5);
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Rate the troubleshooting briefs{" "}
         <span className="muted small">
@@ -87,7 +88,7 @@ function RatingProgress() {
           ))}
         </ul>
       )}
-    </section>
+    </UICard>
   );
 }
 
@@ -98,14 +99,14 @@ export function IncidentDetail({ id }: { id: string }) {
       <BriefCard id={id} />
       <IncidentPanels id={id} />
       {values.data && values.data.series.length > 0 && (
-        <section className="card">
+        <UICard  as="section">
           <h2>
             Process values <span className="muted small">48 h before to 24 h after {values.data.centre.replace("T", " ")};
             shaded: the 12 h leading into each incident · {values.data.provider === "synthetic"
               ? "synthetic values: no PI / ADX connection configured" : `from ${values.data.provider.toUpperCase()}`}</span>
           </h2>
           <TrendGrid series={values.data.series} upsets={values.data.upsets} />
-        </section>
+        </UICard>
       )}
     </>
   );
@@ -117,7 +118,7 @@ function IncidentPanels({ id }: { id: string }) {
   const reading = useAsync(() => api.incidentReading(id), [id]);
   return (
     <div className="grid">
-      <section className="card">
+      <UICard  as="section">
         <h2>Timeline</h2>
         <Status loading={timeline.loading && !timeline.data} error={timeline.error} />
         <ul className="timeline">
@@ -127,15 +128,15 @@ function IncidentPanels({ id }: { id: string }) {
               <div className="what">
                 <div className="row">
                   <KindBadge kind={t.kind} />
-                  {t.detail && <span className="badge event-type">{t.detail.replace("_", " ")}</span>}
+                  {t.detail && <UIBadge className="badge event-type">{t.detail.replace("_", " ")}</UIBadge>}
                 </div>
                 <a href={entityHref(t.id)}>{t.text}</a>
               </div>
             </li>
           ))}
         </ul>
-      </section>
-      <section className="card">
+      </UICard>
+      <UICard  as="section">
         {reading.data && reading.data.length > 0 && (
           <>
             <h2>Suggested reading</h2>
@@ -145,7 +146,7 @@ function IncidentPanels({ id }: { id: string }) {
                 <li key={r.id} className="small">
                   <a href={entityHref(r.id)}>{r.document_label} · {r.heading}</a>
                   {r.page && <span className="muted"> p. {r.page}</span>}{" "}
-                  {r.failure_modes.map((m) => <span key={m} className="badge">{m}</span>)}
+                  {r.failure_modes.map((m) => <UIBadge key={m} className="badge">{m}</UIBadge>)}
                 </li>
               ))}
             </ul>
@@ -160,11 +161,11 @@ function IncidentPanels({ id }: { id: string }) {
           {similar.data?.map((s) => (
             <li key={s.id} className="small">
               <span className="muted mono">{s.start}</span> <a href={entityHref(s.id)}>{s.description}</a>
-              {s.same_unit && <span className="badge">same unit</span>}
+              {s.same_unit && <UIBadge className="badge">same unit</UIBadge>}
             </li>
           ))}
         </ul>
-      </section>
+      </UICard>
     </div>
   );
 }
@@ -174,7 +175,7 @@ function BriefCard({ id }: { id: string }) {
   const brief = useAsync(() => api.brief(id), [id]);
   const b = brief.data;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Troubleshooting brief <span className="muted small">what Fuzer would tell an engineer or an agent</span>
       </h2>
@@ -242,7 +243,7 @@ function BriefCard({ id }: { id: string }) {
           </div>
         </div>
       )}
-    </section>
+    </UICard>
   );
 }
 

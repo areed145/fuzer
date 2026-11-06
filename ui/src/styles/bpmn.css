@@ -1,0 +1,55 @@
+/* The diagram keeps bpmn-js's light canvas in both themes, like the drawing viewer. */
+.bpmn-canvas { height: 360px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; margin: 8px 0; }
+.bpmn-canvas .djs-element.fz-done .djs-visual > :first-child { stroke: #1a7f4b !important; fill: #e3f4ea !important; }
+.bpmn-canvas .djs-element.fz-open .djs-visual > :first-child { stroke: #0b6bcb !important; stroke-width: 3px !important; fill: #e6f0fb !important; }
+.bpmn-canvas .djs-connection.fz-taken .djs-visual > path { stroke: #1a7f4b !important; stroke-width: 2.5px !important; }
+.fz-legend-open { background: #0b6bcb; }
+.fz-legend-done { background: #e3f4ea; border: 2px solid #1a7f4b; }
+.fz-legend-taken { background: #1a7f4b; border-radius: 2px !important; height: 3px !important; }
+@media (max-width: 900px) {
+  .work-layout { grid-template-columns: 1fr; }
+  .task-panel { position: static; max-height: none; }
+}
+
+/* Modeler (#97): the diagram, the Fuzer properties panel beside it, problem and change markers, the
+   monitor's counts. The canvas keeps bpmn-js's light background in both themes. */
+.bpmn-canvas.tall { height: 560px; }
+.modeler { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; }
+.modeler-canvas { min-width: 0; }
+.props { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px 12px;
+  margin: 8px 0; max-height: 560px; overflow: auto; box-sizing: border-box; }
+.props h3 { margin: 0 0 8px; font-size: 14px; }
+.prop { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; font-size: 12px; }
+.prop > span { color: var(--muted); font-weight: 600; }
+.prop input:not([type="checkbox"]):not([type="radio"]), .prop select { width: 100%; box-sizing: border-box; }
+.prop input[readonly] { background: var(--bg); color: var(--muted); }
+.prop small { color: var(--muted); line-height: 1.35; }
+.prop.check > span { font-weight: 400; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.prop .threshold { gap: 4px; margin-bottom: 4px; }
+.prop .threshold input { min-width: 0; }
+.prop .branch { border-top: 1px solid var(--line); padding-top: 6px; margin-bottom: 4px; }
+.prop .branch .row { justify-content: space-between; }
+.prop .ui-button-sm, .props .ui-button-sm { align-self: flex-start; }
+@media (max-width: 900px) { .modeler { grid-template-columns: 1fr; } .props { max-height: none; } }
+.problems { border-color: var(--danger); }
+.problems a, .changes a { cursor: pointer; }
+.changes .fields { margin: 2px 0 6px 18px; }
+.bpmn-canvas .djs-element.fz-problem .djs-visual > :first-child { stroke: #c4302b !important; stroke-width: 3px !important; fill: #fdecea !important; }
+.bpmn-canvas .djs-connection.fz-problem .djs-visual > path { stroke: #c4302b !important; stroke-width: 3px !important; }
+.bpmn-canvas .djs-element.fz-added .djs-visual > :first-child { stroke: #1a7f4b !important; stroke-width: 2.5px !important; fill: #e3f4ea !important; }
+.bpmn-canvas .djs-element.fz-changed .djs-visual > :first-child { stroke: #a35f00 !important; stroke-width: 2.5px !important; fill: #fff4d6 !important; }
+.bpmn-canvas .djs-element.fz-removed .djs-visual > :first-child { stroke: #c4302b !important; stroke-dasharray: 4 3; fill: #fdecea !important; }
+.bpmn-canvas .djs-connection.fz-added .djs-visual > path { stroke: #1a7f4b !important; stroke-width: 2.5px !important; }
+.bpmn-canvas .djs-connection.fz-changed .djs-visual > path { stroke: #a35f00 !important; stroke-width: 2.5px !important; }
+.bpmn-canvas .djs-connection.fz-removed .djs-visual > path { stroke: #c4302b !important; stroke-dasharray: 4 3; }
+.bpmn-canvas .djs-element.fz-busy .djs-visual > :first-child { stroke: #0b6bcb !important; stroke-width: 3px !important; fill: #e6f0fb !important; }
+.bpmn-canvas .djs-element.fz-late .djs-visual > :first-child { stroke: #c4302b !important; stroke-width: 3px !important; fill: #fdecea !important; }
+.fz-legend-added { background: #e3f4ea; border: 2px solid #1a7f4b; }
+.fz-legend-changed { background: #fff4d6; border: 2px solid #a35f00; }
+.fz-legend-removed { background: #fdecea; border: 2px dashed #c4302b; }
+.fz-legend-busy { background: #e6f0fb; border: 2px solid #0b6bcb; }
+.fz-legend-late { background: #fdecea; border: 2px solid #c4302b; }
+.fz-count { background: #1b1f24; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; white-space: nowrap;
+  display: flex; gap: 6px; align-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.fz-count .late { color: #ff9e9a; font-weight: 600; }
+.fz-count .done { color: #b9c2cc; }

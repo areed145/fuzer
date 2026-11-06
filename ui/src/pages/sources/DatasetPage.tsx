@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard } from "../../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -104,7 +104,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
           Profile now</Button>
         {done && <Loaded r={done} />}
-        {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "connection ok" : "connection failed"}</span>}
+        {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "connection ok" : "connection failed"}</UIBadge>}
       </div>
       {test && !test.ok && <TestSteps steps={test.steps} />}
       {a.error && <p className="error small">{a.error}</p>}
@@ -161,7 +161,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   };
   const changed = (Object.keys(init) as (keyof typeof init)[]).some((k) => v[k] !== init[k]);
   const field = (k: keyof typeof init, placeholder = "") => (
-    <input value={v[k]} placeholder={placeholder} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
+    <Input value={v[k]} placeholder={placeholder} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
   );
   return (
     <>
@@ -169,19 +169,19 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         <tbody>
           <tr><th>How it loads</th><td>
             {Object.keys(LOAD_HELP).map((m) => (
-              <label key={m} className="small choice"><input type="radio" checked={v.load_mode === m} onChange={() => setV({ ...v, load_mode: m })} />
+              <label key={m} className="small choice"><Input type="radio" checked={v.load_mode === m} onChange={() => setV({ ...v, load_mode: m })} />
                 {" "}<strong>{m}</strong>: {LOAD_HELP[m]}</label>))}
           </td></tr>
           <tr><th>If its columns change</th><td>
             {Object.keys(DRIFT_HELP).map((m) => (
-              <label key={m} className="small choice"><input type="radio" checked={v.drift_policy === m} onChange={() => setV({ ...v, drift_policy: m })} />
+              <label key={m} className="small choice"><Input type="radio" checked={v.drift_policy === m} onChange={() => setV({ ...v, drift_policy: m })} />
                 {" "}{DRIFT_HELP[m]}</label>))}
           </td></tr>
           <tr><th>Schedule</th><td>
-            <select value={custom ? "custom" : v.schedule} onChange={(e) => setV({ ...v, schedule: e.target.value === "custom" ? "0 0 * * *" : e.target.value })}>
+            <Select value={custom ? "custom" : v.schedule} onChange={(e) => setV({ ...v, schedule: e.target.value === "custom" ? "0 0 * * *" : e.target.value })}>
               {SCHEDULES.map(([c, label]) => <option key={c} value={c}>{label}</option>)}
               <option value="custom">custom (cron)</option>
-            </select>{" "}
+            </Select>{" "}
             {custom && field("schedule", "cron: minute hour day month weekday")}
             {d.next_load && <span className="muted small"> next {when(d.next_load)}</span>}
           </td></tr>
@@ -196,9 +196,9 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         <Table variant="keyValue">
           <tbody>
             <tr><th>Connection</th><td>
-              <select value={v.connection_id} onChange={(e) => setV({ ...v, connection_id: e.target.value })}>
+              <Select value={v.connection_id} onChange={(e) => setV({ ...v, connection_id: e.target.value })}>
                 {conns.map((c) => <option key={c.id} value={c.id}>{c.name}: {c.display}</option>)}
-              </select></td></tr>
+              </Select></td></tr>
             <tr><th>Key columns</th><td>{field("key", "comma separated")} <span className="muted small">the record's id; joined by &gt;</span></td></tr>
             <tr><th>Location</th><td>{field("location", `default: ${ds.name}`)} <span className="muted small">where it is on the connection</span></td></tr>
             <tr><th>Reader</th><td>{field("connector", "default: by the file (csv, parquet, delta, excel, json, geojson)")}</td></tr>
@@ -207,7 +207,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         </Table>
       </details>
       <div className="row">
-        <input placeholder="why (kept in the history)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <Input placeholder="why (kept in the history)" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button variant="primary" disabled={!changed || !!a.busy} onClick={save}>Save</Button>
         {changed && <Button variant="secondary" onClick={() => setV(init)}>Undo</Button>}
       </div>
@@ -275,7 +275,7 @@ function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {d.mappings.map((m) => (
             <tr key={m.id}>
               <td>{m.id}</td><td><code>{m.source}/{m.record_type}</code></td>
-              <td>{m.current ? <span className="badge ok">in use</span> : m.status === "retired" ? <span className="muted">discarded</span> : m.status}</td>
+              <td>{m.current ? <UIBadge className="badge ok">in use</UIBadge> : m.status === "retired" ? <span className="muted">discarded</span> : m.status}</td>
               <td>{m.author ?? m.approved_by}</td><td className="muted">{m.note}</td><td className="muted">{when(m.created_at)}</td>
               <td>{!m.current && m.status !== "retired" && <Button variant="link" onClick={() => setReview(m)}>
                 {m.status === "draft" ? "review" : "compare / roll back"}</Button>}</td>
@@ -351,7 +351,7 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {d.runs.map((r) => (
             <tr key={r.id}>
               <td>{r.id}</td><td className="muted">{when(r.finished_at ?? r.started_at)}</td><td>{r.trigger}</td>
-              <td><span className={`badge ${r.status === "done" ? "ok" : ""}`}>{r.status}</span></td>
+              <td><UIBadge className={`badge ${r.status === "done" ? "ok" : ""}`}>{r.status}</UIBadge></td>
               <td>{r.rows_read?.toLocaleString()}</td><td>{r.inserted}</td><td>{r.updated}</td><td>{r.unchanged}</td><td>{r.removed}</td>
               <td className="muted">{r.seconds}</td><td className="muted">{r.error ?? (r.detail ? cell(r.detail) : "")}</td>
             </tr>
@@ -408,7 +408,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                 <td>{c.kind}</td><td><code>{c.column_name}</code></td><td className="muted">{JSON.stringify(c.params)}</td>
                 <td>{c.blocking ? "yes" : ""}</td>
                 <td>{c.last_ok === null ? <span className="muted">not run</span> :
-                  <span className={`badge ${c.last_ok ? "ok" : ""}`}>{c.last_ok ? "pass" : "fail"}</span>}</td>
+                  <UIBadge className={`badge ${c.last_ok ? "ok" : ""}`}>{c.last_ok ? "pass" : "fail"}</UIBadge>}</td>
                 <td>{c.last_value ?? ""}</td>
                 <td><Button variant="link" onClick={() => a.run("rm", () => api.removeCheck(c.id, reviewer()), reload)}>remove</Button></td>
               </tr>
@@ -419,12 +419,12 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       <details>
         <summary className="small">Add a check by hand</summary>
         <div className="row">
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <Select value={kind} onChange={(e) => setKind(e.target.value)}>
             {["not_null", "range", "accepted", "row_count", "freshness", "coverage", "key_unique"].map((k) => <option key={k}>{k}</option>)}
-          </select>
-          <input placeholder="column" value={column} onChange={(e) => setColumn(e.target.value)} />
-          <input className="mono" placeholder='params, e.g. {"min": 0, "max": 100}' value={params} onChange={(e) => setParams(e.target.value)} />
-          <label className="small"><input type="checkbox" checked={blocking} onChange={(e) => setBlocking(e.target.checked)} /> holds the load</label>
+          </Select>
+          <Input placeholder="column" value={column} onChange={(e) => setColumn(e.target.value)} />
+          <Input className="mono" placeholder='params, e.g. {"min": 0, "max": 100}' value={params} onChange={(e) => setParams(e.target.value)} />
+          <label className="small"><Input type="checkbox" checked={blocking} onChange={(e) => setBlocking(e.target.checked)} /> holds the load</label>
           <Button variant="primary" disabled={!!a.busy} onClick={add}>Add</Button>
         </div>
       </details>

@@ -1,0 +1,22 @@
+/* entity */
+.entity-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.asof { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+table.ui-table--keyValue th { width: 120px; }
+table.ui-table--keyValue.ui-table-heading-capitalize th { text-transform: capitalize; }
+table.ui-table--keyValue.ui-table-heading-verbatim th { text-transform: none; }
+table.ui-table--keyValue td, table.ui-table--keyValue code { overflow-wrap: anywhere; }
+table.ui-table--keyValue tr:last-child > *, table.ui-table--list tr:last-child > * { border-bottom: none; }
+ul.others { list-style: none; margin: 6px 0 0; padding: 6px 8px; background: var(--warn-soft); border-radius: 6px; }
+ul.others li { display: flex; gap: 6px; align-items: center; }
+.keys { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+
+.link-group { margin-top: 12px; }
+.link-group ul, ul.trace { list-style: none; padding: 0; margin: 6px 0 0; }
+.link-group li, ul.trace li {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 5px 0; border-bottom: 1px solid var(--line);
+}
+.link-group li:last-child, ul.trace li:last-child { border-bottom: none; }
+.dates { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.quote { color: var(--muted); font-style: italic; font-size: 12px; }
+.sources { margin-left: auto; display: flex; gap: 4px; }

@@ -1,3 +1,4 @@
+import "./styles/trends.css";
 // Small-multiple trend charts: one series per chart (the title names it, so no legend), 2px line,
 // recessive grid, shaded upset window, operating limits as labelled dashed lines, crosshair + tooltip on
 // hover, and a table view.
@@ -5,6 +6,7 @@
 import { useState } from "react";
 import { api, type MeasurementSeries } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
+import { Button, Table, Input , Card as UICard} from "./ui";
 
 /** One operating limit on a point (#101): an alarm limit from its source, one side of an integrity
  * operating window, or the normal range learned from history when no source gives one. */
@@ -126,13 +128,13 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
       </div>
       <details className="small">
         <summary>Table</summary>
-        <table className="list">
+        <Table variant="list" density="compact">
           <tbody>
             {s.values.filter((_, i) => i % Math.ceil(n / 24) === 0).map(([t, v]) => (
               <tr key={t}><td className="mono">{t.replace("T", " ")}</td><td>{fmt(v)}</td></tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </details>
     </figure>
   );
@@ -155,7 +157,7 @@ export function TrendCard({ id, direct = false }: { id: string; direct?: boolean
   const shift = (sign: number) =>
     d && setAt(local(new Date(Date.parse(d.centre + "Z") + (sign * hours * 3600 * 1000) / 2).toISOString()));
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         {direct ? "Process values" : "Trend"}{" "}
         {d && (
@@ -168,14 +170,14 @@ export function TrendCard({ id, direct = false }: { id: string; direct?: boolean
       </h2>
       <div className="row trend-controls">
         {WINDOWS.map((h) => (
-          <button key={h} className={h === hours ? "primary" : ""} onClick={() => setHours(h)}>{label(h)}</button>
+          <Button key={h} variant={h === hours ? "primary" : "secondary"} size="sm" onClick={() => setHours(h)}>{label(h)}</Button>
         ))}
         <span className="spacer" />
-        <button onClick={() => shift(-1)} disabled={!d}>← Earlier</button>
-        <input type="datetime-local" aria-label="Centre the window on" value={d ? local(d.centre) : ""}
+        <Button size="sm" onClick={() => shift(-1)} disabled={!d}>← Earlier</Button>
+        <Input type="datetime-local" aria-label="Centre the window on" value={d ? local(d.centre) : ""}
                onChange={(e) => e.target.value && setAt(e.target.value)} />
-        <button onClick={() => shift(1)} disabled={!d}>Later →</button>
-        <button className="link" onClick={() => setAt(undefined)} disabled={at === undefined}>Latest incident</button>
+        <Button size="sm" onClick={() => shift(1)} disabled={!d}>Later →</Button>
+        <Button variant="link" size="sm" onClick={() => setAt(undefined)} disabled={at === undefined}>Latest incident</Button>
       </div>
       <Status loading={v.loading && !d} error={v.error ?? d?.error} empty={!!d && d.series.length === 0}>
         No values between {d?.start.replace("T", " ")} and {d?.end.replace("T", " ")}
@@ -190,7 +192,7 @@ export function TrendCard({ id, direct = false }: { id: string; direct?: boolean
         </>
       )}
       {d && d.series.length > 1 && <TrendGrid series={d.series} upsets={d.upsets} />}
-    </section>
+    </UICard>
   );
 }
 
@@ -205,7 +207,7 @@ export function MeasurementsCard({ id }: { id: string }) {
   const series = m.data?.series ?? [];
   if (!m.loading && !m.error && series.length === 0) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Measurements{" "}
         <span className="muted small">well tests, lab results and inspection readings, landed from their sources</span>
@@ -215,7 +217,7 @@ export function MeasurementsCard({ id }: { id: string }) {
         {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
       </div>
       {m.data?.truncated && <p className="muted small">Showing the latest readings only.</p>}
-    </section>
+    </UICard>
   );
 }
 

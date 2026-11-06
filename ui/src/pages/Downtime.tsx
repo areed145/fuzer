@@ -1,4 +1,4 @@
-import { Bar, PageHeader } from "../ui";
+import { Bar, PageHeader, Input , Card as UICard} from "../ui";
 import { useState } from "react";
 import { api, type RankRow } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
@@ -28,7 +28,7 @@ export function DowntimePage() {
         </div>
         <label className="asof">
           Since
-          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
+          <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
         </label>
       </div>
       <Status loading={total.loading && !total.data} error={total.error} />
@@ -44,7 +44,7 @@ export function DowntimePage() {
         <Ranking title="By reason" rows={byReason.data} />
       </div>
       {checks.data && checks.data.length > 0 && (
-        <section className="card">
+        <UICard  as="section">
           <h2>
             Reason code doesn't match the comment <span className="muted small">{checks.data.length}</span>
           </h2>
@@ -59,7 +59,7 @@ export function DowntimePage() {
               </li>
             ))}
           </ul>
-        </section>
+        </UICard>
       )}
     </section>
   );
@@ -68,7 +68,7 @@ export function DowntimePage() {
 function Ranking({ title, rows, named }: { title: string; rows?: RankRow[]; named?: boolean }) {
   const top = Math.max(1, ...(rows ?? []).map((r) => r.lost_oil_sm3));
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>{title}</h2>
       <Status loading={!rows} empty={rows?.length === 0}>
         Nothing recorded.
@@ -88,6 +88,6 @@ function Ranking({ title, rows, named }: { title: string; rows?: RankRow[]; name
           </li>
         ))}
       </ul>
-    </section>
+    </UICard>
   );
 }

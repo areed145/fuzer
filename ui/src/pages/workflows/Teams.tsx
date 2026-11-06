@@ -1,4 +1,4 @@
-import { Button, Input, PageHeader, Table } from "../../ui";
+import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../../ui";
 /** Teams & routing: the roles steps go to (what they're for, their default SLA, where overdue work goes, how it's
  * assigned), the people who hold them (workload, away and who covers), and the agents (their queues and failures). */
 import { useState } from "react";
@@ -43,7 +43,7 @@ export function TeamsPage({ query }: { query: URLSearchParams }) {
             const q = work.data!.agents.find((x) => x.role === r.name);
             return (
               <tr key={r.name}><td><code>{r.name}</code></td><td>{r.description}</td><td>{q?.waiting ?? 0}</td>
-                <td>{q?.failing ? <span className="badge late">{q.failing}</span> : 0}</td>
+                <td>{q?.failing ? <UIBadge className="badge late">{q.failing}</UIBadge> : 0}</td>
                 <td>{r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)}</td></tr>
             );
           })}
@@ -73,26 +73,26 @@ function RoleCard({ r, roles, person, open, reload }: { r: WorkRoleRow; roles: W
       <summary>
         <strong>{r.name}</strong> <span className="muted small">{r.description}</span>{" "}
         <span className="small">· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
-          {" "}· {r.waiting} waiting{r.overdue ? <>, <span className="badge late">{r.overdue} overdue</span></> : null}
+          {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
           {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${r.escalate_to}`}</span>
-        {r.uncovered && <span className="badge late"> no one available</span>}
+        {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}
       </summary>
       <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>What it's for</th><td><Input width="lg" value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} /></td></tr>
-          <tr><th>Default SLA</th><td><input value={v.default_sla} placeholder="e.g. PT4H, P1D (empty: steps set their own)"
+          <tr><th>Default SLA</th><td><Input value={v.default_sla} placeholder="e.g. PT4H, P1D (empty: steps set their own)"
             onChange={(e) => setV({ ...v, default_sla: e.target.value })} /> <span className="muted">for steps that set none</span></td></tr>
           <tr><th>When it passes, goes to</th><td>
-            <select value={v.escalate_to} onChange={(e) => setV({ ...v, escalate_to: e.target.value })}>
+            <Select value={v.escalate_to} onChange={(e) => setV({ ...v, escalate_to: e.target.value })}>
               <option value="">stays with this role</option>
               {roles.filter((x) => x.name !== r.name).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
-            </select> <span className="muted">(a step's own escalateTo wins; chains up to three hops)</span></td></tr>
+            </Select> <span className="muted">(a step's own escalateTo wins; chains up to three hops)</span></td></tr>
           <tr><th>New steps</th><td>
-            <select value={v.assignment} onChange={(e) => setV({ ...v, assignment: e.target.value as WorkRoleRow["assignment"] })}>
+            <Select value={v.assignment} onChange={(e) => setV({ ...v, assignment: e.target.value as WorkRoleRow["assignment"] })}>
               {Object.entries(ASSIGN).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-            </select></td></tr>
+            </Select></td></tr>
           <tr><th>Members</th><td>{r.members.length ? r.members.map((m) => (
-            <span key={m.name} className="badge">{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</span>))
+            <UIBadge key={m.name} className="badge">{m.name}{m.away && ` (away${m.delegate ? `, ${m.delegate} covers` : ""})`}</UIBadge>))
             : <span className="muted">none: give the role to someone under People</span>}</td></tr>
           <tr><th>Used in</th><td>{r.processes.length ? r.processes.map((p) => <a key={p} href={processHref(p, "routing")}>{p} </a>)
             : <span className="muted">no published process</span>}</td></tr>
@@ -119,9 +119,9 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
   const a = useAct();
   return (
     <div className="row">
-      <input placeholder="new role, e.g. integrity_engineer" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input placeholder="new role, e.g. integrity_engineer" value={name} onChange={(e) => setName(e.target.value)} />
       <Input width="lg" placeholder="what it's for" value={desc} onChange={(e) => setDesc(e.target.value)} />
-      <select value={kind} onChange={(e) => setKind(e.target.value as "person" | "agent")}><option value="person">people</option><option value="agent">an agent</option></select>
+      <Select value={kind} onChange={(e) => setKind(e.target.value as "person" | "agent")}><option value="person">people</option><option value="agent">an agent</option></Select>
       <Button variant="secondary" disabled={!name || !!a.busy}
         onClick={() => a.run("add", () => api.setRole(name, { kind, description: desc || null }, person), () => { setName(""); setDesc(""); reload(); })}>Add role</Button>
       {a.error && <span className="error small">{a.error}</span>}
@@ -139,7 +139,7 @@ function People({ people, roles, person, reload }: { people: WorkloadPerson[]; r
         <tbody>{people.map((p) => <PersonRow key={p.name} p={p} roles={roles} people={people} person={person} reload={reload} />)}</tbody>
       </Table>
       <div className="row">
-        <input placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
         <Button variant="secondary" disabled={!name || !!a.busy}
           onClick={() => a.run("add", () => api.setWorkPerson(name.trim(), [], person), () => { setName(""); reload(); })}>Add</Button>
         {a.error && <span className="error small">{a.error}</span>}
@@ -162,20 +162,20 @@ function PersonRow({ p, roles, people, person, reload }: { p: WorkloadPerson; ro
     <tr>
       <td><strong>{p.name}</strong></td>
       <td>{roles.map((r) => (
-        <label key={r.name} className="small choice-inline"><input type="checkbox" checked={p.roles.includes(r.name)} disabled={!!a.busy}
+        <label key={r.name} className="small choice-inline"><Input type="checkbox" checked={p.roles.includes(r.name)} disabled={!!a.busy}
           onChange={() => toggle(r.name)} /> {r.name}</label>))}</td>
       <td><a href={href("/cases", { who: p.name })}>{p.assigned}</a></td>
-      <td>{p.overdue ? <span className="badge late">{p.overdue}</span> : 0}</td>
+      <td>{p.overdue ? <UIBadge className="badge late">{p.overdue}</UIBadge> : 0}</td>
       <td>
         {p.away ? <>until {when(p.away_until!)}{p.delegate && `, ${p.delegate} covers`}{" "}
           <Button variant="link" onClick={() => a.run("back", () => api.setAway(p.name, person, null), reload)}>back now</Button></>
           : awayOpen ? (
             <span className="row">
-              <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
-              <select value={delegate} onChange={(e) => setDelegate(e.target.value)}>
+              <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
+              <Select value={delegate} onChange={(e) => setDelegate(e.target.value)}>
                 <option value="">steps go back to the queue</option>
                 {people.filter((x) => x.name !== p.name).map((x) => <option key={x.name} value={x.name}>{x.name} covers</option>)}
-              </select>
+              </Select>
               <Button variant="secondary" disabled={!until || !!a.busy}
                 onClick={() => a.run("away", () => api.setAway(p.name, person, new Date(until).toISOString(), delegate || null), () => { setAwayOpen(false); reload(); })}>Set</Button>
             </span>

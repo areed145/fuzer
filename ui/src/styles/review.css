@@ -1,0 +1,30 @@
+/* review */
+.reviewer { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.reviewer input { width: 160px; }
+.card.review h3 { font-size: 15px; }
+table.ui-table--compare { margin: 8px 0 12px; }
+table.ui-table--compare th:first-child { width: 120px; }
+table.ui-table--compare tr.diff td { background: var(--warn-soft); }
+ul.choices { list-style: none; padding: 0; margin: 10px 0 12px; }
+ul.choices li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px;
+}
+ul.choices li.current { border-color: var(--accent); }
+ul.choices .value { font-weight: 600; }
+ul.choices button { margin-left: auto; }
+.score { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; }
+.score .bar { width: 80px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.score .bar span { display: block; height: 100%; background: var(--accent); }
+
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  padding: 10px 14px; border-radius: var(--radius);
+  background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok);
+  animation: fade 4s forwards;
+}
+@keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+
+.mini-curves { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.mini-curve { margin: 0; width: 260px; }
+.mini-curve svg { width: 260px; height: 120px; border: 1px solid var(--line); border-radius: var(--radius); }

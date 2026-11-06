@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -22,7 +22,7 @@ const isOpenDraft = (d: WorkDefinition, defs: WorkDefinition[]) =>
 
 function StateBadge({ state }: { state: string }) {
   const cls = state === "published" ? "ok" : state === "checked" ? "soon" : state === "draft" ? "human" : "";
-  return <span className={`badge ${cls}`}>{state}</span>;
+  return <UIBadge className={`badge ${cls}`}>{state}</UIBadge>;
 }
 
 function useAdmin(person: string) {
@@ -109,7 +109,7 @@ export function ProcessesPage() {
                   <td>{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">—</span>}</td>
                   <td><a href={href(`/processes/${k}`, { tab: "running" })}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
                   <td>{statOf(k)?.waiting ?? ""}</td>
-                  <td>{statOf(k)?.overdue ? <span className="badge late">{statOf(k)!.overdue}</span> : ""}</td>
+                  <td>{statOf(k)?.overdue ? <UIBadge className="badge late">{statOf(k)!.overdue}</UIBadge> : ""}</td>
                   <td className="small">{statOf(k) && `${hours(statOf(k)!.median_h)} / ${hours(statOf(k)!.p90_h)}`}</td>
                   <td className="small">{statOf(k)?.sla_breach_pct != null ? `${statOf(k)!.sla_breach_pct}%` : "–"}</td>
                   <td className="small">
@@ -126,12 +126,12 @@ export function ProcessesPage() {
         <UICard className="">
           <h3>New process</h3>
           <div className="actions">
-            <input placeholder="key, e.g. lesson_review" value={key} onChange={(e) => setKey(e.target.value.trim())} />
-            <input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input placeholder="key, e.g. lesson_review" value={key} onChange={(e) => setKey(e.target.value.trim())} />
+            <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
             <Button variant="primary" disabled={!keyOk} onClick={create}>Create draft</Button>
             <span className="muted small">or</span>
             <Button onClick={() => file.current?.click()}>Import .bpmn</Button>
-            <input ref={file} type="file" accept=".bpmn,.xml" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+            <Input ref={file} type="file" accept=".bpmn,.xml" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </div>
           {key && !keyOk && <p className="small error">{taken ? "That key is taken; open it above to edit." : "A key is lower case letters, digits and _."}</p>}
           {error && <p className="small error">{error}</p>}
@@ -198,11 +198,11 @@ function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefi
   return (
     <label className="small row">
       Version
-      <select value={current.id} onChange={(e) => (location.hash = href(`/processes/${current.process_key}`, { v: e.target.value }))}>
+      <Select value={current.id} onChange={(e) => (location.hash = href(`/processes/${current.process_key}`, { v: e.target.value }))}>
         {defs.map((d) => (
           <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }
@@ -328,7 +328,7 @@ function ModelTab({ def, defs, draft, reload }: {
         <Versions defs={defs} current={def} />
         <StateBadge state={def.state} />
         <span className="small muted">by <Actor who={def.created_by} /> {when(def.created_at)}</span>
-        {dirty && <span className="badge soon">unsaved changes</span>}
+        {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
         <span className="spacer" />
         {editable ? (
           <>
@@ -409,7 +409,7 @@ const show = (v: unknown) => (v === undefined || v === null ? "—" : String(v))
 function ChangeRow({ c, onPick }: { c: WorkChange; onPick: (id: string) => void }) {
   return (
     <li className="small">
-      <span className={`badge change-${c.change}`}>{c.change}</span>{" "}
+      <UIBadge className={`badge change-${c.change}`}>{c.change}</UIBadge>{" "}
       {c.change === "removed" ? <span className="mono">{c.element}</span> : <a className="mono" onClick={() => onPick(c.element)}>{c.element}</a>}
       {c.name && <> {c.name}</>} <span className="muted">({c.type})</span>
       {c.fields && (
@@ -443,18 +443,18 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
       <div className="work-toolbar">
         <label className="small row">
           Version
-          <select value={version ?? ""} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)}>
+          <Select value={version ?? ""} onChange={(e) => setVersion(e.target.value ? Number(e.target.value) : undefined)}>
             <option value="">all versions</option>
             {defs.filter((d) => d.state === "published" || d.state === "superseded").map((d) => (
               <option key={d.id} value={d.id}>v{d.version} · {d.state}{d.running ? ` · ${d.running} running` : ""}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="small row">
           Finished in the last
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[1, 7, 30, 90, 365].map((d) => <option key={d} value={d}>{d === 1 ? "day" : `${d} days`}</option>)}
-          </select>
+          </Select>
         </label>
         <span className="small muted">{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</span>
         <Button onClick={m.reload}>Refresh</Button>
@@ -480,7 +480,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
                   <tr key={id}>
                     <td>{c.name ?? <span className="mono">{id}</span>}</td>
                     <td>{c.waiting || ""}</td>
-                    <td>{c.overdue ? <span className="badge late">{c.overdue}</span> : ""}</td>
+                    <td>{c.overdue ? <UIBadge className="badge late">{c.overdue}</UIBadge> : ""}</td>
                     <td>{c.oldest ? span(Date.now() - new Date(c.oldest).getTime()) : ""}</td>
                     <td>{c.done || ""}</td>
                     <td>{c.median_seconds != null ? span(c.median_seconds * 1000) : ""}</td>
@@ -562,7 +562,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       <div className="row spread">
         <PageHeader>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</PageHeader>
         <div className="actions">
-          {dirty && <span className="badge soon">unsaved changes</span>}
+          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
           <Button variant="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</Button>
         </div>
       </div>
@@ -573,7 +573,7 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       <NeedName person={person} />
       {isNew && (
         <div className="actions">
-          <input placeholder="form key, e.g. lesson-review" value={newKey} onChange={(e) => setNewKey(e.target.value.trim())} />
+          <Input placeholder="form key, e.g. lesson-review" value={newKey} onChange={(e) => setNewKey(e.target.value.trim())} />
           {newKey && !keyOk && <span className="small error">Lower case letters, digits, - and _.</span>}
         </div>
       )}
@@ -606,7 +606,7 @@ function OverviewTab({ processKey, defs, published }: { processKey: string; defs
     ["Published", published ? <>v{published.version} {published.published_at && <span className="muted">{when(published.published_at)}</span>}</> : "not yet"],
     ["Versions", defs.map((d) => `v${d.version} ${d.state}`).join(", ")],
     ["Running", s ? <a href={href(`/processes/${processKey}`, { tab: "running" })}>{s.running} cases</a> : "–"],
-    ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<span className="badge late">{s.overdue} overdue</span>)</> : null}</> : "–"],
+    ["Steps waiting", s ? <>{s.waiting}{s.overdue ? <> (<UIBadge className="badge late">{s.overdue} overdue</UIBadge>)</> : null}</> : "–"],
     ["Finished (30 days)", s?.finished ?? "–"],
     ["Cycle time (30 days)", s ? `median ${hours(s.median_h)}, 90% within ${hours(s.p90_h)}` : "–"],
     ["SLA missed (30 days)", s?.sla_breach_pct != null ? `${s.sla_breach_pct}% of ${s.steps} person steps` : "no person steps yet"],
@@ -637,12 +637,12 @@ function RunningTab({ processKey }: { processKey: string }) {
           <tbody>
             {list.data.map((i) => (
               <tr key={i.id}>
-                <td><a href={caseHref(i.item_id)}>{i.title}</a>{i.state !== "running" && <span className="badge"> {i.state}{i.outcome ? `: ${i.outcome}` : ""}</span>}</td>
+                <td><a href={caseHref(i.item_id)}>{i.title}</a>{i.state !== "running" && <UIBadge className="badge"> {i.state}{i.outcome ? `: ${i.outcome}` : ""}</UIBadge>}</td>
                 <td className="small">
                   {i.open_steps.map((t) => (
                     <div key={t.task_id}>
                       {t.kind === "agent" ? t.step : <a href={taskHref(t.task_id)}>{t.step}</a>} <span className="muted">with {holder(t.assignee, t.role, t.kind)}</span>{" "}
-                      {t.escalated && <span className="badge late">escalated</span>} <Due at={t.due_at} />
+                      {t.escalated && <UIBadge className="badge late">escalated</UIBadge>} <Due at={t.due_at} />
                     </div>
                   ))}
                 </td>
@@ -675,7 +675,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
         <tbody>
           {r.data.map((s) => (
             <tr key={s.element}>
-              <td><strong>{s.step}</strong>{s.requires_human && <span className="badge human"> needs a person</span>}</td>
+              <td><strong>{s.step}</strong>{s.requires_human && <UIBadge className="badge human"> needs a person</UIBadge>}</td>
               <td>{s.kind === "agent" ? <>{s.role} agent{s.fallback_role && <span className="muted small"> (fails to {s.fallback_role})</span>}</>
                 : <a href={href("/teams", { role: s.role ?? "" })}>{s.role}</a>}</td>
               <td className="small">{s.kind === "person" ? (s.assignment ?? "queue").replace("_", " ") : "agent worker"}</td>

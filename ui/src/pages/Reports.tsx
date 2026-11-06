@@ -7,7 +7,7 @@ import { Markdown } from "../Markdown";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { useAct } from "./workflows/shared";
-import { Button, PageHeader } from "../ui";
+import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
 
 const STATUS_CLASS: Record<string, string> = {
   published: "ok", "awaiting review": "key", "sent back": "warn", drafting: "warn", "needs a fix": "warn",
@@ -22,7 +22,7 @@ const STATUS_HELP: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: DailyStatus }) {
-  return <span className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</span>;
+  return <UIBadge className={`badge ${STATUS_CLASS[status] ?? ""}`} title={STATUS_HELP[status]}>{status}</UIBadge>;
 }
 
 export function ReportsPage({ query }: { query: URLSearchParams }) {
@@ -69,7 +69,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
         <>
           <Review d={d} onDone={() => { r.reload(); onChange(); }} />
           <div className="grid">
-            <section className="card">
+            <UICard  as="section">
               <div className="row small muted">
                 <span>Version</span>
                 {d.versions.map((v) => (
@@ -80,8 +80,8 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                 {d.seconds !== null && <span>{d.seconds} s</span>}
               </div>
               <Markdown text={d.markdown} />
-            </section>
-            <section className="card">
+            </UICard>
+            <UICard  as="section">
               <h2>Checks</h2>
               {d.checks.ok ? <p className="small">Every line cites its records and every number is in them.</p> : (
                 <ul className="small">
@@ -105,7 +105,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                   ))}
                 </>
               )}
-            </section>
+            </UICard>
           </div>
         </>
       )}
@@ -140,7 +140,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
     return api.complete(step.id, person, data);
   }, () => { setRevising(false); setComments(""); onDone(); });
   return (
-    <section className="card">
+    <UICard  as="section">
       <div className="row spread">
         <h2>Review this report</h2>
         <span className="small row"><StatusBadge status={rv.status} />
@@ -173,6 +173,6 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
         </>
       )}
       {a.error && <p className="error small">{a.error}</p>}
-    </section>
+    </UICard>
   );
 }

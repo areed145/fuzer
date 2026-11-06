@@ -1,4 +1,5 @@
-import { Button, Input, PageHeader, Table } from "../ui";
+import "../styles/board.css";
+import { Button, Input, PageHeader, Table, Select , Badge as UIBadge} from "../ui";
 import { useEffect, useState } from "react";
 import { api, type BoardCard, type BoardFilter } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync, useDebounced } from "../lib";
@@ -79,15 +80,15 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
             </a>
           ))}
         </div>
-        <input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />
+        <Input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />
         {Object.keys(saved).length > 0 && (
-          <select value="" onChange={(e) => {
+          <Select value="" onChange={(e) => {
             const s = saved[e.target.value];
             if (s) { setFilter({ ...s, text: undefined }); setText(s.text ?? ""); setPage(1); }
           }}>
             <option value="">Saved filters…</option>
             {Object.keys(saved).map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
+          </Select>
         )}
         <Button onClick={save}>Save filter</Button>
         <ProjectButton />
@@ -141,8 +142,8 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
     <li className={`card board-card${c.pinned ? " pinned" : ""}`}>
       <div className="row">
         <span className="rank mono">{c.rank}</span>
-        {c.moved && <span className={`badge ${c.moved === "new" ? "ok" : up ? "ok" : ""}`} title={c.moved}>{c.moved.split(":")[0]}</span>}
-        <span className="badge">{c.kind.replace("_", " ")}</span>
+        {c.moved && <UIBadge className={`badge ${c.moved === "new" ? "ok" : up ? "ok" : ""}`} title={c.moved}>{c.moved.split(":")[0]}</UIBadge>}
+        <UIBadge className="badge">{c.kind.replace("_", " ")}</UIBadge>
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{money(c.effective_usd)}</strong>
@@ -152,7 +153,7 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         {c.unit && c.unit_id && <a href={entityHref(c.unit_id)}>{c.unit}</a>}
         {c.area && <span>{c.area}</span>}
         <span>{c.owner}</span>
-        {c.pinned && <span className="badge key" title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</span>}
+        {c.pinned && <UIBadge className="badge key" title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
         {c.records.length > 1 && <span>{c.records.length} records</span>}
       </div>
       {open && <Detail card={c} reload={reload} />}
@@ -225,7 +226,7 @@ function PinForm({ card: c, reload }: { card: BoardCard; reload: () => void }) {
       <Input width="xs" value={rank} onChange={(e) => setRank(e.target.value)} />
       <span>or value $</span>
       <Input width="sm" value={value} onChange={(e) => setValue(e.target.value)} />
-      <input placeholder="Why (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Input placeholder="Why (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button disabled={!reason || (!rank && !value)} onClick={() => send()}>Pin</Button>
       {c.pinned && <Button onClick={() => send(true)}>Unpin</Button>}
       {error && <span className="error">{error}</span>}

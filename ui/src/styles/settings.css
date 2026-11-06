@@ -1,0 +1,10 @@
+/* settings (#131) */
+table.ui-table--settings { width: 100%; }
+table.ui-table--settings td { overflow-wrap: anywhere; }
+table.ui-table--settings button { white-space: nowrap; }
+table.ui-table--settings code { font-family: var(--mono); font-size: 12px; margin-right: 6px; }
+tr.setting-edit > td { background: var(--bg); }
+tr.setting-edit .row { margin-bottom: 8px; }
+.row input.grow { flex: 1; min-width: 200px; }
+
+.scroll-x { overflow-x: auto; max-width: 100%; }
