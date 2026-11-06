@@ -1,5 +1,12 @@
 # From a well test to an answer
 
+For a guided, keyless introduction in the app, choose **Start guided investigation**
+on Home after Okan has loaded and your signed-in account is approved, or open `#/investigate/okan`. Follow the March 2024
+train B issue through the asset, dated source evidence and a cited finding, including
+April maintenance follow-up. This historical synthetic-data journey makes no writes
+or AI calls; it does not establish a root cause or issue plant-operating instructions.
+If its records are absent, it reports that rather than generating a replacement story.
+
 This page follows one monthly well test on Okan, from the Energy Components export to the assistant's answer.
 Every step is a file you can open.
 

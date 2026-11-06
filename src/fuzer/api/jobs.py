@@ -18,7 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..resources import ROOT
 
-router = APIRouter()
+from .security import AuthenticatedRoute
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 DAY = 24 * 3600
 HEARTBEAT_STALE = 180  # seconds without a scheduler heartbeat before we call the daemon stopped

@@ -4,6 +4,7 @@ import { notifyChanged } from "./lib";
 const KEY = "fuzer.reviewer";
 const CHANGED = "fuzer:person";
 let person = "";
+let trusted = false;
 try {
   person = localStorage.getItem(KEY) ?? "";
 } catch {
@@ -11,7 +12,15 @@ try {
 }
 
 export const loadPerson = () => person;
+export function setTrustedPerson(name: string) {
+  trusted = true;
+  if (person === name) return;
+  person = name;
+  window.dispatchEvent(new Event(CHANGED));
+  notifyChanged();
+}
 window.addEventListener("storage", (event) => {
+  if (trusted) return;
   if (event.key === KEY || event.key === null) {
     person = event.newValue ?? "";
     window.dispatchEvent(new Event(CHANGED));
@@ -27,6 +36,7 @@ const subscribe = (onChange: () => void) => {
 export function usePerson(): [string, (name: string) => void] {
   const name = useSyncExternalStore(subscribe, loadPerson);
   return [name, (next) => {
+    if (trusted) return;
     person = next;
     try {
       localStorage.setItem(KEY, person);

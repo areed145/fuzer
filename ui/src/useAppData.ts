@@ -3,13 +3,15 @@ import { api } from "./api";
 import { applyOntology } from "./kinds";
 import { notifyChanged, useAsync } from "./lib";
 import { usePerson } from "./work";
+import { usePermission } from "./Auth";
 
 /** Shared data lifecycle stays separate from route selection and shell presentation. */
 export function useAppData() {
   const [person] = usePerson();
+  const configure = usePermission("configure");
   const stats = useAsync(() => api.stats(), []);
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(undefined), [person]);
-  const jobsHealth = useAsync(() => api.jobsHealth(), []);
+  const jobsHealth = useAsync(() => configure ? api.jobsHealth() : Promise.resolve(undefined), [configure]);
   const declared = useAsync(() => api.ontologyDeclared().then((ontology) => {
     applyOntology(ontology);
     return ontology;

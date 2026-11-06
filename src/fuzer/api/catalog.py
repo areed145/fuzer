@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field
 from . import deps
 from .deps import get_conn
 
-router = APIRouter(prefix="/sources")
+from .security import AuthenticatedRoute
+
+router = APIRouter(prefix="/sources", route_class=AuthenticatedRoute)
 
 
 def _data_dir() -> str:

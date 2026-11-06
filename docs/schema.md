@@ -13,6 +13,62 @@ Which schema.sql this database is at (its hash): init_schema re-runs this file o
 | `hash` | text |  |
 | `applied_at` | timestamptz |  |
 
+## `access_account`
+
+Sign-in identities are independent of workflow routing roles.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | text |  |
+| `tenant_id` | text |  |
+| `object_id` | text |  |
+| `display_name` | text |  |
+| `enabled` | boolean |  |
+| `owner` | boolean |  |
+| `created_at` | timestamptz |  |
+
+## `access_role`
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `description` | text |  |
+| `permissions` | text[] |  |
+
+## `access_membership`
+
+| Column | Type | Note |
+|---|---|---|
+| `account_id` | text |  |
+| `role` | text |  |
+
+## `access_session`
+
+| Column | Type | Note |
+|---|---|---|
+| `token_hash` | text |  |
+| `account_id` | text |  |
+| `csrf` | text |  |
+| `expires_at` | timestamptz |  |
+
+## `access_login`
+
+| Column | Type | Note |
+|---|---|---|
+| `token_hash` | text |  |
+| `flow` | jsonb |  |
+| `expires_at` | timestamptz |  |
+
+## `access_event`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `actor` | text |  |
+| `action` | text |  |
+| `data` | jsonb |  |
+| `at` | timestamptz |  |
+
 ## `source_record`
 
 Raw records exactly as received from each source.

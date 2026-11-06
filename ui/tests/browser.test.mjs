@@ -26,6 +26,9 @@ beforeEach(async () => {
     if (message.type() === "error" && message.text().includes("Fuzer page rendering failed")) errors.push(message.text());
   });
   const fixtures = {
+    "/auth/me": { mode: "local", configured: true, user: null },
+    "/work/inbox": { person: "", roles: [], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } },
     "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
     "/settings": { project: null, projects: [], settings: [] },
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
@@ -55,6 +58,205 @@ test("Home guides empty-register setup and routes recover instead of silently sh
   await page.getByText("Page not found", { exact: true }).waitFor();
   await page.goto(`${url}/#/%E0%A4%A`);
   await page.getByText("Page not found", { exact: true }).waitFor();
+});
+
+const investigation = {
+  title: "Why investigate train B's March trips?",
+  since: "2024-03-01", until: "2024-04-01", asset_id: "fz-compressor", asset_label: "20-K-2200B",
+  asset_fields: [{ name: "Description", value: "Train B second-stage compressor", source: "sap" }],
+  asset_records: [{ source: "sap", record_type: "floc", key: "OKAN-20-K2200B", observed_at: "2026-11-06T12:00:00Z" }],
+  evidence: [{
+    id: "fz-downtime", kind: "downtime", label: "OKDT-00001", at: "2024-03-14T03:20:00",
+    text: "Compressor tripped; lift gas shortfall recorded.", lost_oil_sm3: 423,
+    records: [{ source: "ec", record_type: "downtime", key: "OKDT-00001", observed_at: "2026-11-06T12:00:00Z" }],
+  }],
+  findings: [{ text: "The linked record reports 423 Sm3 of lost oil, not a daily rate.", evidence_ids: ["fz-downtime"] }],
+  limitations: ["Historical synthetic data does not prove a root cause or the effectiveness of a repair."],
+};
+
+const signedInUser = {
+  id: "test-account", actor: "user:test-account", display_name: "Test participant", enabled: true,
+  owner: false, roles: ["reader"], permissions: ["read"], csrf: "browser-csrf-test",
+};
+
+test("fresh Microsoft visitor gets a responsive sign-in entry without preloading protected APIs", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: null } }));
+  const protectedRequests = [];
+  page.on("request", (request) => {
+    if (["/stats", "/jobs", "/assistant/ask", "/demo/okan/investigation"].includes(new URL(request.url()).pathname)) {
+      protectedRequests.push(request.url());
+    }
+  });
+  await page.goto(url);
+  await page.getByRole("heading", { name: "Investigate with evidence, not guesswork" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Continue with Microsoft" }).getAttribute("href"), "/auth/login");
+  await page.getByText("Personal Microsoft and work/school accounts are supported.", { exact: false }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(protectedRequests, []);
+});
+
+test("sign-in setup and session failures have useful retry paths", async () => {
+  let configured = false;
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured, user: null } }));
+  await page.goto(url);
+  await page.getByRole("alert").filter({ hasText: "not been configured" }).waitFor();
+  configured = true;
+  await page.getByRole("button", { name: "Check again" }).click();
+  await page.getByRole("link", { name: "Continue with Microsoft" }).waitFor();
+  await page.goto(`${url}/#/?signin=expired`);
+  await page.getByRole("alert").filter({ hasText: "Sign-in expired" }).waitFor();
+});
+
+test("approved reader completes the keyless journey with trusted identity and no administrative API calls", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "system"));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
+  await page.route("**/stats", (route) => route.fulfill({ json: {
+    facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
+  } }));
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  const administrative = [];
+  page.on("request", (request) => {
+    if (/^\/(jobs|sources|settings)(\/|$)/.test(new URL(request.url()).pathname)) administrative.push(request.url());
+  });
+  await page.goto(url);
+  await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
+  await page.getByRole("link", { name: "Next: Meet the asset", exact: true }).click();
+  await page.getByRole("link", { name: "Next: Inspect the evidence", exact: true }).click();
+  await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
+  await page.getByText("What the loaded records establish", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Finish investigation", exact: true }).click();
+  await page.getByText("Test participant", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "system", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Sources", exact: true }).count(), 0);
+  assert.deepEqual(administrative, []);
+});
+
+test("pending account can bootstrap only with a setup code and then reach owner-managed access", async () => {
+  let owner = false;
+  await page.route("**/auth/me", (route) => route.fulfill({ json: {
+    mode: "microsoft", configured: true, needs_owner: !owner,
+    user: { ...signedInUser, enabled: owner, owner },
+  } }));
+  await page.route("**/auth/bootstrap", async (route) => {
+    assert.equal(route.request().headers()["x-fuzer-csrf"], "browser-csrf-test");
+    assert.equal(route.request().postDataJSON().token, "test-setup-code-at-least-thirty-two-characters");
+    owner = true;
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/auth/access", (route) => route.fulfill({ json: {
+    accounts: [{ ...signedInUser, owner: true }], roles: [{ name: "reader", description: "Read", permissions: ["read"] }],
+    permissions: { read: "Browse evidence", ai: "Run paid AI" },
+  } }));
+  await page.goto(url);
+  await page.getByRole("heading", { name: "Your account is ready for approval" }).waitFor();
+  await page.getByLabel("Owner setup code").fill("test-setup-code-at-least-thirty-two-characters");
+  await page.getByRole("button", { name: "Set up owner access" }).click();
+  await page.getByRole("link", { name: "Manage sign-in & access" }).click();
+  await page.getByRole("heading", { name: "Sign-in & access", exact: true }).waitFor();
+  await page.getByText("Keep at least one enabled owner;", { exact: false }).waitFor();
+  await page.getByRole("heading", { name: "Add an application role", exact: true }).waitFor();
+});
+
+test("expired server session exits protected pages and preserves a sign-in recovery path", async () => {
+  let expired = false;
+  await page.route("**/auth/me", (route) => route.fulfill({ json: {
+    mode: "microsoft", configured: true, user: expired ? null : signedInUser,
+  } }));
+  await page.route("**/demo/okan/investigation", (route) => {
+    expired = true;
+    return route.fulfill({ status: 401, json: { detail: "Sign in with Microsoft to continue" } });
+  });
+  await page.goto(`${url}/#/investigate/okan`);
+  await page.getByRole("alert").filter({ hasText: "Your session has ended" }).waitFor();
+  await page.getByRole("button", { name: "Reload sign-in" }).click();
+  await page.getByRole("link", { name: "Continue with Microsoft" }).waitFor();
+});
+
+test("Okan journey connects Home, asset, source evidence and a cited finding without writes or AI", async () => {
+  const methods = [];
+  await page.route("**/stats", (route) => route.fulfill({ json: {
+    facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
+  } }));
+  await page.route("**/demo/okan/investigation", (route) => {
+    methods.push(route.request().method());
+    return route.fulfill({ json: investigation });
+  });
+  const paid = [];
+  page.on("request", (request) => { if (request.url().includes("/assistant/")) paid.push(request.url()); });
+  await page.goto(url);
+  await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
+  await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
+  await page.getByText("Synthetic demo data", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Next: Meet the asset", exact: true }).click();
+  await page.getByRole("heading", { name: "Meet the asset", exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "investigation-step");
+  await page.getByText("Train B second-stage compressor", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Next: Inspect the evidence", exact: true }).click();
+  await page.locator("summary").click();
+  await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
+  await page.getByText("Last observed during ingestion:", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
+  await page.getByText("What the loaded records establish", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Evidence 1", exact: true }).click();
+  assert.equal(await page.locator("details").getAttribute("open"), "");
+  await page.reload();
+  await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
+  await page.getByRole("link", { name: "Finish investigation", exact: true }).click();
+  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  assert.ok(methods.length > 0 && methods.every((method) => method === "GET"));
+  assert.deepEqual(paid, []);
+});
+
+test("Okan deep links support mobile, keyboard, dark theme and history without overflow", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.goto(`${url}/#/investigate/okan?step=evidence&evidence=fz-downtime`);
+  const summary = page.locator("summary");
+  await summary.waitFor();
+  await page.waitForFunction(() => document.activeElement?.tagName === "SUMMARY");
+  await page.keyboard.press("Enter");
+  assert.equal(await page.locator("details").getAttribute("open"), null);
+  await page.keyboard.press("Enter");
+  assert.equal(await page.locator("details").getAttribute("open"), "");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+  await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
+  await page.getByRole("heading", { name: "Read the finding", exact: true }).waitFor();
+  await page.goBack();
+  await page.getByRole("heading", { name: "Inspect the evidence", exact: true }).waitFor();
+});
+
+test("Okan unavailable records and network failures have retry and exit paths", async () => {
+  let ready = false;
+  await page.route("**/demo/okan/investigation", (route) => ready
+    ? route.fulfill({ json: investigation })
+    : route.fulfill({ status: 404, json: { detail: "The March Okan records are not loaded." } }));
+  await page.goto(`${url}/#/investigate/okan`);
+  await page.getByRole("alert").filter({ hasText: "not loaded" }).waitFor();
+  await page.getByRole("link", { name: "Return home", exact: true }).waitFor();
+  ready = true;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
+});
+
+test("Okan loading and transport errors keep recovery and navigation usable", async () => {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/demo/okan/investigation", async (route) => {
+    await held;
+    await route.abort("failed");
+  });
+  await page.goto(`${url}/#/investigate/okan`);
+  await page.getByRole("status").filter({ hasText: "Loading" }).waitFor();
+  await page.getByRole("heading", { name: "Okan investigation", exact: true }).waitFor();
+  release();
+  await page.getByRole("alert").waitFor();
+  await page.getByRole("button", { name: "Try again", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Return home", exact: true }).click();
+  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
 
 test("Appearance persists, overrides the OS and stays controlled when the effective color is unchanged", async () => {

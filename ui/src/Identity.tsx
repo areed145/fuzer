@@ -1,11 +1,26 @@
-/** Who you are, for the whole app (until sign-in arrives): set once in the sidebar, used by every page that acts. */
+/** Signed-in identity; attribution-only names are limited to explicit trusted local mode. */
 import { useState } from "react";
 import { api } from "./api";
 import { href, useAsync } from "./lib";
 import { usePerson } from "./work";
 import { Button, Input } from "./ui";
+import { SignOut, useAuth } from "./Auth";
 
 export function Identity() {
+  const session = useAuth();
+  if (session?.mode === "microsoft") {
+    const user = session.user;
+    return <div className="identity small">
+      <strong>{user?.display_name}</strong>
+      <p className="muted">{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
+      {user?.owner && <p><a href={href("/access")}>Manage sign-in & access</a></p>}
+      <SignOut />
+    </div>;
+  }
+  return <LocalIdentity />;
+}
+
+function LocalIdentity() {
   const [person, setPerson] = usePerson();
   const [editing, setEditing] = useState(!person);
   const [draft, setDraft] = useState(person);

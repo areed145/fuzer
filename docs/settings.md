@@ -26,6 +26,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
 | `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
+| `assistant.concurrent_questions` | int | `1` | 1 to 8 | Questions the web assistant can run at once per server process; prevents overlapping model/tool workloads. |
+| `assistant.timeout_seconds` | int | `300` | 30 to 900 | Time limit for a web assistant question, including specialists. |
 
 ## Schedule
 
@@ -121,3 +123,10 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `sources.adx.database` | str | `` |  | ADX database. Replaces `FUZER_ADX_DATABASE`. |
 | `sources.adx.catalog` | str | `SeriesCatalog` |  | ADX table listing the series. Replaces `FUZER_ADX_CATALOG`. |
 | `sources.adx.token` | secret | `env:FUZER_ADX_TOKEN` |  | Where the ADX bearer token is kept. |
+
+## Access
+
+| Setting | Type | Default | Range | What it is |
+|---|---|---|---|---|
+| `access.session_hours` | int | `8` | 1 to 24 | Absolute signed-in session lifetime in hours. |
+| `access.api_concurrency` | int | `4` | 1 to 32 | Maximum simultaneous authenticated API requests per server process; bounds memory pressure on the single-instance demo, not a commercial quota. |

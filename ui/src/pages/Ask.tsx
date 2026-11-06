@@ -17,7 +17,7 @@ const EXAMPLES: [string, string][] = [
   ["Across domains", "Why does lift gas keep running short, and what should go in the next turnaround to fix it?"],
 ];
 
-// Who is asking: the name the Review page remembers.
+// The signed-in actor, or the attribution name in explicit local mode.
 const asker = () => loadPerson() || "anonymous";
 
 const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -262,7 +262,7 @@ function Remember({ id }: { id: string }) {
         <Button variant="link" onClick={() => {
           setText(window.getSelection()?.toString().trim() ?? "");
           setOpen(true);
-        }} title="Select text in the answer first, or type what to remember">Remember this…</Button>
+        }} title="Select text to extract into shared facility memory (uses the configured AI provider)">Share in facility memory…</Button>
         {state && <span className="muted"> {state}</span>}
       </div>
     );
@@ -275,7 +275,7 @@ function Remember({ id }: { id: string }) {
   };
   return (
     <div className="row small remember">
-      <Input placeholder="What should the assistant remember? (a statement from the answer)" value={text}
+      <Input placeholder="Statement to share in facility memory (uses AI)" value={text}
              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && send()} />
       <Button variant="primary" disabled={!text.trim()} onClick={send}>Remember</Button>
       <Button variant="link" onClick={() => setOpen(false)}>Cancel</Button>
@@ -288,14 +288,24 @@ function Rate({ id }: { id: string }) {
   const [sent, setSent] = useState<boolean | null>(null);
   const [comment, setComment] = useState("");
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   if (sent !== null) return <span>Thanks: rated {sent ? "useful" : "not useful"}.</span>;
-  const send = (useful: boolean) => api.feedback(`answer:${id}`, useful, asker(), comment || undefined).then(() => setSent(useful));
+  const send = async (useful: boolean) => {
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await api.feedback(`answer:${id}`, useful, asker(), comment || undefined); setSent(useful); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  };
   return (
     <span className="rate-inline">
-      Useful? <Button onClick={() => send(true)}>Yes</Button>{" "}
-      <Button onClick={() => (open ? send(false) : setOpen(true))}>No</Button>
+      Useful? <Button disabled={busy} title="Learns facts from this answer into shared facility memory using AI"
+        onClick={() => send(true)}>Yes &amp; share learning</Button>{" "}
+      <Button disabled={busy} onClick={() => (open ? send(false) : setOpen(true))}>No</Button>
       {open && <Input placeholder="What was wrong or missing?" value={comment} onChange={(e) => setComment(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && send(false)} />}
+      {error && <span role="alert">{error}</span>}
     </span>
   );
 }

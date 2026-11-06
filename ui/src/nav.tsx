@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href } from "./lib";
 import { Button } from "./ui";
+import { useAuth, usePermission } from "./Auth";
 
 export type Badge = "work" | "review";
 
@@ -15,6 +16,8 @@ export interface NavItem {
   badge?: Badge;
   /** A link out of the app (opens in a new tab) instead of a page. */
   external?: string;
+  permission?: string;
+  ownerOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -27,7 +30,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Explore",
     items: [
-      { label: "Home", section: "" },
+      { label: "Home", section: "", also: ["investigate"] },
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
@@ -46,7 +49,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Knowledge",
     items: [
-      { label: "Ask", section: "ask" },
+      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Lessons", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],
@@ -63,11 +66,12 @@ export const NAV: NavGroup[] = [
   {
     label: "Admin",
     items: [
-      { label: "Ontology", section: "ontology" },
+      { label: "Ontology", section: "ontology", permission: "configure" },
       { label: "Data review", section: "review", badge: "review" },
-      { label: "Sources", section: "sources" },
-      { label: "Jobs", section: "jobs" },
+      { label: "Sources", section: "sources", permission: "configure" },
+      { label: "Jobs", section: "jobs", permission: "configure" },
       { label: "Settings", section: "settings" },
+      { label: "Sign-in & access", section: "access", ownerOnly: true },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },
@@ -90,6 +94,10 @@ export function Sidebar({ section, badges, status }: {
   /** The compact status area at the foot of the sidebar (facility, counts, health). */
   status: ReactNode;
 }) {
+  const session = useAuth();
+  const configure = usePermission("configure"), ai = usePermission("ai");
+  const allowed = (item: NavItem) => (!item.ownerOnly || !!session?.user?.owner) &&
+    (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
@@ -158,7 +166,7 @@ export function Sidebar({ section, badges, status }: {
             <section key={group.label} className={group.label === "Admin" ? "nav-group admin" : "nav-group"}>
               <h2 id={`nav-${group.label}`}>{group.label}</h2>
               <ul aria-labelledby={`nav-${group.label}`}>
-                {group.items.map((item) => {
+                {group.items.filter(allowed).map((item) => {
                   const on = isActive(item, section);
                   const count = item.badge ? badges[item.badge] : 0;
                   return (
@@ -194,6 +202,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
+  else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Okan investigation" });
   else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
   else if (section === "inbox" && path[1] === "task") trail.push({ label: `Task ${path[2] ?? ""}`.trim() });
   else if (section === "cases" && path[1]) trail.push({ label: `Case ${path[1]}` });

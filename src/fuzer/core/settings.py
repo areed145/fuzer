@@ -117,6 +117,10 @@ register(
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
             "with its images and answers (0: keep them)", "Agents", min=0),
+    Setting("assistant.concurrent_questions", "int", 1, "Questions the web assistant can run at once per server "
+            "process; prevents overlapping model/tool workloads", "Agents", min=1, max=8),
+    Setting("assistant.timeout_seconds", "int", 300, "Time limit for a web assistant question, including specialists",
+            "Agents", min=30, max=900),
     Setting("daily_report.close_cron", "str", "0 7 * * *", "When the day is closed and its report drafted (cron)",
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",
@@ -212,6 +216,11 @@ register(
     Setting("sources.adx.token", "secret", "env:FUZER_ADX_TOKEN", "Where the ADX bearer token is kept", "Sources"),
     Setting("alerts.webhook", "secret", "env:FUZER_ALERT_WEBHOOK", "Where the URL failed scheduled runs are posted "
             "to (Teams, Slack or any JSON webhook) is kept", "Schedule"),
+    Setting("access.session_hours", "int", 8, "Absolute signed-in session lifetime in hours", "Access",
+            min=1, max=24, scopes=(GLOBAL,)),
+    Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
+            "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
+            min=1, max=32, scopes=(GLOBAL,)),
 )
 
 

@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field
 from ..workflow import engine as work
 from .deps import get_conn
 
-router = APIRouter()
+from .security import AuthenticatedRoute
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 # --- work engine (#97) ---------------------------------------------------------------------------
@@ -108,7 +110,7 @@ class WorkMigrate(BaseModel):
 
 class WorkBulk(BaseModel):
     by: str
-    task_ids: list[int]
+    task_ids: list[int] = Field(max_length=1000)
     action: str               # the label of a bulk action the tasks' form declares
     reason: str | None = None
 

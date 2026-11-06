@@ -24,8 +24,14 @@ your own, `docker compose up -d` starts one on localhost:5432; then set
 ## 2. Run the Okan demo
 
 ```sh
-uv run fuzer up           # then open http://127.0.0.1:8000
+FUZER_AUTH_MODE=local uv run fuzer up    # trusted local development; open http://127.0.0.1:8000
 ```
+
+Local mode is attribution-only and loopback-only; do not expose it through a proxy or tunnel.
+For a shared deployment, use the default Microsoft sign-in mode and follow
+[Microsoft registration and owner setup](deployment.md#microsoft-sign-in-and-first-owner).
+An approved signed-in visitor can follow **Home -> Start guided investigation** with no AI key.
+Personal Microsoft accounts and work/school accounts are supported.
 
 The first run takes a while. It builds the fake Okan field, loads every source, and has Claude read the operator
 logs, P&ID drawings and document sections (this costs money). Then it builds the register and the web UI and starts
@@ -48,7 +54,9 @@ Things to try:
 - **Ask**: the operations assistant. Try "Why does lift gas keep running short?"
 - **Work board**, **Inbox** and **Daily reports**: what the scheduled loop finds and drafts.
   Set your name under **You are** in the navigation before using your Inbox. This is decision
-  attribution, not authentication; team roles control which queues you see.
+  attribution, not authentication, **in explicit local mode only**. In Microsoft mode, the
+  server supplies your signed-in identity; an owner grants application access and human
+  workflow roles are assigned in Teams & routing.
 
 Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,
 not the facility database. System follows your device's appearance; charts, graphs and map layers

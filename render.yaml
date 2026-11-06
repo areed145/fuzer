@@ -15,6 +15,16 @@ services:
           property: connectionString
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: FUZER_AUTH_MODE
+        value: microsoft
+      - key: FUZER_PUBLIC_URL
+        sync: false
+      - key: FUZER_MICROSOFT_CLIENT_ID
+        sync: false
+      - key: FUZER_MICROSOFT_CLIENT_SECRET
+        sync: false
+      - key: FUZER_OWNER_BOOTSTRAP_TOKEN
+        generateValue: true
       - key: FUZER_PACK
         value: okan
       - key: FUZER_DATA_DIR

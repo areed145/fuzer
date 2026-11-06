@@ -8,7 +8,8 @@ import {
 } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { Button, PageHeader, Input , Card as UICard} from "../ui";
+import { Button, ButtonLink, PageHeader, Input , Card as UICard} from "../ui";
+import { usePermission } from "../Auth";
 
 type HeadlineFact = { text: string; cites: string[] };
 
@@ -18,16 +19,25 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
   statsLoading: boolean;
   statsError?: string;
 }) {
+  const configure = usePermission("configure"), ai = usePermission("ai");
   return (
     <section className="home">
       <PageHeader subtitle="Explore connected facility data, understand what needs attention, and follow work through to completion.">
         Home
       </PageHeader>
+      {stats?.pack === "okan" && stats.records > 0 && (
+        <UICard title="New to Fuzer? Investigate an Okan issue">
+          <p>Follow train B's March 2024 issue from its asset to source evidence and a finding.
+            Fictional, historical data. Read-only, with no setup or AI key needed.</p>
+          <ButtonLink variant="primary" href={href("/investigate/okan")}>Start guided investigation</ButtonLink>
+        </UICard>
+      )}
       <HomeSearch query={query} />
       {stats && stats.records === 0 && (
         <UICard title="Connect data before exploring">
           <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
-          <a href={href("/sources", { view: "add" })}>Open source setup</a>
+          {configure ? <a href={href("/sources", { view: "add" })}>Open source setup</a>
+            : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
       <UICard className="home-guide" aria-labelledby="home-guide-title">
@@ -35,7 +45,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
         <div className="home-guide-links">
           <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
           <a href={href("/board")}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
-          <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate across sources with the assistant (requires an API key).</span></a>
+          {ai && <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate with the assistant when a provider is configured by the owner.</span></a>}
           <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
         </div>
       </UICard>
@@ -253,11 +263,12 @@ function UpsetItem({ upset }: { upset: Upset }) {
 }
 
 function HealthCard() {
+  const configure = usePermission("configure");
   return (
     <UICard className="home-card" as="section">
       <h2>Health</h2>
-      <SourceHealthPanel />
-      <JobsHealthPanel />
+      {configure ? <><SourceHealthPanel /><JobsHealthPanel /></>
+        : <p className="muted small">Administrators monitor source loads and scheduled jobs. Historic demo timestamps are not live plant outages.</p>}
     </UICard>
   );
 }

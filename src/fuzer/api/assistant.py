@@ -12,8 +12,9 @@ from pydantic import BaseModel
 
 from . import deps
 from .deps import get_conn
+from .security import AuthenticatedRoute, current
 
-router = APIRouter()
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 class Ranking(BaseModel):
@@ -63,6 +64,8 @@ async def assistant_ask(q: Question):
 
     if not q.question.strip():
         raise HTTPException(400, "empty question")
+    if len(q.question) > 12000:
+        raise HTTPException(400, "Question exceeds 12,000 characters; narrow the question and try again")
     if len(q.images) > MAX_IMAGES:
         raise HTTPException(400, f"at most {MAX_IMAGES} images")
     try:
@@ -73,6 +76,8 @@ async def assistant_ask(q: Question):
         raise HTTPException(400, "each image at most 5 MB")
     try:
         return service.start(q.question.strip(), q.conversation_id, q.by, images)
+    except service.Busy as e:
+        raise HTTPException(429, str(e), headers={"Retry-After": "5"}) from e
     except service.Unavailable as e:
         raise HTTPException(503, str(e))
 
@@ -90,7 +95,8 @@ def assistant_job(job_id: str):
 def assistant_conversations(by: str | None = None, limit: int = 30, conn=Depends(get_conn)):
     """Recent conversations (yours with `by`), newest first."""
     from ..agents import history
-    return history.conversations(conn, by, limit)
+    person = current.get()
+    return history.conversations(conn, person.actor if person else by, limit)
 
 
 @router.get("/assistant/conversations/{conversation_id}")
@@ -226,14 +232,16 @@ def figure(figure_id: str, conn=Depends(get_conn)):
 @router.get("/assistant/answers")
 def assistant_answers(limit: int = 50, conn=Depends(get_conn)):
     """Recent questions and answers with their ratings."""
+    person = current.get()
     return conn.execute(
         """
         select a.id, a.conversation_id, a.question, a.answer, a.error, a.specialists, a.usage, a.seconds,
                a.by_user, a.created_at, count(f.id) as ratings, count(f.id) filter (where f.useful) as useful
         from assistant_answer a left join feedback f on f.target = 'answer:' || a.id
+        where %s::text is null or a.by_user = %s
         group by a.id order by a.created_at desc limit %s
         """,
-        (min(limit, 500),),
+        (person.actor if person else None, person.actor if person else None, min(limit, 500)),
     ).fetchall()
 
 
