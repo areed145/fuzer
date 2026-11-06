@@ -1,0 +1,15 @@
+/* Sources: add-a-source steps */
+.card.step h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; }
+.card.step.current { border-color: var(--accent); }
+.card.step:not(.current) { padding-top: 10px; padding-bottom: 10px; }
+.card.inset { background: var(--bg); box-shadow: none; }
+.card.warn { border-color: var(--warn); background: var(--warn-soft); }
+.notice { background: var(--warn-soft); padding: 8px 10px; border-radius: 6px; }
+.row.wrap { flex-wrap: wrap; }
+.conn { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.card.danger { border-color: var(--line); background: var(--bg); box-shadow: none; }
+label.choice { display: block; padding: 2px 0; }
+pre.diff { background: var(--bg); padding: 8px; border-radius: 6px; overflow-x: auto; max-height: 420px; }
+pre.diff .add { color: var(--ok); background: var(--ok-soft); }
+pre.diff .del { color: var(--warn); background: var(--warn-soft); text-decoration: line-through; }
+pre.diff .same { color: var(--muted); }

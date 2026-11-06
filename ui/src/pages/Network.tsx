@@ -1,4 +1,4 @@
-import { Button, PageHeader } from "../ui";
+import { Button, ButtonLink, PageHeader, Input , Card as UICard} from "../ui";
 import { useMemo, useState } from "react";
 import { api, type GraphNode } from "../api";
 import { GraphCanvas, Legend, subgraphElements } from "../graph";
@@ -37,7 +37,7 @@ export function Network() {
         </div>
         <label className="asof">
           As of
-          <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+          <Input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           {asOf && (
             <Button variant="link" onClick={() => setAsOf("")}>
               all dates
@@ -52,9 +52,9 @@ export function Network() {
         <>
           <div className="graph-layout">
             <GraphCanvas elements={elements} layout="flow" selectedId={selected} onSelect={setSelected} height={640} />
-            <aside className="card graph-panel">
+            <UICard className="graph-panel" as="aside">
               {node ? <NodePanel node={node} /> : <p className="muted small">Click a node to see what it is.</p>}
-            </aside>
+            </UICard>
           </div>
           <Legend kinds={[...new Set(net.data.nodes.map((n) => n.kind))]} />
           {net.data.truncated && <p className="muted small">Too many links to draw; showing the first 5,000.</p>}
@@ -73,12 +73,12 @@ export function NodePanel({ node, onExpand }: { node: GraphNode; onExpand?: () =
       </div>
       {node.description && <p>{node.description}</p>}
       <div className="actions">
-        <a className="button" href={entityHref(node.id)}>
+        <ButtonLink href={entityHref(node.id)}>
           Open
-        </a>
-        <a className="button" href={href(`/e/${encodeURIComponent(node.id)}`, { tab: "graph" })}>
+        </ButtonLink>
+        <ButtonLink href={href(`/e/${encodeURIComponent(node.id)}`, { tab: "graph" })}>
           Graph from here
-        </a>
+        </ButtonLink>
         {onExpand && <Button onClick={onExpand}>Expand</Button>}
       </div>
     </>

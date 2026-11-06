@@ -1,0 +1,10 @@
+scripts:
+  - name: Setup
+    command: uv sync --locked && npm --prefix ui ci
+    triggers:
+      - session.create
+  - name: Run Fuzer
+    command: uv run fuzer up
+
+server_ready_pattern: '(?i)Fuzer is running:\s+(https?://\S+)'
+auto_open_in_browser: true

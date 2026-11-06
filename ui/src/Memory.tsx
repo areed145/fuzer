@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
+import { Button, Input , Card as UICard} from "./ui";
 
 /** Who is editing: the name the Review page remembers. */
 export const person = () => {
@@ -22,7 +23,7 @@ export function MemoryCard({ id }: { id: string }) {
   if (!r.data?.length) return null;
   const act = (p: Promise<unknown>) => p.then(() => { setError(undefined); r.reload(); }, (e) => setError(String(e)));
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         What the assistant remembers{" "}
         <span className="muted small">learned from answers rated useful, not source records</span>
@@ -31,7 +32,7 @@ export function MemoryCard({ id }: { id: string }) {
       <ul className="plain">
         {r.data.map((f) => <FactRow key={f.id} f={f} act={act} />)}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -46,15 +47,15 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
       <li className="fact">
         <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} aria-label="Fact" />
         <div className="row small">
-          <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-          <button className="primary" onClick={() => {
+          <label>From <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label>To <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          <Button variant="primary" onClick={() => {
             const clear = [...(!from && f.valid_from ? ["valid_from" as const] : []),
                            ...(!to && f.valid_to ? ["valid_to" as const] : [])];
             act(api.editFact(f.id, person(), { text, valid_from: from || undefined, valid_to: to || undefined, clear }));
             setEditing(false);
-          }}>Save</button>
-          <button className="link" onClick={() => setEditing(false)}>Cancel</button>
+          }}>Save</Button>
+          <Button variant="link" onClick={() => setEditing(false)}>Cancel</Button>
         </div>
       </li>
     );
@@ -72,10 +73,10 @@ function FactRow({ f, act }: { f: AssistantFact; act: (p: Promise<unknown>) => v
         {f.entities.length > 1 && <span> · about {f.entities.map((e, i) => (
           <a key={e.id} href={entityHref(e.id)}>{i ? ", " : ""}{e.label ?? e.id}</a>))}</span>}
         {" "}
-        <button className="link" onClick={() => setEditing(true)}>correct</button>
-        {!ended && <button className="link" title="No longer true: kept, with today as its end date"
-                           onClick={() => act(api.endFact(f.id, person()))}>end</button>}
-        <button className="link" title="Wrong from the start" onClick={() => act(api.deleteFact(f.id))}>delete</button>
+        <Button variant="link" onClick={() => setEditing(true)}>correct</Button>
+        {!ended && <Button variant="link" title="No longer true: kept, with today as its end date"
+                           onClick={() => act(api.endFact(f.id, person()))}>end</Button>}
+        <Button variant="link" title="Wrong from the start" onClick={() => act(api.deleteFact(f.id))}>delete</Button>
       </div>
     </li>
   );

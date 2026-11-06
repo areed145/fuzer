@@ -3,6 +3,7 @@
 // escalation, task forms, conditions, timers, messages, called processes and the score thresholds
 // conditions use. bpmn.io's watermark stays visible, as its licence asks.
 
+import "./styles/bpmn.css";
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
 import "bpmn-js/dist/assets/diagram-js.css";
@@ -10,6 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
+import { Button, Input, Select as UISelect } from "./ui";
 
 const PALETTE_PX = 120;
 
@@ -217,12 +219,12 @@ function Thresholds({ rows, onSave }: { rows: { name: string; value: string }[];
       <span>Score thresholds</span>
       {draft.map((r, i) => (
         <div key={i} className="row threshold">
-          <input placeholder="name" value={r.name} onChange={(e) => update(i, "name", e.target.value)} onBlur={() => commit()} />
-          <input placeholder="value" value={r.value} onChange={(e) => update(i, "value", e.target.value)} onBlur={() => commit()} />
-          <button className="small" title="Remove" onClick={() => commit(draft.filter((_, j) => j !== i))}>×</button>
+          <Input placeholder="name" value={r.name} onChange={(e) => update(i, "name", e.target.value)} onBlur={() => commit()} />
+          <Input placeholder="value" value={r.value} onChange={(e) => update(i, "value", e.target.value)} onBlur={() => commit()} />
+          <Button size="sm" title="Remove" onClick={() => commit(draft.filter((_, j) => j !== i))}>×</Button>
         </div>
       ))}
-      <button className="small" onClick={() => setDraft([...draft, { name: "", value: "" }])}>Add threshold</button>
+      <Button size="sm" onClick={() => setDraft([...draft, { name: "", value: "" }])}>Add threshold</Button>
       <small>#100 value / risk cut-offs, read in conditions as <code>thresholds["name"]</code>.</small>
     </div>
   );
@@ -278,14 +280,14 @@ function LaneProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerContext 
   return (
     <label className="prop">
       <span>Who works it</span>
-      <select value={value} onChange={(e) => {
+      <UISelect value={value} onChange={(e) => {
         const [kind, v] = e.target.value.split(":");
         ed.set(el, { "fuzer:role": kind === "role" ? v : undefined, "fuzer:agent": kind === "agent" ? v : undefined });
       }}>
         <option value="">(from the lane name)</option>
         <optgroup label="People">{ctx.roles.person.map((r) => <option key={r} value={`role:${r}`}>{human(r)}</option>)}</optgroup>
         <optgroup label="Agents">{ctx.roles.agent.map((r) => <option key={r} value={`agent:${r}`}>{r} agent</option>)}</optgroup>
-      </select>
+      </UISelect>
       <small>Tasks in the lane go to this role's queue or agent unless the task names its own.</small>
     </label>
   );
@@ -309,10 +311,10 @@ function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any;
         onChange={(v) => ed.set(el, { "fuzer:escalateTo": v })} hint="Gets the task once the SLA passes." />
       <label className="prop">
         <span>Form</span>
-        <select value={bo.form ?? ""} onChange={(e) => ed.set(el, { "fuzer:form": e.target.value || undefined })}>
+        <UISelect value={bo.form ?? ""} onChange={(e) => ed.set(el, { "fuzer:form": e.target.value || undefined })}>
           <option value="">(no form: complete only)</option>
           {[...new Set([...ctx.forms, ...(bo.form ? [bo.form] : [])])].sort().map((f) => <option key={f} value={f}>{f}</option>)}
-        </select>
+        </UISelect>
         <small>
           {bo.form && <><a href={href(`/processes/forms/${bo.form}`)} target="_blank" rel="noreferrer">Edit {bo.form}</a> · </>}
           <a href={href("/processes/forms/new", { key: bo.form ? undefined : `${ed.process?.id ?? "form"}-${bo.id}` })} target="_blank" rel="noreferrer">New form</a>
@@ -351,7 +353,7 @@ function GatewayProps({ ed, el }: { ed: Editing; el: any }) {
         <div key={c.id} className="branch">
           <div className="row small">
             <strong>{c.businessObject.name || c.id}</strong>
-            <label className="row"><input type="radio" checked={bo.default === c.businessObject}
+            <label className="row"><Input type="radio" checked={bo.default === c.businessObject}
               onChange={() => ed.set(el, { default: c.businessObject })} /> default</label>
           </div>
           {bo.default !== c.businessObject && (
@@ -360,7 +362,7 @@ function GatewayProps({ ed, el }: { ed: Editing; el: any }) {
           )}
         </div>
       ))}
-      {bo.default && <button className="small" onClick={() => ed.set(el, { default: undefined })}>No default</button>}
+      {bo.default && <Button size="sm" onClick={() => ed.set(el, { default: undefined })}>No default</Button>}
       <small>The first branch whose condition is true is taken; the default when none is. Conditions read the process data
         (form fields, agent results) and <code>thresholds["…"]</code>.</small>
     </div>
@@ -410,7 +412,7 @@ function Field({ label, value, readOnly, mono, hint }: { label: string; value?: 
   return (
     <label className="prop">
       <span>{label}</span>
-      <input className={mono ? "mono" : ""} value={value ?? ""} readOnly={readOnly} />
+      <Input className={mono ? "mono" : ""} value={value ?? ""} readOnly={readOnly} />
       {hint && <small>{hint}</small>}
     </label>
   );
@@ -428,7 +430,7 @@ function Text({ label, value, onCommit, placeholder, hint, mono, list }: {
   return (
     <label className="prop">
       {label && <span>{label}</span>}
-      <input className={mono ? "mono" : ""} value={v} placeholder={placeholder} list={list} onChange={(e) => setV(e.target.value)}
+      <Input className={mono ? "mono" : ""} value={v} placeholder={placeholder} list={list} onChange={(e) => setV(e.target.value)}
         onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />
       {list === "fz-messages" && <datalist id="fz-messages">{MESSAGES.map((m) => <option key={m} value={m} />)}</datalist>}
       {hint && <small>{hint}</small>}
@@ -444,10 +446,10 @@ function Select({ label, value, options, labels, blank, onChange, hint }: {
   return (
     <label className="prop">
       <span>{label}</span>
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
+      <UISelect value={value ?? ""} onChange={(e) => onChange(e.target.value || undefined)}>
         {blank !== undefined && <option value="">{blank}</option>}
         {all.map((o) => <option key={o} value={o}>{labels?.[o] ?? human(o)}{options.includes(o) ? "" : " (unknown)"}</option>)}
-      </select>
+      </UISelect>
       {hint && <small>{hint}</small>}
     </label>
   );
@@ -456,7 +458,7 @@ function Select({ label, value, options, labels, blank, onChange, hint }: {
 function Check({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
     <label className="prop check">
-      <span><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /> {label}</span>
+      <span><Input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /> {label}</span>
       {hint && <small>{hint}</small>}
     </label>
   );

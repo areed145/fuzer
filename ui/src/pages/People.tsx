@@ -1,4 +1,4 @@
-import { Button, Table, Card as UICard } from "../ui";
+import { Button, Table, Card as UICard, Input , Badge as UIBadge} from "../ui";
 import { useState } from "react";
 import { api, type WorkRoleSummary } from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
@@ -53,13 +53,13 @@ function RolePicker({ all, value, onChange }: {
     <span className="row small">
       {all.map((r) => (
         <label key={r.role} title={hint(r)}>
-          <input
+          <Input
             type="checkbox"
             checked={value.includes(r.role)}
             onChange={(e) => onChange(e.target.checked ? [...value, r.role] : value.filter((x) => x !== r.role))}
           />{" "}
           {label(r.role)}
-          {r.waiting > 0 && <span className="badge">{r.waiting} waiting</span>}
+          {r.waiting > 0 && <UIBadge className="badge">{r.waiting} waiting</UIBadge>}
         </label>
       ))}
     </span>
@@ -139,7 +139,7 @@ function AddPerson({ all, by, taken, changed }: {
   });
   return (
     <div className="row small">
-      <input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
       <RolePicker all={all} value={roles} onChange={setRoles} />
       <Button variant="primary" disabled={busy || !n || taken.includes(n)} onClick={add}
         title={taken.includes(n) ? `${n} is already here: change their roles above` : undefined}>

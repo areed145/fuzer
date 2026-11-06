@@ -1,3 +1,4 @@
+import "./styles/form-editor.css";
 // The form-js editor for task forms (#97). Fields beside the components (the form's `id`, `fuzer.bulk`
 // bulk actions) are kept as they are when the schema is saved.
 

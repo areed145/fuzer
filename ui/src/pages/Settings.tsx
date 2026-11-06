@@ -1,4 +1,5 @@
-import { Button, PageHeader, Table, Card as UICard } from "../ui";
+import "../styles/settings.css";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
@@ -39,15 +40,15 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
       <UICard className="row small">
         <label>
           Project{" "}
-          <select
+          <Select
             value={list.data?.project ?? ""}
             onChange={(e) => (location.hash = href("/settings", { project: e.target.value || undefined }))}
           >
             {!list.data?.project && <option value="">(none: global only)</option>}
             {list.data?.projects.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
+          </Select>
         </label>
-        <input placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Input placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </UICard>
       {!f && <PeopleCard by={person} />}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
@@ -90,14 +91,14 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
       <tr>
         <td>
           <code>{s.key}</code>
-          {s.restart && <span className="badge" title="takes effect when the process restarts">restart</span>}
+          {s.restart && <UIBadge className="badge" title="takes effect when the process restarts">restart</UIBadge>}
           <div className="muted small">{s.description}</div>
         </td>
         <td>
           <b>{show(s.value)}</b>{" "}
-          <span className={`badge ${s.from === "default" ? "" : "key"}`}>{s.from}</span>
+          <UIBadge className={`badge ${s.from === "default" ? "" : "key"}`}>{s.from}</UIBadge>
           {s.type === "secret" && (
-            <span className={`badge ${s.resolves ? "ok" : ""}`}>{s.resolves ? "resolves" : "not set"}</span>
+            <UIBadge className={`badge ${s.resolves ? "ok" : ""}`}>{s.resolves ? "resolves" : "not set"}</UIBadge>
           )}
           {s.from === "project" && s.global !== null && <div className="muted small">global: {show(s.global)}</div>}
         </td>
@@ -146,20 +147,20 @@ function Editor({ s, project, person, saved }: {
   const reset = () => run(() => api.resetSetting(s.key, scope, project, person, reason.trim()));
   return (
     <div className="row small">
-      <select value={scope} onChange={(e) => setScope(e.target.value as SettingScope)}>
+      <Select value={scope} onChange={(e) => setScope(e.target.value as SettingScope)}>
         {canProject && <option value="project">for {project}</option>}
         <option value="global">for all projects</option>
-      </select>
+      </Select>
       {s.type === "bool" ? (
-        <select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select value={value} onChange={(e) => setValue(e.target.value)}>
           <option value="true">yes</option><option value="false">no</option>
-        </select>
+        </Select>
       ) : s.choices ? (
-        <select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select value={value} onChange={(e) => setValue(e.target.value)}>
           {s.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        </Select>
       ) : (
-        <input
+        <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           type={s.type === "int" || s.type === "float" ? "number" : "text"}
@@ -169,7 +170,7 @@ function Editor({ s, project, person, saved }: {
           placeholder={s.type === "secret" ? "env:NAME" : undefined}
         />
       )}
-      <input className="grow" placeholder="reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Input className="grow" placeholder="reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button variant="primary" disabled={busy} onClick={save}>Save</Button>
       <Button disabled={busy || current === null} onClick={reset}
         title={scope === "project" ? "back to the global value" : "back to the default"}>

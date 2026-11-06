@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import { FigureView } from "./Figure";
 import { entityHref } from "./lib";
+import { Table } from "./ui";
 
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|fz-[a-z_]+-[0-9a-f]{12})/g;
 
@@ -53,10 +54,10 @@ export function Markdown({ text }: { text: string }) {
       while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(cells(lines[i++]));
       out.push(
         <div key={i} className="md-table">
-          <table className="list">
+          <Table variant="list" density="compact">
             <thead><tr>{head.map((c, j) => <th key={j}>{inline(c)}</th>)}</tr></thead>
             <tbody>{rows.map((r, k) => <tr key={k}>{r.map((c, j) => <td key={j}>{inline(c)}</td>)}</tr>)}</tbody>
-          </table>
+          </Table>
         </div>,
       );
     } else if (/^\s*([-*]|\d+[.)])\s+/.test(line)) {

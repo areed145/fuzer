@@ -1,4 +1,4 @@
-import { Button, Input, Select, Table } from "../../ui";
+import { Button, Input, Select, Table , Badge as UIBadge} from "../../ui";
 /** Editing a mapping (#225): column by column (what each column means, which it links to, the key), or the YAML.
  * The form is written over the mapping on the server, so what it doesn't show is kept. */
 import { useEffect, useRef, useState } from "react";
@@ -32,7 +32,7 @@ export function MappingEditor({ yaml, dataset, columns, samples, onSave, onChang
             onChange={(e) => set(e.target.value)} spellCheck={false} />}
       {onSave && (
         <div className="row">
-          <input placeholder="what changed and why" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Input placeholder="what changed and why" value={note} onChange={(e) => setNote(e.target.value)} />
           <Button variant="primary" disabled={!!a.busy || text === yaml} onClick={() => a.run("save", () => onSave(text, note || undefined))}>
             Save as draft</Button>
           {text !== yaml && <Button variant="secondary" onClick={() => set(yaml)}>Undo edits</Button>}
@@ -87,23 +87,23 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
             <Input width="sm" value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} />
           </td></tr>
           <tr><th>Record key</th><td>
-            <select multiple value={form.key} onChange={(e) => update({ ...form, key: Array.from(e.target.selectedOptions, (o) => o.value) })}
+            <Select multiple value={form.key} onChange={(e) => update({ ...form, key: Array.from(e.target.selectedOptions, (o) => o.value) })}
               size={Math.min(4, names.length)}>
               {names.map((n) => <option key={n}>{n}</option>)}
-            </select>
+            </Select>
             <span className="muted"> the column(s) that identify a row (several: joined by &gt;)</span>
           </td></tr>
           {form.kind && (
             <tr><th>Matched on</th><td>
-              <select value={form.entity_key?.column ?? ""} onChange={(e) => update({ ...form, entity_key: e.target.value
+              <Select value={form.entity_key?.column ?? ""} onChange={(e) => update({ ...form, entity_key: e.target.value
                 ? { column: e.target.value, as: form.entity_key?.as ?? null } : null })}>
                 <option value="">the record key</option>
                 {names.map((n) => <option key={n}>{n}</option>)}
-              </select>{" "}
-              {form.entity_key && <select value={form.entity_key.as ?? ""} onChange={(e) =>
+              </Select>{" "}
+              {form.entity_key && <Select value={form.entity_key.as ?? ""} onChange={(e) =>
                 update({ ...form, entity_key: { column: form.entity_key!.column, as: e.target.value || null } })}>
                 {Object.entries(form.choices.key_as).map(([k, v]) => <option key={k} value={k}>read as {v}</option>)}
-              </select>}
+              </Select>}
               <span className="muted"> what makes two sources' records the same thing</span>
             </td></tr>
           )}
@@ -115,20 +115,20 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
           <tbody>
             {form.columns.map((c, i) => (
               <tr key={c.name}>
-                <td><code>{c.name}</code>{form.key.includes(c.name) && <span className="badge key"> key</span>}</td>
+                <td><code>{c.name}</code>{form.key.includes(c.name) && <UIBadge className="badge key"> key</UIBadge>}</td>
                 <td className="muted">{sampleOf(c.name).slice(0, 60)}</td>
                 <td>
-                  <input type="checkbox" checked={!!c.field}
+                  <Input type="checkbox" checked={!!c.field}
                     onChange={(e) => setCol(i, { field: e.target.checked ? { name: c.name, as: null } : null })} />{" "}
                   {c.field && <>
                     <Input width="sm" value={c.field.name} onChange={(e) => setCol(i, { field: { ...c.field!, name: e.target.value } })} />{" "}
-                    <select value={c.field.as ?? ""} onChange={(e) => setCol(i, { field: { ...c.field!, as: e.target.value || null } })}>
+                    <Select value={c.field.as ?? ""} onChange={(e) => setCol(i, { field: { ...c.field!, as: e.target.value || null } })}>
                       {Object.entries(form.choices.field_as).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
+                    </Select>
                   </>}
                 </td>
                 <td>
-                  <select value={c.link?.target ?? ""} onChange={(e) => setCol(i, {
+                  <Select value={c.link?.target ?? ""} onChange={(e) => setCol(i, {
                     link: e.target.value ? { rel: c.link?.rel ?? "concerns", target: e.target.value, keep: c.link?.keep ?? {} } : null })}>
                     <option value="">nothing</option>
                     {Object.entries(form.choices.targets).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -139,7 +139,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
                         {model.data.kinds.map((k) => <option key={k.name} value={`kind:${k.name}`}>{k.label.toLowerCase()} (by key)</option>)}
                       </optgroup>
                     )}
-                  </select>{" "}
+                  </Select>{" "}
                   {c.link && <RelSelect model={model.data} value={c.link.rel}
                     onChange={(rel) => setCol(i, { link: { ...c.link!, rel } })} />}
                 </td>

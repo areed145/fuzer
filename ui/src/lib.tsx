@@ -1,5 +1,6 @@
 // Small shared hooks and components.
 
+import { Badge as UIBadge } from "./ui";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Mark } from "./brand";
 
@@ -69,11 +70,11 @@ export function fmt(value: unknown): string {
 }
 
 export function KindBadge({ kind }: { kind: string }) {
-  return <span className={`badge kind kind-${kind}`}>{kind.replace("_", " ")}</span>;
+  return <UIBadge className={`badge kind kind-${kind}`}>{kind.replace("_", " ")}</UIBadge>;
 }
 
 export function SourceBadge({ source }: { source: string }) {
-  return <span className={`badge source source-${source}`}>{source}</span>;
+  return <UIBadge className={`badge source source-${source}`}>{source}</UIBadge>;
 }
 
 export function Dates({ from, to }: { from: string | null; to: string | null }) {

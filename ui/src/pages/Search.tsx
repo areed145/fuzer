@@ -1,6 +1,6 @@
 import { api, type Stats } from "../api";
 import { KindBadge, Status, entityHref, fmt, href, useAsync, useDebounced } from "../lib";
-import { Button, PageHeader, Table } from "../ui";
+import { Button, PageHeader, Table, Input } from "../ui";
 
 export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const q = query.get("q") ?? "";
@@ -14,7 +14,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
   return (
     <section>
       <PageHeader>Search</PageHeader>
-      <input
+      <Input
         className="search"
         autoFocus
         placeholder="Search tags, wells, PI points, serials, descriptions…  e.g. 20-V-2001, OSB.20PT1001A.PV, A-07"

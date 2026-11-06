@@ -1,3 +1,5 @@
+import "../styles/review.css";
+import "../styles/trends.css";
 import { useEffect, useState } from "react";
 import {
   type HeldLoadPayload,
@@ -13,7 +15,7 @@ import {
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
-import { Bar, Button, PageHeader, Table, Card as UICard } from "../ui";
+import { Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
 
 const NAME_KEY = "fuzer.reviewer";
 
@@ -101,7 +103,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         </div>
         <label className="reviewer">
           Reviewer
-          <input value={name} placeholder="your name" onChange={(e) => setName(e.target.value)} />
+          <Input value={name} placeholder="your name" onChange={(e) => setName(e.target.value)} />
         </label>
       </div>
 
@@ -387,7 +389,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
           if (custom.trim()) run({ decision: "choose", value: custom.trim() });
         }}
       >
-        <input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
+        <Input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
         <Button disabled={busy || !custom.trim()}>Save</Button>
         {error && <span className="error">{error}</span>}
       </form>
@@ -485,7 +487,7 @@ function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onD
         ))}
       </ul>
       <div className="row">
-        <a className="button primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</a>
+        <ButtonLink variant="primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</ButtonLink>
         <Button variant="secondary" onClick={() => onDecide({ decision: "accept" })}>Seen</Button>
       </div>
     </UICard>

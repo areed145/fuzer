@@ -1,8 +1,10 @@
+import "./styles/map.css";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoCollection, GeoFeature } from "./api";
 import { entityHref } from "./lib";
+import { Button, Select } from "./ui";
 
 // Gas services are dashed so colour is not the only cue.
 const SERVICES: { key: string; label: string; token: string; dash?: string }[] = [
@@ -18,6 +20,34 @@ const POINTS: { key: string; label: string; radius: number }[] = [
   { key: "facility", label: "Plants and terminals", radius: 8 },
   { key: "well", label: "Wells", radius: 3 },
 ];
+const BASEMAPS = {
+  osm: {
+    label: "OpenStreetMap",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  light: {
+    label: "Light",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  dark: {
+    label: "Dark",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  satellite: {
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: 19,
+  },
+} as const;
+type Basemap = keyof typeof BASEMAPS | "none";
+
 const themeValue = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -71,11 +101,15 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   basemap?: boolean;
 }) {
   const el = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
+  const location = useRef<L.LayerGroup | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [showTiles, setShowTiles] = useState(basemap);
+  const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
+  const [mapMessage, setMapMessage] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [themeVersion, setThemeVersion] = useState(0);
   useEffect(() => {
     const scheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -99,22 +133,91 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   useEffect(() => {
     if (!el.current || map.current) return;
     map.current = L.map(el.current, { preferCanvas: true, zoomSnap: 0.5 });
-    tiles.current = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    });
     layer.current = L.layerGroup().addTo(map.current);
+    location.current = L.layerGroup().addTo(map.current);
     return () => {
       map.current?.remove();
       map.current = null;
+      tiles.current = null;
+      layer.current = null;
+      location.current = null;
     };
   }, []);
 
   useEffect(() => {
-    if (!map.current || !tiles.current) return;
-    if (showTiles) tiles.current.addTo(map.current);
-    else tiles.current.remove();
-  }, [showTiles]);
+    const m = map.current;
+    if (!m) return;
+    tiles.current?.remove();
+    tiles.current = null;
+    if (basemapName !== "none") {
+      const selected = BASEMAPS[basemapName];
+      tiles.current = L.tileLayer(selected.url, {
+        maxZoom: selected.maxZoom,
+        attribution: selected.attribution,
+      }).addTo(m);
+    }
+  }, [basemapName]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === frame.current);
+      requestAnimationFrame(() => map.current?.invalidateSize());
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const locate = () => {
+    setMapMessage("");
+    if (!navigator.geolocation) {
+      setMapMessage("Location is not available in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const m = map.current;
+        const markers = location.current;
+        if (!m || !markers) return;
+        const point: L.LatLngExpression = [coords.latitude, coords.longitude];
+        markers.clearLayers();
+        L.circle(point, {
+          radius: coords.accuracy,
+          color: themeValue("--accent"),
+          fillColor: themeValue("--accent"),
+          fillOpacity: 0.12,
+          weight: 1,
+        }).addTo(markers);
+        L.circleMarker(point, {
+          radius: 7,
+          color: themeValue("--panel"),
+          fillColor: themeValue("--accent"),
+          fillOpacity: 1,
+          weight: 3,
+        }).bindTooltip("Your location").addTo(markers);
+        m.setView(point, Math.max(m.getZoom(), 14));
+      },
+      (error) => {
+        setMapMessage(error.code === error.PERMISSION_DENIED
+          ? "Location permission was denied."
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "Your location is unavailable."
+            : "Timed out while finding your location.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+
+  const toggleFullscreen = async () => {
+    const target = frame.current;
+    if (!target) return;
+    setMapMessage("");
+    try {
+      if (document.fullscreenElement === target) await document.exitFullscreen();
+      else await target.requestFullscreen();
+    } catch (error) {
+      setMapMessage(error instanceof Error ? `Fullscreen failed: ${error.message}` : "Fullscreen is not available.");
+    }
+  };
 
   useEffect(() => {
     const m = map.current;
@@ -183,7 +286,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     <div className="mapview">
       <div className="map-legend" aria-label="Show or hide map layers">
         {entries.map((e) => (
-          <button key={e.key} className={`chip ${hidden.has(e.key) ? "off" : ""}`} aria-pressed={!hidden.has(e.key)}
+          <Button key={e.key} className={`chip ${hidden.has(e.key) ? "off" : ""}`} aria-pressed={!hidden.has(e.key)}
                   onClick={() => toggle(e.key)}>
             <svg width="26" height="12" aria-hidden="true">
               {e.line ? (
@@ -193,13 +296,38 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
               )}
             </svg>
             {e.label} <span className="muted">{counts[e.key]}</span>
-          </button>
+          </Button>
         ))}
-        <label className="small muted basemap">
-          <input type="checkbox" checked={showTiles} onChange={(ev) => setShowTiles(ev.target.checked)} /> Basemap
-        </label>
       </div>
-      <div ref={el} className="map" style={{ height }} />
+      <div ref={frame} className="map-frame">
+        <div className="map-controls">
+          <label className="small muted">
+            Basemap
+            <Select
+              aria-label="Basemap"
+              value={basemapName}
+              onChange={(ev) => setBasemapName(ev.target.value as Basemap)}
+            >
+              <option value="osm">{BASEMAPS.osm.label}</option>
+              <option value="light">{BASEMAPS.light.label}</option>
+              <option value="dark">{BASEMAPS.dark.label}</option>
+              <option value="satellite">{BASEMAPS.satellite.label}</option>
+              <option value="none">None</option>
+            </Select>
+          </label>
+          <Button size="sm" onClick={locate} aria-label="Find my location" title="Find my location">◎ Locate</Button>
+          <Button
+            size="sm"
+            onClick={() => void toggleFullscreen()}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? "⛶ Exit" : "⛶ Fullscreen"}
+          </Button>
+        </div>
+        {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
+        <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
+      </div>
     </div>
   );
 }

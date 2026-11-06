@@ -1,3 +1,5 @@
+import "../../styles/work.css";
+import { Select , Badge as UIBadge} from "../../ui";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState } from "react";
 import { api, type WorkRow } from "../../api";
@@ -16,10 +18,10 @@ export function byUrgency<T extends { due_at?: string | null; due?: string | nul
 export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kind" | "escalated_at"> & { covering_for?: string | null } }) {
   return (
     <>
-      {row.requires_human && <span className="badge human">needs a person</span>}
-      {row.kind === "fix" && <span className="badge late">failed: fix and retry</span>}
-      {row.escalated_at && <span className="badge late">escalated</span>}
-      {row.covering_for && <span className="badge">covering for {row.covering_for}</span>}
+      {row.requires_human && <UIBadge className="badge human">needs a person</UIBadge>}
+      {row.kind === "fix" && <UIBadge className="badge late">failed: fix and retry</UIBadge>}
+      {row.escalated_at && <UIBadge className="badge late">escalated</UIBadge>}
+      {row.covering_for && <UIBadge className="badge">covering for {row.covering_for}</UIBadge>}
     </>
   );
 }
@@ -29,7 +31,7 @@ export function AssignPicker({ value, onChange, agents = false }: { value: strin
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">choose…</option>
       <optgroup label="People">
         {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
@@ -42,7 +44,7 @@ export function AssignPicker({ value, onChange, agents = false }: { value: strin
           {(roles.data ?? []).filter((r) => r.kind === "agent").map((r) => <option key={r.name} value={`agent:${r.name}`}>{r.name} agent</option>)}
         </optgroup>
       )}
-    </select>
+    </Select>
   );
 }
 

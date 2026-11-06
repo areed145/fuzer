@@ -1,6 +1,8 @@
+import "./styles/drawing.css";
 import { useState, type ReactNode } from "react";
 import { api, type DrawingMark, type MarkStatus } from "./api";
 import { entityHref, useAsync } from "./lib";
+import { Button , Card as UICard} from "./ui";
 
 const STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
   { key: "linked", label: "Linked to the register" },
@@ -48,7 +50,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         : "not read yet (run fuzer llm-link --source pids)";
 
   return (
-    <section className="card">
+    <UICard  as="section">
       <div className="row spread">
         <h2>
           {title ?? "Drawing"} <span className="muted small">{source}</span>
@@ -64,7 +66,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
       {g.marks.length > 0 && (
         <div className="drawing-tools" aria-label="Show or hide marks">
           {STATUS.filter((s) => counts[s.key]).map((s) => (
-            <button
+            <Button
               key={s.key}
               className={`chip st-${s.key} ${hidden.has(s.key) ? "off" : ""}`}
               aria-pressed={!hidden.has(s.key)}
@@ -74,7 +76,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               <span style={{ color: "var(--text)" }}>
                 {s.label} · {counts[s.key]}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -149,7 +151,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           )}
         </div>
       </div>}
-    </section>
+    </UICard>
   );
 }
 

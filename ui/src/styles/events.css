@@ -1,0 +1,10 @@
+/* events */
+.rate { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rate h3 { margin-top: 0; }
+ul.timeline { list-style: none; padding: 0; margin: 8px 0 0; }
+ul.timeline li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+ul.timeline li:last-child { border-bottom: none; }
+ul.timeline .when { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+ul.timeline .what { display: flex; flex-direction: column; gap: 4px; }
+.badge.event-type { background: #fbe7ea; color: #9b1c31; text-transform: capitalize; }
+@media (prefers-color-scheme: dark) { .badge.event-type { background: #3d1820; color: #f3a3b0; } }

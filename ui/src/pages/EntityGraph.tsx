@@ -1,4 +1,4 @@
-import { Button } from "../ui";
+import { Button , Card as UICard} from "../ui";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, Legend, subgraphElements, type LayoutName } from "../graph";
@@ -77,7 +77,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
               onExpand={expand}
               height={600}
             />
-            <aside className="card graph-panel">
+            <UICard className="graph-panel" as="aside">
               {node ? (
                 <NodePanel node={node} onExpand={node.id === id ? undefined : () => expand(node.id)} />
               ) : (
@@ -90,7 +90,7 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
               {graph.data.truncated && (
                 <p className="muted small">Too many neighbours to draw them all; showing the first 250.</p>
               )}
-            </aside>
+            </UICard>
           </div>
           <Legend kinds={[...new Set(graph.data.nodes.map((n) => n.kind))]} />
         </>

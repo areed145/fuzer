@@ -1,5 +1,6 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
+import { Badge as UIBadge } from "./ui";
 import { useEffect, useState, type ReactNode } from "react";
 import type { WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
@@ -42,8 +43,8 @@ export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
   if (!at) return <span className="muted small">no due date</span>;
   const left = new Date(at).getTime() - Date.now();
   if (closed) return <span className="muted small">was due {when(at)}</span>;
-  if (left < 0) return <span className="badge late">overdue {span(left)}</span>;
-  if (left < 24 * HOUR) return <span className="badge soon">due in {span(left)}</span>;
+  if (left < 0) return <UIBadge className="badge late">overdue {span(left)}</UIBadge>;
+  if (left < 24 * HOUR) return <UIBadge className="badge soon">due in {span(left)}</UIBadge>;
   return <span className="muted small">due in {span(left)}</span>;
 }
 
@@ -52,8 +53,8 @@ export function when(at: string): string {
 }
 
 export function Actor({ who }: { who: string }) {
-  if (who.startsWith("agent:")) return <span className="badge actor-agent">{who.slice(6)} agent</span>;
-  if (who === "system") return <span className="badge actor-system">fuzer</span>;
+  if (who.startsWith("agent:")) return <UIBadge className="badge actor-agent">{who.slice(6)} agent</UIBadge>;
+  if (who === "system") return <UIBadge className="badge actor-system">fuzer</UIBadge>;
   return <strong>{who}</strong>;
 }
 
