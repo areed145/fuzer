@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from fuzer.core import db
+from fuzer.core import db, settings
 from fuzer.sources import catalog, connections, ingest, mappings
 
 
@@ -25,7 +25,13 @@ def data(offshore_data):
 def conn():
     with db.connect() as c:
         db.reset(c)
-        yield c
+        settings._cache.clear()
+        try:
+            yield c
+        finally:
+            c.rollback()
+            db.reset(c)
+            settings._cache.clear()
 
 
 def _drop_row(path: Path, column: str, value: str) -> None:
@@ -186,6 +192,7 @@ def test_connections_check_test_and_discover(conn, data, monkeypatch):
     assert not bad["ok"] and bad["steps"][0]["step"] == "reach" and len(bad["steps"]) == 1
 
 
+@pytest.mark.integration
 def test_old_pi_settings_become_a_connection(conn, monkeypatch):
     catalog.seed(conn)
     monkeypatch.setenv("FUZER_PI_WEB_API_URL", "http://pi.example/piwebapi")

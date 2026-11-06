@@ -20,8 +20,19 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
 }) {
   return (
     <section className="home">
-      <PageHeader subtitle="The facility today, and what needs you.">Home</PageHeader>
+      <PageHeader subtitle="Explore connected facility data, understand what needs attention, and follow work through to completion.">
+        Home
+      </PageHeader>
       <HomeSearch query={query} />
+      <UICard className="home-guide" aria-labelledby="home-guide-title">
+        <h2 id="home-guide-title">Where would you like to start?</h2>
+        <div className="home-guide-links">
+          <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
+          <a href={href("/board")}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
+          <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate across sources with the assistant (requires an API key).</span></a>
+          <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
+        </div>
+      </UICard>
       <div className="home-grid">
         <TodayCard />
         <NeedsYouCard stats={stats} statsLoading={statsLoading} statsError={statsError} />

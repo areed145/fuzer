@@ -11,6 +11,8 @@ import pytest
 from fuzer.core import db
 from fuzer.workflow import bpmn, engine, roles
 
+pytestmark = pytest.mark.sequence
+
 T0 = datetime(2026, 1, 5, 8, tzinfo=timezone.utc)
 
 
