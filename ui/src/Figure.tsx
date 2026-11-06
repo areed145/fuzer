@@ -11,7 +11,7 @@ import { useTheme } from "./theme";
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /** The figure's layout with the page's colours, fonts and chart palette. */
-function themed(layout: Record<string, any>): Record<string, any> {
+export function themed(layout: Record<string, any>): Record<string, any> {
   const text = css("--text");
   const grid = css("--line");
   const axes = Object.fromEntries(

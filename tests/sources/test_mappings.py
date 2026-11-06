@@ -9,9 +9,10 @@ import pytest
 
 from fakeplant import okan
 from fuzer.core import db
+from fuzer.core.model import Candidate
 from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline
-from fuzer.sources import ingest, mappings
+from fuzer.sources import extract, ingest, mappings
 
 PACK = load_pack()
 
@@ -107,8 +108,68 @@ def test_new_source_from_a_mapping_file_only(extra_mapping, fmt):
 
 def test_every_built_in_table_has_a_mapping():
     assert {"sap_equipment", "pi_points", "oplogs", "sap_bom"} <= set(ingest.tables())
+    assert {"sap_maintenance_codes", "ec_downtime_reasons"} <= set(ingest.tables())
     assert mappings.tables()["oplogs"].watermark == "timestamp"
     assert mappings.tables()["sap_bom"].key == ("equnr", "matnr")
+
+
+def test_fake_reference_catalogs_match_pack_defaults():
+    from fakeplant.onshore import DOWNTIME_REASONS as onshore_reasons
+    from fakeplant.onshore import MAINTENANCE_CODES as onshore_codes
+
+    for pack_name, codes, reasons in (
+        ("offshore_demo", offshore.MAINTENANCE_CODES, offshore.DOWNTIME_REASONS),
+        ("onshore_demo", onshore_codes, onshore_reasons),
+    ):
+        pack = load_pack(pack_name)
+        assert pack.maintenance_codes == codes and pack.downtime_reasons == reasons
+
+
+def test_reference_shape_rows_are_code_lists_not_entities():
+    m = mappings.Mapping({
+        "source": "sap", "record_type": "codes", "shape": "reference",
+        "reference": {"list": {"from": "list"}, "code": "code", "name": "name",
+                      "category": "category", "standard_code": "iso"},
+    })
+    row = {"list": "damage", "code": "D03", "name": "Failure to start", "category": "electrical", "iso": "FTS"}
+    assert m.reference_entry("D03", row, PACK) == {
+        "list": "damage", "code": "D03", "name": "Failure to start", "category": "electrical",
+        "standard_code": "FTS",
+    }
+    assert m.extract("D03", row, PACK) == ([], [])
+
+
+def test_hooks_use_references_with_pack_defaults():
+    pack = load_pack()
+    pack.reference_data = {
+        "damage": {"D03": {"standard_code": "VIB", "name": "Loaded name"}},
+        "downtime_reasons": {"WEATHER": {"name": "Loaded weather", "category": "planned"}},
+    }
+    notification = Candidate("sap", "notification", "1", "notification", "1")
+    extract.iso_code(notification, {"damage_code": "D03"}, pack, column="damage_code", catalog="damage",
+                     field="failure_mode")
+    assert notification.fields["failure_mode"] == "VIB"
+    assert notification.fields["failure_mode_name"] == "Vibration"
+
+    extract.iso_code(notification, {"damage_code": "D99"}, pack, column="damage_code", catalog="damage",
+                     field="failure_mode")
+    assert notification.fields["unmapped_codes"] == [{"list": "damage", "code": "D99"}]
+
+    downtime = Candidate("ec", "downtime", "1", "downtime", "1")
+    extract.downtime(downtime, {"start": "2024-01-01T00:00", "end": "2024-01-01T01:00",
+                                "reason_code": "WEATHER"}, pack)
+    assert downtime.fields["reason"] == "Loaded weather" and downtime.fields["reason_category"] == "planned"
+
+    fallback_downtime = Candidate("ec", "downtime", "2", "downtime", "2")
+    extract.downtime(fallback_downtime, {"start": "2024-01-01T00:00", "end": "2024-01-01T01:00",
+                                         "reason_code": "WEATHER"}, load_pack())
+    assert fallback_downtime.fields["reason"] == "Weather"
+    assert fallback_downtime.fields["reason_category"] == "external"
+
+    fallback = Candidate("sap", "notification", "2", "notification", "2")
+    extract.iso_code(fallback, {"damage_code": "D03"}, load_pack(), column="damage_code", catalog="damage",
+                     field="failure_mode")
+    assert fallback.fields["failure_mode"] == "FTS"
 
 
 @pytest.mark.parametrize("raw, message", [
@@ -120,6 +181,7 @@ def test_every_built_in_table_has_a_mapping():
     ({"source": "x", "record_type": "y", "shape": "records", "hooks": ["nope"]}, "unknown hook"),
     ({"source": "x", "record_type": "y", "shape": "records", "links": [{"to": {"kind": "tag", "from": "a"}}]},
      "link without rel"),
+    ({"source": "x", "record_type": "y", "shape": "reference"}, "needs list and code"),
 ])
 def test_bad_mappings_fail_clearly(raw, message):
     with pytest.raises(mappings.MappingError, match=message):

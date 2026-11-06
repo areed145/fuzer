@@ -1,0 +1,12 @@
+# Energy Components downtime reason codes.
+source: ec
+record_type: downtime_reason
+shape: reference
+dataset: ec_downtime_reasons
+key: code
+reference:
+  list: {const: downtime_reasons}
+  code: code
+  name: name
+  category: category
+  standard_code: standard_code

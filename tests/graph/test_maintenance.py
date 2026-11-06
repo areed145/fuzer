@@ -2,12 +2,13 @@
 
 
 import pytest
+from psycopg.types.json import Jsonb
 from test_llm_links import (
     FakeClaude,  # a test module: tests/conftest.py puts every test folder on the path
 )
 
 from fuzer.core.pack import load_pack
-from fuzer.graph import llm_links, queries
+from fuzer.graph import llm_links, queries, quality
 from fuzer.ops import pipeline
 
 PACK = load_pack()
@@ -29,6 +30,18 @@ def test_site_codes_map_to_iso(conn):
     g = queries.entity(conn, fid(conn, r["source_key"]))["golden"]
     assert g["failure_mode"]["value"] == "VIB" and g["failure_mode_name"]["value"] == "Vibration"
     assert g["failure_mechanism_name"]["value"] == "Clearance / alignment failure"
+
+
+def test_unmapped_site_codes_are_reported(conn):
+    fid_ = fid(conn, "10000065")
+    conn.execute(
+        "insert into golden (fuzer_id, field, value, source, rule) values (%s, 'unmapped_codes', %s, 'sap', 'test')",
+        (fid_, Jsonb([{"list": "damage", "code": "D99"}])),
+    )
+    result = quality.unmapped_site_codes(conn)
+    conn.execute("delete from golden where fuzer_id = %s and field = 'unmapped_codes'", (fid_,))
+    assert not result["passed"] and result["count"] == 1
+    assert result["examples"][0]["code"] == "D99"
 
 
 def test_history_at_tag_and_equipment(conn):

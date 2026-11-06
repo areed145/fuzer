@@ -159,6 +159,144 @@ test("Ask opens and can be left without DOM effect-cleanup crashes", async () =>
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
 
+test("Analytics renders declarative daily panels, linked hover/zoom, unknown days and saved JSON", async () => {
+  const requests = [];
+  await page.route("**/analytics/production-efficiency*", (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    requests.push(Object.fromEntries(query));
+    const end = query.get("end") || "2026-10-14";
+    const overflow = query.get("ref") === "overflow-plant";
+    const points = Array.from({ length: 14 }, (_, i) => ({
+      date: new Date(Date.parse(end) - (13 - i) * 86_400_000).toISOString().slice(0, 10),
+      dynamic_max_sm3d: i === 5 ? null : 100 + i,
+      allocated_sm3d: i === 5 ? null : i === 6 ? 132.5 : 80 + i,
+      gap_sm3d: i === 5 ? null : i === 6 ? -26.5 : 20,
+      efficiency_pct: i === 5 || (overflow && i === 6) ? null : i === 6 ? 125 : 80,
+      active_constraint_id: i === 5 || i === 6 ? null : "export",
+      binding_constraint_ids: i === 5 || i === 6 ? [] : i === 3 ? ["export", "compressor"] : ["export"],
+      capacity_basis: i === 5 ? "missing" : i === 6 ? "reported_potential" : "declared_limits",
+      flags: i === 5 ? ["missing_day"] : overflow && i === 6 ? ["derived_metric_overflow"] : [], source_ids: ["report-1"],
+    }));
+    return route.fulfill({ json: {
+      since: points[0].date, until: new Date(Date.parse(end) + 86_400_000).toISOString().slice(0, 10),
+      end, step: "day", unit: "Sm3/d", facility: { id: query.get("ref") || "plant", label: "Test plant" },
+      source: "Daily production reports", points,
+      constraints: [{ id: "export", label: "Export", category: "export" }, { id: "compressor", label: "Compressor", category: "equipment" }],
+      summary: { efficiency_pct: 80, allocated_sm3: overflow ? null : 1040, dynamic_max_sm3: overflow ? null : 1300, paired_days: 13 },
+      warnings: ["One production day is unknown"],
+    } });
+  });
+  await page.goto(`${url}/#/analytics`);
+  await page.getByRole("heading", { name: "Analytics", exact: true }).waitFor();
+  const chart = page.getByRole("img", { name: /shared production and constraint daily charts/ });
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.xaxis);
+  assert.deepEqual(requests[0], {}, "Blank controls let the API choose the facility's latest report");
+  const layout = await chart.evaluate((node) => ({
+    hover: node._fullLayout.hovermode, linked: node._fullLayout.hoversubplots,
+    axes: node.data.map((trace) => trace.xaxis), unknown: node.data.some((trace) => trace.name === "Unknown"),
+    gaps: node.data[0].connectgaps, sample: node.data[0].y[5],
+  }));
+  assert.equal(layout.hover, "x unified");
+  assert.equal(layout.linked, "axis");
+  assert.ok(layout.axes.every((axis) => axis === "x"));
+  assert.equal(layout.unknown, true);
+  assert.equal(layout.gaps, false);
+  assert.equal(layout.sample, null);
+  // Move over the upper subplot and verify hover details include the linked constraint band.
+  await chart.evaluate((node) => node.scrollIntoView({ block: "start" }));
+  const coordinates = await chart.evaluate((node) => {
+    const box = node.getBoundingClientRect(), l = node._fullLayout;
+    return { x: box.x + l.xaxis._offset + l.xaxis.d2p("2026-10-04"),
+      y: box.y + l.yaxis._offset + l.yaxis._length / 2 };
+  });
+  await page.mouse.move(coordinates.x, coordinates.y);
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .hoverlayer")?.textContent.includes("Binding: Compressor [equipment] + Export [export] (tied)"));
+  const hover = await chart.locator(".hoverlayer").textContent();
+  assert.match(hover, /Sm3\/d/);
+  assert.match(hover, /Capacity basis/);
+  const lowerHover = await chart.evaluate((node) => {
+    const box = node.getBoundingClientRect(), l = node._fullLayout;
+    return { x: box.x + l.xaxis._offset + l.xaxis.d2p("2026-10-04"),
+      y: box.y + l.yaxis2._offset + l.yaxis2._length / 2 };
+  });
+  await page.mouse.move(lowerHover.x, lowerHover.y);
+  await page.waitForFunction(() => {
+    const text = document.querySelector(".analytics-chart .hoverlayer")?.textContent || "";
+    return text.includes("Dynamic maximum: 103 Sm3/d") && text.includes("Allocated production: 83 Sm3/d") && text.includes("(tied)");
+  });
+  assert.ok(await chart.evaluate((node) => node._fullLayout.yaxis.range[1] > 132.5), "Rates above capacity are not clipped");
+  const originalRange = await chart.evaluate((node) => [...node._fullLayout.xaxis.range]);
+  const drag = await chart.evaluate((node) => {
+    const box = node.getBoundingClientRect(), l = node._fullLayout;
+    return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis._offset, w: l.xaxis._length, h: l.yaxis._length };
+  });
+  await page.mouse.move(drag.x + drag.w * .2, drag.y + drag.h * .2);
+  await page.mouse.down();
+  await page.mouse.move(drag.x + drag.w * .7, drag.y + drag.h * .8, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), originalRange);
+  assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace._xaxis === node._fullLayout.xaxis || trace.xaxis === "x")));
+  // Reset, then zoom from the categorical subplot; both panels still use the same range.
+  await page.mouse.dblclick(drag.x + drag.w * .5, drag.y + drag.h * .5);
+  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) === JSON.stringify(range), originalRange);
+  const lowerDrag = await chart.evaluate((node) => {
+    const box = node.getBoundingClientRect(), l = node._fullLayout;
+    return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis2._offset + l.yaxis2._length / 2, w: l.xaxis._length };
+  });
+  await page.mouse.move(lowerDrag.x + lowerDrag.w * .2, lowerDrag.y);
+  await page.mouse.down();
+  await page.mouse.move(lowerDrag.x + lowerDrag.w * .7, lowerDrag.y, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), originalRange);
+  assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace.xaxis === "x")));
+  await page.getByRole("button", { name: "Show daily data", exact: true }).click();
+  await page.getByRole("cell", { name: "2026-10-06", exact: true }).waitFor();
+  assert.equal(await page.getByRole("row").filter({ hasText: "2026-10-06" }).getByRole("cell", { name: "Unknown", exact: true }).count(), 5);
+  const potentialRow = page.getByRole("row").filter({ hasText: "2026-10-07" });
+  await potentialRow.getByRole("cell", { name: "Reported potential · physical constraint unknown", exact: true }).waitFor();
+  assert.equal(await potentialRow.getByRole("cell", { name: "125", exact: true }).count(), 1);
+  const tiedRow = page.getByRole("row").filter({ hasText: "2026-10-04" });
+  await tiedRow.getByRole("cell", { name: "Compressor [equipment] + Export [export] (tied)", exact: true }).waitFor();
+  await page.getByLabel("End date (inclusive)").fill("2026-10-10");
+  await page.getByLabel("Facility ref (optional)").fill("other-plant");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?.data[0].x[13] === "2026-10-10");
+  assert.deepEqual(requests.at(-1), { end: "2026-10-10", ref: "other-plant" });
+  await page.getByRole("button", { name: "Latest report", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?.data[0].x[13] === "2026-10-14");
+  assert.deepEqual(requests.at(-1), { ref: "other-plant" });
+  await page.getByLabel("Facility ref (optional)").fill("overflow-plant");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".analytics-summary strong").length === 3 &&
+    document.querySelector(".analytics-summary").textContent.includes("Unknown"));
+  assert.equal(await page.locator(".analytics-summary strong").filter({ hasText: "Unknown" }).count(), 2);
+  await page.getByRole("cell", { name: /reported potential · derived_metric_overflow/ }).waitFor();
+  await page.getByText("Dashboard JSON · customize & save", { exact: true }).click();
+  const editor = page.getByLabel("Dashboard specification");
+  const spec = JSON.parse(await editor.inputValue());
+  spec.dataSource = "https://example.com";
+  await editor.fill(JSON.stringify(spec));
+  await page.getByRole("button", { name: "Apply JSON", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Only the production-efficiency" }).waitFor();
+  spec.dataSource = "production-efficiency";
+  spec.title = "Saved production dashboard";
+  spec.panels[0].gap.visible = true;
+  await editor.fill(JSON.stringify(spec));
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click();
+  await page.getByRole("heading", { name: "Saved production dashboard", exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole("heading", { name: "Saved production dashboard", exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.xaxis);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.width < 400);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await page.getByRole("link", { name: "Home", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+});
+
 test("a rendering failure has a usable recovery screen and Return home restores the shell", async () => {
   await page.route("**/entities?*", (route) => route.fulfill({ json: { length: 1 } }));
   await page.goto(`${url}/#/browse?q=pump`);

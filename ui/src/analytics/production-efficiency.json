@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "title": "Production efficiency",
+  "dataSource": "production-efficiency",
+  "query": { "end": "$end", "ref": "$facility", "step": "day", "samples": 14 },
+  "layout": { "columns": 1, "rowHeights": [3, 1], "gap": 0.14, "height": 580 },
+  "panels": [
+    {
+      "id": "production",
+      "title": "Allocated production vs dynamic maximum",
+      "visualization": "time-series",
+      "row": 0,
+      "axes": { "x": "date", "y": "Sm3/d" },
+      "series": [
+        { "field": "dynamic_max_sm3d", "label": "Dynamic maximum", "color": "chart-1" },
+        { "field": "allocated_sm3d", "label": "Allocated production", "color": "chart-3" }
+      ],
+      "gap": { "field": "gap_sm3d", "label": "Unrealized gap", "color": "chart-2", "visible": false },
+      "thresholds": {
+        "field": "efficiency_pct",
+        "warning": 80,
+        "good": 95,
+        "colors": { "good": "ok", "warning": "warn", "low": "danger", "unknown": "muted" }
+      }
+    },
+    {
+      "id": "constraints",
+      "title": "Binding constraints · daily",
+      "visualization": "constraint-band",
+      "row": 1,
+      "axes": { "x": "date", "y": "category" },
+      "colors": ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5", "chart-6"],
+      "unknownColor": "muted"
+    }
+  ]
+}

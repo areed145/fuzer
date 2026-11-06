@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 // In dev, forward API calls to `fuzer serve`. In production the API serves the built UI.
 const API = "http://127.0.0.1:8000";
-const API_PATHS = ["/entities", "/review", "/lookup", "/stats", "/health", "/rebuild", "/ontology", "/graph", "/network", "/events", "/documents", "/downtime", "/incidents", "/knowledge", "/lessons", "/assistant", "/feedback", "/figures", "/map", "/work", "/value", "/jobs", "/settings", "/sources", "/board", "/reports", "/studies", "/upsets"];
+const API_PATHS = ["/entities", "/review", "/lookup", "/stats", "/health", "/rebuild", "/ontology", "/graph", "/network", "/events", "/documents", "/downtime", "/incidents", "/knowledge", "/lessons", "/assistant", "/feedback", "/figures", "/map", "/work", "/value", "/jobs", "/settings", "/sources", "/board", "/reports", "/studies", "/upsets", "/analytics"];
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

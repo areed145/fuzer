@@ -2,6 +2,7 @@
 
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
@@ -64,6 +65,20 @@ def rebuild(conn, pack: Pack) -> dict:
     text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
     texts: dict[str, dict[str, dict]] = {name: {} for name in llm_links.TEXT_SOURCES}
     maps = mappings.load(conn)
+    references = {}
+    reference_maps = {key: m for key, m in maps.items() if m.shape == "reference"}
+    if reference_maps:
+        pairs = list(reference_maps)
+        for rec in conn.execute(
+            "select source, record_type, source_key, payload from source_record "
+            "where (source, record_type) in (select * from unnest(%s::text[], %s::text[]))",
+            ([s for s, _ in pairs], [t for _, t in pairs]),
+        ):
+            m = reference_maps[(rec["source"], rec["record_type"])]
+            if entry := m.reference_entry(rec["source_key"], rec["payload"], pack):
+                references.setdefault(entry["list"], {})[entry["code"]] = entry
+    if references:
+        pack = replace(pack, reference_data=references)
     for rec in conn.execute("select source, record_type, source_key, payload from source_record"):
         c, e = extract(rec, pack, maps)
         cands += c

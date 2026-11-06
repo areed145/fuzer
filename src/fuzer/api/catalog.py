@@ -315,7 +315,7 @@ def dataset_detail(name: str, conn=Depends(get_conn)):
     d = catalog.dataset(conn, name)
     if not d:
         raise HTTPException(404, f"no dataset {name!r}")
-    vers = [v for s, t in catalog.produces(d) for v in catalog.versions(conn, s, t)]
+    vers = catalog.versions_for_dataset(conn, d)
     current = {(m["source"], m["record_type"]): m["id"] for m in catalog.current_mappings(conn)}
     return plain({
         "dataset": {k: v for k, v in d.items() if k == "connection_id" or not k.startswith(("connection_", "system_"))},

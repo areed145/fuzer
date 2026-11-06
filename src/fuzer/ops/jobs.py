@@ -240,6 +240,17 @@ def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          "examples": dg.MetadataValue.json(result["examples"])})
 
 
+@dg.asset_check(asset=register, description="Maintenance and downtime codes exist in their site catalogs.")
+def unmapped_site_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from ..graph import quality
+
+    with fuzer.connect() as conn:
+        result = quality.unmapped_site_codes(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={**{k: v for k, v in result.items() if k not in ("passed", "examples")},
+                                         "examples": dg.MetadataValue.json(result["examples"])})
+
+
 @dg.asset_check(asset=register, description="Each document number has one current revision.")
 def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
     from ..graph import quality
@@ -444,7 +455,7 @@ def alert_on_failure(context: dg.RunFailureSensorContext):
 
 defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
-    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes,
+    asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
     jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan, day_close, studies_job, source_health],
     schedules=schedules,

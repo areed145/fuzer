@@ -57,6 +57,21 @@ def test_seed_imports_every_builtin_mapping_once(conn):
     assert all(r["by"] == "seed" for r in catalog.audit(conn, limit=500))
 
 
+def test_dataset_mapping_versions_match_api_and_cli(conn):
+    catalog.seed(conn)
+
+    from fuzer.api.catalog import dataset_detail
+    from fuzer.cli.sources import show
+
+    api_versions = dataset_detail("documents", conn)["mappings"]
+    cli_versions = show(conn, "documents")["mappings"]
+
+    assert [v["id"] for v in api_versions] == [v["id"] for v in cli_versions]
+    assert [v["id"] for v in api_versions] == [
+        v["id"] for v in catalog.versions_for_dataset(conn, catalog.dataset(conn, "documents"))
+    ]
+
+
 def test_seed_leaves_a_persons_changes_alone(conn, monkeypatch):
     catalog.seed(conn)
     text = next(t for r, t in catalog.seed_files() if r["record_type"] == "equipment" and r["source"] == "sap")
