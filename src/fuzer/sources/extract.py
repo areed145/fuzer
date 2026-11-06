@@ -102,21 +102,38 @@ RESOLVERS = {
 # ---- hooks: (candidate, row, pack, **options) -> None, changing the candidate in place
 
 def _iso(pack: Pack, kind: str, raw: str | None) -> tuple[str | None, str | None]:
-    """Site catalog code -> (ISO 14224 code, name) through the pack's maintenance_codes."""
+    """Site catalog code -> (ISO 14224 code, name) through loaded references, then pack defaults."""
     from ..core.taxonomy import load_standard
 
-    code = pack.maintenance_codes.get(kind, {}).get(raw) if raw else None
+    entry = _reference_entry(pack, kind, raw)
+    code = (entry or {}).get("standard_code")
+    if not code and raw:
+        code = pack.maintenance_codes.get(kind, {}).get(raw)
     if not code:
         return None, None
     table = {"damage": "failure_modes", "cause": "failure_mechanisms", "activity": "maintenance_activities"}[kind]
-    return code, load_standard(pack.classification.get("taxonomy", "iso14224")).get(table, {}).get(code)
+    name = load_standard(pack.classification.get("taxonomy", "iso14224")).get(table, {}).get(code)
+    return code, name or (entry or {}).get("name")
+
+
+def _reference_entry(pack: Pack, list_: str, code: str | None) -> dict | None:
+    return pack.reference_data.get(list_, {}).get(str(code)) if code not in (None, "") else None
+
+
+def _unmapped(c, list_: str, code) -> None:
+    if code not in (None, ""):
+        c.fields.setdefault("unmapped_codes", []).append({"list": list_, "code": str(code)})
 
 
 def iso_code(c, p, pack, *, column: str, catalog: str, field: str):
     """A site maintenance code as its ISO 14224 code (`field`) and name (`field`_name)."""
-    code, name = _iso(pack, catalog, p.get(column))
+    raw = p.get(column)
+    code, name = _iso(pack, catalog, raw)
     if code:
         c.fields |= {field: code, f"{field}_name": name}
+    elif raw not in (None, "") and not _reference_entry(pack, catalog, raw) \
+            and not pack.maintenance_codes.get(catalog, {}).get(raw):
+        _unmapped(c, catalog, raw)
 
 
 def sidetrack(c, p, pack):
@@ -125,8 +142,13 @@ def sidetrack(c, p, pack):
 
 
 def downtime(c, p, pack):
-    """EC downtime: duration, the pack's reason names, and a check that the reason fits the comment."""
-    reason = pack.downtime_reasons.get(p.get("reason_code"), {})
+    """EC downtime: loaded reason names (or pack defaults), duration and a check against the comment."""
+    reason_code = p.get("reason_code")
+    reason = {**pack.downtime_reasons.get(reason_code, {}),
+              **{k: v for k, v in (_reference_entry(pack, "downtime_reasons", reason_code) or {}).items()
+                 if k in ("name", "category") and v not in (None, "")}}
+    if reason_code not in (None, "") and not reason:
+        _unmapped(c, "downtime_reasons", reason_code)
     hours = (datetime.fromisoformat(p["end"]) - datetime.fromisoformat(p["start"])).total_seconds() / 3600
     c.fields |= {"duration_h": round(hours, 1),
                  "description": p.get("comment", "") or reason.get("name", "Downtime"),

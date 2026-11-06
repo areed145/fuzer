@@ -85,6 +85,31 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
         w.writerows(rows)
 
 
+def write_reference_tables(out: Path, maintenance_codes: dict, downtime_reasons: dict) -> None:
+    rows = [{"list": list_, "code": code, "name": "", "category": "", "standard_code": standard}
+            for list_, codes in maintenance_codes.items() for code, standard in codes.items()]
+    rows += [{"list": "downtime_reasons", "code": code, "name": values["name"], "category": values["category"],
+              "standard_code": ""} for code, values in downtime_reasons.items()]
+    _write_csv(out / "sap_maintenance_codes.csv", [r for r in rows if r["list"] != "downtime_reasons"])
+    _write_csv(out / "ec_downtime_reasons.csv", [r for r in rows if r["list"] == "downtime_reasons"])
+
+
+MAINTENANCE_CODES = {
+    "damage": {"D01": "VIB", "D02": "ELP", "D03": "FTS", "D04": "OHE", "D05": "LOO", "D06": "NOI",
+               "D07": "AIR", "D08": "INL", "D09": "UST", "D10": "BRD"},
+    "cause": {"C01": "2.4", "C02": "1.2", "C03": "2.2", "C04": "3.3", "C05": "5.2", "C06": "1.3"},
+    "activity": {"A01": "1", "A02": "2", "A03": "4", "A04": "6", "A05": "10"},
+}
+DOWNTIME_REASONS = {
+    "EQ-FAIL": {"name": "Equipment failure", "category": "equipment"},
+    "PROC-TRIP": {"name": "Process trip", "category": "equipment"},
+    "PLAN-MAINT": {"name": "Planned maintenance", "category": "planned"},
+    "WELL-INT": {"name": "Well intervention", "category": "well"},
+    "WEATHER": {"name": "Weather", "category": "external"},
+    "EXPORT": {"name": "Export restriction", "category": "external"},
+}
+
+
 # Size presets. "small" is the hand-checked asset the tests use; bigger sizes clone the four
 # area types into more areas and add trains of equipment inside each area.
 SIZES = {
@@ -298,6 +323,7 @@ def generate(out, seed: int = 7, size: str = "small", **overrides) -> dict:
     (out / "answer_keys" / "matches.json").write_text(json.dumps(match_truth, indent=1))
 
     _write_csv(out / "sap_floc.csv", floc)
+    write_reference_tables(out, MAINTENANCE_CODES, DOWNTIME_REASONS)
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", work_orders)
     _write_csv(out / "ec_downtime.csv", downtime)

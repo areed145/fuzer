@@ -56,6 +56,30 @@ def downtime_reason_codes(conn) -> dict:
     return {"passed": total == 0, "mismatches": int(total), "examples": [dict(r) for r in rows]}
 
 
+def unmapped_site_codes(conn) -> dict:
+    """Site codes in maintenance and downtime records with no matching reference entry."""
+    examples = conn.execute(
+        """
+        select g.fuzer_id, l.label, g.source, item.value->>'list' as list, item.value->>'code' as code
+        from golden g
+        left join entity_label l using (fuzer_id)
+        cross join lateral jsonb_array_elements(g.value) as item(value)
+        where g.field = 'unmapped_codes'
+        order by g.source, g.fuzer_id, item.value->>'list', item.value->>'code'
+        limit 20
+        """
+    ).fetchall()
+    total = conn.execute(
+        """
+        select count(*) as n
+        from golden g
+        cross join lateral jsonb_array_elements(g.value) as item(value)
+        where g.field = 'unmapped_codes'
+        """
+    ).fetchone()["n"]
+    return {"passed": total == 0, "count": int(total), "examples": [dict(r) for r in examples]}
+
+
 def document_revisions(conn) -> dict:
     from . import queries
 

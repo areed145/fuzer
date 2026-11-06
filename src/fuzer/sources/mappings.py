@@ -56,6 +56,12 @@ connection reads. A mapping file:
       values:
         - {type: hihi, from: HiHi}
         - {type: {from: alarm}, from: setpoint}
+    reference:                # rows in a code list; no entities are created
+      list: {from: list}
+      code: code
+      name: name
+      category: category
+      standard_code: standard_code
 
 A `ref` endpoint is a template ("sap:equipment:{equnr}") or a prefix with `from`
 ({ref: "sap:equipment", from: equnr}). Values: a column name, `_key` (the record key), `_row` (the whole row), or
@@ -169,6 +175,20 @@ class Mapping:
             raise MappingError(f"dataset {self.dataset!r} needs a key column{self._where}")
 
         self._entity = None
+        self._reference = None
+        if self.shape == "reference":
+            spec = raw.get("reference")
+            if not isinstance(spec, dict) or not spec.get("list") or not spec.get("code"):
+                raise MappingError(f"reference shape needs list and code fields{self._where}")
+            list_spec = spec["list"]
+            list_f = self._value(list_spec) if isinstance(list_spec, dict) else lambda k, r, p: list_spec
+            fields = {name: self._value(spec[name]) for name in ("code", "name", "category", "standard_code")
+                      if spec.get(name)}
+            self._reference = (list_f, fields)
+            if any(raw.get(k) for k in ("entity", "links", "mentions", "hooks", "measurements", "curves", "limits")):
+                raise MappingError(f"reference rows cannot create entities or derived data{self._where}")
+        elif raw.get("reference"):
+            raise MappingError(f"reference is only valid for shape 'reference'{self._where}")
         if e := raw.get("entity"):
             if "node" in e:
                 kind_key = self._endpoint(e["node"])
@@ -336,6 +356,18 @@ class Mapping:
                            str(series_f(key, row, pack)), x[0], y[0] if y else None,
                            xu_f(key, row, pack) or None, yu_f(key, row, pack) or None)]
 
+    def reference_entry(self, key: str, row: dict, pack) -> dict | None:
+        """A reference row as a code-list entry; reference rows never become entities."""
+        if not self._reference:
+            return None
+        list_f, fields = self._reference
+        list_ = list_f(key, row, pack)
+        values = {name: get(key, row, pack) for name, get in fields.items()}
+        code = values.pop("code", None)
+        if list_ in (None, "") or code in (None, ""):
+            return None
+        return {"list": str(list_), "code": str(code), **values}
+
     def limits(self, key: str, row: dict, pack) -> list[Limit]:
         """The limits in one row (or in each item of its `each` list), in stored units; blanks and values
         that aren't numbers are skipped, as are types the mapping doesn't know."""
@@ -394,6 +426,8 @@ class Mapping:
 
 
     def extract(self, key: str, row: dict, pack) -> tuple[list[Candidate], list[Edge]]:
+        if self.shape == "reference":
+            return [], []
         c = None
         if self._entity:
             kind_key, fields, block = self._entity

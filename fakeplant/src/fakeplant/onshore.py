@@ -9,9 +9,20 @@ import math
 import random
 from pathlib import Path
 
-from .offshore import _add_days, _write_csv
+from .offshore import _add_days, _write_csv, write_reference_tables
 
 FACILITY = "RBF"
+MAINTENANCE_CODES = {
+    "damage": {"D03": "FTS", "D09": "UST", "D05": "LOO", "D02": "ELP", "D07": "AIR"},
+    "cause": {"C01": "2.4", "C04": "3.3", "C05": "5.2"},
+    "activity": {"A01": "1", "A02": "2", "A04": "6"},
+}
+DOWNTIME_REASONS = {
+    "ESP-FAIL": {"name": "ESP failure", "category": "equipment"},
+    "WORKOVER": {"name": "Workover", "category": "well"},
+    "POWER": {"name": "Power outage", "category": "external"},
+    "TRUCKING": {"name": "Trucking constraint", "category": "external"},
+}
 MAKERS = {"ESP": ["Apex Lift", "Canyon Pumps"], "SEP": ["Plains Fab"], "TK": ["Plains Fab"], "LACT": ["Meterco"]}
 INSTRUMENTS = {"ESP": [("PT", "Intake pressure", "psi"), ("TT", "Motor temperature", "degF"), ("ST", "Speed", "Hz")],
                "SEP": [("PT", "Separator pressure", "psi"), ("LT", "Separator level", "%")],
@@ -135,6 +146,7 @@ def generate(out, seed: int = 11, pads: int = 40, wells_per_pad: int = 12, logs:
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(truth, indent=1))
 
     _write_csv(out / "sap_floc.csv", floc)
+    write_reference_tables(out, MAINTENANCE_CODES, DOWNTIME_REASONS)
     _write_csv(out / "sap_equipment.csv", equipment)
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", entries)

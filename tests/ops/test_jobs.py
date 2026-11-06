@@ -36,6 +36,7 @@ def test_definitions_load():
 def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
     selection = [*jobs.SOURCES, jobs.register]
     checks = [jobs.review_backlog, jobs.orphan_timeseries, jobs.tags_missing_from_sap, jobs.downtime_reason_codes,
+              jobs.unmapped_site_codes,
               jobs.document_revisions, jobs.flow_vs_piping]
     result = dg.materialize(selection + checks, resources={"fuzer": fuzer})
     assert result.success
@@ -46,6 +47,7 @@ def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
 
     evals = {e.check_name: e for e in result.get_asset_check_evaluations()}
     assert set(evals) == {"review_backlog", "orphan_timeseries", "tags_missing_from_sap", "downtime_reason_codes",
+                          "unmapped_site_codes",
                           "document_revisions", "flow_vs_piping"}
     assert evals["orphan_timeseries"].passed  # every PI point attaches to a tag or well
     assert evals["tags_missing_from_sap"].passed  # every tag in the fake asset has an SAP FLOC
@@ -56,6 +58,7 @@ def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
             "orphan_timeseries": quality.orphan_timeseries(conn),
             "tags_missing_from_sap": quality.tags_missing_from_sap(conn),
             "downtime_reason_codes": quality.downtime_reason_codes(conn),
+            "unmapped_site_codes": quality.unmapped_site_codes(conn),
             "document_revisions": quality.document_revisions(conn),
             "flow_vs_piping": quality.flow_vs_piping(conn),
         }
