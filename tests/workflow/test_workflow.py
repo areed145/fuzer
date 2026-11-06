@@ -12,11 +12,20 @@ import pytest
 
 from fuzer.agents import worker
 from fuzer.core import db
-from fuzer.workflow import bpmn, engine
+from fuzer.workflow import assignment, bpmn, definitions, engine, runtime, work_items
 
 BPMN_DIR = Path(__file__).with_name("bpmn")
 PATH_TYPES = {"startEvent", "endEvent", "userTask", "serviceTask", "intermediateCatchEvent", "boundaryEvent",
               "callActivity"}
+
+
+def test_engine_facade_exports_responsibility_modules():
+    assert engine.import_bpmn is definitions.import_bpmn
+    assert engine.start is runtime.start
+    assert engine.claim is assignment.claim
+    assert engine.create_item is work_items.create_item
+    assert engine._parsed is definitions._parsed
+    assert engine._sync_item is runtime._sync_item
 
 
 @pytest.fixture(scope="module")

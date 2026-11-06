@@ -5,9 +5,11 @@ that run on a schedule.
 
 ## Workflows
 
-Work moves through BPMN processes on Fuzer's own engine (`workflow/engine.py`): person steps, agent steps,
-timers, messages and called processes, every step a row, every change an event. The Workflows section is where
-people do it and manage it:
+Work moves through BPMN processes on Fuzer's own engine: person steps, agent steps, timers, messages and called
+processes, every step a row, every change an event. Its implementation is split across `workflow/definitions.py`
+(process and form lifecycle), `workflow/runtime.py` (execution), `workflow/assignment.py` (tasks and inboxes), and
+`workflow/work_items.py` (work-item operations and reads); `workflow/engine.py` remains the stable API facade.
+The Workflows section is where people do it and manage it:
 
 - **Inbox** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, assigned to you (or to
   someone away you cover for), unclaimed in your roles' queues. A task opens as a page: its form and evidence,
