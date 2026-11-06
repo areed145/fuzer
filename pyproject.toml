@@ -35,6 +35,12 @@ dependencies = [
     "openpyxl>=3.1",
 ]
 
+[project.optional-dependencies]
+openai = [
+    "agent-framework-openai==1.17.0",
+    "openai>=2.25,<4",
+]
+
 [project.scripts]
 fuzer = "fuzer.cli:main"
 

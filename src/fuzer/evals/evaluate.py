@@ -376,8 +376,10 @@ def memory(conn, pack: Pack, cases: list[dict], team=None, learn_client=None, sa
 
 
 def _learn_cost(u: dict) -> float:
-    from ..core import llm
+    from ..core import llm, settings
     from ..core.pricing import cost
 
-    usd, _ = cost(llm.model(), u.get("input_tokens", 0), u.get("output_tokens", 0), u.get("cache_read_tokens", 0), 0)
+    usd, _ = cost(u.get("model", settings.get(None, "agents.model")), u.get("input_tokens", 0),
+                  u.get("output_tokens", 0), u.get("cache_read_tokens", 0), 0,
+                  u.get("provider", llm.provider("agents")))
     return usd

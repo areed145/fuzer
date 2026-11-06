@@ -3,17 +3,28 @@
 Generated from the settings registry (`src/fuzer/core/settings.py`, #131); don't edit by hand (`uv run python -m fuzer.reference`).
 Change them on the Settings page or with `fuzer settings set <key> <value>`; a project's value beats the global one, which beats the default. Secrets hold a reference (`env:NAME`), never the value.
 
-## Claude
+## LLM
 
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
-| `llm.model` | str | `claude-opus-5-5` |  | Claude model for the readers: log links, P&IDs, documents, curves, mapping suggestions, daily report drafts. Replaces `FUZER_LLM_MODEL`. |
+| `llm.provider` | choice | `anthropic` | anthropic / openai / azure_openai / ollama | Provider used for reader calls. |
+| `llm.base_url` | str | `` |  | OpenAI-compatible endpoint (empty uses the provider default). |
+| `llm.api_key` | secret | `env:ANTHROPIC_API_KEY` |  | Environment variable holding the reader provider API key. |
+| `llm.model` | str | `claude-opus-5-5` |  | Model for log links, P&IDs, documents, curves, mapping suggestions and daily report drafts. Replaces `FUZER_LLM_MODEL`. |
 | `llm.effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the readers. Replaces `FUZER_LLM_EFFORT`. |
-| `agents.model` | str | `claude-opus-5-5` |  | Claude model for the assistant's orchestrator. Replaces `FUZER_AGENT_MODEL`. |
-| `agents.effort` | choice | `high` | low / medium / high / xhigh / max | Effort for the assistant's orchestrator. Replaces `FUZER_AGENT_EFFORT`. |
-| `agents.specialist_model` | str | `` |  | Claude model for the specialists (empty: the orchestrator's). Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
-| `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
-| `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Replaces `FUZER_AGENT_FALLBACKS`. |
+
+## Agents
+
+| Setting | Type | Default | Range | What it is |
+|---|---|---|---|---|
+| `agents.provider` | choice | `anthropic` | anthropic / openai / azure_openai / ollama | Provider used for assistant and specialist agents. Takes effect on restart. |
+| `agents.base_url` | str | `` |  | OpenAI-compatible endpoint (empty uses the provider default). Takes effect on restart. |
+| `agents.api_key` | secret | `env:ANTHROPIC_API_KEY` |  | Environment variable holding the agents provider API key. Takes effect on restart. |
+| `agents.model` | str | `claude-opus-5-5` |  | Model for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_MODEL`. |
+| `agents.effort` | choice | `high` | low / medium / high / xhigh / max | Effort for the assistant's orchestrator. Takes effect on restart. Replaces `FUZER_AGENT_EFFORT`. |
+| `agents.specialist_model` | str | `` |  | Model for the specialists (empty: the orchestrator's). Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
+| `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
+| `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
 | `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
 
 ## Schedule

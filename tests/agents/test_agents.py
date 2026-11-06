@@ -298,6 +298,23 @@ def test_unknown_model_is_flagged():
     assert u["models"]["claude-mystery-9"]["unpriced"] and u["cost_usd"] > 0
 
 
+def test_openai_compatible_agent_team_keeps_skills_and_specialists():
+    pytest.importorskip("agent_framework_openai")
+    from fuzer import agents
+    from fuzer.core import settings
+
+    with settings.Overrides({"agents.provider": "ollama", "agents.base_url": "http://localhost:11434/v1",
+                             "agents.model": "qwen2.5vl"}):
+        team = agents.team()
+        options = agents._options("high")
+    assert team.name == "orchestrator"
+    assert {type(p).__name__ for p in team.context_providers} >= {"SkillsProvider", "BackgroundAgentsProvider"}
+    assert options == {"max_tokens": agents.MAX_OUTPUT_TOKENS}
+    with settings.Overrides({"agents.provider": "openai", "agents.model": "o3"}):
+        assert "reasoning_effort" not in agents._options("medium", "gpt-4o")
+        assert agents._options("medium", "o3")["reasoning_effort"] == "medium"
+
+
 def test_skills_are_valid():
     agents = pytest.importorskip("fuzer.agents")
     from agent_framework import SkillsProvider
@@ -374,7 +391,7 @@ def test_ask_without_a_key_says_so(monkeypatch):
     monkeypatch.setattr(service, "_team", None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     r = TestClient(app).post("/assistant/ask", json={"question": "hello"})
-    assert r.status_code == 503 and "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert r.status_code == 503 and "Configure the agents provider API key" in r.json()["detail"]
 
 
 def test_eval_scores_answers(conn, okan_pack):

@@ -17,6 +17,7 @@ def test_values_are_checked_against_the_registry():
     with pytest.raises(settings.SettingError, match="reference"):
         secret.parse("hunter2")
     assert secret.parse("env:X_PASSWORD") == "env:X_PASSWORD"
+    assert settings.REGISTRY["llm.provider"].choices == ("anthropic", "openai", "azure_openai", "ollama")
 
 
 def test_overrides_need_no_database():

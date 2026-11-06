@@ -50,10 +50,10 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
 
-    lk = sub.add_parser("llm-link", help="have Claude read operator logs and scanned P&IDs, then rebuild")
+    lk = sub.add_parser("llm-link", help="have the configured LLM read operator logs and scanned P&IDs, then rebuild")
     lk.add_argument("--source", choices=["logs", "pids", "docs", "curves", "all"], default="all")
     lk.add_argument("--limit", type=int, help="only this many entries (try a small sample first)")
-    lk.add_argument("--model", default=None, help="Claude model id (default: the setting llm.model)")
+    lk.add_argument("--model", default=None, help="model id (default: the setting llm.model)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
@@ -72,7 +72,7 @@ def parser() -> argparse.ArgumentParser:
     j = sub.add_parser("jobs", help="run the Dagster UI with schedules and sensors")
     j.add_argument("--port", type=int, default=3000)
 
-    for name, text in (("ask", "ask the operations assistant one question (Claude agents)"),
+    for name, text in (("ask", "ask the operations assistant one question"),
                        ("chat", "talk to the operations assistant (follow-up questions keep the context)")):
         a = sub.add_parser(name, help=text)
         if name == "ask":
@@ -86,7 +86,7 @@ def parser() -> argparse.ArgumentParser:
     w = sub.add_parser("work", help="work engine (#97): load the starting processes, run the agent worker, fire timers")
     w.add_argument("action", choices=["load", "worker", "tick"],
                    help="load: import and publish definitions/*.bpmn; worker: run agent steps with the assistant's "
-                        "specialists (Claude; costs money); tick: fire due timers and escalate overdue tasks once")
+                        "specialists; tick: fire due timers and escalate overdue tasks once")
 
     lm = sub.add_parser("limits", help="operating limits (#101): learn normal ranges, check limits, scan for excursions")
     lm.add_argument("action", choices=["learn", "issues", "scan"],
@@ -403,8 +403,9 @@ def _assistant(args) -> None:
     import asyncio
 
     from .. import agents
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise SystemExit("Set ANTHROPIC_API_KEY (in .env) for the operations assistant.")
+    from ..core import llm
+    if not llm.configured("agents"):
+        raise SystemExit("Configure the agents provider API key for the operations assistant.")
     db.database_url()  # start embedded Postgres up front if it's in use
     with db.connect() as conn:
         db.init_schema(conn)

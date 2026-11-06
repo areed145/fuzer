@@ -221,17 +221,15 @@ def draft(f: dict, ask=None, comments: str | None = None, model: str | None = No
 
     if ask is None:
         def ask(system, user):
-            import anthropic
-
             from ..core.pricing import cost
 
             m = model or llm.model()
-            msg = llm_links.call(anthropic.Anthropic(), {"model": m, "max_tokens": 8000, "system": system,
-                                                         "messages": [{"role": "user", "content": user}]})
+            msg = llm_links.call(llm.client(), {"model": m, "max_tokens": 8000, "system": system,
+                                                "messages": [{"role": "user", "content": user}]})
             u = llm_links.usage(msg)
             return {"answer": next(b.text for b in msg.content if b.type == "text"),
-                    "usage": {**u, "model": m, "cost_usd": round(cost(m, u["input_tokens"], u["output_tokens"],
-                                                                      u["cache_read_tokens"])[0], 4)}}
+                    "usage": {**u, "model": m, "provider": llm.provider(), "cost_usd": round(cost(
+                        m, u["input_tokens"], u["output_tokens"], u["cache_read_tokens"], 0, llm.provider())[0], 4)}}
     user = json.dumps({"day": f["day"], "outline": OUTLINE, "facts": f["sections"]}, default=str, ensure_ascii=False)
     if comments:
         user += f"\n\nThe ops lead sent the last draft back: {comments}"

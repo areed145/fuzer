@@ -222,8 +222,9 @@ config is stored in the database, and `projects/<name>.yaml` is used when the da
 (`fuzer projects save <name>` stores it).
 
 **Settings.** Tunable values are declared once in `src/fuzer/core/settings.py`, each with a type, default,
-valid range and description, and set per project or for all projects. They are grouped as Claude (models,
-effort, fallbacks), Schedule, Database, SRE (detection and grouping, hand-off caps), Signals (instrument
+valid range and description, and set per project or for all projects. They are grouped as LLM providers
+(provider, endpoint, API-key reference, models, effort, fallbacks), Agents, Schedule, Database, SRE
+(detection and grouping, hand-off caps), Signals (instrument
 health, change detection), Alarms, Opportunities, Reports and Studies. Change them on the **Settings**
 page (`#/settings`), which shows each value, its default and range, who changed it last, and the history
 with reasons. From the command line: `fuzer settings list | get | set | reset | history`. A project value

@@ -1,19 +1,20 @@
 """`fuzer up`: one command from nothing to the web UI.
 
 1. Data: the exports in $FUZER_DATA_DIR. With nothing configured, the Okan field demo (made if needed).
-2. Load: ingest, and rebuild only when something changed, or when Claude's cached readings are newer
+2. Load: ingest, and rebuild only when something changed, or when cached LLM readings are newer
    than the register (a read that stopped before its rebuild). A second start is quick.
-3. Claude: with ANTHROPIC_API_KEY set, Claude reads whatever it hasn't read yet (operator logs,
-   P&ID drawings, document sections), then the register is rebuilt with what it found.
+3. Readers: the configured LLM provider reads whatever it hasn't read yet (operator logs, P&ID
+   drawings, document sections), then the register is rebuilt with what it found.
 4. Web UI: built when missing or older than its source.
 5. Jobs: Dagster (schedules and sensors: SRE scans, studies, refreshes, day close) on
    http://127.0.0.1:3000, its log in .dagster/dagster.log; `--no-jobs` leaves it out.
 6. Agent worker: `fuzer work worker`, which runs the workflow's agent steps (drafting daily reports,
-   specialists' proposals), its log in .fuzer/worker.log. It needs ANTHROPIC_API_KEY: without one it
-   isn't started, so the steps wait instead of failing over to a person. `--no-worker` leaves it out.
+   specialists' proposals), its log in .fuzer/worker.log. It needs a configured agents provider:
+   without one it isn't started, so the steps wait instead of failing over to a person. `--no-worker`
+   leaves it out.
 7. Serve on http://127.0.0.1:8000. Ctrl+C stops all of them.
 
-`--fresh` starts over: empties the database and, for the fake plant, makes new data. Claude's
+`--fresh` starts over: empties the database and, for the fake plant, makes new data. LLM
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
 same logs and drawings again. `--demo okan` (or offshore, onshore) picks a fake plant and its pack.
 """
@@ -65,7 +66,7 @@ def data_folder(fresh: bool) -> Path:
 
 def load(conn, pack, folder: Path, fresh: bool) -> None:
     if fresh:
-        say("Emptying the database (Claude's readings are kept) ...")
+        say("Emptying the database (LLM readings are kept) ...")
         kept = conn.execute("select to_regclass('llm_extraction') as t").fetchone()["t"]
         if kept:
             conn.execute("create temp table keep_llm as select * from llm_extraction")
@@ -92,10 +93,11 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
 
 
 def read_with_claude(conn, pack) -> None:
-    """Have Claude read everything it hasn't read yet: operator logs (links and events), P&ID drawings
+    """Have the configured LLM provider read everything it hasn't read yet: operator logs (links and events), P&ID drawings
     (tags and piping), document sections (failure modes) and OEM datasheets (curves, for review); then
     rebuild once with what it found.
     Readings are cached by the text they read, so only new or changed records cost anything."""
+    from ..core import llm
     from ..core.pricing import cost
     from ..graph import llm_links
     from ..sources import llm_curves, llm_docs, llm_pids
@@ -106,21 +108,21 @@ def read_with_claude(conn, pack) -> None:
     if not todo:
         return
     what = ", ".join(f"{n:,} {label}" for label, _, _, n in todo)
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        say(f"Not read by Claude yet: {what}. Add ANTHROPIC_API_KEY to .env and run fuzer up again.")
+    if not llm.configured():
+        say(f"Not read by {llm.provider()}: {what}. Configure the provider API key and run fuzer up again.")
         return
-    say(f"Claude ({llm_links.DEFAULT_MODEL}) is reading {what}. This can take a few minutes ...")
+    say(f"{llm.provider()} ({llm.model()}) is reading {what}. This can take a few minutes ...")
     stored, spent = 0, 0.0
     for label, _, run, _ in todo:
         out = run(conn, pack)
         stored += out.get("stored", 0)
         spent += cost(out.get("model", llm_links.DEFAULT_MODEL), out.get("input_tokens", 0),
-                      out.get("output_tokens", 0), out.get("cache_read_tokens", 0))[0]
+                      out.get("output_tokens", 0), out.get("cache_read_tokens", 0), 0, llm.provider())[0]
         for err in out.get("errors", [])[:3]:
             say(f"Could not read some {label}: {err}")
-    say(f"Claude read {stored:,} item(s) for about ${spent:.2f}")
+    say(f"{llm.provider()} read {stored:,} item(s) for about ${spent:.2f}")
     if pipeline.readings_newer(conn):
-        say("Rebuilding the register with what Claude found ...")
+        say(f"Rebuilding the register with what {llm.provider()} found ...")
         pipeline.rebuild(conn, pack)
 
 
@@ -185,10 +187,11 @@ def worker_command(pack) -> list[str]:
 
 
 def start_worker(pack) -> subprocess.Popen | None:
-    """The agent worker, unless there's no ANTHROPIC_API_KEY (its steps would fail and go to a person)."""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        say("Agent worker not started: agent steps (daily report drafts, ...) wait until ANTHROPIC_API_KEY "
-            "is in .env and fuzer up runs again.")
+    """The agent worker, unless the agents provider is not configured."""
+    from ..core import llm
+
+    if not llm.configured("agents"):
+        say("Agent worker not started: configure the agents provider API key and run fuzer up again.")
         return None
     cmd = worker_command(pack)
     log = Path(".fuzer").resolve() / "worker.log"

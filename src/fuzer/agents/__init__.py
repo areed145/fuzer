@@ -14,7 +14,7 @@ all read-only) and its skills (`skills/<agent>/*/SKILL.md`: names and descriptio
 body loaded when the agent needs it).
 Nothing here can act on the plant.
 
-ANTHROPIC_API_KEY is the same key `fuzer llm-link` uses. The models and efforts are settings (#131):
+The agent provider, models and efforts are settings (#131):
 agents.model and agents.effort for the orchestrator, agents.specialist_model (empty: the orchestrator's) and
 agents.specialist_effort, and agents.fallbacks for Claude's server-side refusal fallback. Every answer reports
 its calls, tokens and cost per model.
@@ -23,12 +23,13 @@ its calls, tokens and cost per model.
 import asyncio
 import functools
 import logging
+import os
 import time
 import warnings
 from contextvars import ContextVar
 from pathlib import Path
 
-from ..core import models, settings
+from ..core import llm, models, settings
 
 SKILLS = Path(__file__).parent / "skills"
 DEFAULT_MODEL = models.DEFAULT_MODEL
@@ -142,9 +143,17 @@ def _content(result):
     return result
 
 
-def _options(effort: str) -> dict:
+def _options(effort: str, model: str | None = None) -> dict:
     # cache_control: automatic prompt caching of tools + system + history, re-sent on every turn
-    opts = {"max_tokens": MAX_OUTPUT_TOKENS, "output_config": {"effort": effort}, "cache_control": {"type": "ephemeral"}}
+    selected = settings.get(None, "agents.provider")
+    if selected != "anthropic":
+        opts = {"max_tokens": MAX_OUTPUT_TOKENS}
+        model = (model or settings.get(None, "agents.model")).lower()
+        if any(n in model for n in ("o1", "o3", "o4", "gpt-5")):
+            opts["reasoning_effort"] = effort if effort in ("low", "medium", "high") else "high"
+        return opts
+    opts = {"max_tokens": MAX_OUTPUT_TOKENS, "output_config": {"effort": effort},
+            "cache_control": {"type": "ephemeral"}}
     if settings.get(None, "agents.fallbacks"):
         opts["fallbacks"] = "default"  # on a policy decline, the API re-runs the request on a fallback model
     return opts
@@ -160,11 +169,32 @@ def _metered(anthropic_client):
         if not kwargs.get("stream") and (u := getattr(response, "usage", None)):
             note("model", model=response.model, input=u.input_tokens, output=u.output_tokens,
                  cache_read=u.cache_read_input_tokens or 0, cache_write=u.cache_creation_input_tokens or 0,
-                 stop=response.stop_reason)
+                 stop=response.stop_reason, provider="anthropic")
         return response
 
     messages.create = metered
     return anthropic_client
+
+
+def _metered_openai(openai_client):
+    """Record OpenAI-compatible chat-completion usage in the current question's trace."""
+    completions = openai_client.chat.completions
+    create = completions.create
+
+    async def metered(*args, **kwargs):
+        response = await create(*args, **kwargs)
+        if (u := getattr(response, "usage", None)):
+            prompt = getattr(u, "prompt_tokens", 0) or 0
+            details = getattr(u, "prompt_tokens_details", None)
+            cached = getattr(details, "cached_tokens", 0) or 0
+            note("model", model=response.model, input=max(0, prompt - cached),
+                 output=getattr(u, "completion_tokens", 0) or 0,
+                 cache_read=cached, cache_write=0, stop="end_turn",
+                 provider=settings.get(None, "agents.provider"))
+        return response
+
+    completions.create = metered
+    return openai_client
 
 
 def usage(trace: list[dict]) -> dict:
@@ -176,32 +206,55 @@ def usage(trace: list[dict]) -> dict:
     keys = ("input", "output", "cache_read", "cache_write")
     models: dict[str, dict] = {}
     for c in calls:
-        m = models.setdefault(c["model"], {"calls": 0, **{k: 0 for k in keys}, "cost_usd": 0.0})
+        provider = c.get("provider", "anthropic")
+        key = c["model"] if provider == "anthropic" else f"{provider}:{c['model']}"
+        m = models.setdefault(key, {"provider": provider, "calls": 0, **{k: 0 for k in keys}, "cost_usd": 0.0})
         m["calls"] += 1
         for k in keys:
             m[k] += c[k]
-        usd, known = cost(c["model"], c["input"], c["output"], c["cache_read"], c["cache_write"])
+        usd, known = cost(c["model"], c["input"], c["output"], c["cache_read"], c["cache_write"], provider)
         m["cost_usd"] += usd
         if not known:
-            m["unpriced"] = True  # priced as Claude Opus 5.5; add the model to pricing.PRICES
+            m["unpriced"] = True
     for m in models.values():
         m["cost_usd"] = round(m["cost_usd"], 4)
     return {"model_calls": len(calls), **{k: sum(c[k] for c in calls) for k in keys},
             "cost_usd": round(sum(m["cost_usd"] for m in models.values()), 4), "models": models}
 
 
-def client(model: str | None = None, anthropic_client=None):
-    """MAF's Anthropic chat client on the same key as the rest of Fuzer."""
-    from agent_framework.anthropic import AnthropicClient
-    from anthropic import AsyncAnthropic
+def client(model: str | None = None, anthropic_client=None, openai_client=None):
+    """MAF chat client selected by the agents.provider setting."""
+    selected, endpoint, key = llm._config("agents")
+    model = model or settings.get(None, "agents.model")
+    if selected == "anthropic":
+        from agent_framework.anthropic import AnthropicClient
 
-    anthropic_client = _metered(anthropic_client or AsyncAnthropic())
-    betas = ["server-side-fallback-2026-07-01"] if settings.get(None, "agents.fallbacks") else []
-    return AnthropicClient(model=model or settings.get(None, "agents.model"),
-                           anthropic_client=anthropic_client, additional_beta_flags=betas)
+        anthropic_client = _metered(anthropic_client or llm.async_client("agents"))
+        betas = ["server-side-fallback-2026-07-01"] if settings.get(None, "agents.fallbacks") else []
+        chat = AnthropicClient(model=model, anthropic_client=anthropic_client, additional_beta_flags=betas)
+        chat._fuzer_model = model
+        return chat
+    from agent_framework_openai import OpenAIChatCompletionClient
+
+    openai_client = _metered_openai(openai_client or llm.async_client("agents"))
+    kwargs = {"model": model, "async_client": openai_client}
+    if key:
+        kwargs["api_key"] = key
+    elif selected == "ollama":
+        kwargs["api_key"] = "ollama"
+    if endpoint:
+        if selected == "azure_openai" and "/openai/v1" not in endpoint:
+            kwargs["azure_endpoint"] = endpoint
+            kwargs["api_version"] = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+        else:
+            kwargs["base_url"] = endpoint
+    chat = OpenAIChatCompletionClient(**kwargs)
+    chat._fuzer_model = model
+    return chat
 
 
-def _agent(chat, name: str, instructions: str, effort: str, description: str | None = None, **kw):
+def _agent(chat, name: str, instructions: str, effort: str, description: str | None = None,
+           model: str | None = None, **kw):
     from agent_framework import SkillsProvider, create_harness_agent
 
     from .capabilities import tools_by_agent
@@ -215,7 +268,7 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
         tools=[_tool(t, name) for t in tools_by_agent()[name]], skills_provider=skills,
         max_context_window_tokens=CONTEXT_WINDOW, max_output_tokens=MAX_OUTPUT_TOKENS,
         disable_web_search=True, disable_file_memory=True, disable_todo=True, disable_mode=True,
-        default_options=_options(effort), **kw)
+        default_options=_options(effort, model), **kw)
 
 
 def team(chat=None, effort: str | None = None, specialist_effort: str | None = None, specialist_chat=None,
@@ -230,14 +283,18 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     for name in ("agent_framework", "httpx", "httpx2"):  # every tool call and request is logged at INFO
         logging.getLogger(name).setLevel(logging.WARNING)
     chat = chat or client()
+    orchestrator_model = getattr(chat, "_fuzer_model", settings.get(None, "agents.model"))
     specialist_model = settings.get(None, "agents.specialist_model")
     specialist_chat = specialist_chat or (client(specialist_model) if specialist_model else chat)
+    specialist_chat_model = getattr(specialist_chat, "_fuzer_model", specialist_model or orchestrator_model)
     effort = effort or settings.get(None, "agents.effort")
     specialist_effort = specialist_effort or settings.get(None, "agents.specialist_effort")
-    specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description)
+    specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description,
+                          model=specialist_chat_model)
                    for name, (description, instructions) in SPECIALISTS.items()]
     return _agent(chat, "orchestrator", ORCHESTRATOR, effort, "Fuzer operations assistant",
-                  background_agents=specialists, background_agents_wait_timeout_seconds=600,
+                  model=orchestrator_model, background_agents=specialists,
+                  background_agents_wait_timeout_seconds=600,
                   **({"history_provider": history} if history is not None else {}))
 
 
@@ -270,14 +327,15 @@ def ask_sync(question: str, **kw) -> dict:
     loops holds connections from the old one."""
     from contextlib import AsyncExitStack
 
-    from anthropic import AsyncAnthropic
-
     async def go():
         async with AsyncExitStack() as stack:
             def chat(model=None):
-                ac = AsyncAnthropic()
+                from ..core import llm
+
+                ac = llm.async_client("agents")
                 stack.push_async_callback(ac.close)
-                return client(model, anthropic_client=ac)
+                return (client(model, anthropic_client=ac) if settings.get(None, "agents.provider") == "anthropic"
+                        else client(model, openai_client=ac))
 
             spec = settings.get(None, "agents.specialist_model")
             agent = team(chat=chat(), specialist_chat=chat(spec) if spec else None)

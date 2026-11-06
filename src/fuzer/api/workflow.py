@@ -257,9 +257,8 @@ def work_definition_save(definition_id: int, d: WorkDefinitionIn, conn=Depends(g
 @router.post("/work/definitions/{definition_id}/generate")
 def work_definition_generate(definition_id: int, d: WorkGenerate, conn=Depends(get_conn)):
     """Propose BPMN for review without writing any definition or starting work."""
-    from anthropic import APIError
-
     from ..agents import workflow
+    from ..core import llm
     from ..workflow.canvas import compile_bpmn
     if not d.description.strip() or not d.by.strip():
         raise HTTPException(400, "a description and person are required")
@@ -276,7 +275,9 @@ def work_definition_generate(definition_id: int, d: WorkGenerate, conn=Depends(g
         xml = compile_bpmn(draft, row["process_key"], row["name"] or row["process_key"])
     except workflow.Unavailable as e:
         raise HTTPException(503, str(e)) from e
-    except APIError as e:
+    except Exception as e:
+        if not isinstance(e, llm.provider_errors("agents")):
+            raise
         raise HTTPException(503, "Workflow drafting is unavailable. Try again or build on the canvas.") from e
     except ValueError as e:
         raise HTTPException(422, "The agent returned an invalid draft. Try a more specific description.") from e

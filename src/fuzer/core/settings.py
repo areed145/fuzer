@@ -89,23 +89,34 @@ def register(*settings: Setting) -> None:
 
 
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
+LLM_PROVIDERS = ("anthropic", "openai", "azure_openai", "ollama")
 
 register(
-    Setting("llm.model", "str", models.DEFAULT_MODEL, "Claude model for the readers: log links, P&IDs, documents, "
-            "curves, mapping suggestions, daily report drafts", "Claude", env="FUZER_LLM_MODEL"),
-    Setting("llm.effort", "choice", "medium", "Effort for the readers", "Claude", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
-    Setting("agents.model", "str", models.DEFAULT_MODEL, "Claude model for the assistant's orchestrator", "Claude",
-            env="FUZER_AGENT_MODEL"),
-    Setting("agents.effort", "choice", "high", "Effort for the assistant's orchestrator", "Claude", choices=EFFORTS,
-            env="FUZER_AGENT_EFFORT"),
-    Setting("agents.specialist_model", "str", "", "Claude model for the specialists (empty: the orchestrator's)",
-            "Claude", env="FUZER_AGENT_SPECIALIST_MODEL"),
-    Setting("agents.specialist_effort", "choice", "medium", "Effort for the specialists", "Claude", choices=EFFORTS,
-            env="FUZER_AGENT_SPECIALIST_EFFORT"),
+    Setting("llm.provider", "choice", "anthropic", "Provider used for reader calls", "LLM", choices=LLM_PROVIDERS),
+    Setting("llm.base_url", "str", "", "OpenAI-compatible endpoint (empty uses the provider default)", "LLM"),
+    Setting("llm.api_key", "secret", "env:ANTHROPIC_API_KEY", "Environment variable holding the reader provider API key",
+            "LLM"),
+    Setting("llm.model", "str", models.DEFAULT_MODEL, "Model for log links, P&IDs, documents, curves, mapping "
+            "suggestions and daily report drafts", "LLM", env="FUZER_LLM_MODEL"),
+    Setting("llm.effort", "choice", "medium", "Effort for the readers", "LLM", choices=EFFORTS, env="FUZER_LLM_EFFORT"),
+    Setting("agents.provider", "choice", "anthropic", "Provider used for assistant and specialist agents", "Agents",
+            choices=LLM_PROVIDERS, restart=True),
+    Setting("agents.base_url", "str", "", "OpenAI-compatible endpoint (empty uses the provider default)", "Agents",
+            restart=True),
+    Setting("agents.api_key", "secret", "env:ANTHROPIC_API_KEY", "Environment variable holding the agents provider API key",
+            "Agents", restart=True),
+    Setting("agents.model", "str", models.DEFAULT_MODEL, "Model for the assistant's orchestrator", "Agents",
+            env="FUZER_AGENT_MODEL", restart=True),
+    Setting("agents.effort", "choice", "high", "Effort for the assistant's orchestrator", "Agents", choices=EFFORTS,
+            env="FUZER_AGENT_EFFORT", restart=True),
+    Setting("agents.specialist_model", "str", "", "Model for the specialists (empty: the orchestrator's)",
+            "Agents", env="FUZER_AGENT_SPECIALIST_MODEL", restart=True),
+    Setting("agents.specialist_effort", "choice", "medium", "Effort for the specialists", "Agents", choices=EFFORTS,
+            env="FUZER_AGENT_SPECIALIST_EFFORT", restart=True),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
-            "Claude", env="FUZER_AGENT_FALLBACKS"),
+            "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
-            "with its images and answers (0: keep them)", "Claude", min=0),
+            "with its images and answers (0: keep them)", "Agents", min=0),
     Setting("daily_report.close_cron", "str", "0 7 * * *", "When the day is closed and its report drafted (cron)",
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",

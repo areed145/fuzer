@@ -138,7 +138,7 @@ def test_agent_uses_tool_only_output_and_validates_it():
 
 def test_agent_requires_configuration_without_calling_external_services(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(workflow.Unavailable, match="ANTHROPIC_API_KEY"):
+    with pytest.raises(workflow.Unavailable, match="Configure an API key"):
         workflow.generate("Inspect anomalies", {})
 
 

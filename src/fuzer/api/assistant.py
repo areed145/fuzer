@@ -128,13 +128,12 @@ class Remember(BaseModel):
 @router.post("/assistant/answers/{answer_id}/remember")
 def assistant_remember(answer_id: str, r: Remember, conn=Depends(get_conn)):
     """An engineer marks a statement in an answer "remember this": Claude turns it into dated facts."""
-    import os
-
     from ..agents import memory
+    from ..core import llm
     if not r.statement.strip():
         raise HTTPException(400, "empty statement")
-    if not os.environ.get("ANTHROPIC_API_KEY") and memory._client is memory._DEFAULT_CLIENT:
-        raise HTTPException(503, "Set ANTHROPIC_API_KEY (in .env) to let the assistant remember.")
+    if not llm.configured("agents") and memory._client is memory._DEFAULT_CLIENT:
+        raise HTTPException(503, "Configure the agents provider API key to let the assistant remember.")
     out = memory.learn(conn, deps.PACK, answer_id, r.statement.strip(), r.by)
     if out.get("error") == "unknown answer":
         raise HTTPException(404, "unknown answer")

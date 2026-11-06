@@ -29,7 +29,7 @@ def test_set_reset_and_history(client):
     rows = {r["key"]: r for r in client.get("/settings", params={"project": "okan"}).json()["settings"]}
     assert rows[key]["value"] == 10 and rows[key]["from"] == "default" and rows[key]["group"] == "Alarms"
     groups = list(dict.fromkeys(r["group"] for r in rows.values()))
-    assert groups[0] == "Claude"  # declared order, not alphabetical
+    assert groups[0] == "LLM"  # declared order, not alphabetical
 
     assert client.put(url, json={"value": "12", "scope": "global", "by": "ana", "reason": "site standard"}).status_code == 200
     assert client.put(url, json={"value": 15, "project": "okan", "by": "ana", "reason": "okan floods often"}).status_code == 200
@@ -46,5 +46,4 @@ def test_set_reset_and_history(client):
     assert [(x["new"], x["reason"]) for x in h][:2] == [(None, "back to the site value"), (15, "okan floods often")]
     assert client.get("/settings/no.such/history").status_code == 404
     settings._cache.clear()
-
 

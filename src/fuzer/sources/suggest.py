@@ -403,9 +403,7 @@ def ask_claude(conn, dataset: str, payload: dict, *, client=None, model: str | N
     if (hit := cached_claude(conn, dataset, payload)) is not None:
         return hit, {"cached": True}
     if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = llm.client()
     legend = "Meanings: " + "; ".join(f"{k} = {v}" for k, v in MEANINGS.items())
     message = call(client, {
         "model": model, "max_tokens": 4000,
@@ -425,7 +423,8 @@ def ask_claude(conn, dataset: str, payload: dict, *, client=None, model: str | N
         """,
         (CACHE, dataset, text_hash(json.dumps(payload, sort_keys=True)), model, PROMPT_VERSION, Jsonb(result)))
     conn.commit()
-    return result, usage(message)
+    measured = usage(message)
+    return result, {**measured, **llm.cost_report(model, measured)}
 
 
 # ---- run
