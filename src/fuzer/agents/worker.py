@@ -43,6 +43,7 @@ class AgentCall:
     attempt: int
     checkpoint: dict | None
     _save: Callable[[dict], None] = field(repr=False, default=lambda c: None)
+    instructions: str | None = None
 
     @property
     def key(self) -> str:
@@ -83,7 +84,9 @@ def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | Non
 
 def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentCall:
     lease = lease or timedelta(seconds=settings.get(conn, "work.lease_seconds"))
-    proc = conn.execute("select data from work_process where id = %s", (t["process_id"],)).fetchone()
+    proc = conn.execute("select p.data, p.definition_id, t.element, t.name from work_process p "
+                        "join work_token t on t.process_id = p.id where t.id = %s", (t["id"],)).fetchone()
+    node = engine._definition(conn, proc["definition_id"]).nodes[proc["element"]]
     item = conn.execute("select id, type, title, subjects, priority, payload from work_item where id = %s",
                         (t["item_id"],)).fetchone()
     conn.commit()
@@ -92,7 +95,8 @@ def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentC
         conn.execute("update work_token set checkpoint = %s, lease_until = greatest(lease_until, %s) "
                      "where id = %s and claimed_by = %s", (Jsonb(checkpoint), engine.utcnow() + lease, t["id"], worker))
         conn.commit()
-    return AgentCall(t["id"], t["role"], t["element"], t["name"], item, proc["data"], t["attempts"], t["checkpoint"], save)
+    return AgentCall(t["id"], t["role"], proc["element"], proc["name"], item, proc["data"], t["attempts"], t["checkpoint"],
+                     instructions=node.attrs.get("instructions"), _save=save)
 
 
 def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: datetime | None = None,
@@ -142,6 +146,7 @@ def assistant_agents() -> dict[str, Agent]:
             prompt = (f"Workflow step '{call.name or call.element}' on work item {call.item['id']} "
                       f"({call.item['type']}): {call.item['title']}. Subjects: {', '.join(call.item['subjects']) or 'none'}.\n"
                       f"Process data so far: {call.data}\n"
+                      + (f"Step instructions / parameters: {call.instructions}\n" if call.instructions else "") +
                       f"Ask the {role} specialist to do this step and propose, not take, any action.")
             answer = agents.ask_sync(prompt)
             return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}

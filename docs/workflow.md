@@ -21,6 +21,29 @@ people do it and manage it:
   Model (draft, check, compare, publish), Monitor (where work piles up) and SLAs & routing.
 - **Teams & routing** (`#/teams`): roles, people and agents.
 
+### Modeling a workflow
+
+Open a process's **Model** tab (or create a draft). Drag named components onto the canvas, connect their
+handles, and select steps or connections to edit parameters. Undo, redo, delete and fit controls are above
+the canvas. **Advanced BPMN tools** retain pools, lanes and supported event variants. BPMN is maintained
+under the hood; existing `.bpmn` import and download remain available.
+
+**Anomaly detection** and **Data detection** are reusable agent steps. They use the troubleshooter's
+existing `detections` and `detect_changes` tools respectively, inspecting available detections or changed
+source records rather than starting an ingestion or detector job. Set the subjects, detector, time window
+and expected results in **Instructions / parameters**. The worker passes these with the process data;
+findings remain proposals, recorded under the step's ID as an `answer`, not automatic plant actions.
+
+The embedded **Workflow drafting agent** accepts a natural-language description when `ANTHROPIC_API_KEY`
+is configured. It proposes steps, connections and layout without saving, publishing or running anything.
+Inspect its preview, choose **Review on canvas**, and confirm replacing the current canvas. Refine the
+draft before **Save draft**, **Check**, comparison and **Publish**; reported problems must be fixed before
+publishing. **Restore previous canvas** is available until the replacement is saved. Generation uses
+`POST /work/definitions/{id}/generate`; published versions require a new draft first.
+
+Existing execution and versioning are unchanged: publishing needs the workflow admin role, new cases use
+the published version, and running cases stay on their original version.
+
 **Routing and escalation are data** (`workflow/roles.py`, `work_role`, `work_person`):
 
 - A **role** is a person role or an agent role, with what it's for, a **default SLA** for person steps that set

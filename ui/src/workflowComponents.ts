@@ -1,0 +1,17 @@
+export const workflowComponents = [
+  { id: "start", name: "Start", type: "bpmn:StartEvent", icon: "start-event-none" },
+  { id: "person", name: "Person's task", type: "bpmn:UserTask", icon: "user-task" },
+  { id: "agent", name: "Agent's task", type: "bpmn:ServiceTask", icon: "service-task" },
+  { id: "anomaly", name: "Anomaly detection", type: "bpmn:ServiceTask", icon: "service-task",
+    agent: "troubleshooter", instructions: "Use detections to inspect anomalies for the work item's subjects. Report the detector, time window, evidence and uncertainty; propose actions only." },
+  { id: "data", name: "Data detection", type: "bpmn:ServiceTask", icon: "service-task",
+    agent: "troubleshooter", instructions: "Use detect_changes to inspect new or changed data for the work item's subjects. Report source records, time window and missing data; propose actions only." },
+  { id: "decision", name: "Decision", type: "bpmn:ExclusiveGateway", icon: "gateway-xor" },
+  { id: "parallel", name: "Parallel split / join", type: "bpmn:ParallelGateway", icon: "gateway-parallel" },
+  { id: "timer", name: "Wait for time", type: "bpmn:IntermediateCatchEvent", icon: "intermediate-event-catch-timer",
+    eventDefinitionType: "bpmn:TimerEventDefinition" },
+  { id: "message", name: "Wait for message", type: "bpmn:IntermediateCatchEvent", icon: "intermediate-event-catch-message",
+    eventDefinitionType: "bpmn:MessageEventDefinition" },
+  { id: "call", name: "Call workflow", type: "bpmn:CallActivity", icon: "call-activity" },
+  { id: "end", name: "End", type: "bpmn:EndEvent", icon: "end-event-none" },
+] as const;

@@ -119,3 +119,69 @@ def test_monitor_counts_steps_waiting_and_done(conn, client):
 def test_roles(client):
     r = client.get("/work/roles").json()
     assert "engineer" in r["person"] and "troubleshooter" in r["agent"]
+
+
+def test_agent_proposal_is_unsaved_then_uses_existing_lifecycle(conn, client, monkeypatch):
+    from fuzer.agents import workflow, worker
+    from fuzer.workflow.canvas import Draft
+
+    proposal = Draft.model_validate({
+        "steps": [{"id": "start", "component": "start", "name": "Start", "x": 80},
+                  {"id": "inspect", "component": "anomaly", "name": "Inspect", "x": 180,
+                   "parameters": {"instructions": "Inspect drifts over the last 24 hours"}},
+                  {"id": "end", "component": "end", "name": "Done", "x": 380}],
+        "connections": [{"source": "start", "target": "inspect"}, {"source": "inspect", "target": "end"}],
+    })
+    d = engine.import_bpmn(conn, UPSET.replace('id="upset"', 'id="canvas_test"'), "alice")[0]
+    before = engine.export_bpmn(conn, d["id"])
+    def generate(description, context):
+        assert description == "Inspect drifts"
+        assert context["process_key"] == "canvas_test"
+        assert "troubleshooter" in context["roles"]["agent"]
+        return proposal
+    monkeypatch.setattr(workflow, "generate", generate)
+    url = f"/work/definitions/{d['id']}"
+    events = conn.execute("select count(*) as n from work_event").fetchone()["n"]
+    r = client.post(url + "/generate", json={"description": "Inspect drifts", "by": "alice"})
+    assert r.status_code == 200
+    assert r.json()["steps"] == 3 and r.json()["problems"] == []
+    assert engine.export_bpmn(conn, d["id"]) == before
+    assert conn.execute("select count(*) as n from work_event").fetchone()["n"] == events
+    assert client.post(url + "/generate", json={"description": " ", "by": "alice"}).status_code == 400
+    assert client.put(url, json={"xml": r.json()["xml"], "by": "alice"}).status_code == 200
+    assert client.post(url + "/check", json={"by": "alice"}).json()["state"] == "checked"
+    assert client.post(url + "/publish", json={"by": "olga"}).status_code == 200
+    assert client.post(url + "/generate", json={"description": "Inspect", "by": "alice"}).status_code == 409
+    item = engine.start(conn, "canvas_test", {}, "alice")
+    def inspect(call):
+        assert call.instructions == "Inspect drifts over the last 24 hours"
+        assert call.item["id"] == item["item_id"]
+        return {"findings": "No drift"}
+    worker.run_once(conn, {"troubleshooter": inspect})
+    assert engine.item(conn, item["item_id"])["processes"][0]["state"] == "completed"
+    item = engine.start(conn, "canvas_test", {}, "alice")
+    claimed = worker.claim(conn, "migration-worker", ["troubleshooter"])
+    newer = engine.import_bpmn(conn, r.json()["xml"].replace("inspect", "recheck"), "alice")[0]
+    engine.publish(conn, newer["id"], "olga")
+    engine.migrate(conn, item["process_id"], newer["id"], "olga", {"inspect": "recheck"})
+    call = worker._call(conn, claimed, "migration-worker", engine.utcnow(), worker.LEASE)
+    assert call.element == "recheck" and call.instructions == "Inspect drifts over the last 24 hours"
+    engine.complete(conn, claimed["id"], "agent:troubleshooter", {}, worker="migration-worker")
+
+
+def test_agent_drafting_failures_leave_definition_unchanged(conn, client, monkeypatch):
+    from fuzer.agents import workflow
+
+    d = engine.import_bpmn(conn, UPSET.replace('id="upset"', 'id="canvas_errors"'), "alice")[0]
+    before = engine.export_bpmn(conn, d["id"])
+    url = f"/work/definitions/{d['id']}/generate"
+    body = {"description": "Inspect anomalies", "by": "alice"}
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert client.post(url, json=body).status_code == 503
+    assert client.post("/work/definitions/9999999/generate", json=body).status_code == 404
+    assert client.post(url, json={**body, "description": "x" * 12001}).status_code == 422
+    def invalid(*args):
+        raise ValueError("bad output")
+    monkeypatch.setattr(workflow, "generate", invalid)
+    assert client.post(url, json=body).status_code == 422
+    assert engine.export_bpmn(conn, d["id"]) == before

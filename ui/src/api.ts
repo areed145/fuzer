@@ -1365,6 +1365,9 @@ export const api = {
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
+  generateWorkflow: (id: number, description: string, by: string) =>
+    request<{ xml: string; problems: WorkProblem[]; steps: number; connections: number }>(
+      "POST", `/work/definitions/${id}/generate`, undefined, { description, by }),
   workRoles: () => request<{ person: string[]; agent: string[] }>("GET", "/work/roles"),
   importDefinition: (xml: string, by: string) =>
     request<{ id: number; process_key: string; version: number }[]>("POST", "/work/definitions", undefined, { xml, by }),
