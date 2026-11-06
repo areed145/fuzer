@@ -889,6 +889,23 @@ test("Ask opens and can be left without DOM effect-cleanup crashes", async () =>
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
 
+test("Ask displays new domain specialist names without a fixed agent list", async () => {
+  await page.route("**/assistant/ask", (route) => route.fulfill({
+    json: { job_id: "domain-job", conversation_id: "domain-conversation" },
+  }));
+  await page.route("**/assistant/jobs/domain-job", (route) => route.fulfill({ json: {
+    id: "domain-job", conversation_id: "domain-conversation", question: "Summarize well evidence.",
+    status: "done", answer: "Evidence summary.", error: null, seconds: 1,
+    specialists: ["wells-subsurface"],
+    usage: { model_calls: 1, input: 1, output: 1, cache_read: 0, cache_write: 0, cost_usd: 0, models: {} },
+    steps: [{ agent: "wells-subsurface", tool: "well_performance", args: {} }], model_calls: 1,
+  } }));
+  await page.goto(`${url}/#/ask`);
+  await page.getByLabel("Question for the operations assistant").fill("Summarize well evidence.");
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await page.getByText("Specialists: Wells Subsurface", { exact: true }).waitFor();
+});
+
 test("Analytics renders declarative daily panels, linked hover/zoom, unknown days and saved JSON", async () => {
   const requests = [];
   await page.route("**/analytics/production-efficiency*", (route) => {

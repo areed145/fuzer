@@ -2,16 +2,13 @@
 
     uv run fuzer ask "Why does lift gas keep running short, and what should go in the next turnaround?"
 
-An orchestrator talks to the user, answers simple lookups itself and hands domain work to three
-specialists, which it can run at the same time (MAF background agents):
+An orchestrator talks to the user, answers simple lookups itself and routes domain work to seven
+specialists, which can run at the same time (MAF background agents). The shared capability registry
+defines their persona coverage, skills, prerequisites, constraints and human-decision boundaries.
 
-- troubleshooter: one unit or incident: what happened, what the process values did, what to check.
-- production: surveillance and optimisation, production efficiency, constraints, production engineering.
-- maintenance: reliability and inspection, work orders and backlog, turnarounds.
-
-Each agent gets the Fuzer tools its domain needs (the MCP server's tool functions, called in-process;
-all read-only) and its skills (`skills/<agent>/*/SKILL.md`: names and descriptions up front, the
-body loaded when the agent needs it).
+Each agent gets its registered Fuzer tools (the MCP server's tool functions, called in-process; all
+read-only) and the existing skills assigned to its domain (names and descriptions up front, body
+loaded when needed).
 Nothing here can act on the plant.
 
 The agent provider, models and efforts are settings (#131):
@@ -30,6 +27,7 @@ from contextvars import ContextVar
 from pathlib import Path
 
 from ..core import llm, models, settings
+from .capabilities import AGENT_BY_ID, AGENT_CATALOG
 
 SKILLS = Path(__file__).parent / "skills"
 DEFAULT_MODEL = models.DEFAULT_MODEL
@@ -61,18 +59,16 @@ def __getattr__(name: str):
 
 ORCHESTRATOR = """\
 You are the operations assistant for an oil and gas asset. Engineers, supervisors and planners ask you
-about the plant: troubleshooting, production, constraints, wells, reliability, maintenance work and
-turnarounds. Fuzer is the asset's data graph: SAP, PI, Energy Components, P&IDs, operator logs and
-documents, merged and linked. Its tools are your only source of facts.
+about the plant. Fuzer is the asset's data graph; its linked records and tools are your only source of
+facts. Route domain questions to the relevant specialists below, and start independent specialists
+together when a question spans domains. Each specialist is read-only and has a narrow evidence boundary.
+
+Domain routing:
+[SPECIALIST_ROUTING]
 
 Answer simple lookups (what is X, where is it, what's connected to it) yourself. Hand domain work to
-your specialists, and when a question spans domains, start them together and combine their findings
-into one answer:
-- troubleshooter: a unit or incident: what happened, what the trends did, causes, checks to make.
-- production: production and efficiency, deferment, what limits throughput, well performance, gas lift
-  (the lift gas network, allocation between wells, shortfalls).
-- maintenance: bad actors and failure modes, inspections and PM compliance, work order backlog,
-  turnaround scope and long-lead spares.
+your specialists, and combine their findings into one answer. A specialist may report missing evidence;
+do not route a question as if the catalog implies the required source or model exists.
 Give a specialist a self-contained task: the question, the entities and dates you already know.
 
 Specialists can make interactive charts and return their `[[figure:<id>]]` markers. Keep the markers
@@ -91,21 +87,8 @@ cite them; if one matters, say what replaced it and cite that.
 
 Load the `answering` skill before writing your final answer."""
 
-SPECIALISTS = {
-    "troubleshooter": ("Troubleshoots one unit or incident: timeline, process values, similar past incidents, "
-                       "lessons, manual sections, and checks to make.",
-                       "You troubleshoot one unit or incident on an oil and gas asset using Fuzer's tools. Load the "
-                       "`troubleshooting` skill first."),
-    "production": ("Production surveillance and optimisation, production efficiency and deferment, constraints, "
-                   "production engineering (wells, well tests) and gas lift (network, allocation, shortfalls).",
-                   "You are a production engineer for an oil and gas asset, working from Fuzer's tools. Load the "
-                   "skill that fits the task first: production-surveillance, production-efficiency, "
-                   "constraint-management, back-pressure, production-engineering or gas-lift."),
-    "maintenance": ("Reliability, maintenance and inspection: bad actors, MTBF, failure modes, PM and inspection "
-                    "compliance, work order backlog, turnaround scope and spares.",
-                    "You are a maintenance and reliability engineer for an oil and gas asset, working from Fuzer's "
-                    "tools. Load the skill that fits the task first: reliability, work-orders or turnarounds."),
-}
+SPECIALISTS = {agent.id: (agent.description, agent.instructions)
+               for agent in AGENT_CATALOG if agent.id != "orchestrator"}
 REPORT = ("Report back to the orchestrator, not the end user: findings first, with numbers, dates and the Fuzer id "
           "or source record behind each fact, then what you could not find. Keep it under 400 words. If you made "
           "charts, include each `[[figure:<id>]]` marker on its own line with one sentence on what it shows.")
@@ -260,7 +243,8 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
     from .capabilities import tools_by_agent
 
     # Our own markdown skills (no scripts), so loading them needs no approval.
-    skills = SkillsProvider.from_paths([SKILLS / name, SKILLS / "shared"], script_extensions=(),
+    skills = SkillsProvider.from_paths([*(SKILLS / path for path in AGENT_BY_ID[name].skill_paths),
+                                        SKILLS / "shared"], script_extensions=(),
                                        disable_load_skill_approval=True,
                                        disable_read_skill_resource_approval=True)
     return create_harness_agent(
@@ -292,7 +276,9 @@ def team(chat=None, effort: str | None = None, specialist_effort: str | None = N
     specialists = [_agent(specialist_chat, name, f"{instructions}\n\n{REPORT}", specialist_effort, description,
                           model=specialist_chat_model)
                    for name, (description, instructions) in SPECIALISTS.items()]
-    return _agent(chat, "orchestrator", ORCHESTRATOR, effort, "Fuzer operations assistant",
+    routing = "\n".join(f"- {agent.id}: {agent.description}" for agent in AGENT_CATALOG if agent.id != "orchestrator")
+    return _agent(chat, "orchestrator", ORCHESTRATOR.replace("[SPECIALIST_ROUTING]", routing),
+                  effort, "Fuzer operations assistant",
                   model=orchestrator_model, background_agents=specialists,
                   background_agents_wait_timeout_seconds=600,
                   **({"history_provider": history} if history is not None else {}))

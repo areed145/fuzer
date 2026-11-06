@@ -1,17 +1,17 @@
-"""SRE hand-off (#96c): each upset of note gets a priority (#100), a diagnosis from the troubleshooter
+"""SRE hand-off (#96c): each upset of note gets a priority (#100), a diagnosis from Field Operations & Facilities
 (Claude, within a per-run cap) and a work item in the `upset` process (#97), where an engineer triages it.
 
 - priority: the #100 score of what the upset puts at stake. Its first-cause unit's oil lost per day to
   downtime, its criticality and failure rate count. An upset still going is due now; a recovered one is
   scored as the cost of a repeat.
-- diagnose: one question to the operations assistant team, which routes it to the troubleshooter. The
+- diagnose: one question to the operations assistant team, which routes it to Field Operations & Facilities. The
   answer gives likely causes with confidence, the records that support each, what would confirm or rule
   each out, and proposed actions for people (never plant operating instructions). A JSON block at the end
   makes these fields. A cause with no cited record is marked uncited.
 - handoff: upsets not handed off yet (process upsets of `MIN_DETECTIONS` or more, not suppressed),
   highest priority first. Each is diagnosed while the run's cap allows, then starts or adds evidence to
   the `upset` process (correlation key: the upset). An upset over the cap still gets its work item; the
-  troubleshooter diagnoses it in the workflow after triage.
+  field-operations specialist diagnoses it in the workflow after triage.
 - feedback: an engineer's triage of "false alarm" marks the upset and suppresses its first detection's
   pattern (point, detector, finding), so the same pattern isn't handed off again.
 """
@@ -76,7 +76,7 @@ def prompt(conn, upset: dict) -> str:
         f"Likely first cause: {d['first_key']} on {d['first_point']} ({d['first_unit']}) at {d['start']}"
         f"{', still going' if d['end'] is None else ', ended ' + str(d['end'])}.\n"
         f"Detections per unit: {units}.\nFirst detections in time order:\n" + "\n".join(lines) + "\n\n"
-        "Troubleshoot it with the troubleshooter: what most likely happened and why, with a confidence for each "
+        "Use Field Operations & Facilities to assess what most likely happened and why, with a confidence for each "
         "cause, the records that support it (cite Fuzer ids or record keys), what would confirm or rule it out, "
         "and proposed actions for people (inspect, raise a notification, compare with a procedure section), "
         "each with the lesson, procedure or past incident it comes from. Propose; never give plant operating "
@@ -100,7 +100,7 @@ def parse(answer: str) -> dict:
 
 
 def diagnose(conn, upset: dict, ask=None) -> dict:
-    """The troubleshooter's diagnosis of one upset. `ask(question) -> {answer, usage}` defaults to the
+    """The Field Operations & Facilities diagnosis of one upset. `ask(question) -> {answer, usage}` defaults to the
     operations assistant team (agents.ask)."""
 
     if ask is None:

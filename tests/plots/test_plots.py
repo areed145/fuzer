@@ -200,8 +200,9 @@ def test_tools_return_a_marker_and_summary_not_arrays(conn, okan_pack):
 def test_every_role_has_its_charts():
     from fuzer import agents
 
-    for role, extra in {"troubleshooter": "plot_incident", "production": "plot_decline",
-                        "maintenance": "plot_wall_thickness", "orchestrator": "look_at_figure"}.items():
+    for role, extra in {"field-operations-facilities": "plot_incident",
+                        "production-surveillance": "plot_decline",
+                        "maintenance-integrity": "plot_wall_thickness", "orchestrator": "look_at_figure"}.items():
         assert extra in agents.TOOLS[role]
         assert all(hasattr(mcp_server, t) for t in agents.TOOLS[role])
 
@@ -237,10 +238,12 @@ def test_eval_scores_charts_in_answers(conn, okan_pack):
     from fuzer.evals import evaluate
 
     out = mcp_server.plot_decline("OK-J07-03")
-    answer = {"answer": f"OK-J07-03 declines after the valve repair.\n\n{out['marker']}\n", "specialists": ["production"],
-              "tools": [{"agent": "production", "tool": "look_at_figure", "args": {}}], "seconds": 1,
+    answer = {"answer": f"OK-J07-03 declines after the valve repair.\n\n{out['marker']}\n",
+              "specialists": ["production-surveillance"],
+              "tools": [{"agent": "production-surveillance", "tool": "look_at_figure", "args": {}}], "seconds": 1,
               "usage": {"cost_usd": 0.1}}
-    case = {"question": "q", "must_mention": ["OK-J07-03"], "specialists": ["production"], "charts": ["decline"]}
+    case = {"question": "q", "must_mention": ["OK-J07-03"],
+            "specialists": ["production-surveillance"], "charts": ["decline"]}
     r = evaluate.score_answer(case, answer)
     assert r["charts"] == ["decline"] and r["charted"] is True and r["looked_at_charts"] == 1
     assert evaluate.score_answer(case | {"charts": ["wall_ranking"]}, answer)["charted"] is False

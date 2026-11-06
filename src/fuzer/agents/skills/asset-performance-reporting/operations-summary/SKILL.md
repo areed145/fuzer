@@ -1,0 +1,17 @@
+---
+name: operations-summary
+description: Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has.
+---
+
+# Cross-domain operations summary
+
+Start with `get_daily_ops_report` for its recorded production date and cited operational sections. For a requested
+time window, use `production_summary`, `deferment_pareto`, and `production_constraints`; add `well_performance`
+when the question concerns well tests or well-level production. For maintenance and work context, use
+`bad_actors`, `work_order_backlog`, `maintenance_compliance`, and `turnaround_scope` as applicable. `value_score`
+can compare recorded risk and value inputs when those inputs are present.
+
+Keep dates, time windows, units, evidence IDs, and missing-data caveats with every numeric claim. A daily report is
+historical to its recorded report date, not necessarily live. Do not derive commercial or production-accounting
+reconciliation, cost, or financial value without authoritative accounting and cost sources; do not turn an
+operational summary into an approved decision or external report.
