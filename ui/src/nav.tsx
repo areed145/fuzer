@@ -11,6 +11,7 @@ export interface NavItem {
   label: string;
   /** First path segment the page lives under ("" is the home / browse page). */
   section: string;
+  path?: string;
   /** Other first segments that count as this page (entity pages belong to Browse). */
   also?: string[];
   badge?: Badge;
@@ -23,54 +24,51 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+  permission?: string;
 }
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
+  { label: "Home", items: [{ label: "Home", section: "" }] },
   {
     label: "Explore",
     items: [
-      { label: "Home", section: "", also: ["investigate"] },
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
+      { label: "Ontology", section: "ontology", permission: "configure" },
     ],
   },
   {
-    label: "Operations",
+    label: "Investigate",
     items: [
-      { label: "Work board", section: "board" },
+      { label: "Okan walkthrough", section: "investigate", path: "/investigate/okan" },
+      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
       { label: "Analytics", section: "analytics" },
-    ],
-  },
-  {
-    label: "Knowledge",
-    items: [
-      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Lessons", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],
   },
   {
-    label: "Workflows",
+    label: "Work",
     items: [
+      { label: "Work board", section: "board" },
       { label: "Inbox", section: "inbox", also: ["work"], badge: "work" },
       { label: "Cases", section: "cases" },
+      { label: "Data review", section: "review", badge: "review" },
       { label: "Processes", section: "processes" },
       { label: "Teams & routing", section: "teams" },
     ],
   },
+  { label: "Sources", permission: "configure", items: [{ label: "Sources", section: "sources" }] },
+  { label: "Jobs", permission: "configure", items: [{ label: "Jobs", section: "jobs" }] },
   {
-    label: "Admin",
+    label: "Settings",
     items: [
-      { label: "Ontology", section: "ontology", permission: "configure" },
-      { label: "Data review", section: "review", badge: "review" },
-      { label: "Sources", section: "sources", permission: "configure" },
-      { label: "Jobs", section: "jobs", permission: "configure" },
-      { label: "Settings", section: "settings" },
+      { label: "Application settings", section: "settings" },
       { label: "Sign-in & access", section: "access", ownerOnly: true },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
@@ -79,6 +77,27 @@ export const NAV: NavGroup[] = [
 
 export const isActive = (item: NavItem, section: string) =>
   item.section === section || !!item.also?.includes(section);
+
+function useNavigationAccess() {
+  const session = useAuth();
+  const configure = usePermission("configure"), ai = usePermission("ai");
+  return (item: { permission?: string; ownerOnly?: boolean }) =>
+    (!item.ownerOnly || !!session?.user?.owner) &&
+    (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
+}
+
+export function AreaNavigation({ section }: { section: string }) {
+  const allowed = useNavigationAccess();
+  const found = navItemFor(section);
+  if (!found || !allowed(found.group)) return null;
+  const items = found.group.items.filter(allowed);
+  if (items.length < 2) return null;
+  return <nav className="area-navigation" aria-label={`${found.group.label} pages`}>
+    {items.map((item) => <a key={item.section} href={item.external ?? href(item.path ?? `/${item.section}`)}
+      aria-current={isActive(item, section) ? "page" : undefined}
+      {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}>{item.label}</a>)}
+  </nav>;
+}
 
 /** The nav item a route belongs to, for active state and breadcrumbs. */
 export function navItemFor(section: string): { group: NavGroup; item: NavItem } | undefined {
@@ -94,10 +113,7 @@ export function Sidebar({ section, badges, status }: {
   /** The compact status area at the foot of the sidebar (facility, counts, health). */
   status: ReactNode;
 }) {
-  const session = useAuth();
-  const configure = usePermission("configure"), ai = usePermission("ai");
-  const allowed = (item: NavItem) => (!item.ownerOnly || !!session?.user?.owner) &&
-    (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
+  const allowed = useNavigationAccess();
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
@@ -162,30 +178,28 @@ export function Sidebar({ section, badges, status }: {
           <Logo />
         </a>
         <nav aria-label="Main">
-          {NAV.map((group) => (
-            <section key={group.label} className={group.label === "Admin" ? "nav-group admin" : "nav-group"}>
-              <h2 id={`nav-${group.label}`}>{group.label}</h2>
-              <ul aria-labelledby={`nav-${group.label}`}>
-                {group.items.filter(allowed).map((item) => {
-                  const on = isActive(item, section);
-                  const count = item.badge ? badges[item.badge] : 0;
+          <section className="nav-group">
+              <ul>
+                {NAV.filter(allowed).map((group) => {
+                  const item = group.items[0];
+                  const on = group.items.some((entry) => isActive(entry, section));
+                  const count = group.items.reduce((n, entry) => n + (entry.badge ? badges[entry.badge] : 0), 0);
                   return (
-                    <li key={item.label}>
+                    <li key={group.label}>
                       <a
-                        href={item.external ?? href(`/${item.section}`)}
+                        href={href(item.path ?? `/${item.section}`)}
                         className={on ? "on" : undefined}
                         aria-current={on ? "page" : undefined}
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
-                        <span>{item.label}{item.external && <span aria-hidden="true"> ↗</span>}</span>
+                        <span>{group.label}</span>
                         {count > 0 && <span className="count">{count}</span>}
                       </a>
                     </li>
                   );
                 })}
               </ul>
-            </section>
-          ))}
+          </section>
         </nav>
         <div className="sidebar-status">{status}</div>
         <a className="small" href={href("/settings")}>Appearance & settings</a>
@@ -199,7 +213,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   const section = path[0] ?? "";
   const found = navItemFor(section);
   if (!found || path.length < 2) return null;
-  const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: `/${found.item.section}` }];
+  const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: found.item.path ?? `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
   else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Okan investigation" });

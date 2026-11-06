@@ -2,8 +2,13 @@
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
 These are ownership boundaries, not a requirement for eight top-level navigation entries.
-Sidebar presentation is undecided. The prior Explore, Operations, Knowledge, Workflows and Admin
-groups/labels remain unchanged pending a user decision; they do not define domain ownership.
+The user explicitly selected seven primary destinations: **Home, Explore, Investigate, Work,
+Sources, Jobs and Settings**. The sidebar contains only these destinations (subject to access).
+Specialist pages appear in secondary area navigation using their existing URLs.
+
+Primary landings reuse Home, Browse (Explore), the Okan walkthrough (Investigate), Work board
+(Work), Sources, Jobs and Settings. Investigate is an evidence-led demo entry, not a new
+generic investigation subsystem. Direct links select their owning primary destination.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
@@ -29,6 +34,14 @@ All existing route URLs remain compatible. The legacy `#/work`, `#/work/item/:id
 Navigation grouping is presentation, not authorization: keep server permission checks and existing
 owner-only/configure/AI visibility rules.
 
+Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
+Investigate contains the Okan walkthrough, AI-gated Ask, Downtime, Incidents, Daily reports,
+Analytics, Lessons and Studies. Work contains Work board, Inbox, Cases, Data review, Processes
+and existing Teams & routing. Settings contains Application settings, owner-only Sign-in & access
+and external Docs. Sources retains its datasets/systems/rules/wizard navigation;
+Jobs retains run detail links. Teams routing and access administration remain separate current
+surfaces pending #279, not a newly consolidated Users destination.
+
 ## Home direction, not implemented in this pass
 
 Future Home should combine role-based defaults and useful current-work context with personal
@@ -39,7 +52,8 @@ automatic relevance ranking or widget configuration until the owning workflows a
 ## Contributor checks
 
 Before adding a page or action, identify its owner here and link to an existing surface when one
-already owns it. Update this ownership map when responsibility changes. Do not infer sidebar grouping or label
-approval from conceptual ownership boundaries. Preserve old URLs or add
+already owns it. Update this ownership map and navigation together when responsibility changes.
+Keep the explicitly selected seven destinations; do not substitute a catch-all Manage group.
+Preserve old URLs or add
 explicit tested redirects. Verify active navigation/breadcrumbs, contextual links, direct reader
 access and desktop/mobile navigation. Use the existing API/domain boundaries and shared UI kit.

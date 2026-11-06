@@ -23,7 +23,7 @@ import { TaskPage } from "./pages/workflows/Task";
 import { CasePage, CasesPage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
-import { Breadcrumbs, Sidebar } from "./nav";
+import { AreaNavigation, Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
@@ -92,6 +92,7 @@ function App() {
       />
       <main id="main-content" tabIndex={-1}>
         <Breadcrumbs path={path} />
+        <AreaNavigation section={navSection} />
         <Suspense fallback={<div className="status">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
