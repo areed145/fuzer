@@ -3,6 +3,22 @@
 Read [adapter boundaries](docs/adapter-boundaries.md) and the [UI style guide](docs/ui-style.md)
 before changing user journeys. Reuse domain operations, the settings/capability registries, and the
 local UI kit; do not add a parallel service, component kit, or source of configuration.
+Read [page ownership](docs/page-ownership.md) before adding routes or controls: one owning surface
+per action, reusable contextual entry links, compatible URLs, and no duplicated entity/source/job
+editors. Navigation grouping is not authorization. Users consolidation remains separate (#279);
+Home personalization is a future direction, not permission to add a ranking/widget engine.
+Keep the user-selected primary destinations Home, Explore, Investigate, Work, Sources, Jobs and
+Settings. Put specialist routes in their owner's secondary navigation, preserving URLs and access
+rules; do not replace this with a catch-all Manage section or duplicate primary specialist entries.
+Shared API requests use the bounded browser queue and coalesce only in-flight read-only calls.
+Never automatically retry mutations, paid probes or rejected requests. Verify normal page mounts
+and global refresh at default server admission limits, plus explicit overload/recovery behavior.
+For source ingestion and review actions, show prerequisites, shared-state consequences and an explicit
+confirmation before executing; reuse `ConfirmAction`/`ActionStatus` and existing action services.
+Distinguish a saved decision or rebuild request from completed ingestion/rebuild. Link source execution
+to the dataset's Runs/Quality and scheduler diagnostics to Jobs, never invent a second run model.
+After ambiguous failures, tell users to inspect recorded state before a deliberate retry; do not
+silently replay. Keep reader controls explanatory and enforce permissions on the server.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,
@@ -23,6 +39,14 @@ local UI kit; do not add a parallel service, component kit, or source of configu
   loopback-only development mode, never a deployment fallback.
 - Extend the existing components/tokens and use accessible navigation and focus management.
   Do not replace source evidence with hard-coded scenario answers.
+- Sources owns connect/test/ingest/freshness/load recovery; Settings owns application configuration,
+  defaults and restart requirements. Home summarizes and links to those owners, never duplicates
+  their configuration. Reuse existing Sources/Jobs controls, not a parallel dashboard.
+  Use effective registry values and provenance, not defaults as
+  runtime truth. Distinguish reference presence, recorded tests and observed live behavior.
+  Viewing readiness must not test providers, load data, mutate state or incur AI charges.
+  Keep secret values in deployment storage, expose references/presence only, and state application
+  timing honestly: next use versus affected-process restart, never an unverified "restart complete".
 
 For the Okan investigation, run `uv run pytest tests/api/test_investigation_api.py` and
 `npm --prefix ui run build` followed by `npm --prefix ui run test:browser`.

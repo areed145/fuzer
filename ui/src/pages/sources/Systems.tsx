@@ -22,6 +22,7 @@ export function Systems() {
         A system is where records come from (its name is what records say as their source). A connection is how Fuzer
         reaches it: a folder of exports (empty path: the project's data folder), PI Web API or ADX. Secrets are
         references such as <code>env:PI_PASSWORD</code>, never the value.
+        {" "}A deliberate test contacts the service, may read sample rows and saves its result; it does not load data or call AI.
       </p>
       <NewSystem onDone={cat.reload} />
       <Status loading={cat.loading && !cat.data} error={cat.error} />
@@ -89,7 +90,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
 
 function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: string; reload: () => void }) {
   const a = useAction();
-  const [test, setTest] = useState(c.last_test);
+  const test = c.last_test;
   const [found, setFound] = useState<{ table: string; dataset: string | null }[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [cfg, setCfg] = useState<Record<string, string>>(() =>
@@ -100,8 +101,9 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
       {Object.entries(c.secrets).map(([k, v]) => (
         <UIBadge key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
       ))}{" "}
-      {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</UIBadge>}{" "}
-      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
+      {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
+      {c.last_tested_at && <span className="muted">recorded {c.last_tested_at} </span>}
+      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id))}>
         {a.busy === "test" ? "testing…" : "test"}</Button>
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
         what it holds</Button>

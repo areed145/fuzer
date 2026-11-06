@@ -15,7 +15,8 @@ import {
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
-import { Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
+import { ActionStatus, Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
+import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
@@ -62,6 +63,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         Register data waiting for a person's decision: records that may be the same thing, sources that disagree on a
         value, and tables whose columns changed. Each decision is kept and applied on the next rebuild. Workflow steps
         waiting on you are in your <a href={href("/inbox")}>Inbox</a>.
+        {" "}Connection, ingestion and freshness recovery belong in <a href={href("/sources")}>Sources</a>.
       </>}>Data review</PageHeader>
       <div className="row spread">
         <div className="tabs">
@@ -105,8 +107,10 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       </p>
 
       {toast && (
-        <div className="toast" onAnimationEnd={() => setToast(undefined)}>
+        <div role="status" className="notice">
           {toast}
+          <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
+            <a href={href("/jobs")}>Inspect technical execution</a></p>
         </div>
       )}
 
@@ -141,24 +145,41 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
 
 type OnDecide = (d: Omit<Decision, "by">) => Promise<void>;
 
-function useBusy(onDecide: OnDecide) {
+function useBusy(onDecide: OnDecide, consequence = "It may change accepted values, asset links or future loads.") {
+  const operate = usePermission("operate");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const run = async (d: Omit<Decision, "by">) => {
+  const [pending, setPending] = useState<Omit<Decision, "by"> | null>(null);
+  const submit = async () => {
+    if (!pending || busy || !operate) return;
     setBusy(true);
     setError(undefined);
     try {
-      await onDecide(d);
+      await onDecide(pending);
+      setPending(null);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
       setBusy(false);
     }
   };
-  return { busy, error, run };
+  const feedback = <>
+    {!operate && <p>Decisions require operate access and any applicable workflow role. Ask an owner to update your roles.</p>}
+    {pending && !busy && <div className="notice" role="group" aria-label="Confirm review decision">
+      <p>Record this shared {pending.decision} decision? {consequence}
+        A review decision is not proof that ingestion or a background rebuild has completed.</p>
+      <Button type="button" variant="primary" onClick={submit}>Confirm decision</Button>{" "}
+      <Button type="button" onClick={() => { setPending(null); setError(undefined); }}>Cancel</Button>
+    </div>}
+    <ActionStatus busy={busy ? "Saving review decision…" : null} error={error} />
+  </>;
+  return { busy: busy || !operate, feedback, run: (d: Omit<Decision, "by">) => {
+    if (!busy && operate) { setError(undefined); setPending(d); }
+  } };
 }
 
 function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide: OnDecide }) {
-  const { busy, error, run } = useBusy(onDecide);
+  const { busy, feedback, run } = useBusy(onDecide);
   const fields = [...new Set([...Object.keys(p.left.fields), ...Object.keys(p.right.fields)])].sort();
   return (
     <UICard className="review">
@@ -199,14 +220,14 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
         <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Different items
         </Button>
-        {error && <span className="error">{error}</span>}
+        {feedback}
       </div>
     </UICard>
   );
 }
 
 function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDecide: OnDecide }) {
-  const { busy, error, run } = useBusy(onDecide);
+  const { busy, feedback, run } = useBusy(onDecide);
   const [text, setText] = useState(p.yaml);
   const s = p.suggestion;
   return (
@@ -271,14 +292,14 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
         <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Not now
         </Button>
-        {error && <span className="error">{error}</span>}
+        {feedback}
       </div>
     </UICard>
   );
 }
 
 function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecide: OnDecide }) {
-  const { busy, error, run } = useBusy(onDecide);
+  const { busy, feedback, run } = useBusy(onDecide);
   const was = new Map(p.old);
   const now = new Map(p.new);
   const columns = [...new Set([...was.keys(), ...now.keys()])];
@@ -316,7 +337,7 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
         <Button disabled={busy} onClick={() => run({ decision: "reject" })}>
           Keep on hold
         </Button>
-        {error && <span className="error">{error}</span>}
+        {feedback}
       </div>
     </UICard>
   );
@@ -329,7 +350,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
   p: ConflictPayload;
   onDecide: OnDecide;
 }) {
-  const { busy, error, run } = useBusy(onDecide);
+  const { busy, feedback, run } = useBusy(onDecide);
   const [custom, setCustom] = useState("");
   const distinct = [...new Map(p.values.map((v) => [fmt(v.value), v])).values()];
   return (
@@ -374,7 +395,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
       >
         <Input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
         <Button disabled={busy || !custom.trim()}>Save</Button>
-        {error && <span className="error">{error}</span>}
+        {feedback}
       </form>
     </UICard>
   );
@@ -409,7 +430,7 @@ function MiniCurve({ name, unit, xUnit, pts }: { name: string; unit?: string; xU
 }
 
 function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide: OnDecide }) {
-  const { busy, error, run } = useBusy(onDecide);
+  const { busy, feedback, run } = useBusy(onDecide);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(() => JSON.stringify(p.reading, null, 1));
   const r = p.reading;
@@ -450,7 +471,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
         )}
         <Button disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Cancel" : "Correct values"}</Button>
         <Button disabled={busy} onClick={() => run({ decision: "reject" })}>Wrong, don't use</Button>
-        {error && <span className="error">{error}</span>}
+        {feedback}
       </div>
     </UICard>
   );
@@ -458,7 +479,9 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
 
 
 /** A load held by its checks (#225): why, and the dataset to fix it on. */
-function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onDecide: (d: { decision: "accept" }) => void }) {
+function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onDecide: OnDecide }) {
+  const { busy, feedback, run } = useBusy(onDecide,
+    "Seen acknowledges this notice only. It does not fix the source, change the checks or retry ingestion.");
   const failed = p.failed ?? [];
   return (
     <UICard className="">
@@ -471,8 +494,9 @@ function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onD
       </ul>
       <div className="row">
         <ButtonLink variant="primary" href={href("/sources", { view: "dataset", name: p.dataset })}>Open the dataset</ButtonLink>
-        <Button variant="secondary" onClick={() => onDecide({ decision: "accept" })}>Seen</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "accept" })}>Seen</Button>
       </div>
+      {feedback}
     </UICard>
   );
 }

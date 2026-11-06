@@ -55,6 +55,18 @@ def test_a_new_source_from_the_api_alone(client):
     assert "vendor_pumps" in ok(client.get(f"/sources/connections/{files['id']}/discover"))["uncovered"]
     test = ok(client.post(f"/sources/connections/{files['id']}/test"))
     assert test["ok"] and [s["step"] for s in test["steps"]] == ["reach", "list", "read"]
+    tested = next(c for s in ok(client.get("/sources/catalog"))["systems"]
+                  for c in s["connections"] if c["id"] == files["id"])
+    assert tested["last_test"]["ok"] and tested["last_tested_at"]
+    ok(client.patch(f"/sources/connections/{files['id']}", json={
+        "values": {"config": {"path": str(client.data)}}, "by": "ana", "reason": "explicit source folder",
+    }))
+    changed = next(c for s in ok(client.get("/sources/catalog"))["systems"]
+                   for c in s["connections"] if c["id"] == files["id"])
+    assert changed["last_test"] is None and changed["last_tested_at"] is None
+    ok(client.patch(f"/sources/connections/{files['id']}", json={
+        "values": {"config": files["config"]}, "by": "ana", "reason": "restore project data folder",
+    }))
 
     sug = ok(client.post("/sources/vendor_pumps/suggest", json={"claude": False}))
     loaded = ok(client.post("/sources/vendor_pumps/load", json={"yaml": sug["yaml"], "by": "ana"}))
@@ -94,6 +106,20 @@ def test_a_new_source_from_the_api_alone(client):
     assert ok(client.get("/sources/datasets/vendor_pumps"))["dataset"]["status"] == "paused"
     ok(client.post("/sources/datasets/vendor_pumps/resume", json={"by": "ana"}))
     assert ok(client.get("/sources/audit", params={"object": "check"}))
+
+
+def test_catalog_view_never_initializes_or_mutates_configuration(client, monkeypatch):
+    from fuzer.sources import catalog
+
+    def reject_initialization(*args, **kwargs):
+        raise AssertionError("Page viewing must not initialize configuration")
+
+    monkeypatch.setattr(catalog, "ensure", reject_initialization)
+    with db.connect() as conn:
+        before = conn.execute("select count(*) as n from source_audit").fetchone()["n"]
+    assert client.get("/sources/catalog").status_code == 200
+    with db.connect() as conn:
+        assert conn.execute("select count(*) as n from source_audit").fetchone()["n"] == before
 
 
 def test_rules_health_alerts_and_lineage(client):

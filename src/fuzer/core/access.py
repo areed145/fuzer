@@ -75,6 +75,12 @@ def configured() -> bool:
                 and os.environ.get("FUZER_PUBLIC_URL"))
 
 
+def readiness() -> dict:
+    """Deployment references only; presence is not proof of an identity-provider exchange."""
+    return {"mode": mode(), "configured": configured(),
+            "bootstrap_present": bool(os.environ.get("FUZER_OWNER_BOOTSTRAP_TOKEN"))}
+
+
 def microsoft_client():
     import msal
 

@@ -1,5 +1,37 @@
 # Deployment and settings
 
+## Guided setup and readiness
+
+Open **Home -> Source readiness -> Sources** with configure permission to connect, test,
+ingest, monitor freshness and recover failed loads. The existing dataset list owns readiness;
+Systems & connections owns deliberate tests, and Jobs owns scheduler/run diagnostics.
+**Settings -> Application configuration** owns deployment/sign-in references, application defaults,
+optional AI/limits and restart requirements. Home links to these destinations without duplicating
+configuration. Refresh reads existing configuration and
+diagnostics only; it does not call AI, test credentials, load data or restart processes.
+Readers retain browser Appearance settings but cannot retrieve facility configuration.
+
+**Configuration** is the existing audited settings editor, with effective project/global/legacy
+environment/default provenance. Legacy source-seeding settings remain compatible for old integrations,
+but their duplicate UI editors are retired: use **Sources -> Systems & connections** for endpoints
+and secret references. Deliberate connection tests contact the service, may read sample rows and
+store their outcome; a test is not a load or freshness check. Editing a connection invalidates its
+previous test. Changing a deployment secret also requires retesting, since Fuzer cannot observe
+external credential rotation.
+
+Settings marked **next use** apply to subsequent reads after cache refresh, not already-running
+work. **Restart** settings require the affected API/agent or scheduler process to restart.
+This screen does not track applied runtime generations or offer hosting restart/secret management.
+Public origin, Microsoft app registration, database connectivity and secret values remain deployment
+operator responsibilities. Credential presence does not verify login, provider reachability, model
+access or a spending ceiling. Keep provider-side budgets as well as application limits.
+
+The browser admits at most two API requests at a time and shares identical in-flight read-only
+requests within the same session. Waiting is bounded (32 requests, 30 seconds); overflow or timeout
+is shown as an actionable error. Server admission remains four concurrent requests by default,
+shared across tabs/visitors, and rejects overload with 429 and Retry-After. Requests are never
+automatically replayed: especially do not retry mutations or paid calls after an uncertain result.
+
 Running Fuzer, its configuration and how it performs at size.
 
 ## Configuration

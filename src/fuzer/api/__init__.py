@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.errors import QueryCanceled
 
 from ..core import access, db
+from ..sources import catalog as source_catalog
 from ..workflow import engine as work
 from . import (
     assistant,
@@ -39,6 +40,8 @@ async def lifespan(app):
         db.init_schema(conn)
         work.load_defaults(conn)
         access.seed(conn)
+        source_catalog.ensure(conn)
+        conn.commit()
     yield
 
 

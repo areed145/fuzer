@@ -79,6 +79,232 @@ const signedInUser = {
   owner: false, roles: ["reader"], permissions: ["read"], csrf: "browser-csrf-test",
 };
 
+const setupSettings = {
+  project: "okan", projects: ["okan"],
+  deployment: { mode: "microsoft", configured: true, bootstrap_present: true },
+  settings: [
+    { key: "agents.provider", group: "Agents", type: "choice", value: "anthropic", default: "anthropic",
+      global: null, project: null, from: "default", restart: true, scopes: ["global", "project"], description: "Assistant provider" },
+    { key: "agents.api_key", group: "Agents", type: "secret", value: "env:DEMO_AI_KEY", default: "env:ANTHROPIC_API_KEY",
+      global: null, project: "env:DEMO_AI_KEY", from: "project", resolves: false, restart: true,
+      scopes: ["global", "project"], description: "Assistant secret reference" },
+    { key: "assistant.timeout_seconds", group: "Agents", type: "int", value: 300, default: 300,
+      global: null, project: null, from: "default", restart: false, scopes: ["global", "project"],
+      description: "Question timeout", min: 30, max: 900 },
+    { key: "sources.pi.url", group: "Sources", type: "str", value: "https://legacy.invalid", default: "",
+      global: null, project: null, from: "environment", restart: true, scopes: ["global", "project"],
+      description: "Legacy source seeding" },
+  ],
+};
+
+test("Source readiness belongs in Sources and Settings remains application-wide on desktop/mobile", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  let catalogFails = true;
+  await page.route("**/sources/catalog", (route) => route.fulfill(catalogFails
+    ? { status: 503, json: { detail: "Catalog unavailable. Try again." } }
+    : { json: { systems: [], types: { connections: {} } } }));
+  await page.route("**/jobs/health", (route) => route.fulfill({ json: {
+    available: false, level: "unknown", summary: "Scheduler has not run here yet.",
+  } }));
+  const mutations = [];
+  page.on("request", (request) => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
+  await page.goto(url);
+  await page.getByRole("link", { name: "Source readiness", exact: false }).click();
+  await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
+  await page.getByText("Catalog unavailable. Try again.", { exact: false }).waitFor();
+  catalogFails = false;
+  await page.getByRole("button", { name: "Refresh source readiness" }).click();
+  await page.getByText("0 connections", { exact: false }).waitFor();
+  assert.match(await page.getByRole("link", { name: "Connect & test" }).getAttribute("href"), /view=systems/);
+  if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-mobile.png`, fullPage: true });
+  await page.getByRole("main").getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
+  await page.getByText("Attention: the owner bootstrap secret", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: "Source readiness", exact: true }).count(), 0);
+  await page.getByRole("link", { name: "Configure assistant", exact: true }).click();
+  await page.getByRole("textbox", { name: "Filter settings" }).waitFor();
+  assert.equal(await page.getByRole("textbox", { name: "Filter settings" }).inputValue(), "agents.");
+  await page.getByText("agents.api_key", { exact: true }).waitFor();
+  assert.equal(await page.getByText("sources.pi.url", { exact: true }).count(), 0);
+  await page.goBack();
+  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Assistant limits", exact: true }).click();
+  assert.equal(await page.getByRole("textbox", { name: "Filter settings" }).inputValue(), "assistant.");
+  await page.getByText("assistant.timeout_seconds", { exact: true }).waitFor();
+  assert.deepEqual(mutations, []);
+});
+
+test("reader Settings and Sources do not request protected configuration or connection details", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
+  const administrative = [];
+  page.on("request", (request) => {
+    if (["/settings", "/sources/catalog", "/jobs/health"].includes(new URL(request.url()).pathname)) administrative.push(request.url());
+  });
+  await page.goto(`${url}/#/settings`);
+  await page.getByText("Facility configuration requires administrator access.", { exact: false }).waitFor();
+  await page.goto(`${url}/#/sources`);
+  await page.getByText("Source configuration requires administrator access.", { exact: false }).waitFor();
+  assert.deepEqual(administrative, []);
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  assert.equal(await nav.getByRole("link", { name: "Sources", exact: true }).count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.goto(`${url}/#/investigate/okan`);
+  await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
+  await page.goto(`${url}/#/settings`);
+  assert.equal(await page.getByRole("link", { name: "Sign-in & access", exact: true }).count(), 0);
+});
+
+test("owner administration remains available within Settings secondary navigation", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, owner: true } } }));
+  await page.goto(`${url}/#/settings`);
+  const area = page.getByRole("navigation", { name: "Settings pages", exact: true });
+  assert.equal(await area.getByRole("link", { name: "Sign-in & access", exact: true }).getAttribute("href"), "#/access");
+});
+
+test("source load lifecycle confirms consequences, exposes progress and recovers without automatic replay", async () => {
+  const detail = {
+    dataset: { name: "sap_equipment", source: "sap", status: "active", load_mode: "snapshot", schedule: null },
+    connection: { id: 1, name: "files", type: "folder", enabled: true, secrets: {} },
+    runs: [], health: null, work_items: [], reviews: [], suggested_checks: [], next_load: null,
+  };
+  await page.route("**/sources/datasets/sap_equipment", (route) => route.fulfill({ json: detail }));
+  let attempts = 0, release;
+  await page.route("**/sources/datasets/sap_equipment/run*", async (route) => {
+    attempts++;
+    if (attempts === 1) {
+      await new Promise((resolve) => { release = resolve; });
+      await route.fulfill({ status: 503, json: { detail: "Export unavailable" } });
+    } else await route.fulfill({ json: { loaded: ["sap_equipment"], held: [], unchanged: [], paused: [],
+      records: 2, inserted: 2, updated: 0, removed: 0 } });
+  });
+  await page.goto(`${url}/#/sources?view=dataset&name=sap_equipment`);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("group", { name: "Confirm Load now", exact: true }).waitFor();
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).evaluate(el => el === document.activeElement), true);
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Loading source records" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  release();
+  await page.getByRole("alert").filter({ hasText: "Export unavailable" }).waitFor();
+  assert.equal(attempts, 1);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Loaded 2 records" }).waitFor();
+  assert.equal(attempts, 2);
+  assert.match(await page.getByRole("link", { name: "Inspect recorded source runs" }).getAttribute("href"), /tab=runs/);
+  detail.dataset.status = "paused";
+  await page.reload();
+  await page.getByText("Before loading, resume the dataset", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  detail.dataset.status = "active";
+  detail.secrets = { token: false };
+  await page.reload();
+  await page.getByText("Before loading, resume the dataset", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  assert.equal(attempts, 2);
+  detail.secrets = {};
+  await page.route("**/sources/datasets/sap_equipment/run*", (route) =>
+    route.fulfill({ json: { loaded: [], held: ["sap_equipment"], unchanged: [], records: 0 } }));
+  await page.reload();
+  await page.getByRole("button", { name: "Load now", exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).press("Enter");
+  await page.getByRole("status").filter({ hasText: "Load held" }).waitFor();
+  assert.equal(await page.getByRole("status").filter({ hasText: "Loaded 2" }).count(), 0);
+});
+
+test("review lifecycle confirms shared decisions and exposes failures without marking them done", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 7, kind: "check", payload: { dataset: "sap_equipment", failed: [{ kind: "duplicate keys", value: 2 }] } },
+  ] }));
+  let attempts = 0;
+  await page.route("**/review/7", (route) => {
+    attempts++;
+    return route.fulfill(attempts === 1 ? { status: 429, json: { detail: "Server busy; check recorded decision" } }
+      : { json: { ok: true } });
+  });
+  await page.goto(`${url}/#/review?kind=check`);
+  await page.getByRole("button", { name: "Seen", exact: true }).click();
+  await page.getByRole("group", { name: "Confirm review decision" }).waitFor();
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Server busy" }).waitFor();
+  assert.equal(attempts, 1);
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #7" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Seen", exact: true }).count(), 0);
+  assert.equal(attempts, 2);
+});
+
+test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
+      values: [{ value: "a", source: "sap", source_key: "1" }] } },
+  ] }));
+  const writes = [];
+  await page.route("**/review/8", (route) => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { decided: 8 } });
+  });
+  await page.goto(`${url}/#/review?kind=conflict`);
+  await page.getByPlaceholder("or type the correct value").fill("corrected value");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.getByRole("group", { name: "Confirm review decision" }).count(), 0);
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #8" }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].value, "corrected value");
+});
+
+test("seven primary destinations expose compatible specialist routes through area navigation", async () => {
+  await page.goto(url);
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  const expected = ["#/", "#/browse", "#/investigate/okan", "#/board", "#/sources", "#/jobs", "#/settings"];
+  const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
+  assert.deepEqual(new Set(links), new Set(expected));
+  assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
+  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.goto(`${url}/#/investigate/okan`);
+  await nav.locator('a[href="#/investigate/okan"][aria-current="page"]').waitFor();
+  const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
+  assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/investigate/okan", "#/ask", "#/downtime", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies"]);
+  await page.getByRole("navigation", { name: "Breadcrumb", exact: true }).getByText("Okan investigation", { exact: true }).waitFor();
+  await page.goto(`${url}/#/work`);
+  await page.waitForURL(/#\/inbox$/);
+  await nav.locator('a[href="#/board"][aria-current="page"]').waitFor();
+  const work = page.getByRole("navigation", { name: "Work pages", exact: true });
+  assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
+  assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/board", "#/inbox", "#/cases", "#/review", "#/processes", "#/teams"]);
+  await nav.getByRole("link", { name: "Explore", exact: true }).click();
+  await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
+  await nav.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings pages", exact: true }).getByRole("link", { name: "Docs", exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await nav.getByRole("link", { name: "Sources", exact: true }).click();
+  await page.waitForURL(/#\/sources$/);
+  await page.getByRole("button", { name: "Open menu", exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test("fresh Microsoft visitor gets a responsive sign-in entry without preloading protected APIs", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: null } }));

@@ -1141,6 +1141,7 @@ export interface MapperForm {
 }
 
 export interface SourceLoad {
+  paused?: string[];
   loaded: string[];
   unchanged: string[];
   held: string[];
@@ -1159,7 +1160,8 @@ export interface SettingRow {
   global: unknown;
   project: unknown;
   value: unknown;
-  from: "default" | "global" | "project";
+  from: "default" | "global" | "project" | "environment";
+  environment?: string | null;
   updated_by: string | null;
   updated_at: string | null;
   min?: number;
@@ -1271,6 +1273,7 @@ export interface JobRunDetail extends JobRunSummary {
 }
 
 import { getCsrf, type AuthSession } from "./authState";
+import { scheduleRequest } from "./requestQueue";
 
 export interface AccessAccount {
   id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
@@ -1286,10 +1289,13 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
     if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
   }
   const url = qs.size ? `${path}?${qs}` : path;
+  const csrf = getCsrf();
+  const readOnly = method === "GET" && !params?.claude && !path.endsWith("generate");
+  return scheduleRequest(async () => {
   const res = await fetch(url, {
     method,
     headers: { ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(getCsrf() ? { "X-Fuzer-CSRF": getCsrf() } : {}) },
+      ...(csrf ? { "X-Fuzer-CSRF": csrf } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -1298,12 +1304,15 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
     throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail });
   }
   return res.json();
+  }, readOnly ? `${csrf}:${url}` : undefined);
 }
 
 async function requestText(path: string): Promise<string> {
+  return scheduleRequest(async () => {
   const res = await fetch(path);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.text();
+  }, `${getCsrf()}:text:${path}`);
 }
 
 export const api = {
@@ -1430,7 +1439,8 @@ export const api = {
   sourceHealth: () => request<SourceHealth[]>("GET", "/sources/health"),
   why: (id: string, field: string) => request<WhyValue>("GET", `/sources/why/${encodeURIComponent(id)}/${encodeURIComponent(field)}`),
   settings: (project?: string) =>
-    request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
+    request<{ project: string | null; projects: string[]; settings: SettingRow[];
+      deployment?: { mode: string; configured: boolean; bootstrap_present: boolean } }>("GET", "/settings", { project }),
   setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/${encodeURIComponent(key)}`, undefined, { value, scope, project, by, reason }),
   resetSetting: (key: string, scope: SettingScope, project: string | null, by: string, reason: string) =>

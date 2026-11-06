@@ -6,7 +6,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..core import projects, settings
+from ..core import access, projects, settings
 from .deps import get_conn
 
 from .security import AuthenticatedRoute
@@ -18,7 +18,8 @@ router = APIRouter(route_class=AuthenticatedRoute)
 def settings_list(project: str | None = None, conn=Depends(get_conn)):
     """Every setting, grouped in registry order, for `project` (default: the current one)."""
     p = project or settings.project()
-    return {"project": p, "projects": projects.names(conn), "settings": settings.listing(conn, project_name=p)}
+    return {"project": p, "projects": projects.names(conn), "settings": settings.listing(conn, project_name=p),
+            "deployment": access.readiness()}
 
 
 class SettingIn(BaseModel):

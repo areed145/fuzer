@@ -7,6 +7,7 @@ import { loadPerson } from "../work";
 import { PeopleCard } from "./People";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
+import { ApplicationReadiness } from "./ApplicationReadiness";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -25,26 +26,33 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
   const configure = usePermission("configure");
   if (!configure) return <section><PageHeader>Settings</PageHeader><Appearance />
     <p>Facility configuration requires administrator access. Ask an owner to update your application roles.</p></section>;
-  return <Configuration query={query} />;
+  return <Configuration key={query.toString()} query={query} />;
 }
 
 function Configuration({ query }: { query: URLSearchParams }) {
   const project = query.get("project") ?? undefined;
   const list = useAsync(() => api.settings(project), [project]);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(query.get("filter") ?? "");
   const [open, setOpen] = useState<string | null>(null);
   const person = loadPerson() || "anonymous";
   const f = filter.trim().toLowerCase();
   const rows = (list.data?.settings ?? []).filter(
-    (s) => !f || s.key.toLowerCase().includes(f) || s.description.toLowerCase().includes(f),
+    (s) => s.group !== "Sources" && (!f || s.key.toLowerCase().includes(f) || s.description.toLowerCase().includes(f)),
   );
   const groups = [...new Set(rows.map((s) => s.group))];
+  const configuration = query.get("view") === "configuration" || query.has("filter");
   return (
     <section>
       <PageHeader subtitle="Your browser preferences and the facility's operational configuration.">Settings</PageHeader>
       <Appearance />
+      <nav className="tabs" aria-label="Settings sections">
+        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Application configuration</a>
+        <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>Configuration</a>
+      </nav>
+      {!configuration ? <ApplicationReadiness list={list} /> : <>
       <p className="muted">
-        Thresholds, caps, models and schedules. A project value beats the global one, which beats the default. Each
+        Thresholds, caps, models and schedules. Project values override global values, then legacy environment values,
+        then defaults. Each
         change needs a reason and is kept in the setting's history. Changes are recorded as <b>{person}</b>.
       </p>
       <UICard className="row small">
@@ -52,14 +60,16 @@ function Configuration({ query }: { query: URLSearchParams }) {
           Project{" "}
           <Select
             value={list.data?.project ?? ""}
-            onChange={(e) => (location.hash = href("/settings", { project: e.target.value || undefined }))}
+            onChange={(e) => (location.hash = href("/settings", { project: e.target.value || undefined, view: "configuration" }))}
           >
             {!list.data?.project && <option value="">(none: global only)</option>}
             {list.data?.projects.map((p) => <option key={p} value={p}>{p}</option>)}
           </Select>
         </label>
-        <Input placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Input aria-label="Filter settings" placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </UICard>
+      <p className="muted small">Manage source endpoints and secret references in{" "}
+        <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</p>
       {!f && <PeopleCard by={person} />}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
         No settings match.
@@ -89,6 +99,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
           </Table>
         </UICard>
       ))}
+      </>}
     </section>
   );
 }
@@ -102,6 +113,7 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
         <td>
           <code>{s.key}</code>
           {s.restart && <UIBadge className="badge" title="takes effect when the process restarts">restart</UIBadge>}
+          {!s.restart && <UIBadge>next use</UIBadge>}
           <div className="muted small">{s.description}</div>
         </td>
         <td>
@@ -111,6 +123,7 @@ function SettingLine({ s, project, person, open, toggle, saved }: {
             <UIBadge className={`badge ${s.resolves ? "ok" : ""}`}>{s.resolves ? "resolves" : "not set"}</UIBadge>
           )}
           {s.from === "project" && s.global !== null && <div className="muted small">global: {show(s.global)}</div>}
+          {s.from === "environment" && <div className="muted small">Legacy variable: <code>{s.environment}</code>. Save here to override it.</div>}
         </td>
         <td className="muted">{show(s.default)}</td>
         <td className="muted small">{range(s)}</td>
@@ -139,12 +152,17 @@ function Editor({ s, project, person, saved }: {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
   const run = async (fn: () => Promise<unknown>) => {
     setError(null);
+    setMessage("");
     if (reason.trim().length < 3) return setError("Give a short reason: it goes in the history.");
     setBusy(true);
     try {
       await fn();
+      setMessage(s.restart
+        ? "Saved. The affected application or scheduler process must be restarted by the deployment operator. Running values have not been verified."
+        : "Saved. Applies on next use after the settings cache refreshes; existing work is not rerun.");
       setReason("");
       saved();
     } catch (e) {
@@ -157,20 +175,26 @@ function Editor({ s, project, person, saved }: {
   const reset = () => run(() => api.resetSetting(s.key, scope, project, person, reason.trim()));
   return (
     <div className="row small">
-      <Select value={scope} onChange={(e) => setScope(e.target.value as SettingScope)}>
+      <Select aria-label={`Scope for ${s.key}`} value={scope} onChange={(e) => {
+        const next = e.target.value as SettingScope;
+        setScope(next);
+        setValue(String((next === "project" ? s.project : s.global) ?? s.value ?? ""));
+        setMessage("");
+      }}>
         {canProject && <option value="project">for {project}</option>}
         <option value="global">for all projects</option>
       </Select>
       {s.type === "bool" ? (
-        <Select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select aria-label={`Value for ${s.key}`} value={value} onChange={(e) => setValue(e.target.value)}>
           <option value="true">yes</option><option value="false">no</option>
         </Select>
       ) : s.choices ? (
-        <Select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select aria-label={`Value for ${s.key}`} value={value} onChange={(e) => setValue(e.target.value)}>
           {s.choices.map((c) => <option key={c} value={c}>{c}</option>)}
         </Select>
       ) : (
         <Input
+          aria-label={`Value for ${s.key}`}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           type={s.type === "int" || s.type === "float" ? "number" : "text"}
@@ -180,13 +204,14 @@ function Editor({ s, project, person, saved }: {
           placeholder={s.type === "secret" ? "env:NAME" : undefined}
         />
       )}
-      <Input className="grow" placeholder="reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Input aria-label={`Reason for ${s.key}`} className="grow" placeholder="reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button variant="primary" disabled={busy} onClick={save}>Save</Button>
       <Button disabled={busy || current === null} onClick={reset}
         title={scope === "project" ? "back to the global value" : "back to the default"}>
         Reset
       </Button>
-      {error && <span className="error">{error}</span>}
+      {error && <span role="alert" className="error">{error}</span>}
+      {message && <span role="status">{message}</span>}
     </div>
   );
 }
