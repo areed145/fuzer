@@ -402,6 +402,13 @@ def health(conn, name: str | None = None) -> list[dict]:
     return out
 
 
+def health_check_outcome(health: dict) -> tuple[bool, bool]:
+    """Whether a dataset is healthy and whether its problems block the source check."""
+    failing = health.get("failing_checks") or []
+    blocking = any(c["blocking"] for c in failing) or {"failed", "held"} & set(health.get("problems") or [])
+    return not health.get("problems"), bool(blocking)
+
+
 # ---- suggestions ---------------------------------------------------------------------------------
 
 _PCT = re.compile(r"(^|_)(pct|percent|percentage)(_|$)|%", re.IGNORECASE)

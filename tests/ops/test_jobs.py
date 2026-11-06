@@ -35,7 +35,8 @@ def test_definitions_load():
 
 def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
     selection = [*jobs.SOURCES, jobs.register]
-    checks = [jobs.review_backlog, jobs.orphan_timeseries, jobs.tags_missing_from_sap]
+    checks = [jobs.review_backlog, jobs.orphan_timeseries, jobs.tags_missing_from_sap, jobs.downtime_reason_codes,
+              jobs.document_revisions, jobs.flow_vs_piping]
     result = dg.materialize(selection + checks, resources={"fuzer": fuzer})
     assert result.success
 
@@ -44,9 +45,22 @@ def test_refresh_all_loads_sources_rebuilds_and_checks(fuzer):
     assert meta["register"]["entities"].value > 200
 
     evals = {e.check_name: e for e in result.get_asset_check_evaluations()}
-    assert set(evals) == {"review_backlog", "orphan_timeseries", "tags_missing_from_sap"}
+    assert set(evals) == {"review_backlog", "orphan_timeseries", "tags_missing_from_sap", "downtime_reason_codes",
+                          "document_revisions", "flow_vs_piping"}
     assert evals["orphan_timeseries"].passed  # every PI point attaches to a tag or well
     assert evals["tags_missing_from_sap"].passed  # every tag in the fake asset has an SAP FLOC
+    from fuzer.graph import quality
+    with db.connect(url=fuzer.database_url) as conn:
+        domain_results = {
+            "review_backlog": quality.review_backlog(conn),
+            "orphan_timeseries": quality.orphan_timeseries(conn),
+            "tags_missing_from_sap": quality.tags_missing_from_sap(conn),
+            "downtime_reason_codes": quality.downtime_reason_codes(conn),
+            "document_revisions": quality.document_revisions(conn),
+            "flow_vs_piping": quality.flow_vs_piping(conn),
+        }
+    assert {name: evaluation.passed for name, evaluation in evals.items()} == {
+        name: domain["passed"] for name, domain in domain_results.items()}
     with db.connect(url=fuzer.database_url) as c:
         assert c.execute("select count(*) as n from edge").fetchone()["n"] > 300
 
