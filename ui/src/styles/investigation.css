@@ -6,6 +6,7 @@
 .investigation-steps a { display: flex; align-items: center; gap: 8px; height: 100%; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); text-decoration: none; }
 .investigation-steps a[aria-current] { border-color: var(--accent); background: var(--accent-soft); }
 .investigation-steps a > span { font-weight: 600; color: var(--accent); }
+.demo-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .investigation-stage { line-height: 1.65; }
 .investigation-stage h2 { margin-top: 0; }
 .investigation-stage h2:focus { outline: none; }

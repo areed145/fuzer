@@ -146,12 +146,15 @@ def test_owner_bootstrap_requires_session_csrf_secret_and_cannot_be_reused(runti
 
 def test_reader_cannot_mutate_spend_or_configure(runtime):
     signed_in(runtime)
+    assert runtime.get("/demo/config").json() == {"enabled": True}
+    assert runtime.get("/assistant/agents").status_code == 200
     assert runtime.get("/demo/okan/investigation").status_code == 200
     assert runtime.get("/ontology/declared").status_code == 200
     assert len(runtime.get("/assistant/agents").json()["agents"]) == 8  # the roster is readable, asking is not
     for method, path, body in [
         ("POST", "/rebuild", {}),
         ("PUT", "/settings/agents.model", {"value": "changed"}),
+        ("PUT", "/settings/demo.enabled", {"value": False, "scope": "global", "reason": "hide onboarding"}),
         ("PUT", "/work/people/attacker", {"roles": ["workflow_admin"], "by": "system"}),
         ("POST", "/assistant/ask", {"question": "charge", "by": "system"}),
         ("POST", "/work/tasks/1/complete", {"by": "system", "data": {}}),

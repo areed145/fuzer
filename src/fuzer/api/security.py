@@ -73,6 +73,8 @@ def require(person: access.Principal, permission: str):
 
 
 def permission(path: str, method: str) -> str:
+    if path == "/demo/config" and method == "GET":
+        return "read"
     if path == "/ontology/declared" and method == "GET":
         return "read"
     if path == "/assistant/ask" or path.endswith("/remember"):

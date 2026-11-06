@@ -6,6 +6,7 @@ import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, entityHref, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, describe, holder, usePerson, when } from "../../work";
 import { AssignPicker, StepBadges, byUrgency, caseHref, processHref, taskHref, useAct } from "./shared";
+import { DemoContext } from "../../DemoContext";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -90,17 +91,21 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
   );
 }
 
-export function CasePage({ id }: { id: number }) {
+export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
   const [person] = usePerson();
   const it = item.data;
-  if (!it) return <Status loading={item.loading} error={item.error} />;
+  if (!it || item.error) return <section><PageHeader>Case</PageHeader>
+    {demo && <DemoContext step="workflow" />}
+    <Status loading={item.loading} error={item.error} onRetry={item.reload} />
+    <a href={href("/cases")}>Return to Cases</a></section>;
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
   const dataset = typeof payload.dataset === "string" ? payload.dataset : null;
   return (
     <section>
+      {demo && <DemoContext step="workflow" />}
       <div className="entity-head">
         <div>
           <PageHeader>{it.title}</PageHeader>
@@ -119,14 +124,14 @@ export function CasePage({ id }: { id: number }) {
         </div>
         {!closed && <Due at={it.due} />}
       </div>
-      {!closed && <CaseActions it={it} person={person} reload={item.reload} />}
+      {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">
           <h3>Waiting on</h3>
           <ul className="plain">
             {open.map((s) => (
               <li key={s.id} className="row">
-                {s.kind === "agent" ? <strong>{s.name ?? s.element}</strong> : <a href={taskHref(s.id)}><strong>{s.name ?? s.element}</strong></a>}
+                {s.kind === "agent" ? <strong>{s.name ?? s.element}</strong> : <a href={demo ? href(`/inbox/task/${s.id}`, { demo: "workflow" }) : taskHref(s.id)}><strong>{s.name ?? s.element}</strong></a>}
                 <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
                 <StepBadges row={s} />
                 <Due at={s.due_at} />
@@ -135,11 +140,11 @@ export function CasePage({ id }: { id: number }) {
           </ul>
         </UICard>
       )}
-      {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={person} reload={item.reload} />)}
+      {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
         <details className="card"><summary>Details</summary><DataView data={payload} /></details>
       )}
-      <Timeline it={it} person={person} />
+      <Timeline it={it} person={person} readOnly={demo} />
     </section>
   );
 }
@@ -205,7 +210,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
   );
 }
 
-export function Timeline({ it, person }: { it: WorkItem; person: string }) {
+export function Timeline({ it, person, readOnly = false }: { it: WorkItem; person: string; readOnly?: boolean }) {
   const [text, setText] = useState("");
   const a = useAct();
   return (
@@ -222,12 +227,12 @@ export function Timeline({ it, person }: { it: WorkItem; person: string }) {
           );
         })}
       </ol>
-      <div className="actions">
+      {!readOnly && <div className="actions">
         <Input placeholder="Add a comment" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && text && a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))} />
         <Button disabled={!text || !!a.busy} onClick={() => a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))}>Comment</Button>
         {a.error && <span className="error small">{a.error}</span>}
-      </div>
+      </div>}
     </UICard>
   );
 }

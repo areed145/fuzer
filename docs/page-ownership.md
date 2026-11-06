@@ -2,19 +2,21 @@
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
 These are ownership boundaries, not a requirement for eight top-level navigation entries.
-The user explicitly selected seven primary destinations: **Home, Explore, Investigate, Work,
-Sources, Jobs and Settings**. The sidebar contains only these destinations (subject to access).
+The seven operational primary destinations remain **Home, Explore, Investigate, Work,
+Sources, Jobs and Settings**. An optional **Demo** tab introduces first-time users and is enabled
+by default; administrators hide or enable it application-wide with the global `demo.enabled` setting.
 Specialist pages appear in secondary area navigation using their existing URLs.
 
-Primary landings reuse Home, Browse (Explore), the Okan walkthrough (Investigate), Work board
-(Work), Sources, Jobs and Settings. Investigate is an evidence-led demo entry, not a new
-generic investigation subsystem. Direct links select their owning primary destination.
+Primary landings reuse Home, Browse (Explore), Downtime (Investigate), Work board
+(Work), Sources, Jobs and Settings. Demo owns onboarding, not a new generic investigation subsystem.
+Direct links select their owning primary destination.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
 | Home | `#/`, legacy `#/?q=…` search entry | Orientation, current priorities and brief readiness links. No embedded configuration. Search reuses Browse. |
+| Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
-| Investigate | `#/investigate/okan`, `#/ask`, `#/incidents`, `#/downtime`, `#/analytics`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools; the Okan walkthrough is an existing journey, not a new generic subsystem. Paid Ask remains AI-permission gated. |
+| Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/analytics`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
 | Work | `#/board`, `#/inbox`, `#/inbox/task/:id`, contextual `#/teams`, `#/cases`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -35,7 +37,7 @@ Navigation grouping is presentation, not authorization: keep server permission c
 owner-only/configure/AI visibility rules.
 
 Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
-Investigate contains the Okan walkthrough, AI-gated Ask, Downtime, Incidents, Daily reports,
+Demo contains the guided tour and compatible Okan walkthrough. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
 Analytics, Lessons and Studies. Work contains Work board, Inbox, Cases, Data review and Processes.
 Settings contains Application settings, configure-visible Users and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
@@ -76,7 +78,17 @@ automatic relevance ranking or widget configuration until the owning workflows a
 
 Before adding a page or action, identify its owner here and link to an existing surface when one
 already owns it. Update this ownership map and navigation together when responsibility changes.
-Keep the explicitly selected seven destinations; do not substitute a catch-all Manage group.
+Keep the seven operational destinations plus optional Demo; do not substitute a catch-all Manage group.
 Preserve old URLs or add
 explicit tested redirects. Verify active navigation/breadcrumbs, contextual links, direct reader
 access and desktop/mobile navigation. Use the existing API/domain boundaries and shared UI kit.
+
+Demo uses `GET /demo/config` for reader-safe effective visibility and the existing
+`GET /assistant/agents` catalog. Neither request runs a provider probe. Disabled onboarding URLs
+offer an exit and an explicit visibility recheck; the underlying authenticated tools remain available.
+`#/ask?demo=agents&q=…` prepares a question without sending it and confirms paid calls in Ask.
+Shared-memory learning and conversation deletion are outside the tour; normal Ask retains them.
+`#/cases/:id?demo=workflow` inspects the existing case read-only and links to its tasks.
+`#/inbox/task/:id?demo=workflow` confirms deliberate shared claim/release/handoff/completion actions,
+preserving server authorization and workflow roles. Contextual return links retain the tour step.
+No private sandbox, new run model, automatic task assignment or completion certification is implied.

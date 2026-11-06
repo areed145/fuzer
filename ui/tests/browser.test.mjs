@@ -31,8 +31,12 @@ beforeEach(async () => {
       counts: { mine: { total: 0 }, queue: { total: 0 } } },
     "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
     "/settings": { project: null, projects: [], settings: [] },
+    "/demo/config": { enabled: true },
+    "/assistant/agents": { agents: [], unavailable: [] },
+    "/work/items": { items: [], total: 0, overdue: 0, due_soon: 0 },
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
     "/incidents": { items: [], total: 0 },
+    "/downtime": { lost_oil_sm3: 0, events: 0, hours: 0, items: [] },
     "/jobs/health": { available: false, level: "unknown", summary: "" },
     "/jobs": { available: false, dagster: { url: "", reachable: false },
       scheduler: { running: false, last_heartbeat: null }, jobs: [], sensors: [], checks: [],
@@ -271,6 +275,8 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
+  await page.getByRole("navigation", { name: "Demo pages" }).waitFor();
+  await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
@@ -573,24 +579,29 @@ test("review custom-value confirmation and cancellation do not resubmit the cont
   assert.equal(writes[0].value, "corrected value");
 });
 
-test("seven primary destinations expose compatible specialist routes through area navigation", async () => {
+test("optional Demo preserves existing primary destinations and specialist routes", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
-  await nav.locator("a").first().waitFor();
-  const expected = ["#/", "#/browse", "#/investigate/okan", "#/board", "#/sources", "#/jobs", "#/settings"];
+  await nav.getByRole("link", { name: "Demo", exact: true }).waitFor();
+  const expected = ["#/", "#/demo", "#/browse", "#/downtime", "#/board", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
+  assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
-  await nav.locator('a[href="#/investigate/okan"][aria-current="page"]').waitFor();
-  const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
-  assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/investigate/okan", "#/ask", "#/downtime", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies"]);
+  await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
+  const demo = page.getByRole("navigation", { name: "Demo pages", exact: true });
+  assert.deepEqual(await demo.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/demo", "#/investigate/okan"]);
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
   await breadcrumb.getByText("Okan investigation", { exact: true }).waitFor();
   assert.equal(await breadcrumb.getByText("Okan investigation", { exact: true }).count(), 1);
+  await nav.getByRole("link", { name: "Investigate", exact: true }).click();
+  const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
+  await investigate.waitFor();
+  assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
+    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/board"][aria-current="page"]').waitFor();
@@ -622,8 +633,9 @@ test("primary destination navigation keeps page headings and active context alig
   await nav.locator("a").first().waitFor();
   const destinations = [
     { label: "Home", href: "#/", heading: "Home" },
+    { label: "Demo", href: "#/demo", heading: "Demo", area: "Demo pages", current: "Demo tour" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
-    { label: "Investigate", href: "#/investigate/okan", heading: "Okan investigation", area: "Investigate pages", current: "Okan investigation" },
+    { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
     { label: "Work", href: "#/board", heading: "Work board", area: "Work pages", current: "Work board" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
@@ -693,6 +705,8 @@ test("approved reader completes the keyless journey with trusted identity and no
     if (/^\/(jobs|sources|settings)(\/|$)/.test(new URL(request.url()).pathname)) administrative.push(request.url());
   });
   await page.goto(url);
+  await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Demo", exact: true }).click();
+  await page.getByRole("link", { name: "Next: Trace an issue", exact: true }).click();
   await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
   await page.getByRole("link", { name: "Next: Meet the asset", exact: true }).click();
   await page.getByRole("link", { name: "Next: Inspect the evidence", exact: true }).click();
@@ -748,7 +762,7 @@ test("expired server session exits protected pages and preserves a sign-in recov
   await page.getByRole("link", { name: "Continue with Microsoft" }).waitFor();
 });
 
-test("Okan journey connects Home, asset, source evidence and a cited finding without writes or AI", async () => {
+test("Okan journey connects Demo, asset, source evidence and a cited finding without writes or AI", async () => {
   const methods = [];
   await page.route("**/stats", (route) => route.fulfill({ json: {
     facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
@@ -758,8 +772,11 @@ test("Okan journey connects Home, asset, source evidence and a cited finding wit
     return route.fulfill({ json: investigation });
   });
   const paid = [];
-  page.on("request", (request) => { if (request.url().includes("/assistant/")) paid.push(request.url()); });
+  page.on("request", (request) => { if (request.url().includes("/assistant/") && request.method() !== "GET") paid.push(request.url()); });
   await page.goto(url);
+  assert.equal(await page.getByRole("link", { name: "Start guided investigation", exact: true }).count(), 0);
+  await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Demo", exact: true }).click();
+  await page.getByRole("link", { name: "Next: Trace an issue", exact: true }).click();
   await page.getByRole("link", { name: "Start guided investigation", exact: true }).click();
   await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
   await page.getByText("Synthetic demo data", { exact: true }).waitFor();
@@ -779,7 +796,7 @@ test("Okan journey connects Home, asset, source evidence and a cited finding wit
   await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
   await page.getByRole("link", { name: "Finish investigation", exact: true }).click();
-  await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Meet the agents", exact: true }).waitFor();
   assert.ok(methods.length > 0 && methods.every((method) => method === "GET"));
   assert.deepEqual(paid, []);
 });
@@ -815,6 +832,220 @@ test("Okan unavailable records and network failures have retry and exit paths", 
   ready = true;
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page.getByRole("heading", { name: "Understand the issue", exact: true }).waitFor();
+});
+
+test("Demo visibility fails explicitly, recovers and follows global refresh without changing tools", async () => {
+  let failed = true, enabled = true, reads = 0, investigations = 0;
+  await page.route("**/demo/config", route => {
+    reads++;
+    return route.fulfill(failed ? { status: 429, json: { detail: "Server busy" } } : { json: { enabled } });
+  });
+  await page.route("**/demo/okan/investigation", route => {
+    investigations++;
+    return route.fulfill({ json: investigation });
+  });
+  await page.goto(`${url}/#/demo`);
+  await page.getByRole("alert").filter({ hasText: "Server busy" }).waitFor();
+  assert.equal(reads, 1, "No automatic replay of rejected reads");
+  failed = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByRole("heading", { name: "Get oriented", exact: true }).waitFor();
+  enabled = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("fuzer:changed")));
+  await page.getByText("Demo is disabled", { exact: true }).waitFor();
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  assert.equal(await nav.getByRole("link", { name: "Demo", exact: true }).count(), 0);
+  assert.equal(await nav.getByRole("link", { name: "Investigate", exact: true }).count(), 1);
+  await page.goto(`${url}/#/investigate/okan?step=finding`);
+  await page.getByText("Demo is disabled", { exact: true }).waitFor();
+  assert.equal(investigations, 0);
+  enabled = true;
+  await page.getByRole("button", { name: "Check again", exact: true }).click();
+  await page.getByRole("heading", { name: "Read the finding", exact: true }).waitFor();
+});
+
+test("Demo prepares a registered specialist question and confirms paid execution exactly once", async () => {
+  await page.route("**/assistant/agents", route => route.fulfill({ json: {
+    agents: [{ id: "registered-specialist", label: "Registered specialist", description: "Recorded backlog evidence",
+      skills: ["Work readiness"], personas: ["Planner"], limits: ["No stock reservation"], human_decisions: ["People approve schedules"] }],
+    unavailable: [{ agent: "registered-specialist", capability: "Transport", needed: "No transport records loaded" }],
+  } }));
+  const writes = [];
+  await page.route("**/assistant/ask", route => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ status: 429, json: { detail: "Server busy; inspect recorded jobs" } });
+  });
+  await page.goto(`${url}/#/demo?step=agents`);
+  await page.getByText("No transport records loaded", { exact: false }).waitFor();
+  await page.locator("details").filter({ hasText: "Registered specialist" }).locator("summary").click();
+  await page.getByRole("link", { name: "Prepare a question for Registered specialist", exact: true }).click();
+  await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
+  assert.match(await page.getByRole("textbox", { name: "Question for the operations assistant" }).inputValue(), /Registered specialist/);
+  assert.deepEqual(writes, []);
+  await page.getByRole("textbox", { name: "Question for the operations assistant" }).press("Enter");
+  assert.deepEqual(writes, [], "Enter cannot bypass Demo paid confirmation");
+  await page.getByRole("button", { name: "paid question", exact: true }).click();
+  await page.getByRole("group", { name: "Confirm paid question", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "paid question", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm paid question", exact: true }).click();
+  await page.getByText("Server busy; inspect recorded jobs", { exact: false }).waitFor();
+  assert.equal(writes.length, 1);
+  await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
+  await page.getByRole("heading", { name: "Meet the agents", exact: true }).waitFor();
+});
+
+const demoTask = {
+  task: { task_id: 42, element: "review", name: "Review recorded evidence", kind: "user", state: "waiting",
+    role: "engineer", assignee: null, requires_human: true, process_id: 9, item_id: 7, process_key: "upset",
+    version: 1, definition_id: 1, attempts: 0 },
+  item: { id: 7, title: "Loaded shared case", type: "upset", state: "open", subjects: [], created_by: "agent:sre" },
+  data: {}, form: null, bulk: [], evidence: { agents: [], messages: [], comments: [], subjects: [] },
+};
+
+test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambiguous failure recovery", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/items?*", route => route.fulfill({ json: {
+    items: [{ ...demoTask.item, created_at: "2024-03-14T12:00:00Z", process_key: "upset" }], total: 1, overdue: 0, due_soon: 0,
+  } }));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: {
+    person: "ana", roles: ["engineer"], mine: [], queue: [{ ...demoTask.task, title: demoTask.item.title }],
+    counts: { mine: { total: 0 }, queue: { total: 1 } },
+  } }));
+  await page.route("**/work/tasks/42", route => route.fulfill({ json: demoTask }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  const writes = [];
+  await page.route("**/work/tasks/42/*", route => {
+    writes.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
+    return route.fulfill({ status: 503, json: { detail: "Task response uncertain" } });
+  });
+  await page.goto(`${url}/#/demo?step=workflow`);
+  await page.getByRole("link", { name: "Loaded shared case", exact: true }).click();
+  await page.getByRole("heading", { name: "Loaded shared case", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Reassign", exact: true }).count(), 0);
+  await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
+  await page.getByRole("link", { name: "Review recorded evidence", exact: true }).click();
+  await page.getByRole("heading", { name: "Review recorded evidence", exact: true }).waitFor();
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "claim task", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "Complete", exact: true }).click();
+  await page.getByRole("heading", { name: "Review task response", exact: true }).waitFor();
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "task completion", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Task response uncertain" }).waitFor();
+  await page.getByText("Check the current recorded result before trying again", { exact: false }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, "/work/tasks/42/complete");
+  await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
+  await page.getByRole("heading", { name: "Follow the work", exact: true }).waitFor();
+});
+
+test("Demo reader can inspect capabilities and task evidence without paid or workflow controls", async () => {
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
+  await page.route("**/work/tasks/42", route => route.fulfill({ json: demoTask }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  const writes = [];
+  page.on("request", request => { if (request.method() !== "GET") writes.push(request.url()); });
+  await page.goto(`${url}/#/demo?step=agents`);
+  await page.getByText("Paid questions require AI access", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Prepare a cross-domain question", exact: true }).count(), 0);
+  await page.goto(`${url}/#/inbox/task/42?demo=workflow`);
+  await page.getByText("Read-only task inspection.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /claim task|Complete|task handoff/ }).count(), 0);
+  assert.deepEqual(writes, []);
+});
+
+test("Demo paid success retains registered agent activity, citations and reported usage in Ask", async () => {
+  await page.route("**/assistant/agents", route => route.fulfill({ json: {
+    agents: [{ id: "maintenance-integrity", label: "Maintenance & Integrity", description: "Recorded reliability",
+      personas: ["Engineer"], skills: [], limits: [], human_decisions: [] }], unavailable: [],
+  } }));
+  await page.route("**/assistant/ask", route => route.fulfill({ json: { job_id: "demo-job", conversation_id: "demo-conversation" } }));
+  await page.route("**/assistant/jobs/demo-job", route => route.fulfill({ json: {
+    id: "demo-job", status: "done", conversation_id: "demo-conversation", question: "Review historical evidence",
+    answer: "Historical evidence is available; review the cited records.\n\nEvidence: fz-downtime-0123456789ab",
+    seconds: 1, specialists: ["maintenance-integrity"],
+    steps: [{ agent: "maintenance-integrity", tool: "maintenance_history", args: { ref: "20-K-2200B" } }],
+    model_calls: 1, usage: { model_calls: 1, input: 100, output: 20, cache_read: 0, cache_write: 0, cost_usd: 0.01, models: {} },
+  } }));
+  await page.goto(`${url}/#/ask?demo=agents&q=Review%20historical%20evidence`);
+  await page.getByRole("button", { name: "paid question", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm paid question", exact: true }).click();
+  await page.getByText("Historical evidence is available; review the cited records.", { exact: true }).waitFor();
+  await page.getByText("1 tool calls · 1 s · $0.01", { exact: true }).waitFor();
+  await page.getByText("Specialists: Maintenance & Integrity", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "fz-downtime-0123456789ab", exact: true }).getAttribute("href"), "#/e/fz-downtime-0123456789ab");
+  assert.equal(await page.getByRole("button", { name: "Yes & share learning", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Share in facility memory…", exact: true }).count(), 0);
+  await page.getByRole("link", { name: "Return to Demo", exact: true }).waitFor();
+});
+
+test("Demo confirmed task completion refreshes recorded task state and prevents replay", async () => {
+  let state = "waiting", writes = 0;
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/tasks/42", route => route.fulfill({ json: {
+    ...demoTask, task: { ...demoTask.task, state, finished_by: state === "done" ? "ana" : null },
+  } }));
+  await page.route("**/work/items/7", route => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.route("**/work/tasks/42/complete", route => {
+    writes++; state = "done";
+    return route.fulfill({ json: { process_state: "running" } });
+  });
+  await page.goto(`${url}/#/inbox/task/42?demo=workflow`);
+  await page.getByRole("button", { name: "Complete", exact: true }).click();
+  await page.getByRole("button", { name: "task completion", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
+  await page.getByText("This step is done (by ana).", { exact: true }).waitFor();
+  await page.getByText("Task response saved.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Complete", exact: true }).count(), 0);
+  assert.equal(writes, 1);
+});
+
+test("Demo mobile route steps retain focus, history and non-overflowing layout", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/demo?step=evidence`);
+  await page.getByRole("heading", { name: "Trace an issue", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Next: Meet the agents", exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "demo-step");
+  await page.reload();
+  await page.getByRole("heading", { name: "Meet the agents", exact: true }).waitFor();
+  await page.goBack();
+  await page.getByRole("heading", { name: "Trace an issue", exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("Demo page mounts and global refresh stay below default authenticated admission limits", async () => {
+  const responses = {
+    "/stats": { facility: "OKAN", pack: "okan", records: 100, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+    "/demo/config": { enabled: true },
+    "/ontology/declared": { groups: [], views: [], kinds: [], relations: [] },
+    "/jobs/health": { available: false, level: "unknown", summary: "" },
+    "/work/items": { items: [], total: 0, overdue: 0, due_soon: 0 },
+    "/work/inbox": { person: "ana", roles: [], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+  };
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  let active = 0, maximum = 0, reads = 0;
+  await page.route("**/*", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (!(path in responses)) return route.fallback();
+    active++; maximum = Math.max(maximum, active); reads++;
+    await new Promise(resolve => setTimeout(resolve, 25));
+    active--;
+    return route.fulfill({ json: responses[path] });
+  });
+  await page.goto(`${url}/#/demo?step=workflow`);
+  await page.getByText("No workflow cases loaded", { exact: true }).waitFor();
+  await page.getByText("No tasks are assigned or available in your queues.", { exact: false }).waitFor();
+  const initial = reads;
+  await page.evaluate(() => window.dispatchEvent(new Event("fuzer:changed")));
+  await page.waitForFunction(() => !document.querySelector('[role="status"]'));
+  await page.getByText("No workflow cases loaded", { exact: true }).waitFor();
+  assert.ok(reads > initial, "Global refresh re-reads the active resources");
+  assert.ok(maximum <= 2 && maximum <= 4, `Browser queue maximum ${maximum}; server default is four`);
 });
 
 test("Okan loading and transport errors keep recovery and navigation usable", async () => {
@@ -977,6 +1208,30 @@ test("Ask still works when the specialist catalog can't load, and offers a retry
   await page.getByRole("button", { name: "Try again" }).click();
   await page.getByText("Who answers: 1 specialist, and what they can't do").waitFor();
 });
+
+const homeStats = { facility: "Test facility", pack: "okan", records: 10, entities: {}, edges: 0, open_reviews: {}, rebuild: {} };
+const efficiency = (end = "2026-10-14") => ({
+  since: "2026-10-01", until: "2026-10-15", end, step: "day", unit: "Sm3/d",
+  facility: { id: "plant", label: "Plant" }, source: "Daily reports", warnings: ["Coverage is not verified."],
+  constraints: [{ id: "a", label: "Compressor", category: "equipment" }, { id: "b", label: "Export", category: "export" }],
+  summary: { efficiency_pct: 80, allocated_sm3: 160, dynamic_max_sm3: 200, paired_days: 2 },
+  points: [
+    { date: "2026-10-04", dynamic_max_sm3d: 100, allocated_sm3d: 80, gap_sm3d: 20, efficiency_pct: 80, active_constraint_id: "a",
+      binding_constraint_ids: ["a", "b"], capacity_basis: "declared_limits", flags: ["tied_constraints"], source_ids: ["r1"] },
+    { date: "2026-10-07", dynamic_max_sm3d: 100, allocated_sm3d: 125, gap_sm3d: -25, efficiency_pct: 125, active_constraint_id: null,
+      binding_constraint_ids: [], capacity_basis: "reported_potential", flags: ["physical_constraint_unknown"], source_ids: ["r2"] },
+  ],
+});
+const stage = (id, label, capacity_sm3d, basis, changes = {}) => ({ id, label, capacity_sm3d, basis, binding: false, members: 2,
+  undeclared: basis === "declared" ? 0 : 2, undeclared_examples: basis === "declared" ? [] : ["10-V-2001", "10-V-2002"], ...changes });
+const capacity = {
+  as_of: "2026-10-14", unit: "Sm3/d", facility: { id: "plant", label: "Plant" }, source: "Dated flows_to network",
+  stages: [stage("well", "Wells", 130, "well_tests"), stage("separator", "Separators", 110, "demonstrated"), stage("export", "Crude terminal", 110, "demonstrated")],
+  system: { limit_sm3d: 100, allocated_sm3d: 90, basis: "reported_potential", established: false, binding_stages: [] },
+  demonstrated: { peak_sm3d: 110, date: "2026-09-01", since: "2025-10-15" },
+  well_tests: { total_sm3d: 130, wells: 12, first: "2026-10-01", last: "2026-10-12", not_tested: 3, since: "2026-07-17" },
+  required_metadata: "Dated system_oil_capacity measurement", warnings: [],
+};
 
 test("Analytics renders declarative daily panels, linked hover/zoom, unknown days and saved JSON", async () => {
   const requests = [];

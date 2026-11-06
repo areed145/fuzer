@@ -25,11 +25,16 @@ export interface NavGroup {
   label: string;
   items: NavItem[];
   permission?: string;
+  demo?: boolean;
 }
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   { label: "Home", items: [{ label: "Home", section: "" }] },
+  { label: "Demo", demo: true, items: [
+    { label: "Demo tour", section: "demo" },
+    { label: "Okan investigation", section: "investigate", path: "/investigate/okan" },
+  ] },
   {
     label: "Explore",
     items: [
@@ -42,9 +47,8 @@ export const NAV: NavGroup[] = [
   {
     label: "Investigate",
     items: [
-      { label: "Okan investigation", section: "investigate", path: "/investigate/okan" },
-      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Downtime", section: "downtime" },
+      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
       { label: "Analytics", section: "analytics" },
@@ -85,10 +89,10 @@ function useNavigationAccess() {
     (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
 }
 
-export function AreaNavigation({ section }: { section: string }) {
+export function AreaNavigation({ section, demoEnabled }: { section: string; demoEnabled: boolean }) {
   const allowed = useNavigationAccess();
   const found = navItemFor(section);
-  if (!found || !allowed(found.group)) return null;
+  if (!found || !allowed(found.group) || (found.group.demo && !demoEnabled)) return null;
   const items = found.group.items.filter(allowed);
   if (items.length < 2) return null;
   return <nav className="area-navigation" aria-label={`${found.group.label} pages`}>
@@ -106,11 +110,12 @@ export function navItemFor(section: string): { group: NavGroup; item: NavItem } 
   }
 }
 
-export function Sidebar({ section, badges, status }: {
+export function Sidebar({ section, badges, status, demoEnabled }: {
   section: string;
   badges: Record<Badge, number>;
   /** The compact status area at the foot of the sidebar (facility, counts, health). */
   status: ReactNode;
+  demoEnabled: boolean;
 }) {
   const allowed = useNavigationAccess();
   const [open, setOpen] = useState(false);
@@ -179,8 +184,9 @@ export function Sidebar({ section, badges, status }: {
         <nav aria-label="Main">
           <section className="nav-group">
               <ul>
-                {NAV.filter(allowed).map((group) => {
-                  const item = group.items[0];
+                {NAV.filter((group) => allowed(group) && (!group.demo || demoEnabled)).map((group) => {
+                  const item = group.items.find(allowed);
+                  if (!item) return null;
                   const on = group.items.some((entry) => isActive(entry, section));
                   const count = group.items.reduce((n, entry) => n + (entry.badge ? badges[entry.badge] : 0), 0);
                   return (

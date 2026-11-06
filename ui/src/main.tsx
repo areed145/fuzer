@@ -27,10 +27,12 @@ import { AreaNavigation, Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import { InvestigationPage } from "./pages/Investigation";
+import { DemoPage } from "./pages/Demo";
 import type { JobsHealth } from "./api";
 import { useAppData } from "./useAppData";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { EmptyState } from "./ui";
+import { Button, EmptyState, PageHeader } from "./ui";
+import { Status } from "./lib";
 import "./theme";
 import { AuthGate } from "./Auth";
 import { UsersPage } from "./pages/Users";
@@ -50,7 +52,7 @@ function App() {
   const { path, query } = useRoute();
   const routeKey = path.join("/");
   const previousRoute = useRef(routeKey);
-  const { stats, inbox, jobsHealth, declared, rebuilding } = useAppData();
+  const { stats, demo, inbox, jobsHealth, declared, rebuilding } = useAppData();
   void declared.data;
 
   const s = stats.data;
@@ -81,6 +83,7 @@ function App() {
     <div className="app">
       <a className="skip-link" href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById("main-content")?.focus(); }}>Skip to content</a>
       <Sidebar
+        demoEnabled={demo.data?.enabled === true}
         section={navSection}
         badges={{ work, review: openReviews }}
         status={
@@ -97,25 +100,35 @@ function App() {
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
             <Identity />
             {stats.error && <span className="error small">API not reachable</span>}
+            {demo.error && section !== "demo" && section !== "investigate" &&
+              <Status error={`Demo availability: ${demo.error}`} onRetry={demo.reload} />}
           </>
         }
       />
       <main id="main-content" tabIndex={-1}>
         <Breadcrumbs path={path} />
-        <AreaNavigation section={navSection} />
+        <AreaNavigation section={navSection} demoEnabled={demo.data?.enabled === true} />
         <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
           ) : section === "" ? (
             <HomePage query={query} stats={s} statsLoading={stats.loading} statsError={stats.error} />
-          ) : section === "investigate" && path[1] === "okan" ? (
-            <InvestigationPage query={query} />
+          ) : section === "demo" || (section === "investigate" && path[1] === "okan") ? (
+            !demo.data || demo.error ? <section><PageHeader>Demo</PageHeader>
+              <Status loading={demo.loading && !demo.data} error={demo.error} onRetry={demo.reload} />
+              <a href={href("/")}>Return home</a></section>
+              : !demo.data.enabled ? <section><PageHeader>Demo</PageHeader>
+                <div role="status"><EmptyState title="Demo is disabled">An administrator has hidden onboarding for this application.
+                  Your existing tools and permissions are unchanged.</EmptyState></div>
+                <Button onClick={demo.reload}>Check again</Button>{" "}<a href={href("/")}>Return home</a></section>
+                : section === "investigate" ? <InvestigationPage query={query} />
+                  : <DemoPage query={query} stats={s} />
           ) : section === "browse" ? (
             <Search query={query} stats={s} />
           ) : section === "e" && path[1] ? (
             <Entity id={path[1]} tab={query.get("tab") === "graph" ? "graph" : "details"} />
           ) : section === "ask" ? (
-            <AskPage />
+            <AskPage query={query} />
           ) : section === "ontology" ? (
             <Ontology query={query} />
           ) : section === "network" ? (
@@ -129,11 +142,11 @@ function App() {
           ) : section === "lessons" ? (
             <LessonsPage query={query} />
           ) : section === "inbox" && path[1] === "task" && path[2] ? (
-            <TaskPage key={path[2]} id={Number(path[2])} />
+            <TaskPage key={`${path[2]}:${query.get("demo")}`} id={Number(path[2])} demo={query.get("demo") === "workflow"} />
           ) : section === "inbox" || section === "work" ? (
             <InboxPage />
           ) : section === "cases" && path[1] ? (
-            <CasePage key={path[1]} id={Number(path[1])} />
+            <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
           ) : section === "cases" ? (
             <CasesPage query={query} />
           ) : section === "processes" && path[1] === "forms" && path[2] ? (

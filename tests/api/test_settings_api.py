@@ -78,3 +78,19 @@ def test_readiness_uses_effective_values_and_exposes_only_secret_references(clie
             "project": "okan", "reason": "restore after verification",
         }).status_code == 200
     settings._cache.clear()
+
+
+def test_demo_is_enabled_by_default_and_only_global_with_recorded_changes(client):
+    assert client.get("/demo/config").json() == {"enabled": True}
+    url = "/settings/demo.enabled"
+    row = next(s for s in client.get("/settings").json()["settings"] if s["key"] == "demo.enabled")
+    assert row["scopes"] == ["global"] and row["restart"] is False
+    assert client.put(url, json={"value": False, "project": "okan", "reason": "hide onboarding"}).status_code == 400
+    try:
+        response = client.put(url, json={"value": False, "scope": "global", "reason": "onboarding complete"})
+        assert response.status_code == 200
+        assert client.get("/demo/config").json() == {"enabled": False}
+        assert client.get(f"{url}/history").json()[0]["reason"] == "onboarding complete"
+    finally:
+        assert client.post(f"{url}/reset", json={"scope": "global", "reason": "restore onboarding"}).status_code == 200
+    assert client.get("/demo/config").json() == {"enabled": True}

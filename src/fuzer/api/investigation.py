@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ..core import settings
 from ..graph.investigation import Investigation, InvestigationUnavailable, okan_investigation
 from . import deps
 from .deps import get_conn
@@ -9,6 +10,13 @@ from .deps import get_conn
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)
+
+
+@router.get("/demo/config")
+def demo_config(conn=Depends(get_conn)):
+    """Reader-safe presentation policy; no probes or model calls."""
+    conn.read_only = True
+    return {"enabled": settings.get(conn, "demo.enabled")}
 
 
 @router.get("/demo/okan/investigation", response_model=Investigation)

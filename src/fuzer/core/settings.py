@@ -221,6 +221,8 @@ register(
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
             "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
+    Setting("demo.enabled", "bool", True, "Show the Demo tab and guided onboarding for all approved users. "
+            "Hiding Demo does not change permissions or disable the underlying tools.", "Demo", scopes=(GLOBAL,)),
 )
 
 
