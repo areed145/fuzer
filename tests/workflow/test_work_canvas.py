@@ -129,7 +129,9 @@ def test_agent_uses_tool_only_output_and_validates_it():
         def create(self, **kwargs):
             assert kwargs["tool_choice"] == {"type": "auto"}
             assert len(kwargs["tools"]) == 1
-            assert kwargs["tools"][0]["strict"] is True
+            assert "strict" not in kwargs["tools"][0]
+            assert kwargs["tools"][0]["input_schema"]["$defs"]["Step"]["properties"]["parameters"][
+                "additionalProperties"] == {"type": "string"}
             assert "description" in kwargs["messages"][0]["content"]
             return SimpleNamespace(content=[SimpleNamespace(type="tool_use", name="draft_workflow", input=proposal())])
     draft = workflow.generate("Inspect anomalies and changed data", {}, client=SimpleNamespace(messages=FakeMessages()))
