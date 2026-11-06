@@ -147,14 +147,14 @@ class FakeClaude:
         system = json.dumps(kw.get("system"))
         done = self._results(kw["messages"])
         n = len(done)
-        if "maintenance and reliability engineer" in system:
+        if "work management and supply chain specialist" in system:
             steps = [("load_skill", {"skill_name": "turnarounds"}), ("turnaround_scope", {})]
             if n < len(steps):
                 return self._call(*steps[n], n)
             scope = json.loads(done[-1])
             tags = ", ".join(w["tag"] for w in scope["scoped_work"])
             return _message([{"type": "text", "text": f"{scope['revision']} scope: {tags}."}], "end_turn", self.model)
-        steps = [("background_agents_start_task", {"agent_name": "maintenance", "input": "Turnaround scope?",
+        steps = [("background_agents_start_task", {"agent_name": "work-management-supply-chain", "input": "Turnaround scope?",
                                                    "description": "TAR scope"}),
                  ("background_agents_wait_for_first_completion", {"task_ids": [1]}),
                  ("background_agents_get_task_results", {"task_id": 1}),
@@ -174,8 +174,8 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
     out = asyncio.run(agents.ask("What's in the next turnaround?", team))
 
     assert "OK-TAR-2026" in out["answer"] and "20-K-2200B" in out["answer"]
-    assert out["specialists"] == ["maintenance"]
-    assert {"agent": "maintenance", "tool": "turnaround_scope", "args": {}} in [
+    assert out["specialists"] == ["work-management-supply-chain"]
+    assert {"agent": "work-management-supply-chain", "tool": "turnaround_scope", "args": {}} in [
         {k: v for k, v in t.items() if k != "seconds"} for t in out["tools"]]  # each call also has its seconds
     assert out["usage"]["model_calls"] == len(fake.requests) and out["usage"]["cost_usd"] > 0
 
@@ -188,7 +188,10 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
         assert "web_search" not in json.dumps(r.get("tools", []))
     efforts = {("operations assistant" in json.dumps(r["system"])): r["output_config"]["effort"] for r in fake.requests}
     assert efforts == {True: "high", False: "medium"}
-    specialist = next(r for r in fake.requests if "maintenance and reliability" in json.dumps(r["system"]))
+    orchestrator = next(r for r in fake.requests if "operations assistant" in json.dumps(r["system"]))
+    assert all(agent_id in json.dumps(orchestrator["system"])
+               for agent_id in agents.SPECIALISTS)
+    specialist = next(r for r in fake.requests if "work management and supply chain specialist" in json.dumps(r["system"]))
     tools = {t["name"] for t in specialist["tools"]}
     assert {"turnaround_scope", "work_order_backlog", "load_skill"} <= tools and "production_summary" not in tools
 
@@ -275,7 +278,8 @@ def test_specialists_on_their_own_model_and_cost_per_model(conn, okan_pack, monk
     out = asyncio.run(agents.ask("What's in the next turnaround?", team))
     assert "OK-TAR-2026" in out["answer"]
     assert all("operations assistant" in json.dumps(r["system"]) for r in lead.requests)
-    assert worker.requests and all("maintenance" in json.dumps(r["system"]) for r in worker.requests)
+    assert worker.requests and all("work management and supply chain specialist" in json.dumps(r["system"])
+                                   for r in worker.requests)
     models = out["usage"]["models"]
     assert set(models) == {"claude-opus-5-5", "claude-sonnet-5-5"}
     assert models["claude-opus-5-5"]["calls"] == len(lead.requests)
@@ -319,12 +323,17 @@ def test_skills_are_valid():
     agents = pytest.importorskip("fuzer.agents")
     from agent_framework import SkillsProvider
 
-    for name in agents.TOOLS:
-        provider = SkillsProvider.from_paths([agents.SKILLS / name, agents.SKILLS / "shared"], script_extensions=())
+    from fuzer.agents.capabilities import AGENT_CATALOG
+
+    for definition in AGENT_CATALOG:
+        provider = SkillsProvider.from_paths(
+            [*(agents.SKILLS / path for path in definition.skill_paths), agents.SKILLS / "shared"],
+            script_extensions=(),
+        )
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
-    assert found == ["answering", "back-pressure", "charts", "constraint-management", "gas-lift", "production-efficiency",
-                     "production-engineering",
+    assert found == ["answering", "back-pressure", "charts", "constraint-management", "gas-lift", "incident-evidence",
+                     "operations-summary", "production-efficiency", "production-engineering",
                      "production-surveillance", "reliability", "troubleshooting", "turnarounds", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
@@ -357,11 +366,11 @@ def test_ask_over_the_api(conn, okan_pack, monkeypatch):
         started, out = run("What's in the next turnaround?")
         job, conversation = started["job_id"], started["conversation_id"]
         assert out["status"] == "done" and "20-K-2200B" in out["answer"]
-        assert {"agent": "maintenance", "tool": "turnaround_scope", "args": {}} in out["steps"]
+        assert {"agent": "work-management-supply-chain", "tool": "turnaround_scope", "args": {}} in out["steps"]
         assert out["usage"]["cost_usd"] > 0
         client.post("/feedback", json={"target": f"answer:{job}", "useful": True, "by": "tester"})
         saved = next(a for a in client.get("/assistant/answers").json() if a["id"] == job)
-        assert saved["specialists"] == ["maintenance"] and saved["ratings"] == 1 and saved["useful"] == 1
+        assert saved["specialists"] == ["work-management-supply-chain"] and saved["ratings"] == 1 and saved["useful"] == 1
         assert client.get("/assistant/jobs/nope").status_code == 404
 
         # after a restart: the job is read back from the database, the conversation is listed and reopened,
@@ -399,7 +408,8 @@ def test_eval_scores_answers(conn, okan_pack):
     from fuzer.evals import evaluate
 
     case = {"domain": "turnarounds", "question": "What's in the next turnaround?",
-            "must_mention": ["OK-TAR-2026", "20-K-2200B", "inspection"], "specialists": ["maintenance"]}
+            "must_mention": ["OK-TAR-2026", "20-K-2200B", "inspection"],
+            "specialists": ["work-management-supply-chain"]}
     res = evaluate.assistant([case], agents.team(agents.client(anthropic_client=FakeClaude())))
     r = res["results"][0]
     assert r["mentions"] == 0.67 and r["missing"] == ["inspection"] and r["routed"]

@@ -153,4 +153,11 @@ def assistant_agents() -> dict[str, Agent]:
         return run_step
     from ..ops import daily_report
 
-    return {**{role: specialist(role) for role in agents.SPECIALISTS}, "reporter": daily_report.reporter_agent}
+    domain_agents = {role: specialist(role) for role in agents.SPECIALISTS}
+    legacy_roles = {
+        "troubleshooter": "field-operations-facilities",
+        "production": "production-surveillance",
+        "maintenance": "maintenance-integrity",
+    }
+    return {**domain_agents, **{old: specialist(new) for old, new in legacy_roles.items()},
+            "reporter": daily_report.reporter_agent}

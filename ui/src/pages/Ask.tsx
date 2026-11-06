@@ -122,9 +122,8 @@ export function AskPage() {
     <section className="ask">
       <PageHeader>Ask</PageHeader>
       <p className="muted">
-        An orchestrator and three specialists (troubleshooting, production, maintenance) answer from Fuzer's linked
-        data: SAP, PI, Energy Components, P&IDs, logs and documents. Every fact links to where it came from. Read
-        only: it never acts on the plant.
+        A read-only operations assistant routes questions to domain specialists and answers from the evidence
+        available in Fuzer's linked data. Every fact links to where it came from. It never acts on the plant.
       </p>
       {turns.length === 0 && (
         <div className="ask-examples">
@@ -188,9 +187,7 @@ export function AskPage() {
   );
 }
 
-const AGENT_LABEL: Record<string, string> = {
-  orchestrator: "Orchestrator", troubleshooter: "Troubleshooter", production: "Production", maintenance: "Maintenance",
-};
+const agentLabel = (id: string) => id.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 
 function TurnView({ turn }: { turn: Turn }) {
   const j = turn.job;
@@ -215,7 +212,7 @@ function TurnView({ turn }: { turn: Turn }) {
             {steps.length > 0 && (
               <ul className="steps small muted">
                 {steps.slice(-6).map((s, i) => (
-                  <li key={i}><b>{AGENT_LABEL[s.agent] ?? s.agent}</b> · {s.tool.replaceAll("_", " ")}
+                  <li key={i}><b>{agentLabel(s.agent)}</b> · {s.tool.replaceAll("_", " ")}
                     {Object.keys(s.args).length > 0 && <span className="mono"> {JSON.stringify(s.args)}</span>}</li>
                 ))}
               </ul>
@@ -227,7 +224,7 @@ function TurnView({ turn }: { turn: Turn }) {
           <>
             <Markdown text={j.answer} />
             <div className="row small muted answer-meta">
-              {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map((s) => AGENT_LABEL[s] ?? s).join(", ")}</span>}
+              {j.specialists && j.specialists.length > 0 && <span>Specialists: {j.specialists.map(agentLabel).join(", ")}</span>}
               <span>{steps.length} tool calls · {j.seconds} s · ${j.usage?.cost_usd.toFixed(2)}</span>
               {j.usage && (
                 <span title="Calls and cost per model, as reported by the API">

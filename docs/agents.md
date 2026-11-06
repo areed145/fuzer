@@ -1,22 +1,23 @@
 # Agents and capabilities
 
-The operations assistant, its specialists and their tools.
+The operations assistant, its domain specialists, persona coverage, skills and tools.
 
 ## Operations assistant
 A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), using the
 provider selected by `agents.provider` (`anthropic` by default; `openai`, `azure_openai` and `ollama`
 are also supported):
 
-- **Orchestrator.** Answers lookups itself and hands domain work to specialists as MAF
-  *background agents*, which run at the same time. It writes the final answer using its `answering`
-  skill: a source on every fact, units and dates, gaps stated, and next steps. It never gives
-  plant-operating instructions.
-- **Specialists**, split by the data they work from rather than one agent per topic:
-  - `troubleshooter`: one unit or incident.
-  - `production`: surveillance and optimisation, efficiency and deferment, constraints, wells.
-  - `maintenance`: reliability and inspection, work orders, turnarounds.
+- **Orchestrator.** Answers simple lookups and routes domain work to specialists as MAF
+  *background agents*, which may run at the same time. It synthesizes cited findings using its
+  `answering` skill and never gives plant-operating instructions.
+- **Seven domain specialists.** Production & Surveillance; Wells & Subsurface; Field Operations &
+  Facilities; Maintenance & Integrity; Work Management & Supply Chain; HSE & Incident Management;
+  Asset Performance & Reporting. The complete persona-to-domain, skill ownership, tool, evidence
+  prerequisite, output, limitation and human-decision matrix is generated in
+  [capabilities](capabilities.md) from the central registry.
 
-  Each has its own tool subset and skills; it loads a skill's method only when it needs it.
+  Skills are reused across roles when their evidence and methods fit; a role does not imply its
+  sources are configured. All specialists are read-only and report unknown or unsupported inputs.
 - **Tools** are the MCP server's functions called in-process, so outside MCP clients see the same
   tool surface. They run in threads so concurrent specialists don't block each other. Asset-wide
   questions use `operations.py`: production summary and PE, deferment Pareto, constraints with
@@ -83,6 +84,50 @@ are also supported):
   characteristics), vibration spectra (no condition-monitoring source), and process values that move
   together in the synthetic historian, so correlation and XY charts on the demo show how the
   generator shapes upsets rather than plant physics.
+
+## Migration and coverage boundaries
+
+The registry in `src/fuzer/agents/capabilities/__init__.py` owns the domain IDs, descriptions,
+persona mapping, assigned skills, source prerequisites, expected outputs, constraints and
+human-decision boundaries. Legacy capability declarations are kept behind a compatibility map:
+former `troubleshooter` tools stay with Field Operations & Facilities, with selected incident evidence
+also available to HSE; `production` tools stay with Production & Surveillance and Wells & Subsurface,
+with selected constraint tools shared to Field Operations & Facilities and high-level summaries to
+Asset Performance & Reporting; `maintenance` tools stay with Maintenance & Integrity, with selected
+backlog/readiness and summary tools shared to Work Management & Supply Chain and Asset Performance &
+Reporting. No new data source or operational authority is implied by these assignments.
+
+The old persisted specialist IDs (`troubleshooter`, `production`, `maintenance`) remain readable in
+conversation history and UI labels. Existing workflow agent-role tokens are also dispatched through
+compatibility aliases so in-flight work keeps functioning. New assistant specialist IDs are domain
+slugs; tools continue to be declared once and MCP-only workflow mutation tools remain unavailable to
+assistant specialists.
+
+The cross-cutting Data Scientist / Operations Research Analyst persona uses existing domain analysis
+methods and plots, not an additional agent. Data Steward / Platform Administrator is outside the
+operational roster and remains in platform administration, Sources/Settings/Jobs and governance
+workflows. No platform permission is granted by persona coverage.
+
+Only current data-backed methods are enabled: dated production and well-test trends, deferment and
+constraint summaries, supported gas-lift/back-pressure evidence, incidents and event timelines,
+maintenance/reliability/backlog/compliance/turnaround views, and plots backed by those records.
+Every numeric claim still needs loaded evidence with units, time range and provenance. Synthetic
+time-series data is labeled as synthetic; absence of OEM curves, validated choke characteristics,
+vibration sources, authoritative environmental/regulatory records, or authoritative commercial/
+accounting/cost sources remains a limitation. Agents can organize evidence and propose questions,
+not authorize or execute field, control, maintenance, HSE, emergency, schedule, resource or
+commercial decisions.
+
+### Adding a persona, skill or capability
+
+Add a persona to its owning `AgentDefinition` and assign an existing skill path in the capability
+registry; update the prerequisite, output, constraint and human-decision fields at the same time.
+Skills are `SKILL.md` directories and must be assigned explicitly to each domain that can use them.
+Add tool ownership only to the MCP capability decorator for the domain that can act on its evidence.
+Then run the capability and agent tests and regenerate `docs/capabilities.md` with
+`uv run python -m fuzer.agents.capabilities > docs/capabilities.md`. Add new analysis only when
+current domain data and validation support it; document missing prerequisites rather than
+substituting synthetic or inferred facts.
 
 ## Views and agent tools
 
