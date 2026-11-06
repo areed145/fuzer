@@ -1,4 +1,5 @@
-import { Bar, Button, PageHeader, Table } from "../ui";
+import "../styles/entity.css";
+import { Bar, Button, ButtonLink, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
@@ -11,7 +12,7 @@ function EntityMap({ id }: { id: string }) {
   if (!m.data?.features.length) return null;
   const own = m.data.focus === id;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Map{" "}
         <span className="muted small">
@@ -19,7 +20,7 @@ function EntityMap({ id }: { id: string }) {
         </span>
       </h2>
       <EntityMapView data={m.data} focus={m.data.focus} height="380px" />
-    </section>
+    </UICard>
   );
 }
 import { IncidentDetail, IncidentList } from "./Incidents";
@@ -87,7 +88,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
         </div>
         <label className="asof">
           As of
-          <input type="date" value={asOf} onChange={(x) => setAsOf(x.target.value)} />
+          <Input type="date" value={asOf} onChange={(x) => setAsOf(x.target.value)} />
           {asOf && (
             <Button variant="link" onClick={() => setAsOf("")}>
               clear
@@ -122,7 +123,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {e.kind === "document" && e.records.some((r) => r.source === "pid") && <DrawingViewer id={e.fuzer_id} />}
           {e.kind !== "document" && <LinkedDrawings id={e.fuzer_id} />}
           {e.kind === "document" && e.golden.doc_type && (
-            <section className="card">
+            <UICard  as="section">
               <div className="row spread">
                 <h2>
                   {fmt(e.golden.title?.value)}{" "}
@@ -131,8 +132,8 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <a className="button" href={`/documents/${encodeURIComponent(e.fuzer_id)}/file`} target="_blank"
-                   rel="noreferrer">Open document</a>
+                <ButtonLink href={`/documents/${encodeURIComponent(e.fuzer_id)}/file`} target="_blank"
+                   rel="noreferrer">Open document</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
                 <p className="error small">This revision is superseded; see "Superseded by" below.</p>
@@ -142,16 +143,16 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
                 title={fmt(e.golden.title?.value)}
                 src={`/documents/${encodeURIComponent(e.fuzer_id)}/file`}
               />
-            </section>
+            </UICard>
           )}
           {e.kind === "document_section" && (
-            <section className="card">
+            <UICard  as="section">
               <h2>
                 {fmt(e.golden.heading?.value)}{" "}
                 {e.golden.page && <span className="muted small">page {fmt(e.golden.page.value)}</span>}
               </h2>
               <p className="section-text">{fmt(e.golden.text?.value)}</p>
-            </section>
+            </UICard>
           )}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <MaintenanceCard id={e.fuzer_id} />
@@ -193,9 +194,9 @@ function LinkedDrawings({ id }: { id: string }) {
     <>
       On P&ID{" "}
       {sheets.length > 1 ? (
-        <select value={sheet.id} onChange={(ev) => setPick(ev.target.value)} aria-label="P&ID sheet">
+        <Select value={sheet.id} onChange={(ev) => setPick(ev.target.value)} aria-label="P&ID sheet">
           {sheets.map((x) => <option key={x.id} value={x.id}>{x.label}{x.title ? ` · ${x.title}` : ""}</option>)}
-        </select>
+        </Select>
       ) : (
         <>{sheet.label}{sheet.title && <span className="muted"> · {sheet.title}</span>}</>
       )}{" "}
@@ -217,7 +218,7 @@ function Why({ id, field }: { id: string; field: string }) {
       </div>
       {w.data.assertions.map((a, i) => (
         <div key={i}>
-          <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <span className="badge ok">chosen</span>}{" "}
+          <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <UIBadge className="badge ok">chosen</UIBadge>}{" "}
           <code className="muted">{a.record}</code>
           {a.mapping_version && <span className="muted"> · mapping v{a.mapping_version.id}</span>}
           {a.run && <span className="muted"> · loaded by run {a.run.id} ({a.run.dataset}, {a.run.finished_at.slice(0, 16).replace("T", " ")})</span>}
@@ -231,7 +232,7 @@ function Fields({ e }: { e: EntityDetail }) {
   const fields = Object.keys(e.golden).sort();
   const [why, setWhy] = useState<string | null>(null);
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>Values</h2>
       <p className="muted small">The chosen value, which source it came from, and what every other source says.</p>
       <Table variant="keyValue">
@@ -247,7 +248,7 @@ function Fields({ e }: { e: EntityDetail }) {
                   <div className="row">
                     <span>{fmt(g.value)}</span>
                     <SourceBadge source={g.source} />
-                    {g.rule === "review" && <span className="badge ok">reviewed</span>}
+                    {g.rule === "review" && <UIBadge className="badge ok">reviewed</UIBadge>}
                     {g.rule !== "derived" && (
                       <Button variant="link" className="small" onClick={() => setWhy(why === f ? null : f)}
                         title="the records, mapping versions and loads behind this value">why?</Button>
@@ -271,13 +272,13 @@ function Fields({ e }: { e: EntityDetail }) {
           })}
         </tbody>
       </Table>
-    </section>
+    </UICard>
   );
 }
 
 function Records({ e }: { e: EntityDetail }) {
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>Source records</h2>
       <p className="muted small">Every record in every system that Fuzer decided is this same thing.</p>
       <Table variant="list">
@@ -298,12 +299,12 @@ function Records({ e }: { e: EntityDetail }) {
       </Table>
       <div className="keys">
         {e.keys.map((k) => (
-          <span key={`${k.kind}:${k.key}`} className="badge key mono" title={k.kind}>
+          <UIBadge key={`${k.kind}:${k.key}`} className="badge key mono" title={k.kind}>
             {k.key}
-          </span>
+          </UIBadge>
         ))}
       </div>
-    </section>
+    </UICard>
   );
 }
 
@@ -311,7 +312,7 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
   const groups = new Map<string, Edge[]>();
   for (const e of edges) groups.set(relLabel(e), [...(groups.get(relLabel(e)) ?? []), e]);
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>Links {asOf && <span className="muted small">on {asOf}</span>}</h2>
       <Status empty={edges.length === 0}>No links{asOf ? " on this date" : ""}.</Status>
       {[...groups].map(([label, items]) => (
@@ -350,7 +351,7 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
           </ul>
         </div>
       ))}
-    </section>
+    </UICard>
   );
 }
 
@@ -358,7 +359,7 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
   const [direction, setDirection] = useState<"up" | "down">("up");
   const rows = useAsync(() => api.trace(id, direction, asOf), [id, direction, asOf]);
   return (
-    <section className="card">
+    <UICard  as="section">
       <div className="row spread">
         <h2>Flow trace {asOf && <span className="muted small">on {asOf}</span>}</h2>
         <div className="tabs">
@@ -385,7 +386,7 @@ function Trace({ id, asOf }: { id: string; asOf?: string }) {
           </li>
         ))}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -393,7 +394,7 @@ function Events({ id }: { id: string }) {
   const evs = useAsync(() => api.events(id), [id]);
   if (!evs.data?.length) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Events <span className="muted small">{evs.data.length} from operator logs, read by Claude</span>
       </h2>
@@ -403,7 +404,7 @@ function Events({ id }: { id: string }) {
             <span className="when">{ev.timestamp?.slice(0, 10) ?? "—"}</span>
             <div className="what">
               <div className="row">
-                <span className="badge event-type">{(ev.type ?? "event").replace("_", " ")}</span>
+                <UIBadge className="badge event-type">{(ev.type ?? "event").replace("_", " ")}</UIBadge>
                 <a href={entityHref(ev.id)}>{ev.summary}</a>
               </div>
               {ev.involves.length > 0 && (
@@ -427,7 +428,7 @@ function Events({ id }: { id: string }) {
           </li>
         ))}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -436,7 +437,7 @@ function MaintenanceCard({ id }: { id: string }) {
   if (!m.data?.total) return null;
   const top = Math.max(...m.data.failure_modes.map((f) => f.count));
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Maintenance <span className="muted small">{m.data.total.toLocaleString()} SAP notifications</span>
       </h2>
@@ -461,7 +462,7 @@ function MaintenanceCard({ id }: { id: string }) {
                 <span className="when">{n.created}</span>
                 <div className="what">
                   <div className="row">
-                    {n.failure_mode && <span className="badge event-type">{n.failure_mode}</span>}
+                    {n.failure_mode && <UIBadge className="badge event-type">{n.failure_mode}</UIBadge>}
                     <a href={entityHref(n.id)}>{n.text}</a>
                   </div>
                   {n.work_orders.map((w) => (
@@ -475,7 +476,7 @@ function MaintenanceCard({ id }: { id: string }) {
           </ul>
         </div>
       </div>
-    </section>
+    </UICard>
   );
 }
 
@@ -483,7 +484,7 @@ function DowntimeCard({ id }: { id: string }) {
   const d = useAsync(() => api.downtime(id), [id]);
   if (!d.data?.events) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Downtime{" "}
         <span className="muted small">
@@ -496,7 +497,7 @@ function DowntimeCard({ id }: { id: string }) {
             <span className="when">{r.start?.slice(0, 10)}</span>
             <div className="what">
               <div className="row">
-                <span className="badge event-type">{r.reason ?? "downtime"}</span>
+                <UIBadge className="badge event-type">{r.reason ?? "downtime"}</UIBadge>
                 <a href={entityHref(r.id)}>{r.comment}</a>
               </div>
               <div className="muted small">
@@ -507,7 +508,7 @@ function DowntimeCard({ id }: { id: string }) {
           </li>
         ))}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -539,7 +540,7 @@ function KnowledgeCard({ id }: { id: string }) {
   const results = useAsync(() => (asked ? api.knowledgeSearch(asked, id) : Promise.resolve([])), [asked, id]);
   if (!docs.data?.length) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Documents <span className="muted small">manuals, procedures and guides that apply here</span>
       </h2>
@@ -554,7 +555,7 @@ function KnowledgeCard({ id }: { id: string }) {
         ))}
       </ul>
       <form className="actions" onSubmit={(ev) => { ev.preventDefault(); setAsked(q.trim()); }}>
-        <input value={q} placeholder="Ask the documents, e.g. what causes high vibration?" onChange={(ev) => setQ(ev.target.value)} />
+        <Input value={q} placeholder="Ask the documents, e.g. what causes high vibration?" onChange={(ev) => setQ(ev.target.value)} />
         <Button disabled={!q.trim()}>Search</Button>
       </form>
       {asked && (
@@ -574,7 +575,7 @@ function KnowledgeCard({ id }: { id: string }) {
           ))}
         </ul>
       )}
-    </section>
+    </UICard>
   );
 }
 
@@ -582,7 +583,7 @@ function HistoryCard({ id }: { id: string }) {
   const h = useAsync(() => api.history(id), [id]);
   if (!h.data?.length) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>
         Change history <span className="muted small">how the source records behind this changed</span>
       </h2>
@@ -592,7 +593,7 @@ function HistoryCard({ id }: { id: string }) {
             <span className="when">{c.at?.slice(0, 16).replace("T", " ")}</span>
             <div className="what">
               <span className="small">
-                <span className="badge source">{c.record.split(":")[0]}</span> {c.record.split(":").slice(2).join(":")}{" "}
+                <UIBadge className="badge source">{c.record.split(":")[0]}</UIBadge> {c.record.split(":").slice(2).join(":")}{" "}
                 <span className="muted">{c.change}</span>
               </span>
               {Object.entries(c.fields).map(([f, v]) => (
@@ -604,7 +605,7 @@ function HistoryCard({ id }: { id: string }) {
           </li>
         ))}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -612,7 +613,7 @@ function SparesCard({ id }: { id: string }) {
   const parts = useAsync(() => api.spares(id), [id]);
   if (!parts.data?.length) return null;
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>Spare parts</h2>
       <Table variant="list">
         <tbody>
@@ -627,6 +628,6 @@ function SparesCard({ id }: { id: string }) {
           ))}
         </tbody>
       </Table>
-    </section>
+    </UICard>
   );
 }

@@ -6,13 +6,14 @@ import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
 import { GraphCanvas, Legend, REL_VIEWS, kindColor } from "../graph";
-import { Bar, Button, PageHeader } from "../ui";
+import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
 import { SourceBadge, Status, href, useAsync } from "../lib";
 import { reviewer, useAction, when } from "./sources/common";
 import type { ElementDefinition } from "cytoscape";
 
 const relId = (r: { src_kind: string; rel: string; dst_kind: string }) => `${r.src_kind}|${r.rel}|${r.dst_kind}`;
 const words = (s: string) => s.replace(/_/g, " ");
+const themeValue = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 type Editing =
   | { what: "kind"; def?: KindDef; draft?: KindIn }
@@ -68,9 +69,9 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
           </div>
           <div className="graph-layout">
             <GraphCanvas elements={elements} layout="force" selectedId={selected} onSelect={setSelected} height={620} />
-            <aside className="card graph-panel">
+            <UICard className="graph-panel" as="aside">
               <OntologyPanel o={o} selected={selected} kindDef={kindDef} relDef={relDef} edit={edit} />
-            </aside>
+            </UICard>
           </div>
           <Legend kinds={o.kinds.map((k) => k.kind)} />
         </>
@@ -92,7 +93,7 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
         data: {
           id: k.kind,
           label: `${k.label ?? words(k.kind)}${k.declared === false ? " ?" : ""}\n${k.count.toLocaleString()}`,
-          color: k.declared === false ? "#8d98a7" : kindColor(k.kind),
+          color: k.declared === false ? themeValue("--kind-other") : kindColor(k.kind),
           size: 26 + 14 * Math.log10(k.count + 1),
         },
       })),
@@ -110,10 +111,10 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
 }
 
 function StatusBadge({ status }: { status?: string }) {
-  if (!status) return <span className="badge">not defined</span>;
-  return <span className={`badge${status === "core" ? "" : status === "custom" ? " ok" : " key"}`}
+  if (!status) return <UIBadge className="badge">not defined</UIBadge>;
+  return <UIBadge className={`badge${status === "core" ? "" : status === "custom" ? " ok" : " key"}`}
     title={status === "core" ? "comes with Fuzer" : status === "custom" ? "added for this asset" : "made with a mapping, not described yet"}>
-    {status}</span>;
+    {status}</UIBadge>;
 }
 
 function NeedsDefinition({ o, edit, relDef }: {
@@ -128,7 +129,7 @@ function NeedsDefinition({ o, edit, relDef }: {
     return { from_kinds: [...new Set(rs.map((r) => r.src_kind))], to_kinds: [...new Set(rs.map((r) => r.dst_kind))] };
   };
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>Needs definition</h2>
       <p className="muted small">
         What the register holds that the model doesn't describe yet, usually from a newly added dataset. Define each
@@ -170,7 +171,7 @@ function NeedsDefinition({ o, edit, relDef }: {
           );
         })}
       </ul>
-    </section>
+    </UICard>
   );
 }
 
@@ -309,9 +310,9 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
     .sort((a, b) => o.views.findIndex((v) => v.id === a) - o.views.findIndex((v) => v.id === b));
   return (
     <>
-      <section className="card">
+      <UICard  as="section">
         <h2>Kinds</h2>
-        <table className="results">
+        <Table variant="results">
           <thead><tr><th>Kind</th><th>Description</th><th>Entities</th><th>Status</th><th /></tr></thead>
           {groups.map((g) => (
             <tbody key={g || "none"}>
@@ -328,11 +329,11 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
               ))}
             </tbody>
           ))}
-        </table>
-      </section>
-      <section className="card">
+        </Table>
+      </UICard>
+      <UICard  as="section">
         <h2>Link types</h2>
-        <table className="results">
+        <Table variant="results">
           <thead><tr><th>Link type</th><th>From → to</th><th>Description</th><th>Links</th><th>Status</th><th /></tr></thead>
           {views.map((v) => (
             <tbody key={v || "none"}>
@@ -349,8 +350,8 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
               ))}
             </tbody>
           ))}
-        </table>
-      </section>
+        </Table>
+      </UICard>
     </>
   );
 }
@@ -405,44 +406,44 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
     ? api.kindUpdate(def.name, changed(def, k), reviewer(), reason || undefined)
     : api.kindAdd(k, reviewer(), reason || undefined), onDone);
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>{def ? `Edit kind: ${def.label}` : "Add a kind"}</h2>
-      <table className="kv small">
+      <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>Name</th><td>
-            <input className="mono" value={k.name ?? ""} disabled={core} placeholder="activity"
+            <Input className="mono" value={k.name ?? ""} disabled={core} placeholder="activity"
               onChange={(e) => set({ name: e.target.value })} />
             <span className="muted"> {core ? "core kinds keep their name" : def
               ? "renaming changes the register and the mappings that make it" : "lower case, words joined with _"}</span>
           </td></tr>
-          <tr><th>Label</th><td><input value={k.label ?? ""} onChange={(e) => set({ label: e.target.value })} /></td></tr>
+          <tr><th>Label</th><td><Input value={k.label ?? ""} onChange={(e) => set({ label: e.target.value })} /></td></tr>
           <tr><th>Description</th><td>
             <textarea rows={3} value={k.description ?? ""} placeholder="What one of these is, in the plant's words"
               onChange={(e) => set({ description: e.target.value })} />
           </td></tr>
           <tr><th>Group</th><td>
-            <input list="ontology-groups" value={k.group ?? ""} onChange={(e) => set({ group: e.target.value || null })} />
+            <Input list="ontology-groups" value={k.group ?? ""} onChange={(e) => set({ group: e.target.value || null })} />
             <datalist id="ontology-groups">{o.groups.map((g) => <option key={g} value={g} />)}</datalist>
           </td></tr>
           <tr><th>Colour</th><td className="row">
-            <input type="color" value={k.colour ?? kindColor(k.name ?? "")} onChange={(e) => set({ colour: e.target.value })} />
+            <Input type="color" value={k.colour ?? kindColor(k.name ?? "")} onChange={(e) => set({ colour: e.target.value })} />
             {k.colour && <Button onClick={() => set({ colour: null })}>Default</Button>}
           </td></tr>
           <tr><th>Name field</th><td>
-            <input className="mono" value={k.label_field ?? ""} placeholder="the key"
+            <Input className="mono" value={k.label_field ?? ""} placeholder="the key"
               onChange={(e) => set({ label_field: e.target.value || null })} />
             <span className="muted"> the field shown as its name, when it isn't the key</span>
           </td></tr>
           {!core && <tr><th>Status</th><td>
-            <select value={k.status ?? "custom"} onChange={(e) => set({ status: e.target.value as KindIn["status"] })}>
+            <Select value={k.status ?? "custom"} onChange={(e) => set({ status: e.target.value as KindIn["status"] })}>
               <option value="custom">custom: described and in use</option>
               <option value="draft">draft: not described yet</option>
-            </select>
+            </Select>
           </td></tr>}
-          <tr><th>Why</th><td><input value={reason} placeholder="what changed and why (kept in the history)"
+          <tr><th>Why</th><td><Input value={reason} placeholder="what changed and why (kept in the history)"
             onChange={(e) => setReason(e.target.value)} /></td></tr>
         </tbody>
-      </table>
+      </Table>
       <div className="row">
         <Button variant="primary" disabled={!!a.busy || !k.name || !k.label} onClick={save}>{def ? "Save" : "Add kind"}</Button>
         <Button onClick={onCancel}>Cancel</Button>
@@ -453,7 +454,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
       </div>
       {a.error && <p className="error small">{a.error}</p>}
       {def && <History object="kind" name={def.name} />}
-    </section>
+    </UICard>
   );
 }
 
@@ -473,16 +474,16 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
     ? api.relationUpdate(def.name, changed(def, r, ["name"]), reviewer(), reason || undefined)
     : api.relationAdd({ ...r, label: r.label || words(r.name ?? "") }, reviewer(), reason || undefined), onDone);
   return (
-    <section className="card">
+    <UICard  as="section">
       <h2>{def ? `Edit link type: ${def.name}` : "Add a link type"}</h2>
-      <table className="kv small">
+      <Table variant="keyValue" density="compact">
         <tbody>
           <tr><th>Name</th><td>
-            <input className="mono" value={r.name ?? ""} disabled={!!def} placeholder="executes"
+            <Input className="mono" value={r.name ?? ""} disabled={!!def} placeholder="executes"
               onChange={(e) => set({ name: e.target.value })} />
             {!def && <span className="muted"> a verb, lower case, words joined with _</span>}
           </td></tr>
-          <tr><th>Label</th><td><input value={r.label ?? ""} placeholder={words(r.name ?? "")}
+          <tr><th>Label</th><td><Input value={r.label ?? ""} placeholder={words(r.name ?? "")}
             onChange={(e) => set({ label: e.target.value })} /></td></tr>
           <tr><th>Description</th><td>
             <textarea rows={2} value={r.description ?? ""} placeholder="What it means that one links to the other"
@@ -491,18 +492,18 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
           <tr><th>From</th><td><KindPicker o={o} value={r.from_kinds ?? []} onChange={(v) => set({ from_kinds: v })} /></td></tr>
           <tr><th>To</th><td><KindPicker o={o} value={r.to_kinds ?? []} onChange={(v) => set({ to_kinds: v })} /></td></tr>
           <tr><th>View</th><td>
-            <select value={r.view ?? ""} onChange={(e) => set({ view: e.target.value || null })}>
+            <Select value={r.view ?? ""} onChange={(e) => set({ view: e.target.value || null })}>
               <option value="">none</option>
               {o.views.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </select>
+            </Select>
           </td></tr>
           <tr><th>Dated</th><td><label className="row">
-            <input type="checkbox" checked={!!r.dated} onChange={(e) => set({ dated: e.target.checked })} />
+            <Input type="checkbox" checked={!!r.dated} onChange={(e) => set({ dated: e.target.checked })} />
             <span className="muted">links hold for a period (from / to dates)</span></label></td></tr>
-          <tr><th>Why</th><td><input value={reason} placeholder="what changed and why (kept in the history)"
+          <tr><th>Why</th><td><Input value={reason} placeholder="what changed and why (kept in the history)"
             onChange={(e) => setReason(e.target.value)} /></td></tr>
         </tbody>
-      </table>
+      </Table>
       <div className="row">
         <Button variant="primary" disabled={!!a.busy || !r.name} onClick={save}>{def ? "Save" : "Add link type"}</Button>
         <Button onClick={onCancel}>Cancel</Button>
@@ -513,7 +514,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
       </div>
       {a.error && <p className="error small">{a.error}</p>}
       {def && <History object="relation" name={def.name} />}
-    </section>
+    </UICard>
   );
 }
 

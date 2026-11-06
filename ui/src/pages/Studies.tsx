@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
 import { useState } from "react";
 import { api } from "../api";
 import { FigureView } from "../Figure";
@@ -28,7 +28,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
             {list.data.map((s) => (
               <tr key={s.id}>
                 <td><a href={href("/studies", { id: String(s.id) })}>study:{s.id}</a></td>
-                <td>{s.kind}</td><td><span className="badge">{s.status}</span></td>
+                <td>{s.kind}</td><td><UIBadge className="badge">{s.status}</UIBadge></td>
                 <td className="small">{s.summary ?? s.error ?? ""}</td><td className="muted small">{s.created_by}</td>
               </tr>
             ))}
@@ -66,15 +66,15 @@ function NewStudy({ onDone }: { onDone: () => void }) {
   };
   return (
     <UICard className="row small">
-      <select value={kind} onChange={(e) => setKind(e.target.value)}>
+      <Select value={kind} onChange={(e) => setKind(e.target.value)}>
         {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-      </select>
-      {kind === "correlate" && <input placeholder="target PI point" value={target} onChange={(e) => setTarget(e.target.value)} />}
+      </Select>
+      {kind === "correlate" && <Input placeholder="target PI point" value={target} onChange={(e) => setTarget(e.target.value)} />}
       {kind !== "events" && kind !== "entities" && (
-        <input placeholder="scope: unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} />
+        <Input placeholder="scope: unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} />
       )}
-      <input placeholder="since (YYYY-MM-DDTHH:MM)" value={since} onChange={(e) => setSince(e.target.value)} />
-      <input placeholder="until" value={until} onChange={(e) => setUntil(e.target.value)} />
+      <Input placeholder="since (YYYY-MM-DDTHH:MM)" value={since} onChange={(e) => setSince(e.target.value)} />
+      <Input placeholder="until" value={until} onChange={(e) => setUntil(e.target.value)} />
       <Button variant="primary" onClick={run}>Run</Button>
       {error && <span className="error">{error}</span>}
     </UICard>
@@ -85,7 +85,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
   const s = useAsync(() => api.study(id), [id]);
   const d = s.data;
   return (
-    <section className="card">
+    <UICard  as="section">
       <Status loading={s.loading && !d} error={s.error} />
       {d && (
         <>
@@ -97,6 +97,6 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
           {d.result && <details><summary>Results</summary><pre className="small">{JSON.stringify(d.result, null, 1).slice(0, 20000)}</pre></details>}
         </>
       )}
-    </section>
+    </UICard>
   );
 }

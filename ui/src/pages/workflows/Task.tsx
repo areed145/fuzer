@@ -1,4 +1,4 @@
-import { Button, PageHeader, Card as UICard } from "../../ui";
+import { Button, PageHeader, Card as UICard, Input } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -80,7 +80,7 @@ function HandOff({ id, person, requiresHuman, onDone }: { id: number; person: st
       <summary>Hand off to someone else</summary>
       <div className="actions">
         <AssignPicker value={to} onChange={setTo} agents={!requiresHuman} />
-        <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <Input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>
       </div>
       {requiresHuman && <p className="muted">This step needs a person: it can't go to an agent.</p>}

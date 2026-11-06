@@ -1,0 +1,3 @@
+.form-editor { height: 620px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin: 8px 0;
+  background: #fff; color: #1b1f24; }
+.form-editor .fjs-editor-container { height: 100%; }

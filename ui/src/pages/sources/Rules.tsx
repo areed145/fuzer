@@ -49,9 +49,9 @@ export function Rules() {
         </Table>
         <h3>Set a field rule</h3>
         <div className="row">
-          <input placeholder="field (manufacturer)" value={field} onChange={(e) => setField(e.target.value)} />
-          <input placeholder="priority: review, sap, maximo" value={prio} onChange={(e) => setPrio(e.target.value)} />
-          <label className="small"><input type="checkbox" checked={conflict} onChange={(e) => setConflict(e.target.checked)} /> review conflicts</label>
+          <Input placeholder="field (manufacturer)" value={field} onChange={(e) => setField(e.target.value)} />
+          <Input placeholder="priority: review, sap, maximo" value={prio} onChange={(e) => setPrio(e.target.value)} />
+          <label className="small"><Input type="checkbox" checked={conflict} onChange={(e) => setConflict(e.target.checked)} /> review conflicts</label>
           <Button variant="primary" disabled={!field || !!a.busy}
             onClick={() => a.run("set", () => api.setRule("field", field, {
               priority: prio.split(",").map((s) => s.trim()).filter(Boolean), review_on_conflict: conflict,

@@ -1,3 +1,4 @@
+import "./styles/graphs.css";
 // Shared graph drawing (Cytoscape.js) used by the ontology, network and entity graph views.
 
 import cytoscape, { type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
@@ -5,6 +6,7 @@ import dagre from "cytoscape-dagre";
 import fcose from "cytoscape-fcose";
 import { useEffect, useRef } from "react";
 import type { Subgraph } from "./api";
+import { Button } from "./ui";
 
 cytoscape.use(dagre);
 cytoscape.use(fcose);
@@ -184,9 +186,9 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     // content changing above the graph (text, banners) can't make clicks land in the wrong place.
     <div className="graph-canvas" style={{ height }} onPointerDownCapture={() => cyRef.current?.resize()}>
       <div ref={container} className="graph-surface" />
-      <button className="graph-fit" onClick={fit} title="Fit to view">
+      <Button variant="secondary" size="sm" className="graph-fit" onClick={fit} title="Fit to view">
         Fit
-      </button>
+      </Button>
     </div>
   );
 }

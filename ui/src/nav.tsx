@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href } from "./lib";
+import { Button } from "./ui";
 
 export type Badge = "work" | "review";
 
@@ -105,7 +106,7 @@ export function Sidebar({ section, badges, status }: {
   return (
     <>
       <header className="topbar">
-        <button
+        <Button
           className="menu-button"
           aria-expanded={open}
           aria-controls="sidebar"
@@ -113,7 +114,7 @@ export function Sidebar({ section, badges, status }: {
           onClick={() => setOpen(!open)}
         >
           <span aria-hidden="true">{open ? "✕" : "☰"}</span>
-        </button>
+        </Button>
         <a className="brand" href={href("/")}>
           <Logo />
         </a>

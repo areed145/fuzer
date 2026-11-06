@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { loadPerson } from "../work";
+import { Button, PageHeader, Input , Card as UICard} from "../ui";
 
 type HeadlineFact = { text: string; cites: string[] };
 
@@ -19,12 +20,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
 }) {
   return (
     <section className="home">
-      <div className="row spread">
-        <div>
-          <h1>Home</h1>
-          <p className="muted">The facility today, and what needs you.</p>
-        </div>
-      </div>
+      <PageHeader subtitle="The facility today, and what needs you.">Home</PageHeader>
       <HomeSearch query={query} />
       <div className="home-grid">
         <TodayCard />
@@ -42,13 +38,13 @@ function HomeSearch({ query }: { query: URLSearchParams }) {
   const search = (q: string) => window.location.replace(href("/browse", { q }));
   return (
     <form className="home-search" role="search" onSubmit={(e) => { e.preventDefault(); search(value); }}>
-      <input
+      <Input
         aria-label="Search the facility"
         placeholder="Search tags, wells, PI points, serials, descriptions…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
-      <button className="primary" type="submit">Search</button>
+      <Button variant="primary" type="submit">Search</Button>
     </form>
   );
 }
@@ -63,7 +59,7 @@ function TodayCard() {
   const headlines = (facts?.Headline ?? []) as HeadlineFact[];
   const production = (facts?.["Production and deferment"] ?? []) as HeadlineFact[];
   return (
-    <section className="card home-card home-today">
+    <UICard className="home-card home-today" as="section">
       <div className="row spread">
         <h2>Today</h2>
         {latest.data && (
@@ -90,7 +86,7 @@ function TodayCard() {
           <a href={href("/reports", { day: latest.data.day.day })}>Read the daily report</a>
         </>
       )}
-    </section>
+    </UICard>
   );
 }
 
@@ -105,7 +101,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
   const reviews = stats ? Object.entries(stats.open_reviews).filter(([, count]) => count > 0) : [];
   const reviewTotal = reviews.reduce((sum, [, count]) => sum + count, 0);
   return (
-    <section className="card home-card">
+    <UICard className="home-card" as="section">
       <div className="row spread">
         <h2>Needs you</h2>
         <a href={href("/inbox")}>Open inbox</a>
@@ -138,7 +134,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
           </div>
         ) : <p className="muted small">No open reviews.</p>)}
       </div>
-    </section>
+    </UICard>
   );
 }
 
@@ -156,7 +152,7 @@ function PrioritiesCard() {
   const board = useAsync(() => api.board({}, 1), []);
   const cards = board.data?.cards.slice(0, 5) ?? [];
   return (
-    <section className="card home-card">
+    <UICard className="home-card" as="section">
       <div className="row spread">
         <h2>Top priorities</h2>
         <a href={href("/board")}>Work board</a>
@@ -169,7 +165,7 @@ function PrioritiesCard() {
           {cards.map((card) => <Priority key={card.key} card={card} />)}
         </ol>
       )}
-    </section>
+    </UICard>
   );
 }
 
@@ -192,7 +188,7 @@ function IncidentsCard() {
   const openUpsets = upsets.data?.filter((upset) => !upset.end).slice(0, 3) ?? [];
   const recentIncidents = incidents.data?.items.slice(0, 3) ?? [];
   return (
-    <section className="card home-card">
+    <UICard className="home-card" as="section">
       <div className="row spread">
         <h2>Incidents and upsets</h2>
         <a href={href("/incidents")}>All incidents</a>
@@ -226,7 +222,7 @@ function IncidentsCard() {
           </ul>
         )}
       </div>
-    </section>
+    </UICard>
   );
 }
 
@@ -241,11 +237,11 @@ function UpsetItem({ upset }: { upset: Upset }) {
 
 function HealthCard() {
   return (
-    <section className="card home-card">
+    <UICard className="home-card" as="section">
       <h2>Health</h2>
       <SourceHealthPanel />
       <JobsHealthPanel />
-    </section>
+    </UICard>
   );
 }
 

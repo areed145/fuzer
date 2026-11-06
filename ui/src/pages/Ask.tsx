@@ -1,4 +1,5 @@
-import { Button, PageHeader, Card as UICard } from "../ui";
+import "../styles/ask.css";
+import { Button, ButtonLabel, PageHeader, Card as UICard, Input , Badge as UIBadge} from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -126,7 +127,7 @@ export function AskPage() {
         only: it never acts on the plant.
       </p>
       {turns.length === 0 && (
-        <div className="examples">
+        <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
             <Button key={label} className="example" onClick={() => ask(q)}>
               <span className="muted small">{label}</span>
@@ -168,11 +169,11 @@ export function AskPage() {
         {attachError && <div className="error small">{attachError}</div>}
         <div className="row">
           <Button variant="primary" type="submit" disabled={busy || !text.trim()}>{busy ? "Working…" : "Ask"}</Button>
-          <label className="button" title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
+          <ButtonLabel title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
             Attach image
-            <input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
+            <Input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
                    onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-          </label>
+          </ButtonLabel>
           {turns.length > 0 && (
             <Button type="button" variant="link" disabled={busy}
                     onClick={() => { setTurns([]); setConversation(undefined); }}>New conversation</Button>
@@ -209,7 +210,7 @@ function TurnView({ turn }: { turn: Turn }) {
         {turn.error && <div className="error small">{turn.error}</div>}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
-            <div className="small"><span className="badge updating">Working…</span>{" "}
+            <div className="small"><UIBadge className="badge updating">Working…</UIBadge>{" "}
               {j ? `${j.model_calls} model calls so far` : "starting"}</div>
             {steps.length > 0 && (
               <ul className="steps small muted">
@@ -274,7 +275,7 @@ function Remember({ id }: { id: string }) {
   };
   return (
     <div className="row small remember">
-      <input placeholder="What should the assistant remember? (a statement from the answer)" value={text}
+      <Input placeholder="What should the assistant remember? (a statement from the answer)" value={text}
              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && send()} />
       <Button variant="primary" disabled={!text.trim()} onClick={send}>Remember</Button>
       <Button variant="link" onClick={() => setOpen(false)}>Cancel</Button>
@@ -293,7 +294,7 @@ function Rate({ id }: { id: string }) {
     <span className="rate-inline">
       Useful? <Button onClick={() => send(true)}>Yes</Button>{" "}
       <Button onClick={() => (open ? send(false) : setOpen(true))}>No</Button>
-      {open && <input placeholder="What was wrong or missing?" value={comment} onChange={(e) => setComment(e.target.value)}
+      {open && <Input placeholder="What was wrong or missing?" value={comment} onChange={(e) => setComment(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && send(false)} />}
     </span>
   );

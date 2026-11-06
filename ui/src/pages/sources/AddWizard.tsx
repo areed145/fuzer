@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard } from "../../ui";
+import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
@@ -14,7 +14,7 @@ function Step({ n, title, done, open, summary, onEdit, children }: {
   return (
     <UICard className={` step${open ? " current" : ""}`}>
       <h2>
-        <span className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</span> {title}{" "}
+        <UIBadge className={`badge ${done ? "ok" : "key"}`}>{done ? "✓" : n}</UIBadge> {title}{" "}
         {done && !open && <span className="muted small">{summary}</span>}{" "}
         {done && !open && onEdit && <Button variant="link" className="small" onClick={onEdit}>change</Button>}
       </h2>
@@ -68,10 +68,10 @@ function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null
     <>
       <p className="muted small">The system of record the data comes from. Its name is what the records will say as their source.</p>
       <div className="row">
-        <select value={pick} onChange={(e) => setPick(e.target.value)}>
+        <Select value={pick} onChange={(e) => setPick(e.target.value)}>
           <option value="">choose a system…</option>
           {cat.systems.map((s) => <option key={s.id} value={s.name}>{s.name}{s.kind ? ` (${s.kind})` : ""}</option>)}
-        </select>
+        </Select>
         <Button variant="primary" disabled={!pick} onClick={() => onPick(pick)}>Continue</Button>
       </div>
       <p className="small">Or a new one:</p>
@@ -98,7 +98,7 @@ function PickConnection({ s, types, dataDir, onPick }: { s: CatalogSystem; types
           <span className="small">{c.type} <span className="muted">{c.display}</span></span>
           <Button variant="link" className="small" disabled={!!a.busy}
             onClick={() => a.run(`t${c.id}`, () => api.testConnection(c.id), (r) => setTested({ ...tested, [c.id]: r }))}>test</Button>
-          {tested[c.id] && <span className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</span>}
+          {tested[c.id] && <UIBadge className={`badge ${tested[c.id].ok ? "ok" : ""}`}>{tested[c.id].ok ? "ok" : "failed"}</UIBadge>}
           {tested[c.id] && !tested[c.id].ok && <TestSteps steps={tested[c.id].steps} />}
         </div>
       ))}
@@ -171,8 +171,8 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
       </div>
       <h3>Mapping <span className="muted small">suggested from the columns{d.suggested.key ? `; key ${d.suggested.key}` : "; no key found: name one"}</span></h3>
       <div className="row">
-        <input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
-        <input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />
+        <Input placeholder={`dataset name (${d.suggested.dataset})`} value={dataset} onChange={(e) => setDataset(e.target.value)} />
+        <Input placeholder={`record type (${d.suggested.record_type})`} value={rtype} onChange={(e) => setRtype(e.target.value)} />
         <Button variant="secondary" onClick={() => { setText(null); setOpts({ ...opts, dataset: dataset || undefined, record_type: rtype || undefined }); }}>
           Suggest again</Button>
         <Button variant="secondary" title="Claude names the columns rules could only call code or other (costs money; cached)"
@@ -201,20 +201,20 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
       <Table variant="list" density="compact">
         <tbody>
           <tr><th>Load mode</th><td>
-            <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)}>
               {Object.keys(LOAD_HELP).map((m) => <option key={m}>{m}</option>)}
-            </select> <span className="muted">{LOAD_HELP[mode]}</span></td></tr>
+            </Select> <span className="muted">{LOAD_HELP[mode]}</span></td></tr>
           <tr><th>Schedule</th><td>
-            <select value={schedule} onChange={(e) => setSchedule(e.target.value)}>
+            <Select value={schedule} onChange={(e) => setSchedule(e.target.value)}>
               <option value="">with the daily refresh (02:00) and when its file changes</option>
               <option value="0 * * * *">hourly</option>
               <option value="0 6 * * *">daily at 06:00</option>
               <option value="0 6 * * 1">weekly, Monday 06:00</option>
-            </select></td></tr>
+            </Select></td></tr>
           <tr><th>Expect a delivery every</th><td>
             <Input width="md" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="hours (empty: no expectation)" />
             <span className="muted"> stale after that, and its owner is told</span></td></tr>
-          <tr><th>Owner</th><td><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
+          <tr><th>Owner</th><td><Input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
         </tbody>
       </Table>
       <Button variant="primary" disabled={!!a.busy}

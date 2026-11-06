@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard } from "../../ui";
+import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState } from "react";
@@ -37,9 +37,9 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
   const a = useAction();
   return (
     <div className="row">
-      <input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
-      <input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
-      <input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
+      <Input placeholder="new system name, e.g. p6" value={name} onChange={(e) => setName(e.target.value.trim())} />
+      <Input placeholder="kind" value={kind} onChange={(e) => setKind(e.target.value)} />
+      <Input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
       <Button variant="secondary" disabled={!name || !!a.busy}
         onClick={() => a.run("add", () => api.addSystem(name, { ...(kind ? { kind } : {}), ...(owner ? { owner } : {}) }, reviewer()),
           () => { onDone(name); setName(""); })}>Add system</Button>
@@ -63,7 +63,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
       <Table variant="list" density="compact">
         <tbody>
           {SYSTEM_FIELDS.map(([k, label, hint]) => (
-            <tr key={k}><th>{label}</th><td><input placeholder={hint} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></td></tr>
+            <tr key={k}><th>{label}</th><td><Input placeholder={hint} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} /></td></tr>
           ))}
         </tbody>
       </Table>
@@ -98,9 +98,9 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
     <div className="small conn">
       <code>{c.name}</code> {c.type} <span className="muted">{c.display ?? JSON.stringify(c.config)}</span>{" "}
       {Object.entries(c.secrets).map(([k, v]) => (
-        <span key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</span>
+        <UIBadge key={k} className={`badge ${v.resolves ? "ok" : ""}`} title={v.ref}>{k}: {v.resolves ? "resolves" : "missing"}</UIBadge>
       ))}{" "}
-      {test && <span className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</span>}{" "}
+      {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "test ok" : "test failed"}</UIBadge>}{" "}
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), setTest)}>
         {a.busy === "test" ? "testing…" : "test"}</Button>
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
@@ -168,24 +168,24 @@ export function ConnectionForm({ system, types, onDone }: { system: string; type
   return (
     <UICard className="inset">
       <div className="row">
-        <select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
+        <Select value={type} onChange={(e) => { setType(e.target.value); setCfg({}); setSec({}); }}>
           {Object.keys(types).map((k) => <option key={k} value={k}>{k === "folder" ? "folder of exports / lake" : k}</option>)}
-        </select>
-        <input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
+        </Select>
+        <Input placeholder={`name (default ${type})`} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <Table variant="list" density="compact">
         <tbody>
           {Object.entries(t.config).map(([k, dflt]) => (
             <tr key={k}>
               <th>{k}{dflt === null ? " *" : ""}</th>
-              <td><input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
+              <td><Input value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })}
                 placeholder={k === "path" ? "the folder holding the tables: absolute, or relative to the data folder or the repository; empty: the data folder"
                   : dflt === null ? "required" : `default ${String(dflt) || "none"}`} /></td>
             </tr>
           ))}
           {t.secrets.map((k) => (
             <tr key={k}><th>{k} (secret)</th>
-              <td><input value={sec[k] ?? ""} onChange={(e) => setSec({ ...sec, [k]: e.target.value })} placeholder="env:VARIABLE_NAME" /></td></tr>
+              <td><Input value={sec[k] ?? ""} onChange={(e) => setSec({ ...sec, [k]: e.target.value })} placeholder="env:VARIABLE_NAME" /></td></tr>
           ))}
         </tbody>
       </Table>

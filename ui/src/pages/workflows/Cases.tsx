@@ -1,4 +1,4 @@
-import { Button, Input, PageHeader, Table, Card as UICard } from "../../ui";
+import { Button, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -34,13 +34,13 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
         <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
         </div>
-        <select value={type} onChange={(e) => setType(e.target.value)}>
+        <Select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every kind</option>
           {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-        </select>
+        </Select>
         <AssignPicker value={who} onChange={setWho} />
-        <label className="small"><input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> overdue</label>
-        <input placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="small"><Input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> overdue</label>
+        <Input placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />
         {list.data && <span className="small muted">{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</span>}
       </div>
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}
@@ -61,10 +61,10 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
 function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: () => void }) {
   return (
     <tr>
-      <td>{!r.closed_at && <input type="checkbox" checked={picked} onChange={toggle} />}</td>
-      <td><a href={caseHref(r.id)}>{r.title}</a>{r.escalated && <span className="badge late"> escalated</span>}</td>
-      <td className="small"><span className="badge">{r.type.replace(/_/g, " ")}</span>{r.process_key && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key}</a></>}</td>
-      <td className="small">{r.closed_at ? <span className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</span> : r.step ?? r.state}</td>
+      <td>{!r.closed_at && <Input type="checkbox" checked={picked} onChange={toggle} />}</td>
+      <td><a href={caseHref(r.id)}>{r.title}</a>{r.escalated && <UIBadge className="badge late"> escalated</UIBadge>}</td>
+      <td className="small"><UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge>{r.process_key && <> <a className="muted" href={processHref(r.process_key)}>{r.process_key}</a></>}</td>
+      <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
       <td className="small">{r.priority != null ? (r.priority < 2 ? r.priority.toFixed(2) : Math.round(r.priority).toLocaleString()) : ""}</td>
@@ -81,7 +81,7 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
     <UICard className="bulk-bar actions">
       <strong>{ids.length} selected</strong> give everything open on them to
       <AssignPicker value={to} onChange={setTo} />
-      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Button variant="primary" disabled={!to || !!a.busy}
         onClick={() => a.run("go", async () => { for (const id of ids) await api.reassignCase(id, person, to, reason || undefined); }, onDone)}>
         Reassign</Button>
@@ -105,8 +105,8 @@ export function CasePage({ id }: { id: number }) {
         <div>
           <PageHeader>{it.title}</PageHeader>
           <div className="row small">
-            <span className="badge">{it.type.replace(/_/g, " ")}</span>
-            <span className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</span>
+            <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
+            <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
             {it.priority != null && <span className="muted">priority {it.priority < 2 ? it.priority.toFixed(2) : Math.round(it.priority).toLocaleString()}</span>}
             <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
           </div>
@@ -160,12 +160,12 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
         <span className="small">Priority</span>
         <Input width="xs" value={priority} onChange={(e) => setPriority(e.target.value)} />
         <span className="small">Due</span>
-        <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+        <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
         <Button variant="secondary" disabled={!!a.busy || (!due && priority === (it.priority?.toString() ?? ""))}
           onClick={() => a.run("set", () => api.setCase(it.id, person, {
             ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
             ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
-        <input placeholder="why (kept in its history)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <Input placeholder="why (kept in its history)" value={reason} onChange={(e) => setReason(e.target.value)} />
         {!hasProcess && <Button variant="secondary" disabled={!!a.busy}
           onClick={() => a.run("close", () => api.transitionCase(it.id, person, "done", reason || undefined), reload)}>Close as done</Button>}
       </div>
@@ -223,7 +223,7 @@ export function Timeline({ it, person }: { it: WorkItem; person: string }) {
         })}
       </ol>
       <div className="actions">
-        <input placeholder="Add a comment" value={text} onChange={(e) => setText(e.target.value)}
+        <Input placeholder="Add a comment" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && text && a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))} />
         <Button disabled={!text || !!a.busy} onClick={() => a.run("c", () => api.comment(it.id, person || "anonymous", text), () => setText(""))}>Comment</Button>
         {a.error && <span className="error small">{a.error}</span>}

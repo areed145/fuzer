@@ -1,3 +1,4 @@
+import "./styles/bpmn.css";
 // A process diagram (bpmn-js viewer) with the path taken and the open steps marked, or any other markers
 // and count overlays (the comparison and the monitor). bpmn.io's licence needs its watermark to stay
 // visible; the viewer draws it.

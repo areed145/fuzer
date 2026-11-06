@@ -1,0 +1,9 @@
+/* work board */
+ol.board { list-style: none; padding: 0; margin: 8px 0; }
+.board-card { padding: 10px 12px; margin-bottom: 6px; }
+.board-card.pinned { border-left: 3px solid var(--accent); }
+.board-card .rank { min-width: 2.5em; color: var(--muted); }
+.board-card .spacer { flex: 1; }
+.board-detail { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+.board-detail table { width: auto; margin: 4px 0; }
+.board-detail td { padding: 2px 12px 2px 0; }

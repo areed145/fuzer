@@ -1,4 +1,5 @@
-import { PageHeader, Table, Card as UICard } from "../ui";
+import "../styles/jobs.css";
+import { ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge} from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, useAsync } from "../lib";
@@ -28,7 +29,7 @@ const duration = (sec: number | null) =>
 const runHref = (id: string) => href(`/jobs/run/${id}`);
 
 export function RunBadge({ status }: { status: string }) {
-  return <span className={`badge run-${RUN_CLASS[status] ?? "key"}`}>{status.toLowerCase().replace("_", " ")}</span>;
+  return <UIBadge className={`badge run-${RUN_CLASS[status] ?? "key"}`}>{status.toLowerCase().replace("_", " ")}</UIBadge>;
 }
 
 export function JobsPage() {
@@ -58,7 +59,7 @@ export function JobsPage() {
 
 function DagsterLink({ d }: { d: JobsOverview["dagster"] }) {
   return d.reachable ? (
-    <a className="button" href={d.url} target="_blank" rel="noreferrer">Open in Dagster ↗</a>
+    <ButtonLink href={d.url} target="_blank" rel="noreferrer">Open in Dagster ↗</ButtonLink>
   ) : (
     <span className="muted small" title={d.url}>Dagster UI not reachable</span>
   );
@@ -172,7 +173,7 @@ function Trigger({ t }: { t: JobTrigger }) {
 }
 
 function OnOff({ on }: { on: boolean }) {
-  return <span className={`badge ${on ? "ok" : "key"}`}>{on ? "on" : "off"}</span>;
+  return <UIBadge className={`badge ${on ? "ok" : "key"}`}>{on ? "on" : "off"}</UIBadge>;
 }
 
 function RunDots({ runs }: { runs: JobRunSummary[] }) {
@@ -194,7 +195,7 @@ function CheckRow({ c }: { c: JobCheck }) {
   return (
     <tr>
       <td><code>{c.name}</code>{c.description && <div className="muted small">{c.description}</div>}</td>
-      <td><span className={`badge run-${CHECK_CLASS[c.level]}`}>{CHECK_LABEL[c.level]}</span></td>
+      <td><UIBadge className={`badge run-${CHECK_CLASS[c.level]}`}>{CHECK_LABEL[c.level]}</UIBadge></td>
       <td className="small">
         {c.note && <div className={c.level === "fail" ? "error" : "muted"}>{c.note}</div>}
         {rest.length > 0 && <div>{rest.map(([k, v]) => `${k.replace(/_/g, " ")}: ${fmtValue(v)}`).join(" · ")}</div>}

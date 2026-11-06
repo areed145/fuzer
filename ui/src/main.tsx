@@ -1,3 +1,8 @@
+import "./styles.css";
+import "./styles/shell.css";
+import "./styles/shared.css";
+import "./styles/workflows.css";
+import { Badge as UIBadge } from "./ui";
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
@@ -25,7 +30,6 @@ import { Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import type { JobsHealth } from "./api";
-import "./styles.css";
 
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
@@ -97,7 +101,7 @@ function App() {
                 <span>{s.records.toLocaleString()} source records</span>
               </div>
             )}
-            {rebuilding && <span className="badge updating">Updating…</span>}
+            {rebuilding && <UIBadge className="badge updating">Updating…</UIBadge>}
             <HealthIndicator health={jobsHealth.data} rebuildError={s?.rebuild.last?.error} />
             <Identity />
             {stats.error && <span className="error small">API not reachable</span>}

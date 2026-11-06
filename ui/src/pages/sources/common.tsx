@@ -1,4 +1,4 @@
-import { Button } from "../../ui";
+import { Button , Badge as UIBadge} from "../../ui";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
 import { useState } from "react";
@@ -63,7 +63,7 @@ export function useAction() {
 
 export function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
   if (!h) return null;
-  return <span className={`badge ${STATE[h.state] ?? ""}`} title={h.problems.join(", ") || "healthy"}>{h.state}</span>;
+  return <UIBadge className={`badge ${STATE[h.state] ?? ""}`} title={h.problems.join(", ") || "healthy"}>{h.state}</UIBadge>;
 }
 
 export function Loaded({ r }: { r: SourceLoad }) {
@@ -80,7 +80,7 @@ export function TestSteps({ steps }: { steps: { step: string; ok: boolean; ms: n
   return (
     <ul className="small">
       {steps.map((s) => (
-        <li key={s.step}><span className={`badge ${s.ok ? "ok" : ""}`}>{s.ok ? "ok" : "failed"}</span> {s.step}{" "}
+        <li key={s.step}><UIBadge className={`badge ${s.ok ? "ok" : ""}`}>{s.ok ? "ok" : "failed"}</UIBadge> {s.step}{" "}
           <span className="muted">{s.ms} ms · {cell(s.detail)}</span></li>
       ))}
     </ul>

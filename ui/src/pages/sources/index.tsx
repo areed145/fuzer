@@ -1,4 +1,5 @@
-import { PageHeader, Table } from "../../ui";
+import "../../styles/sources.css";
+import { ButtonLink, PageHeader, Table, Input , Badge as UIBadge} from "../../ui";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
 import { useState } from "react";
 import { api } from "../../api";
@@ -32,7 +33,7 @@ export function SourcesPage({ query }: { query: URLSearchParams }) {
     <section>
       <div className="row spread">
         <PageHeader>Sources</PageHeader>
-        <a className="button primary" href={href("/sources", { view: "add" })}>+ Add a source</a>
+        <ButtonLink variant="primary" href={href("/sources", { view: "add" })}>+ Add a source</ButtonLink>
       </div>
       <p className="muted">
         Every system of record, how Fuzer reaches it, and each dataset it delivers. Open a dataset for how it's doing and
@@ -74,13 +75,13 @@ function Datasets() {
             <span className="small">
               {here.length} datasets:{" "}
               {["ok", "stale", "held", "failed", "checks failing", "profile drift", "not loaded"].map((st) =>
-                count(st) ? <span key={st} className={`badge ${STATE[st] ?? ""}`}>{count(st)} {st}</span> : null)}
+                count(st) ? <UIBadge key={st} className={`badge ${STATE[st] ?? ""}`}>{count(st)} {st}</UIBadge> : null)}
             </span>
-            <input placeholder="filter by name, system or owner" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <label className="small"><input type="checkbox" checked={problems} onChange={(e) => setProblems(e.target.checked)} /> problems only</label>
+            <Input placeholder="filter by name, system or owner" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <label className="small"><Input type="checkbox" checked={problems} onChange={(e) => setProblems(e.target.checked)} /> problems only</label>
             {rows.length > here.length && (
               <label className="small" title="datasets whose data isn't in this project's folders">
-                <input type="checkbox" checked={absent} onChange={(e) => setAbsent(e.target.checked)} /> show {rows.length - here.length} with no data here</label>
+                <Input type="checkbox" checked={absent} onChange={(e) => setAbsent(e.target.checked)} /> show {rows.length - here.length} with no data here</label>
             )}
           </div>
           <Table variant="results">
@@ -91,10 +92,10 @@ function Datasets() {
               {shown.map(({ s, d }) => (
                 <tr key={d.name} onClick={() => open(d.name)} className={d.present ? "" : "muted"}>
                   <td><code>{d.name}</code> <span className="muted small">{d.record_type ?? d.reader}</span>
-                    {d.status !== "active" && <span className="badge"> {d.status}</span>}</td>
+                    {d.status !== "active" && <UIBadge className="badge"> {d.status}</UIBadge>}</td>
                   <td><code>{s.name}</code></td>
                   <td>{d.present ? <HealthBadge h={d.health} /> : <span className="muted small">no data here</span>}</td>
-                  <td>{d.last_run && <span className={`badge ${STATE[d.last_run] ?? ""}`}>{d.last_run}</span>}</td>
+                  <td>{d.last_run && <UIBadge className={`badge ${STATE[d.last_run] ?? ""}`}>{d.last_run}</UIBadge>}</td>
                   <td className="small">{d.owner ?? <span className="muted">–</span>}</td>
                   <td className="muted small">{d.schedule ? scheduleText(d.schedule) : "daily"}</td>
                   <td>{d.rows?.toLocaleString() ?? ""}</td>

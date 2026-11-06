@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
+import { Button, Table , Card as UICard, Badge as UIBadge} from "./ui";
 
 function useDark() {
   const q = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -75,22 +76,22 @@ export function FigureView({ id }: { id: string }) {
   }, [d, dark]);
 
   return (
-    <figure className="figure card">
+    <UICard className="figure" as="figure">
       <Status loading={f.loading && !d} error={f.error} />
       {d && (
         <>
           <div className="figure-plot" ref={el} style={{ height: d.spec.layout.height ?? 420 }}
                role="img" aria-label={d.title} />
           <figcaption className="row small muted">
-            {d.by_source === "assistant" && <span className="badge">assistant-entered data</span>}
+            {d.by_source === "assistant" && <UIBadge className="badge">assistant-entered data</UIBadge>}
             <span className="spacer" />
-            <button className="link" onClick={() => setTable((t) => !t)}>{table ? "Hide data" : "Data"}</button>
+            <Button variant="link" onClick={() => setTable((t) => !t)}>{table ? "Hide data" : "Data"}</Button>
             <a href={`/figures/${encodeURIComponent(d.id)}.html`} target="_blank" rel="noreferrer">Open full size</a>
           </figcaption>
           {table && <FigureTable d={d} />}
         </>
       )}
-    </figure>
+    </UICard>
   );
 }
 
@@ -101,11 +102,11 @@ function FigureTable({ d }: { d: FigureData }) {
       {d.spec.data.map((t: any, i: number) => {
         if (t.type === "heatmap") {
           return (
-            <table key={i} className="list small">
+            <Table key={i} variant="list" density="compact">
               <thead><tr><th />{(t.x ?? []).map((x: string) => <th key={x}>{x}</th>)}</tr></thead>
               <tbody>{(t.z ?? []).map((row: number[], r: number) => (
                 <tr key={r}><th>{t.y?.[r]}</th>{row.map((v, c) => <td key={c}>{v}</td>)}</tr>))}</tbody>
-            </table>
+            </Table>
           );
         }
         const xs: unknown[] = t.x ?? [];
@@ -114,13 +115,13 @@ function FigureTable({ d }: { d: FigureData }) {
         return (
           <details key={i} open={d.spec.data.length === 1}>
             <summary>{t.name || `series ${i + 1}`} <span className="muted">{Math.max(xs.length, ys.length)} points</span></summary>
-            <table className="list small">
+            <Table variant="list" density="compact">
               <tbody>
                 {Array.from({ length: n }, (_, k) => (
                   <tr key={k}><td className="mono">{String(xs[k] ?? k)}</td><td>{String(ys[k] ?? "")}</td></tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </details>
         );
       })}
