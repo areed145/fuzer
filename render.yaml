@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: fuzer
+    runtime: docker
+    plan: 0.5c-512mb
+    healthCheckPath: /health
+    envVars:
+      - key: FUZER_DATABASE_URL
+        fromDatabase:
+          name: fuzer-db
+          property: connectionString
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+databases:
+  - name: fuzer-db
+    databaseName: fuzer
+    user: fuzer
+    plan: 0.1c-256mb
+    postgresMajorVersion: 16

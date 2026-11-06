@@ -8,6 +8,23 @@ Running Fuzer, its configuration and how it performs at size.
 
 Reference: [command line](cli.md), [database schema](schema.md).
 
+## Render
+
+The repository includes a Render Blueprint (`render.yaml`) that creates the
+Docker-based web service and a managed Postgres database. In Render, create a
+new Blueprint from this repository and deploy it. The web service builds the
+React UI and serves it with the FastAPI app; Render injects the database's
+connection string as `FUZER_DATABASE_URL`.
+
+The Blueprint selects small paid plans for both resources so the web service
+stays available and the database persists. Review or change those plans in
+`render.yaml` before deploying if you prefer different resource sizes.
+
+The service initializes the database schema on startup, but it does not load
+source exports or demo data. Import your asset data after deployment. If the
+application needs Claude features, set `ANTHROPIC_API_KEY` in the Render
+service's environment; the API and UI can start without it.
+
 ## Performance at full size
 `fakeplant generate --size large` makes an asset close to a real offshore one: 58k
 tags, 163k PI points, 3.9k pieces of equipment, 15k notifications, 26k work
