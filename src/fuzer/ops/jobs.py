@@ -87,11 +87,11 @@ def _source_asset(name: str):
 def _source_check(name: str):
     @dg.asset_check(asset=name, name="source_checks", description=f"{name}: its checks pass and it is healthy (#225).")
     def check(fuzer: Fuzer) -> dg.AssetCheckResult:
-        from ..sources import quality
+        from ..sources import quality as source_quality
 
         with fuzer.connect() as conn:
-            h = (quality.health(conn, name) or [{}])[0]
-        passed, blocking = quality.health_check_outcome(h)
+            h = (source_quality.health(conn, name) or [{}])[0]
+        passed, blocking = source_quality.health_check_outcome(h)
         failing = h.get("failing_checks") or []
         return dg.AssetCheckResult(
             passed=passed,

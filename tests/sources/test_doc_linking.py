@@ -65,10 +65,10 @@ def test_search_boost_by_failure_mode(conn):
 def test_incident_suggested_reading(conn):
     llm_links.run(conn, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
     pipeline.rebuild(conn, PACK)
-    jan = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-P-1001B"))["items"]
-               if i["start"] == "2024-01-01")
-    reading = knowledge.for_incident(conn, jan["id"])
-    assert reading and all("VIB" in r["failure_modes"] for r in reading)
+    trip = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-V-2001"))["items"]
+                if i["start"] == "2024-11-05")
+    reading = knowledge.for_incident(conn, trip["id"])
+    assert reading and all("AIR" in r["failure_modes"] for r in reading)
     assert any(r["heading"].endswith("Troubleshooting") for r in reading)
 
 

@@ -23,7 +23,8 @@ BUILT_IN = {
                                     "manufacturer": "manufacturer", "model": "model", "serial": "serial"}),
     "maximo_assets": ("assetnum", {"assetnum": "other", "description": "description",
                                    "manufacturer": "manufacturer", "serial": "serial", "location": "tag"}),
-    "pi_points": ("tag", {"tag": "tag", "descriptor": "description", "engunits": "unit", "pointsource": "code"}),
+    "pi_points": ("tag", {"tag": ["tag", "well"], "descriptor": "description", "engunits": "unit",
+                          "pointsource": "code"}),
     "sap_notifications": ("qmnum", {"qmnum": "other", "notif_type": "code", "created": "timestamp", "equnr": "ref",
                                     "floc": "location", "priority": "code", "short_text": ["description", "text"],
                                     "damage_code": "code", "cause_code": "code", "status": "code"}),
@@ -71,7 +72,7 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
         for i, (a, b) in enumerate(zip(eq, eq[1:]))]
 
     tables["well_tests"] = [
-        {"TEST_ID": f"WT{i:05d}", "WELL": f"{w[0]}-{w[1:]}", "TEST_DT": f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+        {"TEST_ID": f"WT{i:05d}", "WELL": w, "TEST_DT": f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
          "OIL_RATE_SM3D": f"{rng.uniform(80, 900):.1f}", "WATER_CUT_PCT": f"{rng.uniform(0, 60):.1f}",
          "GOR": f"{rng.uniform(80, 250):.0f}", "TESTED_BY": rng.choice(ROLES)}
         for i, w in enumerate(w for w in wells for _ in range(3))]

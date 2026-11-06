@@ -38,7 +38,7 @@ def test_rankings(conn):
     by_tag = queries.downtime_ranking(conn, "tag")
     assert by_tag and by_tag[0]["lost_oil_sm3"] >= by_tag[-1]["lost_oil_sm3"]
     by_class = queries.downtime_ranking(conn, "class")
-    assert {r["label"].split(".")[0] for r in by_class} <= {"ISO14224:CO", "ISO14224:PU"}
+    assert {r["label"].split(".")[0] for r in by_class} <= {"ISO14224:CO", "ISO14224:VE"}
 
 
 def test_reason_code_mismatch_flagged(conn):

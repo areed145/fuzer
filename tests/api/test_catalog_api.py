@@ -139,10 +139,10 @@ def test_rules_health_alerts_and_lineage(client):
     assert w["source"] == "sap" and any(a["wins"] and a["run"] for a in w["assertions"])
     assert client.get(f"/sources/why/{fid}/no_such_field").status_code == 404
 
-    from fuzer.agents.capabilities import shared
+    from fuzer.agents.capabilities import sources
 
-    assert any(x["dataset"] == "sap_equipment" for x in shared.source_health())
-    assert shared.why_value(fid, "manufacturer")["source"] == "sap"
+    assert any(x["dataset"] == "sap_equipment" for x in sources.source_health())
+    assert sources.why_value(fid, "manufacturer")["source"] == "sap"
 
 
 def test_add_a_source_from_another_folder(client, okan_data, tmp_path):

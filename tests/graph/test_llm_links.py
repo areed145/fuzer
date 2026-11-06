@@ -32,7 +32,8 @@ class FakeClaude:
                 mentions = [{"text": "20-K-2200B", "candidate_id": ids["20-K-2200B"], "confidence": 0.95,
                              "note": "Okan train B second-stage compressor"}]
                 events = [{"type": "trip", "summary": "20-K-2200B tripped on high vibration",
-                           "involves": [{"candidate_id": ids["20-K-2200B"], "role": "subject"}],
+                           "involves": [{"candidate_id": ids["20-K-2200B"], "role": "subject"},
+                                        {"candidate_id": "c999", "role": "location"}],
                            "details": [{"name": "vibration_mm_s", "value": "9"}]}]
             out.append({"entry_id": e["entry_id"], "mentions": mentions, "events": events})
         text = json.dumps({"entries": out})
@@ -51,10 +52,10 @@ def conn(okan_db):
 
 def test_candidates_cover_ambiguous_tags_and_area_names(conn):
     reg = llm_links.load_register(conn)
-    cands = llm_links.candidates_for("PT-2001 on production separator reading erratic", PACK, reg)
+    cands = llm_links.candidates_for("PT-2001 on GGCP inlet separator reading erratic", PACK, reg)
     keys = {k for _, k in cands}
     assert {"10-PT-2001", "20-PT-2001", "30-PT-2001", "40-PT-2001", "50-PT-2001", "20-V-2001"} <= keys
-    cands = llm_links.candidates_for("Train B second stage compressor tripped", PACK, reg)
+    cands = llm_links.candidates_for("20-K-2200B on GGCP tripped", PACK, reg)
     assert ("tag", "20-K-2200B") in cands and ("area", "OKAN-20") in cands
 
 
@@ -68,7 +69,7 @@ def test_dry_run_calls_nothing(conn):
 def test_run_links_and_events_reach_the_graph(conn):
     fake = FakeClaude()
     out = llm_links.run(conn, PACK, client=fake, workers=1, sources=["oplog"])
-    assert out["stored"] == out["entries"] and out["failed_requests"] == 0
+    assert out["stored"] == out["entries"] and out["failed_requests"] == 0 and out["unknown_candidate"] > 0
     pipeline.rebuild(conn, PACK)
 
     compressor = queries.resolve_ref(conn, PACK, "20-K-2200B")

@@ -10,13 +10,13 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 24 modules</small>"]
-  c_graph["Graph and golden records<br><small>fuzer.graph, 17 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 28 modules</small>"]
+  c_graph["Graph and golden records<br><small>fuzer.graph, 18 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 12 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 4 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 13 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 8 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 17 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 13 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
@@ -173,7 +173,7 @@ flowchart TD
 
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `adx`, `alerts`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_versions`, `adx`, `alerts`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
 - **Uses:** core, workflow
 - **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_system` ([schema](schema.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
@@ -182,7 +182,7 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
-- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
+- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
 - **Uses:** core, sources
 - **Writes:** `crosswalk`, `edge`, `entity`, `id_event`, `lesson`, `llm_extraction`, `ontology_kind`, `ontology_relation`, `register_summary`, `review_item` ([schema](schema.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
@@ -191,7 +191,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `calcs`, `cases`, `clusters`, `equipment`, `hydraulics`, `limits`, `signals`, `studies`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `calcs`, `cases`, `clusters`, `equipment`, `hydraulics`, `limits`, `production_efficiency`, `signals`, `studies`, `value`, `values`
 - **Uses:** core, graph, sources, workflow
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Settings:** `alarms.failed_start_minutes`, `sre.hops`, `studies.max_points`, `studies.max_values`, `studies.workers` ([settings](settings.md))
@@ -220,7 +220,7 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `canvas`, `engine`, `roles`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `roles`, `runtime`, `work_items`
 - **Uses:** nothing else in fuzer
 - **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
@@ -229,7 +229,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.maintenance`, `capabilities.production`, `capabilities.shared`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))

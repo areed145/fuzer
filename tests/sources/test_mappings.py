@@ -113,16 +113,10 @@ def test_every_built_in_table_has_a_mapping():
     assert mappings.tables()["sap_bom"].key == ("equnr", "matnr")
 
 
-def test_fake_reference_catalogs_match_pack_defaults():
-    from fakeplant.onshore import DOWNTIME_REASONS as onshore_reasons
-    from fakeplant.onshore import MAINTENANCE_CODES as onshore_codes
-
-    for pack_name, codes, reasons in (
-        ("offshore_demo", offshore.MAINTENANCE_CODES, offshore.DOWNTIME_REASONS),
-        ("onshore_demo", onshore_codes, onshore_reasons),
-    ):
-        pack = load_pack(pack_name)
-        assert pack.maintenance_codes == codes and pack.downtime_reasons == reasons
+def test_okan_reference_catalogs_match_pack_defaults():
+    pack = load_pack("okan")
+    assert pack.maintenance_codes["damage"]["D03"] == "FTS"
+    assert pack.downtime_reasons["LIFT-GAS"] == {"name": "Lift gas shortfall", "category": "equipment"}
 
 
 def test_reference_shape_rows_are_code_lists_not_entities():

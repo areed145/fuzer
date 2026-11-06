@@ -52,8 +52,8 @@ def test_ambiguous_ref_returns_candidates(call):
 
 
 def test_trace_flow_as_of(call):
-    before = call("trace_flow", ref="OK-NWP-G2", as_of="2024-01-01")
-    after = call("trace_flow", ref="OK-NWP-G2", as_of="2024-06-01")
+    before = call("trace_flow", ref="OK-NWP-G2", direction="down", as_of="2024-01-01")
+    after = call("trace_flow", ref="OK-NWP-G2", direction="down", as_of="2024-06-01")
     labels = lambda r: {p["label"] for p in r["path"]}
     assert labels(before) and labels(after)
 
@@ -63,7 +63,7 @@ def test_equipment_history_and_changes(call):
     assert len(hist) == 1 and (hist[0]["from"], hist[0]["to"]) == ("2009-06-01", "now")
     assert all(h["serial"].startswith("SN") for h in hist)
     changes = call("equipment_changes", since="2000-01-01")
-    assert "20-K-2200B" in {c["tag"] for c in changes}
+    assert "72-HCV-1002" in {c["tag"] for c in changes}
 
 
 def test_link_text(call):

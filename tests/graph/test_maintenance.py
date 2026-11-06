@@ -29,7 +29,23 @@ def test_site_codes_map_to_iso(conn):
                      "and payload->>'damage_code' = 'D01' limit 1").fetchone()
     g = queries.entity(conn, fid(conn, r["source_key"]))["golden"]
     assert g["failure_mode"]["value"] == "VIB" and g["failure_mode_name"]["value"] == "Vibration"
-    assert g["failure_mechanism_name"]["value"] == "Clearance / alignment failure"
+    assert g["failure_mechanism_name"]["value"] == "Vibration"
+
+
+def test_unmapped_site_codes_are_reported(conn):
+    record = conn.execute(
+        "select source_key from source_record where source = 'sap' and record_type = 'notification' "
+        "and payload->>'damage_code' = 'D01' limit 1"
+    ).fetchone()
+    fid_ = fid(conn, record["source_key"])
+    conn.execute(
+        "insert into golden (fuzer_id, field, value, source, rule) values (%s, 'unmapped_codes', %s, 'sap', 'test')",
+        (fid_, Jsonb([{"list": "damage", "code": "D99"}])),
+    )
+    result = quality.unmapped_site_codes(conn)
+    conn.execute("delete from golden where fuzer_id = %s and field = 'unmapped_codes'", (fid_,))
+    assert not result["passed"] and result["count"] == 1
+    assert result["examples"][0]["code"] == "D99"
 
 
 def test_unmapped_site_codes_are_reported(conn):

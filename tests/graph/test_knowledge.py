@@ -49,7 +49,7 @@ def test_scoped_search_finds_the_right_manual_page(conn):
 
 def test_site_guide_ranks_for_its_tags(conn):
     hits = knowledge.search(conn, "level transmitter disagrees with gauge glass", fid(conn, "20-LT-2001"))
-    assert hits and hits[0]["document_label"] == "TG-20L-001 rev A"
+    assert hits and hits[0]["document_label"] == "TG-20-001 rev A"
 
 
 def test_superseded_revisions_left_out(conn):

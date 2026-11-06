@@ -27,16 +27,23 @@ def conn(okan_db):
     lessons.MIN_INCIDENTS = 2
 
 
-def test_brief_for_the_vibration_incident(conn):
+def test_brief_for_the_okan_compressor_incident(conn):
     march = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-K-2200B"))["items"]
                  if i["start"].startswith("2024-03"))
     b = assistant.brief(conn, PACK, march["id"])
     assert b["about"]["label"] == "20-K-2200B" and b["incident"]["timeline"]
-    assert "VIB" in b["incident"]["failure_modes"]
-    assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
+    assert "UST" in b["incident"]["failure_modes"]
     assert len(b["spares"]) == 3 and b["documents"]
-    assert b["suggested_checks"] and all(c["from"] for c in b["suggested_checks"])
     assert b["process_values"]["series"] and b["process_values"]["provider"] == "synthetic"
+
+
+def test_brief_suggests_matching_okan_guide(conn):
+    incident = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-V-2001"))["items"]
+                    if i["start"] == "2024-11-05")
+    b = assistant.brief(conn, PACK, incident["id"])
+    assert b["suggested_reading"] and all("AIR" in r["failure_modes"] for r in b["suggested_reading"])
+    assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
+    assert b["suggested_checks"] and all(c["from"] for c in b["suggested_checks"])
 
 
 def test_brief_for_a_tag_uses_its_latest_incident(conn):
