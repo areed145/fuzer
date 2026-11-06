@@ -185,3 +185,32 @@ def test_agent_drafting_failures_leave_definition_unchanged(conn, client, monkey
     monkeypatch.setattr(workflow, "generate", invalid)
     assert client.post(url, json=body).status_code == 422
     assert engine.export_bpmn(conn, d["id"]) == before
+
+
+@pytest.mark.parametrize(("status", "message"), [
+    (400, "supports tool calling"),
+    (401, "rejected its credentials"),
+    (404, "could not find the configured model or endpoint"),
+    (429, "rate limit or quota"),
+])
+def test_agent_provider_failures_explain_next_steps(conn, client, monkeypatch, status, message):
+    from fuzer.agents import workflow
+    from fuzer.core import llm
+
+    class ProviderError(Exception):
+        status_code = status
+        code = "provider_error"
+        request_id = "provider-request-id"
+
+    def fail(*args):
+        raise ProviderError("provider response details must not reach the user")
+
+    d = engine.import_bpmn(conn, UPSET.replace('id="upset"', f'id="canvas_provider_{status}"'), "alice")[0]
+    monkeypatch.setattr(workflow, "generate", fail)
+    monkeypatch.setattr(llm, "provider_errors", lambda scope: (ProviderError,))
+    response = client.post(f"/work/definitions/{d['id']}/generate",
+                           json={"description": "Inspect anomalies", "by": "alice"})
+
+    assert response.status_code == 503
+    assert message in response.json()["detail"]
+    assert "provider response details" not in response.json()["detail"]
