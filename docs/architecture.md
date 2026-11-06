@@ -22,7 +22,6 @@ flowchart LR
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 16 modules</small>"]
   c_workflow --> c_sources
-  c_analysis --> c_graph
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -184,7 +183,7 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
 - **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
-- **Uses:** analysis, core, sources
+- **Uses:** core, sources
 - **Writes:** `crosswalk`, `edge`, `entity`, `id_event`, `lesson`, `llm_extraction`, `ontology_kind`, `ontology_relation`, `register_summary`, `review_item` ([schema](schema.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
-from ..analysis import limits
+from ..analysis import capacity_bounds, limits
 from ..core import db, settings, taxonomy
 from ..core.pack import Pack
 from ..graph import (
@@ -124,7 +124,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["maintenance_event_links"] = edges.link_maintenance_to_events(conn)
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
-    stats |= measurements.build(conn, pack, maps, endpoint)
+    stats |= measurements.build(conn, pack, maps, endpoint, capacity_bounds.derive)
     stats |= curves.build(conn, pack, maps, endpoint)
     stats |= limits.build(conn, pack, maps, endpoint)
     lap("measurements")
