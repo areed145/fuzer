@@ -2,7 +2,8 @@
 
 Organize by user goals, not by the adapter, database table or feature's implementation history.
 These are ownership boundaries, not a requirement for eight top-level navigation entries.
-The sidebar uses Start, Explore, Investigate, Work and Manage to group the existing pages.
+Sidebar presentation is undecided. The prior Explore, Operations, Knowledge, Workflows and Admin
+groups/labels remain unchanged pending a user decision; they do not define domain ownership.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
@@ -38,6 +39,7 @@ automatic relevance ranking or widget configuration until the owning workflows a
 ## Contributor checks
 
 Before adding a page or action, identify its owner here and link to an existing surface when one
-already owns it. Extend the ownership map and `ui/src/nav.tsx` together; preserve old URLs or add
+already owns it. Update this ownership map when responsibility changes. Do not infer sidebar grouping or label
+approval from conceptual ownership boundaries. Preserve old URLs or add
 explicit tested redirects. Verify active navigation/breadcrumbs, contextual links, direct reader
 access and desktop/mobile navigation. Use the existing API/domain boundaries and shared UI kit.

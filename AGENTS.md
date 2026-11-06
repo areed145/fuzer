@@ -7,6 +7,8 @@ Read [page ownership](docs/page-ownership.md) before adding routes or controls: 
 per action, reusable contextual entry links, compatible URLs, and no duplicated entity/source/job
 editors. Navigation grouping is not authorization. Users consolidation remains separate (#279);
 Home personalization is a future direction, not permission to add a ranking/widget engine.
+Conceptual ownership does not approve sidebar groups or labels; keep the prior navigation
+presentation until its replacement is explicitly settled with the user.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,

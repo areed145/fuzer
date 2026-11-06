@@ -153,23 +153,23 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.deepEqual(administrative, []);
 });
 
-test("goal navigation preserves tool URLs, contextual ownership and compatible Work entry", async () => {
+test("prior navigation presentation and compatible URLs remain unchanged while ownership is separate", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
-  const expected = ["#/", "#/browse", "#/map", "#/network", "#/ontology", "#/investigate/okan",
+  const expected = ["#/", "#/browse", "#/map", "#/network", "#/ontology",
     "#/ask", "#/downtime", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies",
     "#/board", "#/inbox", "#/cases", "#/review", "#/processes", "#/sources", "#/jobs",
     "#/settings", "#/teams", "https://areed145.github.io/fuzer/"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
-  await nav.getByRole("list", { name: "Work", exact: true }).getByRole("link", { name: "Data review", exact: true }).waitFor();
-  await nav.getByRole("list", { name: "Investigate", exact: true }).getByRole("link", { name: "Analytics", exact: true }).waitFor();
+  assert.deepEqual(await nav.locator("section > h2").allTextContents(), ["Explore", "Operations", "Knowledge", "Workflows", "Admin"]);
+  await nav.getByRole("list", { name: "Admin", exact: true }).getByRole("link", { name: "Data review", exact: true }).waitFor();
+  await nav.getByRole("list", { name: "Operations", exact: true }).getByRole("link", { name: "Analytics", exact: true }).waitFor();
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
-  await nav.getByRole("link", { name: "Okan walkthrough", exact: true }).click();
-  await nav.locator('a[href="#/investigate/okan"][aria-current="page"]').waitFor();
-  assert.equal(await nav.getByRole("link", { name: "Okan walkthrough", exact: true }).getAttribute("aria-current"), "page");
-  await page.getByRole("navigation", { name: "Breadcrumb", exact: true }).getByText("Investigate", { exact: true }).waitFor();
+  await page.goto(`${url}/#/investigate/okan`);
+  await nav.locator('a[href="#/"][aria-current="page"]').waitFor();
+  await page.getByRole("navigation", { name: "Breadcrumb", exact: true }).getByText("Okan investigation", { exact: true }).waitFor();
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();

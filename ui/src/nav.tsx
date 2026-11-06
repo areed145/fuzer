@@ -11,7 +11,6 @@ export interface NavItem {
   label: string;
   /** First path segment the page lives under ("" is the home / browse page). */
   section: string;
-  path?: string;
   /** Other first segments that count as this page (entity pages belong to Browse). */
   also?: string[];
   badge?: Badge;
@@ -28,47 +27,51 @@ export interface NavGroup {
 
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
-  { label: "Start", items: [{ label: "Home", section: "" }] },
   {
     label: "Explore",
     items: [
+      { label: "Home", section: "", also: ["investigate"] },
       { label: "Browse", section: "browse", also: ["e"] },
       { label: "Map", section: "map" },
       { label: "Network", section: "network" },
-      { label: "Ontology", section: "ontology", permission: "configure" },
     ],
   },
   {
-    label: "Investigate",
+    label: "Operations",
     items: [
-      { label: "Okan walkthrough", section: "investigate", path: "/investigate/okan" },
-      { label: "Ask", section: "ask", permission: "ai" },
+      { label: "Work board", section: "board" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
       { label: "Analytics", section: "analytics" },
+    ],
+  },
+  {
+    label: "Knowledge",
+    items: [
+      { label: "Ask", section: "ask", permission: "ai" },
       { label: "Lessons", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],
   },
   {
-    label: "Work",
+    label: "Workflows",
     items: [
-      { label: "Work board", section: "board" },
       { label: "Inbox", section: "inbox", also: ["work"], badge: "work" },
       { label: "Cases", section: "cases" },
-      { label: "Data review", section: "review", badge: "review" },
       { label: "Processes", section: "processes" },
+      { label: "Teams & routing", section: "teams" },
     ],
   },
   {
-    label: "Manage",
+    label: "Admin",
     items: [
+      { label: "Ontology", section: "ontology", permission: "configure" },
+      { label: "Data review", section: "review", badge: "review" },
       { label: "Sources", section: "sources", permission: "configure" },
       { label: "Jobs", section: "jobs", permission: "configure" },
       { label: "Settings", section: "settings" },
       { label: "Sign-in & access", section: "access", ownerOnly: true },
-      { label: "Teams & routing", section: "teams" },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },
@@ -160,7 +163,7 @@ export function Sidebar({ section, badges, status }: {
         </a>
         <nav aria-label="Main">
           {NAV.map((group) => (
-            <section key={group.label} className={group.label === "Manage" ? "nav-group admin" : "nav-group"}>
+            <section key={group.label} className={group.label === "Admin" ? "nav-group admin" : "nav-group"}>
               <h2 id={`nav-${group.label}`}>{group.label}</h2>
               <ul aria-labelledby={`nav-${group.label}`}>
                 {group.items.filter(allowed).map((item) => {
@@ -169,7 +172,7 @@ export function Sidebar({ section, badges, status }: {
                   return (
                     <li key={item.label}>
                       <a
-                        href={item.external ?? href(item.path ?? `/${item.section}`)}
+                        href={item.external ?? href(`/${item.section}`)}
                         className={on ? "on" : undefined}
                         aria-current={on ? "page" : undefined}
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
@@ -196,7 +199,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   const section = path[0] ?? "";
   const found = navItemFor(section);
   if (!found || path.length < 2) return null;
-  const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: found.item.path ?? `/${found.item.section}` }];
+  const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
   else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Okan investigation" });
