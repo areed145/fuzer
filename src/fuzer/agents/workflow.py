@@ -31,7 +31,7 @@ def generate(description: str, context: dict, client=None) -> Draft:
                 "invented numeric scores; use person form fields for decisions when needed. Only use roles, forms "
                 "and published processes in context. If details are missing, choose safe defaults for review."),
         "messages": [{"role": "user", "content": json.dumps({"description": description, "context": context})}],
-        "tools": [{"name": "draft_workflow", "description": "An editable workflow proposal.", "strict": True,
+        "tools": [{"name": "draft_workflow", "description": "An editable workflow proposal.",
                    "input_schema": Draft.model_json_schema()}],
         "tool_choice": {"type": "auto"},
     }, scope="agents")
