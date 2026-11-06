@@ -2,7 +2,7 @@
 
 What Fuzer is, the decisions it rests on and how the parts fit.
 
-Fuzer is our own version of the core of Cognite Data Fusion. It pulls asset data
+Fuzer pulls asset data
 from many systems, works out which records describe the same real thing, links
 them into one graph, and serves that graph to apps, AI agents and engineers.
 
