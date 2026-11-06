@@ -30,7 +30,7 @@ handles, and select steps or connections to edit parameters. Undo, redo, delete 
 the canvas. **Advanced BPMN tools** retain pools, lanes and supported event variants. BPMN is maintained
 under the hood; existing `.bpmn` import and download remain available.
 
-**Anomaly detection** and **Data detection** are reusable agent steps. They use the troubleshooter's
+**Anomaly detection** and **Data detection** are reusable agent steps. They use the Field Operations & Facilities agent's
 existing `detections` and `detect_changes` tools respectively, inspecting available detections or changed
 source records rather than starting an ingestion or detector job. Set the subjects, detector, time window
 and expected results in **Instructions / parameters**. The worker passes these with the process data;

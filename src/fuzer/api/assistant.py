@@ -82,6 +82,13 @@ async def assistant_ask(q: Question):
         raise HTTPException(503, str(e))
 
 
+@router.get("/assistant/agents")
+def assistant_agents():
+    """The specialists, what they cover and what they can't: a static catalog that needs no model or key."""
+    from ..agents.capabilities import public_catalog
+    return public_catalog()
+
+
 @router.get("/assistant/jobs/{job_id}")
 def assistant_job(job_id: str):
     """Progress (which agent is calling which tool) and, when done, the answer with its cost."""

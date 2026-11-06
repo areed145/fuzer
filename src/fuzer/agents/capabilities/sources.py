@@ -40,7 +40,7 @@ def documents_for(ref: str) -> dict[str, Any]:
         return _plain({"for": fid, "documents": knowledge.documents_for(conn, fid)})
 
 
-@capability("troubleshooter", "maintenance", kind="query")
+@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", kind="query")
 def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved", limit: int = 20) -> dict[str, Any]:
     """Lessons learned per equipment model (or class) and ISO 14224 failure mode: the corrective work that has
     fixed it before, how often it held for 30 days, and the incidents behind it. Approved lessons were
@@ -50,7 +50,10 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
         return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
 
 
-@capability("troubleshooter", "production", "maintenance", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="query"
+)
 def measurements(ref: str, quantity: str | None = None, since: str | None = None, until: str | None = None,
                  history: bool = False) -> dict[str, Any]:
     """Sparse measurements that aren't in PI, on a well, tag, equipment, pipeline or an incident's unit:
@@ -72,7 +75,10 @@ def measurements(ref: str, quantity: str | None = None, since: str | None = None
     return _plain(out)
 
 
-@capability("troubleshooter", "production", "maintenance", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def equipment_curves(ref: str) -> dict[str, Any]:
     """The OEM curves (pump head / efficiency / NPSHr / power against flow, or choke Cv against opening)
     and ratings (BEP, operating regions, max Cv) for an equipment model, or the model of an equipment

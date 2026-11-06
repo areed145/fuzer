@@ -111,6 +111,6 @@ layers = [
     "core",
 ]
 ignore_imports = [
-    # The SRE hand-off's default diagnosis asks the troubleshooter at run time; callers can pass their own `ask`.
+    # The SRE hand-off's default diagnosis asks the operations assistant at run time; callers can pass their own `ask`.
     "fuzer.ops.sre_handoff -> fuzer.agents",
 ]

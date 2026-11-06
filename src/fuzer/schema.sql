@@ -778,6 +778,22 @@ create table if not exists work_role (
     updated_at    timestamptz not null default now()
 );
 
+-- The domain agents (#284) on databases that already had roles. An empty table is left alone: roles.refresh seeds
+-- every built-in role the first time, and it only does that while the table is empty.
+insert into work_role (name, kind, description, updated_by)
+select v.name, 'agent', v.description, 'seed'
+from (values
+    ('production-surveillance', 'Production trends, deferment, constraints and gas lift'),
+    ('wells-subsurface', 'Well history, tests and intervention candidates'),
+    ('field-operations-facilities', 'Diagnoses upsets from the graph and process data'),
+    ('maintenance-integrity', 'Maintenance history, integrity, drafts notifications'),
+    ('work-management-supply-chain', 'Work backlog, job readiness and spares'),
+    ('hse-incident-management', 'Incident evidence for accountable HSE review'),
+    ('asset-performance-reporting', 'Cross-domain summaries')
+) as v (name, description)
+where exists (select 1 from work_role)
+on conflict do nothing;
+
 create table if not exists work_item (
     id          bigserial primary key,
     type        text not null,

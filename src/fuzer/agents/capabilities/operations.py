@@ -65,7 +65,10 @@ def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[
         return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
 
-@capability("production", "maintenance", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "maintenance-integrity", "work-management-supply-chain",
+    "asset-performance-reporting", kind="query"
+)
 def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] = "reason",
                      since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
     """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
@@ -75,7 +78,10 @@ def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] =
         return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
 
 
-@capability("troubleshooter", "production", "maintenance", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    "asset-performance-reporting", kind="query"
+)
 def well_performance(ref: str | None = None, since: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
     wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
@@ -90,7 +96,7 @@ def well_performance(ref: str | None = None, since: str | None = None, limit: in
         return _plain(operations.well_performance(conn, fid, since, min(limit, 100)))
 
 
-@capability("troubleshooter", "production", kind="query")
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", kind="query")
 def gas_lift_network(ref: str | None = None, since: str | None = None, limit: int = 15) -> dict[str, Any]:
     """The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through
     another jacket) -> gas lifted wells. Per header: jackets, wells, lift gas and oil from latest tests. Per

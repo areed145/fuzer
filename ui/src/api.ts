@@ -582,6 +582,12 @@ export interface Attachment {
   url: string;
 }
 
+export interface AssistantCatalog {
+  agents: { id: string; label: string; description: string; personas: string[]; skills: string[];
+            limits: string[]; human_decisions: string[] }[];
+  unavailable: { agent: string; capability: string; needed: string }[];
+}
+
 export interface AssistantJob {
   id: string;
   conversation_id: string;
@@ -1542,6 +1548,7 @@ export const api = {
       images: images.map(({ media_type, data }) => ({ media_type, data })),
     }),
   figure: (id: string) => request<FigureData>("GET", `/figures/${encodeURIComponent(id)}`),
+  assistantCatalog: () => request<AssistantCatalog>("GET", "/assistant/agents"),
   assistantJob: (id: string) => request<AssistantJob>("GET", `/assistant/jobs/${encodeURIComponent(id)}`),
   assistantAnswers: () => request<AssistantAnswer[]>("GET", "/assistant/answers", { limit: 20 }),
   conversations: (by?: string) => request<AssistantConversation[]>("GET", "/assistant/conversations", { by, limit: 15 }),

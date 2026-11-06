@@ -6,7 +6,7 @@
     "bulk": [{"label": "Close as false alarm", "data": {"triage": "false_alarm"}, "reason_key": "triage_note"}]
   },
   "components": [
-    {"type": "text", "id": "intro", "text": "Look at the evidence and decide whether this is a real upset. A real upset goes to the troubleshooter agent for a diagnosis."},
+    {"type": "text", "id": "intro", "text": "Look at the evidence and decide whether this is a real upset. A real upset goes to the field operations agent for a diagnosis."},
     {"type": "radio", "id": "triage", "key": "triage", "label": "Is it a real upset?",
      "values": [{"label": "Real upset: diagnose it", "value": "real"}, {"label": "False alarm: close it", "value": "false_alarm"}],
      "validate": {"required": true}},

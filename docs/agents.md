@@ -63,8 +63,8 @@ are also supported):
   `assistant_answer.recalled` records which facts each question got. The entity page's "What the
   assistant remembers" lets engineers correct, end or delete facts (`/assistant/facts`). Everyone
   sees everything for now; group access follows #29.
-- **Quality.** `fuzer eval --agents` asks the questions in `answer_keys/assistant.json` (one per
-  domain plus one across domains, on Okan). It scores the facts each answer must name, citations,
+- **Quality.** `fuzer eval --agents` asks the questions in `answer_keys/assistant.json` (each
+  domain, across domains, missing data and escalation, on Okan). It scores the facts each answer must name, citations,
   absence of operating instructions, and routing to specialists, with cost and time per answer.
   Tests drive the whole team with a scripted fake SDK client (no network).
 - **Charts.** Each chart is a tool (`plot_*`, `src/fuzer/plots/`): the server reads the data
@@ -80,54 +80,63 @@ are also supported):
   worked out, labelled as assistant-entered. `look_at_figure` renders a stored figure to PNG
   (matplotlib, no browser) as an image in the tool result, only when the summary isn't enough; the eval
   counts how often it's used. Users can attach up to four images to a question; values read off them
-  are reported as approximate. Not yet: pump curves (no OEM curve data), choke Cv (no choke
-  characteristics), vibration spectra (no condition-monitoring source), and process values that move
-  together in the synthetic historian, so correlation and XY charts on the demo show how the
-  generator shapes upsets rather than plant physics.
+  are reported as approximate. Pump and choke charts need an OEM curve for that model. Not yet:
+  vibration spectra (overall mm/s comes from PI; there is no condition-monitoring source), and process
+  values that move together in the synthetic historian, so correlation and XY charts on the demo show
+  how the generator shapes upsets rather than plant physics.
 
 ## Migration and coverage boundaries
 
-The registry in `src/fuzer/agents/capabilities/__init__.py` owns the domain IDs, descriptions,
-persona mapping, assigned skills, source prerequisites, expected outputs, constraints and
-human-decision boundaries. Legacy capability declarations are kept behind a compatibility map:
-former `troubleshooter` tools stay with Field Operations & Facilities, with selected incident evidence
-also available to HSE; `production` tools stay with Production & Surveillance and Wells & Subsurface,
-with selected constraint tools shared to Field Operations & Facilities and high-level summaries to
-Asset Performance & Reporting; `maintenance` tools stay with Maintenance & Integrity, with selected
-backlog/readiness and summary tools shared to Work Management & Supply Chain and Asset Performance &
-Reporting. No new data source or operational authority is implied by these assignments.
+The generated [catalog](capabilities.md) has the agents, routing, the persona matrix, every skill with its owner,
+data, output and human boundary, and what no agent can do yet. `src/fuzer/agents/capabilities/catalog.py` holds that
+data. An agent's prompt is built from its entry, so its limits and human decisions reach the model; the
+same entry feeds the docs and the Ask page (`/assistant/agents`). Tools are declared once by `@capability`, naming
+their domains; there is no mapping from old agent names.
 
-The old persisted specialist IDs (`troubleshooter`, `production`, `maintenance`) remain readable in
-conversation history and UI labels. Existing workflow agent-role tokens are also dispatched through
-compatibility aliases so in-flight work keeps functioning. New assistant specialist IDs are domain
-slugs; tools continue to be declared once and MCP-only workflow mutation tools remain unavailable to
-assistant specialists.
+| Was | Now |
+|---|---|
+| `troubleshooter` agent | Unit and upset diagnosis: Field Operations & Facilities. Failure history: Maintenance & Integrity. Incident records: HSE & Incident Management. |
+| `production` agent | Production & Surveillance. Well questions go to Wells & Subsurface, with its own tool set. |
+| `maintenance` agent | Maintenance & Integrity. Backlog, turnaround and spares planning go to Work Management & Supply Chain. |
+| `troubleshooter/troubleshooting` | `field-operations-facilities/troubleshooting` |
+| `production/*` | `production-surveillance/*`; `gas-lift` and `production-engineering` are reused by Wells & Subsurface, `constraint-management` and `back-pressure` by Field Operations & Facilities |
+| `maintenance/reliability` | `maintenance-integrity/reliability` |
+| `maintenance/turnarounds`, `maintenance/work-orders` | `work-management-supply-chain/*`, reused by Maintenance & Integrity |
+| `orchestrator/answering`, `shared/charts` | Unchanged |
 
-The cross-cutting Data Scientist / Operations Research Analyst persona uses existing domain analysis
-methods and plots, not an additional agent. Data Steward / Platform Administrator is outside the
-operational roster and remains in platform administration, Sources/Settings/Jobs and governance
-workflows. No platform permission is granted by persona coverage.
+New skills: `well-review`, `shift-handover`, `alarms-and-instruments`, `integrity`, `job-readiness`,
+`incident-evidence`, `operations-summary` and the shared `analysis`. New charts: `plot_backlog`, `plot_compliance`.
 
-Only current data-backed methods are enabled: dated production and well-test trends, deferment and
-constraint summaries, supported gas-lift/back-pressure evidence, incidents and event timelines,
-maintenance/reliability/backlog/compliance/turnaround views, and plots backed by those records.
-Every numeric claim still needs loaded evidence with units, time range and provenance. Synthetic
-time-series data is labeled as synthetic; absence of OEM curves, validated choke characteristics,
-vibration sources, authoritative environmental/regulatory records, or authoritative commercial/
-accounting/cost sources remains a limitation. Agents can organize evidence and propose questions,
-not authorize or execute field, control, maintenance, HSE, emergency, schedule, resource or
-commercial decisions.
+**Conversations and workflows.** Saved conversations keep the agent ids they were asked under, and the Ask page shows
+the old ones as plain words. New processes and the built-in `upset` process use domain agent roles. `schema.sql` adds
+those roles to databases that already have roles. The retired roles `troubleshooter`, `production` and `maintenance`
+stay valid so steps in flight on published versions finish; the worker maps them to their domain agents and the
+modeler no longer offers them.
+
+**Personas.** The Data Scientist / Operations Research Analyst persona uses the shared `analysis` skill through the
+domain agents, not an extra agent. Data Steward / Platform Administrator stays in platform administration,
+Sources/Settings/Jobs and governance workflows. No platform permission comes with persona coverage.
+
+**Limits.** Only current data-backed methods are enabled. Every numeric claim needs loaded evidence with units, time
+range and provenance. Every stored chart reports `coverage` in its summary: the dates it spans, its points, how many
+are missing, how many records back it and whose numbers they are. Synthetic time-series data is labeled as
+synthetic. Agents organize evidence and propose questions; they don't authorize or execute field, control,
+maintenance, HSE, emergency, schedule, resource or commercial decisions.
+
+`fuzer eval --agents` is the check on routing: its keys name the expected domain per question, including
+missing-data and escalation cases. Offline tests prove what reaches each agent, not how well Claude routes.
 
 ### Adding a persona, skill or capability
 
-Add a persona to its owning `AgentDefinition` and assign an existing skill path in the capability
-registry; update the prerequisite, output, constraint and human-decision fields at the same time.
-Skills are `SKILL.md` directories and must be assigned explicitly to each domain that can use them.
-Add tool ownership only to the MCP capability decorator for the domain that can act on its evidence.
-Then run the capability and agent tests and regenerate `docs/capabilities.md` with
-`uv run python -m fuzer.agents.capabilities > docs/capabilities.md`. Add new analysis only when
-current domain data and validation support it; document missing prerequisites rather than
-substituting synthetic or inferred facts.
+- **Persona:** add it to its owning `AgentDefinition` in `catalog.py`, and to at least one `SkillDefinition`.
+- **Skill:** add `skills/<owning-agent>/<name>/SKILL.md` and a `SkillDefinition` with its agents (owner first),
+  personas, data, output and boundary. Name tools in backticks; the catalog reads them from there. Every agent that
+  loads the skill must have those tools.
+- **Tool:** declare it with `@capability` and the domains that can act on its evidence.
+- **Waiting for a source:** add it to `UNAVAILABLE` rather than a skill that estimates.
+
+Then run `uv run pytest tests/agents` and `uv run python -m fuzer.agents.capabilities > docs/capabilities.md`.
+Add new analysis only when current data and validation support it.
 
 ## Views and agent tools
 

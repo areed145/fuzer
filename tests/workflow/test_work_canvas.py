@@ -34,7 +34,7 @@ def test_detection_draft_is_bpmn_with_layout_and_safe_parameters():
     p = bpmn.parse(xml)["inspection"]
     assert p.name == 'Inspect <data> & "anomalies"'
     assert p.nodes["anomalies"].attrs["instructions"] == 'Detect "drifts" < 24h & report evidence'
-    assert p.nodes["anomalies"].agent == p.nodes["changes"].agent == "troubleshooter"
+    assert p.nodes["anomalies"].agent == p.nodes["changes"].agent == "field-operations-facilities"
     assert p.nodes["changes"].attrs["component"] == "data"
     assert p.nodes["review"].requires_human
     assert len(p.flows) == 4

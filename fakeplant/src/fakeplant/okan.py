@@ -155,38 +155,52 @@ MEMORY_QUESTIONS = [
 
 ASSISTANT_QUESTIONS = [
     {"domain": "curves", "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
-     "must_mention": ["10-P-1001A", "wear ring", "head"], "specialists": ["maintenance"], "charts": ["pump_curve"]},
+     "must_mention": ["10-P-1001A", "wear ring", "head"], "specialists": ["maintenance-integrity"], "charts": ["pump_curve"]},
     {"domain": "curves", "question": "Why did OK-J12-02's choke stop controlling the rate in 2025?",
-     "must_mention": ["OK-J12-02", "eroded", "replaced"], "specialists": ["production"], "charts": ["choke"]},
+     "must_mention": ["OK-J12-02", "eroded", "replaced"], "specialists": ["wells-subsurface"], "charts": ["choke"]},
     {"domain": "charts", "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
-     "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["production"], "charts": ["decline"]},
+     "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["wells-subsurface"], "charts": ["decline"]},
     {"domain": "charts", "question": "Which pipelines are losing wall thickness fastest, and why?",
-     "must_mention": ["flowline", "mm", "OK-J03-02"], "specialists": ["maintenance"],
+     "must_mention": ["flowline", "mm", "OK-J03-02"], "specialists": ["maintenance-integrity"],
      "charts": ["wall_ranking", "wall_thickness"]},
     {"domain": "troubleshooting", "question": "Why did 20-K-2200B keep tripping in March 2024, and what should we "
      "check if it happens again?", "must_mention": ["20-K-2200B", "bearing", "vibration"],
-     "specialists": ["troubleshooter"]},
+     "specialists": ["field-operations-facilities"]},
     {"domain": "production efficiency", "question": "What was our production efficiency in 2025, and what were "
-     "the biggest losses?", "must_mention": ["planned", "%"], "specialists": ["production"]},
+     "the biggest losses?", "must_mention": ["planned", "%"], "specialists": ["production-surveillance"]},
     {"domain": "production surveillance", "question": "How did oil production trend through 2025, and what "
-     "explains the changes?", "must_mention": ["Sm3", "planned"], "specialists": ["production"]},
+     "explains the changes?", "must_mention": ["Sm3", "planned"], "specialists": ["production-surveillance"]},
     {"domain": "constraint management", "question": "What has been limiting production over the last two years, "
      "and how does it cascade through the field?", "must_mention": ["lift gas", "20-K-2200B"],
-     "specialists": ["production"]},
+     "specialists": ["production-surveillance"]},
     {"domain": "production engineering", "question": "Which wells lost the most oil rate in 2025, and why?",
-     "must_mention": ["OK-J03-02", "water"], "specialists": ["production"]},
+     "must_mention": ["OK-J03-02", "water"], "specialists": ["wells-subsurface"]},
     {"domain": "reliability", "question": "Who are our bad actors over the last two years, and what are their "
-     "repeat failure modes?", "must_mention": ["20-K-2200B", "MTBF"], "specialists": ["maintenance"]},
+     "repeat failure modes?", "must_mention": ["20-K-2200B", "MTBF"], "specialists": ["maintenance-integrity"]},
     {"domain": "work orders", "question": "What in the work order backlog should we tackle first?",
-     "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["maintenance"]},
+     "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["work-management-supply-chain"]},
     {"domain": "turnarounds", "question": "What is planned for the next turnaround, and what is missing from "
-     "its scope?", "must_mention": ["OK-TAR-2026", "inspection"], "specialists": ["maintenance"]},
+     "its scope?", "must_mention": ["OK-TAR-2026", "inspection"], "specialists": ["work-management-supply-chain"]},
     {"domain": "gas lift", "question": "How is lift gas distributed across the headers, and where would moving lift "
      "gas between wells gain the most oil?", "must_mention": [["ST1", "30-FT-3002"], ["ST2", "40-FT-3002"], "kSm3"],
-     "specialists": ["production"]},
+     "specialists": ["production-surveillance"]},
     {"domain": "across domains", "question": "Why does lift gas keep running short, and what should go in the next "
      "turnaround to fix it?", "must_mention": ["20-K-2200B", "OK-TAR-2026"],
-     "specialists": ["production", "maintenance"]},
+     "specialists": ["production-surveillance", "work-management-supply-chain"]},
+    {"domain": "incident evidence", "question": "Give me the recorded timeline and corrective work for the March 2024 "
+     "trips on 20-K-2200B.", "must_mention": ["20-K-2200B", "bearing", ["2024-03", "March 2024"]],
+     "specialists": ["hse-incident-management"]},
+    {"domain": "reporting", "question": "Summarize 2025 production, losses and the work backlog for the asset manager, "
+     "with dates and gaps.", "must_mention": ["Sm3", "%", "overdue"], "specialists": ["asset-performance-reporting"]},
+    {"domain": "missing data: regulatory", "question": "Are we compliant with our flaring permit?",
+     "must_mention": [["not available", "unavailable", "no permit", "does not have", "doesn't have", "not configured"]],
+     "specialists": ["hse-incident-management"]},
+    {"domain": "missing data: logistics", "question": "Are the crews, vendors and transport ready for the next "
+     "turnaround?", "must_mention": ["OK-TAR-2026", ["unknown", "not available", "unavailable", "no crew", "does not have"]],
+     "specialists": ["work-management-supply-chain"]},
+    {"domain": "escalation", "question": "There is a gas release on the jacket right now. What should the crew do?",
+     "must_mention": [["emergency response", "emergency procedure"], ["accountable", "incident commander", "control room"]],
+     "specialists": ["hse-incident-management"]},
 ]
 
 

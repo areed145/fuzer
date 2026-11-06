@@ -1,5 +1,6 @@
 """Maintenance and inspection charts: wall thickness per CML (or the fastest wall loss across the
-asset), reliability (Weibull or Crow-AMSAA) from failure notifications, and bad actors."""
+asset), reliability (Weibull or Crow-AMSAA) from failure notifications, bad actors, the work order
+backlog and plan compliance."""
 
 import math
 from datetime import datetime
@@ -143,6 +144,54 @@ def bad_actors(conn, since: str | None = None, until: str | None = None, limit: 
         "since": out["since"], "until": out["until"],
         "top": [{k: i[k] for k in ("tag", "class", "failures", "mtbf_days", "lost_oil_sm3", "downtime_events",
                                     "repeat_failure_modes")} for i in items[:6]]}, [i["id"] for i in items])
+
+
+def backlog(conn, as_of: str | None = None) -> Figure:
+    """Open SAP work orders: how many by priority and by age, and how many are past their basic finish."""
+    from ..graph import operations as ops
+
+    out = ops.work_order_backlog(conn, as_of, limit=100_000)
+    if not out["open_orders"]:
+        raise ChartError(f"no open work orders as of {out['as_of']}")
+    items = out["overdue_items"]
+    undated = out["by_age"]["future"]
+    ages = list(out["by_age"])
+    data = [{"type": "bar", "name": "no priority" if p == "None" else f"priority {p}", "x": ages,
+             "y": [out["by_age_priority"][a].get(p, 0) for a in ages],
+             "hovertemplate": "%{x}: %{y} open orders<extra>%{fullData.name}</extra>"}
+            for p in out["by_priority"]]
+    lay = layout(f"Open work orders as of {out['as_of']}", "age since start date", "open work orders (count)",
+                 barmode="stack")
+    return Figure("backlog", lay["title"]["text"], data, lay, {
+        "as_of": out["as_of"], "source": out["source"], "open_orders": out["open_orders"], "overdue": out["overdue"],
+        "by_priority": out["by_priority"], "by_age": out["by_age"], "in_a_turnaround": out["in_a_turnaround"],
+        "notifications_without_order": len(out["notifications_without_order"]),
+        "note": f"{undated} orders have no start date, or start after {out['as_of']}, and are counted under 'future'."
+                if undated else None}, [i["id"] for i in items])
+
+
+def compliance(conn, as_of: str | None = None, horizon_days: int = 90) -> Figure:
+    """PM and inspection plans by kind: on time, due within the horizon and overdue. A date position in SAP,
+    not the state of the equipment."""
+    from ..graph import operations as ops
+
+    out = ops.maintenance_compliance(conn, as_of, horizon_days, limit=100_000)  # counted in full, not a top-N
+    if not out["summary"]:
+        raise ChartError("no maintenance or inspection plans")
+    kinds = list(out["summary"])
+    due = {k: sum(1 for i in out["due_soon"] if i["kind"] == k) for k in kinds}
+    late = [out["summary"][k]["overdue"] for k in kinds]
+    data = [{"type": "bar", "name": name, "x": kinds, "y": ys, "hovertemplate": "%{x}: %{y} plans<extra></extra>"}
+            for name, ys in (("overdue", late), (f"due by {out['horizon']}", [due[k] for k in kinds]),
+                             ("later", [out["summary"][k]["plans"] - out["summary"][k]["overdue"] - due[k] for k in kinds]))]
+    lay = layout(f"Plan compliance as of {out['as_of']}", "plan kind (PM preventive, INSP inspection)",
+                 "maintenance plans (count)", barmode="stack")
+    return Figure("compliance", lay["title"]["text"], data, lay, {
+        "as_of": out["as_of"], "horizon": out["horizon"], "source": out["source"], "summary": out["summary"],
+        "worst_overdue": [{k: i[k] for k in ("plan", "kind", "tag", "next_due", "overdue_days", "needs_shutdown")}
+                          for i in out["overdue"][:5]],
+        "note": "Overdue means past next due in SAP; it does not state the equipment's condition."},
+        [i["id"] for i in out["overdue"] + out["due_soon"]])
 
 
 def pump_curve(conn, fid: str, days: int = 365, rho: float = 850.0) -> Figure:

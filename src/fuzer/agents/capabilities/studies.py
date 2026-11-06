@@ -6,7 +6,7 @@ from .. import mcp_server
 from ..mcp_server import _plain, _resolve, _trim, capability
 
 
-@capability("troubleshooter", "production", kind="query")
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", kind="query")
 def process_values(ref: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Process values (PI points on the unit and its instruments) around a time: per point min / max /
     mean / last and the provider used. For an incident, at defaults to its start. at is ISO date or time."""
@@ -22,7 +22,10 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
     return _plain(out)
 
 
-@capability("troubleshooter", "production", "maintenance", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="query"
+)
 def limits(ref: str, at: str | None = None) -> dict[str, Any]:
     """Operating limits on a PI point, or on every point of a unit (tag, equipment, well): the alarm limits
     that count (hihi / hi / lo / lolo, from the DCS or PI AF), integrity operating windows (IOWs: class,
@@ -38,7 +41,10 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
         return _plain(lim.for_entity(conn, mcp_server.PACK, fid, at))
 
 
-@capability("troubleshooter", "production", "maintenance", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
@@ -70,7 +76,10 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
             return {"error": str(e)}
 
 
-@capability("troubleshooter", "production", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    "hse-incident-management", kind="calc"
+)
 def detect_changes(ref: str, since: str | None = None, until: str | None = None, limit: int = 40) -> dict[str, Any]:
     """Where a PI point (or each point on a unit) stepped (a trip, a choke move), drifted (fouling, wear)
     or changed its jitter (a transmitter starting to hunt), with when it started, the value before and
@@ -84,7 +93,7 @@ def detect_changes(ref: str, since: str | None = None, until: str | None = None,
         return _plain(signals.changes(conn, fid, since, until, limit=min(limit, 200)))
 
 
-@capability("troubleshooter", "production", kind="calc")
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", kind="calc")
 def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
     """Pressure at each node from a well's wellhead down its flow path (jacket production header,
     separator, compressor suction) and the drop across each segment: where the back-pressure comes from."""
@@ -99,7 +108,7 @@ def pressure_profile(well: str, at: str | None = None) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@capability("troubleshooter", "maintenance", kind="calc")
+@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", kind="calc")
 def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Alarm performance (ISA-18.2 / EEMUA 191) over a window: alarms per hour against 6, floods (over 10 in
     10 minutes), chattering and standing alarms, and the top bad-actor points. An alarm is a point going past
@@ -114,7 +123,7 @@ def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str
         return _plain(alarms.alarm_analysis(conn, mcp_server.PACK, sc, since, until))
 
 
-@capability("troubleshooter", "maintenance", kind="calc")
+@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", kind="calc")
 def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Stops (trips), starts and failed starts per unit with a run signal over a window, with the days between
     stops and the share of time running. scope: a unit or area (default: everything)."""
@@ -131,7 +140,10 @@ def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str,
             return {"error": str(e)}
 
 
-@capability("troubleshooter", "production", "maintenance", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    "hse-incident-management", "asset-performance-reporting", kind="calc"
+)
 def compare_periods(ref: str, before_since: str, before_until: str, after_since: str, after_until: str) -> dict[str, Any]:
     """Did the change work? Each point on a PI point or unit in two windows (before and after a choke move,
     a repair, a swap): medians, the change, and whether it is significant (Welch's t with autocorrelation
@@ -147,7 +159,7 @@ def compare_periods(ref: str, before_since: str, before_until: str, after_since:
             return {"error": str(e)}
 
 
-@capability("troubleshooter", "maintenance", kind="calc")
+@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", kind="calc")
 def similar_cases(ref: str) -> dict[str, Any]:
     """Past incidents like this one (an incident, "upset:<id>", or a tag or well's latest incident): same unit
     or class, shared failure modes and event types, with the work orders done for each and whether the fix
@@ -165,7 +177,10 @@ def similar_cases(ref: str) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@capability("troubleshooter", "production", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"],
                 params: dict[str, Any], agent: str = "assistant") -> dict[str, Any]:
     """Keep a correlation or clustering study (params as for correlate / correlation_matrix / cluster_modes /
@@ -188,7 +203,10 @@ def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entit
     return _plain({k: v for k, v in out.items() if k != "result"} | {"result": _trim(out.get("result"))})
 
 
-@capability("troubleshooter", "production", kind="calc")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="calc"
+)
 def get_study(study_id: int) -> dict[str, Any]:
     """A kept study: its parameters, status, summary, figure and (when done) its top results."""
     from ...ops import study

@@ -936,21 +936,46 @@ test("Ask opens and can be left without DOM effect-cleanup crashes", async () =>
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
 
-test("Ask displays new domain specialist names without a fixed agent list", async () => {
+test("Ask names specialists from the catalog and lists what none of them can do", async () => {
+  const agent = (id, label) => ({ id, label, description: `${label} evidence.`, personas: id === "orchestrator" ? [] : ["A persona"],
+    skills: [], limits: [], human_decisions: ["Accountable people decide."] });
+  await page.route("**/assistant/agents", (route) => route.fulfill({ json: {
+    agents: [agent("orchestrator", "Orchestrator"), agent("wells-subsurface", "Wells & Subsurface"),
+             agent("hse-incident-management", "HSE & Incident Management"),
+             ...[1, 2, 3, 4, 5].map((n) => agent(`domain-${n}`, `Domain ${n}`))],
+    unavailable: [{ agent: "hse-incident-management", capability: "Emergency response procedures", needed: "Approved plans." }],
+  } }));
   await page.route("**/assistant/ask", (route) => route.fulfill({
     json: { job_id: "domain-job", conversation_id: "domain-conversation" },
   }));
   await page.route("**/assistant/jobs/domain-job", (route) => route.fulfill({ json: {
     id: "domain-job", conversation_id: "domain-conversation", question: "Summarize well evidence.",
     status: "done", answer: "Evidence summary.", error: null, seconds: 1,
-    specialists: ["wells-subsurface"],
+    specialists: ["wells-subsurface", "troubleshooter"],
     usage: { model_calls: 1, input: 1, output: 1, cache_read: 0, cache_write: 0, cost_usd: 0, models: {} },
     steps: [{ agent: "wells-subsurface", tool: "well_performance", args: {} }], model_calls: 1,
   } }));
   await page.goto(`${url}/#/ask`);
+  await page.getByText("Who answers: 7 specialists, and what they can't do").click();
+  await page.getByText("HSE & Incident Management", { exact: true }).waitFor();
+  await page.getByText("Emergency response procedures").waitFor();
   await page.getByLabel("Question for the operations assistant").fill("Summarize well evidence.");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
-  await page.getByText("Specialists: Wells Subsurface", { exact: true }).waitFor();
+  await page.getByText("Specialists: Wells & Subsurface, Troubleshooter", { exact: true }).waitFor();
+});
+
+test("Ask still works when the specialist catalog can't load, and offers a retry", async () => {
+  let attempts = 0;
+  await page.route("**/assistant/agents", (route) => (++attempts === 1
+    ? route.fulfill({ status: 500, json: { detail: "down" } })
+    : route.fulfill({ json: { agents: [{ id: "wells-subsurface", label: "Wells & Subsurface", description: "Wells.",
+                                         personas: ["A persona"], skills: [], limits: [], human_decisions: [] }],
+                              unavailable: [] } })));
+  await page.goto(`${url}/#/ask`);
+  await page.getByText("The list of specialists could not be loaded. You can still ask a question.").waitFor();
+  await page.getByLabel("Question for the operations assistant").waitFor();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByText("Who answers: 1 specialist, and what they can't do").waitFor();
 });
 
 test("Analytics renders declarative daily panels, linked hover/zoom, unknown days and saved JSON", async () => {

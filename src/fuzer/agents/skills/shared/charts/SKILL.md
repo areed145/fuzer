@@ -5,6 +5,8 @@ description: When and how to put interactive charts in an answer - which plot to
 
 # Charts
 
+Only call the plot tools in your own list. If another specialist has the chart you need, say so.
+
 A chart helps when the answer is a shape: a decline, a trend into a trip, a ranking, a curve and
 where the well sits on it, wall loss across CMLs. A table or a sentence is better for a few numbers.
 One to three charts per answer, each with a sentence on what it shows.
@@ -30,6 +32,8 @@ engineer sees an interactive chart there (zoom, hover, click a point to open its
 - Equipment and inspection: `plot_wall_thickness` (one item's CMLs, or without a ref the fastest wall
   loss across the asset), `plot_reliability` (Weibull of times between failures, or Crow-AMSAA),
   `plot_bad_actors`, `plot_bar` (deferment Pareto, failures, oil change by well).
+- Work and compliance: `plot_backlog` (open orders by priority and age), `plot_compliance` (PM and
+  inspection plans overdue, due soon and later).
 - Landed readings of any kind: `plot_measurements`.
 - Numbers you derived that no tool reads: `plot_custom` (labelled as assistant-entered; last resort).
 

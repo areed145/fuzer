@@ -151,7 +151,7 @@ A team of Claude agents on Microsoft Agent Framework answers questions across
 everything Fuzer links: troubleshooting, production surveillance and
 efficiency, constraints, wells, reliability and inspection, work orders and
 turnarounds. An orchestrator answers simple lookups itself and hands domain
-work to three specialists (troubleshooter, production, maintenance), running
+work to seven domain specialists ([catalog](docs/capabilities.md)), running
 them at the same time when a question spans domains. Each agent has its own
 read-only Fuzer tools and skills (`src/fuzer/agents/skills/`); every fact in an
 answer cites the record it came from, and it never tells anyone to operate the

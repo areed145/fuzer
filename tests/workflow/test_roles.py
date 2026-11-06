@@ -3,8 +3,10 @@ auto-assignment (round-robin, least loaded) that skips people who are away, dele
 along the role chain (with a hop limit), case actions, and the statistics and instance lists the pages show."""
 
 import os
+import re
 import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -62,6 +64,25 @@ def test_roles_are_data(conn):
         roles.delete_role(conn, "integrity_engineer", "olga")
     ie = next(r for r in roles.listing(conn, T0) if r["name"] == "integrity_engineer")
     assert ie["members"][0]["name"] == "ivy" and ie["default_sla"] == "P2D"
+
+
+def test_existing_databases_gain_the_domain_agents(conn):
+    """Roles are seeded once, so a database from before the domain agents gets them from schema.sql, without
+    resurrecting anything else; an empty table stays empty so the first seed still runs."""
+    statement = re.search(r"insert into work_role .*?on conflict do nothing;",
+                          (Path(db.__file__).parents[1] / "schema.sql").read_text(), re.S).group(0)
+    domains = ("production-surveillance", "hse-incident-management")
+    conn.execute("delete from work_role where name = any(%s)", (list(domains),))
+    conn.execute(statement)
+    names = {r["name"] for r in conn.execute("select name from work_role")}
+    assert set(domains) <= names and "troubleshooter" in names and "engineer" in names
+
+    conn.execute("savepoint empty")
+    conn.execute("delete from work_role")
+    conn.execute(statement)
+    assert conn.execute("select count(*) as n from work_role").fetchone()["n"] == 0
+    conn.execute("rollback to savepoint empty")
+    conn.commit()
 
 
 def test_a_roles_default_sla_and_escalation_chain(conn):

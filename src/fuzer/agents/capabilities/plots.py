@@ -6,7 +6,10 @@ from ...core import db
 from ..mcp_server import _chart, _plain, capability
 
 
-@capability("troubleshooter", "production", "maintenance", kind="plot")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="plot"
+)
 def plot_trend(refs: list[str], at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded.
     refs: tags, wells or PI points (a tag gives its instruments' points; up to 6 series). at: the
@@ -26,7 +29,10 @@ def plot_measurements(ref: str, quantity: str | None = None, since: str | None =
     return _chart(general.measurements, {"quantity": quantity, "since": since, "until": until}, {"fid": ref})
 
 
-@capability("troubleshooter", "production", "maintenance", kind="plot")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="plot"
+)
 def plot_xy(x: str, y: str, at: str | None = None, hours_before: int = 72, hours_after: int = 24) -> dict[str, Any]:
     """Chart one PI point against another at the same times (operating envelope), coloured by time, with
     a straight-line fit and r. x and y are PI points (timeseries)."""
@@ -45,7 +51,10 @@ def plot_bar(dataset: Literal["deferment_by_reason", "deferment_by_well", "defer
     return _chart(general.bar, {"dataset": dataset, "since": since, "until": until, "limit": min(limit, 40)})
 
 
-@capability("troubleshooter", "production", "maintenance", kind="plot")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="plot"
+)
 def plot_distribution(ref: str, split_at: str, hours_before: int = 168, hours_after: int = 168) -> dict[str, Any]:
     """Chart one PI point before and after a moment (a repair, a setpoint change) as two boxes, with
     medians and spread in the summary."""
@@ -65,7 +74,7 @@ def plot_custom(title: str, traces: list[dict[str, Any]], x_title: str | None = 
                                                            "y_title": y_title})
 
 
-@capability("troubleshooter", "maintenance", kind="plot")
+@capability("field-operations-facilities", "maintenance-integrity", kind="plot")
 def plot_vibration(ref: str, at: str | None = None, days: int = 30) -> dict[str, Any]:
     """Chart a machine's overall vibration against ISO 20816 zones A-D, with temperature on a second
     axis and incident lead-ins shaded. ref: a pump or compressor tag."""
@@ -73,7 +82,7 @@ def plot_vibration(ref: str, at: str | None = None, days: int = 30) -> dict[str,
     return _chart(troubleshooting.vibration, {"at": at, "days": min(days, 120)}, {"fid": ref})
 
 
-@capability("troubleshooter", "maintenance", kind="plot")
+@capability("field-operations-facilities", "maintenance-integrity", kind="plot")
 def plot_pump_curve(ref: str, days: int = 365) -> dict[str, Any]:
     """Chart a pump against its OEM curve: operating points from PI (head from discharge minus suction
     pressure, flow) coloured by time over the head and efficiency curves, with the BEP and preferred
@@ -83,7 +92,10 @@ def plot_pump_curve(ref: str, days: int = 365) -> dict[str, Any]:
     return _chart(maintenance.pump_curve, {"days": min(days, 1100)}, {"fid": ref})
 
 
-@capability("troubleshooter", "production", "maintenance", kind="plot")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
+    kind="plot"
+)
 def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
     """Chart a well's production choke against its OEM characteristic: effective Cv at each well test
     (oil wells) or from PI rates (gas wells) against the opening. Above the curve = eroded trim; below =
@@ -93,7 +105,7 @@ def plot_choke(ref: str, days: int = 730) -> dict[str, Any]:
     return _chart(production.choke, {"days": min(days, 1100)}, {"fid": ref})
 
 
-@capability("troubleshooter", "production", kind="plot")
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", kind="plot")
 def plot_pressure_profile(well: str, at: str | None = None, ref_at: str | None = None) -> dict[str, Any]:
     """Chart pressure at each node down a well's flow path (wellhead, jacket header, separator,
     compressor suction), today and against a reference date: where back-pressure builds."""
@@ -101,7 +113,7 @@ def plot_pressure_profile(well: str, at: str | None = None, ref_at: str | None =
     return _chart(production.pressure_profile, {"at": at, "ref_at": ref_at}, {"well": well})
 
 
-@capability("troubleshooter", "production", kind="plot")
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", kind="plot")
 def plot_dp_drift(well: str, days: int = 60) -> dict[str, Any]:
     """Chart a well's wellhead-to-header pressure drop over time against its baseline band, with any rise
     marked (a flowline waxing or scaling)."""
@@ -109,14 +121,14 @@ def plot_dp_drift(well: str, days: int = 60) -> dict[str, Any]:
     return _chart(production.dp_drift, {"days": min(days, 365)}, {"well": well})
 
 
-@capability("troubleshooter", "maintenance", kind="plot")
+@capability("field-operations-facilities", "maintenance-integrity", kind="plot")
 def plot_compressor_performance(ref: str, days: int = 90) -> dict[str, Any]:
     """Chart a compressor stage's daily polytropic efficiency against its first week (fouling, wear, hot recycle)."""
     from ...plots import maintenance
     return _chart(maintenance.compressor_performance, {"days": min(days, 730)}, {"fid": ref})
 
 
-@capability("troubleshooter", "maintenance", kind="plot")
+@capability("field-operations-facilities", "maintenance-integrity", kind="plot")
 def plot_cooler_fouling(ref: str, days: int = 240) -> dict[str, Any]:
     """Chart a cooler's daily outlet temperature against its clean baseline and its high limit."""
     from ...plots import maintenance

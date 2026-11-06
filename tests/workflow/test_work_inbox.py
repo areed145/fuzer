@@ -68,7 +68,7 @@ def test_task_view_has_form_bulk_actions_and_evidence(conn):
     assert view["bulk"][0]["label"] == "Close as false alarm"
     assert view["data"]["incident_id"] == "inc-view" and view["evidence"]["subjects"][0]["fuzer_id"] == "fz-unit-1"
     engine.complete(conn, view["task"]["task_id"], "alice", {"triage": "real"})
-    assert worker.run_once(conn, {"troubleshooter": lambda call: {"proposed_action": "recalibrate LT-1001"}}, "w")
+    assert worker.run_once(conn, {"field-operations-facilities": lambda call: {"proposed_action": "recalibrate LT-1001"}}, "w")
     engine.send_message(conn, "evidence", "inc-view", {"trend": "level still drifting"}, "agent:sre")
     approve = engine.task(conn, step(conn, item, "approve"))
     assert approve["task"]["requires_human"] and approve["bulk"] == []
@@ -81,7 +81,7 @@ def test_task_view_has_form_bulk_actions_and_evidence(conn):
 def test_bulk_closes_false_alarms_but_not_decisions_that_need_a_person(conn):
     a, b, c = upset(conn, "inc-b1"), upset(conn, "inc-b2"), upset(conn, "inc-b3")
     engine.complete(conn, step(conn, c, "triage"), "alice", {"triage": "real"})
-    worker.run_once(conn, {"troubleshooter": lambda call: {"proposed_action": "x"}}, "w")
+    worker.run_once(conn, {"field-operations-facilities": lambda call: {"proposed_action": "x"}}, "w")
     out = engine.bulk_complete(conn, [step(conn, a, "triage"), step(conn, b, "triage"), step(conn, c, "approve"), 10**9],
                                "alice", "Close as false alarm", "spurious transmitter spike")
     assert len(out["done"]) == 2 and len(out["refused"]) == 2
@@ -99,31 +99,31 @@ def test_agent_works_its_step_through_mcp(conn):
     item = upset(conn, "inc-mcp")
     engine.complete(conn, step(conn, item, "triage"), "alice", {"triage": "real"})
     diagnose = step(conn, item, "diagnose")
-    mine = mcp("my_work", agent="troubleshooter")
+    mine = mcp("my_work", agent="field-operations-facilities")
     assert diagnose in [s["task_id"] for s in mine["steps"]]
-    assert "error" in mcp("claim_work", task_id=diagnose, agent="maintenance")
-    claimed = mcp("claim_work", task_id=diagnose, agent="troubleshooter")
-    assert claimed["task"]["claimed_by"] == "mcp:troubleshooter"
-    assert worker.claim(conn, "w2", ["troubleshooter"]) is None  # a worker can't take it now
-    assert "error" in mcp("complete_work", task_id=diagnose, agent="maintenance", result={"x": 1})
-    out = mcp("complete_work", task_id=diagnose, agent="troubleshooter",
+    assert "error" in mcp("claim_work", task_id=diagnose, agent="maintenance-integrity")
+    claimed = mcp("claim_work", task_id=diagnose, agent="field-operations-facilities")
+    assert claimed["task"]["claimed_by"] == "mcp:field-operations-facilities"
+    assert worker.claim(conn, "w2", ["field-operations-facilities"]) is None  # a worker can't take it now
+    assert "error" in mcp("complete_work", task_id=diagnose, agent="maintenance-integrity", result={"x": 1})
+    out = mcp("complete_work", task_id=diagnose, agent="field-operations-facilities",
               result={"diagnosis": "LT-1001 drift", "proposed_action": "recalibrate LT-1001"})
     assert out["process_state"] == "running"
     approve = step(conn, item, "approve")
-    refused = mcp("complete_work", task_id=approve, agent="troubleshooter", result={"approval": "approved"})
+    refused = mcp("complete_work", task_id=approve, agent="field-operations-facilities", result={"approval": "approved"})
     assert "needs a person" in refused["error"]
-    assert "error" in mcp("hand_off", task_id=approve, agent="troubleshooter", to="agent:maintenance", reason="x")
+    assert "error" in mcp("hand_off", task_id=approve, agent="field-operations-facilities", to="agent:maintenance-integrity", reason="x")
     sent = mcp("send_evidence", agent="sre", evidence={"trend": "level back in band"}, item_id=item)
     assert sent["recorded"] and not sent["delivered"]
     events = [(e["kind"], e["actor"]) for e in engine.item(conn, item)["events"]]
-    assert ("agent_result", "agent:troubleshooter") in events and ("message", "agent:sre") in events
+    assert ("agent_result", "agent:field-operations-facilities") in events and ("message", "agent:sre") in events
 
 
 def test_agent_hands_a_step_to_a_person(conn):
     item = upset(conn, "inc-hand")
     engine.complete(conn, step(conn, item, "triage"), "alice", {"triage": "real"})
     diagnose = step(conn, item, "diagnose")
-    out = mcp("hand_off", task_id=diagnose, agent="troubleshooter", to="role:engineer",
+    out = mcp("hand_off", task_id=diagnose, agent="field-operations-facilities", to="role:engineer",
               reason="no PI data for this unit")
     assert out["to"] == "role:engineer"
     queue = engine.my_work(conn, "alice")["queue"]

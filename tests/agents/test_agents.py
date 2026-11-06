@@ -196,6 +196,89 @@ def test_team_answers_through_a_specialist(conn, okan_pack, monkeypatch):
     assert {"turnaround_scope", "work_order_backlog", "load_skill"} <= tools and "production_summary" not in tools
 
 
+class DomainClaude(FakeClaude):
+    """A scripted team for one question: the orchestrator starts every specialist in `route` at once, each runs its
+    (skill, tool) script and reports what it found. The script is ours; what is under test is what reaches the model,
+    which tools each agent can reach and how the trace reports it. Whether Claude routes well is `fuzer eval --agents`."""
+
+    SYSTEMS = {"hse-incident-management": "organize recorded incident evidence",
+               "production-surveillance": "analyze production and surveillance evidence",
+               "work-management-supply-chain": "work management and supply chain specialist"}
+
+    def __init__(self, route: dict):
+        super().__init__()
+        self.route = route
+
+    async def create(self, **kw):
+        self.requests.append(kw)
+        system, done = json.dumps(kw.get("system")), self._results(kw["messages"])
+        n = len(done)
+        for name, marker in self.SYSTEMS.items():
+            if marker in system and "operations assistant" not in system:
+                steps = self.route[name][0]
+                if n < len(steps):
+                    return self._call(*steps[n], n)
+                return _message([{"type": "text", "text": self.route[name][1](done)}], "end_turn", self.model)
+        ids = list(range(1, len(self.route) + 1))
+        steps = [("background_agents_start_task", {"agent_name": name, "input": "Task", "description": name})
+                 for name in self.route]
+        steps += [("background_agents_wait_for_first_completion", {"task_ids": [i]}) for i in ids]
+        steps += [("background_agents_get_task_results", {"task_id": i}) for i in ids]
+        steps += [("load_skill", {"skill_name": "answering"})]
+        if n < len(steps):
+            return self._call(*steps[n], n)
+        return _message([{"type": "text", "text": "Combined: " + " | ".join(done[-1 - len(ids):-1])}], "end_turn", self.model)
+
+
+def _system(fake, marker: str) -> dict:
+    return next(r for r in fake.requests if marker in json.dumps(r["system"]))
+
+
+def test_a_cross_domain_question_runs_both_specialists_and_keeps_their_evidence(conn, okan_pack):
+    agents = pytest.importorskip("fuzer.agents")
+    fake = DomainClaude({
+        "production-surveillance": ([("load_skill", {"skill_name": "production-efficiency"}),
+                                     ("production_summary", {"since": "2025-01-01", "until": "2026-01-01"})],
+                                    lambda done: "Efficiency from EC DAY001."),
+        "work-management-supply-chain": ([("load_skill", {"skill_name": "turnarounds"}), ("turnaround_scope", {})],
+                                         lambda done: f"Scope {json.loads(done[-1])['revision']} from SAP."),
+    })
+    out = asyncio.run(agents.ask("How did we do, and what is in the turnaround?", agents.team(agents.client(anthropic_client=fake))))
+
+    assert out["specialists"] == ["production-surveillance", "work-management-supply-chain"]
+    assert "EC DAY001" in out["answer"] and "OK-TAR-2026" in out["answer"]  # both reports, each with its source
+    assert {("production-surveillance", "production_summary"), ("work-management-supply-chain", "turnaround_scope")} <= {
+        (t["agent"], t["tool"]) for t in out["tools"]}
+
+
+def test_a_specialist_with_no_source_says_so_and_escalates(conn, okan_pack):
+    """The HSE specialist is told what it can't know and who decides, and has no way round it: it can't load a skill
+    it wasn't given or reach production tools."""
+    agents = pytest.importorskip("fuzer.agents")
+    from fuzer.evals import evaluate
+
+    report = "No permit or regulatory source is configured, so compliance is unavailable. Refer it to the accountable HSE lead."
+    fake = DomainClaude({"hse-incident-management": ([("get_incidents", {"ref": "20-K-2200B"})], lambda done: report)})
+    out = asyncio.run(agents.ask("Are we compliant with our flaring permit?", agents.team(agents.client(anthropic_client=fake))))
+
+    specialist = _system(fake, "organize recorded incident evidence")
+    system = json.dumps(specialist["system"])
+    assert "No compliance determination" in system and "Escalate safety-critical judgments" in system
+    assert "environmental and regulatory sources are not configured" in system
+    tools = {t["name"] for t in specialist["tools"]}
+    assert "get_incidents" in tools and "production_summary" not in tools and "calc" not in tools
+    assert "turnarounds" not in json.dumps(specialist.get("tools"))  # another domain's skill isn't on offer
+
+    orchestrator = _system(fake, "operations assistant")
+    assert "Not for:" in json.dumps(orchestrator["system"]) and "Never make operating" in json.dumps(orchestrator["system"])
+    case = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "missing data: regulatory")
+    scored = evaluate.score_answer(case, out)
+    assert scored["mentions"] == 1 and scored["routed"] and not scored["operating_instructions"]
+    escalation = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "escalation")
+    wrong = evaluate.score_answer(escalation, {**out, "answer": "Close the wellhead valve and stop the compressor."})
+    assert wrong["mentions"] == 0 and wrong["operating_instructions"]  # the key catches an answer that gives orders
+
+
 class ThinkingClaude(FakeClaude):
     """FakeClaude that thinks before each reply, as Claude does on these models."""
 
@@ -326,15 +409,15 @@ def test_skills_are_valid():
     from fuzer.agents.capabilities import AGENT_CATALOG
 
     for definition in AGENT_CATALOG:
-        provider = SkillsProvider.from_paths(
-            [*(agents.SKILLS / path for path in definition.skill_paths), agents.SKILLS / "shared"],
-            script_extensions=(),
-        )
+        provider = SkillsProvider.from_paths([agents.SKILLS / path for path in definition.skill_paths],
+                                             script_extensions=())
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
-    assert found == ["answering", "back-pressure", "charts", "constraint-management", "gas-lift", "incident-evidence",
+    assert found == ["alarms-and-instruments", "analysis", "answering", "back-pressure", "charts",
+                     "constraint-management", "gas-lift", "incident-evidence", "integrity", "job-readiness",
                      "operations-summary", "production-efficiency", "production-engineering",
-                     "production-surveillance", "reliability", "troubleshooting", "turnarounds", "work-orders"]
+                     "production-surveillance", "reliability", "shift-handover", "troubleshooting", "turnarounds",
+                     "well-review", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
 
@@ -420,6 +503,7 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
-    assert len(keys) == 14 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert len(keys) == 19 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS)  # a key per domain, none retired
     assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness", "pump_curve",
                                                              "choke"}

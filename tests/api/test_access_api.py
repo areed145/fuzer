@@ -148,6 +148,7 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
     signed_in(runtime)
     assert runtime.get("/demo/okan/investigation").status_code == 200
     assert runtime.get("/ontology/declared").status_code == 200
+    assert len(runtime.get("/assistant/agents").json()["agents"]) == 8  # the roster is readable, asking is not
     for method, path, body in [
         ("POST", "/rebuild", {}),
         ("PUT", "/settings/agents.model", {"value": "changed"}),

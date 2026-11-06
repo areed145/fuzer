@@ -24,7 +24,7 @@ INSTRUCTION = re.compile(r"\b(increase|decrease|reduce|raise|lower|open|close|se
 
 
 def scripted_ask(question: str) -> dict:
-    """A fake troubleshooter for CI: names the first cause the question gives, cites nothing it can't."""
+    """A fake diagnosis for CI: names the first cause the question gives, cites nothing it can't."""
     m = re.search(r"Likely first cause: (\S+) on (\S+) \(([^)]+)\)", question)
     unit = m.group(3) if m else "unknown"
     answer = (f"The upset most likely started at {unit}.\n\n```json\n"

@@ -34,7 +34,7 @@ Mechanical checks against `answer_keys/assistant.json`: the facts a good answer 
 
 ## Operations loop
 
-History replayed with the fake plant's injected upsets: SRE detection, grouping, the troubleshooter's diagnosis, daily reports and opportunities.
+History replayed with the fake plant's injected upsets: SRE detection, grouping, the assistant's diagnosis, daily reports and opportunities.
 
 | Run | Window | Recall | Precision | Upsets (process / instrument / slow / standing) | False upsets / week | First cause right | Diagnosed (named first cause) | Daily reports OK | Gas lift gain error |
 |---|---|---|---|---|---|---|---|---|---|

@@ -15,12 +15,12 @@
         <bpmn:flowNodeRef>is_resolved</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>resolved</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_troubleshooter" name="Troubleshooter agent" fuzer:agent="troubleshooter">
+      <bpmn:lane id="Lane_field_operations" name="Field Operations &amp; Facilities agent" fuzer:agent="field-operations-facilities">
         <bpmn:flowNodeRef>detected</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>to_diagnose</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>diagnose</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_maintenance" name="Maintenance agent" fuzer:agent="maintenance">
+      <bpmn:lane id="Lane_maintenance" name="Maintenance &amp; Integrity agent" fuzer:agent="maintenance-integrity">
         <bpmn:flowNodeRef>draft_notification</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_planner" name="Maintenance planner" fuzer:role="maintenance_planner">
@@ -113,7 +113,7 @@
     <bpmndi:BPMNPlane id="Plane_upset" bpmnElement="Collaboration_upset">
       <bpmndi:BPMNShape id="Participant_upset_di" bpmnElement="Participant_upset" isHorizontal="true"><dc:Bounds x="0" y="60" width="2080" height="600" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_engineer_di" bpmnElement="Lane_engineer" isHorizontal="true"><dc:Bounds x="30" y="60" width="2050" height="150" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_troubleshooter_di" bpmnElement="Lane_troubleshooter" isHorizontal="true"><dc:Bounds x="30" y="210" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_field_operations_di" bpmnElement="Lane_field_operations" isHorizontal="true"><dc:Bounds x="30" y="210" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_maintenance_di" bpmnElement="Lane_maintenance" isHorizontal="true"><dc:Bounds x="30" y="360" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_planner_di" bpmnElement="Lane_planner" isHorizontal="true"><dc:Bounds x="30" y="510" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="detected_di" bpmnElement="detected"><dc:Bounds x="132" y="267" width="36" height="36" /></bpmndi:BPMNShape>

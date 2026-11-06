@@ -129,7 +129,7 @@ register(
             env="FUZER_WORK_MEM"),
     Setting("sre.handoff.min_detections", "int", 3, "Detections an upset needs before it is handed off (a lone "
             "detection is evidence, not an upset worth a person's time)", "SRE", min=1),
-    Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the troubleshooter diagnoses per hand-off run", "SRE",
+    Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the assistant diagnoses per hand-off run", "SRE",
             min=0, max=100),
     Setting("sre.handoff.max_usd", "float", 5.0, "Claude spend cap per hand-off run (USD)", "SRE", min=0),
     Setting("sre.step_minutes", "int", 10, "Minutes between the values the detectors read", "SRE", min=1, max=60),

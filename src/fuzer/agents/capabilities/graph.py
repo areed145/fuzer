@@ -86,7 +86,9 @@ def get_entity(ref: str, as_of: str | None = None) -> dict[str, Any]:
     })
 
 
-@capability("orchestrator", "troubleshooter", "production", kind="query")
+@capability(
+    "orchestrator", "production-surveillance", "wells-subsurface", "field-operations-facilities", kind="query"
+)
 def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | None = None, max_depth: int = 10,
                network: Literal["allocation", "lift_gas", "piping"] = "allocation") -> dict[str, Any]:
     """Follow a flow network from an entity.
@@ -112,7 +114,7 @@ def trace_flow(ref: str, direction: Literal["up", "down"] = "up", as_of: str | N
     })
 
 
-@capability("troubleshooter", "maintenance", kind="query")
+@capability("wells-subsurface", "field-operations-facilities", "maintenance-integrity", kind="query")
 def equipment_history(tag: str) -> dict[str, Any]:
     """Physical equipment installed at a tag over time (serial, manufacturer, model, install dates).
     Use it to answer questions like "when was 20-P-1001B swapped and what replaced it?"."""
@@ -138,7 +140,10 @@ def equipment_history(tag: str) -> dict[str, Any]:
          **(r["fields"] or {})} for r in rows]})
 
 
-@capability("troubleshooter", "production", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "hse-incident-management",
+    kind="query"
+)
 def get_events(ref: str | None = None, since: str | None = None, until: str | None = None,
                event_type: str | None = None, limit: int = 50) -> dict[str, Any]:
     """What happened, from the operator logs: trips, starts, stops, changeovers, shut-ins, choke changes,
@@ -159,7 +164,10 @@ def get_events(ref: str | None = None, since: str | None = None, until: str | No
     return _plain({"for": fid or "facility", "events": rows})
 
 
-@capability("troubleshooter", "maintenance", kind="query")
+@capability(
+    "wells-subsurface", "field-operations-facilities", "maintenance-integrity", "work-management-supply-chain",
+    "hse-incident-management", kind="query"
+)
 def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> dict[str, Any]:
     """SAP notifications and work orders for a tag, a piece of equipment, every instance of a model, or a
     whole class (e.g. "ISO14224:PU.CE"), newest first, with counts by ISO 14224 failure mode. since is a
@@ -171,7 +179,10 @@ def maintenance_history(ref: str, since: str | None = None, limit: int = 20) -> 
         return _plain({"for": fid, **queries.maintenance(conn, fid, since, min(limit, 200))})
 
 
-@capability("troubleshooter", "production", kind="query")
+@capability(
+    "production-surveillance", "wells-subsurface", "field-operations-facilities", "hse-incident-management",
+    kind="query"
+)
 def downtime(ref: str | None = None, since: str | None = None, until: str | None = None,
              rank_by: Literal["tag", "class", "reason"] | None = None, limit: int = 20) -> dict[str, Any]:
     """Production downtime and deferment from Energy Components, with lost oil (Sm3) and hours.
@@ -207,7 +218,7 @@ def get_incidents(ref: str | None = None, since: str | None = None, until: str |
         return _plain({"for": fid or "facility", **queries.incidents(conn, fid, since, until, min(limit, 200))})
 
 
-@capability("troubleshooter", "maintenance", kind="query")
+@capability("field-operations-facilities", "maintenance-integrity", "work-management-supply-chain", kind="query")
 def spare_parts(ref: str) -> dict[str, Any]:
     """Spare parts for a tag, piece of equipment or equipment model: SAP material, manufacturer part number,
     stock on hand (0 = none in stock), storage bin, how many units use it, and manual sections naming it."""
