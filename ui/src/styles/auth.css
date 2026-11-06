@@ -7,4 +7,6 @@
 .access-account { overflow-wrap: anywhere; }
 .access-account fieldset, .access-role fieldset { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; border: 1px solid var(--line); }
 .access-account fieldset label, .access-role fieldset label { display: inline-flex; gap: 6px; align-items: center; }
-.access-role form { display: grid; gap: 12px; }
+.tabs.users-tabs { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; }
+.tabs.users-tabs > a { flex-shrink: 0; }
+.workflow-routing-fields { min-inline-size: 0; }

@@ -168,7 +168,7 @@ def bootstrap(conn, person: Principal, token: str):
 
 
 def accounts(conn):
-    rows = conn.execute("select id, display_name, enabled, owner, created_at from access_account "
+    rows = conn.execute("select id, tenant_id, object_id, display_name, enabled, owner, created_at from access_account "
                         "order by created_at").fetchall()
     for row in rows:
         row["roles"] = list(principal(conn, row["id"]).roles)

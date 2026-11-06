@@ -4,7 +4,6 @@ import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
-import { PeopleCard } from "./People";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
 import { ApplicationReadiness } from "./ApplicationReadiness";
@@ -70,7 +69,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
       </UICard>
       <p className="muted small">Manage source endpoints and secret references in{" "}
         <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</p>
-      {!f && <PeopleCard by={person} />}
+      {!f && <p>Accounts, permissions and workflow assignments are managed in <a href={href("/users")}>Users</a>.</p>}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
         No settings match.
       </Status>

@@ -5,7 +5,11 @@ before changing user journeys. Reuse domain operations, the settings/capability 
 local UI kit; do not add a parallel service, component kit, or source of configuration.
 Read [page ownership](docs/page-ownership.md) before adding routes or controls: one owning surface
 per action, reusable contextual entry links, compatible URLs, and no duplicated entity/source/job
-editors. Navigation grouping is not authorization. Users consolidation remains separate (#279);
+editors. Navigation grouping is not authorization. Users is a Settings subdestination owning
+account/access and workflow administration; Team workload is a contextual read-only operational view.
+Keep account approval, application authorization, workflow assignments and Work context distinct.
+Work context is presentation focus, never a permission grant, assignment change or impersonation.
+Do not add a context selector/registry until it drives meaningful supported behavior.
 Home personalization is a future direction, not permission to add a ranking/widget engine.
 Keep the user-selected primary destinations Home, Explore, Investigate, Work, Sources, Jobs and
 Settings. Put specialist routes in their owner's secondary navigation, preserving URLs and access
@@ -34,6 +38,10 @@ silently replay. Keep reader controls explanatory and enforce permissions on the
 - Keep Microsoft accounts/application permissions separate from workflow routing roles. New accounts
   await owner approval; owners span all human roles, not agent identities. Do not introduce first-visitor
   ownership, email-based ownership, client-only authorization, or an unauthenticated MCP bypass.
+  Bind workflow assignments to stable account actors, not display-name matches. Preserve legacy
+  roster identities without auto-linking them. Distinguish saved roster assignments from effective
+  roles: disabled accounts have none, owners dynamically span all human roles. Reuse the shared
+  workflow assignment editor and existing stores; only owners can grant application access.
 - Label shared operational state and deliberately shared knowledge. Keep assistant conversations,
   uploads and answers account-scoped on every read/write path. Local attribution is an explicit
   loopback-only development mode, never a deployment fallback.

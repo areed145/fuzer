@@ -358,8 +358,11 @@ def roles_of(conn, name: str) -> list[str]:
     return row["roles"] if row else []
 
 def people(conn) -> list[dict]:
-    rows = conn.execute("select name, roles, away_until, delegate, note from work_person order by name").fetchall()
+    rows = conn.execute("select p.name, p.roles, p.away_until, p.delegate, p.note, coalesce(a.owner, false) as owner, "
+                        "a.display_name, a.enabled as account_enabled "
+                        "from work_person p left join access_account a on p.name = 'user:' || a.id order by p.name").fetchall()
     for row in rows:
+        row["assigned_roles"] = list(row["roles"])
         if row["name"].startswith("user:"):
             row["roles"] = roles_of(conn, row["name"])
     return rows

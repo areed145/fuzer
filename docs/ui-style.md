@@ -34,6 +34,12 @@ Failures must remain visible and explain how to inspect recorded state before a 
 an HTTP/network failure may occur after a mutation committed. Never automatically replay actions.
 Viewing pages must not execute loads, rebuilds, connection tests or paid probes.
 
+Users is a Settings subdestination with owner-only account/application-access controls and
+configuration-admin workflow routing controls. Reuse its shared workflow assignment editor for
+account and legacy-roster contexts. Always explain saved assignments versus effective access.
+Work context is presentation focus, not a workflow role or permission. No context selector is
+shown until supported presentation behavior exists; do not persist a cosmetic persona choice.
+
 ## Layout and tokens
 
 Use the existing spacing rhythm: 4px for tight inline gaps, 8px for control groups, 12–16px between related blocks, and 20–24px between major page areas. Keep page content within the app's existing 1200px reading width.

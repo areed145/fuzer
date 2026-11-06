@@ -91,7 +91,7 @@ export function ProcessesPage() {
         BPMN is maintained under the hood. Edit a draft,
         check it, compare it with the published version, and publish (needs the workflow admin role). Running cases stay on the
         version they started with. Who does each step, its SLA and where it escalates are on each process's SLAs &amp; routing
-        tab; roles themselves are under <a href={href("/teams")}>Teams &amp; routing</a>.
+        tab; role administration is under <a href={href("/users", { view: "workflow" })}>Users</a>.
       </p>
       <NeedName person={person} />
       <Status loading={defs.loading} error={defs.error} />
@@ -734,7 +734,7 @@ function RoutingTab({ def }: { def: WorkDefinition }) {
   return (
     <>
       <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply
-        (edit them under <a href={href("/teams")}>Teams &amp; routing</a>). Change a step's own settings in the Model tab.</p>
+        (edit them under <a href={href("/users", { view: "workflow" })}>Users</a>). Change a step's own settings in the Model tab.</p>
       <Table variant="list">
         <thead><tr><th>Step</th><th>Done by</th><th>Assigned</th><th>SLA</th><th>When it passes, goes to</th><th>Form</th></tr></thead>
         <tbody>

@@ -56,11 +56,10 @@ export const NAV: NavGroup[] = [
     label: "Work",
     items: [
       { label: "Work board", section: "board" },
-      { label: "Inbox", section: "inbox", also: ["work"], badge: "work" },
+      { label: "Inbox", section: "inbox", also: ["work", "teams"], badge: "work" },
       { label: "Cases", section: "cases" },
       { label: "Data review", section: "review", badge: "review" },
       { label: "Processes", section: "processes" },
-      { label: "Teams & routing", section: "teams" },
     ],
   },
   { label: "Sources", permission: "configure", items: [{ label: "Sources", section: "sources" }] },
@@ -69,7 +68,7 @@ export const NAV: NavGroup[] = [
     label: "Settings",
     items: [
       { label: "Application settings", section: "settings" },
-      { label: "Sign-in & access", section: "access", ownerOnly: true },
+      { label: "Users", section: "users", also: ["access"], permission: "configure" },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },

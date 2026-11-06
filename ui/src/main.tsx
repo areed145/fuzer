@@ -33,7 +33,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { EmptyState } from "./ui";
 import "./theme";
 import { AuthGate } from "./Auth";
-import { AccessPage } from "./pages/Access";
+import { UsersPage } from "./pages/Users";
 
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
@@ -58,6 +58,14 @@ function App() {
   const work = inbox.data ? inbox.data.counts.mine.total + inbox.data.counts.queue.total : 0;
   // The old Work pages' links (#/work, #/work/item/3, #/work/processes/upset, #/work/forms/x) still land right.
   useEffect(() => {
+    if (section === "access") {
+      location.replace(href("/users", Object.fromEntries(query.entries())));
+      return;
+    }
+    if (section === "settings" && query.get("view") === "people") {
+      location.replace(href("/users", { view: "workflow" }));
+      return;
+    }
     if (section !== "work") return;
     const task = query.get("task");
     const to = path[1] === "item" && path[2] ? `/cases/${path[2]}`
@@ -148,8 +156,8 @@ function App() {
             <SourcesPage query={query} />
           ) : section === "settings" ? (
             <SettingsPage query={query} />
-          ) : section === "access" ? (
-            <AccessPage />
+          ) : section === "users" || section === "access" ? (
+            <UsersPage query={query} />
           ) : section === "board" ? (
             <BoardPage query={query} />
           ) : section === "review" ? (

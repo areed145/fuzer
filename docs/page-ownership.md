@@ -15,10 +15,10 @@ generic investigation subsystem. Direct links select their owning primary destin
 | Home | `#/`, legacy `#/?q=…` search entry | Orientation, current priorities and brief readiness links. No embedded configuration. Search reuses Browse. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
 | Investigate | `#/investigate/okan`, `#/ask`, `#/incidents`, `#/downtime`, `#/analytics`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools; the Okan walkthrough is an existing journey, not a new generic subsystem. Paid Ask remains AI-permission gated. |
-| Work | `#/board`, `#/inbox`, `#/inbox/task/:id`, `#/cases`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
+| Work | `#/board`, `#/inbox`, `#/inbox/task/:id`, contextual `#/teams`, `#/cases`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
-| Users (deferred #279) | Existing `#/access`, `#/teams`, People editor in Settings | Accounts, access, application roles and human/team routing have a future shared owner. Keep current surfaces and authorization until that separate change; do not silently consolidate or conflate app and workflow roles. |
+| Users (Settings subdestination) | `#/users`, `#/users?view=workflow` | Unified account approval, application roles and human workflow assignments/routing. Only owners grant application access; configure administrators manage routing. Work's contextual Team workload links to this administration owner. |
 | Settings | `#/settings`, existing configuration/filter/project queries | Application-wide defaults, optional AI/resource policies, deployment references and restart requirements. Browser Appearance remains available to readers. Secret values remain deployment-managed. |
 
 ## Contextual entries, not duplicate implementations
@@ -36,11 +36,34 @@ owner-only/configure/AI visibility rules.
 
 Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
 Investigate contains the Okan walkthrough, AI-gated Ask, Downtime, Incidents, Daily reports,
-Analytics, Lessons and Studies. Work contains Work board, Inbox, Cases, Data review, Processes
-and existing Teams & routing. Settings contains Application settings, owner-only Sign-in & access
-and external Docs. Sources retains its datasets/systems/rules/wizard navigation;
-Jobs retains run detail links. Teams routing and access administration remain separate current
-surfaces pending #279, not a newly consolidated Users destination.
+Analytics, Lessons and Studies. Work contains Work board, Inbox, Cases, Data review and Processes.
+Settings contains Application settings, configure-visible Users and external Docs. Sources retains
+its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
+a Settings subdestination, not an eighth primary destination.
+
+## Unified Users and compatibility
+
+Users owns account approval/disablement, owner and application-role grants, workflow assignments,
+coverage and routing defaults. Its Accounts & access view is owner-only; configuration administrators
+may use Workflow assignments & routing without reading the owner-only account catalog or granting
+application access. Effective access cites saved application roles or owner status. Account identity
+uses Microsoft's validated tenant/object IDs and the stable actor, never display-name inference.
+Legacy roster names remain explicit; they are not automatically merged with accounts.
+
+`#/access` redirects to `#/users`; `#/settings?view=people` redirects to the workflow view.
+The old embedded People editor is retired. `#/teams?role=...` remains a read-only Team workload
+view within Work/Inbox, with contextual links to the matching Users routing section and existing cases/processes.
+There is one shared assignment editor for account and roster contexts, not two role stores.
+
+Saved workflow assignments differ from effective roles: disabled accounts retain assignments
+for deliberate handoff but have no effective roles; owners span every human role dynamically
+without acquiring agent identities. Removing a roster entry returns claimed work to its queues;
+disabling an account revokes sessions but preserves assignments/work for deliberate handoff.
+
+Work context is presentation focus, not authentication, permissions, workflow assignment or
+impersonation. Workflow roles may suggest defaults; a user's context choice may override the default
+without changing roles or administrative access. No editable persona registry, selector without
+observable behavior or Home personalization engine is introduced.
 
 ## Home direction, not implemented in this pass
 

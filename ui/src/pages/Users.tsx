@@ -1,0 +1,179 @@
+import { useState } from "react";
+import { api, type AccessAccount, type AccessAdministration, type AccessRole, type WorkRoleRow } from "../api";
+import { refreshAccess, useAuth, usePermission } from "../Auth";
+import { href, notifyChanged, Status, useAsync } from "../lib";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, Field, Input, PageHeader } from "../ui";
+import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
+
+export function UsersPage({ query }: { query: URLSearchParams }) {
+  const session = useAuth();
+  const configure = usePermission("configure");
+  const owner = !!session?.user?.owner;
+  if (!owner && !configure) return <section><PageHeader>Users</PageHeader>
+    <p>Users administration requires configuration access. Only an owner can approve accounts or grant application permissions.</p>
+    <a href={href("/")}>Return home</a></section>;
+  const workflow = query.get("view") === "workflow" || !owner;
+  return <section>
+    <PageHeader subtitle="Accounts, application access and human workflow assignments, with distinct responsibilities.">Users</PageHeader>
+    <details className="card"><summary>How Users works: identity, permissions, routing and work context</summary>
+      <p><strong>Account</strong> identifies who signed in with Microsoft and whether they are enabled.
+        <strong> Application roles</strong> grant server-enforced capabilities.
+        <strong> Workflow roles and teams</strong> route and assign work; they do not grant application access.</p>
+      <p><strong>Work context</strong> means presentation focus, not permissions or assignments. A person may hold several
+        workflow roles and switch focus without impersonating anyone or losing administrative access.
+        Context-driven presentation and its selector are deferred until there is useful behavior to select.</p>
+      <p>Owners retain every application capability and all current or future human workflow roles, never agent identities.
+        Keep at least one enabled owner; a second owner provides recovery if a Microsoft account becomes unavailable.</p>
+    </details>
+    <nav className="tabs users-tabs" aria-label="Users views">
+      {owner && <a href={href("/users")} className={!workflow ? "on" : ""} aria-current={!workflow ? "page" : undefined}>Accounts &amp; access</a>}
+      <a href={href("/users", { view: "workflow" })} className={workflow ? "on" : ""} aria-current={workflow ? "page" : undefined}>Workflow assignments &amp; routing</a>
+    </nav>
+    {!owner && <p>Configuration administrators can manage workflow assignments and routing, not application access.
+      An owner approves accounts and grants application roles.</p>}
+    {workflow ? <TeamsPage query={query} administration /> : <Administration />}
+  </section>;
+}
+
+function Administration() {
+  const [message, setMessage] = useState("");
+  const data = useAsync(() => api.accessAdministration(), []);
+  const workflow = useAsync(async () => {
+    const [roles, people] = await Promise.all([api.rolesCatalog(), api.workPeople()]);
+    return { roles, people };
+  }, []);
+  const changed = (message?: string) => {
+    if (message) setMessage(message);
+    data.reload(); workflow.reload();
+  };
+  return <div>
+    <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
+    <p>This is a shared operational demonstration, not a private sandbox. Approved users see the same synthetic facility;
+      operational changes affect that shared facility. Assistant conversations and uploads stay with the account that created them.
+      Facts deliberately learned into shared facility memory are shared knowledge.</p>
+    <p>Approve a signed-in account, choose the least application access it needs, then assign human workflow roles.
+      Assignments alone never enable sign-in or permissions. Disabling an account revokes its active sessions;
+      existing workflow assignments are retained for deliberate handoff in Workflow assignments &amp; routing.</p>
+    <Status loading={data.loading} error={data.error} />
+    {data.error && <Button onClick={data.reload}>Try again</Button>}
+    {data.data && <>
+      <h2>Accounts</h2>
+      {!data.data.accounts.length && <p>No accounts have signed in yet.</p>}
+      {data.data.accounts.map((account) => <AccountCard key={`${account.id}:${account.enabled}:${account.owner}:${account.roles.join(",")}`}
+        account={account} data={data.data!} workflow={workflow.data?.roles}
+        assigned={workflow.data?.people.find(p => p.name === account.actor)?.assigned_roles ?? []}
+        reload={changed} />)}
+      <details><summary>Advanced: application role definitions (affects every assigned account)</summary>
+      <h2>Application roles</h2>
+      {data.data.roles.map((role) => <RoleCard key={role.name + role.permissions.join(",") + role.description}
+        role={role} data={data.data!} reload={changed} />)}
+      <RoleCard data={data.data} reload={changed} />
+      </details>
+    </>}
+    <Status loading={workflow.loading} error={workflow.error} />
+    {workflow.error && <Button onClick={workflow.reload}>Retry workflow assignments</Button>}
+  </div>;
+}
+
+function AccountCard({ account, data, workflow, assigned, reload }: {
+  account: AccessAccount; data: AccessAdministration; workflow?: WorkRoleRow[]; assigned: string[]; reload: (message?: string) => void;
+}) {
+  const [enabled, setEnabled] = useState(account.enabled);
+  const [owner, setOwner] = useState(account.owner);
+  const [roles, setRoles] = useState(account.roles);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const permissions = account.owner ? Object.keys(data.permissions) : [...new Set(
+    data.roles.filter(r => account.roles.includes(r.name)).flatMap(r => r.permissions))];
+  const dirty = enabled !== account.enabled || owner !== account.owner || [...roles].sort().join() !== [...account.roles].sort().join();
+  const save = async () => {
+    setBusy(true); setError(""); setSaved(false);
+    try { await api.updateAccount(account.id, { enabled, owner, roles }); setSaved(true); reload(`Account access saved for ${account.display_name}.`); refreshAccess(); notifyChanged(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  };
+  return <Card className="access-account" title={<>{account.display_name} <Badge tone={account.enabled ? "ok" : "warn"}>
+    {account.owner ? "Owner" : account.enabled ? "Enabled" : "Not enabled"}</Badge></>}>
+    <p>Effective access: <strong>{!account.enabled ? "None: account not enabled" : permissions.map(p => data.permissions[p] ?? p).join(", ") || "No permissions assigned"}</strong>.
+      {" "}{account.owner ? "From owner status." : `From saved application roles: ${account.roles.join(", ") || "none"}.`}
+      {account.enabled && !permissions.includes("read") && " Read permission is required to enter the application."}</p>
+    <details><summary>Microsoft sign-in identity</summary>
+      <p>Stable account identity: <code>{account.actor}</code>. Display names are not unique and do not link or merge accounts.</p>
+      <p>Tenant: <code>{account.tenant_id ?? "Unavailable"}</code>; object: <code>{account.object_id ?? "Unavailable"}</code>.</p>
+    </details>
+    <details open={!account.enabled}><summary>{account.enabled ? "Change account access" : "Approve or keep disabled"}</summary>
+      <fieldset disabled={busy}><legend>Account status</legend>
+        <label><Input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />Enabled</label>
+        <label><Input type="checkbox" checked={owner} onChange={(event) => setOwner(event.target.checked)} />Owner (all capabilities)</label>
+      </fieldset>
+      <fieldset disabled={busy || owner}><legend>Application roles</legend>
+        {data.roles.map((role) => <label key={role.name} title={role.description}>
+          <Input type="checkbox" checked={roles.includes(role.name)}
+            onChange={(event) => setRoles(event.target.checked ? [...roles, role.name] : roles.filter((value) => value !== role.name))} />
+          {role.name}
+        </label>)}
+      </fieldset>
+      <ConfirmAction label="Save account access" busy={busy} disabled={!dirty}
+        consequence={`Apply access to ${account.display_name} (${account.actor})? ${!enabled ? "Disabling revokes active sessions; workflow assignments remain for handoff." : owner ? "Owner grants every application capability and all human workflow roles." : `Application roles: ${roles.join(", ") || "none"}. Changes affect existing sessions.`}`}
+        onConfirm={save} />
+    </details>
+    <ActionStatus busy={busy ? "Saving account access..." : null} error={error}>{saved && <p>Account access saved.</p>}</ActionStatus>
+    {workflow && <AccountAssignments key={assigned.join(",")}
+      account={account} roles={workflow.filter(r => r.kind === "person")} assigned={assigned} reload={reload} />}
+  </Card>;
+}
+
+function AccountAssignments({ account, roles, assigned, reload }: {
+  account: AccessAccount; roles: WorkRoleRow[]; assigned: string[]; reload: (message?: string) => void;
+}) {
+  if (account.owner) return <p>Workflow access: all human roles from owner status, including roles added later.
+    Explicit roster assignments are preserved; changing them cannot remove owner access.</p>;
+  return <details><summary>Human workflow assignments ({assigned.length})</summary>
+    {!account.enabled && <p>Assignments are retained, but this disabled account has no effective workflow-role access.</p>}
+    <p>Saved assignments use this account's stable identity, never its display name. Changing these does not enable the account,
+      grant application permissions or move already claimed work. Use <a href={href("/users", { view: "workflow", person: account.actor })}>routing and workload</a> for coverage/handoff.</p>
+    <WorkflowAssignments name={account.actor} roles={roles} assigned={assigned}
+      reload={() => reload(`Workflow assignments saved for ${account.display_name}. Application access unchanged.`)} />
+  </details>;
+}
+
+function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdministration; reload: (message?: string) => void }) {
+  const [name, setName] = useState(role?.name ?? "");
+  const [description, setDescription] = useState(role?.description ?? "");
+  const [permissions, setPermissions] = useState(role?.permissions ?? ["read"]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const save = async () => {
+    setBusy(true); setError(""); setSaved(false);
+    try {
+      await api.setAccessRole(name, { description, permissions });
+      if (!role) { setName(""); setDescription(""); setPermissions(["read"]); }
+      setSaved(true); reload(`Application role ${name} saved. Existing sessions use the updated permissions.`); refreshAccess(); notifyChanged();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  };
+  return <Card className="access-role" title={role?.name ?? "Add an application role"}>
+    <fieldset disabled={busy}><legend>Application role definition</legend>
+      {!role && <Field label="Role name"><Input value={name} onChange={(event) => setName(event.target.value)}
+        pattern="[a-z][a-z0-9_]{0,63}" maxLength={64} required placeholder="e.g. reliability_reviewer" /></Field>}
+      <Field label="Description" width="full"><Input width="full" value={description}
+        onChange={(event) => setDescription(event.target.value)} required maxLength={500} /></Field>
+      <fieldset disabled={busy}><legend>Permissions (changes apply to existing sessions)</legend>
+        {Object.entries(data.permissions).map(([key, label]) => <label key={key}>
+          <Input type="checkbox" checked={permissions.includes(key)}
+            onChange={(event) => setPermissions(event.target.checked ? [...permissions, key] : permissions.filter((value) => value !== key))} />
+          {label}
+        </label>)}
+      </fieldset>
+      <p className="muted small">AI access permits provider charges; it is not included in the administrator role.
+        Configuration access is trusted administration, including source connections and scheduled jobs.</p>
+      <ConfirmAction label={role ? "Save application role" : "Add application role"} busy={busy}
+        disabled={!/^[a-z][a-z0-9_]{0,63}$/.test(name) || !description.trim()}
+        consequence={`Apply application role ${name} with permissions ${permissions.join(", ") || "none"}? This affects all assigned accounts and their existing sessions. AI access can incur provider charges.`}
+        onConfirm={save} />
+    </fieldset>
+    <ActionStatus busy={busy ? "Saving application role..." : null} error={error}>{saved && <p>Application role saved.</p>}</ActionStatus>
+  </Card>;
+}
