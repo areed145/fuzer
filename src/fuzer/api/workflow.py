@@ -85,6 +85,10 @@ class WorkItemIn(BaseModel):
     payload: dict[str, Any] = {}
 
 
+class DraftConfirm(BaseModel):
+    by: str = ""
+
+
 class WorkMessage(BaseModel):
     name: str
     correlation_key: str
@@ -136,6 +140,20 @@ def work_item_create(i: WorkItemIn, conn=Depends(get_conn)):
     """A work item without a process (a plain task with an owner, a due date and a history)."""
     return work.create_item(conn, i.type, i.title, i.by, i.subjects, i.priority, i.assignee, i.role, i.due,
                             i.source, i.payload)
+
+
+@router.get("/work/drafts/{draft_id}")
+def work_draft(draft_id: str, conn=Depends(get_conn)):
+    """Work the assistant proposed to the person reading it, and what became of it."""
+    from ..workflow import work_drafts
+    return work_drafts.get(conn, draft_id)
+
+
+@router.post("/work/drafts/{draft_id}/confirm")
+def work_draft_confirm(draft_id: str, m: DraftConfirm, conn=Depends(get_conn)):
+    """The person creates the item. Sending this twice gives the same item."""
+    from ..workflow import work_drafts
+    return work_drafts.confirm(conn, draft_id, m.by)
 
 
 @router.get("/work/items/{item_id}")

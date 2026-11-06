@@ -4,7 +4,9 @@ from typing import Any, Literal
 from ...core import db
 from ...graph import queries
 from ...workflow import engine as work
+from ...workflow import work_drafts
 from ..mcp_server import AgentRole, _plain, _resolve, _work, capability
+from . import ASKER
 
 
 @capability("all", kind="query")
@@ -128,3 +130,29 @@ def my_work(agent: AgentRole, limit: int = 20) -> dict[str, Any]:
     lease_until show whether a worker has one), person steps you claimed or were handed, and work items
     in your queue. Each step has a task_id for claim_work / complete_work / hand_off."""
     return _work(work.agent_inbox, agent, min(limit, 200))
+
+
+@capability("orchestrator", kind="query")
+def draft_work_item(title: str, role: str, summary: str, evidence: list[str],
+                    subjects: list[str] | None = None) -> dict[str, Any]:
+    """Propose work for a person's queue. This creates nothing: it returns a draft and a marker, and the
+    person asking sees it on the page and decides. `role` is a person role such as production_engineer,
+    `summary` says what is needed and why, `evidence` lists the records behind it (refs, at least one)
+    and `subjects` the assets it is about."""
+    asker = ASKER.get()
+    if asker is None:
+        return {"error": "Only someone signed in and asking in the Ask page can receive a draft."}
+    with db.connect() as conn:
+        ids = {}
+        for ref in [*evidence, *(subjects or [])]:
+            fid, problem = _resolve(conn, ref)
+            if problem:
+                return problem
+            ids[ref] = fid
+        try:
+            draft = work_drafts.create(conn, title, role, summary, [ids[r] for r in evidence], asker,
+                                       [ids[r] for r in subjects or []])
+        except work.WorkError as e:
+            return {"error": str(e)}
+    return {"draft": draft["id"], "marker": f"[[work-draft:{draft['id']}]]", "queue": role,
+            "note": "Put the marker on its own line. Nothing exists yet: say the person must confirm it."}

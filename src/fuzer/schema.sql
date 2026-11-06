@@ -813,6 +813,22 @@ create table if not exists work_item (
     updated_at  timestamptz not null default now(),
     closed_at   timestamptz
 );
+
+-- What the assistant proposes: it never writes to a queue. A draft belongs to whoever asked and
+-- becomes at most one work item, when that person confirms it.
+create table if not exists work_draft (
+    id           text primary key,
+    title        text not null,
+    role         text not null,
+    summary      text not null,
+    evidence     text[] not null,
+    subjects     text[] not null default '{}',
+    by_user      text not null,
+    item_id      bigint references work_item (id),
+    confirmed_by text,
+    confirmed_at timestamptz,
+    created_at   timestamptz not null default now()
+);
 create index if not exists work_item_open on work_item (state, priority desc nulls last, id);
 create index if not exists work_item_type on work_item (type, state);
 create index if not exists work_item_assignee on work_item (assignee, due) where closed_at is null;

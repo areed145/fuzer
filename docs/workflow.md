@@ -147,3 +147,20 @@ Times are in the project's timezone.
 
 Asset checks: on the register (review backlog, PI points attached, tags in SAP, downtime reason codes, document
 revisions, flow against piping) and on each source asset (its dataset's checks and health).
+
+## Work the assistant proposes
+
+Agents read; people decide. The assistant can't create or assign work, so when someone asks it to
+route something, `draft_work_item` leaves a draft in `work_draft`: title, person role, summary and the
+evidence behind it. The marker in its answer becomes a card on the Ask page. Nothing is in a queue yet.
+
+- **Owned:** a draft belongs to the account that asked. Anyone else gets a 404, on both reading and
+  confirming. The tool refuses to draft without someone signed in and asking.
+- **Decided by a person:** `POST /work/drafts/{id}/confirm` needs `operate`, and the server records the
+  signed-in person as the creator. The item is unassigned and waits in the role's queue.
+- **Once:** the row lock and one transaction make it at most one item, so a double click, a resend or
+  a retry after a lost response returns the same one.
+- **Queues only:** a draft must name a person role, so an agent can't route work to itself or another
+  agent, and the role is checked again at confirmation.
+
+Cases also has **New work item**, for work with no process behind it.

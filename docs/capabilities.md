@@ -97,7 +97,7 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 
 | Agent | Tools |
 |---|---|
-| Orchestrator | 20 |
+| Orchestrator | 21 |
 | Production & Surveillance | 61 |
 | Wells & Subsurface | 52 |
 | Field Operations & Facilities | 77 |
@@ -204,11 +204,12 @@ Used by every agent or by several specialists.
 | `plot_operating_window` | plot | ref, since, until | Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day. |
 | `plot_modes` | plot | scope, since, until, k? | Chart a unit's operating modes over time as a coloured strip under its regime-carrying point. |
 
-## Orchestrator (1)
+## Orchestrator (2)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `get_stats` | query |  | Counts of entities by kind, links, source records and open review items. |
+| `draft_work_item` | query | title, role, summary, evidence, subjects? | Propose work for a person's queue. |
 
 ## Field Operations & Facilities (5)
 

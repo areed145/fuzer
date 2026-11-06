@@ -1,4 +1,4 @@
-import { Button, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -7,8 +7,45 @@ import { Status, entityHref, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, describe, holder, usePerson, when } from "../../work";
 import { AssignPicker, StepBadges, byUrgency, caseHref, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
+import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
+
+/** A plain piece of work for a person's queue, with no process behind it. */
+function NewWorkItem({ onCreated }: { onCreated: () => void }) {
+  const operate = usePermission("operate");
+  const [person] = usePerson();
+  const roles = useAsync(() => api.workRoles(), []);
+  const [title, setTitle] = useState("");
+  const [role, setRole] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<number | null>(null);
+  if (!operate) return null;
+  const create = async () => {
+    setBusy(true); setError(null); setCreated(null);
+    try {
+      const item = await api.createWorkItem(title.trim(), role, person);
+      setCreated(item.id); setTitle(""); onCreated();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return <details className="new-work-item">
+    <summary>New work item</summary>
+    <div className="row wrap">
+      <Input aria-label="Work item title" width="lg" placeholder="What needs doing" maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Select aria-label="Queue" value={role} onChange={(e) => setRole(e.target.value)}>
+        <option value="">choose a queue</option>
+        {(roles.data?.person ?? []).map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+      </Select>
+      <ConfirmAction label="Create work item" busy={busy} disabled={!title.trim() || !role}
+        consequence={`This adds shared work to the ${role.replace(/_/g, " ")} queue, with you recorded as its creator.`} onConfirm={create} />
+    </div>
+    <ActionStatus busy={busy ? "Creating the work item…" : null} error={error}>
+      {created !== null && <>Created. <a href={caseHref(created)}>Open the case</a>.</>}
+    </ActionStatus>
+  </details>;
+}
 
 export function CasesPage({ query }: { query: URLSearchParams }) {
   const [state, setState] = useState(query.get("state") ?? "open");
@@ -31,6 +68,7 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
         process; open one for where it is, who has it and its history. The steps waiting on you are in
         your <a href={href("/inbox")}>Inbox</a>; all outstanding work ranked by value, workflow or not, is
         the <a href={href("/board")}>Work board</a>.</p>
+      <NewWorkItem onCreated={list.reload} />
       <div className="row wrap">
         <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
