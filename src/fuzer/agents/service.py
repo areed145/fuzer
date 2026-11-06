@@ -24,6 +24,10 @@ class Unavailable(RuntimeError):
     pass
 
 
+class Busy(RuntimeError):
+    pass
+
+
 def team():
     global _team
     if _team is None:
@@ -42,6 +46,8 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
     (media type, bytes) go to the configured provider with the question."""
     from . import ask, history
 
+    if sum(j["status"] == "running" for j in _jobs.values()) >= settings.get(None, "assistant.concurrent_questions"):
+        raise Busy("The assistant is answering another question. Wait for it to finish and try again.")
     agent = team()
     with db.connect() as conn:
         _purge(conn)
@@ -51,19 +57,25 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
             conn.commit()
     session = agent.create_session(session_id=conversation_id)
     job_id = uuid.uuid4().hex[:16]
-    job = {"id": job_id, "conversation_id": conversation_id, "status": "running",
+    job = {"id": job_id, "conversation_id": conversation_id, "status": "running", "by_user": by,
            "question": question + (f" [{len(images)} image(s) attached]" if images else ""),
            "images": [hashlib.sha256(data).hexdigest() for _, data in images or []],
            "trace": [], "answer": None, "error": None}
     _jobs[job_id] = job
     while len(_jobs) > MAX_JOBS:
-        _jobs.pop(next(iter(_jobs)))
+        finished = next((key for key, value in _jobs.items() if value["status"] != "running"), None)
+        if finished is None:
+            break
+        _jobs.pop(finished)
 
     async def run():
         try:
-            out = await ask(question, agent, session, job["trace"], images)
+            async with asyncio.timeout(settings.get(None, "assistant.timeout_seconds")):
+                out = await ask(question, agent, session, job["trace"], images)
             job.update(status="done", answer=out["answer"], usage=out["usage"], seconds=out["seconds"],
                        specialists=out["specialists"], tools=out["tools"], recalled=out["recalled"])
+        except TimeoutError:
+            job.update(status="error", error="This question exceeded the time limit. Try a narrower question or time window.")
         except Exception as e:  # shown on the page; the conversation can carry on
             job.update(status="error", error=f"{type(e).__name__}: {e}")
         _save(job, by)
@@ -108,6 +120,11 @@ def status(job_id: str) -> dict | None:
     calls = sum(1 for t in job["trace"] if t["kind"] == "model")
     return {k: job.get(k) for k in ("id", "conversation_id", "question", "status", "answer", "error", "usage",
                                     "seconds", "specialists", "recalled")} | {"steps": steps, "model_calls": calls}
+
+
+def owner(job_id: str) -> dict | None:
+    job = _jobs.get(job_id)
+    return {"by_user": job["by_user"]} if job else None
 
 
 def _saved(job_id: str) -> dict | None:

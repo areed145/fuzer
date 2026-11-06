@@ -26,11 +26,14 @@ import { Identity } from "./Identity";
 import { Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
+import { InvestigationPage } from "./pages/Investigation";
 import type { JobsHealth } from "./api";
 import { useAppData } from "./useAppData";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { EmptyState } from "./ui";
 import "./theme";
+import { AuthGate } from "./Auth";
+import { AccessPage } from "./pages/Access";
 
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
@@ -94,6 +97,8 @@ function App() {
             <Search query={query} stats={s} />
           ) : section === "" ? (
             <HomePage query={query} stats={s} statsLoading={stats.loading} statsError={stats.error} />
+          ) : section === "investigate" && path[1] === "okan" ? (
+            <InvestigationPage query={query} />
           ) : section === "browse" ? (
             <Search query={query} stats={s} />
           ) : section === "e" && path[1] ? (
@@ -142,6 +147,8 @@ function App() {
             <SourcesPage query={query} />
           ) : section === "settings" ? (
             <SettingsPage query={query} />
+          ) : section === "access" ? (
+            <AccessPage />
           ) : section === "board" ? (
             <BoardPage query={query} />
           ) : section === "review" ? (
@@ -171,6 +178,6 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AppErrorBoundary><App /></AppErrorBoundary>
+    <AppErrorBoundary><AuthGate><App /></AuthGate></AppErrorBoundary>
   </StrictMode>,
 );

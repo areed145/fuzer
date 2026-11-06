@@ -4,7 +4,10 @@ Running Fuzer, its configuration and how it performs at size.
 
 ## Configuration
 
-`.env` holds only the database, the project and secrets. Everything else is a setting: change it on the Settings page or with `fuzer settings set <key> <value>`. A project's value beats the global one, which beats the default. [Settings](settings.md) lists them all.
+`.env` holds the database, project, secrets and deployment trust/bootstrap configuration
+(Microsoft application registration and the canonical public URL). Operational tunables are
+settings: change them on the Settings page or with `fuzer settings set <key> <value>`.
+A project's value beats the global one, which beats the default. [Settings](settings.md) lists them all.
 
 Reference: [command line](cli.md), [database schema](schema.md).
 
@@ -53,7 +56,7 @@ disk, and set these environment values (or sync the Blueprint):
 
 Remove stale `FUZER_PROJECT` or other asset-specific overrides. Deploy the merged
 revision from the branch Render actually tracks. Once it starts, `/health`
-should report `{"ok":true,"pack":"okan"}` and `/stats` should have nonzero records
+should report `{"ok":true,"pack":"okan"}` and, after approved sign-in, `/stats` should have nonzero records
 and entities. The logs should show `Okan sample loaded` on the first empty load
 and `already initialized` on restart. Jobs should show a live daemon. Source
 timestamps are historic demo data, so freshness warnings are not live plant
@@ -88,11 +91,82 @@ Settings and schedules in Jobs before leaving it running. Initial ingestion
 does not block on Claude reads; the scheduled readers enrich cached readings
 later. This is fictional test data, not a live facility.
 
-**Access control:** the application does not provide authentication for this
-deployment. The UI and API include write actions, and an API key would enable
-chargeable assistant requests. Restrict access outside the application before
-sharing it; do not use this sample for sensitive data. Repository changes and a
-merge do not themselves verify a live Render deployment.
+### Microsoft sign-in and first owner
+
+The default mode is **fail-closed Microsoft sign-in**. A missing application registration
+leaves the login page available with an explanatory setup message, but blocks data and
+execution APIs. `/health` is public and is not an authentication-readiness check.
+
+The deployment owner performs this setup once; visitors need no API key or CLI:
+
+1. Register a **Web** application in Microsoft Entra, choosing **Accounts in any organizational
+   directory and personal Microsoft accounts** (`AzureADandPersonalMicrosoftAccount`).
+   Fuzer uses the `common` authority, authorization code flow, PKCE and nonce/state validation
+   through MSAL. It requests sign-in scopes only, not Microsoft Graph access.
+   Registering the app requires access to an Entra tenant; this does not mean users need a
+   corporate Microsoft account. Check Microsoft's current tenant-creation eligibility if
+   you do not already have a tenant.
+2. Set `FUZER_PUBLIC_URL` to the exact HTTPS origin of the existing Render service, with no
+   trailing path. Register that origin plus `/auth/callback` as the Web redirect URI.
+   Set `FUZER_MICROSOFT_CLIENT_ID` to the application ID and
+   `FUZER_MICROSOFT_CLIENT_SECRET` to the secret **value**, in Render's secret settings.
+   Do not enable implicit grants or put credentials in the repository/browser.
+3. Keep `FUZER_AUTH_MODE=microsoft`. The Blueprint generates a random
+   `FUZER_OWNER_BOOTSTRAP_TOKEN`; for an existing dashboard-managed service, configure
+   a cryptographically random secret at least 32 characters long. Never share it in chat.
+4. Sign in with the Microsoft account that should own Fuzer. On the approval page, enter
+   the owner setup code from Render. Only someone who both signs in and possesses that
+   secret can become the initial owner. The transaction refuses bootstrap once any owner
+   exists. Remove the bootstrap secret after setup.
+5. In **Sign-in & access**, approve additional accounts after their first sign-in and
+   assign application roles. Add a second trusted owner for recovery. No account is
+   automatically approved based on email, name, domain, or being the first visitor.
+   Microsoft controls password/passkey/Authenticator behavior; Fuzer does not collect
+   passwords or require a particular Microsoft MFA policy.
+
+Accounts are bound to Microsoft's validated tenant ID and object ID, not mutable email
+addresses or display names. An owner has every application permission and all current
+and future **human** workflow roles, without impersonating an automated agent.
+Application roles (`reader`, `operator`, `administrator`, `ai_user`, plus owner-defined
+roles) are separate from extensible routing roles in **Teams & routing**. New application
+roles combine registered permissions; new permission types require an explicit server
+policy and tests. Only owners can grant application access or create owners; the last
+enabled owner cannot be removed. Disabling an account revokes its sessions.
+
+Signed-in approved users operate the **shared** synthetic facility, not isolated per-user
+plant copies. Assistant conversations, uploaded images, questions and answers are scoped
+to their creator, including continuation, retrieval and deletion. Deliberately learned
+facility memory (including **Yes & share learning** ratings), workflow history and charts remain shared product evidence; do not
+use this demonstrator for sensitive information.
+
+Server checks cover all data/execution routes, including administrative GET previews,
+provider-backed previews, mutations and workflow-role checks. Audit actors come from
+the server session, not a browser-supplied `by`. Sessions use hashed opaque tokens in
+Postgres with absolute expiry, Secure/HttpOnly/SameSite cookies, revocation and CSRF
+confirmation for mutations and paid GET previews. No provider tokens are persisted.
+
+**Bounds:** the single-instance API limits simultaneous authenticated requests and
+32 MB request bodies (the existing four 5 MB images plus base64/JSON overhead).
+HTTP route database connections have a 30-second statement timeout. Settings control API concurrency,
+assistant question concurrency/time limits and session lifetime. Assistant input/output
+and reader token limits remain in force; scheduled diagnosis retains its existing spend
+caps. AI permission permits charges, not unlimited anonymous access. These controls are
+resource bounds, **not a hard cumulative dollar budget**; use provider-side spend limits
+for an account-wide ceiling, including scheduled/background work.
+
+Remote HTTP MCP is intentionally refused in Microsoft mode: no second unauthenticated
+execution surface is published. Trusted in-process agents and local stdio MCP keep working.
+HTTP MCP is restricted to explicit local mode and loopback; supporting remote authenticated
+MCP later requires its own validated authorization design, not an open bind.
+
+For trusted development only, explicitly set `FUZER_AUTH_MODE=local` and bind to loopback.
+That mode retains attribution-only names, rejects non-loopback HTTP requests and is
+refused on Render. It is not a production fallback. Public API documentation endpoints
+are disabled; reference documentation is shipped separately.
+
+Repository changes, opening a PR and merging do not themselves verify a live Render
+deployment. Before sharing a deployed revision, verify fresh-session login and approval,
+owner administration, desktop/mobile Okan navigation, and rejected unauthorized writes.
 
 ## Performance
 

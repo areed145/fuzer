@@ -11,16 +11,16 @@ flowchart LR
   app(["The app (ui/)"])
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 28 modules</small>"]
-  c_graph["Graph and golden records<br><small>fuzer.graph, 18 modules</small>"]
+  c_graph["Graph and golden records<br><small>fuzer.graph, 19 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 12 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 8 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 17 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
-  c_api["API<br><small>fuzer.api, 13 modules</small>"]
+  c_api["API<br><small>fuzer.api, 16 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 15 modules</small>"]
+  c_core["Core<br><small>fuzer.core, 16 modules</small>"]
   c_workflow --> c_sources
   c_sources --> c_graph
   c_graph --> c_analysis
@@ -182,7 +182,7 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
-- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
+- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
 - **Uses:** core, sources
 - **Writes:** `crosswalk`, `edge`, `entity`, `id_event`, `lesson`, `llm_extraction`, `ontology_kind`, `ontology_relation`, `register_summary`, `review_item` ([schema](schema.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
@@ -232,7 +232,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
-- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))
+- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** maintenance 50, orchestrator 20, production 55, troubleshooter 70 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
@@ -250,9 +250,10 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `catalog`, `deps`, `entities`, `graph`, `home`, `jobs`, `knowledge`, `ontology`, `ops`, `settings`, `sources`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `investigation`, `jobs`, `knowledge`, `ontology`, `ops`, `security`, `settings`, `sources`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
-- **Writes:** `assertion`, `feedback`, `golden`, `pinned_link`, `review_item`, `source_dataset`, `value_ranking` ([schema](schema.md))
+- **Writes:** `access_login`, `access_session`, `assertion`, `feedback`, `golden`, `pinned_link`, `review_item`, `source_dataset`, `value_ranking` ([schema](schema.md))
+- **Settings:** `access.session_hours` ([settings](settings.md))
 - **Tests:** [`tests/api`](https://github.com/areed145/fuzer/tree/main/tests/api)
 
 ### Command line
@@ -268,8 +269,8 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`
 - **Uses:** nothing else in fuzer
-- **Writes:** `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history` ([schema](schema.md))
-- **Settings:** `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
+- **Writes:** `access_account`, `access_event`, `access_membership`, `access_role`, `access_session`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
+- **Settings:** `access.session_hours`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
 - **Tests:** [`tests/core`](https://github.com/areed145/fuzer/tree/main/tests/core)

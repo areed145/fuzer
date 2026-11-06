@@ -77,3 +77,12 @@ test("identity still updates in memory when browser storage is blocked", () => {
   state.exports.usePerson()[1]("ana");
   assert.equal(state.exports.loadPerson(), "ana");
 });
+
+test("authenticated identity ignores attribution edits and cross-tab localStorage spoofing", () => {
+  const state = load("identityStore.ts", { stored: { "fuzer.reviewer": "system" } });
+  state.exports.setTrustedPerson("user:trusted-account");
+  state.exports.usePerson()[1]("agent:sre");
+  state.storageEvent("fuzer.reviewer", "another-user");
+  assert.equal(state.exports.loadPerson(), "user:trusted-account");
+  assert.equal(state.stored["fuzer.reviewer"], "system", "Microsoft identity is not saved as editable attribution");
+});

@@ -347,11 +347,22 @@ def set_person(conn, name: str, roles: list[str], by: str = SYSTEM) -> dict:
     return {"name": name, "roles": roles}
 
 def roles_of(conn, name: str) -> list[str]:
+    # Owners span all present and future human routing roles, never autonomous-agent identities.
+    if name.startswith("user:"):
+        account = conn.execute("select owner, enabled from access_account where id = %s", (name[5:],)).fetchone()
+        if account and not account["enabled"]:
+            return []
+        if account and account["owner"]:
+            return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
     row = conn.execute("select roles from work_person where name = %s", (name,)).fetchone()
     return row["roles"] if row else []
 
 def people(conn) -> list[dict]:
-    return conn.execute("select name, roles, away_until, delegate, note from work_person order by name").fetchall()
+    rows = conn.execute("select name, roles, away_until, delegate, note from work_person order by name").fetchall()
+    for row in rows:
+        if row["name"].startswith("user:"):
+            row["roles"] = roles_of(conn, row["name"])
+    return rows
 
 def role_summary(conn) -> list[dict]:
     """Each person role (#202): the published processes with steps for it, who holds it and how many

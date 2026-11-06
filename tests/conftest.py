@@ -30,6 +30,7 @@ os.environ.pop("FUZER_DATABASE_URL", None)
 os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")
 # Nor a Claude key: tests run on recorded or fake answers, so one that forgets its fake fails instead of paying.
 os.environ.pop("ANTHROPIC_API_KEY", None)
+os.environ["FUZER_AUTH_MODE"] = "local"  # Legacy API fixtures opt into trusted loopback attribution explicitly.
 
 PLANTS = {"okan": ("okan", "okan")}  # name: (generator module, pack)
 

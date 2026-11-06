@@ -81,8 +81,15 @@ Needs [uv](https://docs.astral.sh/uv/) and Node.js (for the web UI). Put your An
 
 ```sh
 uv sync
-uv run fuzer up          # then open http://127.0.0.1:8000
+FUZER_AUTH_MODE=local uv run fuzer up    # trusted loopback development: http://127.0.0.1:8000
 ```
+
+For a shared deployment, use the default Microsoft sign-in mode and follow
+[application registration and owner setup](docs/deployment.md#microsoft-sign-in-and-first-owner).
+Personal Microsoft and work/school accounts are supported. Owners approve accounts and manage
+extensible application roles; workflow routing roles stay separate. Do not expose local attribution
+mode through a public proxy. Approved visitors can follow **Home -> Start guided investigation**
+without an AI key.
 
 The first time, `fuzer up` makes the Okan field demo, loads it, has Claude read the operator logs,
 P&ID drawings and document sections, builds the register and the web UI, and starts the server

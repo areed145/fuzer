@@ -13,7 +13,7 @@ from typing import Any, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from ..core import db
+from ..core import access, db
 from ..core.pack import load_pack
 from ..graph import queries
 from ..workflow import bpmn
@@ -219,6 +219,9 @@ def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str,
 
 
 def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
+    if http and (access.mode() != "local" or host not in ("127.0.0.1", "::1", "localhost")):
+        raise access.AccessError("HTTP MCP is available only in explicit local mode on loopback. "
+                                 "Use trusted local stdio or the authenticated web API; remote MCP login is not implemented.")
     db.database_url()  # start embedded Postgres up front if it's in use
     with db.connect() as conn:
         db.init_schema(conn)  # an older database gets any newer tables

@@ -10,7 +10,9 @@ from ..graph import queries
 from . import deps
 from .deps import get_conn
 
-router = APIRouter()
+from .security import AuthenticatedRoute
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 @router.get("/analytics/production-efficiency")

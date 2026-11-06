@@ -4,15 +4,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from psycopg.errors import QueryCanceled
 
-from ..core import db
+from ..core import access, db
 from ..workflow import engine as work
 from . import (
     assistant,
+    auth,
     catalog,
     entities,
     graph,
     home,
+    investigation,
     jobs,
     knowledge,
     ontology,
@@ -22,23 +25,32 @@ from . import (
     workflow,
 )
 from .deps import PACK, UI_DIST, get_conn, rebuilder  # noqa: F401  (fuzer.api.PACK and the rest, as before)
+from .security import RequestBounds, query_timeout
 
 
 @asynccontextmanager
 async def lifespan(app):
     # Bring an older database up to date (idempotent), as every CLI command does; otherwise pages
     # that read newer tables fail on a database made by an earlier version.
+    access.mode()
+    if access.configured():
+        access.public_url()
     with db.connect() as conn:
         db.init_schema(conn)
         work.load_defaults(conn)
+        access.seed(conn)
     yield
 
 
-app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(RequestBounds)
+app.include_router(auth.router)
 
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
 
-for module in (home, entities, knowledge, ops, assistant, ontology, graph, workflow, settings, catalog, sources, jobs):  # in this order: FastAPI matches routes in the order they were added
+for module in (home, investigation, entities, knowledge, ops, assistant, ontology, graph, workflow, settings, catalog, sources, jobs):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)
+app.add_exception_handler(QueryCanceled, query_timeout)

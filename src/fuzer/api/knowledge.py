@@ -9,7 +9,9 @@ from ..graph import knowledge, lessons
 from . import deps
 from .deps import get_conn
 
-router = APIRouter()
+from .security import AuthenticatedRoute, current, require
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 @router.get("/lessons")
@@ -52,6 +54,14 @@ def feedback(f: Feedback, background: BackgroundTasks, conn=Depends(get_conn)):
     not useful has the facts learned from it dropped (#93)."""
     from ..agents import memory
 
+    person = current.get()
+    if person and f.target.startswith("answer:"):
+        answer_id = f.target.split(":", 1)[1]
+        answer = conn.execute("select by_user from assistant_answer where id = %s", (answer_id,)).fetchone()
+        if not answer or answer["by_user"] != person.actor:
+            raise HTTPException(404, "Answer not found in your account")
+        if f.useful:
+            require(person, "ai")
     row = conn.execute("insert into feedback (target, useful, comment, by_user) values (%s, %s, %s, %s) returning id",
                        (f.target, f.useful, f.comment, f.by)).fetchone()
     conn.commit()

@@ -45,6 +45,15 @@ navigation contains focus and returns it to the menu on close; a skip link
 allows keyboard users to bypass navigation. Home introduces the purpose and
 starting actions; empty registers link directly to the source setup wizard.
 
+The Home Okan entry leads to `#/investigate/okan`: a four-step, read-only journey
+(issue, asset, evidence, finding). Step and citation selection live in the URL so
+Back, reload and deep links work. Use ordinary links for steps, `aria-current="step"`,
+and focus the step heading after navigation. Findings cite the same evidence shown
+in the journey; numeric claims are assembled in `graph/investigation.py`, never
+hard-coded in React. The API enforces a read-only SQL transaction and requires no
+model calls. This boundary is limited to the journey, not an application-wide
+public-demo access policy.
+
 Run `npm --prefix ui test` for preference/state regression tests and
 `npm --prefix ui run build` for type-checking and production assets.
 For browser regressions, install Chromium with `cd ui && npx playwright install chromium`,

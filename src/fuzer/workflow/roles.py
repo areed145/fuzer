@@ -93,7 +93,7 @@ def listing(conn, now: datetime) -> list[dict]:
             for role_name in (n.role, n.agent, n.attrs.get("escalateTo")):
                 if role_name:
                     used.setdefault(role_name, set()).add(r["process_key"])
-    people = conn.execute("select * from work_person order by name").fetchall()
+    people = engine.people(conn)
     load = _load(conn, now)
     out = []
     for r in conn.execute("select * from work_role order by kind desc, name"):
@@ -227,9 +227,10 @@ def pick(conn, role_name: str | None, now: datetime) -> str | None:
     r = role(conn, role_name)
     if not r or r["assignment"] == "queue" or r["kind"] != "person":
         return None
-    members = [p["name"] for p in conn.execute(
-        "select name from work_person where %s = any(roles) and (away_until is null or away_until <= %s) order by name",
-        (role_name, now))]
+    from .definitions import people
+
+    members = [p["name"] for p in people(conn)
+               if role_name in p["roles"] and (p["away_until"] is None or p["away_until"] <= now)]
     if not members:
         return None
     if r["assignment"] == "least_loaded":
@@ -278,8 +279,10 @@ def _load(conn, now: datetime) -> dict:
 def workload(conn, now: datetime) -> dict:
     """Per person: steps assigned, overdue, away and who covers; per role: unclaimed, overdue, escalated."""
     load = _load(conn, now)
+    from . import definitions
+
     people = []
-    for p in conn.execute("select * from work_person order by name"):
+    for p in definitions.people(conn):
         w = load["people"].get(p["name"], {})
         people.append({"name": p["name"], "roles": p["roles"], "assigned": w.get("waiting", 0),
                        "overdue": w.get("overdue", 0), "away": bool(p["away_until"] and p["away_until"] > now),

@@ -6,6 +6,7 @@ import { Status, href, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { PeopleCard } from "./People";
 import { Appearance } from "../theme";
+import { usePermission } from "../Auth";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -21,6 +22,13 @@ function range(s: SettingRow): string {
 }
 
 export function SettingsPage({ query }: { query: URLSearchParams }) {
+  const configure = usePermission("configure");
+  if (!configure) return <section><PageHeader>Settings</PageHeader><Appearance />
+    <p>Facility configuration requires administrator access. Ask an owner to update your application roles.</p></section>;
+  return <Configuration query={query} />;
+}
+
+function Configuration({ query }: { query: URLSearchParams }) {
   const project = query.get("project") ?? undefined;
   const list = useAsync(() => api.settings(project), [project]);
   const [filter, setFilter] = useState("");

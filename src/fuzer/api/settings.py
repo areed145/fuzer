@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 from ..core import projects, settings
 from .deps import get_conn
 
-router = APIRouter()
+from .security import AuthenticatedRoute
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 @router.get("/settings")

@@ -15,6 +15,9 @@ from .runtime import (
 def remove_person(conn, name: str, by: str = SYSTEM, now: datetime | None = None) -> dict:
     """Take a person off the roster (#202). Steps they had claimed or been handed go back to their
     role's queue, and so do work items without a process assigned to them."""
+    if name.startswith("user:") and conn.execute(
+        "select 1 from access_account where id = %s", (name[5:],)).fetchone():
+        raise Forbidden("Signed-in accounts are managed in Sign-in & access; remove workflow roles instead")
     if not conn.execute("select 1 from work_person where name = %s", (name,)).fetchone():
         raise NotFound(f"no person '{name}'")
     run = _Run(conn, by, now)

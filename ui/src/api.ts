@@ -1,5 +1,33 @@
 // Typed client for the Fuzer API.
 
+export interface InvestigationRecord {
+  source: string;
+  record_type: string;
+  key: string;
+  observed_at: string;
+}
+
+export interface Investigation {
+  title: string;
+  since: string;
+  until: string;
+  asset_id: string;
+  asset_label: string;
+  asset_fields: { name: string; value: string; source: string }[];
+  asset_records: InvestigationRecord[];
+  evidence: {
+    id: string;
+    kind: string;
+    label: string;
+    at: string | null;
+    text: string | null;
+    lost_oil_sm3: number | null;
+    records: InvestigationRecord[];
+  }[];
+  findings: { text: string; evidence_ids: string[] }[];
+  limitations: string[];
+}
+
 export interface ProductionEfficiencyPoint {
   date: string;
   dynamic_max_sm3d: number | null;
@@ -1242,6 +1270,16 @@ export interface JobRunDetail extends JobRunSummary {
   log_tail: { time: string | null; level: string; step: string | null; message: string }[];
 }
 
+import { getCsrf, type AuthSession } from "./authState";
+
+export interface AccessAccount {
+  id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
+}
+export interface AccessRole { name: string; description: string; permissions: string[]; }
+export interface AccessAdministration {
+  accounts: AccessAccount[]; roles: AccessRole[]; permissions: Record<string, string>;
+}
+
 async function request<T>(method: string, path: string, params?: Params, body?: unknown): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -1250,10 +1288,12 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
   const url = qs.size ? `${path}?${qs}` : path;
   const res = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: { ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(getCsrf() ? { "X-Fuzer-CSRF": getCsrf() } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    if (res.status === 401) window.dispatchEvent(new Event("fuzer:unauthorized"));
     const detail = await res.json().catch(() => null);
     throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail });
   }
@@ -1267,6 +1307,15 @@ async function requestText(path: string): Promise<string> {
 }
 
 export const api = {
+  authSession: () => request<AuthSession>("GET", "/auth/me"),
+  signOut: () => request<{ ok: boolean }>("POST", "/auth/logout"),
+  bootstrapOwner: (token: string) => request<{ ok: boolean }>("POST", "/auth/bootstrap", undefined, { token }),
+  accessAdministration: () => request<AccessAdministration>("GET", "/auth/access"),
+  updateAccount: (id: string, update: { enabled: boolean; owner: boolean; roles: string[] }) =>
+    request<{ ok: boolean }>("PUT", `/auth/accounts/${encodeURIComponent(id)}`, undefined, update),
+  setAccessRole: (name: string, update: { description: string; permissions: string[] }) =>
+    request<{ ok: boolean }>("PUT", `/auth/roles/${encodeURIComponent(name)}`, undefined, update),
+  okanInvestigation: () => request<Investigation>("GET", "/demo/okan/investigation"),
   productionEfficiency: (end?: string, ref?: string) =>
     request<ProductionEfficiency>("GET", "/analytics/production-efficiency", { end, ref }),
   stats: () => request<Stats>("GET", "/stats"),

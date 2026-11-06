@@ -6,6 +6,48 @@ create table if not exists schema_version (
     applied_at timestamptz not null default now()
 );
 
+-- Sign-in identities are independent of workflow routing roles.
+create table if not exists access_account (
+    id text primary key,
+    tenant_id text not null,
+    object_id text not null,
+    display_name text not null,
+    enabled boolean not null default false,
+    owner boolean not null default false,
+    created_at timestamptz not null default now(),
+    unique (tenant_id, object_id),
+    check (not owner or enabled)
+);
+create table if not exists access_role (
+    name text primary key,
+    description text not null,
+    permissions text[] not null default '{}'
+);
+create table if not exists access_membership (
+    account_id text references access_account(id) on delete cascade,
+    role text references access_role(name),
+    primary key (account_id, role)
+);
+create table if not exists access_session (
+    token_hash text primary key,
+    account_id text not null references access_account(id) on delete cascade,
+    csrf text not null,
+    expires_at timestamptz not null
+);
+create index if not exists access_session_account on access_session(account_id);
+create table if not exists access_login (
+    token_hash text primary key,
+    flow jsonb not null,
+    expires_at timestamptz not null
+);
+create table if not exists access_event (
+    id bigserial primary key,
+    actor text not null,
+    action text not null,
+    data jsonb not null default '{}',
+    at timestamptz not null default now()
+);
+
 -- Raw records exactly as received from each source.
 create table if not exists source_record (
     source      text not null,

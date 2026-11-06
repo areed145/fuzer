@@ -1,0 +1,10 @@
+.auth-page { width: min(100% - 32px, 680px); margin: 8vh auto; padding: 0; overflow-wrap: anywhere; }
+.auth-page > svg { max-width: 180px; margin-bottom: 24px; }
+.auth-page .ui-card { padding: clamp(20px, 5vw, 40px); }
+.auth-page h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.2; }
+.auth-page p { line-height: 1.6; }
+.auth-page form { display: grid; gap: 12px; margin: 24px 0; }
+.access-account { overflow-wrap: anywhere; }
+.access-account fieldset, .access-role fieldset { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; border: 1px solid var(--line); }
+.access-account fieldset label, .access-role fieldset label { display: inline-flex; gap: 6px; align-items: center; }
+.access-role form { display: grid; gap: 12px; }

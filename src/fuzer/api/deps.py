@@ -11,4 +11,6 @@ rebuilder = pipeline.BackgroundRebuild(PACK)
 
 def get_conn():
     with db.connect() as conn:
+        conn.execute("set statement_timeout = '30s'")
+        conn.commit()
         yield conn

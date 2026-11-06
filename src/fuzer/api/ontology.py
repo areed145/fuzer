@@ -9,7 +9,9 @@ from ..core.ontology import OntologyError
 from ..graph import ontology as model
 from .deps import get_conn
 
-router = APIRouter()
+from .security import AuthenticatedRoute
+
+router = APIRouter(route_class=AuthenticatedRoute)
 
 
 @router.get("/ontology")
