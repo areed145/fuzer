@@ -1,5 +1,37 @@
 // Typed client for the Fuzer API.
 
+export interface ProductionEfficiencyPoint {
+  date: string;
+  dynamic_max_sm3d: number | null;
+  allocated_sm3d: number | null;
+  gap_sm3d: number | null;
+  efficiency_pct: number | null;
+  active_constraint_id: string | null;
+  binding_constraint_ids: string[];
+  capacity_basis: "declared_limits" | "reported_potential" | "missing";
+  flags: string[];
+  source_ids: string[];
+}
+
+export interface ProductionEfficiency {
+  since: string;
+  until: string;
+  end: string;
+  step: "day";
+  unit: "Sm3/d";
+  facility: { id: string; label: string };
+  source: string;
+  points: ProductionEfficiencyPoint[];
+  constraints: { id: string; label: string; category: string }[];
+  summary: {
+    efficiency_pct: number | null;
+    allocated_sm3: number;
+    dynamic_max_sm3: number;
+    paired_days: number;
+  };
+  warnings: string[];
+}
+
 export interface Stats {
   pack: string;
   facility: string;
@@ -1235,6 +1267,8 @@ async function requestText(path: string): Promise<string> {
 }
 
 export const api = {
+  productionEfficiency: (end?: string, ref?: string) =>
+    request<ProductionEfficiency>("GET", "/analytics/production-efficiency", { end, ref }),
   stats: () => request<Stats>("GET", "/stats"),
   jobs: () => request<JobsOverview>("GET", "/jobs"),
   jobsHealth: () => request<JobsHealth>("GET", "/jobs/health"),

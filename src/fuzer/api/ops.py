@@ -1,5 +1,6 @@
 """The value ranking, board, daily reports, opportunities and studies."""
 
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +11,22 @@ from . import deps
 from .deps import get_conn
 
 router = APIRouter()
+
+
+@router.get("/analytics/production-efficiency")
+def production_efficiency(end: date | None = None, ref: str | None = None, conn=Depends(get_conn)):
+    """Fourteen daily samples, ending at the latest facility report unless an end date is supplied."""
+    from ..analysis import production_efficiency as pe
+    try:
+        fid = queries.resolve_ref(conn, deps.PACK, ref or deps.PACK.facility)
+    except queries.AmbiguousRef as e:
+        raise HTTPException(409, str(e)) from e
+    if fid is None:
+        raise HTTPException(404, "facility not found")
+    try:
+        return pe.production_efficiency(conn, fid, end)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/value")

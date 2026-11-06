@@ -2,6 +2,124 @@
 
 Calcs, SRE detection, studies and the knowledge tools the agents use.
 
+## Production-efficiency dashboards
+
+The **Analytics** page starts the configurable visualization framework with two linked panels:
+dynamic maximum oil capacity versus allocated oil, and the active constraint as a categorical daily
+band. They share a time axis, hover and zoom, with units, tooltips and constraint legends. The initial
+window is **14 daily samples**, ending on the latest report for the selected facility, not necessarily
+the wall-clock date. This follows the tool's historical-asset convention. An explicit end date selects
+another 14-day window.
+
+The initial panels are declared in `ui/src/analytics/production-efficiency.json`, not embedded in
+page-specific chart components. Its versioned JSON spec declares a whitelisted data source and query
+variables (`$end`, `$facility`), renderer type, fields, axis units, thresholds, theme-color tokens and
+grid row weights. `ui/src/analytics/dashboard.ts` validates the spec and dispatches through the
+`time-series` / `constraint-band` renderer registry; one Plotly subplot grid shares the date axis.
+Plotly is already a UI dependency, so no new charting library is introduced.
+
+Use **Dashboard JSON · customize & save** to import or edit the spec, apply a preview, save it in this
+browser, or reset it. The gap series is optional and can be toggled in the legend. Saved specs use
+localStorage, not server-wide dashboard storage. Imported JSON is size-limited and validated:
+arbitrary URLs, HTML chart options and unregistered renderers are rejected. This first version
+intentionally supports one data source and two linked panels; multi-dashboard server persistence,
+arbitrary grid layouts, new queries and additional renderer types remain future extensions.
+
+### Data and calculation contract
+
+`GET /analytics/production-efficiency?ref=<facility>&end=YYYY-MM-DD` returns `since` (inclusive),
+`until` (exclusive), `end` (inclusive), `step: "day"`, `unit: "Sm3/d"`, the resolved facility, a
+constraint catalog, daily `points`, data-quality warnings and a period summary. Omit `ref` to use the
+pack's facility; omit `end` to use that facility's latest `production_day` report. With no reports,
+the window ends today and remains missing. A non-facility reference is rejected.
+
+The backend reads the **existing resolved graph**, not a new connector:
+
+- `production_day --reports_on--> facility` supplies `report_date`, `oil_sm3` (allocated daily
+  standard-volume oil) and `oil_potential_sm3` (reported daily potential). For a one-day bucket their
+  numeric values are daily-average rates in `Sm3/d`. `Sm3` means volume at the source's standard
+  conditions; this feature does not mix gas volumes, convert standard conditions or infer oil
+  equivalence from gas flow.
+- Dated `part_of`, `located_at` and upstream `flows_to` links assemble the facility's areas, tags,
+  wells and allocation nodes for each day. Link validity is `[valid_from, valid_to)`; cycles are
+  deduplicated. Retired/merged entities and other facility roots are excluded. `lift_gas_to` is not
+  a production-capacity path.
+- The existing measurement store can supply explicit daily bounds with quantity
+  **`system_oil_capacity`**, unit **`Sm3/d`**, no detection qualifier, and the constrained entity's
+  Fuzer ID. The quantity deliberately means **equivalent total facility oil throughput allowed by
+  this constraint**, not that item's local measured flow or nameplate rating. Each day's bound must
+  already incorporate fluid composition, operating conditions and parallel-train/network effects.
+  Category comes from that entity's golden `constraint_category`, then `ec_type`, otherwise
+  `unknown`; examples are wells, separator, compressor, pipeline, export and facility. Existing
+  source mappings' `measurements` blocks can land this quantity without a schema change.
+
+For comparable bounds `C_i(d)` and allocation `A(d)`:
+
+```text
+dynamic_max(d) = min_i C_i(d)
+binding_constraint_ids(d) = all IDs tied at that minimum
+active_constraint_id(d) = lexically first binding ID (stable representative)
+gap(d) = dynamic_max(d) - A(d)
+PE(d) = 100 * A(d) / dynamic_max(d), when dynamic_max(d) > 0
+period_PE = 100 * sum(A(d)) / sum(dynamic_max(d)), over paired valid days
+```
+
+The summary includes `paired_days` and paired volumes in `Sm3`, so coverage is explicit. The signed
+gap is headroom/shortfall against this capacity reference, **not a separately reconciled deferment
+volume**. Negative gaps and PE above 100% are retained and flagged, not clipped. Zero capacity is a
+real value with undefined PE. Missing, negative, non-finite and ambiguous inputs are not converted
+to zero. Multiple resolved reports for one facility/day are ambiguous, not summed. Different
+bounds for the same constraint/day are ambiguous; identical duplicate bounds are harmless.
+Daily bounds are not carried forward. The feature does not claim intraday bottleneck identification.
+Unrepresentable derived percentages or volume totals are null with flags/warnings rather than
+non-JSON-safe infinity; the period ratio uses scaled daily volumes to avoid overflowing its sums.
+
+**Important coverage limitation:** the shipped sources contain reported oil potential, well tests,
+equipment curves and pressure limits, but no declared `system_oil_capacity` measurements. When no
+daily bounds exist, `oil_potential_sm3` is used as a **reported-potential fallback**;
+`capacity_basis` is `reported_potential` and the physical `active_constraint_id` is null.
+When bounds exist, `capacity_basis` is `declared_limits`; it is the minimum of those declared bounds,
+not proof that every possible system constraint has been covered. An invalid declared bound prevents
+silently falling back to potential or taking an optimistic minimum of the remaining bounds.
+With neither usable bounds nor reported potential, capacity is missing.
+
+Measured well-test rates are not unconstrained well potential. Pressure alarm/IOW thresholds,
+learned normal ranges and downtime cause codes are not oil-throughput capacities and are never
+compared directly or relabelled as binding constraints. A compressor gas rating or a separator's
+local liquid rating needs an engineering conversion/network model before becoming a
+`system_oil_capacity` bound. For parallel branches, taking the minimum of local capacities would
+be wrong; this initial framework does not replace a network/nodal solver.
+
+### Standards and reference verification
+
+This is a documented **project metric**, not a claim of ISO conformity or a transcription of a
+normative PE definition:
+
+- [ISO 20815:2018](https://www.iso.org/standard/69983.html), *Production assurance and reliability
+  management*, provides the production-assurance framework. Public
+  [ISO 20815:2026 metadata](https://github.com/relaton/relaton-data-iso/blob/main/data/iso-20815-2026.yaml)
+  identifies a replacement edition covering lower-carbon energy as well. The scope supports
+  distinguishing production performance, system capability and reliability; it does not verify
+  this implementation's denominator.
+- [ISO 14224:2016](https://www.iso.org/standard/64076.html), *Collection and exchange of reliability
+  and maintenance data for equipment*, maps to the graph's equipment taxonomy, failures and
+  maintenance evidence. Its public scope includes availability applications, but is not a
+  substitute for a production-assurance calculation methodology.
+- [ISO/TS 3250:2021](https://www.iso.org/standard/79553.html), *Calculation and reporting production
+  efficiency in the operating phase*, is the more direct PE-reporting reference. Its
+  [public metadata](https://github.com/relaton/relaton-data-iso/blob/main/data/iso-ts-3250-2021.yaml)
+  explicitly links ISO 20815:2018 Clause E.3/Annex G and ISO 14224:2016 Annexes A/B.
+- OREDA-style equipment/failure terminology is useful for equipment reliability evidence, but
+  time-based availability is not the same as this volume-based efficiency ratio.
+
+Public metadata verifies these titles/scopes, not the full normative definitions. The requested
+Burney Waring reference, *Practical Petroleum Production System Optimization*, could not be
+independently verified from accessible bibliographic/contents material. **Chapter numbers,
+definitions and attribution remain pending an authorized contents page or excerpt supplied by the
+maintainer.** No chapters or formulas are invented or attributed to Waring. The system-bound
+minimum above is an explicit simplifying assumption; nodal analysis requires coupled pressure/flow
+models and is not implemented by this minimum calculation.
+
 ## Diagnostic calcs that return numbers
 
 The charts were built for a person asking a question; detectors, the replay scorer and workflow steps
