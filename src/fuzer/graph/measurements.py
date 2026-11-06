@@ -12,9 +12,10 @@ from ..core import db
 COLS = ["record", "quantity", "fuzer_id", "at", "value", "unit", "qualifier", "reported", "method", "location"]
 
 
-def build(conn, pack, maps: dict, endpoint) -> dict:
+def build(conn, pack, maps: dict, endpoint, derive=None) -> dict:
     """Read every measurement dataset into the measurement table (`endpoint` resolves what each was
-    taken on, as graph.resolver)."""
+    taken on, as graph.resolver). `derive(conn, pack, rows)` adds rows computed from them, landing in
+    the same sync so a rebuild doesn't remove and rewrite them."""
     rows, unresolved = {}, Counter()
     for m in maps.values():
         if not m.measures:
@@ -28,6 +29,8 @@ def build(conn, pack, maps: dict, endpoint) -> dict:
                     continue
                 rows[(x.record, x.quantity)] = (x.record, x.quantity, fid, x.at, x.value, x.unit, x.qualifier,
                                                 x.reported, x.method, x.location)
+    if derive:
+        rows |= derive(conn, pack, rows)
     sync = db.sync_table(conn, "measurement", COLS[:2], COLS[2:], rows.values())
     return {"measurements": len(rows), "unresolved_measurements": dict(unresolved),
             "measurement_changes": {k: v for k, v in sync.items() if k != "rows"}}

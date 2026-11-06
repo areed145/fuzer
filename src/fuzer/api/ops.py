@@ -15,18 +15,45 @@ from .security import AuthenticatedRoute
 router = APIRouter(route_class=AuthenticatedRoute)
 
 
-@router.get("/analytics/production-efficiency")
-def production_efficiency(end: date | None = None, ref: str | None = None, conn=Depends(get_conn)):
-    """Fourteen daily samples, ending at the latest facility report unless an end date is supplied."""
-    from ..analysis import production_efficiency as pe
+def _facility(conn, ref: str | None) -> str:
     try:
         fid = queries.resolve_ref(conn, deps.PACK, ref or deps.PACK.facility)
     except queries.AmbiguousRef as e:
         raise HTTPException(409, str(e)) from e
     if fid is None:
         raise HTTPException(404, "facility not found")
+    return fid
+
+
+@router.get("/analytics/figures/{kind}")
+def live_figure(kind: str, ref: str | None = None, conn=Depends(get_conn)):
+    """A complete chart panel built from the latest records, for any page to show."""
+    from ..plots import ChartError, analytics
+    fid = _facility(conn, ref)
+    try:
+        return analytics.live(conn, deps.PACK, kind, fid)
+    except (ValueError, ChartError) as e:
+        raise HTTPException(404 if kind not in analytics.FIGURES else 400, str(e)) from e
+
+
+@router.get("/analytics/production-efficiency")
+def production_efficiency(end: date | None = None, ref: str | None = None, conn=Depends(get_conn)):
+    """Fourteen daily samples, ending at the latest facility report unless an end date is supplied."""
+    from ..analysis import production_efficiency as pe
+    fid = _facility(conn, ref)
     try:
         return pe.production_efficiency(conn, fid, end)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/analytics/flow-capacity")
+def flow_capacity(ref: str | None = None, conn=Depends(get_conn)):
+    """The latest report day's capacity along the facility's flow network, stage by stage."""
+    from ..analysis import flow_capacity as fc
+    fid = _facility(conn, ref)
+    try:
+        return fc.flow_capacity(conn, fid)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 

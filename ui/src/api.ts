@@ -28,36 +28,22 @@ export interface Investigation {
   limitations: string[];
 }
 
-export interface ProductionEfficiencyPoint {
-  date: string;
-  dynamic_max_sm3d: number | null;
-  allocated_sm3d: number | null;
-  gap_sm3d: number | null;
-  efficiency_pct: number | null;
-  active_constraint_id: string | null;
-  binding_constraint_ids: string[];
-  capacity_basis: "declared_limits" | "reported_potential" | "missing";
-  flags: string[];
-  source_ids: string[];
-}
+export interface LiveFigureTable { title: string; note?: string; columns: string[]; rows: string[][] }
 
-export interface ProductionEfficiency {
-  since: string;
-  until: string;
-  end: string;
-  step: "day";
-  unit: "Sm3/d";
-  facility: { id: string; label: string };
-  source: string;
-  points: ProductionEfficiencyPoint[];
-  constraints: { id: string; label: string; category: string }[];
+export interface LiveFigureData {
+  kind: string;
+  title: string;
+  spec: { data: any[]; layout: Record<string, any> };
   summary: {
-    efficiency_pct: number | null;
-    allocated_sm3: number | null;
-    dynamic_max_sm3: number | null;
-    paired_days: number;
+    context: string;
+    headline: string | null;
+    stats: { label: string; value: string; unit?: string }[];
+    notes: string[];
+    warnings: string[];
+    tables: LiveFigureTable[];
+    source: string;
   };
-  warnings: string[];
+  sources: string[];
 }
 
 export interface Stats {
@@ -1339,8 +1325,7 @@ export const api = {
   setAccessRole: (name: string, update: { description: string; permissions: string[] }) =>
     request<{ ok: boolean }>("PUT", `/auth/roles/${encodeURIComponent(name)}`, undefined, update),
   okanInvestigation: () => request<Investigation>("GET", "/demo/okan/investigation"),
-  productionEfficiency: (end?: string, ref?: string) =>
-    request<ProductionEfficiency>("GET", "/analytics/production-efficiency", { end, ref }),
+  liveFigure: (kind: string) => request<LiveFigureData>("GET", `/analytics/figures/${encodeURIComponent(kind)}`),
   stats: () => request<Stats>("GET", "/stats"),
   jobs: () => request<JobsOverview>("GET", "/jobs"),
   jobsHealth: () => request<JobsHealth>("GET", "/jobs/health"),

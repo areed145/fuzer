@@ -69,7 +69,15 @@ storage and code-location configuration, not merely `FUZER_DAGSTER_URL`.
 Startup applies schema migrations, then loads Okan if the register is empty,
 even when the API has already created its tables. A database marker and advisory
 lock make interrupted loads retryable and completed loads one-time. A built Okan
-register is preserved, including its settings and reviewer decisions. Other
+register keeps its settings and reviewer decisions, and every deploy brings it up
+to date: startup registers new built-in mappings, never over a person's edit,
+loads exports that changed in the image, and rebuilds if anything did. This runs
+before the API starts, so a deploy that changes data takes longer to come up. A
+failure here is logged as `Data refresh failed` and the service starts on the
+register it has; it isn't retried, so inspect Sources, then redeploy or run
+`fuzer ingest` deliberately. A new image can change document text, and with a key
+the scheduled readers then pay to read those sections, so review the caps below
+first. Other
 assets or unidentified pre-existing source data cause a clear startup failure:
 there is **no automatic reset**, on first boot or on subsequent redeploys.
 Zero-record ingestion is an error, not a successful bootstrap.
@@ -89,8 +97,8 @@ disk, and set these environment values (or sync the Blueprint):
 Remove stale `FUZER_PROJECT` or other asset-specific overrides. Deploy the merged
 revision from the branch Render actually tracks. Once it starts, `/health`
 should report `{"ok":true,"pack":"okan"}` and, after approved sign-in, `/stats` should have nonzero records
-and entities. The logs should show `Okan sample loaded` on the first empty load
-and `already initialized` on restart. Jobs should show a live daemon. Source
+and entities. The logs should show `Okan sample loaded` on the first empty load,
+and on later starts `already initialized` followed by `Data refreshed` or `Data unchanged`. Jobs should show a live daemon. Source
 timestamps are historic demo data, so freshness warnings are not live plant
 outages. Do not use `fakeplant demo`, `fuzer reset` or `up --fresh` as a startup
 command. If a test database truly needs wiping, verify its Render identity and

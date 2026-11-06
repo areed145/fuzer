@@ -13,10 +13,10 @@ Direct links select their owning primary destination.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
-| Home | `#/`, legacy `#/?q=…` search entry | Orientation, current priorities and brief readiness links. No embedded configuration. Search reuses Browse. |
+| Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, current priorities, the production Chart Show and brief readiness links. No embedded configuration. Search reuses Browse. |
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
-| Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/analytics`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
+| Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
 | Work | `#/board`, `#/inbox`, `#/inbox/task/:id`, contextual `#/teams`, `#/cases`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
@@ -38,7 +38,7 @@ owner-only/configure/AI visibility rules.
 
 Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
 Demo contains the guided tour and compatible Okan walkthrough. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
-Analytics, Lessons and Studies. Work contains Work board, Inbox, Cases, Data review and Processes.
+Lessons and Studies. Work contains Work board, Inbox, Cases, Data review and Processes.
 Settings contains Application settings, configure-visible Users and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
 a Settings subdestination, not an eighth primary destination.

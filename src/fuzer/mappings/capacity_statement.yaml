@@ -1,0 +1,15 @@
+# Production engineering's yearly capacity statement: a rate per item as approved that year, in
+# whatever unit its author used. The newest register entry on or before a day stands (analysis/capacity_bounds.py).
+source: capacity
+record_type: statement
+shape: measurements
+dataset: capacity_statement
+key: reading_id
+measurements:
+  of:
+    - {kind: tag, from: tag, as: tag}
+    - {kind: allocation_node, from: node}
+  at: effective
+  method: {from: method}
+  values:
+    - {quantity: {from: quantity}, from: value, unit: {from: unit}}

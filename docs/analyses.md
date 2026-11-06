@@ -4,26 +4,28 @@ Calcs, SRE detection, studies and the knowledge tools the agents use.
 
 ## Production-efficiency dashboards
 
-The **Analytics** page starts the configurable visualization framework with two linked panels:
-dynamic maximum oil capacity versus allocated oil, and the active constraint as a categorical daily
-band. They share a time axis, hover and zoom, with units, tooltips and constraint legends. The initial
-window is **14 daily samples**, ending on the latest report for the selected facility, not necessarily
-the wall-clock date. This follows the tool's historical-asset convention. An explicit end date selects
-another 14-day window.
+Home's **Chart Show** (`ui/src/ChartShow.tsx`, a shared carousel) carries two charts of the latest
+production evidence. Swipe, trackpad, the arrows, the dots or the arrow keys move between them; a
+slide mounts when first reached, so the second chart's request runs only if someone opens it.
+`#/analytics` redirects to Home.
 
-The initial panels are declared in `ui/src/analytics/production-efficiency.json`, not embedded in
-page-specific chart components. Its versioned JSON spec declares a whitelisted data source and query
-variables (`$end`, `$facility`), renderer type, fields, axis units, thresholds, theme-color tokens and
-grid row weights. `ui/src/analytics/dashboard.ts` validates the spec and dispatches through the
-`time-series` / `constraint-band` renderer registry; one Plotly subplot grid shares the date axis.
-Plotly is already a UI dependency, so no new charting library is introduced.
+- **Production efficiency:** dynamic maximum oil capacity versus allocated oil over **14 daily
+  samples** ending on the latest report for the facility, not necessarily the wall-clock date. Hover
+  names the binding constraint; the daily table shows each day's constraint, basis and flags.
+- **System capacity and bottleneck:** the latest report day only, one pair of bars per stage of the
+  flow network. See [Flow capacity](#flow-capacity).
 
-Use **Dashboard JSON · customize & save** to import or edit the spec, apply a preview, save it in this
-browser, or reset it. The gap series is optional and can be toggled in the legend. Saved specs use
-localStorage, not server-wide dashboard storage. Imported JSON is size-limited and validated:
-arbitrary URLs, HTML chart options and unregistered renderers are rejected. This first version
-intentionally supports one data source and two linked panels; multi-dashboard server persistence,
-arbitrary grid layouts, new queries and additional renderer types remain future extensions.
+Both are **live figures**: `GET /analytics/figures/{kind}` returns a complete panel built in
+`fuzer/plots/analytics.py`, and `LiveFigure` shows any of them without knowing which chart it is.
+Beside the Plotly spec, the panel's `summary` carries everything worded about it (`headline`,
+`context`, `stats`, `notes`, `warnings`, `tables`, `source`), composed from the data in hand, so no
+chart text lives in the UI. As with assistant figures, specs hold no colours: series take the page's
+colorway by trace position, and a series keeps its position even when empty, so its colour never
+shifts. A layout's `meta.horizontal_below` turns bars horizontal below that width.
+
+To add a chart, write a builder and register it in `FIGURES`, then list its kind wherever it should
+appear; Home's list is `HOME_FIGURES`. `GET /analytics/production-efficiency` and
+`GET /analytics/flow-capacity` keep the underlying numbers for API readers.
 
 ### Data and calculation contract
 
@@ -41,7 +43,8 @@ The backend reads the **existing resolved graph**, not a new connector:
   conditions; this feature does not mix gas volumes, convert standard conditions or infer oil
   equivalence from gas flow.
 - Dated `part_of`, `located_at` and upstream `flows_to` links assemble the facility's areas, tags,
-  wells and allocation nodes for each day. Link validity is `[valid_from, valid_to)`; cycles are
+  wells and allocation nodes for each day, then one downstream `flows_to` hop adds the sales points they
+  deliver to: a sales point belongs to no facility, but its takeaway still bounds it. Link validity is `[valid_from, valid_to)`; cycles are
   deduplicated. Retired/merged entities and other facility roots are excluded. `lift_gas_to` is not
   a production-capacity path.
 - The existing measurement store can supply explicit daily bounds with quantity
@@ -74,11 +77,11 @@ Daily bounds are not carried forward. The feature does not claim intraday bottle
 Unrepresentable derived percentages or volume totals are null with flags/warnings rather than
 non-JSON-safe infinity; the period ratio uses scaled daily volumes to avoid overflowing its sums.
 
-**Important coverage limitation:** the shipped sources contain reported oil potential, well tests,
-equipment curves and pressure limits, but no declared `system_oil_capacity` measurements. When no
-daily bounds exist, `oil_potential_sm3` is used as a **reported-potential fallback**;
+When no daily bounds exist, `oil_potential_sm3` is used as a **reported-potential fallback**;
 `capacity_basis` is `reported_potential` and the physical `active_constraint_id` is null.
-When bounds exist, `capacity_basis` is `declared_limits`; it is the minimum of those declared bounds,
+When bounds exist, `capacity_basis` is `declared_limits`; the maximum is the lowest of those bounds
+and the day's reported potential, because the plant can only carry what the wells offer. A potential
+at or below the bounds binds as `reported_potential` (category `wells`). This is
 not proof that every possible system constraint has been covered. An invalid declared bound prevents
 silently falling back to potential or taking an optimistic minimum of the remaining bounds.
 With neither usable bounds nor reported potential, capacity is missing.
@@ -89,6 +92,74 @@ compared directly or relabelled as binding constraints. A compressor gas rating 
 local liquid rating needs an engineering conversion/network model before becoming a
 `system_oil_capacity` bound. For parallel branches, taking the minimum of local capacities would
 be wrong; this initial framework does not replace a network/nodal solver.
+
+### Flow capacity
+
+`GET /analytics/flow-capacity?ref=<facility>` reports the facility's latest report day, using the
+routing in force that day. `flows_to` alone decides the stages, in `analysis/flow_capacity.py`:
+
+- Wells, manifolds, compressors and export each form a stage. Export is a sales point with the
+  meters that feed it. Parallel equipment shares its stage.
+- Separators split by how many separators lie upstream and by which sales points they reach, so a
+  gas-only branch is its own stage.
+- Stages run in order of their members' median longest path from the wells.
+
+The blue bar is a stage's lowest usable `system_oil_capacity` bound. That quantity already means
+facility oil equivalent, so this chart compares stages without converting anything. A stage needs
+one bound, because a bound already covers its parallel trains. Without one, it falls back to
+evidence that is plainly not a rating, hatched and named in the legend:
+
+| Basis | Value | Meaning |
+|---|---|---|
+| `declared` | Lowest bound among the stage's entities, with its evidence `grade` | The contract above |
+| `reported_potential` | The day's reported potential (Wells stage, once any bound exists) | What the wells offer; this also limits the dynamic maximum |
+| `well_tests` | Sum of each well's latest test within 90 days (Wells stage, no bounds at all) | Unreconciled tested rates, not unconstrained potential |
+| `demonstrated` | Highest valid allocated day in the last 365 days | A lower bound: the facility delivered that through this network, so the stage allows at least this much |
+| `unknown` | None | No evidence on that day |
+
+The orange bar is the day's dynamic maximum from the production-efficiency calculation, so the two
+charts always agree. It is the same value on every stage. `system.established` is true, and the page
+names a bottleneck, only when the dynamic maximum comes from declared limits **and** every stage has
+a value of its own. A partial declaration reports the lowest declared bound with its coverage
+incomplete. A bound declared on an entity off the flow network, such as an area, joins as its own
+stage. Invalid or ambiguous bounds withhold the limit under the rules above.
+
+### Capacity registers and daily bounds
+
+Old assets keep ratings in documents, in local units, for the item's own fluid. Three datasets land
+them as dated measurements, with `method` as the evidence grade, and `units.yaml` normalises bbl/d
+and MMscf/d:
+
+| Dataset | Mapping | Grade |
+|---|---|---|
+| Original datasheet ratings | `design_basis` | `design` |
+| Yearly production engineering statement | `capacity_statement` | `statement` |
+| Re-rates and derates | `moc_register` | `moc`, or `moc_open` for a proposal, which never sets capacity |
+
+Quantities are `oil_capacity` (Sm3/d), `liquid_capacity` (Sm3/d, oil plus water), `gas_capacity`
+(kSm3/d, total gas handled) and `export_gas_capacity` (kSm3/d, exported gas).
+
+The rebuild derives the daily bounds in `analysis/capacity_bounds.py`, for every report day:
+
+1. **Standing rating:** the newest non-design entry on or before the day, otherwise design.
+2. **Convert to oil:** liquid × (1 − water cut); gas × potential ÷ gas handled that day; export gas ×
+   potential ÷ gas exported. Water cut is rate-weighted from each well's latest test.
+3. **Combine:** members of one type add up, because they run in parallel. Types in series, such as a
+   meter and its terminal, take the tighter. A type with an unrated member gives no total.
+4. **Scale:** divide by the share of tested oil passing through the stage, because a stage some
+   jackets bypass can carry more facility oil than its own rating.
+
+The bound lands on each member of the limiting group as `system_oil_capacity`, with method
+`derived from <weakest grade>`. Daily bounds are still not carried forward; the rebuild writes them.
+
+This is a screening conversion, not a nodal model. It holds rates steady across the day, treats gas
+per oil as that day's ratio, and ignores trains out of service, so an outage shows as deferment
+against the bound and not as a lower bound.
+
+The generated Okan field carries all three registers. Its answer key
+(`answer_keys/capacity.json`) records the binding stage per day, and production is held to those
+limits: wells bind until August 2025, then rising water cut and a sand derate hand it to the HP
+separator. Okan is fictional.
 
 ### Standards and reference verification
 
