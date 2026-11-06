@@ -1334,7 +1334,14 @@ test("Chart Show swipes over the chart on touch and keeps its slide through rota
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   });
   const cdp = await phone.newCDPSession(mobile);
-  await cdp.send("Input.synthesizeScrollGesture", { x: box.x + box.width * .75, y: box.y + box.height / 2, xDistance: -300, yDistance: 0, speed: 900, gestureSourceType: "touch" });
+  // Raw touches reach the browser's gesture recognizer; synthesizeScrollGesture sends no moves on headless Linux.
+  const start = { x: box.x + box.width * .75, y: box.y + box.height / 2 };
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
+  for (let step = 1; step <= 12; step++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: start.x - step * 22, y: start.y }] });
+    await new Promise((resolve) => setTimeout(resolve, 16));
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await mobile.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
   const second = mobile.locator(".chart-show-slide").nth(1).locator(".js-plotly-plot");
   await mobile.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.[0]?.orientation === "h");
