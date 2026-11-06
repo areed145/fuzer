@@ -47,3 +47,34 @@ def test_set_reset_and_history(client):
     assert client.get("/settings/no.such/history").status_code == 404
     settings._cache.clear()
 
+
+def test_readiness_uses_effective_values_and_exposes_only_secret_references(client, monkeypatch):
+    for variable in ("FUZER_MICROSOFT_CLIENT_ID", "FUZER_MICROSOFT_CLIENT_SECRET", "FUZER_PUBLIC_URL"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("FUZER_AGENT_MODEL", "environment-model")
+    monkeypatch.setenv("READINESS_TEST_KEY", "never-return-this-secret")
+    monkeypatch.setenv("FUZER_OWNER_BOOTSTRAP_TOKEN", "never-return-bootstrap")
+    settings._cache.clear()
+    response = client.get("/settings", params={"project": "okan"})
+    assert response.status_code == 200
+    result = response.json()
+    model = next(s for s in result["settings"] if s["key"] == "agents.model")
+    assert (model["value"], model["from"], model["environment"], model["restart"]) == (
+        "environment-model", "environment", "FUZER_AGENT_MODEL", True)
+    assert result["deployment"] == {"mode": "local", "configured": False, "bootstrap_present": True}
+    for key, value in (("agents.model", "stored-model"), ("agents.api_key", "env:READINESS_TEST_KEY")):
+        assert client.put(f"/settings/{key}", json={
+            "value": value, "project": "okan", "reason": "readiness verification",
+        }).status_code == 200
+    response = client.get("/settings", params={"project": "okan"})
+    rows = {r["key"]: r for r in response.json()["settings"]}
+    assert rows["agents.model"]["value"] == settings.get(None, "agents.model", "okan") == "stored-model"
+    assert rows["agents.model"]["from"] == "project"
+    assert rows["agents.api_key"]["value"] == "env:READINESS_TEST_KEY"
+    assert rows["agents.api_key"]["resolves"] is True
+    assert "never-return" not in response.text
+    for key in ("agents.model", "agents.api_key"):
+        assert client.post(f"/settings/{key}/reset", json={
+            "project": "okan", "reason": "restore after verification",
+        }).status_code == 200
+    settings._cache.clear()

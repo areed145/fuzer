@@ -347,15 +347,19 @@ def listing(conn, group: str | None = None, project_name: str | None = None) -> 
             continue
         g, pr = stored.get((s.key, GLOBAL)), stored.get((s.key, scope_of(p))) if p else None
         top = pr or g
+        environment = not top and s.env and bool(os.environ.get(s.env))
+        value = get(conn, s.key, p)
         out.append({"key": s.key, "group": s.group, "type": s.type, "description": s.description, "default": s.default,
                     "global": g["value"] if g else None, "project": pr["value"] if pr else None,
-                    "value": top["value"] if top else s.default, "from": "project" if pr else "global" if g else "default",
+                    "value": value,
+                    "from": "project" if pr else "global" if g else "environment" if environment else "default",
+                    "environment": s.env,
                     "updated_by": top["updated_by"] if top else None,
                     "updated_at": top["updated_at"].isoformat(timespec="seconds") if top else None,
                     **({"min": s.min} if s.min is not None else {}), **({"max": s.max} if s.max is not None else {}),
                     **({"choices": list(s.choices)} if s.choices else {}), "restart": s.restart,
                     "scopes": list(s.scopes),
-                    **({"resolves": bool(os.environ.get(str(top["value"] if top else s.default or "")[4:]))}
+                    **({"resolves": bool(os.environ.get(str(value or "")[4:]))}
                        if s.type == "secret" else {})})
     return out
 

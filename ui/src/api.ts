@@ -1159,7 +1159,8 @@ export interface SettingRow {
   global: unknown;
   project: unknown;
   value: unknown;
-  from: "default" | "global" | "project";
+  from: "default" | "global" | "project" | "environment";
+  environment?: string | null;
   updated_by: string | null;
   updated_at: string | null;
   min?: number;
@@ -1430,7 +1431,8 @@ export const api = {
   sourceHealth: () => request<SourceHealth[]>("GET", "/sources/health"),
   why: (id: string, field: string) => request<WhyValue>("GET", `/sources/why/${encodeURIComponent(id)}/${encodeURIComponent(field)}`),
   settings: (project?: string) =>
-    request<{ project: string | null; projects: string[]; settings: SettingRow[] }>("GET", "/settings", { project }),
+    request<{ project: string | null; projects: string[]; settings: SettingRow[];
+      deployment?: { mode: string; configured: boolean; bootstrap_present: boolean } }>("GET", "/settings", { project }),
   setSetting: (key: string, value: unknown, scope: SettingScope, project: string | null, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/${encodeURIComponent(key)}`, undefined, { value, scope, project, by, reason }),
   resetSetting: (key: string, scope: SettingScope, project: string | null, by: string, reason: string) =>

@@ -1,5 +1,28 @@
 # Deployment and settings
 
+## Guided setup and readiness
+
+Open **Home -> Setup & readiness** (or **Settings -> Setup & readiness**) with configure
+permission. Follow deployment/sign-in references, source connections and loads, scheduler health,
+optional AI and limits, then apply/confirm changes. Refresh reads existing configuration and
+diagnostics only; it does not call AI, test credentials, load data or restart processes.
+Readers retain browser Appearance settings but cannot retrieve facility configuration.
+
+**Configuration** is the existing audited settings editor, with effective project/global/legacy
+environment/default provenance. Legacy source-seeding settings remain compatible for old integrations,
+but their duplicate UI editors are retired: use **Sources -> Systems & connections** for endpoints
+and secret references. Deliberate connection tests contact the service, may read sample rows and
+store their outcome; a test is not a load or freshness check. Editing a connection invalidates its
+previous test. Changing a deployment secret also requires retesting, since Fuzer cannot observe
+external credential rotation.
+
+Settings marked **next use** apply to subsequent reads after cache refresh, not already-running
+work. **Restart** settings require the affected API/agent or scheduler process to restart.
+This screen does not track applied runtime generations or offer hosting restart/secret management.
+Public origin, Microsoft app registration, database connectivity and secret values remain deployment
+operator responsibilities. Credential presence does not verify login, provider reachability, model
+access or a spending ceiling. Keep provider-side budgets as well as application limits.
+
 Running Fuzer, its configuration and how it performs at size.
 
 ## Configuration

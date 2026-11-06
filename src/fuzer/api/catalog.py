@@ -107,8 +107,7 @@ def catalog_view(conn=Depends(get_conn)):
     from ..core.jsonsafe import plain
     from ..sources import catalog, connections, quality
 
-    catalog.ensure(conn)
-    conn.commit()
+    conn.read_only = True
     health = {h["dataset"]: h for h in quality.health(conn)}
     ds = catalog.datasets(conn)
     last = {r["dataset_id"]: r["status"] for r in conn.execute(

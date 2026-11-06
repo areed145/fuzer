@@ -113,7 +113,8 @@ def update_connection(conn, connection_id: int, by: str, reason: str | None = No
 
     types.check(after.get("type", old["type"]), after.get("config", old["config"]), after.get("secrets", old["secrets"]))
     sets = ", ".join(f"{k} = %s" for k in after)
-    row = conn.execute(f"update source_connection set {sets}, updated_at = now() where id = %s returning *",
+    row = conn.execute(f"update source_connection set {sets}, updated_at = now(), last_test = null, "
+                       "last_tested_at = null where id = %s returning *",
                        [Jsonb(v) if isinstance(v, dict) else v for v in after.values()] + [connection_id]).fetchone()
     _audit(conn, by, "connection", row, "update", before, after, reason)
     return dict(row)

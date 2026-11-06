@@ -23,6 +23,12 @@ local UI kit; do not add a parallel service, component kit, or source of configu
   loopback-only development mode, never a deployment fallback.
 - Extend the existing components/tokens and use accessible navigation and focus management.
   Do not replace source evidence with hard-coded scenario answers.
+- Setup & readiness lives in Settings and links to the existing Sources/Jobs owners; do not build a
+  parallel configuration dashboard. Use effective registry values and provenance, not defaults as
+  runtime truth. Distinguish reference presence, recorded tests and observed live behavior.
+  Viewing readiness must not test providers, load data, mutate state or incur AI charges.
+  Keep secret values in deployment storage, expose references/presence only, and state application
+  timing honestly: next use versus affected-process restart, never an unverified "restart complete".
 
 For the Okan investigation, run `uv run pytest tests/api/test_investigation_api.py` and
 `npm --prefix ui run build` followed by `npm --prefix ui run test:browser`.
