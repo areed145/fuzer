@@ -121,6 +121,11 @@ def produces(d: dict) -> list[tuple[str, str]]:
     return [(d["source"], d["record_type"])] if d.get("record_type") else []
 
 
+def versions_for_dataset(conn, d: dict) -> list[dict]:
+    """All mapping versions for the record types a dataset produces."""
+    return [v for source, record_type in produces(d) for v in versions(conn, source, record_type)]
+
+
 def runs(conn, name: str | None = None, limit: int = 50) -> list[dict]:
     return [plain(dict(r)) for r in conn.execute(
         "select * from source_run where %(n)s::text is null or dataset = %(n)s order by id desc limit %(l)s",
