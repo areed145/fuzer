@@ -65,22 +65,18 @@ class Load(BaseModel):
 def source_load(name: str, body: Load, conn=Depends(get_conn)):
     """Save the mapping (when given) and load this one table now. Its records become entities on the next
     rebuild. A table whose columns changed stays held until its schema review is accepted."""
-    from pathlib import Path
-
-    from ..sources import ingest, suggest
+    from ..sources import connections, ingest, suggest
 
     if body.yaml is not None:
         try:
             suggest.save(conn, name, body.yaml, body.by)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-    from ..sources import catalog, connectors
-
-    if catalog.dataset(conn, name) is None:
-        if connectors.find(Path(_data_dir()), name) is None:
-            raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
-        raise HTTPException(400, f"{name} has no mapping: save one first")
-    if ingest.dataset(Path(_data_dir()), name, conn) is None:
-        raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
-    stats = ingest.ingest(conn, _data_dir(), exports=[name])
-    return {k: stats.get(k) for k in ("loaded", "unchanged", "held", "records", "inserted", "updated", "removed")}
+    try:
+        return ingest.ingest(conn, _data_dir(), exports=[name], trigger="api")
+    except (ingest.DatasetNotFound, ingest.DatasetUnavailable) as e:
+        conn.rollback()
+        raise HTTPException(404, str(e)) from e
+    except connections.ConnectionError_ as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e

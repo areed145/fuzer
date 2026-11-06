@@ -70,17 +70,18 @@ def _source_asset(name: str):
                                                                  "(a folder of CSV / Parquet / Delta, or PI Web API / ADX).")
     def load(context: dg.AssetExecutionContext, fuzer: Fuzer) -> dg.MaterializeResult:
         with fuzer.connect() as conn:
-            if (c := ingest.dataset(Path(fuzer.data_dir), name, conn)) is None:
-                context.log.warning(f"{name} not found through its connection; nothing loaded")
-                return dg.MaterializeResult(metadata={"dataset": name, "records": 0, "missing": True})
             trigger = "schedule" if context.run.tags.get("dagster/schedule_name") or context.run.tags.get(
                 "fuzer/dataset_schedule") else "sensor" if context.run.tags.get("dagster/sensor_name") else "manual"
-            stats = ingest.ingest(conn, fuzer.data_dir, [name], trigger=trigger)
+            stats = ingest.ingest(conn, fuzer.data_dir, [name], trigger=trigger, allow_missing=True)
+            c = ingest.dataset(Path(fuzer.data_dir), name, conn) if not (stats["missing"] or stats["paused"]) else None
+        if stats["missing"]:
+            context.log.warning(f"{name} unavailable through its connection; nothing loaded. Inspect Sources.")
         if stats["held"]:
-            context.log.warning(f"{name} changed schema; held until the schema review is answered")
-        return dg.MaterializeResult(metadata={"dataset": name, "connector": c.kind, "path": str(c.path),
+            context.log.warning(f"{name} held for schema or blocking-check review in Sources")
+        return dg.MaterializeResult(metadata={"dataset": name, "connector": c.kind if c else "",
+                                              "path": str(c.path) if c else "",
                                               **{k: v for k, v in stats.items() if not isinstance(v, list)},
-                                              "held": bool(stats["held"])})
+                                              **{k: bool(stats[k]) for k in ("loaded", "held", "paused", "unchanged", "missing")}})
     return load
 
 
