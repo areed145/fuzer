@@ -34,9 +34,9 @@
 .ui-width-lg { width: 24rem; }
 .ui-width-full { width: 100%; }
 .ui-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 1px 8px; font-size: 11px; white-space: nowrap; background: var(--bg); color: var(--muted); }
-.ui-badge-ok { background: var(--ok-soft); color: var(--ok); }
-.ui-badge-warn { background: var(--warn-soft); color: var(--warn); }
-.ui-badge-danger { background: color-mix(in srgb, var(--danger) 16%, var(--panel)); color: var(--danger); }
+.ui-badge.ui-badge-ok { background: var(--ok-soft); color: var(--ok); }
+.ui-badge.ui-badge-warn { background: var(--warn-soft); color: var(--warn); }
+.ui-badge.ui-badge-danger { background: color-mix(in srgb, var(--danger) 16%, var(--panel)); color: var(--danger); }
 .ui-stat { display: grid; gap: 2px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .ui-stat > span, .ui-stat small { color: var(--muted); font-size: 12px; }
 .ui-stat strong { font-size: 20px; font-weight: 600; }

@@ -6,7 +6,7 @@ import {
   type Upset,
   type WorkRow,
 } from "../api";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
 import { Button, ButtonLink, PageHeader, Input , Card as UICard} from "../ui";
 import { usePermission } from "../Auth";
@@ -52,7 +52,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
         </div>
       </UICard>
       <div className="home-grid">
-        <TodayCard />
+        <LatestReportCard />
         <NeedsYouCard stats={stats} statsLoading={statsLoading} statsError={statsError} />
         <PrioritiesCard />
         <IncidentsCard />
@@ -78,7 +78,7 @@ function HomeSearch({ query }: { query: URLSearchParams }) {
   );
 }
 
-function TodayCard() {
+function LatestReportCard() {
   const latest = useAsync(async () => {
     const days = await api.dailyReports();
     if (!days.length) return null;
@@ -90,18 +90,20 @@ function TodayCard() {
   return (
     <UICard className="home-card home-today" as="section">
       <div className="row spread">
-        <h2>Today</h2>
+        <h2>Latest daily report</h2>
         {latest.data && (
           <a className="badge" href={href("/reports", { day: latest.data.day.day })}>
             {latest.data.day.day} · {latest.data.report.checks.ok ? "checks passed" : "needs review"}
           </a>
         )}
       </div>
-      <Status loading={latest.loading && !latest.data} error={latest.error} empty={latest.data === null}>
-        No daily report yet.
+      <Status loading={latest.loading && !latest.data} error={latest.error} onRetry={latest.reload} empty={latest.data === null}>
+        No daily report recorded. <a href={href("/reports")}>Open daily reports</a>.
       </Status>
       {latest.data && (
         <>
+          <p className="muted small">Report date: {latest.data.day.day}. This is the latest recorded report, not a live operating update.
+            {" "}Facts below come from that report; open it for supporting evidence.</p>
           {headlines.length > 0 ? (
             <ul className="home-list home-headline">
               {headlines.map((fact, i) => <li key={i}>{fact.text}</li>)}
@@ -135,7 +137,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
         <h2>Needs you</h2>
         <a href={href("/inbox")}>Open inbox</a>
       </div>
-      <Status loading={inbox.loading && !inbox.data} error={inbox.error} />
+      <Status loading={inbox.loading && !inbox.data} error={inbox.error} onRetry={inbox.reload} />
       {!person && !inbox.loading && <p className="muted small">Set your name in the sidebar to see your work.</p>}
       {inbox.data && (
         <>
@@ -152,7 +154,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
       <div className="home-subsection">
         <div className="row spread">
           <strong>Open reviews</strong>
-          <a href={href("/review")}>{reviewTotal} to review</a>
+          <a href={href("/review")}>{stats ? `${reviewTotal} to review` : "Open data review"}</a>
         </div>
         <Status loading={statsLoading && !stats} error={statsError} />
         {stats && (reviews.length ? (
@@ -186,7 +188,7 @@ function PrioritiesCard() {
         <h2>Top priorities</h2>
         <a href={href("/board")}>Work board</a>
       </div>
-      <Status loading={board.loading && !board.data} error={board.error} empty={board.data?.total === 0}>
+      <Status loading={board.loading && !board.data} error={board.error} onRetry={board.reload} empty={board.data?.total === 0}>
         Nothing on the work board.
       </Status>
       {cards.length > 0 && (
@@ -223,7 +225,7 @@ function IncidentsCard() {
         <a href={href("/incidents")}>All incidents</a>
       </div>
       <h3>Latest incidents</h3>
-      <Status loading={incidents.loading && !incidents.data} error={incidents.error} empty={incidents.data?.items.length === 0}>
+      <Status loading={incidents.loading && !incidents.data} error={incidents.error} onRetry={incidents.reload} empty={incidents.data?.items.length === 0}>
         No incidents recorded.
       </Status>
       {recentIncidents.length > 0 && (
@@ -238,17 +240,17 @@ function IncidentsCard() {
       )}
       <div className="home-subsection">
         <div className="row spread">
-          <h3>Open upsets</h3>
+          <h3>Detections without a recorded end</h3>
           <a href={href("/board")}>Work board</a>
         </div>
-        <Status loading={upsets.loading && !upsets.data} error={upsets.error}
+        <Status loading={upsets.loading && !upsets.data} error={upsets.error} onRetry={upsets.reload}
           empty={upsets.data !== undefined && openUpsets.length === 0}>
-          No open upsets.
+          No upsets without a recorded end.
         </Status>
         {openUpsets.length > 0 && (
-          <ul className="home-list">
+          <><p className="muted small">No end is recorded for these detections. This does not establish a current plant outage.</p><ul className="home-list">
             {openUpsets.map((upset) => <UpsetItem key={upset.id} upset={upset} />)}
-          </ul>
+          </ul></>
         )}
       </div>
     </UICard>
@@ -268,7 +270,7 @@ function HealthCard() {
   const configure = usePermission("configure");
   return (
     <UICard className="home-card" as="section">
-      <h2>Health</h2>
+      <h2>Data and scheduler health</h2>
       {configure ? <><SourceHealthPanel /><JobsHealthPanel /></>
         : <p className="muted small">Administrators monitor source loads and scheduled jobs. Historic demo timestamps are not live plant outages.</p>}
     </UICard>
@@ -286,18 +288,20 @@ function SourceHealthPanel() {
         <strong>Sources</strong>
         <a href={href("/sources")}>Source health</a>
       </div>
-      <Status loading={sources.loading && !sources.data} error={sources.error} empty={sources.data?.length === 0}>
+      <Status loading={sources.loading && !sources.data} error={sources.error} onRetry={sources.reload} empty={sources.data?.length === 0}>
         No source health data.
       </Status>
       {sources.data && rows.length > 0 && (
         <>
-          <p className="muted small">{rows.length} datasets · {problems.length} with freshness issues · {checks.length} failed checks</p>
+          <p className="muted small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed checks.
+            {" "}Freshness is time since ingestion against configured expectations, not the age of source events.</p>
           {rows.length > 0 && (
             <ul className="home-list">
               {rows.filter((source) => source.problems.length || source.failing_checks.length).slice(0, 3).map((source) => (
                 <li key={source.dataset}>
-                  <a href={href("/sources")}>{source.dataset}</a>
-                  <span className="muted small">{source.status} · {source.age_hours == null ? "never loaded" : `${Math.round(source.age_hours)} h old`}</span>
+                  <a href={href("/sources", { view: "dataset", name: source.dataset })}>{source.dataset}</a>
+                  <span className="muted small">{source.state} · {source.last_loaded
+                    ? `Last ingested: ${timestamp(source.last_loaded)}` : "No recorded ingestion time"}</span>
                 </li>
               ))}
               {checks.slice(0, 3).map(({ source, check }, i) => (
@@ -325,11 +329,12 @@ function JobsHealthPanel() {
         <strong>Jobs</strong>
         <a href={href("/jobs")}>Job health</a>
       </div>
-      <Status loading={jobs.loading && !jobs.data} error={jobs.error} />
+      <Status loading={jobs.loading && !jobs.data} error={jobs.error} onRetry={jobs.reload} />
       {jobs.data && (
         <>
-          <p className="muted small">{jobs.data.health.summary}</p>
-          {failedRuns.length > 0 || failedChecks.length > 0 ? (
+          {jobs.data.available && <p className="muted small">{jobs.data.health.summary}</p>}
+          {!jobs.data.available ? <p className="muted small">Scheduler history unavailable. Open Jobs for diagnostics; loaded records remain browsable.</p>
+          : failedRuns.length > 0 || failedChecks.length > 0 ? (
             <ul className="home-list">
               {failedRuns.map((run) => (
                 <li key={run.run_id}>
@@ -341,7 +346,7 @@ function JobsHealthPanel() {
                 <li key={`${check.asset}-${check.name}`} className="error small">{check.asset}: {check.name}</li>
               ))}
             </ul>
-          ) : <p className="muted small">No failed runs or checks.</p>}
+          ) : <p className="muted small">No failures in the returned recent runs/checks. This does not establish source freshness.</p>}
         </>
       )}
     </div>

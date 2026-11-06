@@ -1,5 +1,10 @@
 /* entity */
-.entity-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.entity-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.entity .grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.entity .grid > * { min-width: 0; }
+@media (max-width: 800px) {
+  .entity .grid { grid-template-columns: minmax(0, 1fr); }
+}
 .asof { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 table.ui-table--keyValue th { width: 120px; }
 table.ui-table--keyValue.ui-table-heading-capitalize th { text-transform: capitalize; }
