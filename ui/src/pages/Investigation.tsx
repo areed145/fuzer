@@ -1,7 +1,7 @@
 import "../styles/investigation.css";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
-import { href, Status, useAsync } from "../lib";
+import { href, Status, timestamp, useAsync } from "../lib";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Stat } from "../ui";
 
 const STEPS = [
@@ -132,7 +132,7 @@ function Provenance({ records }: { records: InvestigationRecord[] }) {
         <li key={`${r.source}:${r.record_type}:${r.key}`}>
           <strong>{r.source}</strong> / {r.record_type} / <code>{r.key}</code>
           <span className="muted">Last observed during ingestion: <time dateTime={r.observed_at}>
-            {new Date(r.observed_at).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" })}
+            {timestamp(r.observed_at)}
           </time></span>
         </li>
       ))}

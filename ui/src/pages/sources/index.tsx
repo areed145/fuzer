@@ -74,7 +74,6 @@ function Datasets() {
   const shown = (absent ? rows : here).filter(({ s, d }) =>
     (!filter || `${s.name} ${d.name} ${d.record_type ?? ""} ${d.owner ?? ""}`.toLowerCase().includes(filter.toLowerCase())) &&
     (!problems || (d.health?.problems.length ?? 0) > 0));
-  const open = (n: string) => (location.hash = href("/sources", { view: "dataset", name: n }));
   return (
     <>
       <h2>Source readiness</h2>
@@ -91,7 +90,7 @@ function Datasets() {
             <ul>{connections.map((c) => <li key={c.id}><strong>{c.system} / {c.name}</strong>: {
               !c.enabled || !c.systemEnabled ? "disabled" : Object.values(c.secrets).some((s) => !s.resolves)
                 ? "missing secret reference" : !c.last_test ? "not tested" : c.last_test.ok ? "last test passed" : "last test failed"}
-              {c.last_tested_at && <> · recorded {c.last_tested_at}</>}</li>)}</ul>
+              {c.last_tested_at && <> · recorded {when(c.last_tested_at)}</>}</li>)}</ul>
           </details>
         </li>
         <li><a href={href("/sources", { view: "add" })}>Add and ingest a source</a>: follow connection,
@@ -124,19 +123,19 @@ function Datasets() {
           </div>
           <Table variant="results">
             <thead>
-              <tr><th>Dataset</th><th>System</th><th>Health</th><th>Last run</th><th>Owner</th><th>Schedule</th><th>Records</th><th>Loaded</th></tr>
+              <tr><th>Dataset</th><th>System</th><th>Health</th><th>Last run</th><th>Owner</th><th>Schedule</th><th>Records</th><th>Last ingested (not event date)</th></tr>
             </thead>
             <tbody>
               {shown.map(({ s, d }) => (
-                <tr key={d.name} onClick={() => open(d.name)} className={d.present ? "" : "muted"}>
-                  <td><code>{d.name}</code> <span className="muted small">{d.record_type ?? d.reader}</span>
+                <tr key={d.name} className={d.present ? "static" : "static muted"}>
+                  <td><a href={href("/sources", { view: "dataset", name: d.name })}><code>{d.name}</code></a> <span className="muted small">{d.record_type ?? d.reader}</span>
                     {d.status !== "active" && <UIBadge className="badge"> {d.status}</UIBadge>}</td>
                   <td><code>{s.name}</code></td>
                   <td>{d.present ? <HealthBadge h={d.health} /> : <span className="muted small">no data here</span>}</td>
-                  <td>{d.last_run && <UIBadge className={`badge ${STATE[d.last_run] ?? ""}`}>{d.last_run}</UIBadge>}</td>
+                  <td>{d.last_run ? <UIBadge tone={d.last_run === "failed" ? "danger" : d.last_run === "held" ? "warn" : d.last_run === "done" ? "ok" : "muted"}>{d.last_run}</UIBadge> : "No recorded run"}</td>
                   <td className="small">{d.owner ?? <span className="muted">–</span>}</td>
                   <td className="muted small">{d.schedule ? scheduleText(d.schedule) : "daily"}</td>
-                  <td>{d.rows?.toLocaleString() ?? ""}</td>
+                  <td>{d.rows?.toLocaleString() ?? "Unknown"}</td>
                   <td className="muted small">{when(d.loaded_at)}</td>
                 </tr>
               ))}

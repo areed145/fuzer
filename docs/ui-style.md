@@ -73,6 +73,25 @@ navigation contains focus and returns it to the menu on close; a skip link
 allows keyboard users to bypass navigation. Home introduces the purpose and
 starting actions; empty registers link directly to the source setup wizard.
 
+For read failures on core screens, pass the resource's `reload` to `Status.onRetry` and provide an
+exit to the owning list. This retries only an explicit read; mutation recovery must still inspect
+recorded state first. Missing data is unknown/unavailable, never a zero count or a passed check.
+Use existing `Badge` tones plus textual labels; color alone is not a status explanation.
+Dataset and job-run table navigation uses real links, not click-only rows.
+
+Label Home's latest report by its recorded report date, not "Today". Detections without an end
+date do not prove a current outage. Source health concerns ingestion and configured expectations,
+not the age of historical plant events. Scheduler availability is distinct from loaded-data
+availability. Missing scheduler history needs deployment-operator guidance, not an assertion that
+the user should run a local CLI command.
+
+Use `lib.timestamp` for ingestion/run/observation timestamps: offset-bearing values are shown in
+UTC, missing/invalid values are unknown, and timezone-free values remain explicitly unzoned.
+Never apply this normalization to source event dates with no supplied timezone. Retain the
+Okan synthetic/historical labels and distinguish event time from ingestion observation time.
+Do not infer percent units from a numeric value below one; scheduler metadata keeps its recorded
+field name and numeric value. A scheduler asset result does not by itself establish ingestion.
+
 The Home Okan entry leads to `#/investigate/okan`: a four-step, read-only journey
 (issue, asset, evidence, finding). Step and citation selection live in the URL so
 Back, reload and deep links work. Use ordinary links for steps, `aria-current="step"`,

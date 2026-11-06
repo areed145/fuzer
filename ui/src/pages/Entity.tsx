@@ -26,7 +26,7 @@ function EntityMap({ id }: { id: string }) {
 import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard, TrendCard } from "../Trend";
 import { MemoryCard } from "../Memory";
-import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, useAsync } from "../lib";
+import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
 const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
@@ -62,7 +62,11 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
   const [asOf, setAsOf] = useState("");
   const ent = useAsync(() => api.entity(id, asOf || undefined), [id, asOf]);
 
-  if (!ent.data) return <Status loading={ent.loading} error={ent.error} />;
+  if (!ent.data) return <section><PageHeader>Asset and evidence</PageHeader>
+    <Status loading={ent.loading} error={ent.error} onRetry={ent.reload} />
+    {ent.error && <p>The register record may be unavailable or the request may have failed.
+      {" "}<a href={href("/browse")}>Return to Explore</a> to find a loaded record.</p>}
+  </section>;
   const e = ent.data;
 
   if (e.merged_into) {
@@ -209,7 +213,7 @@ function LinkedDrawings({ id }: { id: string }) {
 /** Why a value says what it says (#225): the rule, and each record that states one with its mapping and load. */
 function Why({ id, field }: { id: string; field: string }) {
   const w = useAsync(() => api.why(id, field), [id, field]);
-  if (!w.data) return <Status loading={w.loading} error={w.error} />;
+  if (!w.data) return <Status loading={w.loading} error={w.error} onRetry={w.reload} />;
   return (
     <div className="small why">
       <div className="muted">
@@ -221,7 +225,7 @@ function Why({ id, field }: { id: string; field: string }) {
           <SourceBadge source={a.source} /> {fmt(a.value)} {a.wins && <UIBadge className="badge ok">chosen</UIBadge>}{" "}
           <code className="muted">{a.record}</code>
           {a.mapping_version && <span className="muted"> · mapping v{a.mapping_version.id}</span>}
-          {a.run && <span className="muted"> · loaded by run {a.run.id} ({a.run.dataset}, {a.run.finished_at.slice(0, 16).replace("T", " ")})</span>}
+          {a.run && <span className="muted"> · ingestion run {a.run.id} ({a.run.dataset}, {timestamp(a.run.finished_at)})</span>}
         </div>
       ))}
     </div>
@@ -281,6 +285,7 @@ function Records({ e }: { e: EntityDetail }) {
     <UICard  as="section">
       <h2>Source records</h2>
       <p className="muted small">Every record in every system that Fuzer decided is this same thing.</p>
+      {!e.records.length && <p>No direct source records are linked. This may be a derived record; inspect Values and Links for supporting provenance.</p>}
       <Table variant="list">
         <tbody>
           {e.records.map((r) => (

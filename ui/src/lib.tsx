@@ -1,6 +1,6 @@
 // Small shared hooks and components.
 
-import { Badge as UIBadge } from "./ui";
+import { Badge as UIBadge, Button } from "./ui";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Mark } from "./brand";
 
@@ -75,6 +75,15 @@ export function fmt(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** Operational timestamps have offsets; never assign a timezone to source-local event dates. */
+export function timestamp(value: string | null | undefined): string {
+  if (!value) return "Time unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unknown";
+  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(value)) return `${value} (timezone not supplied)`;
+  return date.toISOString().replace("T", " ").replace(".000Z", " UTC").replace("Z", " UTC");
+}
+
 export function KindBadge({ kind }: { kind: string }) {
   return <UIBadge className={`badge kind kind-${kind}`}>{kind.replace("_", " ")}</UIBadge>;
 }
@@ -92,13 +101,16 @@ export function Dates({ from, to }: { from: string | null; to: string | null }) 
   );
 }
 
-export function Status({ loading, error, empty, children }: {
+export function Status({ loading, error, empty, children, onRetry }: {
   loading?: boolean;
   error?: string;
   empty?: boolean;
   children?: ReactNode;
+  onRetry?: () => void;
 }) {
-  if (error) return <div className="status error" role="alert">Couldn't load: {error}</div>;
+  if (error) return <div className="status error" role="alert">Couldn't load: {error}
+    {onRetry && <> <Button disabled={loading} onClick={onRetry}>Try again</Button></>}
+  </div>;
   if (loading) return <div className="status" role="status"><Mark />Loading…</div>;
   if (empty) return <div className="status">{children ?? "Nothing here."}</div>;
   return null;

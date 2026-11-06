@@ -1,25 +1,24 @@
 import "../styles/jobs.css";
-import { ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge} from "../ui";
+import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge} from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
-import { Status, href, useAsync } from "../lib";
+import { Status, href, timestamp, useAsync } from "../lib";
 
 const RUN_CLASS: Record<string, string> = {
   SUCCESS: "ok", FAILURE: "fail", CANCELED: "fail", STARTED: "updating", STARTING: "updating", QUEUED: "key",
   NOT_STARTED: "key", CANCELING: "updating",
 };
-const CHECK_CLASS: Record<string, string> = { pass: "ok", warn: "warn", fail: "fail", running: "updating", not_run: "key" };
 const CHECK_LABEL: Record<string, string> = { pass: "pass", warn: "warn", fail: "fail", running: "running", not_run: "not run" };
 
 /** "3 min ago", "in 2 h", or a date beyond a week. */
 export function when(iso: string | null | undefined): string {
-  if (!iso) return "";
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return "Time unknown";
   const t = new Date(iso).getTime();
   const s = (t - Date.now()) / 1000;
   const a = Math.abs(s);
   const span = a < 90 ? `${Math.round(a)} s` : a < 5400 ? `${Math.round(a / 60)} min` : a < 129600 ? `${Math.round(a / 3600)} h`
     : a < 7 * 86400 ? `${Math.round(a / 86400)} d` : null;
-  if (!span) return new Date(iso).toLocaleDateString();
+  if (!span) return timestamp(iso);
   return s < 0 ? `${span} ago` : `in ${span}`;
 }
 
@@ -29,7 +28,7 @@ const duration = (sec: number | null) =>
 const runHref = (id: string) => href(`/jobs/run/${id}`);
 
 export function RunBadge({ status }: { status: string }) {
-  return <UIBadge className={`badge run-${RUN_CLASS[status] ?? "key"}`}>{status.toLowerCase().replace("_", " ")}</UIBadge>;
+  return <UIBadge tone={status === "SUCCESS" ? "ok" : status === "FAILURE" ? "danger" : status === "CANCELED" ? "warn" : "muted"}>{status.toLowerCase().replace(/_/g, " ")}</UIBadge>;
 }
 
 export function JobsPage() {
@@ -47,11 +46,13 @@ export function JobsPage() {
         {" "}For connection tests, dataset loading and freshness recovery, open <a href={href("/sources")}>Sources</a>.
         {" "}Application defaults and restart requirements are in <a href={href("/settings")}>Settings</a>.
       </p>
-      <Status loading={o.loading && !o.data} error={o.error} />
+      <Status loading={o.loading && !o.data} error={o.error} onRetry={o.reload} />
       {o.data && !o.data.available && (
         <UICard className="">
-          <p>Dagster hasn't run on this machine yet, so there is no job history. Start it with <code>uv run fuzer up</code> (or
-          {" "}<code>uv run fuzer jobs</code> on its own).</p>
+          <p>Scheduler history is unavailable in this deployment. This does not mean loaded facility records are unavailable
+            or that a plant outage occurred. A deployment operator can check the scheduler service and its storage.</p>
+          <p><a href={href("/sources")}>Inspect recorded source loads</a> or <a href={href("/browse")}>Explore loaded records</a>.</p>
+          <Button disabled={o.loading} onClick={o.reload}>Refresh scheduler history</Button>
         </UICard>
       )}
       {o.data?.available && <Overview o={o.data} />}
@@ -76,9 +77,9 @@ function Overview({ o }: { o: JobsOverview }) {
           <strong>{o.health.summary}</strong>
           {!o.scheduler.running && (
             <div className="small">
-              The Dagster daemon isn't running, so schedules and sensors won't fire
-              {o.scheduler.last_heartbeat ? ` (last seen ${when(o.scheduler.last_heartbeat)})` : ""}. Start it
-              with <code>uv run fuzer up</code> or <code>uv run fuzer jobs</code>.
+              The scheduler reports no running daemon, so schedules and sensors may not fire.
+              {" "}Last recorded heartbeat: {timestamp(o.scheduler.last_heartbeat)}.
+              Ask a deployment operator to inspect the scheduler service; retrying a source load does not repair it.
             </div>
           )}
         </div>
@@ -92,8 +93,7 @@ function Overview({ o }: { o: JobsOverview }) {
           </thead>
           <tbody>
             {o.jobs.map((j) => (
-              <tr key={j.name} onClick={() => j.last_run && (location.hash = runHref(j.last_run.run_id))}
-                className={j.last_run ? undefined : "static"}>
+              <tr key={j.name} className="static">
                 <td>
                   <code>{j.name}</code>
                   {j.description && <div className="muted small">{j.description}</div>}
@@ -102,7 +102,7 @@ function Overview({ o }: { o: JobsOverview }) {
                 <td>
                   {j.last_run ? (
                     <>
-                      <RunBadge status={j.last_run.status} />
+                      <a href={runHref(j.last_run.run_id)} aria-label={`Inspect ${j.name} last run`}><RunBadge status={j.last_run.status} /></a>
                       <div className="muted small">{when(j.last_run.start ?? j.last_run.end)}{j.last_run.seconds != null && ` · ${duration(j.last_run.seconds)}`}</div>
                     </>
                   ) : <span className="muted small">never run</span>}
@@ -197,7 +197,7 @@ function CheckRow({ c }: { c: JobCheck }) {
   return (
     <tr>
       <td><code>{c.name}</code>{c.description && <div className="muted small">{c.description}</div>}</td>
-      <td><UIBadge className={`badge run-${CHECK_CLASS[c.level]}`}>{CHECK_LABEL[c.level]}</UIBadge></td>
+      <td><UIBadge tone={c.level === "pass" ? "ok" : c.level === "fail" ? "danger" : c.level === "warn" ? "warn" : "muted"}>{CHECK_LABEL[c.level] ?? "unknown"}</UIBadge></td>
       <td className="small">
         {c.note && <div className={c.level === "fail" ? "error" : "muted"}>{c.note}</div>}
         {rest.length > 0 && <div>{rest.map(([k, v]) => `${k.replace(/_/g, " ")}: ${fmtValue(v)}`).join(" · ")}</div>}
@@ -230,7 +230,7 @@ function exampleLabel(ex: unknown): string | null {
 }
 
 const fmtValue = (v: unknown) =>
-  typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString() : v < 1 ? `${(v * 100).toFixed(1)}%` : v.toFixed(2))
+  typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 3 })
     : typeof v === "object" ? JSON.stringify(v).slice(0, 60) : String(v);
 
 function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
@@ -277,7 +277,10 @@ function limitText(key: string, v: number | boolean): string {
 
 export function JobRunPage({ id }: { id: string }) {
   const r = useAsync(() => api.jobRun(id), [id]);
-  if (!r.data) return <Status loading={r.loading} error={r.error} />;
+  if (!r.data) return <section><PageHeader>Job run</PageHeader>
+    <Status loading={r.loading} error={r.error} onRetry={r.reload} />
+    {r.error && <p>The scheduler run could not be read. <a href={href("/jobs")}>Return to Jobs</a> to inspect available history.</p>}
+  </section>;
   const d = r.data;
   const tags = Object.entries(d.tags).filter(([k]) => k !== "dagster/failure_reason");
   return (
@@ -288,9 +291,13 @@ export function JobRunPage({ id }: { id: string }) {
       </div>
       <p className="muted small">
         Run <code>{d.run_id.slice(0, 8)}</code> · started by {d.trigger}
-        {d.start && ` · ${new Date(d.start).toLocaleString()}`}
+        {" · Scheduler start: "}{timestamp(d.start)}
         {d.seconds != null && ` · took ${duration(d.seconds)}`}
       </p>
+      <p className="small"><a href={href("/jobs")}>Return to Jobs</a>{" · "}
+        <a href={href("/sources")}>Inspect source Runs and Quality</a>. Scheduler times describe execution, not source event dates.</p>
+      {["FAILURE", "CANCELED"].includes(d.status) && <p className="notice">This execution did not complete successfully.
+        Inspect errors and recorded source runs before deliberately retrying in Sources; some earlier steps may have completed.</p>}
 
       {d.errors.length > 0 && (
         <>
@@ -312,11 +319,13 @@ export function JobRunPage({ id }: { id: string }) {
 
       {d.assets.length > 0 && (
         <>
-          <h2>Materialized</h2>
+          <h2>Recorded asset results</h2>
+          <p className="muted small">A scheduler result is not proof of ingestion: inspect loaded, missing, held and paused outcomes.</p>
           <div className="grid">
             {d.assets.map((a) => (
               <UICard key={a.asset} className="">
                 <h3><code>{a.asset}</code></h3>
+                <p className="muted small">Scheduler observation: {timestamp(a.time)}</p>
                 <Table variant="keyValue" density="compact" headingCase="verbatim">
                   <tbody>
                     {Object.entries(a.metadata).map(([k, v]) => (
@@ -346,7 +355,7 @@ export function JobRunPage({ id }: { id: string }) {
           <tbody>
             {d.log_tail.map((l, i) => (
               <tr key={i} className={l.level === "ERROR" || l.level === "CRITICAL" ? "log-error" : undefined}>
-                <td className="mono">{l.time ? new Date(l.time).toLocaleTimeString() : ""}</td>
+                <td className="mono">{timestamp(l.time)}</td>
                 <td>{l.level}</td>
                 <td className="mono">{l.step ?? ""}</td>
                 <td>{l.message}</td>

@@ -3,7 +3,7 @@ import { ActionStatus, ConfirmAction, Badge as UIBadge} from "../../ui";
  * and the "rebuild needed" banner. */
 import { useState } from "react";
 import { api, type SourceHealth, type SourceLoad } from "../../api";
-import { notifyChanged, useAsync } from "../../lib";
+import { notifyChanged, timestamp, useAsync } from "../../lib";
 import { loadPerson } from "../../work";
 
 export const reviewer = () => loadPerson() || "anonymous";
@@ -15,7 +15,7 @@ export const STATE: Record<string, string> = {
 
 export const cell = (v: unknown) =>
   v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v).slice(0, 80) : String(v);
-export const when = (t: string | null | undefined) => t?.slice(0, 16).replace("T", " ") ?? "";
+export const when = timestamp;
 
 export const SCHEDULES: [string, string][] = [
   ["", "with the daily refresh (02:00) and when its file changes"], ["0 * * * *", "hourly"],
@@ -57,8 +57,10 @@ export function useAction() {
 }
 
 export function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
-  if (!h) return null;
-  return <UIBadge className={`badge ${STATE[h.state] ?? ""}`} title={h.problems.join(", ") || "healthy"}>{h.state}</UIBadge>;
+  if (!h) return <UIBadge>Health unknown</UIBadge>;
+  return <UIBadge tone={h.state === "ok" ? "ok" : h.state === "failed" ? "danger"
+    : ["stale", "held", "checks failing", "profile drift"].includes(h.state) ? "warn" : "muted"}
+    title={h.problems.join(", ") || "Recorded source health; not a live plant status"}>{h.state === "ok" ? "No reported problems" : h.state}</UIBadge>;
 }
 
 export function Loaded({ r }: { r: SourceLoad }) {

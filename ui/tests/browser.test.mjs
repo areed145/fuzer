@@ -74,6 +74,119 @@ const investigation = {
   limitations: ["Historical synthetic data does not prove a root cause or the effectiveness of a repair."],
 };
 
+test("Core consistency Home separates historical reports, unavailable counts and scheduler history", async () => {
+  let failed = true, attempts = 0;
+  await page.route("**/stats", route => route.fulfill({ status: 503, json: { detail: "Statistics unavailable" } }));
+  await page.route("**/reports/daily", route => {
+    attempts++;
+    return route.fulfill(failed ? { status: 503, json: { detail: "Reports unavailable" } }
+      : { json: [{ day: "2024-03-14" }] });
+  });
+  await page.route("**/reports/daily/2024-03-14", route => route.fulfill({ json: {
+    facts: { sections: { Headline: [{ text: "Historical report fact", cites: [] }] } }, checks: { ok: true },
+  } }));
+  await page.goto(url);
+  const report = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "Latest daily report", exact: true }) });
+  await report.getByRole("alert").waitFor();
+  assert.equal(attempts, 1);
+  assert.equal(await page.getByRole("link", { name: "0 to review", exact: true }).count(), 0);
+  await page.getByText("Scheduler history unavailable.", { exact: false }).waitFor();
+  assert.equal(await page.getByText("No failed runs or checks.", { exact: true }).count(), 0);
+  failed = false;
+  await report.getByRole("button", { name: "Try again", exact: true }).click();
+  await report.getByText("Historical report fact", { exact: true }).waitFor();
+  await report.getByText("not a live operating update", { exact: false }).waitFor();
+  assert.equal(attempts, 2);
+  assert.equal(await page.getByRole("heading", { name: "Today", exact: true }).count(), 0);
+});
+
+test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
+  await page.route("**/sources/datasets/sap_equipment", route => route.fulfill({ status: 503, json: { detail: "Dataset unavailable" } }));
+  await page.route("**/sources/catalog", route => route.fulfill({ json: {
+    systems: [{ id: 1, name: "sap", enabled: true, connections: [], datasets: [
+      { name: "sap_equipment", record_type: "equipment", present: true, status: "active", health: null,
+        last_run: null, rows: null, loaded_at: null },
+      { name: "sap_floc", record_type: "floc", present: true, status: "active",
+        health: { state: "failed", problems: ["read interrupted"] }, last_run: "failed", rows: 0,
+        loaded_at: "2026-11-06T14:00:00+02:00" },
+      { name: "legacy_export", record_type: "row", present: true, status: "active", health: null,
+        last_run: null, rows: 1, loaded_at: "2024-03-14T03:20:00" },
+    ] }], types: { connections: {} },
+  } }));
+  await page.goto(`${url}/#/sources`);
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Last ingested (not event date)", exact: true }) });
+  await table.getByText("Health unknown", { exact: true }).first().waitFor();
+  await table.getByText("Time unknown", { exact: true }).waitFor();
+  await table.getByText("2026-11-06 12:00:00 UTC", { exact: true }).waitFor();
+  await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
+  assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
+  const dataset = table.getByRole("link", { name: "sap_equipment", exact: true });
+  await dataset.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("alert").waitFor();
+  await page.getByRole("link", { name: "Return to Sources", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Try again", exact: true }).count(), 1);
+});
+
+test("Core consistency asset failure has retry and Explore exit without replacing provenance", async () => {
+  let failed = true;
+  await page.route("**/entities/asset-consistency/map", route => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/asset-consistency", route => route.fulfill(failed
+    ? { status: 503, json: { detail: "Record unavailable" } }
+    : { json: { fuzer_id: "asset-consistency", kind: "log_entry", label: "Historical evidence",
+      golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.goto(`${url}/#/e/asset-consistency`);
+  await page.getByRole("link", { name: "Return to Explore", exact: true }).waitFor();
+  failed = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByRole("heading", { name: "Historical evidence", exact: true }).waitFor();
+  assert.match(await page.getByRole("main").innerText(), /No direct source records are linked/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.locator(".entity .grid").evaluate(e => getComputedStyle(e).gridTemplateColumns.split(" ").length), 1);
+});
+
+test("Core consistency Jobs preserves metadata units, missing outcomes and actionable failures", async () => {
+  let failed = true;
+  await page.route("**/jobs", route => route.fulfill({ json: {
+    available: true, dagster: { reachable: false, url: "http://scheduler.invalid" },
+    scheduler: { running: true, last_heartbeat: null }, health: { level: "ok", summary: "Scheduler observed" },
+    jobs: [{ name: "refresh_all", triggers: [], recent_runs: [],
+      last_run: { run_id: "consistency", status: "FAILURE", start: null, end: null, seconds: null } }],
+    checks: [], sensors: [], claude: null,
+  } }));
+  await page.route("**/jobs/runs/consistency", route => route.fulfill(failed
+    ? { status: 503, json: { detail: "Run unavailable" } }
+    : { json: { run_id: "consistency", job: "refresh_all", status: "FAILURE", trigger: "manual", start: null,
+      seconds: 0.5, tags: {}, errors: [{ step: "sap_equipment", kind: "failure", message: "Read failed" }],
+      assets: [{ asset: "optional_export", time: "2026-11-06T14:00:00+02:00",
+        metadata: { missing: true, loaded: false, seconds: 0.5 } }], log_tail: [] } }));
+  await page.goto(`${url}/#/jobs`);
+  await page.getByRole("link", { name: "Inspect refresh_all last run", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("link", { name: "Return to Jobs", exact: true }).waitFor();
+  failed = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByText("some earlier steps may have completed", { exact: false }).waitFor();
+  await page.getByText("Scheduler start: Time unknown", { exact: false }).waitFor();
+  await page.getByText("Scheduler observation: 2026-11-06 12:00:00 UTC", { exact: true }).waitFor();
+  assert.equal(await page.locator(".ui-badge-danger").first().evaluate(e => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--danger)";
+    document.body.append(probe);
+    const matches = getComputedStyle(e).color === getComputedStyle(probe).color;
+    probe.remove();
+    return matches;
+  }), true, "Shared badge tone must not be overridden by legacy badge styles");
+  assert.equal(await page.getByRole("cell", { name: "0.5", exact: true }).count(), 1);
+  assert.equal(await page.getByText("50.0%", { exact: true }).count(), 0);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/consistency-jobs-${width}.png`, fullPage: true });
+  }
+});
+
 const signedInUser = {
   id: "test-account", actor: "user:test-account", display_name: "Test participant", enabled: true,
   owner: false, roles: ["reader"], permissions: ["read"], csrf: "browser-csrf-test",

@@ -18,7 +18,10 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
   const d = useAsync(() => api.dataset(name), [name]);
-  if (!d.data) return <Status loading={d.loading} error={d.error} />;
+  if (!d.data) return <section><PageHeader>{name}</PageHeader>
+    <Status loading={d.loading} error={d.error} onRetry={d.reload} />
+    {d.error && <p>Dataset details are unavailable. <a href={href("/sources")}>Return to Sources</a> to inspect connections and recorded loads.</p>}
+  </section>;
   const x = d.data;
   const ds = x.dataset;
   return (
@@ -97,7 +100,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
     ["Expected", ds.expected_hours ? `a delivery every ${ds.expected_hours} h` : <span className="muted">no expectation</span>],
     ["Owner", ds.owner ?? <span className="muted">none (alerts go to the system's owner, else data stewards)</span>],
     ["Records", h?.rows?.toLocaleString() ?? "–"],
-    ["Last loaded", <>{when(h?.last_loaded) || "never"}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
+    ["Last ingested (not event date)", <>{when(h?.last_loaded)}{last && <span className="muted"> · last run {last.status} ({last.trigger})</span>}</>],
   ];
   return (
     <>
