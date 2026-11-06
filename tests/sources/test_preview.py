@@ -73,7 +73,7 @@ def test_add_a_table_in_one_flow(conn, tmp_path, monkeypatch):
                                  ["20-PT-1002B", "Pump suction pressure"]])
     monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
     client = TestClient(api.app)
-    assert client.post("/sources/loop_index/load", json={}).status_code == 400  # no mapping yet
+    assert client.post("/sources/loop_index/load", json={}).status_code == 404  # not registered in the catalog yet
     draft = client.post("/sources/loop_index/suggest", json={}).json()
     assert draft["key"] == "tag_no" and draft["claude"] is None
     bad = client.post("/sources/loop_index/load", json={"yaml": draft["yaml"].replace(

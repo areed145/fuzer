@@ -68,11 +68,34 @@ The planted stories to find are listed in the [README](https://github.com/areed1
 
 ```sh
 uv run pytest -m unit                     # a few seconds, no database
-uv run pytest -n auto --dist loadfile     # unit and integration, about 2 minutes on 4 cores
+uv run pytest -n auto --dist loadfile     # unit and integration; whole files stay on one worker
 uv run pytest -m e2e                      # week-long replays and evals: slow
 ```
 
 The tests never call Claude: agents and readers run on recorded answers.
+
+CI runs the UI, Python unit/import checks and two integration shards independently.
+The integration shards split `tests/analysis` plus `tests/sources` from everything else,
+including any new test directories. Both use `-n auto --dist loadfile` to preserve
+module-scoped database fixtures and file-ordered stories. The existing `test` check
+passes only when the unit/import checks and both integration shards succeed.
+End-to-end tests and the full CLI ops eval still run on main and manual dispatch,
+not on pull requests. No tests are removed.
+
+To reproduce either integration shard locally:
+
+```sh
+uv run pytest -m integration -n auto --dist loadfile tests/analysis tests/sources
+uv run pytest -m integration -n auto --dist loadfile --ignore=tests/analysis --ignore=tests/sources
+```
+
+Each Python tier prints its 30 slowest durations and uploads JUnit XML in
+`test-results-*` artifacts, retained for 14 days even on test failure. Use these
+reports to rebalance the integration shards based on CI timings, including fixture
+setup, rather than test counts. The initial split uses a local two-worker baseline
+of approximately 269 and 278 seconds of summed test/fixture time, not measured CI
+wall-clock times. Superseded runs of the same PR are cancelled; main and manual
+runs are not.
 
 ## 4. Run the evals
 

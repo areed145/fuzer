@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Only superseded PR revisions are cancelled; every main/manual run keeps its full coverage.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ui:
     runs-on: ubuntu-latest
@@ -22,9 +27,9 @@ jobs:
       - run: cd ui && npx playwright install --with-deps chromium
       - run: npm --prefix ui run test:browser
 
-  test:
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -36,12 +41,63 @@ jobs:
         run: uv run python scripts/check_imports.py
       - name: "Layers (#135): no module imports from a layer above its own"
         run: uv run lint-imports
-      # Tests (#137) by tier; no calls to Claude: agents and readers run on recorded answers. A worker per
-      # core, each with its own Postgres; a test file stays on one worker so its plant copy is built once.
       - name: "Unit tests (no database)"
-        run: uv run pytest -q -rf -m unit
+        run: uv run pytest -q -rf -m unit --durations=30 --junitxml=test-results/unit.xml
+      - name: Upload unit test timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit
+          path: test-results/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # A local two-worker baseline measured ~269s and ~278s of test/fixture time.
+          # The complement includes new directories automatically, without duplicating tests.
+          - shard: analysis-sources
+            selection: tests/analysis tests/sources
+          - shard: remaining
+            selection: --ignore=tests/analysis --ignore=tests/sources
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync
+      # Each worker has its own Postgres; whole files stay together for module fixtures and sequence tests.
       - name: "Integration tests"
-        run: uv run pytest -q -rf -m integration -n auto --dist loadfile
+        run: >-
+          uv run pytest -q -rf -m integration -n auto --dist loadfile
+          ${{ matrix.selection }}
+          --durations=30 --junitxml=test-results/integration.xml
+      - name: Upload integration test timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration-${{ matrix.shard }}
+          path: test-results/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Preserve the existing combined Python check name for branch protection.
+  test:
+    if: always()
+    needs: [checks, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all Python checks
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$CHECKS_RESULT" = success && test "$INTEGRATION_RESULT" = success
 
   # The e2e tier (week-long replays, the ops eval) takes the longest: on main and by hand, not on every PR.
   e2e:
@@ -56,8 +112,18 @@ jobs:
       - name: Install
         run: uv sync
       - name: "End-to-end tests (replays, evals)"
-        run: uv run pytest -q -rf -m e2e -n auto --dist loadfile
+        run: >-
+          uv run pytest -q -rf -m e2e -n auto --dist loadfile
+          --durations=30 --junitxml=test-results/e2e.xml
       - name: "Ops eval (#103) on the fake plant with a scripted Claude, failing under its floors"
         run: |
           uv run fakeplant demo --data /tmp/okan
           FUZER_DATA_DIR=/tmp/okan uv run fuzer --pack okan eval --ops --full --since 2024-11-04T00:00 --until 2024-11-10T00:00
+      - name: Upload end-to-end test timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-e2e
+          path: test-results/*.xml
+          if-no-files-found: warn
+          retention-days: 14
