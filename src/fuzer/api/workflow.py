@@ -1,5 +1,6 @@
 """The workflow engine (#97): items, tasks, processes, definitions, forms and people."""
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -16,6 +17,7 @@ from .deps import get_conn
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)
+log = logging.getLogger(__name__)
 
 
 # --- work engine (#97) ---------------------------------------------------------------------------
@@ -282,7 +284,22 @@ def work_definition_generate(definition_id: int, d: WorkGenerate, conn=Depends(g
     except Exception as e:
         if not isinstance(e, llm.provider_errors("agents")):
             raise
-        raise HTTPException(503, "Workflow drafting is unavailable. Try again or build on the canvas.") from e
+        status = getattr(e, "status_code", None)
+        code = getattr(e, "code", None)
+        request_id = getattr(e, "request_id", None)
+        log.warning("Workflow drafting provider error: status=%s code=%s request_id=%s",
+                    status, code, request_id)
+        if status in (401, 403):
+            detail = "The Agents provider rejected its credentials. Check the provider API key and permissions in Settings."
+        elif status == 404:
+            detail = "The Agents provider could not find the configured model or endpoint. Check provider, model and base URL in Settings."
+        elif status == 429:
+            detail = "The Agents provider rate limit or quota was reached. Check the provider account before retrying."
+        elif status == 400:
+            detail = "The Agents provider rejected the draft request. Check that the configured model supports tool calling."
+        else:
+            detail = "The Agents provider is unavailable. Check its configuration and try again later."
+        raise HTTPException(503, detail) from e
     return {"xml": xml, "problems": [vars(p) for p in work._problems(conn, {**row, "xml": xml})],
             "steps": len(draft.steps), "connections": len(draft.connections)}
 
