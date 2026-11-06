@@ -159,7 +159,7 @@ test("reader Settings and Sources do not request protected configuration or conn
   await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
   await page.goto(`${url}/#/settings`);
-  assert.equal(await page.getByRole("link", { name: "Sign-in & access", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Users", exact: true }).count(), 0);
 });
 
 test("owner administration remains available within Settings secondary navigation", async () => {
@@ -167,7 +167,194 @@ test("owner administration remains available within Settings secondary navigatio
     user: { ...signedInUser, owner: true } } }));
   await page.goto(`${url}/#/settings`);
   const area = page.getByRole("navigation", { name: "Settings pages", exact: true });
-  assert.equal(await area.getByRole("link", { name: "Sign-in & access", exact: true }).getAttribute("href"), "#/access");
+  assert.equal(await area.getByRole("link", { name: "Users", exact: true }).getAttribute("href"), "#/users");
+});
+
+async function usersFixture(user = { ...signedInUser, owner: true }) {
+  const permissions = { read: "Browse evidence", operate: "Operate shared work", configure: "Configure application", ai: "Run paid AI" };
+  const roles = [
+    { name: "reader", description: "Read evidence", permissions: ["read"] },
+    { name: "operator", description: "Review and act", permissions: ["read", "operate"] },
+  ];
+  const accounts = [
+    { ...signedInUser, id: "owner", actor: "user:owner", display_name: "Owner", owner: true },
+    { id: "applicant", actor: "user:applicant", display_name: "New participant", enabled: false, owner: false, roles: [] },
+  ];
+  const people = [{ name: "user:applicant", roles: [], assigned_roles: ["engineer"], owner: false,
+    assigned: 0, overdue: 0, away: false, away_until: null, delegate: null }];
+  const workflow = [
+    { name: "engineer", kind: "person", description: "Human engineering review", assignment: "queue", default_sla: null,
+      escalate_to: null, members: [], processes: ["upset"], waiting: 1, overdue: 0, uncovered: true },
+    { name: "operator", kind: "person", description: "Human operations", assignment: "queue", default_sla: null,
+      escalate_to: null, members: [], processes: [], waiting: 0, overdue: 0, uncovered: false },
+  ];
+  const writes = [], administration = [];
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user } }));
+  await page.route("**/auth/access", route => { administration.push(route.request().url()); return route.fulfill({ json: { accounts, roles, permissions } }); });
+  await page.route("**/work/roles/catalog", route => route.fulfill({ json: workflow }));
+  await page.route("**/work/people", route => route.fulfill({ json: people }));
+  await page.route("**/work/workload", route => route.fulfill({ json: { people, agents: [], agent_failures: [], roles: {} } }));
+  await page.route("**/auth/accounts/*", route => {
+    const body = route.request().postDataJSON(), id = new URL(route.request().url()).pathname.split("/").at(-1);
+    writes.push({ path: `/auth/accounts/${id}`, body });
+    if (id === "owner") return route.fulfill({ status: 400, json: { detail: "Keep at least one enabled owner" } });
+    Object.assign(accounts.find(a => a.id === id), body);
+    people[0].roles = body.enabled ? people[0].assigned_roles : [];
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/work/people/*", route => {
+    const body = route.request().postDataJSON();
+    writes.push({ path: new URL(route.request().url()).pathname, body });
+    people[0].assigned_roles = body.roles;
+    people[0].roles = accounts[1].enabled ? body.roles : [];
+    return route.fulfill({ json: { name: people[0].name, roles: body.roles } });
+  });
+  await page.route("**/auth/roles/*", route => {
+    const body = route.request().postDataJSON(), name = new URL(route.request().url()).pathname.split("/").at(-1);
+    writes.push({ path: `/auth/roles/${name}`, body });
+    Object.assign(roles.find(r => r.name === name), body);
+    return route.fulfill({ json: { ok: true } });
+  });
+  return { writes, administration };
+}
+
+test("Users unifies guided approval, effective access, stable workflow assignment and role definitions", async () => {
+  const { writes } = await usersFixture();
+  await page.goto(`${url}/#/access`);
+  await page.waitForURL(/#\/users$/);
+  await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
+  const participant = page.locator(".access-account").filter({ has: page.getByRole("heading", { name: /New participant/ }) });
+  await participant.getByText("None: account not enabled", { exact: true }).waitFor();
+  await participant.getByText("Human workflow assignments (1)", { exact: true }).click();
+  await participant.getByText("Assignments are retained", { exact: false }).waitFor();
+  assert.equal(await participant.getByRole("checkbox", { name: "engineer", exact: true }).isChecked(), true);
+  await participant.getByRole("checkbox", { name: "Enabled", exact: true }).check();
+  await participant.getByRole("checkbox", { name: "operator", exact: true }).first().check();
+  await participant.getByRole("button", { name: "Save account access", exact: true }).click();
+  assert.equal(writes.length, 0);
+  await participant.getByRole("button", { name: "Confirm Save account access", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Account access saved for New participant" }).waitFor();
+  await participant.getByText("Browse evidence, Operate shared work", { exact: true }).waitFor();
+  await participant.getByText("Human workflow assignments (1)", { exact: true }).click();
+  await participant.getByRole("checkbox", { name: "operator", exact: true }).check();
+  await participant.getByRole("button", { name: "Save workflow assignments", exact: true }).click();
+  assert.equal(writes.length, 1);
+  await participant.getByRole("button", { name: "Confirm Save workflow assignments", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Workflow assignments saved for New participant" }).waitFor();
+  assert.equal(writes[1].path, "/work/people/user%3Aapplicant");
+  assert.deepEqual(writes[1].body.roles, ["engineer", "operator"]);
+  await page.getByText("Advanced: application role definitions", { exact: false }).click();
+  const role = page.locator(".access-role").filter({ has: page.getByRole("heading", { name: "operator", exact: true }) });
+  await role.getByRole("checkbox", { name: "Operate shared work", exact: true }).uncheck();
+  await role.getByRole("button", { name: "Save application role", exact: true }).click();
+  assert.equal(writes.length, 2);
+  await role.getByRole("button", { name: "Confirm Save application role", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Application role operator saved" }).waitFor();
+  await participant.getByText("Browse evidence", { exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await participant.getByText("Change account access", { exact: true }).click();
+  await participant.getByRole("checkbox", { name: "Enabled", exact: true }).uncheck();
+  await participant.getByRole("button", { name: "Save account access", exact: true }).press("Enter");
+  await participant.getByRole("button", { name: "Cancel", exact: true }).press("Enter");
+  assert.equal(writes.length, 3);
+  await participant.getByRole("button", { name: "Save account access", exact: true }).click();
+  await participant.getByRole("button", { name: "Confirm Save account access", exact: true }).click();
+  await participant.getByText("None: account not enabled", { exact: true }).waitFor();
+});
+
+test("Users keeps last-owner failures actionable and legacy roster links compatible", async () => {
+  const { writes } = await usersFixture();
+  await page.goto(`${url}/#/users`);
+  const owner = page.locator(".access-account").filter({ has: page.getByRole("heading", { name: "Owner Owner", exact: true }) });
+  await owner.getByText("Change account access", { exact: true }).click();
+  await owner.getByRole("checkbox", { name: "Owner (all capabilities)", exact: true }).uncheck();
+  await owner.getByRole("button", { name: "Save account access", exact: true }).click();
+  await owner.getByRole("button", { name: "Confirm Save account access", exact: true }).click();
+  await owner.getByRole("alert").filter({ hasText: "Keep at least one enabled owner" }).waitFor();
+  assert.equal(writes.length, 1);
+  await page.goto(`${url}/#/settings?view=people`);
+  await page.waitForURL(/#\/users\?view=workflow$/);
+  await page.getByRole("heading", { name: "Workflow assignments & routing", exact: true }).waitFor();
+  await page.goto(`${url}/#/teams?role=engineer`);
+  await page.getByRole("heading", { name: "Team workload", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Work", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true }).getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("button", { name: "Save workflow assignments", exact: true }).count(), 0);
+  assert.match(await page.getByRole("main").getByRole("link", { name: "Users", exact: true }).last().getAttribute("href"), /view=workflow.*role=engineer/);
+});
+
+test("Users restricts non-owner administrators to workflow routing and blocks readers without admin requests", async () => {
+  const { administration } = await usersFixture({ ...signedInUser, permissions: ["read", "configure"], roles: ["administrator"] });
+  await page.goto(`${url}/#/users`);
+  await page.getByRole("heading", { name: "Workflow assignments & routing", exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Accounts & access", exact: true }).count(), 0);
+  assert.deepEqual(administration, []);
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
+  await page.reload();
+  await page.getByText("Users administration requires configuration access.", { exact: false }).waitFor();
+  assert.deepEqual(administration, []);
+  await page.goto(`${url}/#/teams?role=engineer`);
+  await page.getByRole("heading", { name: "Team workload", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Save workflow assignments", exact: true }).count(), 0);
+});
+
+test("Users workflow routing and coverage reuse confirmed actions without granting application access", async () => {
+  const { writes } = await usersFixture({ ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] });
+  let routing;
+  await page.route("**/work/roles/engineer", route => {
+    routing = route.request().postDataJSON();
+    return route.fulfill({ json: { ok: true } });
+  });
+  let away;
+  await page.route("**/work/people/user%3Aapplicant/away", route => {
+    away = route.request().postDataJSON();
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto(`${url}/#/users?view=workflow&role=engineer`);
+  const engineer = page.locator("details.card").filter({ has: page.locator("summary strong").filter({ hasText: /^engineer$/ }) });
+  await engineer.getByRole("textbox", { name: "engineer default SLA", exact: true }).fill("PT8H");
+  await engineer.getByRole("button", { name: "Save routing for engineer", exact: true }).click();
+  assert.equal(routing, undefined);
+  await engineer.getByRole("button", { name: "Confirm Save routing for engineer", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Workflow change saved" }).waitFor();
+  assert.equal(routing.default_sla, "PT8H");
+  const person = page.locator(".access-account");
+  await person.getByText("Availability and coverage", { exact: true }).click();
+  await person.getByRole("button", { name: "set away", exact: true }).click();
+  await person.getByLabel("Away until for user:applicant", { exact: true }).fill("2027-01-01T10:00");
+  await person.getByRole("button", { name: "Set away", exact: true }).click();
+  assert.equal(away, undefined);
+  await person.getByRole("button", { name: "Confirm Set away", exact: true }).click();
+  await person.getByRole("button", { name: "set away", exact: true }).waitFor();
+  assert.match(away.until, /^2027-01-01T/);
+  assert.equal(writes.length, 0, "No account or application-role writes");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("Users loading failures recover explicitly and access-refresh errors remain visible", async () => {
+  await usersFixture();
+  let failed = true, attempts = 0;
+  await page.route("**/auth/access", route => {
+    attempts++;
+    return route.fulfill(failed ? { status: 503, json: { detail: "Access catalog unavailable" } }
+      : { json: { accounts: [], roles: [], permissions: {} } });
+  });
+  await page.goto(`${url}/#/users`);
+  await page.getByRole("alert").filter({ hasText: "Access catalog unavailable" }).waitFor();
+  assert.equal(attempts, 1);
+  failed = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByText("No accounts have signed in yet.", { exact: true }).waitFor();
+  await page.route("**/auth/me", route => route.fulfill({ status: 503, json: { detail: "Session check unavailable" } }));
+  await page.evaluate(() => window.dispatchEvent(new Event("fuzer:access-changed")));
+  await page.getByRole("alert").filter({ hasText: "Access could not be refreshed" }).waitFor();
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
+  await page.getByRole("button", { name: "Reload access", exact: true }).click();
+  await page.getByText("Users administration requires configuration access.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Save account access", exact: true }).count(), 0);
 });
 
 test("source load lifecycle confirms consequences, exposes progress and recovers without automatic replay", async () => {
@@ -292,7 +479,7 @@ test("seven primary destinations expose compatible specialist routes through are
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/cases", "#/review", "#/processes", "#/teams"]);
+    ["#/board", "#/inbox", "#/cases", "#/review", "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -378,9 +565,11 @@ test("pending account can bootstrap only with a setup code and then reach owner-
   await page.getByRole("heading", { name: "Your account is ready for approval" }).waitFor();
   await page.getByLabel("Owner setup code").fill("test-setup-code-at-least-thirty-two-characters");
   await page.getByRole("button", { name: "Set up owner access" }).click();
-  await page.getByRole("link", { name: "Manage sign-in & access" }).click();
-  await page.getByRole("heading", { name: "Sign-in & access", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Manage users" }).click();
+  await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
+  await page.getByText("How Users works:", { exact: false }).click();
   await page.getByText("Keep at least one enabled owner;", { exact: false }).waitFor();
+  await page.getByText("Advanced: application role definitions", { exact: false }).click();
   await page.getByRole("heading", { name: "Add an application role", exact: true }).waitFor();
 });
 

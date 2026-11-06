@@ -150,7 +150,7 @@ The deployment owner performs this setup once; visitors need no API key or CLI:
    the owner setup code from Render. Only someone who both signs in and possesses that
    secret can become the initial owner. The transaction refuses bootstrap once any owner
    exists. Remove the bootstrap secret after setup.
-5. In **Sign-in & access**, approve additional accounts after their first sign-in and
+5. In **Settings -> Users -> Accounts & access**, approve additional accounts after their first sign-in and
    assign application roles. Add a second trusted owner for recovery. No account is
    automatically approved based on email, name, domain, or being the first visitor.
    Microsoft controls password/passkey/Authenticator behavior; Fuzer does not collect
@@ -160,10 +160,16 @@ Accounts are bound to Microsoft's validated tenant ID and object ID, not mutable
 addresses or display names. An owner has every application permission and all current
 and future **human** workflow roles, without impersonating an automated agent.
 Application roles (`reader`, `operator`, `administrator`, `ai_user`, plus owner-defined
-roles) are separate from extensible routing roles in **Teams & routing**. New application
+roles) are separate from extensible routing roles in **Users -> Workflow assignments & routing**. New application
 roles combine registered permissions; new permission types require an explicit server
 policy and tests. Only owners can grant application access or create owners; the last
 enabled owner cannot be removed. Disabling an account revokes its sessions.
+Configuration administrators may manage workflow routing without granting application access.
+Assign human workflow roles directly from the signed-in account using its stable roster identity;
+legacy names remain separate and must not be matched by display name. Disabling an account preserves
+saved assignments but removes effective workflow access; use workload/coverage for deliberate handoff.
+Work context means presentation focus, never a permission or routing change. Context selection and
+Home personalization are deferred; there is no separate editable persona registry.
 
 Signed-in approved users operate the **shared** synthetic facility, not isolated per-user
 plant copies. Assistant conversations, uploaded images, questions and answers are scoped

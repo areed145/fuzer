@@ -10,6 +10,7 @@ import "./styles/auth.css";
 
 const AuthContext = createContext<AuthSession | null>(null);
 export const useAuth = () => useContext(AuthContext);
+export const refreshAccess = () => window.dispatchEvent(new Event("fuzer:access-changed"));
 export function usePermission(permission: string) {
   const session = useAuth();
   return !session || session.mode === "local" || !!session.user?.enabled &&
@@ -42,16 +43,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setError("Your session has ended. Reload sign-in to continue. Your saved work is kept.");
     };
     window.addEventListener("fuzer:unauthorized", expired);
+    window.addEventListener("fuzer:access-changed", reload);
     const refresh = () => { if (document.visibilityState === "visible") reload(); };
     document.addEventListener("visibilitychange", refresh);
     return () => {
       window.removeEventListener("fuzer:unauthorized", expired);
+      window.removeEventListener("fuzer:access-changed", reload);
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
 
   if (session?.mode === "local" || session?.user?.enabled && (session.user.owner || session.user.permissions.includes("read"))) {
-    return <AuthContext.Provider value={session}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={session}>
+      {error && <div role="alert" className="notice">Access could not be refreshed: {error}{" "}
+        <Button onClick={reload}>Reload access</Button></div>}
+      {children}
+    </AuthContext.Provider>;
   }
   const pending = session?.user;
   const signInResult = query.get("signin");

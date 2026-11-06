@@ -284,7 +284,9 @@ def workload(conn, now: datetime) -> dict:
     people = []
     for p in definitions.people(conn):
         w = load["people"].get(p["name"], {})
-        people.append({"name": p["name"], "roles": p["roles"], "assigned": w.get("waiting", 0),
+        people.append({"name": p["name"], "roles": p["roles"], "assigned_roles": p["assigned_roles"], "owner": p["owner"],
+                       "display_name": p["display_name"], "account_enabled": p["account_enabled"],
+                       "assigned": w.get("waiting", 0),
                        "overdue": w.get("overdue", 0), "away": bool(p["away_until"] and p["away_until"] > now),
                        "away_until": p["away_until"], "delegate": p["delegate"], "note": p["note"]})
     agents = [{"role": r["role"], "waiting": r["waiting"], "failing": r["failing"]} for r in conn.execute(
