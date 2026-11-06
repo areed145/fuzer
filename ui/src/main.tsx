@@ -37,6 +37,7 @@ const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m
 const Network = lazy(() => import("./pages/Network").then((m) => ({ default: m.Network })));
 // The map pulls in Leaflet; load it only when opened.
 const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
+const AnalyticsPage = lazy(() => import("./pages/Analytics").then((m) => ({ default: m.AnalyticsPage })));
 // The modeler pages pull in bpmn-js's modeler and the form-js editor; load them only when opened.
 const ProcessesPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessesPage })));
 const ProcessPage = lazy(() => import("./pages/Processes").then((m) => ({ default: m.ProcessPage })));
@@ -129,6 +130,8 @@ function App() {
             <TeamsPage query={query} />
           ) : section === "reports" ? (
             <ReportsPage query={query} />
+          ) : section === "analytics" ? (
+            <AnalyticsPage query={query} />
           ) : section === "studies" ? (
             <StudiesPage query={query} />
           ) : section === "jobs" && path[1] === "run" && path[2] ? (

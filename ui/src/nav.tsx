@@ -40,6 +40,7 @@ export const NAV: NavGroup[] = [
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
+      { label: "Analytics", section: "analytics" },
     ],
   },
   {
