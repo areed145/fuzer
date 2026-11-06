@@ -16,33 +16,16 @@ import {
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
 import { Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
-
-const NAME_KEY = "fuzer.reviewer";
-
-function loadName(): string {
-  try {
-    return localStorage.getItem(NAME_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
+import { usePerson } from "../work";
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
     asked === "check" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
-  const [name, setName] = useState(loadName);
+  const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState<string>();
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(NAME_KEY, name);
-    } catch {
-      /* private mode: name just isn't remembered */
-    }
-  }, [name]);
 
   useEffect(() => setDone(new Set()), [kind]);
 

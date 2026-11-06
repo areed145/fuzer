@@ -1,4 +1,5 @@
 import "./styles/graphs.css";
+import { THEME_CHANGED } from "./theme";
 // Shared graph drawing (Cytoscape.js) used by the ontology, network and entity graph views.
 
 import cytoscape, { type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
@@ -143,12 +144,11 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     cy.on("dbltap", "node", (e) => handlers.current.onExpand?.(e.target.id()));
     cy.on("mouseover", "edge", (e) => e.target.addClass("hover"));
     cy.on("mouseout", "edge", (e) => e.target.removeClass("hover"));
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
     const restyle = () => cy.style(stylesheet() as cytoscape.StylesheetJson);
-    scheme.addEventListener("change", restyle);
+    window.addEventListener(THEME_CHANGED, restyle);
     cyRef.current = cy;
     return () => {
-      scheme.removeEventListener("change", restyle);
+      window.removeEventListener(THEME_CHANGED, restyle);
       cy.destroy();
       cyRef.current = null;
     };

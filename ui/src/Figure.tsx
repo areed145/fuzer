@@ -6,18 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
 import { Button, Table , Card as UICard, Badge as UIBadge} from "./ui";
-
-function useDark() {
-  const q = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-  const [dark, setDark] = useState(q?.matches ?? false);
-  useEffect(() => {
-    if (!q) return;
-    const on = (e: MediaQueryListEvent) => setDark(e.matches);
-    q.addEventListener("change", on);
-    return () => q.removeEventListener("change", on);
-  }, [q]);
-  return dark;
-}
+import { useTheme } from "./theme";
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -49,7 +38,7 @@ export function FigureView({ id }: { id: string }) {
   const f = useAsync(() => api.figure(id), [id]);
   const el = useRef<HTMLDivElement>(null);
   const [table, setTable] = useState(false);
-  const dark = useDark();
+  const theme = useTheme();
   const d = f.data;
 
   useEffect(() => {
@@ -73,7 +62,7 @@ export function FigureView({ id }: { id: string }) {
       gone = true;
       import("plotly.js-cartesian-dist-min").then(({ default: Plotly }) => Plotly.purge(node));
     };
-  }, [d, dark]);
+  }, [d, theme]);
 
   return (
     <UICard className="figure" as="figure">

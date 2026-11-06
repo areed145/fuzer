@@ -38,10 +38,18 @@ port 3000.
 
 Things to try:
 
-- **Browse** and **Search**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
+- **Home** introduces the starting actions and summarizes work, incidents and source/job health.
+  If the register is empty, it links to the **Sources** setup wizard.
+- **Browse**: find `20-K-2300A` or the well `OK-J12-02` and follow the links.
+- **Data review**: resolve uncertain links, conflicting values and held source loads.
 - **Ask**: the operations assistant. Try "Why does lift gas keep running short?"
-- **Board**, **Work** and **Reports**: what the scheduled loop finds and drafts.
-- **Architecture**: the components and what each holds now.
+- **Work board**, **Inbox** and **Daily reports**: what the scheduled loop finds and drafts.
+  Set your name under **You are** in the navigation before using your Inbox. This is decision
+  attribution, not authentication; team roles control which queues you see.
+
+Choose **Settings -> Appearance** for System, Light or Dark mode. The choice is saved in your browser,
+not the facility database. System follows your device's appearance; charts, graphs and map layers
+follow the same choice. On small screens, open the menu to reach navigation and your identity.
 
 The planted stories to find are listed in the [README](https://github.com/areed145/fuzer#okan-field-demo).
 

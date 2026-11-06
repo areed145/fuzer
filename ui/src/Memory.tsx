@@ -2,15 +2,10 @@ import { useState } from "react";
 import { api, type AssistantFact } from "./api";
 import { entityHref, useAsync } from "./lib";
 import { Button, Input , Card as UICard} from "./ui";
+import { loadPerson } from "./work";
 
 /** Who is editing: the name the Review page remembers. */
-export const person = () => {
-  try {
-    return localStorage.getItem("fuzer.reviewer") || "anonymous";
-  } catch {
-    return "anonymous";
-  }
-};
+export const person = () => loadPerson() || "anonymous";
 
 const period = (f: AssistantFact) =>
   f.valid_from && f.valid_to ? `${f.valid_from} to ${f.valid_to}`

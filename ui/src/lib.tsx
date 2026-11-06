@@ -1,14 +1,19 @@
 // Small shared hooks and components.
 
 import { Badge as UIBadge } from "./ui";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Mark } from "./brand";
 
 /** Hash-based routing: #/ , #/e/<id> , #/review. Keeps the API free to own real paths. */
 export function useRoute(): { path: string[]; query: URLSearchParams } {
   const read = () => {
     const [p, q] = window.location.hash.replace(/^#/, "").split("?");
-    return { path: (p || "/").split("/").filter(Boolean).map(decodeURIComponent), query: new URLSearchParams(q) };
+    try {
+      return { path: (p || "/").split("/").filter(Boolean).map(decodeURIComponent), query: new URLSearchParams(q) };
+    } catch (error) {
+      console.warn("Fuzer received a malformed route", error);
+      return { path: ["invalid-route"], query: new URLSearchParams() };
+    }
   };
   const [route, setRoute] = useState(read);
   useEffect(() => {
@@ -32,7 +37,8 @@ export const CHANGED = "fuzer:changed";
 export const notifyChanged = () => window.dispatchEvent(new Event(CHANGED));
 
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
-  const [state, setState] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: true });
+  const key = useMemo(() => ({}), deps);
+  const [state, setState] = useState<{ key: object; data?: T; error?: string; loading: boolean }>({ key, loading: true });
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   // Any data change (a review answer, a finished background rebuild) refreshes every view.
@@ -42,16 +48,16 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   }, [reload]);
   useEffect(() => {
     let live = true;
-    setState((s) => ({ ...s, loading: true, error: undefined }));
+    setState((s) => s.key === key ? { ...s, loading: true, error: undefined } : { key, loading: true });
     fn().then(
-      (data) => live && setState({ data, loading: false }),
-      (e: Error) => live && setState({ error: e.message, loading: false }),
+      (data) => live && setState({ key, data, loading: false }),
+      (e: Error) => live && setState({ key, error: e.message, loading: false }),
     );
     return () => {
       live = false;
     };
   }, [...deps, tick]);
-  return { ...state, reload };
+  return { ...state, ...(state.key === key ? {} : { data: undefined, error: undefined, loading: true }), reload };
 }
 
 export function useDebounced<T>(value: T, ms = 250): T {
@@ -92,7 +98,7 @@ export function Status({ loading, error, empty, children }: {
   empty?: boolean;
   children?: ReactNode;
 }) {
-  if (error) return <div className="status error">Couldn't load: {error}</div>;
+  if (error) return <div className="status error" role="alert">Couldn't load: {error}</div>;
   if (loading) return <div className="status" role="status"><Mark />Loading…</div>;
   if (empty) return <div className="status">{children ?? "Nothing here."}</div>;
   return null;

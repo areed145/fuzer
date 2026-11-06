@@ -5,6 +5,7 @@ import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { PeopleCard } from "./People";
+import { Appearance } from "../theme";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -32,7 +33,8 @@ export function SettingsPage({ query }: { query: URLSearchParams }) {
   const groups = [...new Set(rows.map((s) => s.group))];
   return (
     <section>
-      <PageHeader>Settings</PageHeader>
+      <PageHeader subtitle="Your browser preferences and the facility's operational configuration.">Settings</PageHeader>
+      <Appearance />
       <p className="muted">
         Thresholds, caps, models and schedules. A project value beats the global one, which beats the default. Each
         change needs a reason and is kept in the setting's history. Changes are recorded as <b>{person}</b>.

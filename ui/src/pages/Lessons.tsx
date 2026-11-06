@@ -2,6 +2,7 @@ import { Button, PageHeader, Card as UICard } from "../ui";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync } from "../lib";
+import { usePerson } from "../work";
 
 export function LessonsPage({ query }: { query: URLSearchParams }) {
   const status = query.get("status") ?? "suggested";
@@ -33,7 +34,8 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
 function LessonCard({ lesson }: { lesson: Lesson }) {
   const [text, setText] = useState(lesson.text);
   const [busy, setBusy] = useState(false);
-  const by = (() => { try { return localStorage.getItem("fuzer.reviewer") || "anonymous"; } catch { return "anonymous"; } })();
+  const [person] = usePerson();
+  const by = person || "anonymous";
   const decide = async (d: "approve" | "reject" | "edit") => {
     setBusy(true);
     await api.decideLesson(lesson.id, d, by, text);

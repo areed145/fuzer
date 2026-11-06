@@ -7,7 +7,7 @@ import {
   type WorkRow,
 } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
-import { loadPerson } from "../work";
+import { usePerson } from "../work";
 import { Button, PageHeader, Input , Card as UICard} from "../ui";
 
 type HeadlineFact = { text: string; cites: string[] };
@@ -24,6 +24,12 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
         Home
       </PageHeader>
       <HomeSearch query={query} />
+      {stats && stats.records === 0 && (
+        <UICard title="Connect data before exploring">
+          <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
+          <a href={href("/sources", { view: "add" })}>Open source setup</a>
+        </UICard>
+      )}
       <UICard className="home-guide" aria-labelledby="home-guide-title">
         <h2 id="home-guide-title">Where would you like to start?</h2>
         <div className="home-guide-links">
@@ -106,7 +112,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
   statsLoading: boolean;
   statsError?: string;
 }) {
-  const person = loadPerson();
+  const [person] = usePerson();
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
   const rows = inbox.data ? [...inbox.data.mine, ...inbox.data.queue].slice(0, 4) : [];
   const reviews = stats ? Object.entries(stats.open_reviews).filter(([, count]) => count > 0) : [];

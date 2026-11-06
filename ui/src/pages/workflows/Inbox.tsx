@@ -1,7 +1,7 @@
 import { Button, ButtonLink, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
 /** Inbox: everything waiting for you, most urgent first: escalated to you, assigned to you (and to anyone you're
  * covering for), unclaimed in your roles' queues; plus the data review queue's count. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, holder, usePerson } from "../../work";
@@ -14,7 +14,12 @@ export function InboxPage() {
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
-  if (!person) return <section><PageHeader>Inbox</PageHeader><p>Say who you are in the sidebar (bottom left) to see your work.</p></section>;
+  useEffect(() => setPicked(new Set()), [person]);
+  if (!person) return <section><PageHeader>Inbox</PageHeader><UICard title="Choose an identity to see your work">
+    <p>Use “You are” in the navigation to select the name used by your team. On a small screen, open the menu first.</p>
+    <p className="muted">This records who makes decisions; it is not a sign-in. Team roles determine which queues appear.</p>
+    <ButtonLink href={href("/teams")}>View teams and routing</ButtonLink>
+  </UICard></section>;
   if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
   const d = inbox.data;
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -43,8 +48,8 @@ export function InboxPage() {
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
       <div className="row">
-        <Input placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
+        <Input aria-label="Filter inbox by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Select aria-label="Filter inbox by case type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every kind of case</option>
           {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>

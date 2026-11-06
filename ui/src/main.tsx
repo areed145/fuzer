@@ -3,11 +3,9 @@ import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
 import { Badge as UIBadge } from "./ui";
-import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
+import { StrictMode, Suspense, lazy, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { api } from "./api";
-import { applyOntology } from "./kinds";
-import { href, notifyChanged, useAsync, useRoute } from "./lib";
+import { href, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
 import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
@@ -25,11 +23,14 @@ import { TaskPage } from "./pages/workflows/Task";
 import { CasePage, CasesPage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
-import { loadPerson } from "./work";
 import { Breadcrumbs, Sidebar } from "./nav";
 import { JobsPage, JobRunPage } from "./pages/Jobs";
 import { HomePage } from "./pages/Home";
 import type { JobsHealth } from "./api";
+import { useAppData } from "./useAppData";
+import { AppErrorBoundary } from "./AppErrorBoundary";
+import { EmptyState } from "./ui";
+import "./theme";
 
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
@@ -43,34 +44,10 @@ const FormPage = lazy(() => import("./pages/Processes").then((m) => ({ default: 
 
 function App() {
   const { path, query } = useRoute();
-  const stats = useAsync(() => api.stats(), []);
-  const inbox = useAsync(() => (loadPerson() ? api.inbox(loadPerson()) : Promise.resolve(undefined)), []);
-  const reload = stats.reload;
-  const jobsHealth = useAsync(() => api.jobsHealth(), []);
-  // Kind colours and link views come from the ontology (#241); re-render once they're in.
-  const declared = useAsync(() => api.ontologyDeclared().then((o) => { applyOntology(o); return o; }), []);
+  const { stats, inbox, jobsHealth, declared, rebuilding } = useAppData();
   void declared.data;
-  const reloadHealth = jobsHealth.reload;
-  useEffect(() => {
-    const t = setInterval(reloadHealth, 60_000);
-    return () => clearInterval(t);
-  }, [reloadHealth]);
 
   const s = stats.data;
-  const rebuilding = !!s?.rebuild.running;
-
-  // While a background rebuild runs, poll; when it finishes, tell every view to refresh.
-  const [wasRebuilding, setWasRebuilding] = useState(false);
-  useEffect(() => {
-    if (rebuilding) {
-      const t = setTimeout(reload, 1500);
-      return () => clearTimeout(t);
-    }
-  }, [rebuilding, s, reload]);
-  useEffect(() => {
-    if (wasRebuilding && !rebuilding) notifyChanged();
-    setWasRebuilding(rebuilding);
-  }, [rebuilding, wasRebuilding]);
   const openReviews = s ? Object.values(s.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const section = path[0] ?? "";
   const navSection = !section && query.has("q") ? "browse" : section;
@@ -88,6 +65,7 @@ function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById("main-content")?.focus(); }}>Skip to content</a>
       <Sidebar
         section={navSection}
         badges={{ work, review: openReviews }}
@@ -108,7 +86,7 @@ function App() {
           </>
         }
       />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <Breadcrumbs path={path} />
         <Suspense fallback={<div className="status">Loading…</div>}>
           {section === "" && query.has("q") ? (
@@ -166,7 +144,7 @@ function App() {
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (
-            <Search query={query} stats={s} />
+            <EmptyState title="Page not found"><a href={href("/")}>Return home</a> or use the navigation to choose a page.</EmptyState>
           )}
         </Suspense>
       </main>
@@ -190,6 +168,6 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary><App /></AppErrorBoundary>
   </StrictMode>,
 );

@@ -130,8 +130,7 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     --bg: #0f1216;
     --panel: #171b21;
     --text: #e6e9ee;
@@ -191,7 +190,6 @@
     --brand-hub: #3fc6d4;
     --brand-word: #e6e9ee;
     color-scheme: dark;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -226,4 +224,6 @@ input, select, button {
 button { cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
-input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
