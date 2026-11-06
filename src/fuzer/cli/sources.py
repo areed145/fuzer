@@ -217,7 +217,7 @@ def show(conn, name: str) -> dict:
     d = catalog.dataset(conn, name)
     if not d:
         raise SystemExit(f"no dataset {name!r} (fuzer sources list shows them)")
-    vers = [v for s, t in catalog.produces(d) for v in catalog.versions(conn, s, t)]
+    vers = catalog.versions_for_dataset(conn, d)
     return plain({
         **{k: v for k, v in d.items() if not k.startswith("connection_") and k != "schema"},
         "connection": {"id": d["connection_id"], "name": d["connection_name"], "type": d["connection_type"],

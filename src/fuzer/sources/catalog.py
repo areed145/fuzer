@@ -67,3 +67,8 @@ def seed_files():
 
 def seed(conn, by: str = SEED) -> dict:
     return _io.seed(conn, by, seed_files)
+
+
+def versions_for_dataset(conn, d: dict) -> list[dict]:
+    """All mapping versions for the record types a dataset produces."""
+    return [v for source, record_type in produces(d) for v in versions(conn, source, record_type)]
