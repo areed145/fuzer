@@ -3,6 +3,10 @@
 Read [adapter boundaries](docs/adapter-boundaries.md) and the [UI style guide](docs/ui-style.md)
 before changing user journeys. Reuse domain operations, the settings/capability registries, and the
 local UI kit; do not add a parallel service, component kit, or source of configuration.
+Read [page ownership](docs/page-ownership.md) before adding routes or controls: one owning surface
+per action, reusable contextual entry links, compatible URLs, and no duplicated entity/source/job
+editors. Navigation grouping is not authorization. Users consolidation remains separate (#279);
+Home personalization is a future direction, not permission to add a ranking/widget engine.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,

@@ -153,6 +153,35 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.deepEqual(administrative, []);
 });
 
+test("goal navigation preserves tool URLs, contextual ownership and compatible Work entry", async () => {
+  await page.goto(url);
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  const expected = ["#/", "#/browse", "#/map", "#/network", "#/ontology", "#/investigate/okan",
+    "#/ask", "#/downtime", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies",
+    "#/board", "#/inbox", "#/cases", "#/review", "#/processes", "#/sources", "#/jobs",
+    "#/settings", "#/teams", "https://areed145.github.io/fuzer/"];
+  const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
+  assert.deepEqual(new Set(links), new Set(expected));
+  assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
+  await nav.getByRole("list", { name: "Work", exact: true }).getByRole("link", { name: "Data review", exact: true }).waitFor();
+  await nav.getByRole("list", { name: "Investigate", exact: true }).getByRole("link", { name: "Analytics", exact: true }).waitFor();
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await nav.getByRole("link", { name: "Okan walkthrough", exact: true }).click();
+  await nav.locator('a[href="#/investigate/okan"][aria-current="page"]').waitFor();
+  assert.equal(await nav.getByRole("link", { name: "Okan walkthrough", exact: true }).getAttribute("aria-current"), "page");
+  await page.getByRole("navigation", { name: "Breadcrumb", exact: true }).getByText("Investigate", { exact: true }).waitFor();
+  await page.goto(`${url}/#/work`);
+  await page.waitForURL(/#\/inbox$/);
+  await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();
+  assert.equal(await nav.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  await nav.getByRole("link", { name: "Sources", exact: true }).click();
+  await page.waitForURL(/#\/sources$/);
+  await page.getByRole("button", { name: "Open menu", exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test("fresh Microsoft visitor gets a responsive sign-in entry without preloading protected APIs", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: null } }));

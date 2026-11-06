@@ -102,7 +102,8 @@ function Datasets() {
           Jobs owns scheduler diagnostics and run failures; a deployment operator repairs missing infrastructure.</li>
       </ol>
       <p className="muted small">Application-wide defaults, AI limits and restart requirements belong in{" "}
-        <a href={href("/settings")}>Settings</a>. Secret values stay in hosting.</p>
+        <a href={href("/settings")}>Settings</a>. Secret values stay in hosting.
+        {" "}Human decisions on held data are in <a href={href("/review")}>Data review</a>; Sources remains the place to retry loads.</p>
       <Status loading={cat.loading && !cat.data} error={cat.error} empty={!!cat.data && rows.length === 0}>
         No datasets yet: <a href={href("/sources", { view: "add" })}>add a source</a>.
       </Status>

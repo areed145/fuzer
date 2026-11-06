@@ -44,6 +44,8 @@ export function JobsPage() {
         Fuzer's scheduled work: loading exports, rebuilding the register, Claude reading new text, upset detection,
         the daily report and the work engine's timers. Each job's schedule or sensor, whether it's on, and how its
         recent runs went, read from the Dagster scheduler.
+        {" "}For connection tests, dataset loading and freshness recovery, open <a href={href("/sources")}>Sources</a>.
+        {" "}Application defaults and restart requirements are in <a href={href("/settings")}>Settings</a>.
       </p>
       <Status loading={o.loading && !o.data} error={o.error} />
       {o.data && !o.data.available && (

@@ -1,6 +1,9 @@
 # UI style guide
 
 The UI uses a small local component kit in `ui/src/ui/`. Use it for shared page structure and controls; keep specialized visualizations and editor integrations in their own components.
+Page and action ownership is defined in [page ownership](page-ownership.md). Group existing
+surfaces by user goals, preserve compatible routes and use contextual links rather than copying
+another owner's viewer, editor or action.
 
 ## Components
 
