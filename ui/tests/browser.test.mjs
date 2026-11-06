@@ -165,23 +165,24 @@ test("Analytics renders declarative daily panels, linked hover/zoom, unknown day
     const query = new URL(route.request().url()).searchParams;
     requests.push(Object.fromEntries(query));
     const end = query.get("end") || "2026-10-14";
+    const overflow = query.get("ref") === "overflow-plant";
     const points = Array.from({ length: 14 }, (_, i) => ({
       date: new Date(Date.parse(end) - (13 - i) * 86_400_000).toISOString().slice(0, 10),
       dynamic_max_sm3d: i === 5 ? null : 100 + i,
       allocated_sm3d: i === 5 ? null : i === 6 ? 132.5 : 80 + i,
       gap_sm3d: i === 5 ? null : i === 6 ? -26.5 : 20,
-      efficiency_pct: i === 5 ? null : i === 6 ? 125 : 80,
+      efficiency_pct: i === 5 || (overflow && i === 6) ? null : i === 6 ? 125 : 80,
       active_constraint_id: i === 5 || i === 6 ? null : "export",
       binding_constraint_ids: i === 5 || i === 6 ? [] : i === 3 ? ["export", "compressor"] : ["export"],
       capacity_basis: i === 5 ? "missing" : i === 6 ? "reported_potential" : "declared_limits",
-      flags: i === 5 ? ["missing_day"] : [], source_ids: ["report-1"],
+      flags: i === 5 ? ["missing_day"] : overflow && i === 6 ? ["derived_metric_overflow"] : [], source_ids: ["report-1"],
     }));
     return route.fulfill({ json: {
       since: points[0].date, until: new Date(Date.parse(end) + 86_400_000).toISOString().slice(0, 10),
       end, step: "day", unit: "Sm3/d", facility: { id: query.get("ref") || "plant", label: "Test plant" },
       source: "Daily production reports", points,
       constraints: [{ id: "export", label: "Export", category: "export" }, { id: "compressor", label: "Compressor", category: "equipment" }],
-      summary: { efficiency_pct: 80, allocated_sm3: 1040, dynamic_max_sm3: 1300, paired_days: 13 },
+      summary: { efficiency_pct: 80, allocated_sm3: overflow ? null : 1040, dynamic_max_sm3: overflow ? null : 1300, paired_days: 13 },
       warnings: ["One production day is unknown"],
     } });
   });
@@ -264,6 +265,12 @@ test("Analytics renders declarative daily panels, linked hover/zoom, unknown day
   await page.getByRole("button", { name: "Latest report", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?.data[0].x[13] === "2026-10-14");
   assert.deepEqual(requests.at(-1), { ref: "other-plant" });
+  await page.getByLabel("Facility ref (optional)").fill("overflow-plant");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".analytics-summary strong").length === 3 &&
+    document.querySelector(".analytics-summary").textContent.includes("Unknown"));
+  assert.equal(await page.locator(".analytics-summary strong").filter({ hasText: "Unknown" }).count(), 2);
+  await page.getByRole("cell", { name: /reported potential · derived_metric_overflow/ }).waitFor();
   await page.getByText("Dashboard JSON · customize & save", { exact: true }).click();
   const editor = page.getByLabel("Dashboard specification");
   const spec = JSON.parse(await editor.inputValue());

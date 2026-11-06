@@ -25,8 +25,8 @@ export interface ProductionEfficiency {
   constraints: { id: string; label: string; category: string }[];
   summary: {
     efficiency_pct: number | null;
-    allocated_sm3: number;
-    dynamic_max_sm3: number;
+    allocated_sm3: number | null;
+    dynamic_max_sm3: number | null;
     paired_days: number;
   };
   warnings: string[];
