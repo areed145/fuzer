@@ -100,14 +100,12 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
         """, (CACHE,)).fetchall()
     todo = [r for r in rows if force or r["prompt_version"] != PROMPT_VERSION
             or r["text_hash"] != r["payload"]["file_sha256"][:16]][:limit]
-    stats = {"datasheets": len(todo), "model": model, "effort": effort}
+    stats = {"datasheets": len(todo), "model": model, "effort": effort, "provider": llm.provider()}
     if dry_run or not todo:
         stats["queued_for_review"] = queue_reviews(conn, pack) if not dry_run else 0
         return stats
     if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = llm.client()
 
     def request(r):
         text, images = page_content(Path(r["payload"]["file_path"]))
@@ -148,7 +146,8 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
             except Exception as e:  # one unreadable sheet shouldn't stop the others
                 totals["failed_requests"] += 1
                 errors.append(f"{futures[fut]['source_key']}: {type(e).__name__}: {e}")
-    return {**stats, **totals, "queued_for_review": queue_reviews(conn, pack), "errors": errors[:5]}
+    return {**stats, **totals, **llm.cost_report(model, totals), "queued_for_review": queue_reviews(conn, pack),
+            "errors": errors[:5]}
 
 
 def queue_reviews(conn, pack: Pack) -> int:

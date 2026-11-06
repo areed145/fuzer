@@ -239,15 +239,20 @@ def _claude_spend(instance, defs) -> dict:
         mats = _materializations(instance, rec.dagster_run.run_id)
         tin = sum(int(m["metadata"].get("input_tokens") or 0) for m in mats)
         tout = sum(int(m["metadata"].get("output_tokens") or 0) for m in mats)
+        tcached = sum(int(m["metadata"].get("cache_read_tokens") or 0) for m in mats)
         model = next((m["metadata"].get("model") for m in mats if m["metadata"].get("model")), "")
-        usd = cost(model, tin, tout)[0] if (tin or tout) else 0.0
-        if batch:
+        provider = next((m["metadata"].get("provider") for m in mats if m["metadata"].get("provider")),
+                        "anthropic")
+        usd = cost(model, tin, tout, tcached, provider=provider)[0] if (tin or tout) else 0.0
+        if batch and provider == "anthropic":
             usd /= 2  # batch requests are half price
         runs.append({**_run_summary(rec), "model": model, "input_tokens": tin, "output_tokens": tout,
-                     "usd": round(usd, 2)})
+                     "cache_read_tokens": tcached,
+                     "provider": provider, "usd": round(usd, 2)})
     sched = next((s for s in defs.schedules or [] if s.job_name == CLAUDE_JOB), None)
     state = _states(instance).get(sched.name) if sched else None
     return {
+        "providers": sorted({r["provider"] for r in runs}),
         "schedule": _status(state[0] if state else None, sched.default_status) if sched else "none",
         "runs": runs,
         "usd_30d": round(sum(r["usd"] for r in runs if r["start"] and r["start"] >= _iso(time.time() - 30 * DAY)), 2),

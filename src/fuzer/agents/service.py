@@ -8,11 +8,10 @@ Answers are saved in assistant_answer so engineers can rate them.
 import asyncio
 import hashlib
 import json
-import os
 import time
 import uuid
 
-from ..core import db, settings
+from ..core import db, llm, settings
 
 _team = None
 _purged_at = 0.0
@@ -31,8 +30,8 @@ def team():
         from . import team as make_team
         from .history import PostgresHistory
 
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise Unavailable("Set ANTHROPIC_API_KEY (in .env) to use the operations assistant.")
+        if not llm.configured("agents"):
+            raise Unavailable("Configure the agents provider API key to use the operations assistant.")
         _team = make_team(history=PostgresHistory())
     return _team
 
@@ -40,7 +39,7 @@ def team():
 def start(question: str, conversation_id: str | None = None, by: str = "anonymous",
           images: list[tuple[str, bytes]] | None = None) -> dict:
     """Start answering in the background; returns the job id and conversation id at once. `images`
-    (media type, bytes) go to Claude with the question."""
+    (media type, bytes) go to the configured provider with the question."""
     from . import ask, history
 
     agent = team()

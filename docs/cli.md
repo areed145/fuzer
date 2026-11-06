@@ -98,13 +98,13 @@ run the API
 
 ## `fuzer llm-link`
 
-have Claude read operator logs and scanned P&IDs, then rebuild
+have the configured LLM read operator logs and scanned P&IDs, then rebuild
 
 | Argument | What it does |
 |---|---|
 | `--source` (logs / pids / docs / curves / all) |  |
 | `--limit` | only this many entries (try a small sample first) |
-| `--model` | Claude model id (default: the setting llm.model) |
+| `--model` | model id (default: the setting llm.model) |
 | `--effort` (low / medium / high / xhigh / max) |  |
 | `--per-request` | log entries per request |
 | `--workers` | parallel requests |
@@ -141,7 +141,7 @@ run the Dagster UI with schedules and sensors
 
 ## `fuzer ask`
 
-ask the operations assistant one question (Claude agents)
+ask the operations assistant one question
 
 | Argument | What it does |
 |---|---|
@@ -166,7 +166,7 @@ work engine (#97): load the starting processes, run the agent worker, fire timer
 
 | Argument | What it does |
 |---|---|
-| `action` (load / worker / tick) | load: import and publish definitions/*.bpmn; worker: run agent steps with the assistant's specialists (Claude; costs money); tick: fire due timers and escalate overdue tasks once |
+| `action` (load / worker / tick) | load: import and publish definitions/*.bpmn; worker: run agent steps with the assistant's specialists; tick: fire due timers and escalate overdue tasks once |
 
 ## `fuzer limits`
 

@@ -25,7 +25,7 @@ def test_up_makes_data_loads_and_skips_unchanged(monkeypatch, capsys):
         assert conn.execute("select count(*) as n from entity").fetchone()["n"] > 100
         up.read_with_claude(conn, PACK)
         out = capsys.readouterr().out
-        assert "Building the register" in out and "Add ANTHROPIC_API_KEY" in out
+        assert "Building the register" in out and "Configure the provider API key" in out
         assert "operator log entries" in out and "drawings" in out
 
         up.load(conn, PACK, folder, fresh=False)  # nothing changed: no rebuild
@@ -149,6 +149,8 @@ def test_up_starts_and_stops_dagster(monkeypatch, tmp_path):
 
 
 def test_up_starts_the_agent_worker(monkeypatch, tmp_path, capsys):
+    from fuzer.core import settings
+
     started = []
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://x/y")
@@ -162,3 +164,6 @@ def test_up_starts_the_agent_worker(monkeypatch, tmp_path, capsys):
     assert up.start_worker(load_pack("okan")) is not None
     assert started[0][-4:] == ["--pack", "okan", "work", "worker"]
     assert (tmp_path / ".fuzer" / "worker.log").exists()
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with settings.Overrides({"agents.provider": "ollama"}):
+        assert up.start_worker(load_pack("okan")) is not None

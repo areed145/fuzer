@@ -287,7 +287,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                               candidates_for(r["text"], pack, reg), reg) for r in todo]
     chunks = [entries[i:i + per_request] for i in range(0, len(entries), per_request)]
     stats = {"entries": len(entries), "requests": len(chunks), "model": model, "effort": effort,
-             "already_cached": len(rows) - len(todo) if not force else 0}
+             "provider": llm.provider(), "already_cached": len(rows) - len(todo) if not force else 0}
     if dry_run or not chunks:
         # Rough size: ~4 characters per token for the entries, plus the instructions per request.
         chars = sum(len(json.dumps(e)) for e in entries)
@@ -295,9 +295,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
         return stats
 
     if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = llm.client()
     hashes = {f"{r['name']}|{r['source_key']}": r["hash"] for r in todo}
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
               "unknown_entry": 0, "unknown_candidate": 0, "failed_requests": 0, "stored": 0}
@@ -324,7 +322,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                 except Exception as e:  # one bad request shouldn't lose the rest
                     totals["failed_requests"] += 1
                     errors.append(f"{type(e).__name__}: {e}")
-    return {**stats, **totals, "errors": errors[:5]}
+    return {**stats, **totals, **llm.cost_report(model, totals), "errors": errors[:5]}
 
 
 

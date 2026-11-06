@@ -9,10 +9,13 @@ You need [uv](https://docs.astral.sh/uv/) and Node.js (for the web UI). Docker i
 ```sh
 git clone https://github.com/areed145/fuzer && cd fuzer
 uv sync
-cp .env.example .env      # put your Anthropic key in ANTHROPIC_API_KEY
+cp .env.example .env      # add provider credentials to the environment
 ```
 
-Without a key everything runs except Claude's reading and the operations assistant.
+OpenAI-compatible providers are optional: use `uv sync --extra openai`, then select the provider and
+model in Settings. Configure endpoint and API-key environment-variable references there; Ollama
+defaults to `http://localhost:11434/v1`. Without provider credentials, everything runs except LLM
+reading and the operations assistant.
 
 **Database.** Leave `FUZER_DATABASE_URL` unset and Fuzer runs a built-in Postgres in `.fuzer/pgdata`. To use
 your own, `docker compose up -d` starts one on localhost:5432; then set

@@ -2,9 +2,10 @@
 
 The operations assistant, its specialists and their tools.
 
-## Operations assistant (Claude agents)
-A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), calling Claude
-through MAF's Anthropic client with the same key as the Claude readers (`src/fuzer/agents/`):
+## Operations assistant
+A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), using the
+provider selected by `agents.provider` (`anthropic` by default; `openai`, `azure_openai` and `ollama`
+are also supported):
 
 - **Orchestrator.** Answers lookups itself and hands domain work to specialists as MAF
   *background agents*, which run at the same time. It writes the final answer using its `answering`
@@ -22,12 +23,15 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   trend and cascade causes, well-test performance, bad actors and MTBF, work order backlog, PM and
   inspection compliance, and turnaround scope. All are read-only, compact, and dated from the data's
   latest daily report.
-- **Claude settings.** `claude-opus-5-5` by default (the settings `agents.model` for the orchestrator,
-  `agents.specialist_model` for the specialists), effort `high` for the orchestrator and `medium`
+- **Provider settings.** `agents.model` selects the orchestrator model and
+  `agents.specialist_model` for the specialists; effort is `high` for the orchestrator and `medium`
   for the specialists. Each answer reports calls, tokens and cost per model, as the API reports the
-  serving model; a model missing from `pricing.py` is flagged as unpriced. Automatic prompt caching
-  is on. The server-side refusal fallback is on (the setting `agents.fallbacks` turns it off). No `thinking` parameter is sent: MAF's adapter only knows
-  the older budget form, and Opus 5.5 thinks adaptively by default. Web search and file memory are
+  serving model; a model missing from `pricing.py` is flagged as unpriced. Anthropic prompt caching
+  and server-side refusal fallback are provider-specific; `agents.fallbacks` controls the latter.
+  Install `uv sync --extra openai` to use OpenAI, Azure OpenAI or Ollama. `agents.base_url` sets a
+  custom endpoint and `agents.api_key` stores an environment-variable reference, not a key value.
+  Ollama defaults to `http://localhost:11434/v1` and needs no API key. Anthropic's adapter uses its
+  default adaptive thinking; supported OpenAI reasoning models receive the configured effort. Web search and file memory are
   off. The agent framework is a core dependency. `agent-framework-anthropic` still declares `anthropic<2`, so a uv override keeps Fuzer's 2.x
   SDK; the tests run the adapter against it.
 - **Surfaces.** `fuzer ask` / `fuzer chat`, and the Ask page. The page uses `/assistant/ask`, which
@@ -36,7 +40,7 @@ through MAF's Anthropic client with the same key as the Claude readers (`src/fuz
   rate it through `feedback` (`answer:<id>`).
 - **Conversations** are kept in Postgres (`agents/history.py`, #93), so they survive a restart and a
   follow-up can carry on after one. A MAF history provider writes each message to `assistant_message`
-  as MAF serialises it, in a `json` column (not `jsonb`) so Claude's thinking blocks come back byte for
+  as MAF serialises it, in a `json` column (not `jsonb`) so provider-specific history comes back byte for
   byte, which a follow-up needs. Attached images are stored once per conversation in `assistant_image`
   and referenced from the messages. `assistant_conversation` holds each conversation's asker, title and
   dates. The Ask page lists your recent conversations and reopens one (`/assistant/conversations`).

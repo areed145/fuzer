@@ -199,7 +199,8 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
     missing = [r["source_key"] for r in rows if not r["payload"].get("image_sha256")]
     todo = [r for r in rows if r["payload"].get("image_sha256") and (
         force or r["text_hash"] != r["payload"]["image_sha256"] or r["prompt_version"] != PROMPT_VERSION)][:limit]
-    stats = {"sheets": len(todo), "model": model, "effort": effort, "image_missing": len(missing),
+    stats = {"sheets": len(todo), "model": model, "effort": effort, "provider": llm.provider(),
+             "image_missing": len(missing),
              "already_cached": len(rows) - len(todo) - len(missing) if not force else 0}
     if dry_run or not todo:
         # Images cost about width x height / 750 tokens each.
@@ -208,9 +209,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
         return stats
 
     if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = llm.client()
     known_tags = {r["key"] for r in conn.execute("select key from entity_key where kind = 'tag'")}
     sheets = {r["source_key"]: r["payload"] for r in todo}
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "failed_requests": 0,
@@ -254,7 +253,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                 except Exception as e:
                     totals["failed_requests"] += 1
                     errors.append(f"{futures[fut]}: {type(e).__name__}: {e}")
-    return {**stats, **totals, "errors": errors[:5]}
+    return {**stats, **totals, **llm.cost_report(model, totals), "errors": errors[:5]}
 
 
 def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:

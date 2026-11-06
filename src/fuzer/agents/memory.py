@@ -27,7 +27,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import llm
+from ..core import llm, settings
 from ..core.pack import Pack
 
 FUZER_ID = re.compile(r"\bfz-[a-z_]+-[0-9a-f]{12}\b")
@@ -176,11 +176,13 @@ def learn(conn, pack: Pack, answer_id: str, statement: str | None = None, by: st
                         "entities": [e["label"] or e["id"] for e in f["entities"]],
                         "valid_from": _iso(f["valid_from"]), "valid_to": _iso(f["valid_to"])} for f in known],
     }
+    model = model or settings.get(None, "agents.model")
     message = llm.call(client or _client(), {
-        "model": model or llm.model(), "max_tokens": 4000,
+        "model": model, "max_tokens": 4000,
         "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False, default=str)}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}})
+        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}}},
+        scope="agents")
     if message.stop_reason in ("refusal", "max_tokens"):
         return {"error": f"stopped: {message.stop_reason}", "facts": []}
     out = json.loads(next(b.text for b in message.content if b.type == "text"))
@@ -207,24 +209,23 @@ def learn(conn, pack: Pack, answer_id: str, statement: str | None = None, by: st
         if f.get("lesson") and (lesson := _suggest_lesson(conn, entity_ids, f, answer_id)):
             lessons.append(lesson)
     conn.commit()
-    return {"facts": stored, "ended": ended, "lessons": lessons, "usage": llm.usage(message)}
+    measured = llm.usage(message)
+    return {"facts": stored, "ended": ended, "lessons": lessons, "usage": {
+        "model": model, **measured, **llm.cost_report(model, measured, "agents")}}
 
 
 def _client():
-    import anthropic
-
-    return anthropic.Anthropic()
+    return llm.client("agents")
 
 
 def learn_later(answer_id: str, statement: str | None = None, by: str = "anonymous") -> None:
     """learn() on its own connection, for a background task after a rating; without a key it does nothing."""
     import logging
-    import os
-
     from ..core import db
+    from ..core import llm
     from . import mcp_server
 
-    if not os.environ.get("ANTHROPIC_API_KEY") and _client is _DEFAULT_CLIENT:
+    if not llm.configured("agents") and _client is _DEFAULT_CLIENT:
         return
     try:
         with db.connect() as conn:

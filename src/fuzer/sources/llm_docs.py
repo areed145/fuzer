@@ -103,14 +103,13 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
     entries = [{"section_id": r["source_key"], "heading": r["payload"].get("heading"),
                 "text": r["payload"].get("text", ""), "candidates": cands.get(r["source_key"], [])} for r in todo]
     chunks = [entries[i:i + per_request] for i in range(0, len(entries), per_request)]
-    stats = {"sections": len(entries), "requests": len(chunks), "model": model, "effort": effort}
+    stats = {"sections": len(entries), "requests": len(chunks), "model": model, "effort": effort,
+             "provider": llm.provider()}
     if dry_run or not chunks:
         stats["estimated_input_tokens"] = sum(len(json.dumps(e)) for e in entries) // 4 + len(chunks) * 600
         return stats
     if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
+        client = llm.client()
 
     legend = "Failure mode codes: " + "; ".join(f"{k} = {v}" for k, v in modes.items())
 
@@ -172,7 +171,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                 except Exception as e:
                     totals["failed_requests"] += 1
                     errors.append(f"{type(e).__name__}: {e}")
-    return {**stats, **totals, "errors": errors[:5]}
+    return {**stats, **totals, **llm.cost_report(model, totals), "errors": errors[:5]}
 
 
 def apply_cached(conn, cands: list[Candidate]) -> list[Edge]:

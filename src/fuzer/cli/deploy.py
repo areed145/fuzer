@@ -7,7 +7,7 @@ import sys
 import threading
 from pathlib import Path
 
-from ..core import db
+from ..core import db, llm
 from ..workflow import engine
 from .demo_seed import seed
 
@@ -21,11 +21,11 @@ def commands() -> list[tuple[str, list[str]]]:
                                "-h", "127.0.0.1", "-p", "3000"]),
         ("Dagster daemon", ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]),
     ]
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    if llm.configured("agents"):
         tasks.append(("Agent worker", ["fuzer", "--pack", os.environ["FUZER_PACK"], "work", "worker"]))
     else:
-        print("ANTHROPIC_API_KEY is not set: Ask and workflow agent steps are unavailable. "
-              "Set it in Render and redeploy to start the worker.", flush=True)
+        print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
+              "Configure its key and redeploy to start the worker.", flush=True)
     tasks.append(("API", [sys.executable, "-m", "uvicorn", "fuzer.api:app",
                           "--host", "0.0.0.0", "--port", str(port)]))
     return tasks

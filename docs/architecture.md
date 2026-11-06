@@ -15,8 +15,8 @@ flowchart LR
   c_analysis["Analyses<br><small>fuzer.analysis, 11 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 3 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 12 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 4 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 13 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 13 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
@@ -220,7 +220,7 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `engine`, `roles`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `bpmn`, `canvas`, `engine`, `roles`
 - **Uses:** nothing else in fuzer
 - **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
@@ -229,10 +229,10 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.maintenance`, `capabilities.production`, `capabilities.shared`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.maintenance`, `capabilities.production`, `capabilities.shared`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
-- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))
+- **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.retention_days`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** maintenance 50, orchestrator 20, production 55, troubleshooter 70 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
@@ -243,7 +243,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 - **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `ops_eval`, `replay`, `runs`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_fact`, `lesson`, `ops_eval`, `point_normal` ([schema](schema.md))
-- **Settings:** `opportunities.gas_lift_breakeven` ([settings](settings.md))
+- **Settings:** `agents.model`, `opportunities.gas_lift_breakeven` ([settings](settings.md))
 - **Tests:** [`tests/evals`](https://github.com/areed145/fuzer/tree/main/tests/evals)
 
 ### API

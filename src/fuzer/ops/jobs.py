@@ -140,9 +140,11 @@ def register(fuzer: Fuzer) -> dg.MaterializeResult:
 
 
 def _claude_result(stats: dict, rebuilt: bool) -> dg.MaterializeResult:
-    keep = ("entries", "sheets", "sections", "stored", "failed_requests", "input_tokens", "output_tokens", "findings")
+    keep = ("entries", "sheets", "sections", "stored", "failed_requests", "input_tokens", "output_tokens",
+            "cache_read_tokens", "findings")
     return dg.MaterializeResult(metadata={**{k: v for k, v in stats.items() if k in keep},
-                                          "model": stats.get("model", ""), "rebuilt": rebuilt,
+                                          "model": stats.get("model", ""), "provider": stats.get("provider", ""),
+                                          "rebuilt": rebuilt,
                                           "errors": dg.MetadataValue.json(stats.get("errors", []))})
 
 
