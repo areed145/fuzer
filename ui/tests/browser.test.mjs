@@ -34,7 +34,9 @@ beforeEach(async () => {
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
     "/incidents": { items: [], total: 0 },
     "/jobs/health": { available: false, level: "unknown", summary: "" },
-    "/jobs": { jobs: [], checks: [], health: { summary: "No jobs configured" } },
+    "/jobs": { available: false, dagster: { url: "", reachable: false },
+      scheduler: { running: false, last_heartbeat: null }, jobs: [], sensors: [], checks: [],
+      health: { summary: "No jobs configured" }, claude: null },
     "/ontology/declared": { groups: [], views: [], kinds: [], relations: [] },
   };
   await page.route("**/*", async (route) => {
@@ -574,6 +576,7 @@ test("review custom-value confirmation and cancellation do not resubmit the cont
 test("seven primary destinations expose compatible specialist routes through area navigation", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  await nav.locator("a").first().waitFor();
   const expected = ["#/", "#/browse", "#/investigate/okan", "#/board", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
@@ -585,7 +588,9 @@ test("seven primary destinations expose compatible specialist routes through are
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
     ["#/investigate/okan", "#/ask", "#/downtime", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies"]);
-  await page.getByRole("navigation", { name: "Breadcrumb", exact: true }).getByText("Okan investigation", { exact: true }).waitFor();
+  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
+  await breadcrumb.getByText("Okan investigation", { exact: true }).waitFor();
+  assert.equal(await breadcrumb.getByText("Okan investigation", { exact: true }).count(), 1);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/board"][aria-current="page"]').waitFor();
@@ -601,8 +606,50 @@ test("seven primary destinations expose compatible specialist routes through are
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
   await nav.getByRole("link", { name: "Sources", exact: true }).click();
   await page.waitForURL(/#\/sources$/);
-  await page.getByRole("button", { name: "Open menu", exact: true }).waitFor();
+  const menu = page.getByRole("button", { name: "Open menu", exact: true });
+  await menu.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open menu");
+  await page.waitForFunction(() =>
+    document.querySelector('#sidebar nav[aria-label="Main"] a[href="#/sources"][aria-current="page"]'));
+  await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test("primary destination navigation keeps page headings and active context aligned", async () => {
+  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.goto(url);
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  await nav.locator("a").first().waitFor();
+  const destinations = [
+    { label: "Home", href: "#/", heading: "Home" },
+    { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
+    { label: "Investigate", href: "#/investigate/okan", heading: "Okan investigation", area: "Investigate pages", current: "Okan investigation" },
+    { label: "Work", href: "#/board", heading: "Work board", area: "Work pages", current: "Work board" },
+    { label: "Sources", href: "#/sources", heading: "Sources" },
+    { label: "Jobs", href: "#/jobs", heading: "Jobs" },
+    { label: "Settings", href: "#/settings", heading: "Settings", area: "Settings pages", current: "Application settings" },
+  ];
+  await nav.getByRole("link", { name: "Explore", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { level: 1, name: "Browse", exact: true }).waitFor();
+  await page.waitForFunction(() =>
+    document.querySelector('#sidebar nav[aria-label="Main"] a[aria-current="page"]')?.getAttribute("href") === "#/browse");
+  assert.equal(await page.evaluate(() => document.activeElement?.tagName), "H1");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Browse");
+  for (const destination of destinations) {
+    await page.goto(`${url}/${destination.href}`);
+    await page.waitForFunction((href) =>
+      document.querySelector('#sidebar nav[aria-label="Main"] a[aria-current="page"]')?.getAttribute("href") === href,
+    destination.href);
+    await page.getByRole("heading", { level: 1, name: destination.heading, exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
+    if (destination.area) {
+      const area = page.getByRole("navigation", { name: destination.area, exact: true });
+      await area.getByRole("link", { name: destination.current, exact: true }).waitFor();
+      assert.equal(await area.locator('a[aria-current="page"]').count(), 1);
+      assert.equal(await area.getByRole("link", { name: destination.current, exact: true }).getAttribute("aria-current"), "page");
+    }
+  }
 });
 
 test("fresh Microsoft visitor gets a responsive sign-in entry without preloading protected APIs", async () => {
@@ -973,6 +1020,7 @@ test("Analytics renders declarative daily panels, linked hover/zoom, unknown day
   });
   assert.ok(await chart.evaluate((node) => node._fullLayout.yaxis.range[1] > 132.5), "Rates above capacity are not clipped");
   const originalRange = await chart.evaluate((node) => [...node._fullLayout.xaxis.range]);
+  const dataRange = await chart.evaluate((node) => [node.data[0].x[0], node.data[0].x.at(-1)]);
   const drag = await chart.evaluate((node) => {
     const box = node.getBoundingClientRect(), l = node._fullLayout;
     return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis._offset, w: l.xaxis._length, h: l.yaxis._length };
@@ -985,7 +1033,11 @@ test("Analytics renders declarative daily panels, linked hover/zoom, unknown day
   assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace._xaxis === node._fullLayout.xaxis || trace.xaxis === "x")));
   // Reset, then zoom from the categorical subplot; both panels still use the same range.
   await page.mouse.dblclick(drag.x + drag.w * .5, drag.y + drag.h * .5);
-  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) === JSON.stringify(range), originalRange);
+  await page.waitForFunction((dates) => {
+    const range = document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range;
+    return Date.parse(range[0]) <= Date.parse(dates[0]) && Date.parse(range[1]) >= Date.parse(dates[1]);
+  }, dataRange);
+  const resetRange = await chart.evaluate((node) => [...node._fullLayout.xaxis.range]);
   const lowerDrag = await chart.evaluate((node) => {
     const box = node.getBoundingClientRect(), l = node._fullLayout;
     return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis2._offset + l.yaxis2._length / 2, w: l.xaxis._length };
@@ -994,7 +1046,7 @@ test("Analytics renders declarative daily panels, linked hover/zoom, unknown day
   await page.mouse.down();
   await page.mouse.move(lowerDrag.x + lowerDrag.w * .7, lowerDrag.y, { steps: 8 });
   await page.mouse.up();
-  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), originalRange);
+  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), resetRange);
   assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace.xaxis === "x")));
   await page.getByRole("button", { name: "Show daily data", exact: true }).click();
   await page.getByRole("cell", { name: "2026-10-06", exact: true }).waitFor();
