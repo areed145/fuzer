@@ -159,6 +159,14 @@ def test_agent_proposal_is_unsaved_then_uses_existing_lifecycle(conn, client, mo
         return {"findings": "No drift"}
     worker.run_once(conn, {"troubleshooter": inspect})
     assert engine.item(conn, item["item_id"])["processes"][0]["state"] == "completed"
+    item = engine.start(conn, "canvas_test", {}, "alice")
+    claimed = worker.claim(conn, "migration-worker", ["troubleshooter"])
+    newer = engine.import_bpmn(conn, r.json()["xml"].replace("inspect", "recheck"), "alice")[0]
+    engine.publish(conn, newer["id"], "olga")
+    engine.migrate(conn, item["process_id"], newer["id"], "olga", {"inspect": "recheck"})
+    call = worker._call(conn, claimed, "migration-worker", engine.utcnow(), worker.LEASE)
+    assert call.element == "recheck" and call.instructions == "Inspect drifts over the last 24 hours"
+    engine.complete(conn, claimed["id"], "agent:troubleshooter", {}, worker="migration-worker")
 
 
 def test_agent_drafting_failures_leave_definition_unchanged(conn, client, monkeypatch):

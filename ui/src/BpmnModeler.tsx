@@ -116,7 +116,7 @@ function WorkflowPalette({ modeler }: { modeler: Modeler }) {
         use its connect handle to draw a connection.</p>
       <div className="actions">
         {workflowComponents.map((c) => <Button key={c.id} onMouseDown={(e) => e.button === 0 && add(c.id, e)}
-          onClick={(e) => e.detail === 0 && add(c.id)} title={`Add ${c.name}`}>
+          onClick={() => add(c.id)} title={`Add ${c.name}`}>
           <i className={`bpmn-icon-${c.icon}`} aria-hidden="true" /> {c.name}
         </Button>)}
       </div>
@@ -143,6 +143,7 @@ function Properties({ modeler, ctx }: { modeler: Modeler; ctx: ModelerContext })
   const [, refresh] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
+    setEl(undefined);
     const onSelect = (e: any) => setEl(e.newSelection.length === 1 ? e.newSelection[0] : undefined);
     const onChange = () => {
       // a removed element can't be edited; fall back to the process
@@ -249,7 +250,8 @@ function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
       <Select label="Owner role" value={p.ownerRole} options={ctx.roles.person} blank="engineer (default)"
         onChange={(v) => ed.setOn(p, { ownerRole: v })} hint="Gets a step that can't go on (a failing condition, say)." />
       <Thresholds rows={thresholds} onSave={saveThresholds} />
-      <p className="muted small">Select an element to edit it. Drag shapes from the palette on the left; only the parts the engine runs are offered.</p>
+      <p className="muted small">Select a step to edit it. Drag named components onto the canvas;
+        advanced BPMN tools offer the other supported event and lane options.</p>
     </>
   );
 }

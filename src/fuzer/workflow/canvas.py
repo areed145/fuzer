@@ -136,7 +136,7 @@ def compile_bpmn(draft: Draft, key: str, name: str) -> str:
         sub(edge, DI, "waypoint", x=x + w, y=y + h // 2)
         sub(edge, DI, "waypoint", x=tx, y=ty + th // 2)
     for el in elements.values():
-        refs = [child for child in el if child.tag in (f"{{{bpmn.BPMN}}}incoming", f"{{{bpmn.BPMN}}}outgoing")]
+        refs = el.findall(f"{{{bpmn.BPMN}}}incoming") + el.findall(f"{{{bpmn.BPMN}}}outgoing")
         for child in refs:
             el.remove(child)
         el[:] = refs + list(el)

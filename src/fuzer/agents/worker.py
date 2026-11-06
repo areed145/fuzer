@@ -84,8 +84,9 @@ def claim(conn, worker: str, roles: list[str] | None = None, now: datetime | Non
 
 def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentCall:
     lease = lease or timedelta(seconds=settings.get(conn, "work.lease_seconds"))
-    proc = conn.execute("select data, definition_id from work_process where id = %s", (t["process_id"],)).fetchone()
-    node = engine._definition(conn, proc["definition_id"]).nodes[t["element"]]
+    proc = conn.execute("select p.data, p.definition_id, t.element, t.name from work_process p "
+                        "join work_token t on t.process_id = p.id where t.id = %s", (t["id"],)).fetchone()
+    node = engine._definition(conn, proc["definition_id"]).nodes[proc["element"]]
     item = conn.execute("select id, type, title, subjects, priority, payload from work_item where id = %s",
                         (t["item_id"],)).fetchone()
     conn.commit()
@@ -94,7 +95,7 @@ def _call(conn, t: dict, worker: str, now: datetime, lease: timedelta) -> AgentC
         conn.execute("update work_token set checkpoint = %s, lease_until = greatest(lease_until, %s) "
                      "where id = %s and claimed_by = %s", (Jsonb(checkpoint), engine.utcnow() + lease, t["id"], worker))
         conn.commit()
-    return AgentCall(t["id"], t["role"], t["element"], t["name"], item, proc["data"], t["attempts"], t["checkpoint"],
+    return AgentCall(t["id"], t["role"], proc["element"], proc["name"], item, proc["data"], t["attempts"], t["checkpoint"],
                      instructions=node.attrs.get("instructions"), _save=save)
 
 

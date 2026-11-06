@@ -103,6 +103,16 @@ def test_generated_ids_do_not_collide_with_process_or_step_ids():
     assert bpmn.check(xml) == []
 
 
+def test_arbitrary_connection_order_passes_reference_engine_xml_schema():
+    from lxml import etree
+    from SpiffWorkflow.bpmn.parser.BpmnParser import BpmnValidator
+
+    data = proposal()
+    data["connections"].reverse()
+    xml = compile_bpmn(Draft.model_validate(data), "inspection", "Inspect")
+    BpmnValidator().validate(etree.fromstring(xml.encode()))
+
+
 def test_unknown_components_and_extra_properties_are_rejected():
     data = proposal()
     data["steps"][1]["component"] = "script"

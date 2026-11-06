@@ -1,5 +1,5 @@
 export const workflowComponents = [
-  { id: "start", name: "Start", type: "bpmn:StartEvent", icon: "start-event" },
+  { id: "start", name: "Start", type: "bpmn:StartEvent", icon: "start-event-none" },
   { id: "person", name: "Person's task", type: "bpmn:UserTask", icon: "user-task" },
   { id: "agent", name: "Agent's task", type: "bpmn:ServiceTask", icon: "service-task" },
   { id: "anomaly", name: "Anomaly detection", type: "bpmn:ServiceTask", icon: "service-task",
@@ -13,5 +13,5 @@ export const workflowComponents = [
   { id: "message", name: "Wait for message", type: "bpmn:IntermediateCatchEvent", icon: "intermediate-event-catch-message",
     eventDefinitionType: "bpmn:MessageEventDefinition" },
   { id: "call", name: "Call workflow", type: "bpmn:CallActivity", icon: "call-activity" },
-  { id: "end", name: "End", type: "bpmn:EndEvent", icon: "end-event" },
+  { id: "end", name: "End", type: "bpmn:EndEvent", icon: "end-event-none" },
 ] as const;

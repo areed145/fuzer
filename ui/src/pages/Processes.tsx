@@ -77,7 +77,7 @@ export function ProcessesPage() {
   const upload = async (f: File) => {
     try {
       const rows = await api.importDefinition(await f.text(), person);
-      location.hash = href(`/processes/${rows[0].process_key}`, { v: String(rows[0].id) });
+      location.hash = href(`/processes/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -231,6 +231,7 @@ function ModelTab({ def, defs, draft, reload }: {
   const editable = def.state === "draft" || def.state === "checked";
   const { xml, error: xmlError } = useXml(def.id);
   const [canvasXml, setCanvasXml] = useState<string>();
+  const [savedXml, setSavedXml] = useState<string>();
   const [description, setDescription] = useState("");
   const [proposal, setProposal] = useState<Awaited<ReturnType<typeof api.generateWorkflow>>>();
   const [previousCanvas, setPreviousCanvas] = useState<string>();
@@ -284,6 +285,7 @@ function ModelTab({ def, defs, draft, reload }: {
     if (!m) return;
     const { xml } = await m.saveXML({ format: true });
     await api.saveDefinition(def.id, xml!, person);
+    setSavedXml(xml);
     setDirty(false);
     setPreviousCanvas(undefined);
   };
@@ -318,11 +320,11 @@ function ModelTab({ def, defs, draft, reload }: {
   });
   const onDraft = (fromId?: number) => run("draft", async () => {
     const d = await api.draftDefinition(def.process_key, person, fromId);
-    location.hash = href(`/processes/${def.process_key}`, { v: String(d.id) });
+    location.hash = href(`/processes/${def.process_key}`, { tab: "model", v: String(d.id) });
     reload();
   });
   const onDownload = () => run("download", async () => {
-    const text = modeler.current && editable ? (await modeler.current.saveXML({ format: true })).xml! : canvasXml ?? xml!;
+    const text = modeler.current && editable ? (await modeler.current.saveXML({ format: true })).xml! : savedXml ?? xml!;
     download(`${def.process_key}-v${def.version}.bpmn`, text, "application/xml");
   });
 
@@ -396,6 +398,7 @@ function ModelTab({ def, defs, draft, reload }: {
             setProblems([]);
             setCompare(undefined);
             setDirty(true);
+            setMsg({ text: "Previous canvas restored. Review it before saving." });
           }}>Restore previous canvas</Button>}
         </div>
         {proposal && <>
@@ -431,7 +434,7 @@ function ModelTab({ def, defs, draft, reload }: {
       {xml && (
         <Suspense fallback={<div className="status">Loading modeler…</div>}>
           {editable ? <BpmnModeler xml={canvasXml ?? xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
-            : <BpmnView xml={xml} tall />}
+            : <BpmnView xml={savedXml ?? xml} tall />}
         </Suspense>
       )}
       {compare && <Comparison compare={compare} onPick={(id) => modeler.current && focusElement(modeler.current, id)} />}
