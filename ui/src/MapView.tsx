@@ -1,4 +1,5 @@
 import "./styles/map.css";
+import { useTheme } from "./theme";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -110,13 +111,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
   const [mapMessage, setMapMessage] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [themeVersion, setThemeVersion] = useState(0);
-  useEffect(() => {
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () => setThemeVersion((n) => n + 1);
-    scheme.addEventListener("change", update);
-    return () => scheme.removeEventListener("change", update);
-  }, []);
+  const themeVersion = useTheme();
   const colors = {
     outline: themeValue("--map-outline"), label: themeValue("--map-label"), well: themeValue("--map-well"),
     other: themeValue("--map-other"), abandoned: themeValue("--map-abandoned"), focus: themeValue("--map-focus"),

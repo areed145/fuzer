@@ -1,36 +1,12 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
 import { Badge as UIBadge } from "./ui";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
-import { entityHref, fmt, notifyChanged } from "./lib";
+import { entityHref, fmt } from "./lib";
 
-const NAME_KEY = "fuzer.reviewer";
-
-export function loadPerson(): string {
-  try {
-    return localStorage.getItem(NAME_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-/** The person acting in the work pages, remembered per browser (the same name the review pages use). */
-export function usePerson(): [string, (name: string) => void] {
-  const [name, setName] = useState(loadPerson);
-  useEffect(() => {
-    try {
-      localStorage.setItem(NAME_KEY, name);
-    } catch {
-      /* private mode: name just isn't remembered */
-    }
-  }, [name]);
-  return [name, (n: string) => {
-    setName(n);
-    setTimeout(notifyChanged);
-  }];
-}
+export { loadPerson, usePerson } from "./identityStore";
 
 const HOUR = 3600_000;
 

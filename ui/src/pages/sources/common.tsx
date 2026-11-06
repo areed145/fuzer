@@ -4,14 +4,9 @@ import { Button , Badge as UIBadge} from "../../ui";
 import { useState } from "react";
 import { api, type SourceHealth, type SourceLoad } from "../../api";
 import { notifyChanged, useAsync } from "../../lib";
+import { loadPerson } from "../../work";
 
-export const reviewer = () => {
-  try {
-    return localStorage.getItem("fuzer.reviewer") || "anonymous";
-  } catch {
-    return "anonymous";
-  }
-};
+export const reviewer = () => loadPerson() || "anonymous";
 
 export const STATE: Record<string, string> = {
   ok: "ok", done: "ok", unchanged: "ok", new: "key", "not loaded": "key", changed: "updating", stale: "", held: "",

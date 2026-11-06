@@ -47,6 +47,7 @@ nav:
   - Design:
       - overview.md
       - architecture.md
+      - ui-style.md
       - data-model.md
       - sources.md
       - identity.md

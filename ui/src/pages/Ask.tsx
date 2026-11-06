@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { api, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
 import { useAsync } from "../lib";
+import { loadPerson } from "../work";
 
 const EXAMPLES: [string, string][] = [
-  ["Troubleshooting", "Why did 20-K-2200B keep tripping in March 2024, and what should we check if it happens again?"],
+  ["Troubleshooting", "Which equipment has repeated trips, what evidence explains them, and what should be reviewed?"],
   ["Production", "How has production efficiency trended over the last 12 months, and what drove the worst month?"],
   ["Constraints", "What is limiting production right now, and how does it cascade through the field?"],
   ["Wells", "Which wells have lost the most oil rate this year, and why?"],
@@ -17,13 +18,7 @@ const EXAMPLES: [string, string][] = [
 ];
 
 // Who is asking: the name the Review page remembers.
-const asker = () => {
-  try {
-    return localStorage.getItem("fuzer.reviewer") || "anonymous";
-  } catch {
-    return "anonymous";
-  }
-};
+const asker = () => loadPerson() || "anonymous";
 
 const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_IMAGES = 4;
@@ -116,7 +111,12 @@ export function AskPage() {
   const finished = turns.filter((t) => t.job && t.job.status !== "running").length;
   useEffect(() => setListed((n) => n + 1), [finished]);
 
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [turns.length]);
+  useEffect(() => {
+    end.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "end",
+    });
+  }, [turns.length]);
 
   return (
     <section className="ask">
@@ -140,7 +140,7 @@ export function AskPage() {
       {turns.map((t, i) => <TurnView key={i} turn={t} />)}
       <div ref={end} />
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
-        <textarea rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
+        <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={(e) => {
                     const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));

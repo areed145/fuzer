@@ -1,5 +1,5 @@
 // The app's navigation: one list of pages, drawn as a sidebar (a drawer below 900 px).
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./brand";
 import { href } from "./lib";
 import { Button } from "./ui";
@@ -90,6 +90,32 @@ export function Sidebar({ section, badges, status }: {
   status: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const drawer = useRef<HTMLElement>(null);
+  const menu = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusable = () => Array.from(drawer.current?.querySelectorAll<HTMLElement>("a[href], button, input, select") ?? [])
+      .filter((element) => element.getClientRects().length > 0 && !element.matches(":disabled, [tabindex='-1']"));
+    focusable()[0]?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    const resize = () => { if (window.innerWidth > 900) setOpen(false); };
+    window.addEventListener("keydown", trap);
+    window.addEventListener("resize", resize);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", trap);
+      window.removeEventListener("resize", resize);
+      if (menu.current?.getClientRects().length) menu.current.focus();
+    };
+  }, [open]);
 
   // Close the drawer when the route changes or Escape is pressed.
   useEffect(() => {
@@ -107,6 +133,7 @@ export function Sidebar({ section, badges, status }: {
     <>
       <header className="topbar">
         <Button
+          ref={menu}
           className="menu-button"
           aria-expanded={open}
           aria-controls="sidebar"
@@ -120,7 +147,8 @@ export function Sidebar({ section, badges, status }: {
         </a>
       </header>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
-      <aside id="sidebar" className={open ? "sidebar open" : "sidebar"}>
+      <aside ref={drawer} id="sidebar" className={open ? "sidebar open" : "sidebar"}>
+        {open && <Button className="drawer-close" onClick={() => setOpen(false)}>Close menu</Button>}
         <a className="brand" href={href("/")}>
           <Logo />
         </a>
@@ -151,6 +179,7 @@ export function Sidebar({ section, badges, status }: {
           ))}
         </nav>
         <div className="sidebar-status">{status}</div>
+        <a className="small" href={href("/settings")}>Appearance & settings</a>
       </aside>
     </>
   );

@@ -7,7 +7,7 @@ export function PageHeader({ children, subtitle, actions, className = "" }: { ch
   return <header className="ui-page-header"><div><h1 className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{actions && <div className="ui-page-actions">{actions}</div>}</header>;
 }
 
-export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement>;
   variant?: "primary" | "secondary" | "ghost" | "link" | "danger"; size?: "sm" | "md";
 }) {
   return <button {...props} className={`ui-button ${`ui-button-${variant}`} ui-button-${size} ${className}`.trim()} />;

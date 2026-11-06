@@ -40,7 +40,7 @@ img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-r
 .kind-event { background: #fbe7ea; color: #9b1c31; }
 .kind-equipment_model { background: #f6ead9; color: #7a4310; }
 .kind-equipment_class { background: #e1ecf3; color: #24506b; }
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
   .kind-tag { background: #15304f; color: #9cc8ff; }
   .kind-equipment { background: #3b2612; color: #f3bf8a; }
   .kind-timeseries { background: #12301f; color: #8fdcb2; }

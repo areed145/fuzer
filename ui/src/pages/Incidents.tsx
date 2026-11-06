@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 import { TrendGrid } from "../Trend";
+import { loadPerson } from "../work";
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
@@ -54,13 +55,7 @@ export function IncidentList({ items }: { items: Incident[] }) {
 }
 
 // Who is rating: the name the Review page remembers.
-const rater = () => {
-  try {
-    return localStorage.getItem("fuzer.reviewer") || "anonymous";
-  } catch {
-    return "anonymous";
-  }
-};
+const rater = () => loadPerson() || "anonymous";
 
 /** How far engineers are through rating briefs on past incidents, and the next ones to rate. */
 function RatingProgress() {

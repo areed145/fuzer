@@ -13,20 +13,21 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
-      <PageHeader>Search</PageHeader>
+      <PageHeader subtitle="Find facility records and follow their links back to the source evidence.">Browse</PageHeader>
       <Input
         className="search"
         autoFocus
-        placeholder="Search tags, wells, PI points, serials, descriptions…  e.g. 20-V-2001, OSB.20PT1001A.PV, A-07"
+        aria-label="Search facility records"
+        placeholder="Search tags, wells, PI points, serials or descriptions"
         value={q}
         onChange={(e) => go({ q: e.target.value })}
       />
       <div className="chips">
-        <Button className={!kind ? "chip on" : "chip"} onClick={() => go({ kind: undefined })}>
+        <Button aria-pressed={!kind} className={!kind ? "chip on" : "chip"} onClick={() => go({ kind: undefined })}>
           all
         </Button>
         {Object.entries(stats?.entities ?? {}).map(([k, n]) => (
-          <Button key={k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
+          <Button key={k} aria-pressed={kind === k} className={kind === k ? "chip on" : "chip"} onClick={() => go({ kind: k })}>
             {k.replace("_", " ")} <span className="muted">{n.toLocaleString()}</span>
           </Button>
         ))}
