@@ -170,6 +170,107 @@ test("owner administration remains available within Settings secondary navigatio
   assert.equal(await area.getByRole("link", { name: "Sign-in & access", exact: true }).getAttribute("href"), "#/access");
 });
 
+test("source load lifecycle confirms consequences, exposes progress and recovers without automatic replay", async () => {
+  const detail = {
+    dataset: { name: "sap_equipment", source: "sap", status: "active", load_mode: "snapshot", schedule: null },
+    connection: { id: 1, name: "files", type: "folder", enabled: true, secrets: {} },
+    runs: [], health: null, work_items: [], reviews: [], suggested_checks: [], next_load: null,
+  };
+  await page.route("**/sources/datasets/sap_equipment", (route) => route.fulfill({ json: detail }));
+  let attempts = 0, release;
+  await page.route("**/sources/datasets/sap_equipment/run*", async (route) => {
+    attempts++;
+    if (attempts === 1) {
+      await new Promise((resolve) => { release = resolve; });
+      await route.fulfill({ status: 503, json: { detail: "Export unavailable" } });
+    } else await route.fulfill({ json: { loaded: ["sap_equipment"], held: [], unchanged: [], paused: [],
+      records: 2, inserted: 2, updated: 0, removed: 0 } });
+  });
+  await page.goto(`${url}/#/sources?view=dataset&name=sap_equipment`);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("group", { name: "Confirm Load now", exact: true }).waitFor();
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).evaluate(el => el === document.activeElement), true);
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Loading source records" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  release();
+  await page.getByRole("alert").filter({ hasText: "Export unavailable" }).waitFor();
+  assert.equal(attempts, 1);
+  await page.getByRole("button", { name: "Load now", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Loaded 2 records" }).waitFor();
+  assert.equal(attempts, 2);
+  assert.match(await page.getByRole("link", { name: "Inspect recorded source runs" }).getAttribute("href"), /tab=runs/);
+  detail.dataset.status = "paused";
+  await page.reload();
+  await page.getByText("Before loading, resume the dataset", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  detail.dataset.status = "active";
+  detail.secrets = { token: false };
+  await page.reload();
+  await page.getByText("Before loading, resume the dataset", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Load now", exact: true }).isDisabled(), true);
+  assert.equal(attempts, 2);
+  detail.secrets = {};
+  await page.route("**/sources/datasets/sap_equipment/run*", (route) =>
+    route.fulfill({ json: { loaded: [], held: ["sap_equipment"], unchanged: [], records: 0 } }));
+  await page.reload();
+  await page.getByRole("button", { name: "Load now", exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Confirm Load now", exact: true }).press("Enter");
+  await page.getByRole("status").filter({ hasText: "Load held" }).waitFor();
+  assert.equal(await page.getByRole("status").filter({ hasText: "Loaded 2" }).count(), 0);
+});
+
+test("review lifecycle confirms shared decisions and exposes failures without marking them done", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 7, kind: "check", payload: { dataset: "sap_equipment", failed: [{ kind: "duplicate keys", value: 2 }] } },
+  ] }));
+  let attempts = 0;
+  await page.route("**/review/7", (route) => {
+    attempts++;
+    return route.fulfill(attempts === 1 ? { status: 429, json: { detail: "Server busy; check recorded decision" } }
+      : { json: { ok: true } });
+  });
+  await page.goto(`${url}/#/review?kind=check`);
+  await page.getByRole("button", { name: "Seen", exact: true }).click();
+  await page.getByRole("group", { name: "Confirm review decision" }).waitFor();
+  assert.equal(attempts, 0);
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Server busy" }).waitFor();
+  assert.equal(attempts, 1);
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #7" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Seen", exact: true }).count(), 0);
+  assert.equal(attempts, 2);
+});
+
+test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
+      values: [{ value: "a", source: "sap", source_key: "1" }] } },
+  ] }));
+  const writes = [];
+  await page.route("**/review/8", (route) => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { decided: 8 } });
+  });
+  await page.goto(`${url}/#/review?kind=conflict`);
+  await page.getByPlaceholder("or type the correct value").fill("corrected value");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.getByRole("group", { name: "Confirm review decision" }).count(), 0);
+  assert.deepEqual(writes, []);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #8" }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].value, "corrected value");
+});
+
 test("seven primary destinations expose compatible specialist routes through area navigation", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });

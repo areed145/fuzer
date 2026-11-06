@@ -14,6 +14,25 @@ another owner's viewer, editor or action.
 - `Field`, `Input`, and `Select` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
+- `ConfirmAction` presents inline consequences and explicit confirm/cancel controls for shared-state changes.
+  `ActionStatus` announces action progress/results with `role="status"` and failures with `role="alert"`.
+  Reuse these for source ingestion and review instead of browser dialogs or transient success toasts.
+
+## Action lifecycle
+
+Source loads first expose known prerequisites (active dataset, enabled connection and resolving secret
+references); these do not substitute for server validation of mappings, credentials or quality checks.
+Confirm the load mode and effects on shared records before sending a request. Disable competing actions
+while executing and show progress, then distinguish loaded, unchanged, paused, held and failed outcomes.
+Held loads link to the dataset's Quality/Mapping and Runs; scheduler execution belongs in Jobs, not a
+new parallel task system. Existing source runs remain the source of recorded ingestion details.
+
+Review decisions require operate access and applicable workflow roles. Confirm the shared decision;
+acknowledging a held-load notice does not repair or retry ingestion. A saved decision or queued rebuild
+is not proof of completed downstream work. Preserve the existing global rebuild/health feedback.
+Failures must remain visible and explain how to inspect recorded state before a deliberate retry:
+an HTTP/network failure may occur after a mutation committed. Never automatically replay actions.
+Viewing pages must not execute loads, rebuilds, connection tests or paid probes.
 
 ## Layout and tokens
 

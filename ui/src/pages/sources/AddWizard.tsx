@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
@@ -217,19 +217,19 @@ function LoadSettings({ connection, table, yaml, owner, onDone }: { connection: 
           <tr><th>Owner</th><td><Input value={who} onChange={(e) => setWho(e.target.value)} placeholder="who answers for it" /></td></tr>
         </tbody>
       </Table>
-      <Button variant="primary" disabled={!!a.busy}
-        onClick={() => a.run("add", () => api.addTable(connection, table, {
+      <ConfirmAction label="Save and load" busy={!!a.busy}
+        consequence={`Save this dataset and mapping, then load shared records in ${mode} mode? ${LOAD_HELP[mode]}. Check the mapping and key before confirming. No AI call is required.`}
+        onConfirm={() => a.run("add", () => api.addTable(connection, table, {
           yaml, by: reviewer(), values: { load_mode: mode, schedule: schedule || null, owner: who || null,
-                                          expected_hours: hours ? Number(hours) : null } }), onDone)}>
-        {a.busy ? "Saving and loading…" : "Save and load"}
-      </Button>
-      {a.error && <p className="error small">{a.error}</p>}
+                                          expected_hours: hours ? Number(hours) : null } }), onDone)} />
+      <ActionStatus busy={a.busy ? "Saving mapping and loading shared records; wait for the result…" : null} error={a.error} />
     </>
   );
 }
 
 function AddResult({ r }: { r: AddTableResult }) {
   const a = useAction();
+  const [buildRequested, setBuildRequested] = useState(false);
   const held = (r.load?.held.length ?? 0) > 0;
   const checks = (r.run?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
   const open = (tab: string) => href("/sources", { view: "dataset", name: r.dataset, tab });
@@ -237,12 +237,13 @@ function AddResult({ r }: { r: AddTableResult }) {
     <UICard className={` ${held ? "warn" : ""}`}>
       <h2>{held ? "Saved, but the first load is held" : "Added and loaded"}</h2>
       {!held && r.load && (
-        <p>
+        <div>
           <code>{r.dataset}</code>: {r.load.records.toLocaleString()} records ({r.load.inserted} new). They become entities on
           the next rebuild.{" "}
-          <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch())}>
-            {a.busy ? "Rebuilding…" : "Rebuild now"}</Button>
-        </p>
+          <ConfirmAction label="Rebuild now" busy={!!a.busy}
+            consequence="Rebuild shared facility entities and links from the loaded records? This may take time and change connected evidence."
+            onConfirm={() => a.run("rebuild", () => api.rematch(), () => setBuildRequested(true))} />
+        </div>
       )}
       {held && (
         <>
@@ -264,8 +265,12 @@ function AddResult({ r }: { r: AddTableResult }) {
       <p className="small">
         <a href={open("overview")}>Open the dataset</a> · <a href={open("runs")}>Runs</a> · <a href={open("quality")}>Profile
         and suggested checks</a> · <a href={href("/sources", { view: "add" })}>Add another source</a>
+        {" · "}<a href={href("/jobs")}>Scheduler execution details</a>
       </p>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ActionStatus busy={a.busy ? "Requesting shared facility rebuild…" : null} error={a.error}>
+        {buildRequested && <p>Rebuild requested, not yet confirmed complete. Follow the application's Updating/health
+          indicator and <a href={href("/jobs")}>Jobs diagnostics</a>; then inspect the dataset's linked evidence.</p>}
+      </ActionStatus>
     </UICard>
   );
 }
@@ -275,11 +280,12 @@ function LoadAgain({ name }: { name: string }) {
   const [done, setDone] = useState<SourceLoad | null>(null);
   return (
     <div className="row">
-      <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(name, true), setDone)}>
-        {a.busy ? "Loading…" : "Load again"}</Button>
+      <ConfirmAction label="Load again" busy={!!a.busy}
+        consequence={`Retry ${name} as a full shared load? Fix the source/check issue first; this may replace or retract records.`}
+        onConfirm={() => a.run("run", () => api.runDataset(name, true), setDone)} />
       <span className="small muted">after fixing it</span>
-      {done && <Loaded r={done} />}
-      {a.error && <span className="error small">{a.error}</span>}
+      {done && !a.busy && !a.error && <Loaded r={done} />}
+      <ActionStatus busy={a.busy ? "Retrying source load…" : null} error={a.error} />
     </div>
   );
 }

@@ -1,5 +1,29 @@
 import "../styles/ui-kit.css";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
+import { useEffect, useRef, useState } from "react";
+
+export function ActionStatus({ busy, error, children }: { busy?: string | null; error?: string | null; children?: ReactNode }) {
+  return <>{busy && <p role="status">{busy}</p>}
+    {error && <p role="alert" className="error">{error} Check the current recorded result before trying again; failed requests are not replayed automatically.</p>}
+    {!busy && !error && children && <div role="status">{children}</div>}</>;
+}
+
+export function ConfirmAction({ label, consequence, busy, disabled, onConfirm }: {
+  label: string; consequence: string; busy?: boolean; disabled?: boolean; onConfirm: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (!confirming && wasConfirming.current) opener.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+  return confirming ? <div className="notice" role="group" aria-label={`Confirm ${label}`}>
+    <p>{consequence}</p>
+    <Button type="button" variant="primary" disabled={busy || disabled} onClick={() => { setConfirming(false); onConfirm(); }}>Confirm {label}</Button>{" "}
+    <Button type="button" autoFocus disabled={busy} onClick={() => setConfirming(false)}>Cancel</Button>
+  </div> : <Button ref={opener} type="button" variant="primary" disabled={busy || disabled} onClick={() => setConfirming(true)}>{label}</Button>;
+}
 
 type Width = "xs" | "sm" | "md" | "lg" | "full";
 

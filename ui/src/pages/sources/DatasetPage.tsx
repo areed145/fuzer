@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -29,7 +29,7 @@ export function DatasetPage({ name, tab }: { name: string; tab: Tab }) {
         <span className="muted small">{ds.source} · {ds.record_type ?? ds.reader} · {ds.status}</span>
       </div>
       <LastLoad d={x} reload={d.reload} />
-      <div className="tabs">
+      <div className="tabs dataset-tabs">
         {TABS.map((t) => (
           <a key={t} className={tab === t ? "on" : ""} href={href("/sources", { view: "dataset", name, tab: t })}>
             {TAB_LABEL[t]}{t === "quality" && x.suggested_checks.length ? <span className="muted"> · {x.suggested_checks.length} to add</span> : null}
@@ -53,6 +53,7 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const [done, setDone] = useState<SourceLoad | null>(null);
   const last = d.runs[0];
   const stuck = last && (last.status === "held" || last.status === "failed");
+  const ready = canLoad(d);
   if (!stuck && !done) return null;
   const checks = (last?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
   return (
@@ -69,12 +70,15 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         </p>
       )}
       <div className="row">
-        <Button variant="primary" disabled={!!a.busy}
-          onClick={() => a.run("run", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>
-          {a.busy ? "Loading…" : "Load again"}</Button>
-        {done && <Loaded r={done} />}
+        <ConfirmAction label="Load again" busy={!!a.busy} disabled={!ready}
+          consequence={`Retry ${d.dataset.name} as a full load? It can replace/retract shared source records. Resolve the reported source/check problems first.`}
+          onConfirm={() => a.run("run", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })} />
+        {done && !a.busy && !a.error && <Loaded r={done} />}
       </div>
-      {a.error && <p className="error">{a.error}</p>}
+      {!ready && <p>Resume the dataset and enable its connection with resolving secret references before loading.</p>}
+      <ActionStatus busy={a.busy ? "Loading source records; keep this page open for the result…" : null} error={a.error} />
+      <p><a href={href("/sources", { view: "dataset", name: d.dataset.name, tab: "runs" })}>Inspect recorded source runs</a>{" · "}
+        <a href={href("/jobs")}>Inspect scheduler execution</a></p>
     </div>
   );
 }
@@ -84,6 +88,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const [test, setTest] = useState<Awaited<ReturnType<typeof api.testConnection>> | null>(null);
   const [done, setDone] = useState<SourceLoad | null>(null);
   const ds = d.dataset, h = d.health, last = d.runs[0];
+  const ready = canLoad(d);
   const facts: [string, React.ReactNode][] = [
     ["System", <a href={href("/sources", { view: "systems" })}><code>{ds.source}</code></a>],
     ["Connection", <>{d.connection?.name} <span className="muted">({d.connection?.type}) {d.connection_display}</span></>],
@@ -97,17 +102,21 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       <div className="row">
-        <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })}>
-          {a.busy === "run" ? "Loading…" : "Load now"}</Button>
+        <ConfirmAction label="Load now" busy={!!a.busy} disabled={!ready}
+          consequence={`Load ${ds.name} into the shared facility using ${ds.load_mode} mode? ${LOAD_HELP[ds.load_mode]}. This does not prove a rebuild has finished.`}
+          onConfirm={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })} />
         <Button variant="secondary" disabled={!!a.busy || !d.connection}
           onClick={() => a.run("test", () => api.testConnection(d.connection!.id), setTest)}>Test connection</Button>
         <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("profile", () => api.profileDataset(ds.name), reload)}>
           Profile now</Button>
-        {done && <Loaded r={done} />}
+        {done && !a.busy && !a.error && <Loaded r={done} />}
         {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "connection ok" : "connection failed"}</UIBadge>}
       </div>
       {test && !test.ok && <TestSteps steps={test.steps} />}
-      {a.error && <p className="error small">{a.error}</p>}
+      {!ready && <p>Before loading, resume the dataset, enable its connection and resolve missing deployment-secret references.</p>}
+      <ActionStatus busy={a.busy ? `${a.busy === "run" ? "Loading source records" : "Checking source"}; wait for the recorded result…` : null} error={a.error} />
+      <p><a href={href("/sources", { view: "dataset", name: ds.name, tab: "runs" })}>Inspect recorded source runs</a>{" · "}
+        <a href={href("/jobs")}>Inspect scheduler execution</a></p>
       <Table variant="keyValue">
         <tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody>
       </Table>
@@ -135,6 +144,10 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       )}
     </>
   );
+}
+
+function canLoad(d: DatasetDetail) {
+  return d.dataset.status === "active" && !!d.connection?.enabled && Object.values(d.secrets ?? {}).every(Boolean);
 }
 
 function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
@@ -338,13 +351,16 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   return (
     <>
       <div className="row">
-        <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("run", () => api.runDataset(d.dataset.name), (r) => { setDone(r); reload(); })}>
-          {a.busy === "run" ? "Loading…" : "Load now"}</Button>
-        <Button variant="secondary" disabled={!!a.busy} title="read everything again, even if unchanged"
-          onClick={() => a.run("full", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })}>Full reload</Button>
-        {done && <Loaded r={done} />}
+        <ConfirmAction label="Load now" busy={!!a.busy} disabled={!canLoad(d)}
+          consequence={`Load ${d.dataset.name} as ${d.dataset.load_mode}? ${LOAD_HELP[d.dataset.load_mode]}. Shared records change before any subsequent rebuild.`}
+          onConfirm={() => a.run("run", () => api.runDataset(d.dataset.name), (r) => { setDone(r); reload(); })} />
+        <ConfirmAction label="Full reload" busy={!!a.busy} disabled={!canLoad(d)}
+          consequence={`Read all of ${d.dataset.name} again, even if unchanged? A full shared load can replace or retract records.`}
+          onConfirm={() => a.run("full", () => api.runDataset(d.dataset.name, true), (r) => { setDone(r); reload(); })} />
+        {done && !a.busy && !a.error && <Loaded r={done} />}
       </div>
-      {a.error && <p className="error small">{a.error}</p>}
+      <ActionStatus busy={a.busy ? "Loading source records; wait for the recorded result…" : null} error={a.error} />
+      {!canLoad(d) && <p>Resume the dataset, enable its connection and resolve missing secret references before loading.</p>}
       <Table variant="list" density="compact">
         <thead><tr><th>#</th><th>When</th><th>Trigger</th><th>Status</th><th>Read</th><th>New</th><th>Changed</th><th>Same</th><th>Removed</th><th>s</th><th /></tr></thead>
         <tbody>

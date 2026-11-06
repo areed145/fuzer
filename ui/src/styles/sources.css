@@ -13,3 +13,5 @@ pre.diff { background: var(--bg); padding: 8px; border-radius: 6px; overflow-x: 
 pre.diff .add { color: var(--ok); background: var(--ok-soft); }
 pre.diff .del { color: var(--warn); background: var(--warn-soft); text-decoration: line-through; }
 pre.diff .same { color: var(--muted); }
+.tabs.dataset-tabs { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; }
+.tabs.dataset-tabs > a { flex-shrink: 0; }

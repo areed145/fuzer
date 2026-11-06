@@ -13,6 +13,12 @@ rules; do not replace this with a catch-all Manage section or duplicate primary 
 Shared API requests use the bounded browser queue and coalesce only in-flight read-only calls.
 Never automatically retry mutations, paid probes or rejected requests. Verify normal page mounts
 and global refresh at default server admission limits, plus explicit overload/recovery behavior.
+For source ingestion and review actions, show prerequisites, shared-state consequences and an explicit
+confirmation before executing; reuse `ConfirmAction`/`ActionStatus` and existing action services.
+Distinguish a saved decision or rebuild request from completed ingestion/rebuild. Link source execution
+to the dataset's Runs/Quality and scheduler diagnostics to Jobs, never invent a second run model.
+After ambiguous failures, tell users to inspect recorded state before a deliberate retry; do not
+silently replay. Keep reader controls explanatory and enforce permissions on the server.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,

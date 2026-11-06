@@ -1,4 +1,4 @@
-import { Button , Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Badge as UIBadge} from "../../ui";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
 import { useState } from "react";
@@ -62,11 +62,14 @@ export function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
 }
 
 export function Loaded({ r }: { r: SourceLoad }) {
-  if (r.held.length) return <p className="error small">Held: see why at the top of the dataset.</p>;
-  if (r.unchanged.length) return <p className="small muted">Unchanged since the last load: nothing to do.</p>;
+  if (r.paused?.length) return <ActionStatus><p>No load: {r.paused.join(", ")} is paused. Resume it in Sources before retrying.</p></ActionStatus>;
+  if (r.held.length) return <ActionStatus><p>Load held: records were not changed for {r.held.join(", ")}.
+    Open the dataset's Quality and Runs tabs, resolve the reported problem, then deliberately retry.</p></ActionStatus>;
+  if (r.unchanged.length) return <ActionStatus><p>Unchanged since the last load: nothing to ingest.</p></ActionStatus>;
   return (
-    <p className="small">
+    <p role="status" className="small">
       Loaded {r.records.toLocaleString()} records ({r.inserted} new, {r.updated} changed, {r.removed} removed).
+      {" "}Review the dataset's Runs and freshness; apply any required rebuild shown in Sources.
     </p>
   );
 }
@@ -126,10 +129,12 @@ export function RebuildBanner() {
           .join(", ")} since it was built{s.data.built_at ? ` (${when(s.data.built_at)})` : ""}. A rebuild turns them into
           entities, links and values.</>}
       </span>
-      {!running && <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("rebuild", () => api.rematch(), () => {
+      {!running && <ConfirmAction label="Rebuild now" busy={!!a.busy}
+        consequence="Rebuild shared facility entities, links and values from loaded records and current mappings/rules? Follow the existing Updating/health indicator for completion."
+        onConfirm={() => a.run("rebuild", () => api.rematch(), () => {
         setTimeout(s.reload, 1500);
-      })}>Rebuild now</Button>}
-      {a.error && <span className="error">{a.error}</span>}
+      })} />}
+      <ActionStatus busy={a.busy ? "Requesting facility rebuild…" : running ? "Rebuild pending or running; completion is not yet confirmed." : null} error={a.error} />
     </div>
   );
 }

@@ -1141,6 +1141,7 @@ export interface MapperForm {
 }
 
 export interface SourceLoad {
+  paused?: string[];
   loaded: string[];
   unchanged: string[];
   held: string[];
