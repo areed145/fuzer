@@ -230,7 +230,16 @@ def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
 
 # The tools live with the agents that use them (agents/capabilities/<group>.py, #133). Importing them
 # declares them on the server; mcp_server.<tool> still finds each one.
-from .capabilities import maintenance, production, shared, troubleshooting  # noqa: E402, F401
+from .capabilities import (  # noqa: E402, F401
+    graph,
+    maintenance,
+    operations,
+    plots,
+    production,
+    sources,
+    studies,
+    troubleshooting,
+)
 from .capabilities import work as work_tools  # noqa: E402, F401
 
 

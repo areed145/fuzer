@@ -1,0 +1,124 @@
+"""Operations capabilities, declared with `capability` (#133)."""
+
+from typing import Any, Literal
+from ...core import db
+from ...graph import queries
+from ...workflow import engine as work
+from ..mcp_server import AgentRole, _plain, _resolve, _work, capability
+
+
+@capability("all", kind="query")
+def board(area: str | None = None, unit: str | None = None, kind: str | None = None, text: str | None = None,
+          since: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """The work board (#99): outstanding work across SAP backlog, PMs and inspections, incidents and SRE
+    upsets, workflow items, opportunities, reviews and projects, one card per piece of work, ranked by value
+    (#100). Each card: rank, value and why, its records, whether a person pinned it and why it moved.
+    Filter by area or unit (any ref), kind, words in the title, or new since a time. "Top 5 on train B":
+    unit or area, limit 5."""
+    from ...ops import board as b
+    with db.connect() as conn:
+        args = {}
+        for k, ref in (("area", area), ("unit", unit)):
+            if ref:
+                fid, err = _resolve(conn, ref)
+                if err:
+                    return err
+                args[k] = fid
+        out = b.cards(conn, kind, args.get("area"), args.get("unit"), text, since, 1, min(limit, 50))
+    for c in out["cards"]:
+        c.pop("breakdown", None)
+    return _plain(out)
+
+
+@capability(kind="query")
+def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
+    """The workflow steps your agent role can take now, highest on the board first. Claim one with
+    claim_work."""
+    from ...ops import board as b
+    with db.connect() as conn:
+        return _plain({"agent": agent, "steps": b.next_work(conn, agent, min(limit, 20))})
+
+
+@capability("all", kind="query")
+def get_daily_ops_report(day: str | None = None, version: int | None = None) -> dict[str, Any]:
+    """The daily operations report for a production day (YYYY-MM-DD; default the latest): headline,
+    production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line
+    citing its records. With the checks (uncited lines, numbers not in the records) and what changed since
+    the previous version. For "what happened on the 28th?"."""
+    from ...ops import daily_report
+    with db.connect() as conn:
+        if day is None:
+            got = daily_report.days(conn, 1)
+            day = got[0]["day"] if got else None
+        out = daily_report.get(conn, day, version) if day else None
+    return _plain(out) if out else {"error": f"no report for {day}" if day else "no reports yet"}
+
+
+@capability("all", kind="query")
+def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """What happened in the records between two times (plant time): new log events, notifications, work
+    orders started and finished, downtime started and ended, incidents, equipment installed or removed,
+    limits taking or ending effect, excursions and new well tests, with counts. Start here for "what
+    happened since ..." and each shift's or run's snapshot. since / until ISO times (until: now)."""
+    from ...graph import operations
+    with db.connect() as conn:
+        return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
+
+
+@capability("production", "maintenance", kind="query")
+def deferment_pareto(by: Literal["reason", "category", "tag", "class", "well"] = "reason",
+                     since: str | None = None, until: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """Deferred (lost) oil ranked by downtime reason, reason category, causing tag, its ISO 14224 class,
+    or affected well, with each one's share. Default: the last 12 months."""
+    from ...graph import operations
+    with db.connect() as conn:
+        return _plain(operations.deferment_pareto(conn, by, since, until, min(limit, 100)))
+
+
+@capability("troubleshooter", "production", "maintenance", kind="query")
+def well_performance(ref: str | None = None, since: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Well tests. With ref (a well): its test history (oil rate, water cut, GOR, lift gas, WHP). Without:
+    wells ranked by oil rate decline over the window, water cut risers, and deferment per well.
+    Default window: 12 months."""
+    from ...graph import operations
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain(operations.well_performance(conn, fid, since, min(limit, 100)))
+
+
+@capability("troubleshooter", "production", kind="query")
+def gas_lift_network(ref: str | None = None, since: str | None = None, limit: int = 15) -> dict[str, Any]:
+    """The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through
+    another jacket) -> gas lifted wells. Per header: jackets, wells, lift gas and oil from latest tests. Per
+    well: lift gas, oil per lift gas and measured response to more lift gas (Sm3/d oil per extra kSm3/d),
+    least and most responsive wells, wells lifting mostly water. With ref (header, manifold, jacket,
+    compressor or well): only that part, plus its supply path. Default window: 12 months of tests."""
+    from ...graph import operations
+    with db.connect() as conn:
+        fid = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+        return _plain(operations.gas_lift_network(conn, fid, since, min(limit, 100)))
+
+
+@capability(kind="query")
+def list_reviews(kind: Literal["match", "conflict"] | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    """Open questions waiting for a person: possible duplicate records ("match") and sources that
+    disagree on a value ("conflict"). Decisions are made by people in the Fuzer web UI."""
+    with db.connect() as conn:
+        rows = queries.reviews(conn, "open", kind, min(limit, 200))
+    return _plain([{"id": r["id"], "kind": r["kind"], "entity": r["label"], **r["payload"]} for r in rows])
+
+
+@capability(kind="query")
+def my_work(agent: AgentRole, limit: int = 20) -> dict[str, Any]:
+    """Your open work as agent role `agent`: agent steps waiting for your role (claimed_by and
+    lease_until show whether a worker has one), person steps you claimed or were handed, and work items
+    in your queue. Each step has a task_id for claim_work / complete_work / hand_off."""
+    return _work(work.agent_inbox, agent, min(limit, 200))
