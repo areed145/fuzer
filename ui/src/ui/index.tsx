@@ -28,7 +28,7 @@ export function ConfirmAction({ label, consequence, busy, disabled, onConfirm }:
 type Width = "xs" | "sm" | "md" | "lg" | "full";
 
 export function PageHeader({ children, subtitle, actions, className = "" }: { children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
-  return <header className="ui-page-header"><div><h1 className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{actions && <div className="ui-page-actions">{actions}</div>}</header>;
+  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{actions && <div className="ui-page-actions">{actions}</div>}</header>;
 }
 
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement>;

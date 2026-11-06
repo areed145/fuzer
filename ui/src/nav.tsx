@@ -42,13 +42,13 @@ export const NAV: NavGroup[] = [
   {
     label: "Investigate",
     items: [
-      { label: "Okan walkthrough", section: "investigate", path: "/investigate/okan" },
+      { label: "Okan investigation", section: "investigate", path: "/investigate/okan" },
       { label: "Ask", section: "ask", permission: "ai" },
       { label: "Downtime", section: "downtime" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
       { label: "Analytics", section: "analytics" },
-      { label: "Lessons", section: "lessons" },
+      { label: "Lessons learned", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],
   },
@@ -215,7 +215,6 @@ export function Breadcrumbs({ path }: { path: string[] }) {
   const trail: { label: string; to?: string }[] = [{ label: found.item.label, to: found.item.path ?? `/${found.item.section}` }];
   if (found.group.label !== found.item.label) trail.unshift({ label: found.group.label });
   if (section === "e") trail.push({ label: "Entity" });
-  else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Okan investigation" });
   else if (section === "jobs" && path[1] === "run") trail.push({ label: `Run ${(path[2] ?? "").slice(0, 8)}`.trim() });
   else if (section === "inbox" && path[1] === "task") trail.push({ label: `Task ${path[2] ?? ""}`.trim() });
   else if (section === "cases" && path[1]) trail.push({ label: `Case ${path[1]}` });
@@ -223,7 +222,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
     trail.push({ label: "Forms" });
     if (path[2]) trail.push({ label: path[2] });
   } else if (section === "processes" && path[1]) trail.push({ label: path[1] });
-  else return null;
+  else if (section !== "investigate" || path[1] !== "okan") return null;
   return (
     <nav className="crumbs" aria-label="Breadcrumb">
       <ol>

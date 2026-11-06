@@ -3,7 +3,7 @@ import "./styles/shell.css";
 import "./styles/shared.css";
 import "./styles/workflows.css";
 import { Badge as UIBadge } from "./ui";
-import { StrictMode, Suspense, lazy, useEffect } from "react";
+import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { href, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
@@ -48,6 +48,8 @@ const FormPage = lazy(() => import("./pages/Processes").then((m) => ({ default: 
 
 function App() {
   const { path, query } = useRoute();
+  const routeKey = path.join("/");
+  const previousRoute = useRef(routeKey);
   const { stats, inbox, jobsHealth, declared, rebuilding } = useAppData();
   void declared.data;
 
@@ -101,7 +103,7 @@ function App() {
       <main id="main-content" tabIndex={-1}>
         <Breadcrumbs path={path} />
         <AreaNavigation section={navSection} />
-        <Suspense fallback={<div className="status">Loading…</div>}>
+        <Suspense fallback={<div className="status" role="status" aria-live="polite">Loading…</div>}>
           {section === "" && query.has("q") ? (
             <Search query={query} stats={s} />
           ) : section === "" ? (
@@ -165,10 +167,26 @@ function App() {
           ) : (
             <EmptyState title="Page not found"><a href={href("/")}>Return home</a> or use the navigation to choose a page.</EmptyState>
           )}
+          <RouteFocus routeKey={routeKey} previousRoute={previousRoute} />
         </Suspense>
       </main>
     </div>
   );
+}
+
+function RouteFocus({ routeKey, previousRoute }: {
+  routeKey: string; previousRoute: { current: string };
+}) {
+  useEffect(() => {
+    if (previousRoute.current === routeKey) return;
+    previousRoute.current = routeKey;
+    const sidebar = document.getElementById("sidebar");
+    const menu = document.querySelector(".menu-button");
+    if (sidebar?.classList.contains("open") || document.activeElement === menu) return;
+    const heading = document.querySelector<HTMLElement>("#main-content h1");
+    (heading ?? document.getElementById("main-content"))?.focus({ preventScroll: true });
+  }, [routeKey, previousRoute]);
+  return null;
 }
 
 /** Green / amber / red from the Dagster jobs and the last register update, linking to the Jobs page. */
