@@ -601,7 +601,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
   assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/analytics", "#/lessons", "#/studies"]);
+    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/board"][aria-current="page"]').waitFor();
@@ -1210,170 +1210,142 @@ test("Ask still works when the specialist catalog can't load, and offers a retry
 });
 
 const homeStats = { facility: "Test facility", pack: "okan", records: 10, entities: {}, edges: 0, open_reviews: {}, rebuild: {} };
-const efficiency = (end = "2026-10-14") => ({
-  since: "2026-10-01", until: "2026-10-15", end, step: "day", unit: "Sm3/d",
-  facility: { id: "plant", label: "Plant" }, source: "Daily reports", warnings: ["Coverage is not verified."],
-  constraints: [{ id: "a", label: "Compressor", category: "equipment" }, { id: "b", label: "Export", category: "export" }],
-  summary: { efficiency_pct: 80, allocated_sm3: 160, dynamic_max_sm3: 200, paired_days: 2 },
-  points: [
-    { date: "2026-10-04", dynamic_max_sm3d: 100, allocated_sm3d: 80, gap_sm3d: 20, efficiency_pct: 80, active_constraint_id: "a",
-      binding_constraint_ids: ["a", "b"], capacity_basis: "declared_limits", flags: ["tied_constraints"], source_ids: ["r1"] },
-    { date: "2026-10-07", dynamic_max_sm3d: 100, allocated_sm3d: 125, gap_sm3d: -25, efficiency_pct: 125, active_constraint_id: null,
-      binding_constraint_ids: [], capacity_basis: "reported_potential", flags: ["physical_constraint_unknown"], source_ids: ["r2"] },
-  ],
-});
-const stage = (id, label, capacity_sm3d, basis, changes = {}) => ({ id, label, capacity_sm3d, basis, binding: false, members: 2,
-  undeclared: basis === "declared" ? 0 : 2, undeclared_examples: basis === "declared" ? [] : ["10-V-2001", "10-V-2002"], ...changes });
-const capacity = {
-  as_of: "2026-10-14", unit: "Sm3/d", facility: { id: "plant", label: "Plant" }, source: "Dated flows_to network",
-  stages: [stage("well", "Wells", 130, "well_tests"), stage("separator", "Separators", 110, "demonstrated"), stage("export", "Crude terminal", 110, "demonstrated")],
-  system: { limit_sm3d: 100, allocated_sm3d: 90, basis: "reported_potential", established: false, binding_stages: [] },
-  demonstrated: { peak_sm3d: 110, date: "2026-09-01", since: "2025-10-15" },
-  well_tests: { total_sm3d: 130, wells: 12, first: "2026-10-01", last: "2026-10-12", not_tested: 3, since: "2026-07-17" },
-  required_metadata: "Dated system_oil_capacity measurement", warnings: [],
-};
+const panel = (kind, title, summary, data) => ({ kind, title, sources: [], spec: { data, layout: { height: 340, meta: kind === "flow-capacity" ? { horizontal_below: 560 } : undefined } },
+  summary: { context: "Plant · 2026-10-14 · Fictional, historical data, not a live operating update.", headline: null, stats: [], notes: [], warnings: [], tables: [], source: "Daily reports", ...summary } });
+const efficiency = panel("production-efficiency", "Production efficiency", {
+  stats: [{ label: "Weighted efficiency", value: "80%" }, { label: "Allocated · paired days", value: "160", unit: "Sm3" }],
+  notes: ["Unknown values are gaps, never zero."], warnings: ["Coverage is not verified."],
+  tables: [{ title: "Daily data", columns: ["Day", "Binding constraints"], rows: [["2026-10-04", "Compressor [equipment] + Export [export] (tied)"]] }],
+}, [{ type: "scatter", name: "Dynamic maximum", x: ["2026-10-04", "2026-10-05"], y: [100, null] }]);
+const capacity = panel("flow-capacity", "System capacity and bottleneck", {
+  headline: "Bottleneck not established: no stage has a declared capacity, so available capacity is unknown.",
+  tables: [{ title: "Metadata needed to establish the bottleneck · 3 of 3 stages incomplete", note: "For each stage: dated capacity.",
+    columns: ["Stage", "Entities"], rows: [["Crude terminal", "ESCRAVOS-TERM"]] }],
+}, [{ type: "bar", name: "Approved", x: ["Wells", "Separators"], y: [130, 110], offsetgroup: "stage" }, { type: "bar", name: "System limit", x: ["Wells", "Separators"], y: [100, 100], offsetgroup: "system" }]);
 
-test("Analytics renders declarative daily panels, linked hover/zoom, unknown days and saved JSON", async () => {
-  const requests = [];
-  await page.route("**/analytics/production-efficiency*", (route) => {
-    const query = new URL(route.request().url()).searchParams;
-    requests.push(Object.fromEntries(query));
-    const end = query.get("end") || "2026-10-14";
-    const overflow = query.get("ref") === "overflow-plant";
-    const points = Array.from({ length: 14 }, (_, i) => ({
-      date: new Date(Date.parse(end) - (13 - i) * 86_400_000).toISOString().slice(0, 10),
-      dynamic_max_sm3d: i === 5 ? null : 100 + i,
-      allocated_sm3d: i === 5 ? null : i === 6 ? 132.5 : 80 + i,
-      gap_sm3d: i === 5 ? null : i === 6 ? -26.5 : 20,
-      efficiency_pct: i === 5 || (overflow && i === 6) ? null : i === 6 ? 125 : 80,
-      active_constraint_id: i === 5 || i === 6 ? null : "export",
-      binding_constraint_ids: i === 5 || i === 6 ? [] : i === 3 ? ["export", "compressor"] : ["export"],
-      capacity_basis: i === 5 ? "missing" : i === 6 ? "reported_potential" : "declared_limits",
-      flags: i === 5 ? ["missing_day"] : overflow && i === 6 ? ["derived_metric_overflow"] : [], source_ids: ["report-1"],
-    }));
-    return route.fulfill({ json: {
-      since: points[0].date, until: new Date(Date.parse(end) + 86_400_000).toISOString().slice(0, 10),
-      end, step: "day", unit: "Sm3/d", facility: { id: query.get("ref") || "plant", label: "Test plant" },
-      source: "Daily production reports", points,
-      constraints: [{ id: "export", label: "Export", category: "export" }, { id: "compressor", label: "Compressor", category: "equipment" }],
-      summary: { efficiency_pct: 80, allocated_sm3: overflow ? null : 1040, dynamic_max_sm3: overflow ? null : 1300, paired_days: 13 },
-      warnings: ["One production day is unknown"],
-    } });
+test("Home's Chart Show moves between server-built figures and loads the second on arrival", async () => {
+  await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
+  const calls = { efficiency: 0, capacity: 0 };
+  await page.route("**/analytics/figures/production-efficiency*", (route) => { calls.efficiency++; return route.fulfill({ json: efficiency }); });
+  await page.route("**/analytics/figures/flow-capacity*", (route) => { calls.capacity++; return route.fulfill({ json: capacity }); });
+  await page.goto(`${url}/#/`);
+  const show = page.getByRole("group", { name: "Production charts", exact: true });
+  await show.getByRole("heading", { name: "Production efficiency", exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector(".chart-show .js-plotly-plot")?._fullLayout?.xaxis);
+  assert.equal(calls.capacity, 0, "An unopened slide requests nothing");
+  assert.equal(await show.getByRole("button", { name: "Previous chart" }).isDisabled(), true);
+  await show.getByText("Fictional, historical data, not a live operating update.", { exact: false }).first().waitFor();
+  await show.getByText("Coverage is not verified.").waitFor();
+  await show.getByText("Unknown values are gaps, never zero.").waitFor();
+  await show.getByText("Daily data").click();
+  await page.getByRole("cell", { name: "Compressor [equipment] + Export [export] (tied)", exact: true }).waitFor();
+
+  await show.getByRole("button", { name: "Next chart" }).click();
+  await show.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
+  const slide = show.getByRole("group", { name: /^2 of 2/ });
+  await slide.getByText("Bottleneck not established", { exact: false }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.length === 2);
+  const colors = await slide.locator(".js-plotly-plot").evaluate((node) => node._fullData.map((t) => t.marker.color));
+  const theme = await page.evaluate(() => [1, 2].map((i) => getComputedStyle(document.documentElement).getPropertyValue(`--chart-${i}`).trim()));
+  assert.deepEqual(colors, theme, "Series take the theme colorway by position");
+  assert.equal(calls.capacity, 1);
+  await slide.getByText("Metadata needed to establish the bottleneck · 3 of 3 stages incomplete").click();
+  await slide.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
+
+  await show.getByRole("button", { name: "Show Production efficiency" }).click();
+  await show.getByRole("heading", { name: "Production efficiency", exact: true }).waitFor();
+  await show.getByRole("button", { name: "Show System capacity and bottleneck" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await show.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
+  assert.equal(calls.capacity, 1, "Coming back reuses the mounted slide");
+  assert.equal(calls.efficiency, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("Chart Show recovers a failed figure by explicit retry and shows a figure with no plot", async () => {
+  await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
+  await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: efficiency }));
+  let fail = true;
+  await page.route("**/analytics/figures/flow-capacity*", (route) => fail
+    ? route.fulfill({ status: 500, json: { detail: "Capacity unavailable" } })
+    : route.fulfill({ json: panel("flow-capacity", "System capacity and bottleneck", { headline: "No flow network reaches this facility on its latest report day." }, []) }));
+  await page.goto(`${url}/#/`);
+  const show = page.getByRole("group", { name: "Production charts", exact: true });
+  await show.getByRole("button", { name: "Next chart" }).click();
+  await show.getByText("Capacity unavailable").waitFor();
+  fail = false;
+  await show.getByRole("button", { name: "Try again" }).click();
+  await show.getByText("No flow network reaches this facility on its latest report day.").waitFor();
+  assert.equal(await show.getByRole("group", { name: /^2 of 2/ }).locator(".js-plotly-plot").count(), 0);
+});
+
+test("A malformed figure is contained to its slide", async () => {
+  await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
+  await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: { kind: "x", summary: {} } }));
+  await page.route("**/analytics/figures/flow-capacity*", (route) => route.fulfill({ json: capacity }));
+  await page.goto(`${url}/#/`);
+  const show = page.getByRole("group", { name: "Production charts", exact: true });
+  await show.getByText("This chart could not be drawn from the data returned.", { exact: false }).waitFor();
+  await page.getByRole("heading", { name: "Latest daily report", exact: true }).waitFor();
+  await show.getByRole("button", { name: "Next chart" }).click();
+  await show.getByText("Bottleneck not established", { exact: false }).waitFor();
+});
+
+test("Home mounts, reaches its second chart and refreshes below default admission limits", async () => {
+  const responses = { "/stats": homeStats, "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity };
+  let active = 0, maximum = 0;
+  await page.route("**/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.fallback();
+    active++; maximum = Math.max(maximum, active);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    active--;
+    return path in responses ? route.fulfill({ json: responses[path] }) : route.fallback();
   });
-  await page.goto(`${url}/#/analytics`);
-  await page.getByRole("heading", { name: "Analytics", exact: true }).waitFor();
-  const chart = page.getByRole("img", { name: /shared production and constraint daily charts/ });
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.xaxis);
-  assert.deepEqual(requests[0], {}, "Blank controls let the API choose the facility's latest report");
-  const layout = await chart.evaluate((node) => ({
-    hover: node._fullLayout.hovermode, linked: node._fullLayout.hoversubplots,
-    axes: node.data.map((trace) => trace.xaxis), unknown: node.data.some((trace) => trace.name === "Unknown"),
-    gaps: node.data[0].connectgaps, sample: node.data[0].y[5],
-  }));
-  assert.equal(layout.hover, "x unified");
-  assert.equal(layout.linked, "axis");
-  assert.ok(layout.axes.every((axis) => axis === "x"));
-  assert.equal(layout.unknown, true);
-  assert.equal(layout.gaps, false);
-  assert.equal(layout.sample, null);
-  // Move over the upper subplot and verify hover details include the linked constraint band.
-  await chart.evaluate((node) => node.scrollIntoView({ block: "start" }));
-  const coordinates = await chart.evaluate((node) => {
-    const box = node.getBoundingClientRect(), l = node._fullLayout;
-    return { x: box.x + l.xaxis._offset + l.xaxis.d2p("2026-10-04"),
-      y: box.y + l.yaxis._offset + l.yaxis._length / 2 };
-  });
-  await page.mouse.move(coordinates.x, coordinates.y);
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .hoverlayer")?.textContent.includes("Binding: Compressor [equipment] + Export [export] (tied)"));
-  const hover = await chart.locator(".hoverlayer").textContent();
-  assert.match(hover, /Sm3\/d/);
-  assert.match(hover, /Capacity basis/);
-  const lowerHover = await chart.evaluate((node) => {
-    const box = node.getBoundingClientRect(), l = node._fullLayout;
-    return { x: box.x + l.xaxis._offset + l.xaxis.d2p("2026-10-04"),
-      y: box.y + l.yaxis2._offset + l.yaxis2._length / 2 };
-  });
-  await page.mouse.move(lowerHover.x, lowerHover.y);
-  await page.waitForFunction(() => {
-    const text = document.querySelector(".analytics-chart .hoverlayer")?.textContent || "";
-    return text.includes("Dynamic maximum: 103 Sm3/d") && text.includes("Allocated production: 83 Sm3/d") && text.includes("(tied)");
-  });
-  assert.ok(await chart.evaluate((node) => node._fullLayout.yaxis.range[1] > 132.5), "Rates above capacity are not clipped");
-  const originalRange = await chart.evaluate((node) => [...node._fullLayout.xaxis.range]);
-  const dataRange = await chart.evaluate((node) => [node.data[0].x[0], node.data[0].x.at(-1)]);
-  const drag = await chart.evaluate((node) => {
-    const box = node.getBoundingClientRect(), l = node._fullLayout;
-    return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis._offset, w: l.xaxis._length, h: l.yaxis._length };
-  });
-  await page.mouse.move(drag.x + drag.w * .2, drag.y + drag.h * .2);
-  await page.mouse.down();
-  await page.mouse.move(drag.x + drag.w * .7, drag.y + drag.h * .8, { steps: 8 });
-  await page.mouse.up();
-  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), originalRange);
-  assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace._xaxis === node._fullLayout.xaxis || trace.xaxis === "x")));
-  // Reset, then zoom from the categorical subplot; both panels still use the same range.
-  await page.mouse.dblclick(drag.x + drag.w * .5, drag.y + drag.h * .5);
-  await page.waitForFunction((dates) => {
-    const range = document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range;
-    return Date.parse(range[0]) <= Date.parse(dates[0]) && Date.parse(range[1]) >= Date.parse(dates[1]);
-  }, dataRange);
-  const resetRange = await chart.evaluate((node) => [...node._fullLayout.xaxis.range]);
-  const lowerDrag = await chart.evaluate((node) => {
-    const box = node.getBoundingClientRect(), l = node._fullLayout;
-    return { x: box.x + l.xaxis._offset, y: box.y + l.yaxis2._offset + l.yaxis2._length / 2, w: l.xaxis._length };
-  });
-  await page.mouse.move(lowerDrag.x + lowerDrag.w * .2, lowerDrag.y);
-  await page.mouse.down();
-  await page.mouse.move(lowerDrag.x + lowerDrag.w * .7, lowerDrag.y, { steps: 8 });
-  await page.mouse.up();
-  await page.waitForFunction((range) => JSON.stringify(document.querySelector(".analytics-chart .js-plotly-plot")._fullLayout.xaxis.range) !== JSON.stringify(range), resetRange);
-  assert.ok(await chart.evaluate((node) => node._fullData.every((trace) => trace.xaxis === "x")));
-  await page.getByRole("button", { name: "Show daily data", exact: true }).click();
-  await page.getByRole("cell", { name: "2026-10-06", exact: true }).waitFor();
-  assert.equal(await page.getByRole("row").filter({ hasText: "2026-10-06" }).getByRole("cell", { name: "Unknown", exact: true }).count(), 5);
-  const potentialRow = page.getByRole("row").filter({ hasText: "2026-10-07" });
-  await potentialRow.getByRole("cell", { name: "Reported potential · physical constraint unknown", exact: true }).waitFor();
-  assert.equal(await potentialRow.getByRole("cell", { name: "125", exact: true }).count(), 1);
-  const tiedRow = page.getByRole("row").filter({ hasText: "2026-10-04" });
-  await tiedRow.getByRole("cell", { name: "Compressor [equipment] + Export [export] (tied)", exact: true }).waitFor();
-  await page.getByLabel("End date (inclusive)").fill("2026-10-10");
-  await page.getByLabel("Facility ref (optional)").fill("other-plant");
-  await page.getByRole("button", { name: "Update", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?.data[0].x[13] === "2026-10-10");
-  assert.deepEqual(requests.at(-1), { end: "2026-10-10", ref: "other-plant" });
-  await page.getByRole("button", { name: "Latest report", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?.data[0].x[13] === "2026-10-14");
-  assert.deepEqual(requests.at(-1), { ref: "other-plant" });
-  await page.getByLabel("Facility ref (optional)").fill("overflow-plant");
-  await page.getByRole("button", { name: "Update", exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".analytics-summary strong").length === 3 &&
-    document.querySelector(".analytics-summary").textContent.includes("Unknown"));
-  assert.equal(await page.locator(".analytics-summary strong").filter({ hasText: "Unknown" }).count(), 2);
-  await page.getByRole("cell", { name: /reported potential · derived_metric_overflow/ }).waitFor();
-  await page.getByText("Dashboard JSON · customize & save", { exact: true }).click();
-  const editor = page.getByLabel("Dashboard specification");
-  const spec = JSON.parse(await editor.inputValue());
-  spec.dataSource = "https://example.com";
-  await editor.fill(JSON.stringify(spec));
-  await page.getByRole("button", { name: "Apply JSON", exact: true }).click();
-  await page.getByRole("alert").filter({ hasText: "Only the production-efficiency" }).waitFor();
-  spec.dataSource = "production-efficiency";
-  spec.title = "Saved production dashboard";
-  spec.panels[0].gap.visible = true;
-  await editor.fill(JSON.stringify(spec));
-  await page.getByRole("button", { name: "Save dashboard", exact: true }).click();
-  await page.getByRole("heading", { name: "Saved production dashboard", exact: true }).waitFor();
-  await page.reload();
-  await page.getByRole("heading", { name: "Saved production dashboard", exact: true }).waitFor();
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.xaxis);
-  await page.emulateMedia({ colorScheme: "dark" });
-  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForFunction(() => document.querySelector(".analytics-chart .js-plotly-plot")?._fullLayout?.width < 400);
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-  await page.getByRole("button", { name: "Open menu", exact: true }).click();
-  await page.getByRole("link", { name: "Home", exact: true }).first().click();
+  await page.goto(`${url}/#/`);
+  const show = page.getByRole("group", { name: "Production charts", exact: true });
+  await show.getByRole("button", { name: "Next chart" }).click();
+  await show.getByText("Bottleneck not established", { exact: false }).waitFor();
+  await page.evaluate(() => window.dispatchEvent(new Event("fuzer:changed")));
+  await page.waitForFunction(() => !document.querySelector('[role="status"][aria-live="polite"].status'));
+  assert.ok(maximum <= 4, `Browser queue maximum ${maximum}; server default is four`);
+});
+
+test("Empty facilities show no charts, and old Analytics links land on Home", async () => {
+  await page.goto(`${url}/#/analytics?ref=plant&end=2026-10-10`);
+  await page.waitForURL(`${url}/#/`);
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+  assert.equal(await page.locator(".chart-show").count(), 0);
+});
+
+test("Chart Show swipes over the chart on touch and keeps its slide through rotation", async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const mobile = await phone.newPage();
+  for (const [path, json] of [["**/auth/me", { mode: "local", configured: true, user: null }], ["**/stats", homeStats], ["**/demo/config", { enabled: true }],
+    ["**/analytics/figures/production-efficiency*", efficiency], ["**/analytics/figures/flow-capacity*", capacity]]) {
+    await mobile.route(path, (route) => route.fulfill({ json }));
+  }
+  await mobile.goto(`${url}/#/`);
+  const plot = mobile.locator(".chart-show-slide").first().locator(".js-plotly-plot");
+  await plot.locator(".main-svg").first().waitFor();
+  const box = await plot.evaluate((node) => {
+    node.scrollIntoView({ block: "center" });
+    const r = node.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  });
+  const cdp = await phone.newCDPSession(mobile);
+  await cdp.send("Input.synthesizeScrollGesture", { x: box.x + box.width * .75, y: box.y + box.height / 2, xDistance: -300, yDistance: 0, speed: 900, gestureSourceType: "touch" });
+  await mobile.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
+  const second = mobile.locator(".chart-show-slide").nth(1).locator(".js-plotly-plot");
+  await mobile.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.[0]?.orientation === "h");
+  await mobile.setViewportSize({ width: 800, height: 844 });
+  await mobile.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.[0]?.orientation === "v");
+  const track = mobile.locator(".chart-show-track");
+  await mobile.waitForFunction(() => { const n = document.querySelector(".chart-show-track"); return n.scrollLeft === n.clientWidth; });
+  assert.equal(await second.count(), 1);
+  assert.ok(await track.evaluate((node) => node.scrollLeft > 0));
+  assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  await phone.close();
 });
 
 test("a rendering failure has a usable recovery screen and Return home restores the shell", async () => {

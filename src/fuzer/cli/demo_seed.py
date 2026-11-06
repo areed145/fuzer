@@ -1,4 +1,5 @@
-"""Load Okan once into an empty register, including a database with an existing schema."""
+"""Load Okan once into an empty register, including a database with an existing schema, and bring
+new built-in mappings and changed exports to one that is already built."""
 
 import os
 from pathlib import Path
@@ -9,6 +10,30 @@ from ..ops import pipeline
 from ..sources import catalog, ingest
 
 LOCK = 0x465A444D  # session lock: held across the ingest and rebuild commits
+
+
+def refresh(conn, folder: Path) -> None:
+    """A deploy brings new exports and mappings in the image; an existing register needs them too.
+
+    Failing here must not take the application down, so it reports and carries on with what's
+    loaded. It isn't retried: the failure may have left a load part applied, so Sources shows what
+    was recorded, and the next deploy, or a deliberate `fuzer ingest`, runs it again.
+    """
+    try:
+        seeded = catalog.seed(conn)
+        stats = ingest.ingest(conn, folder)
+        changed = stats["inserted"] + stats["updated"] + stats["removed"]
+        for outcome in ("held", "paused", "missing"):
+            if stats[outcome]:
+                print(f"Data refresh {outcome}: {', '.join(stats[outcome])}", flush=True)
+        if seeded or changed:
+            built = pipeline.rebuild(conn, load_pack("okan"))
+            print(f"Data refreshed: {changed} records changed, {built['entities']} entities.", flush=True)
+        else:
+            print("Data unchanged.", flush=True)
+    except Exception as e:  # noqa: BLE001 - startup reports it and the application still starts
+        conn.rollback()
+        print(f"Data refresh failed; running on the loaded register. Inspect Sources before retrying: {e}", flush=True)
 
 
 def seed(conn, folder: Path) -> None:
@@ -29,7 +54,8 @@ def seed(conn, folder: Path) -> None:
             entities = conn.execute("select 1 from entity limit 1").fetchone()
             if populated or entities:
                 if roots == {"OKAN"} and entities:
-                    print("Existing Okan register found; leaving data and reviewer decisions unchanged.", flush=True)
+                    print("Existing Okan register found; keeping settings and reviewer decisions.", flush=True)
+                    refresh(conn, folder)
                     return
                 raise RuntimeError("Okan bootstrap requires an empty register or a built Okan register; "
                                    "existing data was left unchanged")
@@ -41,7 +67,8 @@ def seed(conn, folder: Path) -> None:
             if row is None:
                 raise RuntimeError("Okan bootstrap marker is invalid")
             if row["complete"]:
-                print("Okan demo already initialized; leaving database unchanged.", flush=True)
+                print("Okan demo already initialized; keeping settings and reviewer decisions.", flush=True)
+                refresh(conn, folder)
                 return
 
         print("Loading the Okan sample into the empty register...", flush=True)

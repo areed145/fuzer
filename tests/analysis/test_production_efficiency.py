@@ -169,6 +169,19 @@ def test_graph_scope_dates_cycle_and_latest_facility_report(graph):
     assert len(out["points"]) == 14
 
 
+def test_a_bound_at_a_downstream_sales_point_limits_the_facility(graph):
+    graph.execute("insert into entity(fuzer_id, kind) values ('fz-pe-sales', 'allocation_node')")
+    graph.execute("insert into entity_label values ('fz-pe-sales', 'Terminal')")
+    graph.execute("insert into golden values ('fz-pe-sales', 'ec_type', %s, 'ec', 'test')", (Jsonb("sales_point"),))
+    graph.execute("""insert into edge(src, rel, dst, sources, confidence)
+                     values ('fz-pe-export', 'flows_to', 'fz-pe-sales', '{}', 1)""")
+    graph.execute("""insert into measurement(record, quantity, fuzer_id, at, value, unit)
+                     values ('takeaway', 'system_oil_capacity', 'fz-pe-sales', '2026-11-05', 70, 'Sm3/d')""")
+    out = production_efficiency(graph, "fz-pe-facility")
+    assert out["points"][-1]["dynamic_max_sm3d"] == 70
+    assert out["points"][-1]["active_constraint_id"] == "fz-pe-sales"
+
+
 def test_graph_rejects_non_facility(graph):
     with pytest.raises(ValueError, match="live facility"):
         production_efficiency(graph, "fz-pe-separator")
@@ -181,6 +194,17 @@ def test_existing_mapped_reports_supply_capacity_reference(okan_db):
     out = production_efficiency(okan_db.conn, facility)
     assert len(out["points"]) == 14
     assert out["summary"]["paired_days"] == 14
-    assert all(p["capacity_basis"] == "reported_potential" for p in out["points"])
-    assert all(p["active_constraint_id"] is None for p in out["points"])
+    assert all(p["capacity_basis"] == "declared_limits" for p in out["points"])
+    assert all(p["active_constraint_id"] for p in out["points"])
     assert out["summary"]["efficiency_pct"] > 0
+
+
+def test_well_potential_limits_alongside_declared_bounds():
+    report = {"id": "r", "date": "2026-11-05", "allocated": 80, "potential": 90}
+    limit = {"date": "2026-11-05", "id": "sep", "label": "Sep", "record": "x", "value": 100, "unit": "Sm3/d", "qualifier": None}
+    point = calculate([report], [limit], date(2026, 11, 5))["points"][-1]
+    assert point["dynamic_max_sm3d"] == 90
+    assert point["binding_constraint_ids"] == ["reported_potential"]
+    assert point["capacity_basis"] == "declared_limits"
+    tighter = calculate([report], [{**limit, "value": 85}], date(2026, 11, 5))["points"][-1]
+    assert (tighter["dynamic_max_sm3d"], tighter["binding_constraint_ids"]) == (85, ["sep"])

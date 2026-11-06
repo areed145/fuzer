@@ -55,3 +55,35 @@ def test_ambiguous_facility_is_a_conflict_not_server_error(monkeypatch):
 
     c = client(monkeypatch, resolve=ambiguous)
     assert c.get("/analytics/production-efficiency?ref=facility").status_code == 409
+
+
+def test_flow_capacity_is_a_read_of_the_resolved_facility(monkeypatch):
+    from fuzer.analysis import flow_capacity as fc
+
+    calls = []
+    monkeypatch.setattr(fc, "flow_capacity", lambda conn, facility: calls.append(facility) or {"stages": []})
+    assert client(monkeypatch).get("/analytics/flow-capacity").json() == {"stages": []}
+    assert calls == ["fz-facility"]
+
+
+def test_flow_capacity_errors(monkeypatch):
+    from fuzer.analysis import flow_capacity as fc
+
+    assert client(monkeypatch, resolve=lambda *args: None).get("/analytics/flow-capacity?ref=x").status_code == 404
+
+    def fail(conn, facility):
+        raise ValueError("facility has no production report")
+
+    monkeypatch.setattr(fc, "flow_capacity", fail)
+    assert client(monkeypatch).get("/analytics/flow-capacity").status_code == 400
+
+
+def test_live_figure_routes(monkeypatch):
+    from fuzer.plots import analytics
+
+    calls = []
+    monkeypatch.setattr(analytics, "live", lambda conn, pack, kind, facility: calls.append((kind, facility)) or {"kind": kind})
+    assert client(monkeypatch).get("/analytics/figures/flow-capacity").json() == {"kind": "flow-capacity"}
+    assert calls == [("flow-capacity", "fz-facility")]
+    monkeypatch.undo()
+    assert client(monkeypatch).get("/analytics/figures/nope").status_code == 404

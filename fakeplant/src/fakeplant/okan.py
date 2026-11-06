@@ -28,7 +28,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import curves, docs, limits, measurements, pid, process
+from . import capacity, curves, docs, limits, measurements, pid, process
 from .common import (
     ACTIONS,
     CAUSES,
@@ -551,7 +551,7 @@ def generate(out, seed: int = 11) -> dict:
         lost_gas = sum(float(d["lost_gas_ksm3"]) for d in events)
         notes = [d["comment"] for d in events] or [drng2.choice(["Steady production.", "All trains running.",
                                                                  "Routine operations, no upsets."])]
-        daily.append({"report_date": day, "facility": FIELD, "oil_sm3": f"{oil - lost_oil:.0f}",
+        daily.append({"report_date": day, "facility": FIELD, "oil_sm3": f"{max(0, oil - lost_oil):.0f}",
                       "oil_potential_sm3": f"{oil:.0f}",
                       "gas_ksm3": f"{3100 - lost_gas * 0.5:.0f}", "water_inj_sm3": "0",
                       "gas_export_ksm3": f"{max(0, 1700 - lost_gas):.0f}", "lift_gas_ksm3": f"{1800 - lost_gas * 0.3:.0f}",
@@ -887,14 +887,19 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
-    _write_csv(out / "ec_day001.csv", daily)
     _write_csv(out / "sap_maintenance_plans.csv", plans)
     _write_csv(out / "lims_results.csv", lab)
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "oem_curves.csv", curve_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.
     model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)
-    _write_csv(out / "ec_well_tests.csv", process.scale_tests(model, tests))  # what a test separator measures
+    measured = process.scale_tests(model, tests)  # what a test separator measures
+    _write_csv(out / "ec_well_tests.csv", measured)
+    capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it
+    _write_csv(out / "ec_day001.csv", daily)
+    for name, rows in capacity.registers(seed).items():
+        _write_csv(out / f"{name}.csv", rows)
+    (out / "answer_keys" / "capacity.json").write_text(json.dumps(capacity_truth, indent=1))
     alarms, iows, limit_truth = limits.okan_limits(model, points, af, seed)
     _write_csv(out / "dcs_alarms.csv", alarms)
     _write_csv(out / "iow_register.csv", iows)

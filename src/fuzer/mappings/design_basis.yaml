@@ -1,0 +1,14 @@
+# Original design ratings from equipment datasheets. They stand only where nothing newer exists.
+source: edms
+record_type: design_basis
+shape: measurements
+dataset: design_basis
+key: reading_id
+measurements:
+  of:
+    - {kind: tag, from: tag, as: tag}
+    - {kind: allocation_node, from: node}
+  at: effective
+  method: {from: method}
+  values:
+    - {quantity: {from: quantity}, from: value, unit: {from: unit}}

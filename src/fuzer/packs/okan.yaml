@@ -4,6 +4,7 @@
 #   30 OKA_ST1, 40 OKA_ST2 (satellites) 50 OKA_NWP (new wells platform)   61-84 jackets OKJ-01..24
 name: okan
 facility: OKAN
+data_notice: Fictional, historical data, not a live operating update.
 
 tag_grammar:
   area_digits: 2

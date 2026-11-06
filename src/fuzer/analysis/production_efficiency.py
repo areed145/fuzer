@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 UNIT = "Sm3/d"
 DAYS = 14
+WELLS = {"id": "reported_potential", "label": "Reported well potential", "category": "wells"}
 
 
 def _number(value):
@@ -80,8 +81,13 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
             maximum = min(values[0] for values in candidates.values())
             binding = sorted(key for key, values in candidates.items()
                              if math.isclose(values[0], maximum, rel_tol=1e-9, abs_tol=1e-9))
-            active = binding[0]
             basis = "declared_limits"
+            # Plant limits say what it could carry; the wells may not offer that much.
+            if potential is not None and potential <= maximum:
+                binding = sorted({*binding, WELLS["id"]}) if potential == maximum else [WELLS["id"]]
+                maximum = potential
+                catalog[WELLS["id"]] = WELLS
+            active = binding[0]
             if len(binding) > 1:
                 flags.append("tied_constraints")
         elif not bounds[day] and potential is not None:
@@ -104,6 +110,7 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
                 flags.append("allocated_above_capacity")
         points.append({
             "date": day, "dynamic_max_sm3d": maximum, "allocated_sm3d": allocated,
+            "reported_potential_sm3d": potential,
             "gap_sm3d": gap, "efficiency_pct": efficiency, "active_constraint_id": active,
             "binding_constraint_ids": binding, "capacity_basis": basis,
             "flags": sorted(set(flags)), "source_ids": sorted(set(source_ids)),
@@ -120,7 +127,7 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
     if any(p["capacity_basis"] == "reported_potential" for p in points):
         warnings.append("Reported oil potential is a fallback reference; its physical binding constraint is unknown.")
     if any(p["capacity_basis"] == "declared_limits" for p in points):
-        warnings.append("Capacity is the minimum of declared whole-facility oil-equivalent bounds; coverage is not verified.")
+        warnings.append("Capacity is the minimum of declared whole-facility oil-equivalent bounds and reported well potential; coverage is not verified.")
     if any(p["flags"] and p["flags"] != ["physical_constraint_unknown"] for p in points):
         warnings.append("Data-quality flags are present. Missing values are not filled or treated as zero.")
     return {
@@ -134,6 +141,66 @@ def calculate(reports: list[dict], limits: list[dict], end: date) -> dict:
     }
 
 
+REPORTS = """
+    select distinct p.fuzer_id as id, d.value #>> '{}' as date,
+           a.value as allocated, v.value as potential, g.value as gas, x.value as gas_export
+    from entity p join golden d on d.fuzer_id = p.fuzer_id and d.field = 'report_date'
+    join edge e on e.src = p.fuzer_id and e.rel = 'reports_on' and e.dst = %(facility)s
+    left join golden a on a.fuzer_id = p.fuzer_id and a.field = 'oil_sm3'
+    left join golden v on v.fuzer_id = p.fuzer_id and v.field = 'oil_potential_sm3'
+    left join golden g on g.fuzer_id = p.fuzer_id and g.field = 'gas_ksm3'
+    left join golden x on x.fuzer_id = p.fuzer_id and x.field = 'gas_export_ksm3'
+    where p.kind = 'production_day' and p.retired_at is null and p.merged_into is null
+      and (e.valid_from is null or e.valid_from <= (d.value #>> '{}')::date)
+      and (e.valid_to is null or e.valid_to > (d.value #>> '{}')::date)
+"""
+_NODE = """n.kind in ('area', 'tag', 'well', 'allocation_node')
+              and n.retired_at is null and n.merged_into is null
+              and (e.valid_from is null or e.valid_from <= s.day)
+              and (e.valid_to is null or e.valid_to > s.day)"""
+# Everything feeding the facility, plus the sales points it delivers to: those belong to no facility
+# but takeaway still bounds it. Only sales points: other downstream nodes aren't this facility's.
+NETWORK = f"""
+    with recursive days(day) as (
+        select generate_series(%(since)s::date, %(until)s::date - 1, interval '1 day')::date
+    ), scope(day, id) as (
+        select day, %(facility)s::text from days
+        union
+        select s.day, e.src from scope s join edge e on e.dst = s.id
+        join entity n on n.fuzer_id = e.src
+        where e.rel in ('part_of', 'located_at', 'flows_to') and {_NODE}
+    ), network(day, id) as (
+        select day, id from scope
+        union
+        select s.day, e.dst from scope s join edge e on e.src = s.id
+        join entity n on n.fuzer_id = e.dst
+        join golden g on g.fuzer_id = e.dst and g.field = 'ec_type' and g.value #>> '{{}}' = 'sales_point'
+        where e.rel = 'flows_to' and {_NODE}
+    )
+"""
+
+
+def latest_report_date(conn, facility: str) -> date | None:
+    row = conn.execute("select max(date) as date from (" + REPORTS + ") r", {"facility": facility}).fetchone()
+    return date.fromisoformat(row["date"]) if row["date"] else None
+
+
+def declared_limits(conn, params: dict) -> list[dict]:
+    """system_oil_capacity bounds on the network between `since` and `until`."""
+    return conn.execute(
+        NETWORK + """
+        select s.day::text as date, m.fuzer_id as id, l.label, m.record, m.value, m.unit, m.qualifier, m.method,
+               coalesce(c.value #>> '{}', t.value #>> '{}', 'unknown') as category
+        from network s join measurement m on m.fuzer_id = s.id and m.at::date = s.day
+        left join entity_label l on l.fuzer_id = s.id
+        left join golden c on c.fuzer_id = s.id and c.field = 'constraint_category'
+        left join golden t on t.fuzer_id = s.id and t.field = 'ec_type'
+        where m.quantity = 'system_oil_capacity'
+          and m.at >= %(since)s::timestamp and m.at < %(until)s::timestamp
+        """, params,
+    ).fetchall()
+
+
 def production_efficiency(conn, facility: str, end: date | None = None) -> dict:
     """Read resolved reports and daily system-capacity measurements on the facility's graph."""
     facility_row = conn.execute(
@@ -144,54 +211,15 @@ def production_efficiency(conn, facility: str, end: date | None = None) -> dict:
     ).fetchone()
     if not facility_row:
         raise ValueError("ref must resolve to a live facility")
-    report_sql = """
-        select distinct p.fuzer_id as id, d.value #>> '{}' as date,
-               a.value as allocated, v.value as potential
-        from entity p join golden d on d.fuzer_id = p.fuzer_id and d.field = 'report_date'
-        join edge e on e.src = p.fuzer_id and e.rel = 'reports_on' and e.dst = %(facility)s
-        left join golden a on a.fuzer_id = p.fuzer_id and a.field = 'oil_sm3'
-        left join golden v on v.fuzer_id = p.fuzer_id and v.field = 'oil_potential_sm3'
-        where p.kind = 'production_day' and p.retired_at is null and p.merged_into is null
-          and (e.valid_from is null or e.valid_from <= (d.value #>> '{}')::date)
-          and (e.valid_to is null or e.valid_to > (d.value #>> '{}')::date)
-    """
-    params = {"facility": facility}
-    if end is None:
-        latest = conn.execute("select max(date) as date from (" + report_sql + ") r", params).fetchone()
-        end = date.fromisoformat(latest["date"]) if latest["date"] else date.today()
+    end = end or latest_report_date(conn, facility) or date.today()
     if not date.min + timedelta(days=DAYS - 1) <= end < date.max:
         raise ValueError("end must allow fourteen daily samples and an exclusive following day")
     since, until = end - timedelta(days=DAYS - 1), end + timedelta(days=1)
-    params.update(since=since.isoformat(), until=until.isoformat())
+    params = {"facility": facility, "since": since.isoformat(), "until": until.isoformat()}
     reports = conn.execute(
-        report_sql + " and d.value #>> '{}' >= %(since)s and d.value #>> '{}' < %(until)s", params,
-    ).fetchall()
-    limits = conn.execute(
-        """
-        with recursive days(day) as (
-            select generate_series(%(since)s::date, %(until)s::date - 1, interval '1 day')::date
-        ), scope(day, id) as (
-            select day, %(facility)s::text from days
-            union
-            select s.day, e.src from scope s join edge e on e.dst = s.id
-            join entity n on n.fuzer_id = e.src
-            where e.rel in ('part_of', 'located_at', 'flows_to')
-              and n.kind in ('area', 'tag', 'well', 'allocation_node')
-              and n.retired_at is null and n.merged_into is null
-              and (e.valid_from is null or e.valid_from <= s.day)
-              and (e.valid_to is null or e.valid_to > s.day)
-        )
-        select s.day::text as date, m.fuzer_id as id, l.label, m.record, m.value, m.unit, m.qualifier,
-               coalesce(c.value #>> '{}', t.value #>> '{}', 'unknown') as category
-        from scope s join measurement m on m.fuzer_id = s.id and m.at::date = s.day
-        left join entity_label l on l.fuzer_id = s.id
-        left join golden c on c.fuzer_id = s.id and c.field = 'constraint_category'
-        left join golden t on t.fuzer_id = s.id and t.field = 'ec_type'
-        where m.quantity = 'system_oil_capacity'
-          and m.at >= %(since)s::timestamp and m.at < %(until)s::timestamp
-        """, params,
+        REPORTS + " and d.value #>> '{}' >= %(since)s and d.value #>> '{}' < %(until)s", params,
     ).fetchall()
     return {
-        **calculate(reports, limits, end), "facility": dict(facility_row),
+        **calculate(reports, declared_limits(conn, params), end), "facility": dict(facility_row),
         "source": "Resolved production_day reports_on facility; dated asset graph and system_oil_capacity measurements",
     }

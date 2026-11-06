@@ -10,8 +10,14 @@ import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
 import { Button, PageHeader, Input , Card as UICard} from "../ui";
 import { usePermission } from "../Auth";
+import { ChartShow } from "../ChartShow";
+import { LiveFigure } from "../analytics/LiveFigure";
 
 type HeadlineFact = { text: string; cites: string[] };
+const HOME_FIGURES = [
+  { kind: "production-efficiency", title: "Production efficiency" },
+  { kind: "flow-capacity", title: "System capacity and bottleneck" },
+];
 
 export function HomePage({ query, stats, statsLoading, statsError }: {
   query: URLSearchParams;
@@ -44,6 +50,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
           <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
         </div>
       </UICard>
+      {stats && stats.records > 0 && <ChartShow label="Production charts" slides={HOME_FIGURES.map(({ kind, title }) => ({ id: kind, title, render: () => <LiveFigure kind={kind} /> }))} />}
       <div className="home-grid">
         <LatestReportCard />
         <NeedsYouCard stats={stats} statsLoading={statsLoading} statsError={statsError} />

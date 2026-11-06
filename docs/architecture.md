@@ -12,9 +12,9 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 28 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 19 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 12 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 14 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
-  c_plots["Charts<br><small>fuzer.plots, 4 modules</small>"]
+  c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 8 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 18 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
@@ -22,6 +22,7 @@ flowchart LR
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 16 modules</small>"]
   c_workflow --> c_sources
+  c_analysis --> c_graph
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -183,7 +184,7 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
 - **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `edges`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
-- **Uses:** core, sources
+- **Uses:** analysis, core, sources
 - **Writes:** `crosswalk`, `edge`, `entity`, `id_event`, `lesson`, `llm_extraction`, `ontology_kind`, `ontology_relation`, `register_summary`, `review_item` ([schema](schema.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 
@@ -191,7 +192,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `calcs`, `cases`, `clusters`, `equipment`, `hydraulics`, `limits`, `production_efficiency`, `signals`, `studies`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `equipment`, `flow_capacity`, `hydraulics`, `limits`, `production_efficiency`, `signals`, `studies`, `value`, `values`
 - **Uses:** core, graph, sources, workflow
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Settings:** `alarms.failed_start_minutes`, `sre.hops`, `studies.max_points`, `studies.max_values`, `studies.workers` ([settings](settings.md))
@@ -211,7 +212,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
 
 Interactive charts the agents and the app build from Fuzer data. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/plots`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots): `general`, `maintenance`, `production`, `troubleshooting`
+- **Code:** [`src/fuzer/plots`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots): `analytics`, `general`, `maintenance`, `production`, `troubleshooting`
 - **Uses:** analysis, core, graph, ops, sources
 - **Writes:** `assistant_figure` ([schema](schema.md))
 - **Tests:** [`tests/plots`](https://github.com/areed145/fuzer/tree/main/tests/plots)

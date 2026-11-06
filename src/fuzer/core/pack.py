@@ -25,6 +25,7 @@ class Pack:
     value: dict
     limits: dict
     reference_data: dict = field(default_factory=dict)
+    data_notice: str | None = None  # how this asset's data must be labeled wherever it's shown
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
@@ -50,4 +51,5 @@ def load_pack(name: str | None = None) -> Pack:
         spatial_links=raw.get("spatial_links", []),
         value=raw.get("value", {}),
         limits=raw.get("limits", {}),
+        data_notice=raw.get("data_notice"),
     )

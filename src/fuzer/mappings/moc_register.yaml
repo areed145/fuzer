@@ -1,0 +1,15 @@
+# Management of change register: re-rates and derates. An open MOC (method moc_open) is a proposal
+# and never sets a capacity.
+source: moc
+record_type: register
+shape: measurements
+dataset: moc_register
+key: reading_id
+measurements:
+  of:
+    - {kind: tag, from: tag, as: tag}
+    - {kind: allocation_node, from: node}
+  at: effective
+  method: {from: method}
+  values:
+    - {quantity: {from: quantity}, from: value, unit: {from: unit}}

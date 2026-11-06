@@ -1,0 +1,12 @@
+.chart-show { min-width: 0; margin-bottom: 16px; }
+.chart-show-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.chart-show-head h2 { margin: 0; }
+.chart-show-controls { display: flex; align-items: center; gap: 4px; flex: none; }
+.chart-show-dot { width: 24px; height: 24px; padding: 8px; border: 0; background: transparent; cursor: pointer; }
+.chart-show-dot::before { content: ""; display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.chart-show-dot[aria-current="true"]::before { background: var(--accent); }
+.chart-show-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; align-items: flex-start; }
+.chart-show-track::-webkit-scrollbar { display: none; }
+.chart-show-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+/* Plotly claims touches on its drag layers; hand them back so a swipe on the chart moves the show. */
+.chart-show .js-plotly-plot .nsewdrag, .chart-show .js-plotly-plot .main-svg { touch-action: pan-x pan-y !important; }
