@@ -16,7 +16,7 @@
 
 `--fresh` starts over: empties the database and, for the fake plant, makes new data. LLM
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
-same logs and drawings again. `--demo okan` (or offshore, onshore) picks a fake plant and its pack.
+same logs and drawings again. `--demo okan` selects the Okan field and its pack.
 """
 
 import os
@@ -57,10 +57,10 @@ def data_folder(fresh: bool) -> Path:
         return folder
     if fake is None:
         raise SystemExit(f"No source exports found in {folder or 'data'}. Put exports there, or set FUZER_DATA_DIR.")
-    asset = fake.ASSET_FOR_PACK.get(os.environ.get("FUZER_PACK") or "", "offshore")
+    asset = "okan"
     folder = folder or fake.DATA / asset
     say(f"Making the fake {asset} plant in {folder} ...")
-    fake.make(folder, asset)
+    fake.make(folder)
     return folder
 
 

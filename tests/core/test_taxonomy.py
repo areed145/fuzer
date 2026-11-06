@@ -11,9 +11,9 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn(offshore_db):
-    c = offshore_db.conn
-    c.stats = offshore_db.built.stats
+def conn(okan_db):
+    c = okan_db.conn
+    c.stats = okan_db.built.stats
     yield c
 
 
@@ -29,13 +29,13 @@ def class_of(conn, ref):
 
 
 @pytest.mark.parametrize("tag,cls", [
-    ("20-P-1001B", "ISO14224:PU.CE"),   # function P + AF template "Centrifugal Pump"
-    ("23-K-1001A", "ISO14224:CO.CE"),
+    ("10-P-1001A", "ISO14224:PU.CE"),   # function P + AF template "Centrifugal Pump"
+    ("20-K-2200B", "ISO14224:CO.CE"),
     ("20-V-2001", "ISO14224:VE.SE"),    # "Production Separator"
-    ("23-V-2001", "ISO14224:VE.SC"),    # "Compressor Suction Scrubber"
-    ("44-V-2001", "ISO14224:VE.DR"),    # "Deaerator"
-    ("20-PT-1001A", "ISO14224:IP.PR"),
-    ("27-FT-3001", "ISO14224:IP.FL"),
+    ("20-V-2101B", "ISO14224:VE.SC"),    # "Compressor Suction Scrubber"
+    ("10-V-2004", "ISO14224:VE.DR"),    # "Export Surge Drum"
+    ("20-PT-3003", "ISO14224:IP.PR"),
+    ("61-FT-3001", "ISO14224:IP.FL"),
 ])
 def test_tag_classes(conn, tag, cls):
     assert class_of(conn, tag) == cls
@@ -49,14 +49,14 @@ def test_class_hierarchy_and_cfihos(conn):
 
 
 def test_equipment_class_and_model(conn):
-    tag = fid(conn, "20-P-1001B")
+    tag = fid(conn, "10-P-1001A")
     pumps = [r["src"] for r in conn.execute("select src from edge where dst = %s and rel = 'installed_at'", (tag,))]
-    assert len(pumps) == 2  # the swapped pair
+    assert len(pumps) == 1
     models = {conn.execute("select l.label from edge e join entity_label l on l.fuzer_id = e.dst "
                            "where e.src = %s and e.rel = 'instance_of'", (p,)).fetchone()["label"] for p in pumps}
-    assert len(models) == 1  # same model before and after the swap
+    assert len(models) == 1
     model = fid(conn, next(iter(models)).replace(" ", "|"))
-    assert queries.members(conn, model)["total"] >= 2
+    assert queries.members(conn, model)["total"] >= 1
 
 
 def test_manufacturer_spellings_share_a_model(conn):
@@ -76,7 +76,7 @@ def test_members_include_subtypes(conn):
 
 
 def test_hierarchy_levels(conn):
-    g = queries.entity(conn, fid(conn, "OSB"))["golden"]
+    g = queries.entity(conn, fid(conn, "OKAN"))["golden"]
     assert g["iso14224_level"]["value"] == "installation" and g["isa95_level"]["value"] == "site"
 
 
@@ -92,5 +92,5 @@ def test_pack_extensions():
         "FH": {"name": "Fired heaters", "category": "mechanical", "types": {"BX": "Box"}}},
         "tag_functions": {**pack.classification["tag_functions"], "H": "FH.BX"}}
     tax = Taxonomy(pack)
-    assert tax.classify_tag("31-H-1001", None, None) == "FH.BX"  # a downstream asset adds its own class
+    assert tax.classify_tag("31-H-1001", None, None) == "FH.BX"  # a pack can extend its classification
     assert tax.classify_tag("31-ZZ-1001", None, None) is None

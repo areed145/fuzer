@@ -1,6 +1,6 @@
-"""Shared test databases (#137): each fake plant is generated, ingested and rebuilt once per session into a
-template database on the embedded test Postgres; each test module that asks for one (`okan_db`,
-`offshore_db`) gets its own copy (CREATE DATABASE ... TEMPLATE, a file copy), so modules can write without
+"""Shared test databases (#137): the Okan fake plant is generated, ingested and rebuilt once per session into a
+template database on the embedded test Postgres; each test module that asks for it (`okan_db`) gets its own
+copy (CREATE DATABASE ... TEMPLATE, a file copy), so modules can write without
 seeing each other's changes and nothing is rebuilt twice.
 
 The plant's generated files are shared too: a module that edits its data folder generates its own."""
@@ -31,10 +31,7 @@ os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")
 # Nor a Claude key: tests run on recorded or fake answers, so one that forgets its fake fails instead of paying.
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
-PLANTS = {  # name: (generator module, pack)
-    "okan": ("okan", "okan"),
-    "offshore": ("offshore", "offshore_demo"),
-}
+PLANTS = {"okan": ("okan", "okan")}  # name: (generator module, pack)
 
 
 @dataclass
@@ -133,27 +130,16 @@ def okan_data(_templates) -> Path:
     return _template(_templates, "okan").data
 
 
-@pytest.fixture(scope="session")
-def offshore_data(_templates) -> Path:
-    return _template(_templates, "offshore").data
-
-
 @pytest.fixture(scope="module")
 def okan_db(request, _templates):
     """This module's copy of the Okan field, ingested and rebuilt: Plant(conn, data, url, built)."""
     yield from _plant_db(request, _templates, "okan")
 
 
-@pytest.fixture(scope="module")
-def offshore_db(request, _templates):
-    """This module's copy of the offshore demo (Osprey Bravo), ingested and rebuilt."""
-    yield from _plant_db(request, _templates, "offshore")
-
-
 # ---- tiers -----------------------------------------------------------------------------------------
 
 E2E = {"test_replay", "test_ops_eval", "test_eval", "test_up"}  # replays and evals: CI and nightly
-PLANT_FIXTURES = {"okan_db", "offshore_db", "okan_data", "offshore_data"}
+PLANT_FIXTURES = {"okan_db", "okan_data"}
 DB_USE = ("db.connect(", "db.reset(", "TestClient(", "mcp_server.", "ingest.ingest(")
 _src: dict[str, str] = {}
 

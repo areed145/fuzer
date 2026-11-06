@@ -10,8 +10,8 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn(offshore_db):
-    c = offshore_db.conn
+def conn(okan_db):
+    c = okan_db.conn
     yield c
 
 

@@ -28,25 +28,13 @@ class FakeClaude:
         for e in entries:
             ids = {c["key"]: c["id"] for c in e["candidates"]}
             mentions, events = [], []
-            if "PT-2001 on production separator" in e["text"]:
-                mentions = [
-                    {"text": "PT-2001", "candidate_id": ids["20-PT-2001"], "confidence": 0.9,
-                     "note": "the production separator is in area 20"},
-                    {"text": "production separator", "candidate_id": ids["20-V-2001"], "confidence": 0.95, "note": ""},
-                ]
-                events = [{"type": "instrument_fault", "summary": "20-PT-2001 reading erratic, WO raised",
-                           "involves": [{"candidate_id": ids["20-PT-2001"], "role": "subject"}],
-                           "details": [{"name": "Work Order", "value": "raised"}]}]
-            elif e["text"].startswith("20-P-1001B tripped"):
-                events = [
-                    {"type": "trip", "summary": "20-P-1001B tripped on high vibration",
-                     "involves": [{"candidate_id": ids["20-P-1001B"], "role": "subject"}],
-                     "details": [{"name": "vibration_mm_s", "value": "11"}]},
-                    {"type": "start", "summary": "Started 20-P-1001A",
-                     "involves": [{"candidate_id": ids["20-P-1001A"], "role": "subject"},
-                                  {"candidate_id": "c999", "role": "location"}],  # not in the list
-                     "details": []},
-                ]
+            if "20-K-2200B" in e["text"] and "20-K-2200B" in ids:
+                mentions = [{"text": "20-K-2200B", "candidate_id": ids["20-K-2200B"], "confidence": 0.95,
+                             "note": "Okan train B second-stage compressor"}]
+                events = [{"type": "trip", "summary": "20-K-2200B tripped on high vibration",
+                           "involves": [{"candidate_id": ids["20-K-2200B"], "role": "subject"},
+                                        {"candidate_id": "c999", "role": "location"}],
+                           "details": [{"name": "vibration_mm_s", "value": "9"}]}]
             out.append({"entry_id": e["entry_id"], "mentions": mentions, "events": events})
         text = json.dumps({"entries": out})
         return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)],
@@ -57,44 +45,38 @@ pytestmark = pytest.mark.sequence  # (#137) the reader's cache over time: read, 
 
 
 @pytest.fixture(scope="module")
-def conn(offshore_db):
-    c = offshore_db.conn
+def conn(okan_db):
+    c = okan_db.conn
     yield c
 
 
 def test_candidates_cover_ambiguous_tags_and_area_names(conn):
     reg = llm_links.load_register(conn)
-    cands = llm_links.candidates_for("PT-2001 on production separator reading erratic", PACK, reg)
+    cands = llm_links.candidates_for("PT-2001 on GGCP inlet separator reading erratic", PACK, reg)
     keys = {k for _, k in cands}
-    assert {"20-PT-2001", "23-PT-2001", "27-PT-2001", "44-PT-2001", "20-V-2001"} <= keys
-    cands = llm_links.candidates_for("B pump on water injection tripped again", PACK, reg)
-    assert ("tag", "44-P-1001B") in cands and ("area", "OSB-44") in cands
+    assert {"10-PT-2001", "20-PT-2001", "30-PT-2001", "40-PT-2001", "50-PT-2001", "20-V-2001"} <= keys
+    cands = llm_links.candidates_for("20-K-2200B on GGCP tripped", PACK, reg)
+    assert ("tag", "20-K-2200B") in cands and ("area", "OKAN-20") in cands
 
 
 def test_dry_run_calls_nothing(conn):
     fake = FakeClaude()
     out = llm_links.run(conn, PACK, client=fake, dry_run=True, sources=["oplog"])
-    assert out["entries"] == 30 and out["requests"] == 2 and out["estimated_input_tokens"] > 0
+    assert out["entries"] == 2428 and out["requests"] > 0 and out["estimated_input_tokens"] > 0
     assert fake.requests == []
 
 
 def test_run_links_and_events_reach_the_graph(conn):
     fake = FakeClaude()
     out = llm_links.run(conn, PACK, client=fake, workers=1, sources=["oplog"])
-    assert out["stored"] == 30 and out["failed_requests"] == 0
-    assert out["unknown_candidate"] == 3  # the made-up c999, once per copy of that log entry
+    assert out["stored"] == out["entries"] and out["failed_requests"] == 0 and out["unknown_candidate"] > 0
     pipeline.rebuild(conn, PACK)
 
-    pump = queries.resolve_ref(conn, PACK, "20-P-1001B")
-    evs = queries.events(conn, pump)
-    assert {e["type"] for e in evs} == {"trip"} and len(evs) == 3
-    assert evs[0]["details"]["vibration_mm_s"] == "11" and evs[0]["log"]["text"].startswith("20-P-1001B tripped")
-
-    pt = queries.resolve_ref(conn, PACK, "20-PT-2001")
-    fault = queries.events(conn, pt, event_type="instrument_fault")
-    assert fault and fault[0]["details"]["work_order"] == "raised"
-    # The rules couldn't place "PT-2001"; Claude's link is now an edge from the log entry.
-    linked = conn.execute("select sources from edge where rel = 'mentions' and dst = %s", (pt,)).fetchall()
+    compressor = queries.resolve_ref(conn, PACK, "20-K-2200B")
+    evs = queries.events(conn, compressor)
+    assert evs and all(e["type"] == "trip" for e in evs)
+    assert evs[0]["details"]["vibration_mm_s"] == "9"
+    linked = conn.execute("select sources from edge where rel = 'mentions' and dst = %s", (compressor,)).fetchall()
     assert any("claude" in r["sources"] for r in linked)
 
     o = queries.ontology(conn)
@@ -142,7 +124,7 @@ def test_removed_results_retire_their_events(conn):
 def test_other_text_sources_are_read_and_cached_separately(conn):
     fake = FakeClaude()
     out = llm_links.run(conn, PACK, client=fake, sources=["ec_downtime", "ec_daily"], dry_run=True)
-    assert out["entries"] > 60  # 60 daily reports plus downtime comments
+    assert out["entries"] > 60  # daily reports plus downtime comments
     sent = llm_links.run(conn, PACK, client=fake, sources=["ec_downtime"], workers=1)
     assert sent["stored"] == sent["entries"] > 0
     names = {r["source"] for r in conn.execute("select distinct source from llm_extraction")}

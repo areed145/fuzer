@@ -17,8 +17,8 @@ PACK = load_pack()
 
 
 @pytest.fixture(scope="module")
-def conn(offshore_db):
-    c = offshore_db.conn
+def conn(okan_db):
+    c = okan_db.conn
     lessons.MIN_INCIDENTS = 1
     pipeline.rebuild(c, PACK)  # the reader picks candidates from the register
     llm_links.run(c, PACK, client=FakeClaude(), workers=1, sources=["oplog"])
@@ -27,21 +27,28 @@ def conn(offshore_db):
     lessons.MIN_INCIDENTS = 2
 
 
-def test_brief_for_the_vibration_incident(conn):
-    jan = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-P-1001B"))["items"]
-               if i["start"] == "2024-01-01")
-    b = assistant.brief(conn, PACK, jan["id"])
-    assert b["about"]["label"] == "20-P-1001B" and b["incident"]["timeline"]
-    assert "VIB" in b["incident"]["failure_modes"]
-    assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
+def test_brief_for_the_okan_compressor_incident(conn):
+    march = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-K-2200B"))["items"]
+                 if i["start"].startswith("2024-03"))
+    b = assistant.brief(conn, PACK, march["id"])
+    assert b["about"]["label"] == "20-K-2200B" and b["incident"]["timeline"]
+    assert "UST" in b["incident"]["failure_modes"]
     assert len(b["spares"]) == 3 and b["documents"]
-    assert b["suggested_checks"] and all(c["from"] for c in b["suggested_checks"])
     assert b["process_values"]["series"] and b["process_values"]["provider"] == "synthetic"
 
 
+def test_brief_suggests_matching_okan_guide(conn):
+    incident = next(i for i in queries.incidents(conn, queries.resolve_ref(conn, PACK, "20-V-2001"))["items"]
+                    if i["start"] == "2024-11-05")
+    b = assistant.brief(conn, PACK, incident["id"])
+    assert b["suggested_reading"] and all("AIR" in r["failure_modes"] for r in b["suggested_reading"])
+    assert any("Troubleshooting" in r["heading"] for r in b["suggested_reading"])
+    assert b["suggested_checks"] and all(c["from"] for c in b["suggested_checks"])
+
+
 def test_brief_for_a_tag_uses_its_latest_incident(conn):
-    b = assistant.brief(conn, PACK, queries.resolve_ref(conn, PACK, "23-K-1001A"))
-    assert b["incident"] and b["about"]["label"] == "23-K-1001A"
+    b = assistant.brief(conn, PACK, queries.resolve_ref(conn, PACK, "20-K-2200B"))
+    assert b["incident"] and b["about"]["label"] == "20-K-2200B"
 
 
 def test_mcp_tool_and_prompt(conn):
@@ -49,12 +56,12 @@ def test_mcp_tool_and_prompt(conn):
 
     async def go():
         async with Client(server, raise_exceptions=True) as client:
-            brief = (await client.call_tool("troubleshooting_brief", {"ref": "20-P-1001B"})).structured_content
+            brief = (await client.call_tool("troubleshooting_brief", {"ref": "20-K-2200B"})).structured_content
             prompts = [p.name for p in (await client.list_prompts()).prompts]
             return brief, prompts
 
     brief, prompts = asyncio.run(go())
-    assert brief["about"]["label"] == "20-P-1001B" and "troubleshoot" in prompts
+    assert brief["about"]["label"] == "20-K-2200B" and "troubleshoot" in prompts
 
 
 def test_feedback(conn):

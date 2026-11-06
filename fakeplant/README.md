@@ -5,20 +5,16 @@ source (SAP, JDE, Maximo, PI / AF, Energy Components, operator logs), P&ID
 drawings, manuals and procedures, tables with no mapping yet, and the answer
 keys `fuzer eval` scores against. Fuzer never imports it; its tests do.
 
-All fake output lives in `fakeplant/data/<asset>` (git-ignored); point Fuzer at it
-with `FUZER_DATA_DIR=fakeplant/data/offshore` in `.env`.
+All fake output lives in `fakeplant/data/okan` (git-ignored); point Fuzer at it
+with `FUZER_DATA_DIR=fakeplant/data/okan` in `.env`.
 
 ```sh
-uv run fakeplant generate --size medium     # write exports to fakeplant/data/offshore
+uv run fakeplant generate                   # write Okan exports to fakeplant/data/okan
 uv run fakeplant demo                       # reset the database, generate, ingest, rebuild
-uv run fakeplant demo --asset onshore       # fakeplant/data/onshore, onshore_demo pack
-uv run fakeplant demo --asset okan          # the Okan field demo (okan pack), see okan.py
 ```
 
 | Module | What it makes |
 |---|---|
-| `offshore.py` | The offshore platform: every source, sizes small / medium / large |
-| `onshore.py` | An onshore field with ESPs, for the onshore_demo pack |
 | `okan.py` | The Okan field (NMA South Offshore): PP, GGCP trains A/B/C, ST1, ST2, NWP, 24 jackets, gas lift, EGP export, GIS, troubleshooting stories |
 | `pid.py` | P&ID drawings (clean exports and scans) and their answer keys |
 | `docs.py` | Manuals, troubleshooting guides and procedures |

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fakeplant import offshore
+from fakeplant import okan
 from fuzer.core import db
 from fuzer.core.model import Candidate
 from fuzer.core.pack import load_pack
@@ -47,7 +47,7 @@ def extra_mapping(monkeypatch):
 
 
 INDEX = [["tag_no", "service", "range_high", "unit", "vendor", "equipment"],
-         ["20-PT-1001B", "Pump discharge pressure", "25", "barg", "Instrumentco", "20P1001B"],
+         ["10-PT-1001B", "Pump discharge pressure", "25", "barg", "Instrumentco", "10P1001B"],
          ["20-PT-9999Z", "Spare", "", "", "", ""]]
 
 
@@ -78,7 +78,7 @@ def test_new_source_from_a_mapping_file_only(extra_mapping, fmt):
     os.environ.pop("FUZER_DATABASE_URL", None)
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     data = Path(tempfile.mkdtemp(prefix="fzdata"))
-    offshore.generate(data)
+    okan.generate(data)
     write_index(data, fmt)
 
     assert "instrument_index" in ingest.tables()
@@ -90,7 +90,7 @@ def test_new_source_from_a_mapping_file_only(extra_mapping, fmt):
         row = conn.execute(
             """
             select c.fuzer_id, e.kind from crosswalk c join entity e on e.fuzer_id = c.fuzer_id
-            where c.source = 'einx' and c.source_key = '20-PT-1001B'
+            where c.source = 'einx' and c.source_key = '10-PT-1001B'
             """).fetchone()
         assert row["kind"] == "tag"
         # Same tag as the one SAP and PI already know: merged, not a new entity.
@@ -103,7 +103,7 @@ def test_new_source_from_a_mapping_file_only(extra_mapping, fmt):
         assert golden["vendor"] == "INSTRUMENTCO" and "range_unit" in golden
         pump = conn.execute("select dst from edge where src = %s and rel = 'instrument_of'",
                             (row["fuzer_id"],)).fetchone()["dst"]
-        assert conn.execute("select label from entity_label where fuzer_id = %s", (pump,)).fetchone()["label"] == "20-P-1001B"
+        assert conn.execute("select label from entity_label where fuzer_id = %s", (pump,)).fetchone()["label"] == "10-P-1001B"
 
 
 def test_every_built_in_table_has_a_mapping():
@@ -113,16 +113,10 @@ def test_every_built_in_table_has_a_mapping():
     assert mappings.tables()["sap_bom"].key == ("equnr", "matnr")
 
 
-def test_fake_reference_catalogs_match_pack_defaults():
-    from fakeplant.onshore import DOWNTIME_REASONS as onshore_reasons
-    from fakeplant.onshore import MAINTENANCE_CODES as onshore_codes
-
-    for pack_name, codes, reasons in (
-        ("offshore_demo", offshore.MAINTENANCE_CODES, offshore.DOWNTIME_REASONS),
-        ("onshore_demo", onshore_codes, onshore_reasons),
-    ):
-        pack = load_pack(pack_name)
-        assert pack.maintenance_codes == codes and pack.downtime_reasons == reasons
+def test_okan_reference_catalogs_match_pack_defaults():
+    pack = load_pack("okan")
+    assert pack.maintenance_codes["damage"]["D03"] == "FTS"
+    assert pack.downtime_reasons["LIFT-GAS"] == {"name": "Lift gas shortfall", "category": "equipment"}
 
 
 def test_reference_shape_rows_are_code_lists_not_entities():

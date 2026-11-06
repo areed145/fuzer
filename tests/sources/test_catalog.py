@@ -15,9 +15,9 @@ from fuzer.sources import catalog, connections, ingest, mappings
 
 
 @pytest.fixture
-def data(offshore_data):
+def data(okan_data):
     d = Path(tempfile.mkdtemp(prefix="fzcat"))
-    shutil.copytree(offshore_data, d, dirs_exist_ok=True)
+    shutil.copytree(okan_data, d, dirs_exist_ok=True)
     return d
 
 
@@ -152,17 +152,32 @@ def test_mapping_versions_approve_and_roll_back(conn, data):
         catalog.discard(conn, spare["id"], "ana")
 
 
-def test_retire_keeps_or_retracts(conn, data):
-    ingest.ingest(conn, data)
-    count = "select count(*) as n from source_record where source = 'maximo' and record_type = 'asset'"
+def test_retire_keeps_or_retracts(conn):
+    text = """\
+source: retire_demo
+record_type: asset
+shape: records
+dataset: retire_demo_assets
+key: assetnum
+entity:
+  kind: tag
+  key: {from: assetnum, as: tag}
+"""
+    version = catalog.propose(conn, text, "ana")
+    catalog.approve(conn, version["id"], "ana")
+    conn.execute(
+        "insert into source_record (source, record_type, source_key, payload) "
+        "values ('retire_demo', 'asset', 'A-1', '{\"assetnum\":\"A-1\"}'::jsonb)"
+    )
+    count = "select count(*) as n from source_record where source = 'retire_demo' and record_type = 'asset'"
     n = conn.execute(count).fetchone()["n"]
-    assert catalog.retire_preview(conn, "maximo_assets")["records"] == n > 0
-    catalog.retire(conn, "maximo_assets", "ana", retract=False)
+    assert catalog.retire_preview(conn, "retire_demo_assets")["records"] == n > 0
+    catalog.retire(conn, "retire_demo_assets", "ana", retract=False)
     assert conn.execute(count).fetchone()["n"] == n  # kept as history
-    assert "maximo_assets" not in ingest.export_names(conn)
-    out = catalog.retire(conn, "maximo_assets", "ana", retract=True)
+    assert "retire_demo_assets" not in ingest.export_names(conn)
+    out = catalog.retire(conn, "retire_demo_assets", "ana", retract=True)
     assert out["retracted"] and conn.execute(count).fetchone()["n"] == 0
-    assert ("maximo", "asset") not in mappings.load(conn)
+    assert ("retire_demo", "asset") not in mappings.load(conn)
 
 
 def test_export_and_import_move_config_between_databases(conn, data, tmp_path):

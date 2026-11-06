@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from . import bpmn
 from .definitions import (
-    DEFAULT_SLA, SYSTEM, TASK_KINDS, Conflict, Forbidden, NotFound, WorkError,
+    DEFAULT_SLA, DUE_SOON, SYSTEM, TASK_KINDS, Conflict, Forbidden, NotFound, WorkError,
     _definition, _event, _op, form, is_agent, roles_of, utcnow,
 )
 from .runtime import (

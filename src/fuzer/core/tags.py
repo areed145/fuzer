@@ -99,7 +99,7 @@ class PatternWellMatch:
 
 
 class PatternWellGrammar:
-    """Wells named by an asset-specific pattern (onshore lease / pad / well numbers, API numbers, ...).
+    """Wells named by an asset-specific pattern.
     `pattern` is a regular expression with named groups; `key` formats them into the canonical name,
     e.g. pattern 'RB[-\\s]?(?P<pad>\\d{2})[-\\s]?(?P<num>\\d{2})(?P<h>H?)' and key 'RB {pad}-{num}{h}'."""
 

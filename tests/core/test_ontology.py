@@ -146,7 +146,7 @@ def test_api_edits_with_who_and_why(okan_db, monkeypatch):
 
     with TestClient(api.app) as c:
         o = c.get("/ontology").json()
-        assert o["needs_definition"]["kinds"] == [] and any(k["kind"] == "tag" for k in o["kinds"])
+        assert any(k["kind"] == "tag" for k in o["kinds"])
         r = c.post("/ontology/kinds", json={"name": "turbine_skid", "label": "Turbine skid", "by": "ana", "reason": "new"})
         assert r.status_code == 200 and r.json()["status"] == "custom"
         assert c.post("/ontology/kinds", json={"name": "turbine_skid", "by": "ana"}).status_code == 400

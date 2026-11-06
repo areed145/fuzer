@@ -10,7 +10,7 @@ def test_seed_refuses_other_asset(tmp_path):
     with db.connect() as conn:
         db.reset(conn)
         conn.execute("insert into source_record (source,record_type,source_key,payload) "
-                     "values ('sap','floc','OSB','{\"parent\":\"\"}')")
+                     "values ('sap','floc','OTHER','{\"parent\":\"\"}')")
         conn.commit()
         with pytest.raises(RuntimeError, match="another asset"):
             demo_seed.seed(conn, tmp_path)

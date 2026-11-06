@@ -21,7 +21,7 @@ What's planned. What's done is in the code and the closed issues.
 - **Agentic operations:** operating limits and IOWs, the SRE scan (detection, upsets, hand-off), the BPMN work
   engine with inbox and modeler, the value-ranked board, the daily operations report, opportunities,
   back-pressure debottlenecking, correlation and clustering studies, and the replay eval.
-- **Fake plants:** offshore (small, medium, large), Okan with a process model, onshore; a fake PI Web API and ADX.
+- **Fake plant:** Okan with a process model; a fake PI Web API and ADX.
 
 ### Next
 
@@ -50,7 +50,7 @@ sections below explain the thinking behind the bigger items.
    search (#27), revisions (#28), group-based access (#29), quality (#30).
 6. **[Troubleshooting assistant](https://github.com/areed145/fuzer/milestone/6)**: #31.
 7. **[Later](https://github.com/areed145/fuzer/milestone/7)**: P&ID flow connectivity (#32), source record history
-   (#33), spares and BOM (#34), onshore asset pack (#35), Splink matcher (#36),
+   (#33), spares and BOM (#34), Splink matcher (#36),
    graph DB read replica (#37).
 8. **[Source framework](https://github.com/areed145/fuzer/milestone/8)** (section 20): connector contract and
    lake-table connector (#57), mapping files and generic per-shape extractors
@@ -126,7 +126,7 @@ flush on 20-P-1001B?").
 
 ## What the first slice includes
 
-- Fake data generator: a messy offshore asset across all sources.
+- Fake data generator: a synthetic asset across all sources.
 - Tag and well grammars, phrase aliases.
 - Ingest → resolve → golden → graph pipeline on Postgres.
 - Review queue with pinned decisions.
@@ -134,8 +134,8 @@ flush on 20-P-1001B?").
   flow tracing, review.
 
 Since added: React web UI (browse, entity detail with graph tab, ontology,
-flow network, review); a read-only MCP server for AI agents; a `medium` fake
-asset (~1/10 real size) with COPY-based rebuilds (~4 s) and background
+flow network, review); a read-only MCP server for AI agents; the Okan fake
+asset with COPY-based rebuilds and background
 rebuilds after review answers; Claude reading operator logs into links and
 `event` entities, and reading tags off scanned P&IDs (tiled images, grammar +
 register check, findings for misreads and missing tags), all cached and never

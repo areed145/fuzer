@@ -11,16 +11,17 @@ import pytest
 
 from fuzer.core import db
 from fuzer.core.pack import load_pack
+from fuzer.ops import pipeline
 from fuzer.sources import catalog, impact, ingest, quality, rules
 from fuzer.sources.formats import Formats
 
-PACK = load_pack("offshore_demo")
+PACK = load_pack("okan")
 
 
 @pytest.fixture
-def data(offshore_data):
+def data(okan_data):
     d = Path(tempfile.mkdtemp(prefix="fzq"))
-    shutil.copytree(offshore_data, d, dirs_exist_ok=True)
+    shutil.copytree(okan_data, d, dirs_exist_ok=True)
     return d
 
 
@@ -96,8 +97,8 @@ def test_system_formats_and_encoding_apply_on_load(conn, data):
     catalog.seed(conn)
     catalog.update_system(conn, "jde", "ana", decimal=",", encoding="latin-1")
     path = data / "jde_assets.csv"
-    rows = list(csv.DictReader(path.open()))
-    rows[0] = {**rows[0], "description": "Pompe à huile", **({"weight": "1.234,5"} if "weight" in rows[0] else {})}
+    rows = [{"asset_number": "J1", "description": "Pompe à huile", "manufacturer": "Acme", "model": "P-1",
+             "serial": "SN1"}]
     with path.open("w", newline="", encoding="latin-1") as f:
         w = csv.DictWriter(f, fieldnames=rows[0].keys())
         w.writeheader()
@@ -127,8 +128,9 @@ def test_rules_lay_over_the_pack(conn):
     assert len(catalog.audit(conn, "rule")) == 2 and catalog.audit(conn, "system")[0]["new"] == {"rank": 1}
 
 
-def test_after_a_rebuild(offshore_db):
-    conn = offshore_db.conn
+def test_after_a_rebuild(conn, data):
+    ingest.ingest(conn, data)
+    pipeline.rebuild(conn, PACK)
     stats = quality.matching(conn, "sap")
     assert stats and stats[0]["stats"]["records"] > 0 and 0 < stats[0]["stats"]["coverage"]["pct"] <= 100
     assert stats[0]["stats"]["golden_wins"] > 0 and "by_method" in stats[0]["stats"]

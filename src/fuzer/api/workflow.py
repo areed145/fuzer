@@ -275,12 +275,12 @@ def work_definition_generate(definition_id: int, d: WorkGenerate, conn=Depends(g
         xml = compile_bpmn(draft, row["process_key"], row["name"] or row["process_key"])
     except workflow.Unavailable as e:
         raise HTTPException(503, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(422, "The agent returned an invalid draft. Try a more specific description.") from e
     except Exception as e:
         if not isinstance(e, llm.provider_errors("agents")):
             raise
         raise HTTPException(503, "Workflow drafting is unavailable. Try again or build on the canvas.") from e
-    except ValueError as e:
-        raise HTTPException(422, "The agent returned an invalid draft. Try a more specific description.") from e
     return {"xml": xml, "problems": [vars(p) for p in work._problems(conn, {**row, "xml": xml})],
             "steps": len(draft.steps), "connections": len(draft.connections)}
 

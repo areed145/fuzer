@@ -102,22 +102,20 @@ for review instead of failing quietly.
 
 Built: CSV, Parquet (file or folder of part files), Delta, Excel, JSON and GeoJSON readers on folder
 connections, and PI Web API and ADX live connections. Each dataset keeps its fingerprint, columns and watermark
-on `source_dataset`, so unchanged datasets are skipped (large asset re-ingest 2.4 s -> 0.4 s), added columns
+on `source_dataset`, so unchanged datasets are skipped, added columns
 load, removed or retyped columns hold the dataset behind a `schema` review item (or as its drift policy says),
 and watermarked lake tables read only new rows. Nested JSON manifests and the live AF tree have no columns;
-their JSON shape (typed field paths, with tag-keyed maps as one path) gets the same check. Medium asset from
-Parquet: same records and eval scores as CSV; large first load 3.6 s either way.
+their JSON shape (typed field paths, with tag-keyed maps as one path) gets the same check. The Okan demo loads
+the same records and eval scores from Parquet as from CSV.
 
 Mappings: every source record type is a YAML mapping (a `mapping_version` row) read by one compiled
 extractor (`mappings.py`). Its dataset says where the table is (`location`, relative to its connection's
 folder or absolute; `book.xlsx#Sheet` for a sheet) and which reader to use (`connector`); by default it's
 `<dataset>` in the folder, read by its file type; `extract.py` keeps only named value transforms
 (tag, well, serial, number), resolvers that read kind and key together (FLOC,
-AF path, EC node) and six hooks (ISO 14224 codes, sidetracks, EC downtime,
-document applicability, section failure modes, P&ID formats). All 77,585
-records of the small, medium and onshore assets give identical candidates and
-links to the old extractors; medium eval and large entity / link counts are
-unchanged; large extraction 1.0 s -> 1.4 s.
+AF path, EC node) and hooks (ISO 14224 codes, sidetracks, EC downtime,
+document applicability, section failure modes, P&ID formats). The Okan demo is
+the supported fixture for testing extraction.
 
 Suggested mappings (`suggest.py`): profile a sample per column; rules name
 meanings from headers, value patterns (pack grammars, dates, units, known
@@ -136,7 +134,7 @@ centre, geometry per located entity, rebuilt with the register) serves the map
 and nearby queries without PostGIS (100k features: field-sized box 5 ms, wider
 box 36 ms, entity map 12 ms). `spatial_links` rules in the pack link what GIS
 didn't carry as IDs by distance (wells to pads / jackets, legacy pipeline ends
-to facilities), scored by distance; eval on the Okan and onshore plants:
+to facilities), scored by distance; Okan spatial-link evaluation:
 precision 1.0, recall 1.0. PostGIS waits until polygons or exact geometry
 operations are needed (Azure Database for PostgreSQL supports it).
 

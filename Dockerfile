@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir uv
 WORKDIR /app
 COPY . .
 RUN uv sync --frozen --no-dev --package fuzer-fakeplant \
-    && uv run --no-sync fakeplant generate --asset okan --out /app/fakeplant/data/okan
+    && uv run --no-sync fakeplant generate --out /app/fakeplant/data/okan
 COPY --from=ui-build /app/ui/dist /app/ui/dist
 
 ENV PATH="/app/.venv/bin:$PATH" \

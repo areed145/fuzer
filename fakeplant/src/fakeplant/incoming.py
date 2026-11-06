@@ -9,7 +9,7 @@ import random
 import re
 from pathlib import Path
 
-from .offshore import _write_csv
+from .common import _write_csv
 
 ROLES = ["Day CRO", "Night CRO", "OIM", "Production Tech", "Maintenance Lead"]
 UNITS = ["barg", "degC", "mm/s", "%", "m3/h"]
@@ -23,7 +23,8 @@ BUILT_IN = {
                                     "manufacturer": "manufacturer", "model": "model", "serial": "serial"}),
     "maximo_assets": ("assetnum", {"assetnum": "other", "description": "description",
                                    "manufacturer": "manufacturer", "serial": "serial", "location": "tag"}),
-    "pi_points": ("tag", {"tag": "tag", "descriptor": "description", "engunits": "unit", "pointsource": "code"}),
+    "pi_points": ("tag", {"tag": ["tag", "well"], "descriptor": "description", "engunits": "unit",
+                          "pointsource": "code"}),
     "sap_notifications": ("qmnum", {"qmnum": "other", "notif_type": "code", "created": "timestamp", "equnr": "ref",
                                     "floc": "location", "priority": "code", "short_text": ["description", "text"],
                                     "damage_code": "code", "cause_code": "code", "status": "code"}),
@@ -45,7 +46,7 @@ BUILT_IN = {
 
 
 def _tag(floc: str) -> str:
-    """OSB-20-P1001B -> 20-P-1001B, the way a contractor writes it."""
+    """OKAN-20-P1001B -> 20-P-1001B, the way a contractor writes it."""
     _, area, rest = floc.split("-", 2)
     m = re.match(r"([A-Z]+)(\d+[A-Z]?)$", rest)
     return f"{area}-{m.group(1)}-{m.group(2)}" if m else f"{area}-{rest}"
@@ -71,7 +72,7 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
         for i, (a, b) in enumerate(zip(eq, eq[1:]))]
 
     tables["well_tests"] = [
-        {"TEST_ID": f"WT{i:05d}", "WELL": f"{w[0]}-{w[1:]}", "TEST_DT": f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
+        {"TEST_ID": f"WT{i:05d}", "WELL": w, "TEST_DT": f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",
          "OIL_RATE_SM3D": f"{rng.uniform(80, 900):.1f}", "WATER_CUT_PCT": f"{rng.uniform(0, 60):.1f}",
          "GOR": f"{rng.uniform(80, 250):.0f}", "TESTED_BY": rng.choice(ROLES)}
         for i, w in enumerate(w for w in wells for _ in range(3))]
@@ -97,7 +98,8 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
     write_parquet(inc / "well_tests.csv", inc / "well_tests")
     (inc / "well_tests.csv").unlink()
 
-    truth = [{"dir": ".", "dataset": name, "key": key, "columns": cols} for name, (key, cols) in BUILT_IN.items()]
+    truth = [{"dir": ".", "dataset": name, "key": key, "columns": cols} for name, (key, cols) in BUILT_IN.items()
+             if (out / f"{name}.csv").is_file() or (out / f"{name}.json").is_file()]
     truth += [
         {"dir": "incoming", "dataset": "contractor_equipment_list", "key": "Tag No.", "columns": {
             "Tag No.": "tag", "Equipment Description": "description", "Mfr": "manufacturer", "Model No": "model",

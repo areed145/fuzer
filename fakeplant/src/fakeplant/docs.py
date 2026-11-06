@@ -97,7 +97,7 @@ def _wrap(text: str, width: int = 95) -> list[str]:
 def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]], facility: str,
              guides: dict | None = None) -> list[dict]:
     """Write documents under out/documents and return the manifest rows. `guides` (guide id -> (title,
-    tags, steps)) replaces the offshore demo's site troubleshooting guides; a guide id starts with
+    tags, steps)) provides the Okan site's troubleshooting guides; a guide id starts with
     its area code."""
     docs_dir = out / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
@@ -106,7 +106,7 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
     # OEM manuals: one per equipment model in the fleet.
     models: dict[tuple[str, str], str] = {}
     for e in equipment:
-        func = re.match(r"[A-Z]+-\d{2}-([A-Z]+)", e["floc"]).group(1)  # OSB-20-P1001B -> P
+        func = re.match(r"[A-Z]+-\d{2}-([A-Z]+)", e["floc"]).group(1)  # OKAN-20-P1001B -> P
         models.setdefault((e["manufacturer"], e["model"]), func)
     for n, ((maker, model), func) in enumerate(sorted(models.items())):
         number = f"OEM-{model}"
@@ -119,7 +119,7 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
                 troubleshooting.append("Revision B adds: record vibration spectra before and after any bearing change.")
             sections = [
                 ("Safety", [f"Isolate and depressurise the {kind} before any work. Follow site permit to work."]),
-                ("Description", [f"The {maker} {model} is a {kind} for offshore process duty."]),
+                ("Description", [f"The {maker} {model} is a {kind} for process duty."]),
                 ("Installation", ["Check foundation levelness and alignment before first start."]),
                 ("Operation", [f"Start the {kind} only with suction or inlet valves open and permissives healthy."]),
                 ("Troubleshooting", troubleshooting),
@@ -134,24 +134,8 @@ def generate(out: Path, equipment: list[dict], areas: dict[str, tuple[str, str]]
                              "model": model, **({"supersedes": revisions[r - 1]} if r else {})})
 
     # Site troubleshooting guides: one per template area, naming its tags.
-    own_guides = guides is not None
-    guides = guides or {
-        "20": ("Separation train troubleshooting", ["20-V-2001", "20-LT-2001", "20-PT-2001", "20-V-2002", "20-LT-2002"],
-               ["If 20-LT-2001 disagrees with the gauge glass, switch control to the healthy transmitter and raise a "
-                "work order.", "High pressure on 20-V-2001: check the gas outlet valve and the flare header."]),
-        "23": ("Gas compression trips", ["23-K-1001A", "23-K-1001B", "23-TT-1001A"],
-               ["After a high discharge temperature trip of 23-K-1001A, check the cooler 23-E-3001A before restart.",
-                "Swap duty to 23-K-1001B if the trip repeats within 24 hours."]),
-        "27": ("Oil export pump problems", ["27-P-1001A", "27-P-1001B", "27-P-1001C", "27-FT-3001"],
-               ["High vibration on any export pump: start the standby pump, then check alignment.",
-                "Fiscal meter 27-FT-3001 deviations must be reported to the allocation engineer."]),
-        "44": ("Water injection pump trips", ["44-P-1001A", "44-P-1001B", "44-V-2001"],
-               ["Seal leaks on 44-P-1001B are usually seal flush blockage: flush the cyclone separator.",
-                "Low level in deaerator 44-V-2001 trips the pumps: check the level control valve."]),
-    }
+    guides = guides or {}
     for area, (title, tags, steps) in guides.items():
-        if area not in areas and not own_guides:
-            continue
         number = f"TG-{area}-001"
         file = _write(docs_dir, number, f"{facility} area {area[:2]}: {title}",
                       [("Purpose", [f"Troubleshooting guide for area {area[:2]} ({areas.get(area[:2], ('', title))[1]})."]),

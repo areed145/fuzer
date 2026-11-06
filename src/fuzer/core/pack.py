@@ -31,8 +31,8 @@ class Pack:
 
 
 def load_pack(name: str | None = None) -> Pack:
-    """An asset pack by name; FUZER_PACK (default offshore_demo) when no name is given."""
-    name = name or os.environ.get("FUZER_PACK", "offshore_demo")
+    """The Okan asset pack; FUZER_PACK selects a pack when set."""
+    name = name or os.environ.get("FUZER_PACK", "okan")
     raw = yaml.safe_load((PACKS_DIR / f"{name}.yaml").read_text())
     tg = raw["tag_grammar"]
     return Pack(

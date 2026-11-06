@@ -122,9 +122,8 @@ Optional, in `.env` (see `.env.example`):
 
 - `FUZER_DATABASE_URL=...` to use your own Postgres (`docker compose up -d` gives
   one on localhost:5432); without it Fuzer runs a built-in one in `.fuzer/pgdata`.
-- `FUZER_PROJECT=...` to pick a project (its pack, data folder, mappings and
-  time-series provider; see [Other assets](#other-assets)), or
-  `uv run fuzer up --demo offshore` / `--demo onshore` for the other fake plants.
+- `FUZER_PROJECT=okan` to select the Okan project (its pack, data folder,
+  mappings and time-series provider).
 
 Everything else (Claude models and effort, schedules, detection thresholds,
 caps) is a setting, stored in the database and changed on the **Settings** page
@@ -171,7 +170,7 @@ page) for Claude to read.
 ### Live PI and ADX (fake)
 
 ```sh
-uv run fakeplant historian --asset okan   # fake PI Web API + ADX on :8100
+uv run fakeplant historian                 # fake PI Web API + ADX on :8100
 ```
 
 Then set the servers once: `fuzer settings set sources.pi.url http://127.0.0.1:8100/piwebapi`,
@@ -214,7 +213,7 @@ run of the same period ([docs/evals.md](docs/evals.md)). With `--full` it scores
 grouping, diagnosis (a scripted Claude unless `--live`), daily reports and the opportunity scan. It fails
 under each score's floor. CI runs it on the fake Okan plant.
 
-### Other assets
+### Project and asset pack
 
 A **project** picks everything for one asset in one name: its pack, data folder, mappings, time-series
 provider and timezone (`fuzer --project okan …` or `FUZER_PROJECT=okan`; `fuzer projects list`). Its
@@ -233,28 +232,13 @@ beats the global one, which beats the default. The old variables (`FUZER_LLM_MOD
 deprecation warning. PI and ADX connections and the alert webhook stay in the environment until the
 source settings move (#132).
 
-Everything asset-specific lives in an asset pack (`src/fuzer/packs/*.yaml`):
-tag and well naming, aliases, classification onto the ISO 14224 taxonomy (and
-extra classes), maintenance and downtime codes, survivorship. A fake onshore
-field shows a very different asset running on the same core:
+The Okan pack and project are the supported reference configuration. The pack
+defines tag and well naming, aliases, classification onto the ISO 14224
+taxonomy, maintenance and downtime codes, and survivorship. Generate or load
+the Okan data with `uv run fakeplant generate` or `uv run fakeplant demo`.
+Use `uv run fuzer bench` to time queries on the loaded data.
 
-```sh
-export FUZER_PROJECT=onshore_demo
-uv run fakeplant demo --asset onshore   # 40 pads, 480 wells on ESPs, pad separators / tanks / LACTs
-```
-
-### Bigger fake data
-
-```sh
-uv run fakeplant demo --size medium   # ~1/10 of a real offshore asset: 60 areas, ~7.9k tags,
-                                  # ~17k PI points, ~2k equipment, 40 wells, 480 P&IDs, 3k log entries
-uv run fakeplant generate --size medium --areas 90 --trains 10 --logs 10000   # or tune any part
-uv run fakeplant demo --size large    # close to a real asset: 58k tags, 163k PI points, ~300k records
-uv run fuzer bench                # time the main queries on whatever is loaded
-```
-
-`small` (the default) is the hand-checked asset the tests use. A full rebuild of
-`medium` takes about 4 s. Review answers return at once: a chosen value is
+Review answers return at once: a chosen value is
 applied immediately, and match answers queue one background rebuild (the UI
 shows "Updating…").
 
@@ -309,7 +293,7 @@ names), found by name in the data folder (`sap_equipment/`,
 `sap_equipment.parquet`, `sap_equipment.csv`, ...).
 
 ```sh
-uv run fakeplant generate --size medium --format parquet --out fakeplant/data/lake
+uv run fakeplant generate --format parquet --out fakeplant/data/okan_lake
 uv run fuzer ingest --data fakeplant/data/lake     # unchanged tables are skipped; --full reads all
 ```
 
@@ -372,8 +356,8 @@ the top of [mappings.py](src/fuzer/sources/mappings.py).
 Drop a table Fuzer doesn't know into a data folder and ask for a draft mapping:
 
 ```sh
-uv run fuzer suggest-mappings --data fakeplant/data/offshore/incoming            # rules only
-uv run fuzer suggest-mappings --data fakeplant/data/offshore/incoming --claude   # Claude names what rules can't
+uv run fuzer suggest-mappings --data fakeplant/data/okan/incoming            # rules only
+uv run fuzer suggest-mappings --data fakeplant/data/okan/incoming --claude   # Claude names what rules can't
 ```
 
 Fuzer profiles a sample of each column and names its meaning: from the header,

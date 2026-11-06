@@ -36,7 +36,7 @@ class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack to use."""
 
     data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
-    pack: str = os.environ.get("FUZER_PACK", "offshore_demo")
+    pack: str = os.environ.get("FUZER_PACK", "okan")
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
 
     def connect(self):
@@ -87,11 +87,11 @@ def _source_asset(name: str):
 def _source_check(name: str):
     @dg.asset_check(asset=name, name="source_checks", description=f"{name}: its checks pass and it is healthy (#225).")
     def check(fuzer: Fuzer) -> dg.AssetCheckResult:
-        from ..sources import quality
+        from ..sources import quality as source_quality
 
         with fuzer.connect() as conn:
-            h = (quality.health(conn, name) or [{}])[0]
-        passed, blocking = quality.health_check_outcome(h)
+            h = (source_quality.health(conn, name) or [{}])[0]
+        passed, blocking = source_quality.health_check_outcome(h)
         failing = h.get("failing_checks") or []
         return dg.AssetCheckResult(
             passed=passed,
