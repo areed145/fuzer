@@ -35,6 +35,11 @@ MOVER_PCT = 10.0  # default for the setting daily_report.mover_pct (#131); a wel
 CITE = re.compile(r"\[([^\[\]]+)\]")
 
 
+def recheck_days(last: date) -> list[date]:
+    """Days to re-close so late records revise recent reports."""
+    return [last - timedelta(days=i) for i in range(7)]
+
+
 def _f(template: str, cites: list[str], **values) -> dict:
     return {"text": template.format(**{k: _show(v) for k, v in values.items()}), "values": values,
             "cites": [c for c in dict.fromkeys(cites) if c]}

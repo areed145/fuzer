@@ -27,8 +27,9 @@ def conn(okan_db):
 def test_last_week_every_line_cited_and_matching(conn):
     last = date.fromisoformat(operations.as_of(conn))
     assert last.isoformat() == "2025-12-30"
-    for i in range(7):
-        day = (last - timedelta(days=i)).isoformat()
+    assert daily_report.recheck_days(last) == [last - timedelta(days=i) for i in range(7)]
+    for day in daily_report.recheck_days(last):
+        day = day.isoformat()
         out = daily_report.close_day(conn, PACK, day)
         assert out["version"] == 1 and out["item_id"], out
         r = daily_report.get(conn, day)

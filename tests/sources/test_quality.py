@@ -157,3 +157,11 @@ def test_after_a_rebuild(offshore_db):
     mine = next(d["name"] for d in catalog.datasets(conn).values() if d["source"] == "sap" and d["record_type"] == rtype)
     assert w["source"] == "sap" and sap["wins"] and sap["mapping_version"]["id"] and sap["run"]["dataset"] == mine
     assert w["priority"][0] == "review"
+
+
+def test_health_check_outcome():
+    assert quality.health_check_outcome({"problems": [], "failing_checks": []}) == (True, False)
+    assert quality.health_check_outcome({"problems": ["stale"], "failing_checks": []}) == (False, False)
+    assert quality.health_check_outcome({"problems": ["checks failing"],
+                                         "failing_checks": [{"blocking": True}]}) == (False, True)
+    assert quality.health_check_outcome({"problems": ["failed"], "failing_checks": []}) == (False, True)

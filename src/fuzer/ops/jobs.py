@@ -91,10 +91,10 @@ def _source_check(name: str):
 
         with fuzer.connect() as conn:
             h = (quality.health(conn, name) or [{}])[0]
+        passed, blocking = quality.health_check_outcome(h)
         failing = h.get("failing_checks") or []
-        blocking = any(c["blocking"] for c in failing) or {"failed", "held"} & set(h.get("problems") or [])
         return dg.AssetCheckResult(
-            passed=not h.get("problems"),
+            passed=passed,
             severity=dg.AssetCheckSeverity.ERROR if blocking else dg.AssetCheckSeverity.WARN,
             metadata={"state": h.get("state", "unknown"), "problems": dg.MetadataValue.json(h.get("problems") or []),
                       "failing_checks": dg.MetadataValue.json(failing), "age_hours": h.get("age_hours") or 0})
@@ -196,91 +196,70 @@ def claude_doc_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResu
 
 # --- data-quality checks on the register (warnings: they flag, they don't block) ---------------
 
-def _scalar(conn, sql: str) -> float:
-    return conn.execute(sql).fetchone()["n"] or 0
-
-
-LIVE = "merged_into is null and retired_at is null"
-LIVE_E = "e.merged_into is null and e.retired_at is null"
-
 
 @dg.asset_check(asset=register, description="Open review questions stay a small share of the register.")
 def review_backlog(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        open_items = _scalar(conn, "select count(*) as n from review_item where status = 'open'")
-        reviewable = _scalar(conn, f"select count(*) as n from entity where {LIVE} and kind in ('equipment', 'tag')")
-    share = open_items / reviewable if reviewable else 0
-    return dg.AssetCheckResult(passed=share <= 0.05, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"open_reviews": int(open_items), "share_of_tags_and_equipment": round(share, 4)})
+        result = quality.review_backlog(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={k: v for k, v in result.items() if k != "passed"})
 
 
 @dg.asset_check(asset=register, description="PI points are attached to a tag or well.")
 def orphan_timeseries(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        total = _scalar(conn, f"select count(*) as n from entity where kind = 'timeseries' and {LIVE}")
-        orphans = conn.execute(
-            f"""
-            select l.label from entity e left join entity_label l using (fuzer_id)
-            where e.kind = 'timeseries' and {LIVE_E}
-              and not exists (select 1 from edge x where x.dst = e.fuzer_id and x.rel = 'has_timeseries')
-            order by l.label
-            """
-        ).fetchall()
-    share = len(orphans) / total if total else 0
-    return dg.AssetCheckResult(passed=share <= 0.02, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"orphans": len(orphans), "share": round(share, 4),
-                                         "examples": dg.MetadataValue.json([r["label"] for r in orphans[:20]])})
+        result = quality.orphan_timeseries(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={**{k: v for k, v in result.items() if k not in ("passed", "examples")},
+                                         "examples": dg.MetadataValue.json(result["examples"])})
 
 
 @dg.asset_check(asset=register, description="Every tag seen in other systems exists in SAP (the master).")
 def tags_missing_from_sap(fuzer: Fuzer) -> dg.AssetCheckResult:
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        rows = conn.execute(
-            f"""
-            select l.label, array_agg(distinct c.source) as seen_in
-            from entity e
-            join crosswalk c using (fuzer_id)
-            left join entity_label l using (fuzer_id)
-            where e.kind = 'tag' and {LIVE_E}
-            group by e.fuzer_id, l.label
-            having not ('sap' = any(array_agg(c.source)))
-            order by l.label
-            """
-        ).fetchall()
-    return dg.AssetCheckResult(passed=not rows, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"count": len(rows),
-                                         "examples": dg.MetadataValue.json([dict(r) for r in rows[:20]])})
+        result = quality.tags_missing_from_sap(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={**{k: v for k, v in result.items() if k not in ("passed", "examples")},
+                                         "examples": dg.MetadataValue.json(result["examples"])})
 
 
 @dg.asset_check(asset=register, description="Downtime reason codes agree with what the comments say.")
 def downtime_reason_codes(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from ..graph import queries
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        rows = queries.downtime_reason_checks(conn, 20)
-        total = _scalar(conn, "select count(*) as n from golden where field = 'reason_check'")
-    return dg.AssetCheckResult(passed=total == 0, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"mismatches": int(total),
-                                         "examples": dg.MetadataValue.json([dict(r) for r in rows])})
+        result = quality.downtime_reason_codes(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={**{k: v for k, v in result.items() if k not in ("passed", "examples")},
+                                         "examples": dg.MetadataValue.json(result["examples"])})
 
 
 @dg.asset_check(asset=register, description="Each document number has one current revision.")
 def document_revisions(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from ..graph import queries
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        rows = queries.documents_with_several_current_revisions(conn)
-    return dg.AssetCheckResult(passed=not rows, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"count": len(rows), "examples": dg.MetadataValue.json([dict(r) for r in rows])})
+        result = quality.document_revisions(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={k: dg.MetadataValue.json(v) if k == "examples" else v
+                                         for k, v in result.items() if k != "passed"})
 
 
 @dg.asset_check(asset=register, description="Energy Components flows are backed by P&ID piping between the same tags.")
 def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
-    from ..graph import queries
+    from ..graph import quality
+
     with fuzer.connect() as conn:
-        diff = queries.compare_networks(conn, limit=20)
-    gaps = len(diff["in_ec_not_on_pids"])
-    return dg.AssetCheckResult(passed=gaps == 0, severity=dg.AssetCheckSeverity.WARN,
-                               metadata={"in_ec_not_on_pids": gaps, "on_pids_not_in_ec": len(diff["on_pids_not_in_ec"]),
-                                         "examples": dg.MetadataValue.json([dict(r) for r in diff["in_ec_not_on_pids"]])})
+        result = quality.flow_vs_piping(conn)
+    return dg.AssetCheckResult(passed=result["passed"], severity=dg.AssetCheckSeverity.WARN,
+                               metadata={k: dg.MetadataValue.json(v) if k == "examples" else v
+                                         for k, v in result.items() if k != "passed"})
 
 
 @dg.op(description="Fire due work-engine timers and escalate person tasks past their SLA (#97).")
@@ -316,7 +295,7 @@ def sre_scan():
 
 @dg.op(description="Daily operations report (#98): close yesterday (and re-check the week for late records).")
 def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
-    from datetime import date, timedelta
+    from datetime import date
 
     from ..graph import operations
     from ..workflow import engine
@@ -325,8 +304,8 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     with fuzer.connect() as conn:
         engine.load_defaults(conn)
         last = date.fromisoformat(operations.as_of(conn))
-        for i in range(7):  # late records start a new version of the day they belong to
-            day = (last - timedelta(days=i)).isoformat()
+        for day in daily_report.recheck_days(last):
+            day = day.isoformat()
             try:
                 context.log.info(f"report {day}: {daily_report.close_day(conn, pack, day)}")
             except ValueError as e:  # no DAY001 for that day yet
