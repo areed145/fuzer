@@ -48,6 +48,11 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
       <ButtonLink href={config("assistant.")}>Assistant limits</ButtonLink>{" "}
       <ButtonLink href={config("max_usd")}>Scheduled AI budgets</ButtonLink>
     </Card>
+    <Card title="Demo onboarding">
+      <p>The Demo tab is {rows.find((s) => s.key === "demo.enabled")?.value === true ? "enabled" : "disabled or unavailable"}.
+        Administrators enable or hide it application-wide. It does not grant AI, workflow or configuration access.</p>
+      <ButtonLink href={config("demo.enabled")}>Configure Demo</ButtonLink>
+    </Card>
     <Card title="Apply changes and restart requirements">
       <p><strong>Next use:</strong> settings without a restart flag apply on subsequent reads after cache refresh;
         they do not rerun existing work. <strong>Restart:</strong> flagged settings require the affected application

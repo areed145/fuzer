@@ -8,7 +8,7 @@ import {
 } from "../api";
 import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { Button, ButtonLink, PageHeader, Input , Card as UICard} from "../ui";
+import { Button, PageHeader, Input , Card as UICard} from "../ui";
 import { usePermission } from "../Auth";
 
 type HeadlineFact = { text: string; cites: string[] };
@@ -25,13 +25,6 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
       <PageHeader subtitle="Explore connected facility data, understand what needs attention, and follow work through to completion.">
         Home
       </PageHeader>
-      {stats?.pack === "okan" && stats.records > 0 && (
-        <UICard title="New to Fuzer? Investigate an Okan issue">
-          <p>Follow train B's March 2024 issue from its asset to source evidence and a finding.
-            Fictional, historical data. Read-only, with no setup or AI key needed.</p>
-          <ButtonLink variant="primary" href={href("/investigate/okan")}>Start guided investigation</ButtonLink>
-        </UICard>
-      )}
       <HomeSearch query={query} />
       {stats && stats.records === 0 && (
         <UICard title="Connect data before exploring">

@@ -92,7 +92,7 @@ Okan synthetic/historical labels and distinguish event time from ingestion obser
 Do not infer percent units from a numeric value below one; scheduler metadata keeps its recorded
 field name and numeric value. A scheduler asset result does not by itself establish ingestion.
 
-The Home Okan entry leads to `#/investigate/okan`: a four-step, read-only journey
+Demo's Okan entry leads to the compatible `#/investigate/okan`: a four-step, read-only journey
 (issue, asset, evidence, finding). Step and citation selection live in the URL so
 Back, reload and deep links work. Use ordinary links for steps, `aria-current="step"`,
 and focus the step heading after navigation. Findings cite the same evidence shown
@@ -100,6 +100,14 @@ in the journey; numeric claims are assembled in `graph/investigation.py`, never
 hard-coded in React. The API enforces a read-only SQL transaction and requires no
 model calls. This boundary is limited to the journey, not an application-wide
 public-demo access policy.
+
+The optional Demo primary tab is enabled by default and controlled application-wide by the
+global `demo.enabled` registry setting in Settings. Home no longer embeds the Okan callout.
+The broader `#/demo?step=…` tour introduces evidence, registered agents and loaded workflows;
+progress remains in URLs. Agent prompts open Ask for review and explicit paid-call confirmation,
+never automatic submission. Contextual case views are read-only; task entries confirm shared
+assignment/completion changes using `ConfirmAction` and report failures using `ActionStatus`.
+Readers can inspect capabilities and work without acquiring AI access or workflow roles.
 
 Run `npm --prefix ui test` for preference/state regression tests and
 `npm --prefix ui run build` for type-checking and production assets.

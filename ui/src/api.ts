@@ -1324,7 +1324,12 @@ async function requestText(path: string): Promise<string> {
   }, `${getCsrf()}:text:${path}`);
 }
 
+export interface DemoConfig {
+  enabled: boolean;
+}
+
 export const api = {
+  demoConfig: () => request<DemoConfig>("GET", "/demo/config"),
   authSession: () => request<AuthSession>("GET", "/auth/me"),
   signOut: () => request<{ ok: boolean }>("POST", "/auth/logout"),
   bootstrapOwner: (token: string) => request<{ ok: boolean }>("POST", "/auth/bootstrap", undefined, { token }),

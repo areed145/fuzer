@@ -30,7 +30,10 @@ FUZER_AUTH_MODE=local uv run fuzer up    # trusted local development; open http:
 Local mode is attribution-only and loopback-only; do not expose it through a proxy or tunnel.
 For a shared deployment, use the default Microsoft sign-in mode and follow
 [Microsoft registration and owner setup](deployment.md#microsoft-sign-in-and-first-owner).
-An approved signed-in visitor can follow **Home -> Start guided investigation** with no AI key.
+An approved signed-in visitor can follow **Demo -> Trace an issue -> Start guided investigation** with no AI key.
+Demo also introduces registered agents and loaded workflows. Paid questions and shared task actions
+require deliberate confirmation and existing permissions. Administrators can hide or enable the
+tab application-wide in **Settings -> Configure Demo** (`demo.enabled`, globally enabled by default).
 Personal Microsoft accounts and work/school accounts are supported.
 
 The first run takes a while. It builds the fake Okan field, loads every source, and has Claude read the operator

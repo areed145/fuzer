@@ -55,6 +55,16 @@ def test_http_adapter_enforces_read_only_transaction(okan_db, client, monkeypatc
         assert getattr(client, method)("/demo/okan/investigation").status_code == 405
 
 
+def test_demo_configuration_read_is_bounded_and_read_only(okan_db, client, monkeypatch):
+    def read_setting(conn, key):
+        assert key == "demo.enabled"
+        assert conn.execute("show transaction_read_only").fetchone()["transaction_read_only"] == "on"
+        return True
+
+    monkeypatch.setattr(investigation.settings, "get", read_setting)
+    assert client.get("/demo/config").json() == {"enabled": True}
+
+
 def test_missing_records_are_explicit_not_success_shaped(okan_db, client, monkeypatch):
     def unavailable(conn, pack):
         raise InvestigationUnavailable("The March 2024 Okan incidents are not available in this register.")

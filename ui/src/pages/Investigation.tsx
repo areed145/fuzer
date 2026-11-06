@@ -73,12 +73,12 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
           </Card>
           <div className="investigation-controls">
             {index > 0 ? <ButtonLink href={journeyHref(STEPS[index - 1].key)}>Back: {STEPS[index - 1].label}</ButtonLink>
-              : <ButtonLink href={href("/")}>Return home</ButtonLink>}
+              : <ButtonLink href={href("/demo", { step: "evidence" })}>Return to Demo</ButtonLink>}
             {index < STEPS.length - 1
               ? <ButtonLink variant="primary" href={journeyHref(STEPS[index + 1].key)}>
                   Next: {STEPS[index + 1].label}
                 </ButtonLink>
-              : <ButtonLink variant="primary" href={href("/")}>Finish investigation</ButtonLink>}
+              : <ButtonLink variant="primary" href={href("/demo", { step: "agents" })}>Finish investigation</ButtonLink>}
           </div>
         </>
       )}

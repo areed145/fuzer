@@ -1,10 +1,12 @@
 import "../styles/ask.css";
-import { Button, ButtonLabel, PageHeader, Card as UICard, Input , Badge as UIBadge} from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge} from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
 import { useAsync } from "../lib";
 import { loadPerson } from "../work";
+import { DemoContext } from "../DemoContext";
+import { usePermission } from "../Auth";
 
 const EXAMPLES: [string, string][] = [
   ["Troubleshooting", "Which equipment has repeated trips, what evidence explains them, and what should be reviewed?"],
@@ -49,7 +51,9 @@ interface Turn {
   error?: string;
 }
 
-export function AskPage() {
+export function AskPage({ query }: { query: URLSearchParams }) {
+  const demo = query.get("demo") === "agents";
+  const ai = usePermission("ai");
   const catalog = useAsync(() => api.assistantCatalog(), []);
   const labels = Object.fromEntries((catalog.data?.agents ?? []).map((a) => [a.id, a.label]));
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -66,7 +70,8 @@ export function AskPage() {
       setOpenError(String(e));
     }
   };
-  const [text, setText] = useState("");
+  const [text, setText] = useState(query.get("q") ?? "");
+  useEffect(() => { if (query.has("q")) setText(query.get("q") ?? ""); }, [query.get("q")]);
   const [images, setImages] = useState<Attachment[]>([]);
   const [attachError, setAttachError] = useState<string>();
   const add = async (files: File[]) => {
@@ -82,7 +87,7 @@ export function AskPage() {
   const end = useRef<HTMLDivElement>(null);
 
   const ask = async (question: string) => {
-    if (!question.trim() || busy) return;
+    if (!question.trim() || busy || !ai) return;
     const sent = images;
     setText("");
     setImages([]);
@@ -126,6 +131,8 @@ export function AskPage() {
   return (
     <section className="ask">
       <PageHeader>Ask</PageHeader>
+      {demo && <DemoContext step="agents" />}
+      {!ai && <p>Questions require AI access from an owner. No model call will be made with your current access.</p>}
       <p className="muted">
         A read-only operations assistant routes questions to domain specialists and answers from the evidence
         available in Fuzer's linked data. Every fact links to where it came from. It never acts on the plant.
@@ -133,7 +140,7 @@ export function AskPage() {
       {turns.length === 0 && (
         <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
-            <Button key={label} className="example" onClick={() => ask(q)}>
+            <Button key={label} className="example" disabled={!ai} onClick={() => demo ? setText(q) : ask(q)}>
               <span className="muted small">{label}</span>
               <span>{q}</span>
             </Button>
@@ -142,9 +149,9 @@ export function AskPage() {
       )}
       {openError && <div className="error small">{openError}</div>}
       <Specialists catalog={catalog} />
-      {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} />)}
+      {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} />)}
       <div ref={end} />
-      <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
+      <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
         <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={(e) => {
@@ -157,7 +164,7 @@ export function AskPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      ask(text);
+                      if (!demo) ask(text);
                     }
                   }} />
         {images.length > 0 && (
@@ -173,7 +180,10 @@ export function AskPage() {
         )}
         {attachError && <div className="error small">{attachError}</div>}
         <div className="row">
-          <Button variant="primary" type="submit" disabled={busy || !text.trim()}>{busy ? "Working…" : "Ask"}</Button>
+          {demo ? <ConfirmAction label="paid question" disabled={!ai || !text.trim()} busy={busy}
+            consequence="This sends the reviewed question and any attachments to the configured AI provider and may incur charges. The answer is stored in your account's conversation. Inspect any recorded job after a failure before a deliberate retry."
+            onConfirm={() => ask(text)} />
+            : <Button variant="primary" type="submit" disabled={!ai || busy || !text.trim()}>{busy ? "Working…" : "Ask"}</Button>}
           <ButtonLabel title="A screenshot, a photo of a spectrum, a datasheet page (or paste one)">
             Attach image
             <Input type="file" accept={TYPES.join(",")} multiple hidden disabled={images.length >= MAX_IMAGES}
@@ -188,6 +198,7 @@ export function AskPage() {
         </div>
       </form>
       <Conversations current={conversation} reload={listed} busy={busy} onOpen={reopen}
+                     readOnly={demo}
                      onDeleted={(id) => { if (id === conversation) { setTurns([]); setConversation(undefined); } }} />
     </section>
   );
@@ -237,7 +248,7 @@ function Specialists({ catalog }: { catalog: Catalog }) {
   );
 }
 
-function TurnView({ turn, labels }: { turn: Turn; labels: Record<string, string> }) {
+function TurnView({ turn, labels, demo = false }: { turn: Turn; labels: Record<string, string>; demo?: boolean }) {
   const j = turn.job;
   const steps = j?.steps ?? [];
   return (
@@ -252,7 +263,7 @@ function TurnView({ turn, labels }: { turn: Turn; labels: Record<string, string>
         )}
       </div>
       <UICard className="answer">
-        {turn.error && <div className="error small">{turn.error}</div>}
+        {turn.error && (demo ? <ActionStatus error={turn.error} /> : <div className="error small">{turn.error}</div>)}
         {!turn.error && (!j || j.status === "running") && (
           <div className="working">
             <div className="small"><UIBadge className="badge updating">Working…</UIBadge>{" "}
@@ -267,7 +278,7 @@ function TurnView({ turn, labels }: { turn: Turn; labels: Record<string, string>
             )}
           </div>
         )}
-        {j?.status === "error" && <div className="error small">{j.error}</div>}
+        {j?.status === "error" && (demo ? <ActionStatus error={j.error} /> : <div className="error small">{j.error}</div>)}
         {j?.status === "done" && j.answer && (
           <>
             <Markdown text={j.answer} />
@@ -286,9 +297,9 @@ function TurnView({ turn, labels }: { turn: Turn; labels: Record<string, string>
                 </span>
               )}
               <span className="spacer" />
-              <Rate id={j.id} />
+              {!demo && <Rate id={j.id} />}
             </div>
-            <Remember id={j.id} />
+            {!demo && <Remember id={j.id} />}
           </>
         )}
       </UICard>
@@ -370,8 +381,9 @@ function saved(conversationId: string, t: SavedTurn): Turn {
   };
 }
 
-function Conversations({ current, reload, busy, onOpen, onDeleted }: {
+function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = false }: {
   current?: string; reload: number; busy: boolean; onOpen: (id: string) => void; onDeleted: (id: string) => void;
+  readOnly?: boolean;
 }) {
   const [gone, setGone] = useState<string[]>([]);
   const r = useAsync(() => api.conversations(asker()), [reload]);
@@ -388,10 +400,10 @@ function Conversations({ current, reload, busy, onOpen, onDeleted }: {
               <Button variant="link" disabled={busy} onClick={() => onOpen(c.id)}>{c.title}</Button>
             )}{" "}
             <span className="muted">· {c.turns} question{c.turns === 1 ? "" : "s"}</span>{" "}
-            <Button variant="link" className="muted" disabled={busy} title="Delete this conversation and its answers"
+            {!readOnly && <Button variant="link" className="muted" disabled={busy} title="Delete this conversation and its answers"
                     onClick={() => api.deleteConversation(c.id).then(() => { setGone((g) => [...g, c.id]); onDeleted(c.id); })}>
               delete
-            </Button>
+            </Button>}
           </li>
         ))}
       </ul>

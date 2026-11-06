@@ -88,8 +88,11 @@ For a shared deployment, use the default Microsoft sign-in mode and follow
 [application registration and owner setup](docs/deployment.md#microsoft-sign-in-and-first-owner).
 Personal Microsoft and work/school accounts are supported. Owners approve accounts and manage
 extensible application roles; workflow routing roles stay separate. Do not expose local attribution
-mode through a public proxy. Approved visitors can follow **Home -> Start guided investigation**
+mode through a public proxy. Approved visitors can follow **Demo -> Trace an issue -> Start guided investigation**
 without an AI key.
+Demo also showcases the registered agents and existing workflows, with deliberate confirmation
+for paid questions and shared task changes. Administrators control its application-wide visibility
+through the global `demo.enabled` setting (enabled by default).
 
 The first time, `fuzer up` makes the Okan field demo, loads it, has Claude read the operator logs,
 P&ID drawings and document sections, builds the register and the web UI, and starts the server
