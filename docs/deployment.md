@@ -26,6 +26,12 @@ Public origin, Microsoft app registration, database connectivity and secret valu
 operator responsibilities. Credential presence does not verify login, provider reachability, model
 access or a spending ceiling. Keep provider-side budgets as well as application limits.
 
+The browser admits at most two API requests at a time and shares identical in-flight read-only
+requests within the same session. Waiting is bounded (32 requests, 30 seconds); overflow or timeout
+is shown as an actionable error. Server admission remains four concurrent requests by default,
+shared across tabs/visitors, and rejects overload with 429 and Retry-After. Requests are never
+automatically replayed: especially do not retry mutations or paid calls after an uncertain result.
+
 Running Fuzer, its configuration and how it performs at size.
 
 ## Configuration

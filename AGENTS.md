@@ -10,6 +10,9 @@ Home personalization is a future direction, not permission to add a ranking/widg
 Keep the user-selected primary destinations Home, Explore, Investigate, Work, Sources, Jobs and
 Settings. Put specialist routes in their owner's secondary navigation, preserving URLs and access
 rules; do not replace this with a catch-all Manage section or duplicate primary specialist entries.
+Shared API requests use the bounded browser queue and coalesce only in-flight read-only calls.
+Never automatically retry mutations, paid probes or rejected requests. Verify normal page mounts
+and global refresh at default server admission limits, plus explicit overload/recovery behavior.
 
 - Keep business rules in their owning domain, not in API/CLI/MCP adapters or React pages.
 - Every guided journey needs an entry, ordered next steps, a useful outcome, and loading, unavailable,

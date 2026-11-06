@@ -1272,6 +1272,7 @@ export interface JobRunDetail extends JobRunSummary {
 }
 
 import { getCsrf, type AuthSession } from "./authState";
+import { scheduleRequest } from "./requestQueue";
 
 export interface AccessAccount {
   id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
@@ -1287,10 +1288,13 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
     if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
   }
   const url = qs.size ? `${path}?${qs}` : path;
+  const csrf = getCsrf();
+  const readOnly = method === "GET" && !params?.claude && !path.endsWith("generate");
+  return scheduleRequest(async () => {
   const res = await fetch(url, {
     method,
     headers: { ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(getCsrf() ? { "X-Fuzer-CSRF": getCsrf() } : {}) },
+      ...(csrf ? { "X-Fuzer-CSRF": csrf } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -1299,12 +1303,15 @@ async function request<T>(method: string, path: string, params?: Params, body?: 
     throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail });
   }
   return res.json();
+  }, readOnly ? `${csrf}:${url}` : undefined);
 }
 
 async function requestText(path: string): Promise<string> {
+  return scheduleRequest(async () => {
   const res = await fetch(path);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.text();
+  }, `${getCsrf()}:text:${path}`);
 }
 
 export const api = {
