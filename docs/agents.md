@@ -80,10 +80,10 @@ are also supported):
   worked out, labelled as assistant-entered. `look_at_figure` renders a stored figure to PNG
   (matplotlib, no browser) as an image in the tool result, only when the summary isn't enough; the eval
   counts how often it's used. Users can attach up to four images to a question; values read off them
-  are reported as approximate. Not yet: pump curves (no OEM curve data), choke Cv (no choke
-  characteristics), vibration spectra (no condition-monitoring source), and process values that move
-  together in the synthetic historian, so correlation and XY charts on the demo show how the
-  generator shapes upsets rather than plant physics.
+  are reported as approximate. Pump and choke charts need an OEM curve for that model. Not yet:
+  vibration spectra (overall mm/s comes from PI; there is no condition-monitoring source), and process
+  values that move together in the synthetic historian, so correlation and XY charts on the demo show
+  how the generator shapes upsets rather than plant physics.
 
 ## Migration and coverage boundaries
 

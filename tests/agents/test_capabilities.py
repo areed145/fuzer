@@ -134,6 +134,14 @@ def test_boundaries_reach_the_model():
     assert all(prompt.endswith(capabilities.AGENT_BY_ID[a].boundaries) for a, (_, prompt) in agents.SPECIALISTS.items())
 
 
+def test_no_agent_is_told_it_lacks_data_its_tools_use():
+    """A limit is now in the prompt, so a wrong one makes the agent refuse work its tools can do."""
+    maintenance = capabilities.AGENT_BY_ID["maintenance-integrity"]
+    assert {"plot_pump_curve", "plot_choke", "equipment_curves"} <= set(agents.TOOLS[maintenance.id])
+    assert "`equipment_curves`" in maintenance.prompt and "not currently available" not in maintenance.prompt
+    assert not any("pump curve" in capability.lower() for _, capability, _ in capabilities.UNAVAILABLE)
+
+
 def test_every_specialist_can_hold_a_workflow_step():
     from fuzer.workflow import bpmn, roles
 

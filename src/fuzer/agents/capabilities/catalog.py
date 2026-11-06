@@ -166,7 +166,7 @@ AGENT_CATALOG = (
         (MAINTENANCE_COORDINATOR, RELIABILITY_ENGINEER, INSPECTION_SPECIALIST, INTEGRITY_ENGINEER),
         ("Linked work orders, incidents, PM/inspection records, and measured condition data where available.",),
         ("Ranked evidence summaries with data dates, units, and explicit coverage gaps.",),
-        ("OEM pump curves, choke characteristics, and vibration sources are not currently available; no inferred inspection status.",),
+        ("OEM curves cover only the models loaded, so `equipment_curves` decides whether a curve comparison is possible; vibration is overall mm/s from PI, with no spectra; no inferred inspection status.",),
         ("Maintenance execution, deferral, integrity acceptance, and shutdown decisions require accountable human approval.",),
     ),
     AgentDefinition(
@@ -346,8 +346,9 @@ PERSONA_DISPOSITION = (
 UNAVAILABLE = (
     (_WELLS, "Reservoir pressure and model evidence; completion design", "An authoritative subsurface or well-file source."),
     (_FIELD, "Validated operating envelopes", "Envelopes validated by the control-system owner; alarm limits and IOWs are not that."),
-    (_MAINT, "OEM pump curve, choke characteristic and vibration analysis on real plant",
-     "OEM curve data, choke characteristics and a condition-monitoring source."),
+    (_FIELD, "Control loop performance and tuning", "Setpoint, controller output and mode points, with loop parameters."),
+    (_MAINT, "Vibration spectra; curve comparison beyond the loaded models",
+     "A condition-monitoring source, and OEM curves for the other models."),
     (_WORK, "Schedule-conflict and crew resource analysis", "A planning system with crews, calendars and resource loading."),
     (_WORK, "Vendor, transport and site-access constraints; material reservations",
      "Procurement and logistics sources; SAP stock on hand alone does not show them."),
