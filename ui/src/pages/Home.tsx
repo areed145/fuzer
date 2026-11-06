@@ -43,7 +43,8 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
       <UICard className="home-guide" aria-labelledby="home-guide-title">
         <h2 id="home-guide-title">Where would you like to start?</h2>
         <div className="home-guide-links">
-          {configure && <a href={href("/settings")}><strong>Setup &amp; readiness</strong><span>Check configuration, connections and scheduled work, then follow the next step.</span></a>}
+          {configure && <a href={href("/sources")}><strong>Source readiness</strong><span>Connect and test sources, monitor freshness and recover failed loads.</span></a>}
+          {configure && <a href={href("/settings")}><strong>Application settings</strong><span>Review shared defaults, AI limits and restart requirements.</span></a>}
           <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
           <a href={href("/board")}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
           {ai && <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate with the assistant when a provider is configured by the owner.</span></a>}

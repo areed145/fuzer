@@ -1,5 +1,6 @@
 import "../../styles/sources.css";
-import { ButtonLink, PageHeader, Table, Input , Badge as UIBadge} from "../../ui";
+import { Button, ButtonLink, PageHeader, Table, Input , Badge as UIBadge} from "../../ui";
+import { usePermission } from "../../Auth";
 /** The Sources page (#225): datasets, systems and connections, rules, a dataset's own page, and Add a source. */
 import { useState } from "react";
 import { api } from "../../api";
@@ -11,6 +12,13 @@ import { Rules } from "./Rules";
 import { Systems } from "./Systems";
 
 export function SourcesPage({ query }: { query: URLSearchParams }) {
+  const configure = usePermission("configure");
+  if (!configure) return <section><PageHeader>Sources</PageHeader>
+    <p>Source configuration requires administrator access. Ask an owner to update your application roles.</p></section>;
+  return <SourceConfiguration query={query} />;
+}
+
+function SourceConfiguration({ query }: { query: URLSearchParams }) {
   const view = query.get("view") ?? "datasets";
   const name = query.get("name");
   if (view === "add") {
@@ -60,12 +68,41 @@ function Datasets() {
   const rows = (cat.data?.systems ?? []).flatMap((s) => s.datasets.map((d) => ({ s, d })));
   const here = rows.filter(({ d }) => d.present);
   const count = (st: string) => here.filter(({ d }) => d.health?.state === st).length;
+  const connections = (cat.data?.systems ?? []).flatMap((s) => s.connections.map((c) => ({
+    ...c, system: s.name, systemEnabled: s.enabled,
+  })));
   const shown = (absent ? rows : here).filter(({ s, d }) =>
     (!filter || `${s.name} ${d.name} ${d.record_type ?? ""} ${d.owner ?? ""}`.toLowerCase().includes(filter.toLowerCase())) &&
     (!problems || (d.health?.problems.length ?? 0) > 0));
   const open = (n: string) => (location.hash = href("/sources", { view: "dataset", name: n }));
   return (
     <>
+      <h2>Source readiness</h2>
+      <p>Connect, test, ingest, monitor and recover here. Viewing Sources reads recorded state only;
+        it does not test services, load data or call AI.</p>
+      <Button disabled={cat.loading} onClick={cat.reload}>Refresh source readiness</Button>
+      {cat.data && <p>{connections.length} connections · {rows.filter(({ d }) => d.loaded_at).length} datasets
+        with a recorded load. A passed connection test is not a load or a freshness guarantee.</p>}
+      <ol>
+        <li><a href={href("/sources", { view: "systems" })}>Connect &amp; test</a>: manage endpoints and
+          deployment-secret references. Deliberate tests contact the service, may read sample rows and save results.
+          <details><summary>Recorded connection results</summary>
+            {!connections.length && <p>No connections yet. Add a source to begin.</p>}
+            <ul>{connections.map((c) => <li key={c.id}><strong>{c.system} / {c.name}</strong>: {
+              !c.enabled || !c.systemEnabled ? "disabled" : Object.values(c.secrets).some((s) => !s.resolves)
+                ? "missing secret reference" : !c.last_test ? "not tested" : c.last_test.ok ? "last test passed" : "last test failed"}
+              {c.last_tested_at && <> · recorded {c.last_tested_at}</>}</li>)}</ul>
+          </details>
+        </li>
+        <li><a href={href("/sources", { view: "add" })}>Add and ingest a source</a>: follow connection,
+          mapping and load steps. No data loads until the final explicit action.</li>
+        <li>Monitor freshness and recover below: open a dataset for problems, checks, run history and retry/load actions.
+          Source edits affect the next test/load; mappings require the indicated load/rebuild.</li>
+        <li><a href={href("/jobs")}>Inspect scheduled loads &amp; recovery</a> if a load did not run.
+          Jobs owns scheduler diagnostics and run failures; a deployment operator repairs missing infrastructure.</li>
+      </ol>
+      <p className="muted small">Application-wide defaults, AI limits and restart requirements belong in{" "}
+        <a href={href("/settings")}>Settings</a>. Secret values stay in hosting.</p>
       <Status loading={cat.loading && !cat.data} error={cat.error} empty={!!cat.data && rows.length === 0}>
         No datasets yet: <a href={href("/sources", { view: "add" })}>add a source</a>.
       </Status>

@@ -103,7 +103,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
       ))}{" "}
       {test && <UIBadge className={`badge ${test.ok ? "ok" : ""}`}>{test.ok ? "last test passed" : "last test failed"}</UIBadge>}{" "}
       {c.last_tested_at && <span className="muted">recorded {c.last_tested_at} </span>}
-      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id), () => reload())}>
+      <Button variant="link" disabled={!!a.busy} onClick={() => a.run("test", () => api.testConnection(c.id))}>
         {a.busy === "test" ? "testing…" : "test"}</Button>
       <Button variant="link" disabled={!!a.busy} onClick={() => a.run("tables", () => api.connectionTables(c.id), (r) => setFound(r.tables))}>
         what it holds</Button>

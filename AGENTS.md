@@ -23,8 +23,10 @@ local UI kit; do not add a parallel service, component kit, or source of configu
   loopback-only development mode, never a deployment fallback.
 - Extend the existing components/tokens and use accessible navigation and focus management.
   Do not replace source evidence with hard-coded scenario answers.
-- Setup & readiness lives in Settings and links to the existing Sources/Jobs owners; do not build a
-  parallel configuration dashboard. Use effective registry values and provenance, not defaults as
+- Sources owns connect/test/ingest/freshness/load recovery; Settings owns application configuration,
+  defaults and restart requirements. Home summarizes and links to those owners, never duplicates
+  their configuration. Reuse existing Sources/Jobs controls, not a parallel dashboard.
+  Use effective registry values and provenance, not defaults as
   runtime truth. Distinguish reference presence, recorded tests and observed live behavior.
   Viewing readiness must not test providers, load data, mutate state or incur AI charges.
   Keep secret values in deployment storage, expose references/presence only, and state application

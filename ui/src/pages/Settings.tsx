@@ -7,7 +7,7 @@ import { loadPerson } from "../work";
 import { PeopleCard } from "./People";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
-import { SetupReadiness } from "./SetupReadiness";
+import { ApplicationReadiness } from "./ApplicationReadiness";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -46,10 +46,10 @@ function Configuration({ query }: { query: URLSearchParams }) {
       <PageHeader subtitle="Your browser preferences and the facility's operational configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
-        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Setup &amp; readiness</a>
+        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Application configuration</a>
         <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>Configuration</a>
       </nav>
-      {!configuration ? <SetupReadiness list={list} /> : <>
+      {!configuration ? <ApplicationReadiness list={list} /> : <>
       <p className="muted">
         Thresholds, caps, models and schedules. Project values override global values, then legacy environment values,
         then defaults. Each

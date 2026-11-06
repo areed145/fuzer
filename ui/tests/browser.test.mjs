@@ -97,7 +97,7 @@ const setupSettings = {
   ],
 };
 
-test("Setup readiness guides configuration and recovery without side effects on desktop/mobile", async () => {
+test("Source readiness belongs in Sources and Settings remains application-wide on desktop/mobile", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
   await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
@@ -111,32 +111,36 @@ test("Setup readiness guides configuration and recovery without side effects on 
   } }));
   const mutations = [];
   page.on("request", (request) => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
-  await page.goto(`${url}/#/settings`);
-  await page.getByRole("heading", { name: "Setup & readiness", exact: true }).waitFor();
+  await page.goto(url);
+  await page.getByRole("link", { name: "Source readiness", exact: false }).click();
+  await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
   await page.getByText("Catalog unavailable. Try again.", { exact: false }).waitFor();
-  await page.getByText("Attention: the owner bootstrap secret", { exact: false }).waitFor();
   catalogFails = false;
-  await page.getByRole("button", { name: "Refresh readiness" }).click();
-  await page.getByText("No connections yet.", { exact: false }).waitFor();
-  assert.match(await page.getByRole("link", { name: "Review connections & test" }).getAttribute("href"), /view=systems/);
+  await page.getByRole("button", { name: "Refresh source readiness" }).click();
+  await page.getByText("0 connections", { exact: false }).waitFor();
+  assert.match(await page.getByRole("link", { name: "Connect & test" }).getAttribute("href"), /view=systems/);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-mobile.png`, fullPage: true });
+  await page.getByRole("main").getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
+  await page.getByText("Attention: the owner bootstrap secret", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: "Source readiness", exact: true }).count(), 0);
   await page.getByRole("link", { name: "Configure assistant", exact: true }).click();
   await page.getByRole("textbox", { name: "Filter settings" }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Filter settings" }).inputValue(), "agents.");
   await page.getByText("agents.api_key", { exact: true }).waitFor();
   assert.equal(await page.getByText("sources.pi.url", { exact: true }).count(), 0);
   await page.goBack();
-  await page.getByRole("heading", { name: "Setup & readiness", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
   await page.getByRole("link", { name: "Assistant limits", exact: true }).click();
   assert.equal(await page.getByRole("textbox", { name: "Filter settings" }).inputValue(), "assistant.");
   await page.getByText("assistant.timeout_seconds", { exact: true }).waitFor();
   assert.deepEqual(mutations, []);
 });
 
-test("reader Settings keeps appearance without requesting deployment or connection details", async () => {
+test("reader Settings and Sources do not request protected configuration or connection details", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
   const administrative = [];
   page.on("request", (request) => {
@@ -144,7 +148,8 @@ test("reader Settings keeps appearance without requesting deployment or connecti
   });
   await page.goto(`${url}/#/settings`);
   await page.getByText("Facility configuration requires administrator access.", { exact: false }).waitFor();
-  assert.equal(await page.getByRole("heading", { name: "Setup & readiness", exact: true }).count(), 0);
+  await page.goto(`${url}/#/sources`);
+  await page.getByText("Source configuration requires administrator access.", { exact: false }).waitFor();
   assert.deepEqual(administrative, []);
 });
 
