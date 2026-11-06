@@ -11,6 +11,8 @@ import pytest
 
 from fuzer.core import db
 
+pytestmark = pytest.mark.sequence
+
 
 @pytest.fixture(scope="module")
 def client(offshore_data):
@@ -24,6 +26,10 @@ def client(offshore_data):
     mp.setenv("FUZER_DATA_DIR", str(data))
     with db.connect() as c:
         db.reset(c)
+        from fuzer.sources import catalog
+
+        catalog.seed(c)
+        c.commit()
     from fuzer import api
 
     with TestClient(api.app) as cl:

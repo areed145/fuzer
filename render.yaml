@@ -31,4 +31,4 @@ databases:
     databaseName: fuzer
     user: fuzer
     plan: 0.1c-256mb
-    postgresMajorVersion: 16
+    postgresMajorVersion: "16"
