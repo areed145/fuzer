@@ -12,8 +12,7 @@ import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
 import { Button, Input, Select as UISelect } from "./ui";
-
-const PALETTE_PX = 120;
+import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
   roles: { person: string[]; agent: string[] };
@@ -31,20 +30,18 @@ export default function BpmnModeler({ xml, classes, ctx, onReady, onDirty }: {
   const box = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<Modeler>();
   const [error, setError] = useState<string>();
+  const [advanced, setAdvanced] = useState(false);
   const marked = useRef<Record<string, string>>({});
 
   useEffect(() => {
+    setError(undefined);
     const m = new Modeler({ container: box.current!, additionalModules: [subsetModule], moddleExtensions: { fuzer: fuzerModdle } });
     let live = true;
     m.importXML(xml).then(
       ({ warnings }) => {
         if (!live) return;
-        // fit the diagram, then widen the view so the palette (on the left) doesn't cover it
         const canvas = m.get("canvas") as any;
         canvas.zoom("fit-viewport");
-        const vb = canvas.viewbox();
-        const grow = vb.outer.width / Math.max(vb.outer.width - PALETTE_PX, 1);
-        canvas.viewbox({ x: vb.x - vb.width * (grow - 1), y: vb.y, width: vb.width * grow, height: vb.height * grow });
         if (warnings.length) setError(`${warnings.length} part(s) of the file couldn't be read: ${(warnings[0] as any).message ?? warnings[0]}`);
         marked.current = {};
         setModeler(m);
@@ -78,11 +75,61 @@ export default function BpmnModeler({ xml, classes, ctx, onReady, onDirty }: {
 
   return (
     <div className="modeler">
-      <div className="modeler-canvas">
+      <div className={`modeler-canvas ${advanced ? "advanced" : ""}`}>
+        {modeler && <WorkflowPalette modeler={modeler} />}
+        <label className="small row"><input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} />
+          Advanced BPMN tools (pools, lanes and event variants)</label>
         {error && <div className="status error small">{error}</div>}
         <div className="bpmn-canvas tall" ref={box} />
       </div>
       {modeler && <Properties modeler={modeler} ctx={ctx} />}
+    </div>
+  );
+}
+
+function WorkflowPalette({ modeler }: { modeler: Modeler }) {
+  const add = (id: string, event?: React.MouseEvent) => {
+    const component = workflowComponents.find((c) => c.id === id);
+    if (!component) return;
+    const factory = modeler.get("elementFactory") as any;
+    const bpmnFactory = modeler.get("bpmnFactory") as any;
+    const bo = bpmnFactory.create(component.type, {
+      name: component.name,
+      ...("agent" in component ? { "fuzer:agent": component.agent, "fuzer:component": component.id,
+        "fuzer:instructions": component.instructions } : {}),
+      ...(component.id === "person" ? { "fuzer:role": "engineer", "fuzer:sla": "PT4H" } : {}),
+    });
+    const shape = factory.createShape({ type: component.type, businessObject: bo,
+      ...("eventDefinitionType" in component ? { eventDefinitionType: component.eventDefinitionType } : {}) });
+    if (event) (modeler.get("create") as any).start(event.nativeEvent, shape);
+    else {
+      const canvas = modeler.get("canvas") as any;
+      const vb = canvas.viewbox();
+      (modeler.get("modeling") as any).createShape(shape, { x: vb.x + vb.width / 2, y: vb.y + vb.height / 2 },
+        canvas.getRootElement());
+      (modeler.get("selection") as any).select(shape);
+    }
+  };
+  return (
+    <div className="workflow-palette" aria-label="Workflow components">
+      <p className="small muted">Drag a step onto the canvas, or click to add it. Select a step to configure it;
+        use its connect handle to draw a connection.</p>
+      <div className="actions">
+        {workflowComponents.map((c) => <Button key={c.id} onMouseDown={(e) => e.button === 0 && add(c.id, e)}
+          onClick={(e) => e.detail === 0 && add(c.id)} title={`Add ${c.name}`}>
+          <i className={`bpmn-icon-${c.icon}`} aria-hidden="true" /> {c.name}
+        </Button>)}
+      </div>
+      <div className="actions">
+        <Button onClick={() => (modeler.get("globalConnect") as any).toggle()}>Connect steps</Button>
+        <Button onClick={() => (modeler.get("commandStack") as any).undo()}>Undo</Button>
+        <Button onClick={() => (modeler.get("commandStack") as any).redo()}>Redo</Button>
+        <Button onClick={() => (modeler.get("canvas") as any).zoom("fit-viewport")}>Fit canvas</Button>
+        <Button onClick={() => {
+          const selected = (modeler.get("selection") as any).get();
+          if (selected.length) (modeler.get("modeling") as any).removeElements(selected);
+        }}>Delete selected</Button>
+      </div>
     </div>
   );
 }
@@ -245,7 +292,8 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
   const supported = title !== bo.$type.replace("bpmn:", "") || is(bo, "bpmn:Association");
   return (
     <>
-      <h3>{title}{bo.$type === "bpmn:EndEvent" && def ? " (terminate)" : ""}</h3>
+      <h3>{workflowComponents.find((c) => "agent" in c && c.id === bo.component)?.name ?? title}
+        {bo.$type === "bpmn:EndEvent" && def ? " (terminate)" : ""}</h3>
       {!supported && <p className="error small">The engine doesn't run a {bo.$type.replace("bpmn:", "")}; publishing will refuse it.</p>}
       <Field label="Id" value={bo.id} readOnly mono />
       {!is(bo, "bpmn:TextAnnotation") && <Text label="Name" value={bo.name} onCommit={(v) => ed.set(el, { name: v })} />}
@@ -329,6 +377,16 @@ function ServiceTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: a
   const bo = el.businessObject;
   return (
     <>
+      <Select label="Component" value={bo.component} options={["anomaly", "data"]}
+        labels={{ anomaly: "Anomaly detection", data: "Data detection" }} blank="General agent task"
+        onChange={(v) => {
+          const c = workflowComponents.find((c) => c.id === v);
+          ed.set(el, { "fuzer:component": v, ...(c && "agent" in c
+            ? { "fuzer:agent": c.agent, "fuzer:instructions": c.instructions, name: c.name } : {}) });
+        }} />
+      <Text label="Instructions / parameters" value={bo.instructions} multiline
+        onCommit={(v) => ed.set(el, { "fuzer:instructions": v })}
+        hint="Specify subjects, detector, time window and expected results. The worker passes these instructions with the process data to the read-only agent." />
       <Select label="Agent" value={bo.agent} options={ctx.roles.agent}
         blank={lane?.agent ? `${lane.agent} (from the lane)` : "(choose)"} onChange={(v) => ed.set(el, { "fuzer:agent": v })}
         hint="A worker claims the step, runs this agent and records its result." />
@@ -419,8 +477,8 @@ function Field({ label, value, readOnly, mono, hint }: { label: string; value?: 
 }
 
 /** A text field that commits on blur or Enter, so each edit is one undo step. Empty clears it. */
-function Text({ label, value, onCommit, placeholder, hint, mono, list }: {
-  label?: string; value?: string; onCommit: (v: string | undefined) => void; placeholder?: string; hint?: string; mono?: boolean; list?: string;
+function Text({ label, value, onCommit, placeholder, hint, mono, list, multiline }: {
+  label?: string; value?: string; onCommit: (v: string | undefined) => void; placeholder?: string; hint?: string; mono?: boolean; list?: string; multiline?: boolean;
 }) {
   const [v, setV] = useState(value ?? "");
   useEffect(() => setV(value ?? ""), [value]);
@@ -430,8 +488,9 @@ function Text({ label, value, onCommit, placeholder, hint, mono, list }: {
   return (
     <label className="prop">
       {label && <span>{label}</span>}
-      <Input className={mono ? "mono" : ""} value={v} placeholder={placeholder} list={list} onChange={(e) => setV(e.target.value)}
-        onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />
+      {multiline ? <textarea rows={5} value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={commit} />
+        : <Input className={mono ? "mono" : ""} value={v} placeholder={placeholder} list={list} onChange={(e) => setV(e.target.value)}
+          onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />}
       {list === "fz-messages" && <datalist id="fz-messages">{MESSAGES.map((m) => <option key={m} value={m} />)}</datalist>}
       {hint && <small>{hint}</small>}
     </label>

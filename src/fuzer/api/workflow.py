@@ -8,7 +8,7 @@ from fastapi.responses import (
     JSONResponse,
     Response,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..workflow import engine as work
 from .deps import get_conn
@@ -93,6 +93,11 @@ class WorkDraft(BaseModel):
     process_key: str
     by: str
     from_id: int | None = None  # copy this version (default: the published one) unless a draft is open
+
+
+class WorkGenerate(BaseModel):
+    description: str = Field(min_length=1, max_length=12000)
+    by: str = Field(min_length=1, max_length=200)
 
 
 class WorkMigrate(BaseModel):
@@ -247,6 +252,36 @@ def work_definition_draft(d: WorkDraft, conn=Depends(get_conn)):
 def work_definition_save(definition_id: int, d: WorkDefinitionIn, conn=Depends(get_conn)):
     """Save the modeler's diagram over a draft (published versions never change)."""
     return work.save_draft(conn, definition_id, d.xml, d.by)
+
+
+@router.post("/work/definitions/{definition_id}/generate")
+def work_definition_generate(definition_id: int, d: WorkGenerate, conn=Depends(get_conn)):
+    """Propose BPMN for review without writing any definition or starting work."""
+    from anthropic import APIError
+
+    from ..agents import workflow
+    from ..workflow.canvas import compile_bpmn
+    if not d.description.strip() or not d.by.strip():
+        raise HTTPException(400, "a description and person are required")
+    row = work._definition_row(conn, definition_id)
+    if row["state"] not in ("draft", "checked"):
+        raise work.Conflict("start a new draft before generating a workflow")
+    published = work._published_keys(conn)
+    context = {"process_key": row["process_key"], "name": row["name"], "roles": work.roles(),
+               "forms": [f["key"] for f in work.forms(conn)],
+               "processes": sorted(published - {row["process_key"]})}
+    conn.commit()  # don't hold a database transaction while the agent runs
+    try:
+        draft = workflow.generate(d.description.strip(), context)
+        xml = compile_bpmn(draft, row["process_key"], row["name"] or row["process_key"])
+    except workflow.Unavailable as e:
+        raise HTTPException(503, str(e)) from e
+    except APIError as e:
+        raise HTTPException(503, "Workflow drafting is unavailable. Try again or build on the canvas.") from e
+    except ValueError as e:
+        raise HTTPException(422, "The agent returned an invalid draft. Try a more specific description.") from e
+    return {"xml": xml, "problems": [vars(p) for p in work._problems(conn, {**row, "xml": xml})],
+            "steps": len(draft.steps), "connections": len(draft.connections)}
 
 
 @router.get("/work/definitions/{definition_id}/compare")

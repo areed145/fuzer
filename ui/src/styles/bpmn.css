@@ -53,3 +53,9 @@
   display: flex; gap: 6px; align-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
 .fz-count .late { color: #ff9e9a; font-weight: 600; }
 .fz-count .done { color: #b9c2cc; }
+.modeler-canvas .djs-palette { display: none; }
+.modeler-canvas.advanced .djs-palette { display: block; }
+.workflow-palette .actions { margin-bottom: 8px; }
+.workflow-palette .ui-button { cursor: grab; }
+.prop textarea, .workflow-agent textarea { width: 100%; box-sizing: border-box; }
+.workflow-agent { margin: 12px 0; }

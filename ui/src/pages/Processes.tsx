@@ -69,7 +69,7 @@ export function ProcessesPage() {
   const create = async () => {
     try {
       await api.importDefinition(blankProcess(key, name || key), person);
-      location.hash = href(`/processes/${key}`);
+      location.hash = href(`/processes/${key}`, { tab: "model" });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -87,7 +87,8 @@ export function ProcessesPage() {
     <section>
       <PageHeader>Processes</PageHeader>
       <p className="muted">
-        How work moves between agents and people, and how each process is doing. Each process is a BPMN diagram: edit a draft,
+        How work moves between agents and people, and how each process is doing. Build workflows on the drag-and-drop canvas;
+        BPMN is maintained under the hood. Edit a draft,
         check it, compare it with the published version, and publish (needs the workflow admin role). Running cases stay on the
         version they started with. Who does each step, its SLA and where it escalates are on each process's SLAs &amp; routing
         tab; roles themselves are under <a href={href("/teams")}>Teams &amp; routing</a>.
@@ -229,6 +230,11 @@ function ModelTab({ def, defs, draft, reload }: {
   const admin = useAdmin(person);
   const editable = def.state === "draft" || def.state === "checked";
   const { xml, error: xmlError } = useXml(def.id);
+  const [canvasXml, setCanvasXml] = useState<string>();
+  const [description, setDescription] = useState("");
+  const [proposal, setProposal] = useState<Awaited<ReturnType<typeof api.generateWorkflow>>>();
+  const [previousCanvas, setPreviousCanvas] = useState<string>();
+  const [ready, setReady] = useState(false);
   const roles = useAsync(() => api.workRoles(), []);
   const forms = useAsync(() => api.workForms(), []);
   const keys = useAsync(() => api.workDefinitions(), []);
@@ -279,6 +285,7 @@ function ModelTab({ def, defs, draft, reload }: {
     const { xml } = await m.saveXML({ format: true });
     await api.saveDefinition(def.id, xml!, person);
     setDirty(false);
+    setPreviousCanvas(undefined);
   };
   const saveIfDirty = async () => {
     if (dirty) await save();
@@ -315,11 +322,30 @@ function ModelTab({ def, defs, draft, reload }: {
     reload();
   });
   const onDownload = () => run("download", async () => {
-    const text = modeler.current && editable ? (await modeler.current.saveXML({ format: true })).xml! : xml!;
+    const text = modeler.current && editable ? (await modeler.current.saveXML({ format: true })).xml! : canvasXml ?? xml!;
     download(`${def.process_key}-v${def.version}.bpmn`, text, "application/xml");
   });
 
-  const onReady = useCallback((m: Modeler | undefined) => (modeler.current = m), []);
+  const onGenerate = () => run("generate", async () => {
+    setProposal(undefined);
+    setProposal(await api.generateWorkflow(def.id, description, person));
+  });
+  const onApply = () => run("review", async () => {
+    if (!proposal || !modeler.current) return;
+    if (!window.confirm("Replace the current canvas with this proposal? It will remain unsaved until you save the draft.")) return;
+    setPreviousCanvas((await modeler.current.saveXML({ format: true })).xml!);
+    setReady(false);
+    setCanvasXml(proposal.xml);
+    setProblems(proposal.problems);
+    setCompare(undefined);
+    setDirty(true);
+    setProposal(undefined);
+    setMsg({ text: "Agent draft loaded for review. Adjust steps, parameters and connections, then save and check before publishing." });
+  });
+  const onReady = useCallback((m: Modeler | undefined) => {
+    modeler.current = m;
+    setReady(!!m);
+  }, []);
   const onDirty = useCallback(() => setDirty(true), []);
 
   return (
@@ -332,10 +358,10 @@ function ModelTab({ def, defs, draft, reload }: {
         <span className="spacer" />
         {editable ? (
           <>
-            <Button disabled={!person || !!busy || !dirty} onClick={onSave}>Save draft</Button>
-            <Button disabled={!person || !!busy} onClick={onCheck}>Check</Button>
-            <Button disabled={!person || !!busy} onClick={onCompare}>{compare ? "Hide comparison" : "Compare with published"}</Button>
-            <Button variant="primary" disabled={!person || !admin || !!busy} onClick={onPublish}
+            <Button disabled={!person || !!busy || !dirty || !ready} onClick={onSave}>Save draft</Button>
+            <Button disabled={!person || !!busy || !ready} onClick={onCheck}>Check</Button>
+            <Button disabled={!person || !!busy || !ready} onClick={onCompare}>{compare ? "Hide comparison" : "Compare with published"}</Button>
+            <Button variant="primary" disabled={!person || !admin || !!busy || !ready} onClick={onPublish}
               title={admin ? "" : `Publishing needs the ${ADMIN.replace(/_/g, " ")} role`}>Publish</Button>
           </>
         ) : draft ? (
@@ -350,6 +376,42 @@ function ModelTab({ def, defs, draft, reload }: {
       {editable && !admin && person && <p className="small muted">You can edit and check drafts; publishing needs the workflow admin role.</p>}
       {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
       <NeedName person={person} />
+      {editable && <UICard className="workflow-agent">
+        <h3>Workflow drafting agent</h3>
+        <p className="small muted">Describe the workflow to draft. Review the proposal before replacing the canvas;
+          nothing is saved or run automatically. BPMN is maintained behind the canvas; import and download remain available.</p>
+        <label className="prop">
+          <span>Workflow description</span>
+          <textarea rows={3} maxLength={12000} value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder="Detect anomalies, inspect changed data, then ask an engineer to review the evidence…" />
+        </label>
+        <div className="actions">
+          <Button disabled={!person || !!busy || !description.trim()} onClick={onGenerate}>
+            {busy === "generate" ? "Drafting…" : "Draft workflow"}
+          </Button>
+          {previousCanvas && <Button disabled={!!busy} onClick={() => {
+            setReady(false);
+            setCanvasXml(previousCanvas);
+            setPreviousCanvas(undefined);
+            setProblems([]);
+            setCompare(undefined);
+            setDirty(true);
+          }}>Restore previous canvas</Button>}
+        </div>
+        {proposal && <>
+          <p className="small">{proposal.steps} steps · {proposal.connections} connections. Inspect the proposal below,
+            then review and refine it on the canvas.</p>
+          {!!proposal.problems.length && <div className="status small error">
+            <strong>Fix before publishing:</strong>
+            <ul>{proposal.problems.map((p, i) => <li key={i}>{p.element}: {p.message}</li>)}</ul>
+          </div>}
+          <Suspense fallback={<div className="status">Loading proposal…</div>}><BpmnView xml={proposal.xml} /></Suspense>
+          <div className="actions">
+            <Button variant="primary" disabled={!!busy || !ready} onClick={onApply}>Review on canvas</Button>
+            <Button disabled={!!busy} onClick={() => setProposal(undefined)}>Discard proposal</Button>
+          </div>
+        </>}
+      </UICard>}
 
       {problems.length > 0 && (
         <UICard className="problems">
@@ -368,7 +430,7 @@ function ModelTab({ def, defs, draft, reload }: {
       {xmlError && <div className="status error">Couldn't load the diagram: {xmlError}</div>}
       {xml && (
         <Suspense fallback={<div className="status">Loading modeler…</div>}>
-          {editable ? <BpmnModeler xml={xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
+          {editable ? <BpmnModeler xml={canvasXml ?? xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
             : <BpmnView xml={xml} tall />}
         </Suspense>
       )}

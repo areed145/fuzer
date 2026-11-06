@@ -13,7 +13,8 @@ Fuzer properties are attributes in the `fuzer:` namespace:
 - lane: `fuzer:role` (a person role) or `fuzer:agent` (an agent role); the lane name is used otherwise.
 - userTask: `fuzer:role`, `fuzer:assignee`, `fuzer:requiresHuman`, `fuzer:sla` (ISO 8601 duration),
   `fuzer:escalateTo` (the role that gets it once the SLA passes), `fuzer:form` (form-js form key).
-- serviceTask: `fuzer:agent`, `fuzer:fallbackRole` (who gets it when the agent keeps failing).
+- serviceTask: `fuzer:agent`, `fuzer:fallbackRole` (who gets it when the agent keeps failing),
+  `fuzer:component` (canvas preset) and `fuzer:instructions` (parameters passed to the agent worker).
 
 Conditions and timer expressions are Python expressions, as in SpiffWorkflow, so the same files run on
 both; they are evaluated by a small interpreter that only knows names, literals, comparisons, boolean

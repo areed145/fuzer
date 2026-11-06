@@ -22,7 +22,8 @@ export const fuzerModdle = {
       properties: [attr("role"), attr("assignee"), attr("requiresHuman", "Boolean"), attr("sla"), attr("escalateTo"),
                    attr("form")] },
     { name: "FuzerServiceTask", extends: ["bpmn:ServiceTask"],
-      properties: [attr("agent"), attr("fallbackRole"), attr("requiresHuman", "Boolean")] },
+      properties: [attr("agent"), attr("fallbackRole"), attr("requiresHuman", "Boolean"),
+                   attr("component"), attr("instructions")] },
     // A score threshold (#100) in the process's extensionElements, read in conditions as thresholds["name"].
     { name: "Threshold", superClass: ["Element"], meta: { allowedIn: ["bpmn:Process"] },
       properties: [attr("name"), attr("value")] },
