@@ -130,6 +130,85 @@ def test_loads_follow_the_dataset_rows(conn, data):
     assert ingest.ingest(conn, data, ["sap_floc"])["loaded"] == ["sap_floc"]
 
 
+def test_explicit_loads_validate_selection_and_never_repeat_execution(conn, data, monkeypatch):
+    catalog.seed(conn)
+    conn.commit()
+    with pytest.raises(ingest.DatasetNotFound, match="no dataset 'typo'"):
+        ingest.ingest(conn, data, ["sap_equipment", "typo"])
+    assert catalog.runs(conn, "sap_equipment") == []
+
+    original = connections.connector
+    calls = []
+
+    def connector(d, folder):
+        calls.append(d["name"])
+        return original(d, folder)
+
+    monkeypatch.setattr(connections, "connector", connector)
+    result = ingest.ingest(conn, data, ["sap_equipment", "sap_equipment"])
+    assert result["loaded"] == ["sap_equipment"] and calls == ["sap_equipment"]
+    assert len(catalog.runs(conn, "sap_equipment")) == 1
+    assert ingest.ingest(conn, data, ["sap_equipment"])["unchanged"] == ["sap_equipment"]
+    assert len(catalog.runs(conn, "sap_equipment")) == 1
+
+
+def test_explicit_unavailable_load_is_not_bulk_discovery_or_a_paused_load(conn, tmp_path):
+    catalog.seed(conn)
+    conn.commit()
+    with pytest.raises(ingest.DatasetUnavailable, match="inspect Sources connection"):
+        ingest.ingest(conn, tmp_path, ["sap_equipment"])
+    assert catalog.runs(conn, "sap_equipment") == []
+    assert ingest.ingest(conn, tmp_path)["loaded"] == []  # absent optional exports are discovery skips
+    catalog.pause(conn, "sap_equipment", "ana")
+    conn.commit()
+    assert ingest.ingest(conn, tmp_path, ["sap_equipment"])["paused"] == ["sap_equipment"]
+
+
+def test_sources_cli_preserves_domain_load_results_and_errors(conn, data):
+    from types import SimpleNamespace
+
+    from fuzer.cli import sources
+
+    args = SimpleNamespace(action="run", by="cli", reason=None, names=["sap_equipment"], full=False)
+    loaded = sources.run(conn, None, data, args)
+    assert loaded["loaded"] == ["sap_equipment"]
+    assert catalog.runs(conn, "sap_equipment")[0]["trigger"] == "manual"
+    assert sources.run(conn, None, data, args)["unchanged"] == ["sap_equipment"]
+    args.names = ["typo"]
+    with pytest.raises(SystemExit, match="no dataset 'typo'"):
+        sources.run(conn, None, data, args)
+    args.names = ["sap_equipment"]
+    catalog.pause(conn, "sap_equipment", "ana")
+    conn.commit()
+    assert sources.run(conn, None, data, args)["paused"] == ["sap_equipment"]
+
+
+def test_read_failure_is_recorded_once_and_requires_a_deliberate_retry(conn, data, monkeypatch):
+    catalog.seed(conn)
+    conn.commit()
+    original = ingest._records
+    reads = []
+
+    def broken(name, *args, **kwargs):
+        reads.append(name)
+        yield next(original(name, *args, **kwargs))
+        raise RuntimeError("source read interrupted")
+
+    monkeypatch.setattr(ingest, "_records", broken)
+    with pytest.raises(RuntimeError, match="source read interrupted"):
+        ingest.ingest(conn, data, ["sap_equipment", "sap_equipment"])
+    assert reads == ["sap_equipment"]
+    runs = catalog.runs(conn, "sap_equipment")
+    assert len(runs) == 1 and runs[0]["status"] == "failed"
+    assert "source read interrupted" in runs[0]["error"]
+    assert conn.execute("select count(*) as n from source_record").fetchone()["n"] == 0
+    conn.commit()
+
+    monkeypatch.setattr(ingest, "_records", original)
+    assert ingest.ingest(conn, data, ["sap_equipment"])["loaded"] == ["sap_equipment"]
+    assert [r["status"] for r in catalog.runs(conn, "sap_equipment")] == ["done", "failed"]
+
+
 def test_mapping_versions_approve_and_roll_back(conn, data):
     ingest.ingest(conn, data, ["sap_equipment"])
     first = mappings.load(conn)[("sap", "equipment")].version

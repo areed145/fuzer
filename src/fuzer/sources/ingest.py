@@ -21,6 +21,14 @@ from psycopg.types.json import Jsonb
 from . import catalog, connections, connectors, mappings, quality
 
 
+class DatasetNotFound(ValueError):
+    """An explicitly requested dataset is not in the catalog."""
+
+
+class DatasetUnavailable(ValueError):
+    """An explicitly requested active dataset cannot be read through its connection."""
+
+
 def tables(conn=None) -> dict:
     """Tabular datasets by name, from the mapping files and approved mappings (mappings.py)."""
     return mappings.tables(conn)
@@ -190,29 +198,39 @@ def _drift_holds(policy: str, drift: dict | None) -> bool:
 
 
 def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = True, full: bool = False,
-           trigger: str = "manual") -> dict:
+           trigger: str = "manual", *, allow_missing: bool = False) -> dict:
     """Load datasets from their connections (every active one, or the named ones; data_dir is the project's
     data folder, where folder connections without a path look). Each loads as its load_mode says;
     `snapshot=False` loads them all incrementally. Every update or removal keeps the previous version in
     source_record_history. Unchanged datasets are skipped; `full` reads everything again and restarts
-    watermarks. Paused and retired datasets are skipped (reported as `paused`)."""
+    watermarks. Paused and retired datasets are skipped (reported as `paused`). Explicit names must exist
+    and active ones must be available; bulk discovery and scheduler discovery (`allow_missing`) report
+    absent exports as `missing`. Repeated names load once."""
     from ..core import db
 
     catalog.ensure(conn)
     data_dir = Path(data_dir)
     ds = catalog.datasets(conn)
+    names = list(dict.fromkeys(exports)) if exports else [
+        n for n, d in ds.items() if d["status"] in ("active", "paused")]
+    for name in names:
+        if name not in ds:
+            raise DatasetNotFound(f"no dataset {name!r}: inspect Sources before requesting a load")
     used = {f"{m.source}/{m.record_type}": m.version for m in mappings.load(conn).values()}
-    report = {"loaded": [], "unchanged": [], "held": [], "paused": [],
+    report = {"loaded": [], "unchanged": [], "held": [], "paused": [], "missing": [],
               "unmapped": unmapped(data_dir, conn) if not exports else []}
     plan, runs = [], []  # decide every dataset before COPY starts: nothing else may run on conn during it
-    for name in exports or [n for n, d in ds.items() if d["status"] in ("active", "paused")]:
-        d = ds.get(name)
-        if d is None:
-            continue
+    for name in names:
+        d = ds[name]
         if d["status"] != "active":
             report["paused"].append(name)
             continue
         if (c := connections.connector(d, data_dir)) is None:
+            if exports and not allow_missing:
+                raise DatasetUnavailable(
+                    f"dataset {name!r} is unavailable through its connection: inspect Sources connection "
+                    "and recorded runs before deliberately retrying")
+            report["missing"].append(name)
             continue
         fp = c.fingerprint()
         if not full and d["fingerprint"] == fp:

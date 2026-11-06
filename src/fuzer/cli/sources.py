@@ -203,7 +203,8 @@ def run(conn, pack, data: Path, args) -> object:
         elif a == "why":
             fid, field = _need(args, 2, "a Fuzer ID and a field")[:2]
             return impact.why(conn, pack, fid, field)
-    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError) as e:
+    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError,
+            ingest.DatasetNotFound, ingest.DatasetUnavailable, connections.ConnectionError_) as e:
         conn.rollback()
         raise SystemExit(str(e)) from None
     conn.commit()

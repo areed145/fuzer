@@ -239,6 +239,45 @@ def test_session_expiry_and_logout_revoke_server_tokens(runtime):
     assert runtime.get("/stats").status_code == 401
 
 
+def test_users_keeps_saved_assignments_distinct_from_effective_access_and_owner_grants(runtime):
+    owner, _ = signed_in(runtime, owner=True)
+    accounts = runtime.get("/auth/access").json()["accounts"]
+    own = next(a for a in accounts if a["id"] == owner.id)
+    assert own["tenant_id"] == TENANT and own["object_id"] == SUBJECT
+    with TestClient(app, base_url="https://testserver") as admin, TestClient(app, base_url="https://testserver") as pending:
+        administrator, _ = signed_in(admin, roles=("administrator",), subject=str(uuid.UUID(int=20)))
+        person, _ = signed_in(pending, enabled=False, roles=(), subject=str(uuid.UUID(int=21)))
+        assert admin.get("/auth/access").status_code == 403
+        assert admin.put(f"/auth/accounts/{person.id}", json={"enabled": True, "owner": True, "roles": []}).status_code == 403
+        assert admin.put("/auth/roles/grant_owner", json={"description": "Not permitted", "permissions": ["configure"]}).status_code == 403
+        assert admin.put(f"/work/people/{person.actor}", json={"roles": ["engineer"], "by": "system"}).status_code == 200
+        row = next(p for p in admin.get("/work/people").json() if p["name"] == person.actor)
+        assert row["assigned_roles"] == ["engineer"] and row["roles"] == [] and row["owner"] is False
+        load = next(p for p in admin.get("/work/workload").json()["people"] if p["name"] == person.actor)
+        assert load["assigned_roles"] == ["engineer"] and load["roles"] == []
+        with db.connect() as conn:
+            assert conn.execute("select actor from work_event where kind='roles_set' and data->>'person'=%s "
+                                "order by id desc limit 1", (person.actor,)).fetchone()["actor"] == administrator.actor
+        assert pending.get("/stats").status_code == 403
+        assert runtime.put(f"/auth/accounts/{person.id}", json={"enabled": True, "roles": ["reader"]}).status_code == 200
+        row = next(p for p in admin.get("/work/people").json() if p["name"] == person.actor)
+        assert row["roles"] == row["assigned_roles"] == ["engineer"]
+        assert pending.get("/stats").status_code == 200
+        assert runtime.put("/auth/roles/reader", json={"description": "Reader with operational access for verification",
+                                                    "permissions": ["read", "operate"]}).status_code == 200
+        assert pending.get("/auth/me").json()["user"]["permissions"] == ["operate", "read"]
+        assert runtime.put("/auth/roles/reader", json={"description": "Read evidence", "permissions": ["read"]}).status_code == 200
+        assert pending.get("/auth/me").json()["user"]["permissions"] == ["read"]
+        assert pending.put(f"/work/people/{person.actor}", json={"roles": ["workflow_admin"], "by": "system"}).status_code == 403
+        assert runtime.put(f"/auth/accounts/{person.id}", json={"enabled": False, "roles": ["reader"]}).status_code == 200
+        assert pending.get("/stats").status_code == 401
+        row = next(p for p in admin.get("/work/people").json() if p["name"] == person.actor)
+        assert row["assigned_roles"] == ["engineer"] and row["roles"] == []
+    assert runtime.put(f"/auth/accounts/{owner.id}", json={"enabled": False, "owner": True, "roles": []}).status_code == 400
+    own_roster = next(p for p in runtime.get("/work/people").json() if p["name"] == owner.actor)
+    assert own_roster["owner"] and "workflow_admin" in own_roster["roles"]
+
+
 def test_conversations_uploads_jobs_and_answers_are_account_scoped(runtime):
     from fuzer.agents import history, service
     person, _ = signed_in(runtime, owner=True)

@@ -4,16 +4,17 @@ import { api } from "./api";
 import { href, useAsync } from "./lib";
 import { usePerson } from "./work";
 import { Button, Input } from "./ui";
-import { SignOut, useAuth } from "./Auth";
+import { SignOut, useAuth, usePermission } from "./Auth";
 
 export function Identity() {
   const session = useAuth();
+  const configure = usePermission("configure");
   if (session?.mode === "microsoft") {
     const user = session.user;
     return <div className="identity small">
       <strong>{user?.display_name}</strong>
       <p className="muted">{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
-      {user?.owner && <p><a href={href("/access")}>Manage sign-in & access</a></p>}
+      {configure && <p><a href={href("/users")}>Manage users</a></p>}
       <SignOut />
     </div>;
   }
@@ -44,7 +45,7 @@ function LocalIdentity() {
       <span className="muted">You are </span>
       <Button variant="link" title="change" onClick={() => { setDraft(person); setEditing(true); }}><strong>{person}</strong></Button>
       <div className="muted">
-        {me ? me.roles.join(", ") || "no roles" : <a href={href("/teams")}>not on the roster: add yourself</a>}
+        {me ? me.roles.join(", ") || "no roles" : <a href={href("/users", { view: "workflow" })}>not on the roster: manage assignments</a>}
         {me?.away_until && new Date(me.away_until) > new Date() && " · away"}
         {covering.length > 0 && ` · covering for ${covering.map((p) => p.name).join(", ")}`}
       </div>

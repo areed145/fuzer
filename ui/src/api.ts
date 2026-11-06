@@ -758,6 +758,8 @@ export interface WorkRoleRow {
   processes: string[]; waiting: number; overdue: number; escalated: number; uncovered: boolean;
 }
 export interface WorkloadPerson {
+  assigned_roles?: string[]; owner?: boolean;
+  display_name?: string | null; account_enabled?: boolean | null;
   name: string; roles: string[]; assigned: number; overdue: number; away: boolean; away_until: string | null;
   delegate: string | null; note: string | null;
 }
@@ -1277,6 +1279,7 @@ import { scheduleRequest } from "./requestQueue";
 
 export interface AccessAccount {
   id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
+  tenant_id?: string; object_id?: string;
 }
 export interface AccessRole { name: string; description: string; permissions: string[]; }
 export interface AccessAdministration {
@@ -1446,7 +1449,7 @@ export const api = {
   resetSetting: (key: string, scope: SettingScope, project: string | null, by: string, reason: string) =>
     request<unknown>("POST", `/settings/${encodeURIComponent(key)}/reset`, undefined, { scope, project, by, reason }),
   settingHistory: (key: string) => request<SettingChange[]>("GET", `/settings/${encodeURIComponent(key)}/history`),
-  workPeople: () => request<{ name: string; roles: string[]; away_until?: string | null; delegate?: string | null }[]>("GET", "/work/people"),
+  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null }[]>("GET", "/work/people"),
   setWorkPerson: (name: string, roles: string[], by: string) =>
     request<{ name: string; roles: string[] }>("PUT", `/work/people/${encodeURIComponent(name)}`, undefined, { roles, by }),
   removeWorkPerson: (name: string, by: string) =>

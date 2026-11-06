@@ -18,7 +18,7 @@ export function InboxPage() {
   if (!person) return <section><PageHeader>Inbox</PageHeader><UICard title="Choose an identity to see your work">
     <p>Use “You are” in the navigation to select the name used by your team. On a small screen, open the menu first.</p>
     <p className="muted">This records who makes decisions; it is not a sign-in. Team roles determine which queues appear.</p>
-    <ButtonLink href={href("/teams")}>View teams and routing</ButtonLink>
+    <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
   </UICard></section>;
   if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
   const d = inbox.data;

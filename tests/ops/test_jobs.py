@@ -123,3 +123,31 @@ def test_datasets_have_checks_and_their_own_schedules():
     assert {"dataset_schedules", "new_exports"} <= names and "source_health" in {j.name for j in jobs.defs.jobs}
     t = datetime(2025, 1, 1, 9, 59, tzinfo=timezone.utc).timestamp()
     assert jobs.due("0 * * * *", t, t + 120, "UTC") and not jobs.due("0 * * * *", t + 120, t + 180, "UTC")
+
+
+def test_scheduler_discovery_reports_missing_without_loading_or_blocking_other_assets(fuzer, tmp_path):
+    from fuzer.sources import catalog
+
+    with fuzer.connect() as conn:
+        before = len(catalog.runs(conn, "sap_equipment"))
+    result = dg.materialize([jobs._source_asset("sap_equipment")],
+                            resources={"fuzer": jobs.Fuzer(data_dir=str(tmp_path), database_url=fuzer.database_url)},
+                            raise_on_error=False)
+    assert result.success
+    metadata = result.get_asset_materialization_events()[0].materialization.metadata
+    assert metadata["missing"].value and not metadata["loaded"].value and metadata["records"].value == 0
+    with fuzer.connect() as conn:
+        assert len(catalog.runs(conn, "sap_equipment")) == before
+
+
+def test_source_asset_uses_shared_execution_once_and_propagates_failure(fuzer, monkeypatch):
+    calls = []
+
+    def fail(conn, folder, exports, **kwargs):
+        calls.append((exports, kwargs))
+        raise RuntimeError("load interrupted")
+
+    monkeypatch.setattr(jobs.ingest, "ingest", fail)
+    result = dg.materialize([jobs._source_asset("sap_equipment")], resources={"fuzer": fuzer}, raise_on_error=False)
+    assert not result.success and result.get_asset_materialization_events() == []
+    assert calls == [(["sap_equipment"], {"trigger": "manual", "allow_missing": True})]

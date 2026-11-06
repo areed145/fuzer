@@ -27,3 +27,30 @@ readers that produce multiple record types. Similarly, API and MCP source-health
 When adding or changing an entry point, prefer an existing domain operation. If matching behavior would
 otherwise require repeating a rule, extract that rule into the domain module and test the entry points for
 equivalent results. Keep only the input/output translation specific to each transport in the adapter.
+
+## Source ingestion contract
+
+`sources.ingest.ingest` owns dataset selection, status/availability checks, fingerprint and watermark
+handling, schema/quality holds, staged execution, history, run recording and load outcomes.
+HTTP dataset Run, the compatible mapping-and-load route, Sources onboarding, CLI ingestion and
+Dagster assets all call it. MCP exposes source health, not an ingestion mutation; do not invent a
+second execution surface to achieve adapter symmetry.
+
+Explicit names must exist; repeated names execute once. A missing active input is an error for
+deliberate UI/API/CLI loads, not a successful zero-row result. Paused/retired inputs remain explicit
+`paused` no-ops. Bulk discovery skips optional absent exports and reports them in `missing`.
+Dagster's catalog-wide asset discovery deliberately opts into `allow_missing=True`: built-in optional
+exports may be absent, and their absence must not prevent other sources and the register from refreshing.
+It reports `missing=true` and `loaded=false`, not a completed source load; a Dagster materialization
+is scheduler bookkeeping, not proof of ingested records. Connector/read failures still propagate.
+
+Keep the engine's result fields intact across HTTP/CLI and nested onboarding results, including
+`loaded`, `unchanged`, `held`, `paused`, `missing` and profile drift. Jobs translates these lists to
+per-asset boolean metadata, retaining trigger and connector/path diagnostics. HTTP translates known
+selection/connection errors to status codes; CLI formats them as exit errors. Authorization, CSRF and
+trusted actor resolution remain transport responsibilities. No adapter retries a failed load.
+
+Preflight rejection creates no source run. Once row execution starts, failure rolls back staged data
+and records failed source runs before propagating the error. Recovery is an explicit inspection of
+Sources Runs/Quality and the connection, followed by a deliberate retry; ingestion does not rebuild
+the graph. Jobs owns scheduler diagnostics, not a parallel source-run model.
