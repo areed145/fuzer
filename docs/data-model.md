@@ -47,7 +47,8 @@ SAP PM notifications and work orders become `notification` and `work_order`
 entities that `concerns` the equipment (by SAP equipment number) and the tag;
 work orders link `for_notification`. The standards file holds ISO 14224 failure
 modes, failure mechanisms, failure causes and maintenance activities; the pack's
-`maintenance_codes` maps the site's SAP catalog codes onto them. A notification on
+`maintenance_codes` is the fallback for site catalogs loaded as reference datasets.
+A notification on
 a tag within 3 days of a logged event on that tag is linked `related_to` it (one
 set-based statement). Failure history rolls up from a tag or piece of equipment
 to every instance of its model and every member of its class.
@@ -55,8 +56,8 @@ to every instance of its model and every member of its class.
 ## Downtime and daily reports (Energy Components)
 EC downtime / deferment records become `downtime` entities that `affects` a well
 or the facility and are `caused_by` the tags named in their comment (rules, then
-Claude), with duration and lost oil / gas. The pack maps EC reason codes to a
-name and category; a record whose comment names equipment but whose reason is in
+Claude), with duration and lost oil / gas. Loaded EC reason-code datasets take
+precedence over the pack's default names and categories; a record whose comment names equipment but whose reason is in
 another category is flagged (`reason_check`, a Dagster check, a list in the UI).
 Lost oil is ranked by causing tag, by the class of the causing equipment and by
 reason. DAY001 daily reports become `production_day` entities with their figures,

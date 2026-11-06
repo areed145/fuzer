@@ -153,6 +153,12 @@ MCP tool, one series per quantity and location with the change per year (wall
 loss, decline). Large asset: 89,710 readings on 1,190 entities; a well's test
 history 0.6 ms (4 ms cold).
 
+A `reference` mapping names each row's list, code, name, category and optional
+standard code. These rows load with other datasets but do not create entities.
+Maintenance and downtime hooks use the loaded entries first and retain the
+asset pack's catalogs as defaults; codes found in neither are reported by the
+`unmapped_site_codes` data-quality check.
+
 **Shape: what kind of data it is.** One generic extractor per shape:
 
 | Shape | Today | Anticipated |
@@ -168,7 +174,7 @@ history 0.6 ms (4 ms cold).
 | Documents | Manuals, guides, procedures | Any PDF / Office file, datasheets, inspection reports |
 | Geospatial features | none | GIS wells, pads, pipelines, rights-of-way, facility outlines |
 | Positions along a line | none | Pipeline stationing and in-line inspection anomalies (PODS); well trajectories, completions and depth logs by MD / TVD (WITSML, LAS) |
-| Reference data / code lists | Pack maintenance codes, ISO 14224 | Site catalogs, units of measure, EC reason codes, CFIHOS reference data library |
+| Reference data / code lists | SAP maintenance catalogs and EC downtime reasons; pack values are defaults | Site catalogs, units of measure, CFIHOS reference data library |
 
 Measurements differ from PI data: they are few, manual and not in a historian,
 so they are landed and kept. Drawings and documents are not shapes but

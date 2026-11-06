@@ -1,7 +1,7 @@
 """Asset packs: everything that differs between assets, loaded from YAML."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import yaml
 
@@ -24,6 +24,7 @@ class Pack:
     spatial_links: list
     value: dict
     limits: dict
+    reference_data: dict = field(default_factory=dict)
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}

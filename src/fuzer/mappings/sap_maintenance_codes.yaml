@@ -1,0 +1,12 @@
+# SAP PM site catalog codes mapped onto ISO 14224.
+source: sap
+record_type: maintenance_code
+shape: reference
+dataset: sap_maintenance_codes
+key: [list, code]
+reference:
+  list: {from: list}
+  code: code
+  name: name
+  category: category
+  standard_code: standard_code
