@@ -5,21 +5,27 @@
 .map-legend .chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 10px; border: 1px solid var(--line);
   border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
 .map-legend .chip.off { opacity: 0.45; }
-.map-frame { position: relative; min-width: 0; }
+.map-frame { position: relative; z-index: 0; isolation: isolate; min-width: 0; }
 .map-basemap-light .leaflet-tile-pane { filter: saturate(.65) brightness(1.04); }
 .map-basemap-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.86); }
 .map-controls { position: absolute; z-index: 1000; top: 10px; right: 10px; display: flex; flex-wrap: wrap; align-items: end;
   justify-content: flex-end; gap: 6px; max-width: calc(100% - 20px); }
-.map-controls label { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid var(--line);
+.map-controls label { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 8px; border: 1px solid var(--line);
   border-radius: 6px; background: var(--panel); color: var(--text); box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
-.map-controls select { padding: 3px 6px; font-size: 12px; }
+.map-controls select { min-height: 34px; padding: 3px 6px; font-size: 12px; }
 .map-controls .ui-button { box-shadow: 0 1px 5px rgb(0 0 0 / .2); }
+.map-controls .map-control-button { min-width: 44px; min-height: 44px; padding: 8px; }
+.map-legend .chip { min-height: 44px; }
 .map-message { position: absolute; z-index: 1000; top: 58px; right: 10px; max-width: min(360px, calc(100% - 20px));
   padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--danger);
   box-shadow: 0 1px 5px rgb(0 0 0 / .2); font-size: 12px; }
-.map-frame:fullscreen { width: 100vw; height: 100vh; padding: 0; border: 0; border-radius: 0; background: var(--bg); }
-.map-frame:fullscreen .map { height: 100vh !important; border: 0; border-radius: 0; }
+.map-frame.map-fullscreen {
+  position: fixed; z-index: 1200; inset: 0; width: 100vw; height: 100vh; height: 100dvh;
+  padding: 0; border: 0; border-radius: 0; background: var(--bg);
+}
+.map-frame.map-fullscreen .map { height: 100vh !important; height: 100dvh !important; border: 0; border-radius: 0; }
 .leaflet-container { font: inherit; }
+.leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 42px !important; font-size: 24px !important; }
 .viewer .mark .hl-ring { fill: none; stroke: var(--accent); stroke-width: 10; opacity: 0.85; animation: hl-pulse 1.6s ease-in-out infinite; }
 .viewer .mark.hl text { fill: var(--accent); }
 @keyframes hl-pulse { 50% { opacity: 0.3; } }

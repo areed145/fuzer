@@ -166,6 +166,9 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+  useEffect(() => {
+    requestAnimationFrame(() => map.current?.invalidateSize());
+  }, [isFullscreen]);
 
   const locate = () => {
     setMapMessage("");
@@ -211,12 +214,23 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     const target = frame.current;
     if (!target) return;
     setMapMessage("");
-    try {
-      if (document.fullscreenElement === target) await document.exitFullscreen();
-      else await target.requestFullscreen();
-    } catch (error) {
-      setMapMessage(error instanceof Error ? `Fullscreen failed: ${error.message}` : "Fullscreen is not available.");
+    if (document.fullscreenElement === target) {
+      await document.exitFullscreen();
+      return;
     }
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      return;
+    }
+    try {
+      if (target.requestFullscreen) {
+        await target.requestFullscreen();
+        return;
+      }
+    } catch {
+      // Fall back to the CSS fullscreen mode if the browser blocks native fullscreen.
+    }
+    setIsFullscreen(true);
   };
 
   useEffect(() => {
@@ -299,10 +313,13 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
           </Button>
         ))}
       </div>
-      <div ref={frame} className="map-frame">
+      <div ref={frame} className={`map-frame${isFullscreen ? " map-fullscreen" : ""}`}>
         <div className="map-controls">
           <label className="small muted">
-            Basemap
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+              <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+            </svg>
             <Select
               aria-label="Basemap"
               value={basemapName}
@@ -315,14 +332,29 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
               <option value="none">None</option>
             </Select>
           </label>
-          <Button size="sm" onClick={locate} aria-label="Find my location" title="Find my location">◎ Locate</Button>
+          <Button size="sm" className="map-control-button" onClick={locate} aria-label="Find my location" title="Find my location">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+            </svg>
+          </Button>
           <Button
             size="sm"
+            className="map-control-button"
             onClick={() => void toggleFullscreen()}
             aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >
-            {isFullscreen ? "⛶ Exit" : "⛶ Fullscreen"}
+            {isFullscreen ? (
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5" />
+              </svg>
+            )}
           </Button>
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
