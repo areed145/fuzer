@@ -2,8 +2,12 @@ services:
   - type: web
     name: fuzer
     runtime: docker
-    plan: 0.5c-512mb
+    plan: 1c-2g
     healthCheckPath: /health
+    disk:
+      name: fuzer-runtime
+      mountPath: /var/lib/fuzer
+      sizeGB: 1
     envVars:
       - key: FUZER_DATABASE_URL
         fromDatabase:
@@ -11,6 +15,16 @@ services:
           property: connectionString
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: FUZER_PACK
+        value: okan
+      - key: FUZER_DATA_DIR
+        value: /app/fakeplant/data/okan
+      - key: FUZER_TIMESERIES
+        value: synthetic
+      - key: DAGSTER_HOME
+        value: /var/lib/fuzer/dagster
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 databases:
   - name: fuzer-db

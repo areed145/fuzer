@@ -11,10 +11,15 @@ FROM python:3.12-slim
 RUN pip install --no-cache-dir uv
 WORKDIR /app
 COPY . .
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --package fuzer-fakeplant \
+    && uv run --no-sync fakeplant generate --asset okan --out /app/fakeplant/data/okan
 COPY --from=ui-build /app/ui/dist /app/ui/dist
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    FUZER_PACK=okan \
+    FUZER_DATA_DIR=/app/fakeplant/data/okan \
+    FUZER_TIMESERIES=synthetic \
+    DAGSTER_HOME=/var/lib/fuzer/dagster
 
-CMD ["sh", "-c", "uv run --no-sync uvicorn fuzer.api:app --host 0.0.0.0 --port ${PORT:-10000}"]
+CMD ["python", "-m", "fuzer.cli.deploy"]
