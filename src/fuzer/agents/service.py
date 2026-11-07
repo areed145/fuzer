@@ -12,6 +12,7 @@ import time
 import uuid
 
 from ..core import db, llm, settings
+from .capabilities import ASKER
 
 _team = None
 _purged_at = 0.0
@@ -69,6 +70,7 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
         _jobs.pop(finished)
 
     async def run():
+        ASKER.set(by)  # this task's own context: what the assistant drafts belongs to who asked
         try:
             async with asyncio.timeout(settings.get(None, "assistant.timeout_seconds")):
                 out = await ask(question, agent, session, job["trace"], images)

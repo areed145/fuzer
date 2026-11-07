@@ -776,6 +776,11 @@ export interface ProcessInstance {
   open_steps: { task_id: number; step: string; kind: string; role: string | null; assignee: string | null;
                 due_at: string | null; overdue: boolean | null; escalated: boolean }[];
 }
+export interface WorkDraft {
+  id: string; title: string; role: string; summary: string; evidence: string[]; subjects: string[];
+  item_id: number | null; item_state: string | null; confirmed_by: string | null; confirmed_at: string | null;
+}
+
 export interface CaseRow {
   id: number; type: string; title: string; subjects: string[]; state: string; outcome: string | null; step: string | null;
   priority: number | null; assignee: string | null; role: string | null; due: string | null; created_by: string;
@@ -1461,6 +1466,11 @@ export const api = {
     request<{ xml: string; problems: WorkProblem[]; steps: number; connections: number }>(
       "POST", `/work/definitions/${id}/generate`, undefined, { description, by }),
   workRoles: () => request<{ person: string[]; agent: string[] }>("GET", "/work/roles"),
+  createWorkItem: (title: string, role: string, by: string) =>
+    request<{ id: number }>("POST", "/work/items", undefined, { type: "task", title, role, by }),
+  workDraft: (id: string) => request<WorkDraft>("GET", `/work/drafts/${encodeURIComponent(id)}`),
+  confirmWorkDraft: (id: string, by: string) =>
+    request<{ item_id: number; created: boolean }>("POST", `/work/drafts/${encodeURIComponent(id)}/confirm`, undefined, { by }),
   importDefinition: (xml: string, by: string) =>
     request<{ id: number; process_key: string; version: number }[]>("POST", "/work/definitions", undefined, { xml, by }),
   draftDefinition: (processKey: string, by: string, fromId?: number) =>

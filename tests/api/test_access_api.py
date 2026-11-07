@@ -319,3 +319,43 @@ def test_remote_mcp_cannot_bypass_login(runtime):
     from fuzer.agents import mcp_server
     with pytest.raises(access.AccessError, match="authenticated web API"):
         mcp_server.main(http=True)
+
+
+def _draft(owner, role="production_engineer", title="Review deferment"):
+    from fuzer.workflow import work_drafts
+
+    with db.connect() as conn:
+        return work_drafts.create(conn, title, role, "Rate fell; see the record.", ["fz-evidence"], owner)
+
+
+def test_a_draft_belongs_to_who_asked_and_a_person_creates_it_once(runtime):
+    person, _ = signed_in(runtime, roles=("operator",))
+    draft = _draft(person.actor)
+    path = f"/work/drafts/{draft['id']}"
+    assert runtime.get(path).json()["item_id"] is None
+
+    first = runtime.post(f"{path}/confirm", json={"by": "someone-else"})
+    assert first.status_code == 200 and first.json()["created"] is True
+    again = runtime.post(f"{path}/confirm", json={"by": "someone-else"}).json()
+    assert again == {"item_id": first.json()["item_id"], "created": False}
+
+    item = runtime.get(f"/work/items/{again['item_id']}").json()
+    assert (item["role"], item["created_by"], item["source"]) == ("production_engineer", person.actor, "assistant")
+    assert item["assignee"] is None
+    assert runtime.get(path).json()["confirmed_by"] == person.actor
+
+
+def test_another_account_cannot_see_or_confirm_a_draft(runtime):
+    signed_in(runtime, roles=("operator",))
+    draft = _draft("someone-else")
+    assert runtime.get(f"/work/drafts/{draft['id']}").status_code == 404
+    assert runtime.post(f"/work/drafts/{draft['id']}/confirm", json={"by": "someone-else"}).status_code == 404
+    with db.connect() as conn:
+        assert conn.execute("select item_id from work_draft where id = %s", (draft["id"],)).fetchone()["item_id"] is None
+
+
+def test_a_reader_can_see_their_draft_but_not_create_it(runtime):
+    person, _ = signed_in(runtime, roles=("reader",))
+    draft = _draft(person.actor)
+    assert runtime.get(f"/work/drafts/{draft['id']}").status_code == 200
+    assert runtime.post(f"/work/drafts/{draft['id']}/confirm", json={"by": person.actor}).status_code == 403

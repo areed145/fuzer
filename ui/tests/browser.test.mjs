@@ -1160,6 +1160,83 @@ test("API failures remain visible and offer guided recovery rather than breaking
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
 
+const draftFixture = { id: "d_abc123", title: "Review OK-J07-03 deferment", role: "production_engineer", summary: "Rate fell after the valve failure.",
+  evidence: ["fz-well-0123456789ab"], subjects: [], item_id: null, item_state: null, confirmed_by: null, confirmed_at: null };
+const savedDraftTurn = { id: "turn", conversation_id: "c", question: "Route this to the production engineer", answer: "Here is a draft.\n\n[[work-draft:d_abc123]]",
+  error: null, seconds: 1, specialists: [], tools: [], created_at: "2026-11-06T12:00:00Z", usage: { model_calls: 1, input: 1, output: 1, cache_read: 0, cache_write: 0, cost_usd: 0, models: {} } };
+
+async function askForDraft(routes = {}) {
+  await page.route("**/assistant/ask", (route) => route.fulfill({ json: { job_id: "job", conversation_id: "c" } }));
+  await page.route("**/assistant/jobs/job", (route) => route.fulfill({ json: { id: "job", conversation_id: "c", question: "q", status: "done",
+    answer: savedDraftTurn.answer, error: null, seconds: 1, specialists: [], usage: savedDraftTurn.usage, steps: [], model_calls: 1 } }));
+  let state = draftFixture, confirms = 0;
+  await page.route("**/work/drafts/d_abc123", (route) => route.fulfill({ json: state }));
+  await page.route("**/work/drafts/d_abc123/confirm", (route) => {
+    confirms++;
+    if (routes.fail) return route.fulfill({ status: 500, json: { detail: "Connection lost" } });
+    state = { ...draftFixture, item_id: 41, item_state: "open", confirmed_by: "ana" };
+    return route.fulfill({ json: { item_id: 41, created: true } });
+  });
+  await page.goto(`${url}/#/ask`);
+  await page.getByRole("textbox").first().fill("Route this to the production engineer");
+  return { count: () => confirms };
+}
+
+test("An assistant draft creates nothing until the person confirms, and then links to its case", async () => {
+  const writes = [];
+  page.on("request", (request) => { if (request.method() === "POST" && request.url().includes("/work/")) writes.push(request.url()); });
+  const calls = await askForDraft();
+  await page.getByRole("button", { name: /^Ask/ }).first().click();
+  const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
+  if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
+  const card = page.getByRole("region", { name: "Draft work item" });
+  await card.getByText("not created yet", { exact: false }).waitFor();
+  await card.getByText("production engineer queue", { exact: false }).first().waitFor();
+  assert.deepEqual(writes, [], "Showing a draft writes nothing");
+  await card.getByRole("button", { name: "Create work item" }).click();
+  await card.getByText("This adds shared work to the production engineer queue", { exact: false }).waitFor();
+  assert.equal(calls.count(), 0, "Opening the confirmation creates nothing");
+  await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  await card.getByText("Created by ana.", { exact: false }).waitFor();
+  assert.equal(await card.getByRole("link", { name: "Open the case" }).getAttribute("href"), "#/cases/41");
+  assert.equal(await card.getByRole("button", { name: "Create work item" }).count(), 0);
+  assert.equal(calls.count(), 1);
+});
+
+test("A failed draft confirmation is not replayed and shows the recorded state", async () => {
+  const calls = await askForDraft({ fail: true });
+  await page.getByRole("button", { name: /^Ask/ }).first().click();
+  const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
+  if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
+  const card = page.getByRole("region", { name: "Draft work item" });
+  await card.getByRole("button", { name: "Create work item" }).click();
+  await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  await card.getByRole("alert").filter({ hasText: "Connection lost" }).waitFor();
+  await card.getByText("Check the current recorded result", { exact: false }).waitFor();
+  assert.equal(calls.count(), 1, "A failure is never retried automatically");
+});
+
+test("Cases creates a plain work item for a queue after confirmation", async () => {
+  await page.route("**/work/roles", (route) => route.fulfill({ json: { person: ["engineer", "production_engineer"], agent: ["sre"] } }));
+  let body;
+  await page.route("**/work/items", (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: { items: [], total: 0, overdue: 0, due_soon: 0 } });
+    body = route.request().postDataJSON();
+    return route.fulfill({ json: { id: 7 } });
+  });
+  await page.goto(`${url}/#/cases`);
+  await page.getByText("New work item", { exact: true }).click();
+  const create = page.getByRole("button", { name: "Create work item" });
+  assert.equal(await create.isDisabled(), true, "A title and queue come first");
+  await page.getByLabel("Work item title").fill("Check OK-J07-03 gas lift");
+  await page.getByLabel("Queue").selectOption("production_engineer");
+  await create.click();
+  assert.equal(body, undefined);
+  await page.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
+  await page.getByRole("link", { name: "Open the case" }).waitFor();
+  assert.deepEqual({ title: body.title, role: body.role, type: body.type }, { title: "Check OK-J07-03 gas lift", role: "production_engineer", type: "task" });
+});
+
 test("Ask opens and can be left without DOM effect-cleanup crashes", async () => {
   await page.goto(`${url}/#/ask`);
   await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();

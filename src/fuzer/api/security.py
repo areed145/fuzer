@@ -195,6 +195,10 @@ class AuthenticatedRoute(APIRoute):
                                    (params["answer_id"],)).fetchone()
                 if row is None or row["by_user"] != person.actor:
                     raise HTTPException(404, "Answer not found in your account")
+            if params.get("draft_id"):
+                row = conn.execute("select by_user from work_draft where id = %s", (params["draft_id"],)).fetchone()
+                if row is None or row["by_user"] != person.actor:
+                    raise HTTPException(404, "Draft not found in your account")
             if request.method not in ("GET", "HEAD") and params.get("task_id"):
                 self._task(conn, person, params["task_id"])
             if request.method not in ("GET", "HEAD") and self.path.startswith("/work/items/") and params.get("item_id"):

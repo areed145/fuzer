@@ -15,7 +15,7 @@ flowchart LR
   c_analysis["Analyses<br><small>fuzer.analysis, 14 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 8 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 8 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 9 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 18 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 16 modules</small>"]
@@ -220,9 +220,9 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `roles`, `runtime`, `work_items`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `roles`, `runtime`, `work_drafts`, `work_items`
 - **Uses:** nothing else in fuzer
-- **Writes:** `work_definition`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
+- **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
 ### Agents and MCP
@@ -233,7 +233,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 34, field-operations-facilities 77, hse-incident-management 35, maintenance-integrity 61, orchestrator 20, production-surveillance 61, wells-subsurface 52, work-management-supply-chain 29 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 34, field-operations-facilities 77, hse-incident-management 35, maintenance-integrity 61, orchestrator 21, production-surveillance 61, wells-subsurface 52, work-management-supply-chain 29 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

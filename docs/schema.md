@@ -805,6 +805,24 @@ Roles are data (workflow/roles.py): person roles hold steps people do, agent rol
 | `updated_at` | timestamptz |  |
 | `closed_at` | timestamptz |  |
 
+## `work_draft`
+
+What the assistant proposes: it never writes to a queue. A draft belongs to whoever asked and becomes at most one work item, when that person confirms it.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | text |  |
+| `title` | text |  |
+| `role` | text |  |
+| `summary` | text |  |
+| `evidence` | text[] |  |
+| `subjects` | text[] |  |
+| `by_user` | text |  |
+| `item_id` | bigint |  |
+| `confirmed_by` | text |  |
+| `confirmed_at` | timestamptz |  |
+| `created_at` | timestamptz |  |
+
 ## `work_process`
 
 | Column | Type | Note |

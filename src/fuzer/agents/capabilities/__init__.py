@@ -8,6 +8,7 @@ themselves through the workflow engine). The agents, personas and skills are in 
 """
 
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,7 @@ __all__ = ["AGENT_BY_ID", "AGENT_CATALOG", "AGENTS", "PERSONA_DISPOSITION", "SKI
            "AgentDefinition", "SkillDefinition"]
 
 KINDS = ("query", "calc", "plot", "work")
+ASKER: ContextVar[str | None] = ContextVar("fuzer_asker", default=None)  # the signed-in person asking in Ask
 
 
 @dataclass(frozen=True)

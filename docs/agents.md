@@ -17,7 +17,7 @@ are also supported):
   [capabilities](capabilities.md) from the central registry.
 
   Skills are reused across roles when their evidence and methods fit; a role does not imply its
-  sources are configured. All specialists are read-only and report unknown or unsupported inputs.
+  sources are configured. All specialists are read-only and report unknown or unsupported inputs. The orchestrator can draft work for a person's queue with `draft_work_item`; see [workflow](workflow.md#work-the-assistant-proposes).
 - **Tools** are the MCP server's functions called in-process, so outside MCP clients see the same
   tool surface. They run in threads so concurrent specialists don't block each other. Asset-wide
   questions use `operations.py`: production summary and PE, deferment Pareto, constraints with
