@@ -20,7 +20,8 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
   const focus = query.get("role");
   if (!roles.data || !work.data) return <><Status loading={roles.loading || work.loading} error={roles.error ?? work.error} />
     {(roles.error || work.error) && <Button onClick={() => { roles.reload(); work.reload(); }}>Retry team workload</Button>}</>;
-  const reload = () => { setMessage("Workflow change saved. Review updated assignments, coverage and workload below."); roles.reload(); work.reload(); };
+  const inspect = () => { setMessage(""); roles.reload(); work.reload(); };
+  const reload = () => { inspect(); setMessage("Workflow change saved. Review updated assignments, coverage and workload below."); };
   const persons = roles.data.filter((r) => r.kind === "person");
   const uncovered = persons.filter((r) => r.uncovered);
   return (
@@ -38,14 +39,23 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
         <p className="notice small">No one available for {uncovered.map((r) => <strong key={r.name}>{r.name} </strong>)}: their steps
           will wait. {administration ? "Assign an available person below." : "Ask a configuration administrator to update coverage in Users."}</p>
       )}
-      <h2>Roles</h2>
+      {administration && <nav className="row" aria-label="Workflow administration sections">
+        {[["workflow-roles", "Roles & routing"], ["workflow-people", "People"], ["workflow-agents", "Agents"]].map(([id, label]) =>
+          <a key={id} href={href("/users", { ...Object.fromEntries(query), view: "workflow" })} onClick={event => {
+            event.preventDefault();
+            const heading = document.getElementById(id);
+            heading?.focus();
+            heading?.scrollIntoView({ block: "start" });
+          }}>{label}</a>)}
+      </nav>}
+      <h2 id="workflow-roles" tabIndex={-1}>Roles</h2>
       {persons.map((r) => <RoleCard key={`${r.name}:${r.description}:${r.default_sla}:${r.assignment}:${r.escalate_to}`}
         r={r} roles={persons} person={person} open={focus === r.name} reload={reload} editable={administration && configure} />)}
       {administration && configure && <details><summary>Advanced: add a workflow role</summary><NewRole person={person} reload={reload} /></details>}
-      <h2>People</h2>
+      <h2 id="workflow-people" tabIndex={-1}>People</h2>
       <People people={work.data.people} roles={persons} person={person} reload={reload}
-        editable={administration && configure} focus={query.get("person")} />
-      <h2>Agents</h2>
+        inspect={inspect} editable={administration && configure} focus={query.get("person")} />
+      <h2 id="workflow-agents" tabIndex={-1}>Agents</h2>
       <Table variant="list" density="compact">
         <thead><tr><th>Agent</th><th>What it does</th><th>Steps waiting</th><th>Retrying</th><th>Used in</th></tr></thead>
         <tbody>
@@ -147,8 +157,8 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
   );
 }
 
-function People({ people, roles, person, reload, editable, focus }: { people: WorkloadPerson[]; roles: WorkRoleRow[]; person: string;
-  reload: () => void; editable: boolean; focus: string | null }) {
+function People({ people, roles, person, reload, inspect, editable, focus }: { people: WorkloadPerson[]; roles: WorkRoleRow[]; person: string;
+  reload: () => void; inspect: () => void; editable: boolean; focus: string | null }) {
   const [name, setName] = useState("");
   const a = useAct();
   return (
@@ -158,12 +168,13 @@ function People({ people, roles, person, reload, editable, focus }: { people: Wo
         workflow roles. Assignment changes do not grant application permissions.</p>}
       {focus && <p>Focused roster identity: <code>{focus}</code>. <a href={href("/users", { view: "workflow" })}>Show everyone</a></p>}
       {editable ? people.filter(p => !focus || p.name === focus).map(p => <PersonCard
-        key={`${p.name}:${p.roles.join(",")}:${p.away_until}:${p.delegate}`}
-        p={p} roles={roles} people={people} person={person} reload={reload} />)
+        key={`${p.name}:${p.roles.join(",")}:${p.assigned_roles?.join(",")}:${p.away_until}:${p.delegate}:${p.account_enabled}:${p.owner}`}
+        p={p} roles={roles} people={people} person={person} reload={reload} inspect={inspect} />)
         : <Table variant="list" density="compact">
           <thead><tr><th>Person</th><th>Effective roles</th><th>Assigned work</th><th>Overdue</th><th>Availability</th></tr></thead>
           <tbody>{people.filter(p => !focus || p.name === focus).map(p => <tr key={p.name}>
-            <td>{p.display_name || p.name}</td><td>{p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</td>
+            <td>{p.display_name || p.name}</td><td>{p.account_enabled === false ? "None (account disabled)"
+              : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</td>
             <td><a href={href("/cases", { who: p.name })}>{p.assigned}</a></td><td>{p.overdue}</td>
             <td>{p.account_enabled === false ? "Account disabled" : p.away ? <>Away until {p.away_until ? when(p.away_until) : "unknown"}{p.delegate && `, ${p.delegate} covers`}</> : "Available"}</td>
           </tr>)}</tbody>
@@ -183,8 +194,8 @@ function People({ people, roles, person, reload, editable, focus }: { people: Wo
   );
 }
 
-function PersonCard({ p, roles, people, person, reload }: { p: WorkloadPerson; roles: WorkRoleRow[]; people: WorkloadPerson[];
-                                                          person: string; reload: () => void }) {
+function PersonCard({ p, roles, people, person, reload, inspect }: { p: WorkloadPerson; roles: WorkRoleRow[]; people: WorkloadPerson[];
+                                                          person: string; reload: () => void; inspect: () => void }) {
   const [awayOpen, setAwayOpen] = useState(false);
   const [until, setUntil] = useState("");
   const [delegate, setDelegate] = useState(p.delegate ?? "");
@@ -195,9 +206,14 @@ function PersonCard({ p, roles, people, person, reload }: { p: WorkloadPerson; r
         ? "Account disabled: saved assignments remain, but effective workflow access is empty."
         : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</p>
       <p><a href={href("/cases", { who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
-      {p.owner ? <p>All human roles from owner status; explicit assignments preserved.</p>
+      <p>Saved workflow assignments: {(p.assigned_roles ?? p.roles).join(", ") || "None"}</p>
+      <p>Effective workflow roles: {p.account_enabled === false ? "None (account disabled)"
+        : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</p>
+      {p.owner ? <p>{p.account_enabled === false
+        ? "Owner status is retained, but human workflow roles become effective only when the account is enabled."
+        : "All human roles from owner status; explicit assignments preserved."}</p>
         : <WorkflowAssignments key={(p.assigned_roles ?? p.roles).join(",")} name={p.name} roles={roles}
-            assigned={p.assigned_roles ?? p.roles} reload={reload} />
+            assigned={p.assigned_roles ?? p.roles} reload={reload} onInspect={inspect} />
       }
       <details><summary>Availability and coverage</summary>
         {p.away ? <>until {when(p.away_until!)}{p.delegate && `, ${p.delegate} covers`}{" "}
@@ -226,10 +242,11 @@ function PersonCard({ p, roles, people, person, reload }: { p: WorkloadPerson; r
   );
 }
 
-export function WorkflowAssignments({ name, roles, assigned, reload }: {
-  name: string; roles: WorkRoleRow[]; assigned: string[]; reload: () => void;
+export function WorkflowAssignments({ name, roles, assigned, reload, onInspect }: {
+  name: string; roles: WorkRoleRow[]; assigned: string[]; reload: () => void; onInspect: () => void;
 }) {
   const [selected, setSelected] = useState(assigned);
+  const [inspected, setInspected] = useState(false);
   const [person] = usePerson();
   const a = useAct();
   const dirty = [...selected].sort().join() !== [...assigned].sort().join();
@@ -241,7 +258,8 @@ export function WorkflowAssignments({ name, roles, assigned, reload }: {
     </fieldset>
     <ConfirmAction label="Save workflow assignments" busy={!!a.busy} disabled={!dirty}
       consequence={`Change ${name}'s routing eligibility to ${selected.join(", ") || "none"}? Application access and already claimed work do not change.`}
-      onConfirm={() => a.run("roles", () => api.setWorkPerson(name, selected, person), reload)} />
-    <ActionStatus busy={a.busy ? "Saving workflow assignments..." : null} error={a.error} />
+      onConfirm={() => { setInspected(false); a.run("roles", () => api.setWorkPerson(name, selected, person), reload); }} />
+    <ActionStatus busy={a.busy ? "Saving workflow assignments..." : null} error={inspected ? null : a.error} />
+    {a.error && !inspected && <Button onClick={() => { setSelected(assigned); setInspected(true); onInspect(); }}>Reload saved assignments</Button>}
   </div>;
 }

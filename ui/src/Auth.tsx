@@ -5,7 +5,7 @@ import { setCsrf } from "./authState";
 import { setTrustedPerson } from "./identityStore";
 import { Logo } from "./brand";
 import { useRoute } from "./lib";
-import { Badge, Button, ButtonLink, Card, Field, Input } from "./ui";
+import { ActionStatus, Badge, Button, ButtonLink, Card, Field, Input, PageHeader } from "./ui";
 import "./styles/auth.css";
 
 const AuthContext = createContext<AuthSession | null>(null);
@@ -67,7 +67,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <Logo />
       <Card>
         <Badge tone="warn">Synthetic Okan demonstration</Badge>
-        <h1>{pending ? "Your account is ready for approval" : "Investigate with evidence, not guesswork"}</h1>
+        <PageHeader>{pending ? pending.enabled ? "Your account needs application access" : "Your account is ready for approval"
+          : "Investigate with evidence, not guesswork"}</PageHeader>
         <p>Explore the Okan facility, trace a recorded issue to its asset and supporting evidence, and read a cited finding.
           The demonstration uses historical synthetic records, not a live plant.</p>
         {error ? <div role="alert"><p>{error}</p><Button onClick={reload}>Reload sign-in</Button></div>
@@ -77,8 +78,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <Button onClick={reload}>Check again</Button>
           </div>
           : pending ? <>
-            <p>Signed in as <strong>{pending.display_name}</strong>. Ask an owner to enable your account and assign application access.
-              Signing in does not grant privileges automatically.</p>
+            <Badge tone="warn">{pending.enabled ? "Signed in · no read access" : "Signed in · account not enabled"}</Badge>
+            <p>Signed in as <strong>{pending.display_name}</strong>. {pending.enabled
+              ? "Your account is enabled, but its application roles do not include read access. Ask an owner to review your application roles."
+              : "Ask an owner to enable your account and assign application access. A not-enabled account may be awaiting approval or deliberately disabled."}
+              {" "}Signing in does not grant privileges automatically.</p>
+            <ol aria-label="Access next steps">
+              <li>Microsoft sign-in is complete for this account.</li>
+              <li>{pending.enabled ? "An owner must assign an application role with read permission."
+                : "An owner must review account approval and application roles in Settings → Users."}</li>
+              <li>Check again after the owner saves access. Your original destination is kept.</li>
+            </ol>
             {session.needs_owner && <form onSubmit={async (event) => {
               event.preventDefault(); setBusy(true); setActionError("");
               try { await api.bootstrapOwner(setupCode); setSetupCode(""); reload(); }
@@ -93,7 +103,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               <Button type="submit" disabled={busy || setupCode.length < 32}>{busy ? "Confirming..." : "Set up owner access"}</Button>
             </form>}
             <div className="row">
-              <Button onClick={reload}>Check approval</Button>
+              <Button onClick={reload}>{pending.enabled ? "Check access" : "Check approval"}</Button>
               <SignOut />
             </div>
           </> : <>
@@ -106,7 +116,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <p className="muted small">Personal Microsoft and work/school accounts are supported. Microsoft handles your password,
               passkeys and Authenticator. An owner approves access to this shared demonstration.</p>
           </>}
-        {actionError && <p role="alert">{actionError}</p>}
+        <ActionStatus busy={busy ? "Setting up owner access..." : null} error={actionError} />
       </Card>
     </main>
   );

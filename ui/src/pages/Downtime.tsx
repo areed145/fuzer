@@ -2,6 +2,7 @@ import { Bar, PageHeader, Input , Card as UICard} from "../ui";
 import { useState } from "react";
 import { api, type RankRow } from "../api";
 import { Status, entityHref, href, useAsync } from "../lib";
+import "../styles/downtime.css";
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
@@ -15,7 +16,7 @@ export function DowntimePage() {
   const checks = useAsync(() => api.reasonChecks(), []);
 
   return (
-    <section>
+    <section className="downtime">
       <div className="row spread">
         <div>
           <PageHeader>Downtime</PageHeader>
@@ -31,18 +32,19 @@ export function DowntimePage() {
           <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
         </label>
       </div>
-      <Status loading={total.loading && !total.data} error={total.error} />
+      <Status loading={total.loading && !total.data} error={total.error} onRetry={total.reload} />
       {total.data && (
         <p>
           <b>{fmt(total.data.lost_oil_sm3)} Sm³</b> oil lost over <b>{total.data.events.toLocaleString()}</b> events (
           {fmt(total.data.hours)} h)
         </p>
       )}
-      <div className="grid three">
-        <Ranking title="By equipment" rows={byTag.data} />
-        <Ranking title="By equipment class" rows={byClass.data} named />
-        <Ranking title="By reason" rows={byReason.data} />
+      <div className="downtime-rankings">
+        <Ranking title="By equipment" rows={byTag.data} error={byTag.error} reload={byTag.reload} />
+        <Ranking title="By equipment class" rows={byClass.data} error={byClass.error} reload={byClass.reload} named />
+        <Ranking title="By reason" rows={byReason.data} error={byReason.error} reload={byReason.reload} />
       </div>
+      <Status loading={checks.loading && !checks.data} error={checks.error} onRetry={checks.reload} />
       {checks.data && checks.data.length > 0 && (
         <UICard  as="section">
           <h2>
@@ -65,14 +67,17 @@ export function DowntimePage() {
   );
 }
 
-function Ranking({ title, rows, named }: { title: string; rows?: RankRow[]; named?: boolean }) {
+function Ranking({ title, rows, error, reload, named }: {
+  title: string; rows?: RankRow[]; error?: string; reload: () => void; named?: boolean;
+}) {
   const top = Math.max(1, ...(rows ?? []).map((r) => r.lost_oil_sm3));
   return (
     <UICard  as="section">
       <h2>{title}</h2>
-      <Status loading={!rows} empty={rows?.length === 0}>
+      <Status loading={!rows && !error} error={error} onRetry={reload} empty={rows?.length === 0}>
         Nothing recorded.
       </Status>
+      {rows && rows.length > 0 && <p className="muted small">Oil lost (Sm³)</p>}
       <ul className="coverage ranking">
         {rows?.map((r) => (
           <li key={r.label ?? "none"}>

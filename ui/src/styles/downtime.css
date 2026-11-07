@@ -1,0 +1,9 @@
+.downtime-rankings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.downtime-rankings > .card { min-width: 0; margin-bottom: 0; }
+.downtime ul.ranking { list-style: none; padding: 0; margin: 0; }
+.downtime ul.ranking li { display: grid; grid-template-columns: minmax(0, 1fr) 70px 60px; align-items: center; gap: 8px; padding: 4px 0; }
+.downtime ul.ranking li > span:first-child { overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .downtime-rankings { grid-template-columns: minmax(0, 1fr); }
+  .downtime > .row { align-items: stretch; }
+}

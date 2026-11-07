@@ -1,9 +1,21 @@
-# UI style guide
+---
+title: UI style guide
+description: Shared UI components, page ownership, state, transport and verification conventions.
+---
 
 The UI uses a small local component kit in `ui/src/ui/`. Use it for shared page structure and controls; keep specialized visualizations and editor integrations in their own components.
 Page and action ownership is defined in [page ownership](page-ownership.md). Navigation presentation
 is a separate user decision, not implied by that map. Preserve compatible routes and use contextual links rather than copying
 another owner's viewer, editor or action.
+
+## API client
+
+`ui/src/api.ts` remains the compatible facade for calls and exported types.
+Domain modules in `ui/src/api/` own identity, Explore, investigation, Work,
+Sources, Settings and Jobs request shapes. They all use `transport.ts` and the
+existing bounded `requestQueue.ts`; do not add per-domain queues, CSRF handling,
+retry policies or business rules. Only in-flight read-only requests coalesce.
+Paid previews and mutations remain deliberate, unreplayed calls.
 
 ## Components
 
@@ -42,6 +54,20 @@ configuration-admin workflow routing controls. Reuse its shared workflow assignm
 account and legacy-roster contexts. Always explain saved assignments versus effective access.
 Work context is presentation focus, not a workflow role or permission. No context selector is
 shown until supported presentation behavior exists; do not persist a cosmetic persona choice.
+
+Users account search and enabled/owner filters live in the URL. Counts and owner
+recovery guidance come from the loaded account catalog, never filtered results.
+Typing replaces the current search URL so Back does not walk through each character.
+Account edits remain unsaved until confirmation; displayed effective access
+continues to cite saved roles. Workflow person cards distinguish saved
+assignments, effective roles, disabled accounts and dynamic owner access.
+After an ambiguous assignment failure, reload recorded assignments before a
+deliberate retry. Reloading is a read, not a replay of the failed mutation.
+
+Sign-in distinguishes a not-enabled account (awaiting approval or deliberately
+disabled) from an enabled account without read permission. Both explain the
+owner's next action without requesting protected data before access is granted.
+Neither signing in nor workflow assignment grants application authorization.
 
 ## Layout and tokens
 

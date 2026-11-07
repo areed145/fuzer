@@ -10,3 +10,7 @@
 .tabs.users-tabs { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; }
 .tabs.users-tabs > a { flex-shrink: 0; }
 .workflow-routing-fields { min-inline-size: 0; }
+.account-filters { align-items: end; flex-wrap: wrap; margin: 16px 0; }
+.account-filters .ui-field:first-child { flex: 1 1 240px; }
+.access-account fieldset, .access-role fieldset { min-inline-size: 0; }
+.auth-page ol { padding-inline-start: 24px; line-height: 1.6; }

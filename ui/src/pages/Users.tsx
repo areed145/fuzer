@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, notifyChanged, Status, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, Field, Input, PageHeader } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
 export function UsersPage({ query }: { query: URLSearchParams }) {
@@ -31,11 +31,11 @@ export function UsersPage({ query }: { query: URLSearchParams }) {
     </nav>
     {!owner && <p>Configuration administrators can manage workflow assignments and routing, not application access.
       An owner approves accounts and grants application roles.</p>}
-    {workflow ? <TeamsPage query={query} administration /> : <Administration />}
+    {workflow ? <TeamsPage query={query} administration /> : <Administration query={query} />}
   </section>;
 }
 
-function Administration() {
+function Administration({ query }: { query: URLSearchParams }) {
   const [message, setMessage] = useState("");
   const data = useAsync(() => api.accessAdministration(), []);
   const workflow = useAsync(async () => {
@@ -43,9 +43,24 @@ function Administration() {
     return { roles, people };
   }, []);
   const changed = (message?: string) => {
-    if (message) setMessage(message);
+    setMessage(message ?? "");
     data.reload(); workflow.reload();
   };
+  const search = query.get("q") ?? "";
+  const status = query.get("status") ?? "";
+  const filter = (values: Record<string, string | undefined>, replace = false) => {
+    const url = href("/users", { ...Object.fromEntries(query), ...values });
+    if (replace) {
+      history.replaceState(history.state, "", url);
+      window.dispatchEvent(new Event("hashchange"));
+    } else location.hash = url;
+  };
+  const accounts = data.data?.accounts.filter(account => {
+    const matchesStatus = status === "not-enabled" ? !account.enabled
+      : status === "enabled" ? account.enabled : status === "owners" ? account.enabled && account.owner : true;
+    return matchesStatus && [account.display_name, account.actor, ...account.roles].join(" ").toLowerCase().includes(search.trim().toLowerCase());
+  }) ?? [];
+  const enabledOwners = data.data?.accounts.filter(account => account.enabled && account.owner).length ?? 0;
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
     <p>This is a shared operational demonstration, not a private sandbox. Approved users see the same synthetic facility;
@@ -57,9 +72,26 @@ function Administration() {
     <Status loading={data.loading} error={data.error} />
     {data.error && <Button onClick={data.reload}>Try again</Button>}
     {data.data && <>
+      <Card title="Owner recovery">
+        <p>{enabledOwners} enabled {enabledOwners === 1 ? "owner" : "owners"}. Keep at least one enabled owner.
+          {enabledOwners < 2 && " Ask a second trusted account holder to sign in, then review owner access for recovery."}</p>
+        <p className="muted small">Owner status grants every application capability and all human workflow roles.
+          Workflow assignments alone never grant account access.</p>
+      </Card>
       <h2>Accounts</h2>
+      <div className="row account-filters">
+        <Field label="Find accounts" width="full"><Input type="search" width="full" value={search}
+          onChange={event => filter({ q: event.target.value || undefined }, true)} placeholder="Name, stable identity or application role" /></Field>
+        <Field label="Account status filter"><Select aria-label="Account status filter" value={status} onChange={event => filter({ status: event.target.value || undefined })}>
+          <option value="">All accounts</option><option value="not-enabled">Not enabled</option>
+          <option value="enabled">Enabled</option><option value="owners">Enabled owners</option>
+        </Select></Field>
+        {(search || status) && <Button onClick={() => filter({ q: undefined, status: undefined })}>Clear account filters</Button>}
+      </div>
+      <p role="status">{accounts.length} of {data.data.accounts.length} accounts</p>
       {!data.data.accounts.length && <p>No accounts have signed in yet.</p>}
-      {data.data.accounts.map((account) => <AccountCard key={`${account.id}:${account.enabled}:${account.owner}:${account.roles.join(",")}`}
+      {data.data.accounts.length > 0 && !accounts.length && <EmptyState title="No accounts match">Change the name or status filter to find an account.</EmptyState>}
+      {accounts.map((account) => <AccountCard key={`${account.id}:${account.enabled}:${account.owner}:${account.roles.join(",")}`}
         account={account} data={data.data!} workflow={workflow.data?.roles}
         assigned={workflow.data?.people.find(p => p.name === account.actor)?.assigned_roles ?? []}
         reload={changed} />)}
@@ -114,6 +146,8 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
           {role.name}
         </label>)}
       </fieldset>
+      {dirty && <p role="status">Unsaved account access changes. Effective access above still reflects the saved account.
+        Review the confirmation before applying changes.</p>}
       <ConfirmAction label="Save account access" busy={busy} disabled={!dirty}
         consequence={`Apply access to ${account.display_name} (${account.actor})? ${!enabled ? "Disabling revokes active sessions; workflow assignments remain for handoff." : owner ? "Owner grants every application capability and all human workflow roles." : `Application roles: ${roles.join(", ") || "none"}. Changes affect existing sessions.`}`}
         onConfirm={save} />
@@ -127,13 +161,16 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
 function AccountAssignments({ account, roles, assigned, reload }: {
   account: AccessAccount; roles: WorkRoleRow[]; assigned: string[]; reload: (message?: string) => void;
 }) {
-  if (account.owner) return <p>Workflow access: all human roles from owner status, including roles added later.
-    Explicit roster assignments are preserved; changing them cannot remove owner access.</p>;
+  if (account.owner) return <p>{account.enabled
+    ? "Workflow access: all human roles from owner status, including roles added later."
+    : "Workflow access: none while this account is disabled. Owner status is retained, but human workflow roles become effective only when the account is enabled."}
+    {" "}Explicit roster assignments are preserved; changing them cannot remove owner status.</p>;
   return <details><summary>Human workflow assignments ({assigned.length})</summary>
     {!account.enabled && <p>Assignments are retained, but this disabled account has no effective workflow-role access.</p>}
     <p>Saved assignments use this account's stable identity, never its display name. Changing these does not enable the account,
       grant application permissions or move already claimed work. Use <a href={href("/users", { view: "workflow", person: account.actor })}>routing and workload</a> for coverage/handoff.</p>
     <WorkflowAssignments name={account.actor} roles={roles} assigned={assigned}
+      onInspect={() => reload()}
       reload={() => reload(`Workflow assignments saved for ${account.display_name}. Application access unchanged.`)} />
   </details>;
 }

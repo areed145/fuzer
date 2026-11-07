@@ -2,6 +2,7 @@ import { before, beforeEach, after, afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
+import { mkdir } from "node:fs/promises";
 
 const url = "http://127.0.0.1:5174";
 let server, browser, context, page, errors;
@@ -52,6 +53,163 @@ beforeEach(async () => {
 afterEach(async () => {
   await context.close();
   assert.deepEqual(errors, [], "No unhandled rendering errors");
+});
+
+async function waveScreenshot(name) {
+  if (!process.env.WAVE_SCREENSHOTS) return;
+  await mkdir(process.env.WAVE_SCREENSHOTS, { recursive: true });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: `${process.env.WAVE_SCREENSHOTS}/${name}.png`, fullPage: true });
+}
+
+test("Wave 1 Downtime rankings fit mobile and recover a failed ranking read", async () => {
+  let failed = true;
+  await page.route("**/downtime?*", route => route.fulfill({ json: { lost_oil_sm3: 423, events: 1, hours: 2, items: [] } }));
+  await page.route("**/downtime/ranking?*", route => {
+    const by = new URL(route.request().url()).searchParams.get("by");
+    return route.fulfill(by === "reason" && failed
+      ? { status: 503, json: { detail: "Reason ranking unavailable" } }
+      : { json: [{ label: `Very-long-${by}-equipment-reference-without-spaces-0123456789`,
+        description: "Compressor equipment with a long descriptive name", fuzer_id: "fz-compressor", lost_oil_sm3: 423 }] });
+  });
+
+  await page.goto(`${url}/#/downtime`);
+  const reason = page.locator("section").filter({ has: page.getByRole("heading", { name: "By reason", exact: true }) }).last();
+  await reason.getByRole("alert").filter({ hasText: "Reason ranking unavailable" }).waitFor();
+  failed = false;
+  await reason.getByRole("button", { name: "Try again", exact: true }).click();
+  await reason.getByRole("link").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    for (const name of ["By equipment", "By equipment class", "By reason"]) {
+      const heading = page.getByRole("heading", { name, exact: true });
+      await heading.scrollIntoViewIfNeeded();
+      const box = await heading.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width);
+    }
+    await page.getByText("Oil lost (Sm³)", { exact: true }).first().waitFor();
+    const bar = await page.locator(".downtime-rankings .ui-bar").first().boundingBox();
+    assert.ok(bar && bar.width > 0 && bar.height > 0, "Ranking bars must remain visible without loading a graph page");
+    await waveScreenshot(`downtime-${width}`);
+  }
+});
+
+  test("Wave 1 sign-in distinguishes approval from enabled accounts lacking application access", async () => {
+    let user = { ...signedInUser, enabled: false };
+    const protectedRequests = [];
+    await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, user } }));
+    page.on("request", request => {
+      if (["/stats", "/work/inbox", "/auth/access"].includes(new URL(request.url()).pathname)) protectedRequests.push(request.url());
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${url}/#/browse?q=pump`);
+    await page.getByRole("heading", { name: "Your account is ready for approval", exact: true }).waitFor();
+    await page.getByRole("list", { name: "Access next steps" }).waitFor();
+    await waveScreenshot("sign-in-approval-1440");
+    await page.setViewportSize({ width: 390, height: 900 });
+    await waveScreenshot("sign-in-approval-390");
+    user = { ...signedInUser, enabled: true, permissions: [], roles: [] };
+    await page.getByRole("button", { name: "Check approval", exact: true }).click();
+    await page.getByRole("heading", { name: "Your account needs application access", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Check access", exact: true }).waitFor();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await waveScreenshot(`sign-in-no-access-${width}`);
+    }
+    assert.deepEqual(protectedRequests, []);
+  });
+
+  test("Wave 1 Users account filters compose and restore from URL without writes", async () => {
+    const { writes } = await usersFixture();
+    await page.goto(`${url}/#/users?status=not-enabled&q=participant`);
+    await page.getByRole("searchbox", { name: "Find accounts", exact: true }).waitFor();
+    assert.equal(await page.locator(".access-account").count(), 1);
+    await page.getByText("1 of 2 accounts", { exact: true }).waitFor();
+    await page.getByRole("searchbox", { name: "Find accounts", exact: true }).fill("missing");
+    await page.getByText("No accounts match", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Clear account filters", exact: true }).click();
+    await page.getByText("2 of 2 accounts", { exact: true }).waitFor();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const heading = await page.getByRole("heading", { name: "Accounts", exact: true }).boundingBox();
+      assert.ok(heading && heading.y < 900, "Account administration should be discoverable in the first viewport");
+      await waveScreenshot(`users-all-accounts-${width}`);
+    }
+    await page.getByLabel("Account status filter", { exact: true }).selectOption("owners");
+    await page.reload();
+    await page.getByText("Owner recovery", { exact: true }).waitFor();
+    assert.equal(await page.locator(".access-account").count(), 1);
+    assert.deepEqual(writes, []);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await waveScreenshot(`users-accounts-${width}`);
+    }
+  });
+
+  test("Wave 1 workflow people separate saved assignments from effective roles and expose recovery", async () => {
+    await usersFixture({ ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] });
+    const people = [{ name: "user:applicant", display_name: "New participant", roles: [], assigned_roles: ["engineer"],
+      account_enabled: false, owner: false, assigned: 2, overdue: 1, away: false, away_until: null, delegate: null }];
+    await page.route("**/work/workload", route => route.fulfill({ json: { people, agents: [], agent_failures: [], roles: {} } }));
+    await page.route("**/work/people/user%3Aapplicant", route => route.fulfill({ status: 503, json: { detail: "Assignment save unavailable" } }));
+    await page.goto(`${url}/#/users?view=workflow&person=user%3Aapplicant`);
+    const card = page.locator(".access-account");
+    await card.getByText("Saved workflow assignments: engineer", { exact: true }).waitFor();
+    await card.getByText("Effective workflow roles: None (account disabled)", { exact: true }).waitFor();
+    await page.getByRole("navigation", { name: "Workflow administration sections" }).getByRole("link", { name: "People", exact: true }).click();
+    await card.getByRole("checkbox", { name: "operator", exact: true }).check();
+    await card.getByRole("button", { name: "Save workflow assignments", exact: true }).click();
+    await card.getByRole("button", { name: "Confirm Save workflow assignments", exact: true }).click();
+    await card.getByRole("alert").filter({ hasText: "Assignment save unavailable" }).waitFor();
+    await card.getByRole("button", { name: "Reload saved assignments", exact: true }).click();
+    await card.getByRole("checkbox", { name: "operator", exact: true }).waitFor();
+    assert.equal(await card.getByRole("checkbox", { name: "operator", exact: true }).isChecked(), false);
+    assert.equal(await page.getByRole("status").filter({ hasText: "Workflow change saved" }).count(), 0,
+      "Inspecting recorded assignments must not report a successful save");
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await waveScreenshot(`users-workflow-${width}`);
+    }
+  });
+
+test("Wave 1 disabled owners retain status but have no effective workflow roles on any surface", async () => {
+  await usersFixture();
+  const account = { id: "disabled-owner", actor: "user:disabled-owner", display_name: "Disabled owner",
+    owner: true, enabled: false, roles: [] };
+  const people = [{ name: account.actor, display_name: account.display_name, owner: true, account_enabled: false,
+    roles: [], assigned_roles: ["engineer"], assigned: 1, overdue: 0, away: false, away_until: null, delegate: null }];
+  await page.route("**/auth/access", route => route.fulfill({ json: { accounts: [account], roles: [], permissions: { read: "Browse evidence" } } }));
+  await page.route("**/work/workload", route => route.fulfill({ json: { people, agents: [], agent_failures: [], roles: {} } }));
+  await page.goto(`${url}/#/users`);
+  await page.getByText("Workflow access: none while this account is disabled.", { exact: false }).waitFor();
+  await page.goto(`${url}/#/users?view=workflow`);
+  const card = page.locator(".access-account");
+  await card.getByText("Effective workflow roles: None (account disabled)", { exact: true }).waitFor();
+  assert.equal(await card.getByText("All human roles from owner status;", { exact: false }).count(), 0);
+  await page.goto(`${url}/#/teams`);
+  const row = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Disabled owner", exact: true }) });
+  await row.getByRole("cell", { name: "None (account disabled)", exact: true }).waitFor();
+});
+
+test("Wave 1 account search updates the URL without adding per-character Back steps", async () => {
+  await usersFixture();
+  await page.goto(`${url}/#/board`);
+  await page.getByRole("heading", { name: "Work board", exact: true }).waitFor();
+  await page.evaluate(() => { location.hash = "#/users"; });
+  const search = page.getByRole("searchbox", { name: "Find accounts", exact: true });
+  await search.waitFor();
+  const length = await page.evaluate(() => history.length);
+  await search.pressSequentially("participant");
+  assert.equal(await page.evaluate(() => history.length), length);
+  await page.reload();
+  assert.equal(await search.inputValue(), "participant");
+  await page.goBack();
+  await page.getByRole("heading", { name: "Work board", exact: true }).waitFor();
 });
 
 test("Home guides empty-register setup and routes recover instead of silently showing Browse", async () => {
