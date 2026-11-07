@@ -323,3 +323,13 @@ def record_history(conn, pack: Pack, fuzer_id: str, limit: int = 50) -> list[dic
         elif r["change"] != "current":
             prev[key] = (r["payload"], r["at"], r["change"])
     return sorted(changes, key=lambda c: c["at"], reverse=True)[:limit]
+
+
+def names(conn, ids: list[str]) -> dict:
+    """What to call each entity: its label and description. Ids that aren't entities are left out."""
+    rows = conn.execute(
+        """select e.fuzer_id as id, l.label, d.value #>> '{}' as description
+           from entity e left join entity_label l using (fuzer_id)
+           left join golden d on d.fuzer_id = e.fuzer_id and d.field = 'description'
+           where e.fuzer_id = any(%s)""", (ids,)).fetchall()
+    return {r["id"]: {"label": r["label"], "description": r["description"]} for r in rows}

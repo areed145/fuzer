@@ -5,6 +5,8 @@ import { type ReactNode } from "react";
 import type { WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
 import { entityHref, fmt } from "./lib";
+import { display } from "./entityRefs";
+import { useEntityNames } from "./useEntityNames";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -96,7 +98,7 @@ export function DataView({ data }: { data: unknown }) {
 
 function Value({ v }: { v: unknown }) {
   if (typeof v === "string") {
-    if (/^fz-[a-z_]+-[0-9a-f]{12}$/.test(v)) return <a className="mono" href={entityHref(v)}>{v}</a>;
+    if (/^fz-[a-z_]+-[0-9a-f]{12}$/.test(v)) return <EntityName id={v} />;
     return v.length > 80 || v.includes("\n") || v.includes("[[figure:") ? <Markdown text={v} /> : <>{v}</>;
   }
   if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).answer === "string") {
@@ -104,4 +106,9 @@ function Value({ v }: { v: unknown }) {
   }
   if (v && typeof v === "object" && !Array.isArray(v)) return <DataView data={v} />;
   return <span className="mono">{fmt(v)}</span>;
+}
+
+function EntityName({ id }: { id: string }) {
+  const names = useEntityNames([id]);
+  return <a href={entityHref(id)} title={id}>{display(id, names)}</a>;
 }

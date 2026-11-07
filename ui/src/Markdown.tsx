@@ -1,31 +1,36 @@
 // A small Markdown renderer for assistant answers: headings, paragraphs, lists, tables, bold, inline
-// code, fenced code and Mermaid diagrams. Builds React elements (never raw HTML), turns Fuzer ids (fz-tag-0123456789ab) into links and
+// code, fenced code and Mermaid diagrams. Builds React elements (never raw HTML), turns Fuzer ids (fz-tag-0123456789ab) into named links and
 // chart markers ([[figure:f_...]]) into interactive charts and draft markers ([[work-draft:d_...]])
 // into work a person can confirm.
 
 import { Suspense, lazy, type ReactNode } from "react";
 import { FigureView } from "./Figure";
 import { WorkDraftCard } from "./WorkDraft";
+import { TOKEN, TOKENS, display, idsIn, isId, linkCitations, type EntityNames } from "./entityRefs";
 import { entityHref } from "./lib";
 import { Table } from "./ui";
+import { useEntityNames } from "./useEntityNames";
 
 // Mermaid is large, so it loads only when an answer holds a diagram.
 const MermaidDiagram = lazy(() => import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })));
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([\w+-]*)/;
-const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|fz-[a-z_]+-[0-9a-f]{12})/g;
+const INLINE = new RegExp(`(${TOKENS}|\\*\\*[^*]+\\*\\*|\`[^\`]+\`|fz-[a-z_]+-[0-9a-f]{12})`, "g");
 
-function inline(text: string): ReactNode[] {
-  return text.split(INLINE).map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{inline(part.slice(2, -2))}</strong>;
+const entity = (key: number, id: string, text: string) => <a key={key} href={entityHref(id)} title={id}>{text}</a>;
+
+function makeInline(names: EntityNames | undefined) {
+  const parts = (text: string): ReactNode[] => text.split(INLINE).map((part, i) => {
+    const linked = part.match(TOKEN);
+    if (linked) return entity(i, linked[1], linked[2]);
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{parts(part.slice(2, -2))}</strong>;
     if (part.startsWith("`") && part.endsWith("`")) {
       const code = part.slice(1, -1);
-      return /^fz-[a-z_]+-[0-9a-f]{12}$/.test(code) ? <a key={i} className="mono" href={entityHref(code)}>{code}</a>
-        : <code key={i}>{code}</code>;
+      return isId(code) ? entity(i, code, display(code, names)) : <code key={i}>{code}</code>;
     }
-    if (/^fz-[a-z_]+-[0-9a-f]{12}$/.test(part)) return <a key={i} className="mono" href={entityHref(part)}>{part}</a>;
-    return part;
+    return isId(part) ? entity(i, part, display(part, names)) : part;
   });
+  return (text: string) => parts(linkCitations(text, names));
 }
 
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
@@ -33,6 +38,7 @@ const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map
 const FIGURE = /\[\[(?:figure:f|work-draft:d)_[0-9a-f]+\]\]/g;
 
 export function Markdown({ text }: { text: string }) {
+  const inline = makeInline(useEntityNames(idsIn(text)));
   // Markers go on lines of their own.
   const lines = text.replace(/\r/g, "").replace(FIGURE, "\n$&\n").split("\n");
   const out: ReactNode[] = [];

@@ -33,6 +33,7 @@ from .records import (  # noqa: F401
     entity,
     link_text,
     lookup_source,
+    names,
     ontology,
     record_history,
     resolve_ref,

@@ -23,6 +23,12 @@ def search(q: str = "", kind: str | None = None, limit: int = 50, conn=Depends(g
     return queries.search(conn, deps.PACK, q, kind, limit)
 
 
+@router.get("/entities/names")
+def entity_names(id: list[str] = Query(default=[], max_length=200), conn=Depends(get_conn)):
+    """What to call entities cited in text: each id's label and description. Unknown ids are left out."""
+    return queries.names(conn, id)
+
+
 @router.get("/entities/{fuzer_id}")
 def entity(fuzer_id: str, as_of: date | None = None, per_group: int = 100, conn=Depends(get_conn)):
     if (ent := queries.entity(conn, fuzer_id, as_of, min(per_group, 1000), deps.PACK)) is None:

@@ -1273,6 +1273,35 @@ test("A diagram Mermaid can't draw shows its source, and diagram text can't run 
   assert.equal(await page.locator('.md-diagram svg img[onerror], .md-diagram svg script, .md-diagram svg a[href^="javascript"]').count(), 0);
 });
 
+test("Citations read as linked names, and raw ids never reach the page", async () => {
+  const well = "fz-well-2526585e8224", term = "fz-allocation_node-b708d0477249", day = "fz-daily_report-82c067e8e550", unknown = "fz-tag-000000000000";
+  await page.route("**/entities/names*", (route) => route.fulfill({ json: {
+    [well]: { label: "OK-J09-04", description: "Gas-lifted oil well" },
+    [term]: { label: "ESCRAVOS-TERM", description: "Escravos crude terminal" },
+    [day]: { label: "Daily report 2025-12-30", description: null },
+  } }));
+  await askFor([`I picked **OK-J09-04** [${well}], and oil goes to the **Escravos crude terminal** [${term}].`, "", `- Output was 7,619 Sm3 [${day}]`, "", `| Well |`, `| --- |`, `| OK-J09-04 [${well}] |`, "", `A claim [${unknown}].`].join("\n"));
+  const answer = page.locator(".md");
+  const named = answer.locator("strong").getByRole("link", { name: "OK-J09-04", exact: true });
+  await named.waitFor();
+  assert.equal(await named.getAttribute("href"), `#/e/${well}`);
+  assert.equal(await named.getAttribute("title"), well, "The id stays one hover away");
+  await answer.locator("strong").getByRole("link", { name: "Escravos crude terminal", exact: true }).waitFor();
+  await answer.getByRole("link", { name: "Daily report 2025-12-30", exact: true }).waitFor();
+  await answer.getByRole("cell").getByRole("link", { name: "OK-J09-04", exact: true }).waitFor();
+  const text = await answer.innerText();
+  assert.equal(text.includes(well) || text.includes(term) || text.includes(day), false, `No known id in: ${text}`);
+  assert.equal(text.includes("["), false, "No brackets remain");
+  assert.ok(text.includes(unknown), "A citation of nothing stays visible");
+});
+
+test("If names can't load, citations fall back to their ids", async () => {
+  const well = "fz-well-2526585e8224";
+  await page.route("**/entities/names*", (route) => route.fulfill({ status: 500, json: { detail: "down" } }));
+  await askFor(`See OK-J09-04 [${well}].`);
+  await page.locator(".md").getByRole("link", { name: well, exact: true }).waitFor();
+});
+
 test("Mermaid loads only for an answer with a diagram", async () => {
   const chunks = [];
   page.on("request", (request) => { if (/mermaid/i.test(request.url())) chunks.push(request.url()); });

@@ -1273,6 +1273,7 @@ export interface JobRunDetail extends JobRunSummary {
 
 import { getCsrf, type AuthSession } from "./authState";
 import { scheduleRequest } from "./requestQueue";
+import type { EntityNames } from "./entityRefs";
 
 export interface AccessAccount {
   id: string; actor: string; display_name: string; enabled: boolean; owner: boolean; roles: string[];
@@ -1335,6 +1336,7 @@ export const api = {
   jobs: () => request<JobsOverview>("GET", "/jobs"),
   jobsHealth: () => request<JobsHealth>("GET", "/jobs/health"),
   jobRun: (id: string) => request<JobRunDetail>("GET", `/jobs/runs/${encodeURIComponent(id)}`),
+  entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
   search: (q: string, kind?: string) => request<SearchHit[]>("GET", "/entities", { q, kind, limit: 200 }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),

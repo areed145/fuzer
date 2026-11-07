@@ -359,3 +359,17 @@ def test_a_reader_can_see_their_draft_but_not_create_it(runtime):
     draft = _draft(person.actor)
     assert runtime.get(f"/work/drafts/{draft['id']}").status_code == 200
     assert runtime.post(f"/work/drafts/{draft['id']}/confirm", json={"by": person.actor}).status_code == 403
+
+
+def test_entity_names_are_read_access_and_bounded(runtime):
+    person, _ = signed_in(runtime, roles=("reader",))
+    with db.connect() as conn:
+        id, label = conn.execute("select fuzer_id, label from entity_label limit 1").fetchone().values()
+    known = runtime.get("/entities/names", params={"id": [id, "fz-tag-000000000000"]})
+    assert known.status_code == 200
+    assert list(known.json()) == [id] and known.json()[id]["label"] == label
+    assert runtime.get("/entities/names").json() == {}
+    assert runtime.get("/entities/names", params={"id": ["fz-a"] * 201}).status_code == 422
+    assert runtime.get(f"/entities/{id}").status_code == 200, "the fixed route doesn't shadow an entity"
+    runtime.cookies.clear()
+    assert runtime.get("/entities/names", params={"id": [id]}).status_code == 401
