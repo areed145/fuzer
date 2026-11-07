@@ -5,7 +5,7 @@ import { type ReactNode } from "react";
 import type { WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
 import { entityHref, fmt } from "./lib";
-import { display } from "./entityRefs";
+import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
 
 export { loadPerson, usePerson } from "./identityStore";
@@ -98,9 +98,10 @@ export function DataView({ data }: { data: unknown }) {
 
 function Value({ v }: { v: unknown }) {
   if (typeof v === "string") {
-    if (/^fz-[a-z_]+-[0-9a-f]{12}$/.test(v)) return <EntityName id={v} />;
+    if (isId(v)) return <EntityLinks ids={[v]} />;
     return v.length > 80 || v.includes("\n") || v.includes("[[figure:") ? <Markdown text={v} /> : <>{v}</>;
   }
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && isId(x))) return <EntityLinks ids={v as string[]} />;
   if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).answer === "string") {
     return <Markdown text={(v as any).answer} />;
   }
@@ -108,7 +109,8 @@ function Value({ v }: { v: unknown }) {
   return <span className="mono">{fmt(v)}</span>;
 }
 
-function EntityName({ id }: { id: string }) {
-  const names = useEntityNames([id]);
-  return <a href={entityHref(id)} title={id}>{display(id, names)}</a>;
+/** Entities by name, from one lookup. The id stays in the tooltip. */
+export function EntityLinks({ ids }: { ids: string[] }) {
+  const names = useEntityNames(ids);
+  return <>{ids.map((id, i) => <span key={id}>{i > 0 && ", "}<a href={entityHref(id)} title={id}>{display(id, names)}</a></span>)}</>;
 }

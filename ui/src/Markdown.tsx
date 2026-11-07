@@ -14,6 +14,9 @@ import { useEntityNames } from "./useEntityNames";
 // Mermaid is large, so it loads only when an answer holds a diagram.
 const MermaidDiagram = lazy(() => import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })));
 
+// Agents sometimes write a diagram without its fence. The opening keyword and direction are specific
+// enough to spot, and a false match still shows its text as source.
+const DIAGRAM = /^(.*?[:.]\s+)?((?:flowchart|graph)\s+(?:TD|TB|BT|LR|RL)\b.*|(?:sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram)\s*)$/;
 const FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([\w+-]*)/;
 const INLINE = new RegExp(`(${TOKENS}|\\*\\*[^*]+\\*\\*|\`[^\`]+\`|fz-[a-z_]+-[0-9a-f]{12})`, "g");
 
@@ -51,6 +54,7 @@ export function Markdown({ text }: { text: string }) {
     }
     const fig = line.trim().match(/^\[\[figure:(f_[0-9a-f]+)\]\]$/);
     const fence = line.match(FENCE);
+    const diagram = fence ? null : line.trim().match(DIAGRAM);
     const draft = line.trim().match(/^\[\[work-draft:(d_[0-9a-f]+)\]\]$/);
     const h = line.match(/^(#{1,4})\s+(.*)/);
     if (fence) {
@@ -63,6 +67,12 @@ export function Markdown({ text }: { text: string }) {
       out.push(fence[2].toLowerCase() === "mermaid"
         ? <Suspense key={i} fallback={<p className="small muted" role="status">Drawing the diagram…</p>}><MermaidDiagram source={source} /></Suspense>
         : <pre key={i}><code>{source}</code></pre>);
+    } else if (diagram) {
+      if (diagram[1]) out.push(<p key={`${i}-lead`}>{inline(diagram[1].trim())}</p>);
+      const body = [diagram[2]];
+      i++;
+      while (i < lines.length && lines[i].trim()) body.push(lines[i++]);
+      out.push(<Suspense key={i} fallback={<p className="small muted" role="status">Drawing the diagram…</p>}><MermaidDiagram source={body.join("\n")} /></Suspense>);
     } else if (fig) {
       out.push(<FigureView key={i} id={fig[1]} />);
       i++;
@@ -101,7 +111,7 @@ export function Markdown({ text }: { text: string }) {
       out.push(<List key={i}>{items.map((t, j) => <li key={j}>{inline(t)}</li>)}</List>);
     } else {
       const para: string[] = [];
-      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[(figure|work-draft):)/.test(lines[i]) && !FENCE.test(lines[i])) {
+      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[(figure|work-draft):)/.test(lines[i]) && !FENCE.test(lines[i]) && !DIAGRAM.test(lines[i].trim())) {
         para.push(lines[i++].trim());
       }
       if (para.length === 0) para.push(lines[i++].trim());

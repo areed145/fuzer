@@ -1302,6 +1302,29 @@ test("If names can't load, citations fall back to their ids", async () => {
   await page.locator(".md").getByRole("link", { name: well, exact: true }).waitFor();
 });
 
+test("A diagram written without a fence still draws, keeping the sentence before it", async () => {
+  await askFor(["Requested check: compare the link.", "", "Diagram (Mermaid; questioned link dashed):", "flowchart LR", '  IS["20-V-2001"] --> KA["20-K-2300A"] & KB["20-K-2300B"]', '  IS -.->|"EC link: verify?"| LGH["20-FT-3002"]', "", "A closing line about the graph TD layout."].join("\n"));
+  await page.locator(".md-diagram svg").getByText("20-K-2300A").first().waitFor();
+  await page.locator(".md p", { hasText: "Diagram (Mermaid; questioned link dashed):" }).waitFor();
+  await page.locator(".md p", { hasText: "A closing line" }).waitFor();
+  assert.equal(await page.locator(".md-diagram").count(), 1, "Prose naming a diagram stays prose");
+});
+
+test("A case names its subjects and evidence, with ids in the tooltip", async () => {
+  const tag = "fz-tag-d60c41f05dfb", doc = "fz-document-dc4c6012c562";
+  await page.route("**/entities/names*", (route) => route.fulfill({ json: { [tag]: { label: "20-V-2001", description: "GGCP Inlet Separator" }, [doc]: { label: "OKAN-20-PID-003", description: null } } }));
+  await page.route("**/work/items/41", (route) => route.fulfill({ json: { id: 41, type: "task", title: "Verify EC lift-gas link", subjects: [tag], state: "open", outcome: null, priority: null, assignee: null, role: "production_engineer", due: null, source: "assistant",
+    created_by: "ana", created_at: "2026-11-06T19:27:00Z", updated_at: "2026-11-06T19:27:00Z", closed_at: null, payload: { summary: "Compare the link with the P&ID.\n\nflowchart LR\n  A --> B", evidence: [tag, doc] }, processes: [], events: [] } }));
+  await page.goto(`${url}/#/cases/41`);
+  await page.getByRole("heading", { name: "Verify EC lift-gas link" }).waitFor();
+  const about = page.getByRole("link", { name: "20-V-2001", exact: true }).first();
+  await about.waitFor();
+  assert.equal(await about.getAttribute("title"), tag);
+  await page.getByRole("link", { name: "OKAN-20-PID-003", exact: true }).waitFor();
+  await page.locator(".md-diagram svg").waitFor();
+  assert.equal((await page.locator("main").innerText()).includes(doc), false, "Evidence shows names, not ids");
+});
+
 test("Mermaid loads only for an answer with a diagram", async () => {
   const chunks = [];
   page.on("request", (request) => { if (/mermaid/i.test(request.url())) chunks.push(request.url()); });

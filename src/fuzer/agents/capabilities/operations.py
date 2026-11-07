@@ -137,7 +137,8 @@ def draft_work_item(title: str, role: str, summary: str, evidence: list[str],
                     subjects: list[str] | None = None) -> dict[str, Any]:
     """Propose work for a person's queue. This creates nothing: it returns a draft and a marker, and the
     person asking sees it on the page and decides. `role` is a person role such as production_engineer,
-    `summary` says what is needed and why, `evidence` lists the records behind it (refs, at least one)
+    `summary` is Markdown saying what is needed and why (a diagram goes in a ```mermaid fence, with one
+    statement per line), `evidence` lists the records behind it (refs, at least one)
     and `subjects` the assets it is about."""
     asker = ASKER.get()
     if asker is None:

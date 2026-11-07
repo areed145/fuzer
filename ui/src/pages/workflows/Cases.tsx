@@ -3,8 +3,8 @@ import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as 
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
-import { Status, entityHref, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, describe, holder, usePerson, when } from "../../work";
+import { Status, href, useAsync } from "../../lib";
+import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
 import { AssignPicker, StepBadges, byUrgency, caseHref, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -155,7 +155,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
           </div>
           {(it.subjects.length > 0 || dataset) && (
             <p className="small">About{" "}
-              {it.subjects.map((s, i) => <span key={s}>{i > 0 && ", "}<a className="mono" href={entityHref(s)}>{s}</a></span>)}
+              <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
             </p>
           )}
@@ -180,7 +180,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       )}
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
-        <details className="card"><summary>Details</summary><DataView data={payload} /></details>
+        <details className="card" open={typeof payload.summary === "string"}><summary>Details</summary><DataView data={payload} /></details>
       )}
       <Timeline it={it} person={person} readOnly={demo} />
     </section>
