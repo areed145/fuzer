@@ -1237,6 +1237,50 @@ test("Cases creates a plain work item for a queue after confirmation", async () 
   assert.deepEqual({ title: body.title, role: body.role, type: body.type }, { title: "Check OK-J07-03 gas lift", role: "production_engineer", type: "task" });
 });
 
+async function askFor(answer) {
+  await page.route("**/assistant/ask", (route) => route.fulfill({ json: { job_id: "job", conversation_id: "c" } }));
+  await page.route("**/assistant/jobs/job", (route) => route.fulfill({ json: { id: "job", conversation_id: "c", question: "q", status: "done",
+    answer, error: null, seconds: 1, specialists: [], usage: savedDraftTurn.usage, steps: [], model_calls: 1 } }));
+  await page.goto(`${url}/#/ask`);
+  await page.getByRole("textbox").first().fill("Show the flow");
+  await page.getByRole("button", { name: /^Ask/ }).first().click();
+  const confirmAsk = page.getByRole("button", { name: /Confirm|Send/ }).first();
+  if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
+}
+
+test("Ask draws Mermaid diagrams, keeps their source and shows fenced code as code", async () => {
+  await askFor([
+    "The route:", "", "```mermaid", "flowchart TD", '  W["OK-J09-04<br/>Oil well"] -->|current| HP["10-V-2001"]', "  HP --> KA & KB", "```", "",
+    "After the diagram.", "```python", "print(\"**not bold** | fz-tag-0123456789ab\")", "```", "Done.",
+  ].join("\n"));
+  const diagram = page.locator(".md-diagram");
+  await diagram.locator("svg").waitFor();
+  assert.ok(await diagram.locator("svg").getByText("OK-J09-04").count() > 0, "Node labels are drawn");
+  assert.equal(await page.getByText("```", { exact: false }).count(), 0, "No fence is left in the text");
+  assert.equal(await page.locator(".md pre code").filter({ hasText: "print(" }).locator("strong, a").count(), 0, "Code stays literal");
+  await page.locator(".md p", { hasText: "After the diagram." }).waitFor();
+  await page.locator(".md p", { hasText: "Done." }).waitFor();
+  await diagram.getByText("Diagram source").click();
+  await diagram.locator("pre").getByText("flowchart TD", { exact: false }).waitFor();
+});
+
+test("A diagram Mermaid can't draw shows its source, and diagram text can't run script", async () => {
+  await askFor(["```mermaid", "this is not a diagram", "```", "", "```mermaid", "flowchart TD", '  A["<img src=x onerror=window.pwned=1>"] -->|"<script>window.pwned=1</script>"| B', '  click A "javascript:window.pwned=1"', "```"].join("\n"));
+  await page.getByText("This diagram could not be drawn", { exact: false }).waitFor();
+  await page.locator(".md-diagram pre").getByText("this is not a diagram").first().waitFor();
+  await page.locator(".md-diagram svg").waitFor();
+  assert.equal(await page.evaluate(() => window.pwned), undefined);
+  assert.equal(await page.locator('.md-diagram svg img[onerror], .md-diagram svg script, .md-diagram svg a[href^="javascript"]').count(), 0);
+});
+
+test("Mermaid loads only for an answer with a diagram", async () => {
+  const chunks = [];
+  page.on("request", (request) => { if (/mermaid/i.test(request.url())) chunks.push(request.url()); });
+  await askFor("A plain answer with no diagram.");
+  await page.locator(".md p", { hasText: "A plain answer" }).waitFor();
+  assert.deepEqual(chunks, []);
+});
+
 test("Ask opens and can be left without DOM effect-cleanup crashes", async () => {
   await page.goto(`${url}/#/ask`);
   await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();

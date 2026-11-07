@@ -1,14 +1,18 @@
 // A small Markdown renderer for assistant answers: headings, paragraphs, lists, tables, bold, inline
-// code. Builds React elements (never raw HTML), turns Fuzer ids (fz-tag-0123456789ab) into links and
+// code, fenced code and Mermaid diagrams. Builds React elements (never raw HTML), turns Fuzer ids (fz-tag-0123456789ab) into links and
 // chart markers ([[figure:f_...]]) into interactive charts and draft markers ([[work-draft:d_...]])
 // into work a person can confirm.
 
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import { FigureView } from "./Figure";
 import { WorkDraftCard } from "./WorkDraft";
 import { entityHref } from "./lib";
 import { Table } from "./ui";
 
+// Mermaid is large, so it loads only when an answer holds a diagram.
+const MermaidDiagram = lazy(() => import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })));
+
+const FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([\w+-]*)/;
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|fz-[a-z_]+-[0-9a-f]{12})/g;
 
 function inline(text: string): ReactNode[] {
@@ -40,9 +44,20 @@ export function Markdown({ text }: { text: string }) {
       continue;
     }
     const fig = line.trim().match(/^\[\[figure:(f_[0-9a-f]+)\]\]$/);
+    const fence = line.match(FENCE);
     const draft = line.trim().match(/^\[\[work-draft:(d_[0-9a-f]+)\]\]$/);
     const h = line.match(/^(#{1,4})\s+(.*)/);
-    if (fig) {
+    if (fence) {
+      const close = new RegExp(`^\\s{0,3}${fence[1][0]}{${fence[1].length},}\\s*$`);
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !close.test(lines[i])) body.push(lines[i++]);
+      i++;  // an unclosed fence runs to the end, as in CommonMark
+      const source = body.join("\n");
+      out.push(fence[2].toLowerCase() === "mermaid"
+        ? <Suspense key={i} fallback={<p className="small muted" role="status">Drawing the diagram…</p>}><MermaidDiagram source={source} /></Suspense>
+        : <pre key={i}><code>{source}</code></pre>);
+    } else if (fig) {
       out.push(<FigureView key={i} id={fig[1]} />);
       i++;
     } else if (draft) {
@@ -80,7 +95,7 @@ export function Markdown({ text }: { text: string }) {
       out.push(<List key={i}>{items.map((t, j) => <li key={j}>{inline(t)}</li>)}</List>);
     } else {
       const para: string[] = [];
-      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[(figure|work-draft):)/.test(lines[i])) {
+      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*\||\s*([-*]|\d+[.)])\s|\s*\[\[(figure|work-draft):)/.test(lines[i]) && !FENCE.test(lines[i])) {
         para.push(lines[i++].trim());
       }
       if (para.length === 0) para.push(lines[i++].trim());

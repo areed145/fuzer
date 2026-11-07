@@ -15,6 +15,7 @@ another owner's viewer, editor or action.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
 - `ChartShow` (`ui/src/ChartShow.tsx`) carries several charts in one card, moved by swipe, arrows, dots or arrow keys. Each slide mounts when first reached. Slides take any content; `LiveFigure` shows a server-built figure with all its wording, so a chart needs no page code. `PlotlyChart` leaves touch drags to the show. Never set colours or chart text in the UI: series follow the theme colorway by trace position.
+- `Markdown` renders assistant answers. Fenced code is literal, and a `mermaid` fence draws a diagram through `MermaidDiagram`, which loads on demand, uses Mermaid's strict security level and keeps the source readable when it can't draw.
 - `ConfirmAction` presents inline consequences and explicit confirm/cancel controls for shared-state changes.
   `ActionStatus` announces action progress/results with `role="status"` and failures with `role="alert"`.
   Reuse these for source ingestion and review instead of browser dialogs or transient success toasts.
