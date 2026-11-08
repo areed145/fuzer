@@ -41,6 +41,7 @@ class Principal:
     roles: tuple[str, ...]
     permissions: frozenset[str]
     csrf: str = ""
+    project: str | None = None  # the project these roles and permissions are for (None: the database's first)
 
     @property
     def actor(self):
@@ -112,16 +113,94 @@ def seed(conn):
     conn.commit()
 
 
-def principal(conn, account_id: str, csrf: str = "") -> Principal | None:
+def _default_project(conn) -> str | None:
+    from . import projects
+
+    return projects.active(conn)
+
+
+def _added(conn, project: str | None) -> bool:
+    """Whether `project` is one added beside the database's first project (its roles are project grants)."""
+    return project is not None and project != _default_project(conn)
+
+
+def principal(conn, account_id: str, csrf: str = "", project: str | None = None) -> Principal | None:
+    """The account with its roles in `project` (default: the project this request runs for). Roles in the
+    database's first project are its memberships; in an added project, its grants there. Owners span all."""
+    from . import db
+
     row = conn.execute("select * from access_account where id = %s", (account_id,)).fetchone()
     if row is None:
         return None
-    roles = conn.execute(
-        "select r.name, r.permissions from access_membership m join access_role r on r.name = m.role "
-        "where m.account_id = %s order by r.name", (account_id,)).fetchall()
+    project = project or db.scope().project
+    if _added(conn, project):
+        roles = conn.execute(
+            "select r.name, r.permissions from access_project_grant g join access_role r on r.name = g.role "
+            "where g.account_id = %s and g.project = %s order by r.name", (account_id, project)).fetchall()
+    else:
+        roles = conn.execute(
+            "select r.name, r.permissions from access_membership m join access_role r on r.name = m.role "
+            "where m.account_id = %s order by r.name", (account_id,)).fetchall()
     return Principal(row["id"], row["display_name"], row["enabled"], row["owner"],
                      tuple(r["name"] for r in roles),
-                     frozenset(p for r in roles for p in r["permissions"]), csrf)
+                     frozenset(p for r in roles for p in r["permissions"]), csrf, project)
+
+
+def project_roles(conn, account_id: str) -> dict[str, list[str]]:
+    """The account's roles per project it is granted (the first project's are its memberships)."""
+    out: dict[str, list[str]] = {}
+    first = _default_project(conn)
+    members = [r["role"] for r in conn.execute(
+        "select role from access_membership where account_id = %s order by role", (account_id,))]
+    if members:
+        out[first or ""] = members
+    for r in conn.execute("select project, role from access_project_grant where account_id = %s "
+                          "order by project, role", (account_id,)):
+        out.setdefault(r["project"], []).append(r["role"])
+    return out
+
+
+def projects_for(conn, person: Principal) -> list[str]:
+    """The projects this person may open: every project for an owner, else those they hold a role in."""
+    from . import projects
+
+    if not person.enabled:
+        return []
+    names = projects.names(conn)
+    if person.owner:
+        return names
+    granted = project_roles(conn, person.id)
+    first = _default_project(conn)
+    return [n for n in names if n in granted or (n == first and "" in granted)]
+
+
+def set_project_roles(conn, by: Principal, account_id: str, project: str, roles: list[str]):
+    """Give an account its application roles in one project (owners only). The database's first project's
+    roles are the account's memberships, as in update_account."""
+    from . import projects
+
+    if not by.enabled or not by.owner:
+        raise AccessError("Only an owner can grant application access")
+    try:
+        projects.config(conn, project)
+    except projects.ProjectError as e:
+        raise AccessError(str(e)) from None
+    if conn.execute("select 1 from access_account where id = %s", (account_id,)).fetchone() is None:
+        raise AccessError("Unknown account")
+    known = {r["name"] for r in conn.execute("select name from access_role")}
+    if set(roles) - known:
+        raise AccessError("Unknown application role")
+    if _added(conn, project):
+        conn.execute("delete from access_project_grant where account_id = %s and project = %s", (account_id, project))
+        for role in sorted(set(roles)):
+            conn.execute("insert into access_project_grant (account_id, project, role) values (%s, %s, %s)",
+                         (account_id, project, role))
+    else:
+        conn.execute("delete from access_membership where account_id = %s", (account_id,))
+        for role in sorted(set(roles)):
+            conn.execute("insert into access_membership (account_id, role) values (%s, %s)", (account_id, role))
+    event(conn, by.actor, "project_roles_set", account_id=account_id, project=project, roles=sorted(set(roles)))
+    conn.commit()
 
 
 def sign_in(conn, claims: dict) -> tuple[Principal, str]:
@@ -172,6 +251,7 @@ def accounts(conn):
                         "order by created_at").fetchall()
     for row in rows:
         row["roles"] = list(principal(conn, row["id"]).roles)
+        row["projects"] = project_roles(conn, row["id"])
         row["actor"] = ACTOR_PREFIX + row["id"]
     return rows
 

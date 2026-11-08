@@ -373,3 +373,67 @@ def test_entity_names_are_read_access_and_bounded(runtime):
     assert runtime.get(f"/entities/{id}").status_code == 200, "the fixed route doesn't shadow an entity"
     runtime.cookies.clear()
     assert runtime.get("/entities/names", params={"id": [id]}).status_code == 401
+
+
+# ---- access per project (multi-project phase 3) -------------------------------------------------------
+
+@pytest.fixture
+def second_project(runtime):
+    """A second project beside this database's register, in its own schema."""
+    from fuzer.core import projects
+
+    with db.connect() as conn:
+        db.create_project_schema(conn, "proj_ridge")
+        projects.save(conn, "ridge", {"schema": "proj_ridge", "pack": "okan"}, "test")
+    yield "ridge"
+    with db.connect() as conn:
+        conn.execute("delete from project where name = 'ridge'")
+        conn.execute("drop schema if exists proj_ridge cascade")
+        conn.commit()
+
+
+def test_roles_are_per_project_and_owners_span_every_project(runtime, second_project):
+    client = runtime
+    reader, _ = signed_in(client, roles=("operator",))
+    with db.connect() as conn:
+        here = access.principal(conn, reader.id)
+        there = access.principal(conn, reader.id, project=second_project)
+        assert here.allows("operate") and not there.allows("read")  # a role here is not a role there
+        assert second_project not in access.projects_for(conn, here)
+        boss, _ = access.sign_in(conn, {"tid": TENANT, "oid": str(uuid.UUID(int=9)), "name": "Owner"})
+        conn.execute("update access_account set enabled = true, owner = true where id = %s", (boss.id,))
+        conn.commit()
+        boss = access.principal(conn, boss.id)
+        assert access.principal(conn, boss.id, project=second_project).allows("configure")
+        assert second_project in access.projects_for(conn, boss)
+
+        access.set_project_roles(conn, boss, reader.id, second_project, ["reader"])
+        there = access.principal(conn, reader.id, project=second_project)
+        assert there.allows("read") and not there.allows("operate") and there.project == second_project
+        assert access.principal(conn, reader.id).allows("operate")  # the first project's roles are unchanged
+        assert second_project in access.projects_for(conn, access.principal(conn, reader.id))
+        assert access.project_roles(conn, reader.id)[second_project] == ["reader"]
+        with pytest.raises(access.AccessError, match="Only an owner"):
+            access.set_project_roles(conn, here, reader.id, second_project, ["administrator"])
+        with pytest.raises(access.AccessError, match="no project"):
+            access.set_project_roles(conn, boss, reader.id, "nowhere", ["reader"])
+        # Disabling the account takes every project away.
+        conn.execute("update access_account set enabled = false where id = %s", (reader.id,))
+        conn.commit()
+        assert access.projects_for(conn, access.principal(conn, reader.id)) == []
+        assert not access.principal(conn, reader.id, project=second_project).allows("read")
+
+
+def test_project_grants_over_http_are_owner_only(runtime, second_project):
+    client = runtime
+    person, _ = signed_in(client, roles=("administrator",))
+    r = client.put(f"/auth/accounts/{person.id}/projects/{second_project}", json={"roles": ["reader"]})
+    assert r.status_code == 403  # configure access is not owner access
+    owner, _ = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=7)))
+    r = client.put(f"/auth/accounts/{person.id}/projects/{second_project}", json={"roles": ["reader"]})
+    assert r.status_code == 200, r.text
+    me = client.get("/auth/me").json()["user"]
+    assert second_project in me["projects"]  # an owner sees every project
+    admin = client.get("/auth/access").json()
+    row = next(a for a in admin["accounts"] if a["id"] == person.id)
+    assert row["projects"][second_project] == ["reader"]
