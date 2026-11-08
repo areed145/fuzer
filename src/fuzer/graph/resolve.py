@@ -1,6 +1,6 @@
 """Entity resolution: cluster candidates and give each cluster a stable Fuzer ID.
 
-1. Reviewer must-links merge first; cannot-links block merges everywhere.
+1. Reviewer must-links merge first; cannot-links block merges everywhere, between whole clusters.
 2. Same kind + same canonical key merges automatically.
 3. Equipment at the same tag without a shared serial is scored; high scores
    merge, middle scores go to the review queue.
@@ -31,11 +31,16 @@ class Clusters:
             r = self.parent[r]
         return r
 
+    def blocked(self, a: str, b: str) -> bool:
+        """Whether a cannot-link between any members keeps a's and b's clusters apart."""
+        ra, rb = self.find(a), self.find(b)
+        return ra != rb and any(frozenset((x, y)) in self.cannot for x in self.members[ra] for y in self.members[rb])
+
     def union(self, a: str, b: str) -> bool:
         ra, rb = self.find(a), self.find(b)
         if ra == rb:
             return True
-        if any(frozenset((x, y)) in self.cannot for x in self.members[ra] for y in self.members[rb]):
+        if self.blocked(a, b):
             return False
         if len(self.members[ra]) < len(self.members[rb]):
             ra, rb = rb, ra
@@ -50,7 +55,10 @@ class Clusters:
 def _sim(a: str | None, b: str | None) -> float | None:
     if not a or not b:
         return None
-    return fuzz.token_set_ratio(a, b, processor=utils.default_process) / 100
+    a, b = utils.default_process(a), utils.default_process(b)
+    if a and a.replace(" ", "") == b.replace(" ", ""):  # "MasterFlo" and "Master Flo", "K.S.B." and "KSB"
+        return 1.0
+    return fuzz.token_set_ratio(a, b) / 100
 
 
 def score_equipment(a: Candidate, b: Candidate) -> tuple[float, str]:
@@ -109,7 +117,9 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
     for group in blocks.values():
         for a, b in combinations(group, 2):
             ra, rb = cl.find(a.ref), cl.find(b.ref)
-            if a.source == b.source or ra == rb or frozenset((a.ref, b.ref)) in cannot:
+            # A cannot-link anywhere between the two clusters rules the pair out: a reviewer who said no to one
+            # record isn't asked again about another record of the same item.
+            if a.source == b.source or ra == rb or cl.blocked(a.ref, b.ref):
                 continue
             s, why = score_equipment(a, b)
             k = frozenset((ra, rb))

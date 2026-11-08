@@ -12,7 +12,8 @@ One model of the field drives every source, so they agree with each other:
 - Jackets OKJ-01..24 (areas 61-84), 5-10 wellheads each, mostly gas lifted (GL), some naturally
   flowing (NF), each with a gas lift supply meter and ESDV.
 
-Sources: SAP (FLOCs, equipment, notifications, work orders, materials, BOM), PI points and the AF
+Sources: SAP (FLOCs, equipment, notifications, work orders, materials, BOM), the legacy JDE and Maximo
+equipment registers (copies of SAP items to match, see registers.py), PI points and the AF
 tree, the EC allocation network, downtime and DAY001 reports, operator logs, P&ID drawings, manuals
 and troubleshooting guides, and GIS (facility locations, pipelines and flowlines as GeoJSON).
 
@@ -959,8 +960,9 @@ def generate(out, seed: int = 11) -> dict:
           "on_sheet": ["head", "efficiency"] if c["kind"] == "pump" else list(c["series"])}
          for m, c in sorted(oem.items())],
         indent=1))
-    from . import incoming
+    from . import incoming, registers
 
+    legacy = registers.generate(out, equipment, FIELD)  # JDE and Maximo copies of SAP items, and the match key
     incoming.generate(out, equipment, floc, [w["name"] for w in wells])
     return {"asset": "okan", "facilities": len(FACILITIES), "jackets": JACKETS, "wells": len(wells),
             "gl_wells": len(gl_wells) + sum(1 for w in wells if w["site"] == "NWP" and w["lift"] == "GL"),
@@ -970,7 +972,8 @@ def generate(out, seed: int = 11) -> dict:
             "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
             "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at"),
             "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings),
-            "dcs_alarms": len(alarms), "iows": len(iows)}
+            "dcs_alarms": len(alarms), "iows": len(iows), "jde_assets": legacy["jde"],
+            "maximo_assets": legacy["maximo"], "match_pairs": legacy["match_pairs"]}
 
 
 GUIDES = {

@@ -37,11 +37,11 @@ def test_log_reading_rules_baseline(scores):
     assert scores["logs"]["events"].startswith("no events yet")
 
 
-def test_okan_has_no_cross_register_matches(scores):
-    # Okan has one equipment register (SAP), so no record pairs to resolve; a real asset with a second
-    # register supplies matches.json, scored as in test_matches_scoring.
-    assert "matches" not in scores
-    assert scores["not_scored"]["missing_keys"] == ["matches.json"]  # named, not silently skipped
+def test_equipment_matching(scores):
+    # JDE and Maximo copies of SAP items (fakeplant.registers); the rest wait in the review queue.
+    m = scores["matches"]
+    assert m["pairs"] > 200 and m["wrong_merges"] == 0 and m["precision"] == 1.0 and m["recall"] >= 0.9
+    assert "not_scored" not in scores  # every answer key is written, so nothing is left out
 
 
 class _Rows:

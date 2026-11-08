@@ -86,4 +86,4 @@ def test_get_events_without_claude_results(call):
 
 def test_list_reviews(call):
     kinds = {r["kind"] for r in call("list_reviews")}
-    assert kinds == set()
+    assert kinds == {"match", "conflict"}  # the legacy registers (JDE, Maximo) raise both

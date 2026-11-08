@@ -16,6 +16,7 @@ uv run fakeplant demo                       # reset the database, generate, inge
 | Module | What it makes |
 |---|---|
 | `okan.py` | The Okan field (NMA South Offshore): PP, GGCP trains A/B/C, ST1, ST2, NWP, 24 jackets, gas lift, EGP export, GIS, troubleshooting stories |
+| `registers.py` | Legacy JDE and Maximo copies of SAP equipment, with planted matching cases and `answer_keys/matches.json` |
 | `pid.py` | P&ID drawings (clean exports and scans) and their answer keys |
 | `docs.py` | Manuals, troubleshooting guides and procedures |
 | `incoming.py` | Tables with messy headers and no mapping, for suggested mappings |
