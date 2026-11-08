@@ -3,6 +3,8 @@
 The operations assistant, its domain specialists, persona coverage, skills and tools.
 
 ## Operations assistant
+
+![The Ask page: suggested questions per domain](assets/screens/ask.png){ loading=lazy }
 A team of agents built with `create_harness_agent` from Microsoft Agent Framework (MAF), using the
 provider selected by `agents.provider` (`anthropic` by default; `openai`, `azure_openai` and `ollama`
 are also supported):
@@ -127,6 +129,8 @@ maintenance, HSE, emergency, schedule, resource or commercial decisions.
 missing-data and escalation cases. Offline tests prove what reaches each agent, not how well Claude routes.
 
 ### Adding a persona, skill or capability
+
+[Extend Fuzer](extend.md#add-an-agent-skill) walks through a skill end to end.
 
 - **Persona:** add it to its owning `AgentDefinition` in `catalog.py`, and to at least one `SkillDefinition`.
 - **Skill:** add `skills/<owning-agent>/<name>/SKILL.md` and a `SkillDefinition` with its agents (owner first),

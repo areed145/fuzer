@@ -48,6 +48,21 @@ state in `.dagster` (or `$DAGSTER_HOME`). The dot at the foot of the sidebar tur
 a run failed in the last day or the scheduler isn't running. Set `FUZER_DAGSTER_URL` if the Dagster UI isn't on
 port 3000.
 
+![Home on the Okan demo](assets/screens/home.png){ loading=lazy }
+*Home after the first `fuzer up`. [A tour of the app](tour.md) shows the other pages.*
+
+Without provider credentials, `fuzer up` reports what it did not read and carries on; the register, the
+work board, the guided investigation and the workflows all work. The agent worker isn't started either, so
+the daily report stays a template draft until a provider is configured. Without Dagster (`--no-jobs`), run
+the scheduled loop by hand to fill the board, cases and reports:
+
+```sh
+uv run fuzer limits learn && uv run fuzer limits scan      # normal ranges, then IOW breaches
+uv run fuzer sre --handoff --max-diagnoses 0               # upsets, handed to the workflow (no model calls)
+uv run fuzer report                                        # close the latest production day
+uv run fuzer board refresh
+```
+
 Things to try:
 
 - **Home** introduces the starting actions and summarizes work, incidents and source/job health.

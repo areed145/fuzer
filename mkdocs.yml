@@ -42,8 +42,11 @@ nav:
   - Home: index.md
   - Start here:
       - getting-started.md
+      - tour.md
       - walkthrough.md
       - glossary.md
+  - Extend:
+      - extend.md
   - Design:
       - overview.md
       - architecture.md

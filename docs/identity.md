@@ -33,6 +33,9 @@ Wells get the same treatment (`A07`, `A-7`, `OSB_A-07` → `A-07`;
    apart from every record merged with the other side, so the queue doesn't ask
    the same question again about another system's copy.
 
+![Possible matches in Data review, with the score and each source's values side by side](assets/screens/data-review.png){ loading=lazy }
+*Work → Data review: a JDE and a Maximo record that may be the same production choke, scored 0.70.*
+
 The scorer is small on purpose. When we need more power we swap in
 [Splink](https://github.com/moj-analytical-services/splink) behind the same
 interface.

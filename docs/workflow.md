@@ -23,7 +23,34 @@ The Workflows section is where people do it and manage it:
   Model (draft, check, compare, publish), Monitor (where work piles up) and SLAs & routing.
 - **Teams & routing** (`#/teams`): roles, people and agents.
 
+![Inbox: one unclaimed triage step in the engineer queue](assets/screens/inbox.png){ loading=lazy }
+
+![An upset case: its process diagram with the step it waits on](assets/screens/case.png){ loading=lazy }
+
+The built-in processes are `upset` (triage, diagnosis by the Field Operations & Facilities agent, approval,
+a notification drafted by the Maintenance & Integrity agent, then a timed re-check), `iow_breach` and
+`daily_report`:
+
+```mermaid
+flowchart LR
+  d(("Upset<br>detected")) --> t["Triage<br><small>engineer</small>"]
+  t -->|false alarm| x(("Closed"))
+  t -->|real| dg["Diagnose<br><small>field operations agent</small>"]
+  dg --> ap["Approve proposed action<br><small>engineer, SLA 1 day</small>"]
+  ap -->|rejected| dg
+  ap -->|approved| dn["Draft SAP notification<br><small>maintenance agent</small>"]
+  dn --> rn["Raise notification<br><small>maintenance planner</small>"]
+  rn --> w["Re-check in 6 h"] --> c["Confirm resolved<br><small>engineer</small>"]
+  c -->|still upset| dg
+  c -->|resolved| r(("Resolved"))
+```
+
+[Extend Fuzer](extend.md#add-a-workflow) shows how to add a process of your own, with its form and how
+domain code starts it.
+
 ### Modeling a workflow
+
+![The upset process on the Model tab](assets/screens/process-model.png){ loading=lazy }
 
 Open a process's **Model** tab (or create a draft). Drag named components onto the canvas, connect their
 handles, and select steps or connections to edit parameters. Undo, redo, delete and fit controls are above
@@ -85,6 +112,8 @@ card moved ("up 4 places: value 12,000 -> 40,000", "pinned", "new"). The board r
 register build and every SRE run, and with `fuzer board refresh`. Pages are read in rank order from
 indexes on rank, area and unit.
 
+![The work board, ranked by value](assets/screens/board.png){ loading=lazy }
+
 **Board page.** `#/board` in the UI has five views: ranked (the default), by owner (the person or
 role its work item is with), by area, by type, and new since the viewer's last visit. The views come from
 facet counts under the same filters. A viewer can save named filters and filter by words in the title.
@@ -119,6 +148,9 @@ records.
 - **Versions:** `close_day` stores a version only when the day's facts changed, with what changed by
   section, and starts or updates the day's work item for the ops lead. The `day_close` job (07:00, or the
   `daily_report.close_cron` setting) closes the latest day and re-checks the six before it for late records.
+
+![The daily report: six cited sections and its checks](assets/screens/daily-report.png){ loading=lazy }
+*A template draft; the reporter agent rewrites it when the agent worker runs.*
 
 Readers: the Reports page (`#/reports`: days, versions, checks, what changed), MCP
 `get_daily_ops_report(day)`, `GET /reports/daily/{day}`, and `fuzer report --day [--claude]`. On Okan, the

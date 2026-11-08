@@ -17,6 +17,9 @@ and links between kinds their link type doesn't allow. Every change is kept in `
 why. Renaming a custom kind rewrites the register (Fuzer IDs stay) and gives each mapping that makes it a new
 approved version; core kinds are used by name in the code and are renamed in a release.
 
+![The Ontology page: every kind and link type, sized by how many are loaded](assets/screens/ontology.png){ loading=lazy }
+*Explore → Ontology on the Okan demo. **Kinds & link types** is where the model is edited.*
+
 ## Tags are not equipment
 A **tag** (functional location, e.g. `20-P-1001B`) is a position in the process.
 **Equipment** is the physical item installed there (the pump with serial
