@@ -17,7 +17,6 @@ import base64
 import io
 import json
 import math
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from PIL import Image
@@ -130,16 +129,15 @@ def _request(model: str, effort: str, sheet: dict) -> dict:
     }
 
 
-def _area(sheet: dict) -> str | None:
-    m = re.search(r"\b(\d{2})\b", sheet.get("title", ""))
-    return m.group(1) if m else None
+def _area(sheet: dict, pack: Pack) -> str | None:
+    return pack.tags.area_in(sheet.get("title", ""))
 
 
 def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
               boxes: list[tuple[int, int, int, int]] | None = None) -> dict:
     """Claude's readings -> links to known tags, plus findings for everything else. With the tile
     boxes, each reading's position in its tile (pixels as sent) becomes a position on the sheet."""
-    area = _area(sheet)
+    area = _area(sheet, pack)
     mentions, findings, lines, seen = [], [], [], set()
 
     def at(t):

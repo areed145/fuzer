@@ -314,9 +314,9 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figur
 def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None, options: dict | None = None) -> Figure:
     """Debottleneck options ranked by oil gained, coloured by kind (`options`: a scan of that scope already made)."""
     from ..analysis import hydraulics
-    from ..core.pack import load_pack
+    from ..core.pack import resolve
 
-    out = options or hydraulics.debottleneck_options(conn, pack or load_pack(), scope, at, limit=15)
+    out = options or hydraulics.debottleneck_options(conn, pack or resolve(conn), scope, at, limit=15)
     opts = out["options"][:15]
     if not opts:
         raise ChartError("no debottleneck options in that scope")

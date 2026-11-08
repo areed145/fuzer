@@ -1,0 +1,7 @@
+equnr,description,manufacturer,model,serial,floc,valid_from,valid_to
+50000001,Inlet Separator,Exterran,EXT-48,SN81001,KRGP-A1-V1001,2015-04-01,
+50000002,Sales Gas Compressor,Ariel,JGK/4,SN82001,KRGP-B1-K2001,2015-04-01,
+50000003,Compressor Aftercooler,Hudson,HPC-12,SN82010,KRGP-B1-E2010,2015-04-01,
+50000004,Glycol Contactor,Exterran,EXT-GC30,SN83001,KRGP-C1-V3001,2015-04-01,
+50000005,Glycol Circulation Pump A,Kimray,PV-45,SN83002,KRGP-C1-P3002A,2015-04-01,
+50000006,Glycol Circulation Pump B,Kimray,PV-45,SN83003,KRGP-C1-P3002B,2015-04-01,

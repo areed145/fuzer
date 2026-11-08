@@ -249,6 +249,16 @@ score search, document links, section failure modes and log reading
 
 drop and recreate all tables
 
+## `fuzer init`
+
+initialise this database for a facility from a seed bundle (#376); doesn't ingest or rebuild
+
+| Argument | What it does |
+|---|---|
+| `--bundle` | the bundle folder (with bundle.yaml) or its bundle.yaml |
+| `--upgrade` | replace the stored project config of the same project with the bundle's |
+| `--by` | who the stored project is recorded as set by |
+
 ## `fuzer projects`
 
 projects (#131): list them, show one, or save one to the database

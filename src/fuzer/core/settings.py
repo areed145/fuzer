@@ -221,6 +221,10 @@ register(
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
             "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
+    Setting("project.active", "str", "", "The project this database holds, set when it is initialised from a seed "
+            "bundle (`fuzer init --bundle`); its pack is what the API, MCP tools and jobs use, read within seconds. "
+            "FUZER_PROJECT, for a process started for one project, wins; with neither, FUZER_PACK or the packaged "
+            "Okan pack (transitional, #376)", "Project", scopes=(GLOBAL,)),
     Setting("demo.enabled", "bool", True, "Show the Demo tab and guided onboarding for all approved users. "
             "Hiding Demo does not change permissions or disable the underlying tools.", "Demo", scopes=(GLOBAL,)),
 )

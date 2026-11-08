@@ -15,7 +15,8 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
 Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data),
-FUZER_PROJECT (or FUZER_PACK), FUZER_TIMEZONE (default UTC); the Claude model and effort are the
+FUZER_PACK (default: the pack of the project the database holds),
+FUZER_TIMEZONE (default UTC); the Claude model and effort are the
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
 
@@ -26,7 +27,7 @@ from pathlib import Path
 import dagster as dg
 
 from ..core import db, settings
-from ..core.pack import load_pack
+from ..core.pack import Pack, load_pack, resolve
 from ..graph import llm_links
 from ..sources import ingest, llm_pids
 from . import pipeline
@@ -36,13 +37,17 @@ class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack to use."""
 
     data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
-    pack: str = os.environ.get("FUZER_PACK", "okan")
+    pack: str = os.environ.get("FUZER_PACK", "")  # empty: the pack of the project the database holds (#376)
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
 
     def connect(self):
         conn = db.connect(url=self.database_url)
         db.init_schema(conn)
         return conn
+
+    def pack_for(self, conn) -> Pack:
+        """The configured pack, else the one the database's project names, resolved when the run starts."""
+        return load_pack(self.pack) if self.pack else resolve(conn)
 
 
 class ClaudeSettings(dg.ConfigurableResource):
@@ -128,8 +133,8 @@ SOURCE_CHECKS = [_source_check(name) for name in DATASETS]
           description="Match records, choose golden values and rebuild the graph (full rebuild).")
 def register(fuzer: Fuzer) -> dg.MaterializeResult:
     from . import board
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         stats = pipeline.rebuild(conn, pack)
         board.refresh(conn, pack)  # the work board follows the register (#99)
     return dg.MaterializeResult(metadata={
@@ -152,8 +157,8 @@ def _claude_result(stats: dict, rebuilt: bool) -> dg.MaterializeResult:
 @dg.asset(group_name="claude", deps=[register],
           description="Claude reads new or changed operator log entries: links and events. Rebuilds if any reading is newer than the register.")
 def claude_log_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResult:
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         stats = llm_links.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,
                               limit=claude.max_log_entries)
         rebuilt = pipeline.readings_newer(conn)  # new readings, or earlier ones never built
@@ -167,8 +172,8 @@ def claude_log_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResu
 @dg.asset(group_name="claude", deps=[register],
           description="Claude reads new or re-scanned P&ID drawings. Rebuilds if anything new.")
 def claude_pid_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResult:
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         stats = llm_pids.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,
                              limit=claude.max_drawings)
         rebuilt = pipeline.readings_newer(conn)  # new readings, or earlier ones never built
@@ -183,8 +188,8 @@ def claude_pid_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResu
           description="Claude reads new or changed document sections: failure modes and specific links.")
 def claude_doc_reads(fuzer: Fuzer, claude: ClaudeSettings) -> dg.MaterializeResult:
     from ..sources import llm_docs
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         stats = llm_docs.run(conn, pack, model=claude.model, effort=claude.effort, batch=claude.batch,
                              limit=claude.max_log_entries)
         rebuilt = pipeline.readings_newer(conn)  # new readings, or earlier ones never built
@@ -290,8 +295,8 @@ def work_tick():
 def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
     from ..workflow import engine
     from . import sre, sre_handoff
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         context.log.info(f"sre scan: {sre.scan(conn, pack)}")
         engine.load_defaults(conn)
         out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
@@ -312,8 +317,8 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from ..graph import operations
     from ..workflow import engine
     from . import daily_report
-    pack = load_pack(fuzer.pack)
     with fuzer.connect() as conn:
+        pack = fuzer.pack_for(conn)
         engine.load_defaults(conn)
         last = date.fromisoformat(operations.as_of(conn))
         for day in daily_report.recheck_days(last):
@@ -339,7 +344,7 @@ def day_close():
 def studies_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
     from . import study
     with fuzer.connect() as conn:
-        context.log.info(f"studies: {study.run_queued(conn, load_pack(fuzer.pack))}")
+        context.log.info(f"studies: {study.run_queued(conn, fuzer.pack_for(conn))}")
 
 
 @dg.job(description="Big correlation and clustering studies, queued from the API or an agent.")

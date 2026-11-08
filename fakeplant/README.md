@@ -13,6 +13,11 @@ uv run fakeplant generate                   # write Okan exports to fakeplant/da
 uv run fakeplant demo                       # reset the database, generate, ingest, rebuild
 ```
 
+Seed bundles (#376) live in `bundles/`: `bundles/okan` points at the generated
+Okan exports and the packaged Okan pack; `bundles/kestrel` is a second, small
+facility (Kestrel Ridge gas plant, `KRGP`) with its own pack and hand-written
+exports, initialised with `fuzer init --bundle fakeplant/bundles/kestrel`.
+
 | Module | What it makes |
 |---|---|
 | `okan.py` | The Okan field (NMA South Offshore): PP, GGCP trains A/B/C, ST1, ST2, NWP, 24 jackets, gas lift, EGP export, GIS, troubleshooting stories |

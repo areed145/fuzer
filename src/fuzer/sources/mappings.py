@@ -252,7 +252,7 @@ class Mapping:
             elif t in ex.TRANSFORMS:
                 tr, area_col = ex.TRANSFORMS[t], expr.get("area_from")
                 if area_col:
-                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col)))  # noqa: E731
+                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col), p))  # noqa: E731
                 else:
                     f = lambda k, r, p: tr(base(k, r, p), p, None)  # noqa: E731
             else:
@@ -454,7 +454,7 @@ class Mapping:
                                   valid_to=(vt(key, item, pack) or None) if vt else None,
                                   props={n: f(key, item, pack) for n, f in props.items()} if props else None))
         for col, area_col, kinds, method, rel, conf, keep in self._mentions:
-            area = ex.area_in(row.get(area_col)) if area_col else None
+            area = ex.area_in(row.get(area_col), pack) if area_col else None
             for m in nel.find_mentions(row.get(col) or "", pack, default_area=area):
                 if kinds and m.kind not in kinds:
                     continue

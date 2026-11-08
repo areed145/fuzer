@@ -131,6 +131,12 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `access.session_hours` | int | `8` | 1 to 24 | Absolute signed-in session lifetime in hours. |
 | `access.api_concurrency` | int | `4` | 1 to 32 | Maximum simultaneous authenticated API requests per server process; bounds memory pressure on the single-instance demo, not a commercial quota. |
 
+## Project
+
+| Setting | Type | Default | Range | What it is |
+|---|---|---|---|---|
+| `project.active` | str | `` |  | The project this database holds, set when it is initialised from a seed bundle (`fuzer init --bundle`); its pack is what the API, MCP tools and jobs use, read within seconds. FUZER_PROJECT, for a process started for one project, wins; with neither, FUZER_PACK or the packaged Okan pack (transitional, #376). |
+
 ## Demo
 
 | Setting | Type | Default | Range | What it is |

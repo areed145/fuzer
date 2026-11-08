@@ -185,7 +185,7 @@ def test_ranking_follows_pack_config(conn):
 
 def test_value_over_mcp_and_api(conn, monkeypatch):
     monkeypatch.setattr(mcp_server, "PACK", PACK)
-    monkeypatch.setattr(api, "PACK", PACK)
+    monkeypatch.setattr(api.deps, "pack", lambda: PACK)
     assert "value_score" in {t.name for t in asyncio.run(mcp_server.server.list_tools())}
     one = mcp_server.value_score("20-K-2200B")
     assert one["items"] and all(s["tag"] == "20-K-2200B" for s in one["items"])

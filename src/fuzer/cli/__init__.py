@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from ..core import db, projects
-from ..core.pack import load_pack
+from ..core.pack import load_pack, resolve
 from ..ops import pipeline
 from ..resources import ROOT
 from ..sources import ingest
@@ -145,6 +145,12 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--until", default=None, help="with --ops: end (default: the latest daily report)")
 
     sub.add_parser("reset", help="drop and recreate all tables")
+    ini = sub.add_parser("init", help="initialise this database for a facility from a seed bundle (#376); "
+                                      "doesn't ingest or rebuild")
+    ini.add_argument("--bundle", required=True, help="the bundle folder (with bundle.yaml) or its bundle.yaml")
+    ini.add_argument("--upgrade", action="store_true",
+                     help="replace the stored project config of the same project with the bundle's")
+    ini.add_argument("--by", default=os.environ.get("USER", "cli"), help="who the stored project is recorded as set by")
 
     pj = sub.add_parser("projects", help="projects (#131): list them, show one, or save one to the database")
     pj.add_argument("action", choices=["list", "show", "save"])
@@ -205,8 +211,17 @@ def main(argv=None):
         with db.connect() as conn:
             if args.cmd != "reset":
                 db.init_schema(conn)  # idempotent; picks up new tables without a reset
+                if not args.pack:
+                    pack = resolve(conn)  # the pack of the project this database holds (#376)
             if args.cmd == "reset":
                 db.reset(conn)
+            elif args.cmd == "init":
+                from ..core import bundles
+
+                try:
+                    _print(bundles.init(conn, Path(args.bundle), by=args.by, upgrade=args.upgrade))
+                except bundles.BundleError as e:
+                    raise SystemExit(str(e)) from None
             elif args.cmd in ("sources", "source"):
                 from . import sources as sources_cli
 

@@ -84,10 +84,8 @@ def _snake(name: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", name.lower())).strip("_") or "column"
 
 
-def _area(v: str) -> str | None:
-    from .extract import area_in
-
-    return area_in(v)
+def _area(v: str, pack: Pack) -> str | None:
+    return pack.tags.area_in(v)
 
 
 def _num(v: str) -> float | None:
@@ -135,7 +133,7 @@ def profile(c, pack: Pack, sample_rows: int = SAMPLE_ROWS, makers: set[str] = fr
             "max": max(nums) if nums else None,
             "date": round(frac(lambda v: bool(DATE.match(v))), 3),
             "location": round(frac(lambda v: v.upper() == fac or v.upper().startswith(fac + "-")), 3),
-            "tag": round(frac(lambda v: (pack.tags.parse(v) or pack.tags.parse(v, default_area=_area(v))) is not None), 3),
+            "tag": round(frac(lambda v: (pack.tags.parse(v) or pack.tags.parse(v, default_area=_area(v, pack))) is not None), 3),
             "tag_or_well": round(frac(lambda v: pack.tags.parse(v) is not None or pack.wells.parse(v) is not None), 3),
             "well": round(frac(lambda v: v.upper() == fac or pack.wells.parse(v) is not None), 3),
             "spaces": round(frac(lambda v: " " in v), 3),

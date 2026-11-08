@@ -1,0 +1,10 @@
+tag,descriptor,engunits,pointsource
+KRGP:A1.PT1001.PV,Inlet Separator Pressure,barg,OPC
+KRGP:A1.LT1001.PV,Inlet Separator Liquid Level,%,OPC
+KRGP:A1.FT1002.PV,Inlet Gas Flow,ksm3/d,OPC
+KRGP:B1.PT2001.PV,Compressor Discharge Pressure,barg,OPC
+KRGP:B1.TT2002.PV,Compressor Discharge Temperature,degC,OPC
+KRGP:B1.VT2003.PV,Compressor Vibration,mm/s,OPC
+KRGP:C1.FT3005.PV,Dry Gas Flow,ksm3/d,OPC
+KR12-03H.THP,Well KR 12-03H Tubing Head Pressure,barg,OPC
+KR12-04H.THP,Well KR 12-04H Tubing Head Pressure,barg,OPC

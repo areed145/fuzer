@@ -31,7 +31,7 @@ def source_preview(name: str, rows: int = 5, conn=Depends(get_conn)):
     from ..sources import preview
 
     try:
-        return preview.preview(conn, deps.PACK, _data_dir(), name, min(max(rows, 1), 50))
+        return preview.preview(conn, deps.pack(), _data_dir(), name, min(max(rows, 1), 50))
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
 
@@ -50,7 +50,7 @@ def source_suggest(name: str, body: Suggest, conn=Depends(get_conn)):
     c = connectors.find(Path(_data_dir()), name)
     if c is None:
         raise HTTPException(404, f"no table {name!r} in {_data_dir()}")
-    s = suggest.suggest_table(conn, deps.PACK, name, c, claude=body.claude)
+    s = suggest.suggest_table(conn, deps.pack(), name, c, claude=body.claude)
     return {"yaml": suggest.to_yaml(s["mapping"]), "key": s["suggestion"]["key"],
             "columns": {k: {"meaning": v["meaning"], "by": v["by"]} for k, v in s["suggestion"]["columns"].items()},
             "claude": s["claude"] or None}

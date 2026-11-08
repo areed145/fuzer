@@ -7,7 +7,7 @@ relative to the repository.
 
     fuzer --project okan eval --ops --full        # or FUZER_PROJECT=okan
 
-For one release, activating a project fills in the old variables (FUZER_PACK, FUZER_DATA_DIR, FUZER_MAPPINGS,
+For one release, activating a project fills in the old variables (FUZER_DATA_DIR, FUZER_MAPPINGS,
 FUZER_TIMESERIES, FUZER_TIMEZONE, FUZER_CACHE_DIR) from it, so code that still reads them works; a variable
 already set in the environment wins, with a warning.
 """
@@ -30,8 +30,24 @@ class ProjectError(LookupError):
     pass
 
 
-def current() -> str | None:
-    return os.environ.get("FUZER_PROJECT") or None
+ACTIVE = "project.active"  # the global setting naming the project a database holds (#376)
+
+
+def current(conn=None) -> str | None:
+    """The project this process serves: FUZER_PROJECT when it was started for one, else the project the database
+    holds (set by `fuzer init --bundle`), else None. `conn` None reads only the process's choice."""
+    return os.environ.get("FUZER_PROJECT") or (active(conn) if conn is not None else None)
+
+
+def active(conn) -> str | None:
+    """The project this database was initialised for, or None."""
+    try:
+        row = conn.execute("select value #>> '{}' as v from setting where scope = 'global' and key = %s",
+                           (ACTIVE,)).fetchone()
+    except Exception:  # a database from before #131: no setting table yet
+        conn.rollback()
+        return None
+    return ((row["v"] if isinstance(row, dict) else row[0]) or None) if row else None
 
 
 def repo_names() -> list[str]:
@@ -74,11 +90,12 @@ def _path(v: str) -> str:
 
 
 def activate(conn, name: str) -> dict:
-    """Make `name` the current project: FUZER_PROJECT, and the old variables from its config."""
+    """Make `name` this process's project: FUZER_PROJECT, and the old path/provider variables from its config.
+    The pack is not copied into FUZER_PACK: `pack.current_pack` reads it from the project at runtime (#376)."""
     cfg = config(conn, name)
     os.environ["FUZER_PROJECT"] = name
     for field, var in FIELDS.items():
-        if cfg.get(field) is None:
+        if field == "pack" or cfg.get(field) is None:
             continue
         value = _path(cfg[field]) if field in ("data", "mappings", "cache") else str(cfg[field])
         if os.environ.get(var) and os.environ[var] != value:
