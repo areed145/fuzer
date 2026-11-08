@@ -161,7 +161,9 @@ ASSISTANT_QUESTIONS = [
     {"domain": "charts", "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
      "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["wells-subsurface"], "charts": ["decline"]},
     {"domain": "charts", "question": "Which pipelines are losing wall thickness fastest, and why?",
-     "must_mention": ["flowline", "mm", "OK-J03-02"], "specialists": ["maintenance-integrity"],
+     # {wet_line} becomes J03's flowline ID when the key is written; the cause is the 2025 breakthrough.
+     "must_mention": ["flowline", "mm", ["{wet_line}", "OKJ-03", "Jacket 03", "J03"], ["OK-J03-02", "breakthrough"]],
+     "specialists": ["maintenance-integrity"],
      "charts": ["wall_ranking", "wall_thickness"]},
     {"domain": "troubleshooting", "question": "Why did 20-K-2200B keep tripping in March 2024, and what should we "
      "check if it happens again?", "must_mention": ["20-K-2200B", "bearing", "vibration"],
@@ -176,7 +178,8 @@ ASSISTANT_QUESTIONS = [
     {"domain": "production engineering", "question": "Which wells lost the most oil rate in 2025, and why?",
      "must_mention": ["OK-J03-02", "water"], "specialists": ["wells-subsurface"]},
     {"domain": "reliability", "question": "Who are our bad actors over the last two years, and what are their "
-     "repeat failure modes?", "must_mention": ["20-K-2200B", "MTBF"], "specialists": ["maintenance-integrity"]},
+     "repeat failure modes?", "must_mention": ["20-K-2200B", ["MTBF", "mean time between failures", "between failures"]],
+     "specialists": ["maintenance-integrity"]},
     {"domain": "work orders", "question": "What in the work order backlog should we tackle first?",
      "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["work-management-supply-chain"]},
     {"domain": "turnarounds", "question": "What is planned for the next turnaround, and what is missing from "
@@ -871,8 +874,10 @@ def generate(out, seed: int = 11) -> dict:
     equipment += [{k: v for k, v in c.items() if k != "well"} for c in chokes]
 
     # ---- lab results and wall thickness --------------------------------------------------------------
-    # Story: after OK-J03-02's water breakthrough (June 2025) its chloride climbs, the PP HP separator's
-    # produced water carries more oil, and J03's flowline, now wetter, loses wall several times faster.
+    # Story: J03's flowline has always run wetter than the rest and loses wall several times faster. After
+    # OK-J03-02's water breakthrough (June 2025) its chloride climbs, the PP HP separator's produced water
+    # carries more oil, and the flowline's loss more than doubles: inspection books a follow-up survey in
+    # November that shows it.
     j0302 = next(w for w in wells if w["name"].endswith("J03-02"))
     breakthrough = date(2025, 6, 15)
     lab = measurements.lab_results(random.Random(seed + 12), [
@@ -888,9 +893,11 @@ def generate(out, seed: int = 11) -> dict:
          "step": {"chloride": (breakthrough, 1.9), "bsw": (breakthrough, 2.7)}},
     ], date(2024, 1, 2), date.fromisoformat(AS_OF) - timedelta(days=1))
     wetter = f'production flowline {j0302["area"]} to'
+    wet = {"rate_mm_y": 0.55, "faster": (breakthrough, 2.0), "follow_up": "2025-11-18"}
     walls = [{"line_id": f["properties"]["line_id"], "nominal_mm": measurements.nominal_wall_mm(f["properties"]["diameter_in"]),
-              "cmls": 4, **({"rate_mm_y": 0.55} if wetter in f["properties"]["name"] else {})}
+              "cmls": 4, **(wet if wetter in f["properties"]["name"] else {})}
              for f in lines if f["properties"]["status"] == "in service"]
+    wet_line = next(w["line_id"] for w in walls if "faster" in w)
     walls += [{"tag": f"{area}-V-{loop}", "nominal_mm": 22.0, "cmls": 3}
               for area, items in EQUIPMENT.items() for func, loop, _, _, _ in items if func == "V"]
     readings = measurements.thickness_readings(random.Random(seed + 13), walls, [2019, 2021, 2023, 2025])
@@ -940,7 +947,8 @@ def generate(out, seed: int = 11) -> dict:
     (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
-    (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
+    (out / "answer_keys" / "assistant.json").write_text(
+        json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.

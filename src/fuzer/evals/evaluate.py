@@ -307,6 +307,12 @@ def run(conn, pack: Pack, keys_dir) -> dict:
         out["curves"] = llm_curves.score(conn, cases)
     if (cases := load("schema.json")) is not None:
         out["schema"] = schema(conn, pack, cases, keys_dir.parent)
+    # Name what wasn't scored, so a key that stopped being written shows up instead of silently vanishing.
+    expected = ["search.json", "linking.json", "section_modes.json", "logs.json", "matches.json", "spatial.json",
+                "curves.json", "schema.json"]
+    if missing := [name for name in expected if not (keys_dir / name).exists()]:
+        out["not_scored"] = {"missing_keys": missing,
+                             "note": "these answer keys aren't in the folder, so their scores are left out"}
     return out
 
 
