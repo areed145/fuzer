@@ -266,7 +266,7 @@ def test_a_bundle_missing_its_own_exports_folder_fails(tmp_path):
 
 # ---- several projects in one database (multi-project phase 2) ---------------------------------------
 
-def test_two_projects_share_one_database_without_seeing_each_other(serving):
+def test_two_projects_share_one_database_without_seeing_each_other(serving, monkeypatch):
     """Okan is the database's first project (public); Kestrel is added beside it in its own schema, ingested and
     rebuilt there. Each project's code sees only its own register, pack and settings; accounts stay shared."""
     from fuzer.api import deps
@@ -275,6 +275,8 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving):
 
     url = _fresh("two_projects")
     serving(url)
+    monkeypatch.setenv("FUZER_TIMESERIES", "synthetic")  # as on Render: process-wide, meant for the first project
+    monkeypatch.setenv("FUZER_DATA_DIR", "/srv/okan")
     try:
         with db.connect(url=url) as conn:
             db.init_schema(conn)
@@ -296,11 +298,17 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving):
                     ingest.ingest(k, Path(added["data"]))
                     assert pipeline.rebuild(k, pack)["entities"] == 34
                     assert k.execute("select display_name from access_account").fetchone()["display_name"] == "Ana"
+                # Kestrel's own settings, whatever the process's environment says (one deployment, two projects).
+                from fuzer.sources import timeseries
+
+                assert projects.field("data") == added["data"] and projects.field("timezone") == "America/Denver"
+                assert timeseries.provider().name == "none"  # no historian yet: empty series, not Okan's synthetic
                 # The API's rebuild queue runs Kestrel's rebuild on its own thread, in Kestrel's schema.
                 deps.rebuilder.request()
                 deps.rebuilder.wait()
                 assert deps.rebuilder.last["stats"]["entities"] == 34, deps.rebuilder.last
             assert deps.rebuilder.status()["last"] is None  # Okan's queue never ran
+            assert projects.field("data") == "/srv/okan" and projects.field("timeseries") == "synthetic"
 
             # Back in the first project: none of Kestrel's records or entities, and Okan's pack.
             assert conn.execute("select count(*) as n from source_record").fetchone()["n"] == 0

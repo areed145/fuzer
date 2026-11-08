@@ -1,13 +1,14 @@
 """Process values around a time, through a pluggable provider.
 
-Fuzer never copies time series: it asks a provider for values when needed. Choose with
-FUZER_TIMESERIES:
+Fuzer never copies time series: it asks a provider for values when needed. Each project chooses with its
+`timeseries` setting (the first project may use FUZER_TIMESERIES instead):
 
 - `synthetic` (default): deterministic, plausible signals. A fake plant with a process model
   (process_model.json; process_model.py) gets values that move together the way the plant does
   (vibration before bearing temperature, a compressor trip before the lift gas header falls); other
   points follow their units, with the asset's incidents showing up in them. Needs nothing running.
 - `pi`: interpolated values from PI Web API, by point name (pi_web_api.py).
+- `none`: no historian yet; every series is empty.
 - `adx`: values from Azure Data Explorer through the pointer the series catalog put on each
   timeseries entity (adx.py).
 
@@ -15,7 +16,6 @@ FUZER_TIMESERIES:
 """
 
 import hashlib
-import os
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -63,7 +63,9 @@ class SyntheticProvider:
 
     def __init__(self, data_dir=None):
         from . import process_model
-        self.model = process_model.load(data_dir or os.environ.get("FUZER_DATA_DIR"))
+        from ..core import projects
+
+        self.model = process_model.load(data_dir or projects.field("data"))
 
     def series(self, s, start, end, step_minutes):
         return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
@@ -99,17 +101,32 @@ def _unit_noise(seed: int, minutes: np.ndarray) -> np.ndarray:
     return (z >> np.uint64(11)).astype(float) / float(1 << 53)
 
 
+class NoProvider:
+    """A project with no historian yet (`timeseries: none`): every series is empty, so pages and tools say there
+    are no values instead of failing."""
+
+    name = "none"
+
+    def series(self, s, start, end, step_minutes):
+        return []
+
+
 def provider() -> Provider:
-    name = os.environ.get("FUZER_TIMESERIES", "synthetic")
+    """The time-series provider of the project this code runs for (its `timeseries`, else FUZER_TIMESERIES)."""
+    from ..core import projects
+
+    name = projects.field("timeseries") or "synthetic"
     if name == "synthetic":
         return SyntheticProvider()
+    if name == "none":
+        return NoProvider()
     if name == "pi":
         from . import pi_web_api
         return pi_web_api.Provider()
     if name == "adx":
         from . import adx
         return adx.Provider()
-    raise ValueError(f"unknown time-series provider {name!r} (FUZER_TIMESERIES: synthetic, pi or adx)")
+    raise ValueError(f"unknown time-series provider {name!r} (timeseries: synthetic, pi, adx or none)")
 
 
 STEPS = [5, 10, 15, 30, 60, 120, 240, 360, 720, 1440]

@@ -133,7 +133,9 @@ server checks the grant on every request and runs it in that project's schema.
 Dagster starts each schedule and sensor run once per project, tagged
 `fuzer/project`. On Render, each deploy makes Okan the first project and adds every
 other bundle in `fakeplant/bundles` (Kestrel) beside it, loaded and rebuilt, with
-its own agent worker.
+its own agent worker. A project added beside the first takes its data folder, time-series
+provider, timezone, mappings and cache from its own config, so the deployment's
+process-wide `FUZER_DATA_DIR` and `FUZER_TIMESERIES` apply only to the first project.
 
 ```sh
 fuzer init --bundle fakeplant/bundles/kestrel        # a fresh database: Kestrel Ridge (KRGP)
