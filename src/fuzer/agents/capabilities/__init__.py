@@ -1,4 +1,5 @@
-"""Capability registry: each tool is declared once, next to its code, with the domain agents that use it.
+"""The assistant's side of the capability registry (fuzer.core.capabilities, #133): which domain agents exist,
+how the MCP server binds the tools declared there, and the generated catalogue.
 
     @capability("production-surveillance", "wells-subsurface", kind="plot")
     def plot_choke(ref: str, ...) -> dict: ...
@@ -8,10 +9,11 @@ themselves through the workflow engine). The agents, personas and skills are in 
 """
 
 from collections.abc import Callable
-from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import replace
 from typing import Any
 
+from ...core import capabilities as registry
+from ...core.capabilities import ASKER, KINDS, REGISTRY, Capability
 from .catalog import (
     AGENT_BY_ID,
     AGENT_CATALOG,
@@ -23,43 +25,30 @@ from .catalog import (
     SkillDefinition,
 )
 
-__all__ = ["AGENT_BY_ID", "AGENT_CATALOG", "AGENTS", "PERSONA_DISPOSITION", "SKILL_CATALOG", "UNAVAILABLE",
-           "AgentDefinition", "SkillDefinition"]
-
-KINDS = ("query", "calc", "plot", "work")
-ASKER: ContextVar[str | None] = ContextVar("fuzer_asker", default=None)  # the signed-in person asking in Ask
-
-
-@dataclass(frozen=True)
-class Capability:
-    name: str
-    agents: tuple[str, ...]
-    kind: str
-    fn: Callable
-
-
-REGISTRY: dict[str, Capability] = {}
+__all__ = ["AGENT_BY_ID", "AGENT_CATALOG", "AGENTS", "ASKER", "KINDS", "PERSONA_DISPOSITION", "REGISTRY",
+           "SKILL_CATALOG", "UNAVAILABLE", "AgentDefinition", "Capability", "SkillDefinition"]
 
 
 def registrar(server, annotations: dict[str, Any]) -> Callable:
-    """The `capability` decorator for one MCP server; `annotations` gives the MCP tool annotations by kind."""
+    """Bind the registry to one MCP server and return the `capability` decorator: every tool, declared before or
+    after, has its agents checked against the catalog ("all" expanded) and is served with the MCP tool
+    annotations for its kind."""
 
-    def capability(*agents: str, kind: str = "query") -> Callable:
-        if kind not in KINDS:
-            raise ValueError(f"kind must be one of {KINDS}, not {kind!r}")
+    def check(agents) -> None:
         if bad := set(agents) - {*AGENTS, "all"}:
             raise ValueError(f"no agent {', '.join(sorted(bad))}")
-        owners = AGENTS if "all" in agents else tuple(a for a in AGENTS if a in agents)
 
-        def register(fn: Callable) -> Callable:
-            if fn.__name__ in REGISTRY:
-                raise ValueError(f"tool {fn.__name__} is declared twice")
-            REGISTRY[fn.__name__] = Capability(fn.__name__, owners, kind, fn)
-            server.tool(annotations=annotations[kind])(fn)
-            return fn
+    def serve(c: Capability) -> Capability:
+        check(c.agents)
+        owners = AGENTS if "all" in c.agents else tuple(a for a in AGENTS if a in c.agents)
+        server.tool(annotations=annotations[c.kind])(c.fn)
+        return replace(c, agents=owners)
 
-        return register
+    def capability(*agents: str, kind: str = "query") -> Callable:
+        check(agents)  # a misspelt agent fails where it is written, before the tool is recorded
+        return registry.capability(*agents, kind=kind)
 
+    registry.bind(serve)
     return capability
 
 
