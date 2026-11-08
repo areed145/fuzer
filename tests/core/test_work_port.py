@@ -42,3 +42,15 @@ def test_the_built_in_engine_is_the_default_and_its_errors_are_port_errors():
     assert work._engine() is engine
     assert issubclass(engine.WorkError, work.WorkError)
     assert issubclass(engine.NotFound, work.WorkError)
+
+
+def test_the_assistant_port_reaches_the_chosen_assistant():
+    from fuzer.core import assistant
+
+    try:
+        assistant.use(lambda q, **kw: {"answer": f"asked: {q}", "usage": {}})
+        assert assistant.ask("why did 20-K-2100C trip?")["answer"] == "asked: why did 20-K-2100C trip?"
+        assistant.use(None)
+        assert assistant.DEFAULT == "fuzer.agents:ask_sync"
+    finally:
+        assistant.use(None)

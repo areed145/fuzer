@@ -28,7 +28,6 @@ def package(tmp_path):
             (directory / "__init__.py").write_text("")
     for name in ("components", "reference", "resources"):
         (pkg / f"{name}.py").write_text("")
-    (pkg / "ops" / "sre_handoff.py").write_text("from fuzer import agents\n")
     (pkg / "workflow" / "engine.py").write_text("")
     (pkg / "ops" / "jobs.py").write_text("from fuzer.workflow import engine\n")
     (tmp_path / "pyproject.toml").write_text(CONFIG.read_text())
@@ -87,7 +86,7 @@ def test_upward_and_independent_sibling_imports_fail(package, importer, source, 
     assert f"is not allowed to import {imported}" in result.stdout
 
 
-def test_shared_domain_operations_and_existing_exception_are_allowed(package):
+def test_shared_domain_operations_and_the_documented_exception_are_allowed(package):
     imports = {
         "api/routes.py": "from fuzer.sources import quality\n",
         "cli/commands.py": "from fuzer.sources import quality\n",
@@ -104,16 +103,28 @@ def test_shared_domain_operations_and_existing_exception_are_allowed(package):
     result = lint(package)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "Layers (#135)" in result.stdout and result.stdout.count("(1 ignored import)") == 2
+    assert "Layers (#135)" in result.stdout and result.stdout.count("(1 ignored import)") == 1
 
 
 def test_stale_exception_fails(package):
-    (package / "ops" / "sre_handoff.py").write_text("")
+    (package / "ops" / "jobs.py").write_text("")
 
     result = lint(package)
 
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "fuzer.ops.sre_handoff -> fuzer.agents" in result.stdout
+    assert "fuzer.ops.jobs -> fuzer.workflow.engine" in result.stdout
+
+
+def test_operations_ask_the_assistant_through_its_port(package):
+    (package / "core" / "assistant.py").write_text("")
+    (package / "ops" / "sre_handoff.py").write_text("from fuzer.core import assistant\n")
+    assert lint(package).returncode == 0
+
+    (package / "ops" / "sre_handoff.py").write_text("from fuzer import agents\n")
+    result = lint(package)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "is not allowed to import fuzer.agents" in result.stdout
 
 
 @pytest.mark.parametrize("importer", ["sources/alerts.py", "analysis/limits.py", "ops/sre_handoff.py", "graph/x.py"])
