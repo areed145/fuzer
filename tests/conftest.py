@@ -137,6 +137,45 @@ def okan_db(request, _templates):
     yield from _plant_db(request, _templates, "okan")
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    if report.when == "call":
+        item._fuzer_call_failed = report.failed  # read by the shared-connection check below
+    return report
+
+
+@pytest.fixture(autouse=True)
+def _shared_connection_left_clean(request):
+    """A module's tests share one plant connection, so a test must not leave a transaction on it. Uncommitted
+    writes hold row locks that the API and MCP tools (their own connections) then wait on until the statement
+    timeout, failing whichever test happens to run next in the random order. A test that wrote without
+    committing fails here; one that only read is rolled back, releasing the locks a refresh or schema change
+    would need. A test that already failed keeps its own failure: a half-finished transaction is expected."""
+    yield
+    shared = {}  # the plant's connection, and a module's own `conn` fixture (often the same one)
+    if "okan_db" in request.fixturenames:
+        c = request.getfixturevalue("okan_db").conn
+        shared[id(c)] = ("okan_db", c)
+    if "conn" in request.fixturenames and isinstance(c := request.getfixturevalue("conn"), psycopg.Connection):
+        shared.setdefault(id(c), ("conn", c))
+    leaked = []
+    for name, conn in shared.values():
+        if conn.closed:
+            continue
+        status = conn.info.transaction_status
+        if status == psycopg.pq.TransactionStatus.INERROR:
+            conn.rollback()
+        elif status == psycopg.pq.TransactionStatus.INTRANS:
+            row = conn.execute("select txid_current_if_assigned() is not null as wrote").fetchone()
+            conn.rollback()
+            if (row["wrote"] if isinstance(row, dict) else row[0]):
+                leaked.append(name)
+    if leaked and not getattr(request.node, "_fuzer_call_failed", True):
+        pytest.fail(f"left uncommitted writes on the shared {' and '.join(leaked)} connection; commit (or roll "
+                    "back) before the test ends, or later tests wait on its locks", pytrace=False)
+
+
 # ---- tiers -----------------------------------------------------------------------------------------
 
 E2E = {"test_replay", "test_ops_eval", "test_eval", "test_up"}  # replays and evals: CI and nightly
