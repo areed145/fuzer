@@ -3,12 +3,12 @@
 # aliases, policy) and a small hand-written set of source exports that the built-in mappings load.
 #
 #   fuzer init --bundle fakeplant/bundles/kestrel     # in a fresh database: stores the project and its pack
-#   fuzer ingest && fuzer rebuild                     # FUZER_DATA_DIR=fakeplant/bundles/kestrel/data
+#   fuzer ingest && fuzer rebuild                     # FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports
 bundle: 1
 name: kestrel
 description: "Kestrel Ridge onshore gas plant (fictional): inlet separation, compression and glycol dehydration."
 pack: pack.yaml
 project:
-  data: data
+  data: exports
   timeseries: none
   timezone: America/Denver

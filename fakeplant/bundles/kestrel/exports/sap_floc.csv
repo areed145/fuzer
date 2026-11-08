@@ -1,0 +1,20 @@
+floc,parent,description,abc_indicator
+KRGP,,Kestrel Ridge gas plant,
+KRGP-A1,KRGP,Train A1 inlet separation,
+KRGP-B1,KRGP,Train B1 compression,
+KRGP-C1,KRGP,Train C1 glycol dehydration,
+KRGP-A1-V1001,KRGP-A1,Inlet Separator,A
+KRGP-A1-PT1001,KRGP-A1-V1001,Inlet Separator Pressure,C
+KRGP-A1-LT1001,KRGP-A1-V1001,Inlet Separator Liquid Level,C
+KRGP-A1-FT1002,KRGP-A1,Inlet Gas Flow,B
+KRGP-B1-K2001,KRGP-B1,Sales Gas Compressor,A
+KRGP-B1-PT2001,KRGP-B1-K2001,Compressor Discharge Pressure,B
+KRGP-B1-TT2002,KRGP-B1-K2001,Compressor Discharge Temperature,B
+KRGP-B1-VT2003,KRGP-B1-K2001,Compressor Vibration,B
+KRGP-B1-E2010,KRGP-B1,Compressor Aftercooler,B
+KRGP-C1-V3001,KRGP-C1,Glycol Contactor,A
+KRGP-C1-P3002A,KRGP-C1,Glycol Circulation Pump A,B
+KRGP-C1-P3002B,KRGP-C1,Glycol Circulation Pump B,B
+KRGP-C1-FT3005,KRGP-C1,Dry Gas Flow,B
+KRGP-WELL-KR12-03H,KRGP-A1,Well KR 12-03H,
+KRGP-WELL-KR12-04H,KRGP-A1,Well KR 12-04H,

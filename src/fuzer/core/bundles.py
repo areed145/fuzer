@@ -2,14 +2,14 @@
 
     <bundle>/bundle.yaml      the manifest (below)
     <bundle>/pack.yaml        the facility's asset pack: tag and well grammar, aliases, matching, policy
-    <bundle>/data/            its source exports (optional: a deployment can point the project elsewhere)
+    <bundle>/exports/         its source exports (optional: a deployment can point the project elsewhere)
 
     bundle: 1                 # manifest version
     name: kestrel             # the project this database will hold
     description: ...
     pack: pack.yaml           # relative to the bundle
     project:                  # project config (see core.projects): data, timeseries, timezone, ...
-      data: data              # paths are relative to the bundle
+      data: exports           # paths are relative to the bundle
       timeseries: none
 
 `fuzer init --bundle <folder>` validates the bundle, stores the project with its pack in the `project` table
@@ -74,7 +74,9 @@ def read(path: Path) -> dict:
             raise BundleError(f"{manifest}: project.{k} is set by the bundle itself")
     for k in PATH_FIELDS:
         if project.get(k) is not None and not Path(project[k]).is_absolute():
-            project[k] = str(root / project[k])
+            project[k] = str((root / project[k]).resolve())
+            if k == "data" and not Path(project[k]).is_dir() and str(project[k]).startswith(str(root) + "/"):
+                raise BundleError(f"{manifest}: its exports folder {m['project'][k]} is missing")
     digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack}, sort_keys=True, default=str).encode())
     cfg = {**project, "pack": pack.name, "pack_config": raw_pack,
            "bundle": {"version": m["bundle"], "name": name, "digest": digest.hexdigest()[:16],

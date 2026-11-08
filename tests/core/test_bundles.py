@@ -71,7 +71,7 @@ def _bundle(tmp_path, manifest: dict, pack: dict | None = None) -> Path:
 def test_bundle_paths_are_relative_to_the_bundle_and_the_pack_is_carried():
     b = bundles.read(KESTREL)
     assert b["name"] == "kestrel"
-    assert b["config"]["data"] == str(KESTREL / "data")
+    assert b["config"]["data"] == str(KESTREL / "exports")
     assert b["config"]["pack_config"]["facility"] == "KRGP"
     assert b["config"]["bundle"]["digest"] == bundles.read(KESTREL / "bundle.yaml")["config"]["bundle"]["digest"]
 
@@ -223,3 +223,9 @@ def test_init_refuses_a_database_with_data_loaded_without_a_project(serving):
             assert projects.active(conn) is None
     finally:
         _drop("unowned_bundle")
+
+
+def test_a_bundle_missing_its_own_exports_folder_fails(tmp_path):
+    pack = yaml.safe_load((KESTREL / "pack.yaml").read_text())
+    with pytest.raises(bundles.BundleError, match="exports folder exports is missing"):
+        bundles.read(_bundle(tmp_path, {"bundle": 1, "name": "x", "project": {"data": "exports"}}, pack))

@@ -119,7 +119,7 @@ none falls back to `FUZER_PACK` or Okan while the move to bundles finishes.
 
 ```sh
 fuzer init --bundle fakeplant/bundles/kestrel        # a fresh database: Kestrel Ridge (KRGP)
-FUZER_DATA_DIR=fakeplant/bundles/kestrel/data fuzer ingest && fuzer rebuild
+FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports fuzer ingest && fuzer rebuild
 ```
 
 Kestrel Ridge's pack shows the grammar is the pack's: train areas `A1`/`B1`/`C1`
