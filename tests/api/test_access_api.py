@@ -437,3 +437,33 @@ def test_project_grants_over_http_are_owner_only(runtime, second_project):
     admin = client.get("/auth/access").json()
     row = next(a for a in admin["accounts"] if a["id"] == person.id)
     assert row["projects"][second_project] == ["reader"]
+
+
+def test_requests_run_for_the_project_the_ui_picked(runtime, second_project):
+    """The X-Fuzer-Project header scopes a request to that project's register, after the server checks the
+    person may open it; an unknown project is 404 and an ungranted one 403 (multi-project phase 4)."""
+    client = runtime
+    person, _ = signed_in(client, roles=("operator",))
+    with db.connect() as conn:
+        id = conn.execute("select fuzer_id from entity_label limit 1").fetchone()["fuzer_id"]
+    names = {"id": [id]}
+    assert list(client.get("/entities/names", params=names).json()) == [id]  # no header: the first project
+
+    there = {"X-Fuzer-Project": second_project}
+    r = client.get("/entities/names", params=names, headers=there)
+    assert r.status_code == 403 and "access to this project" in r.json()["detail"]
+    assert client.get("/entities/names", params=names, headers={"X-Fuzer-Project": "nowhere"}).status_code == 404
+    assert client.get("/auth/me", headers=there).json()["user"]["permissions"] == []
+
+    with db.connect() as conn:
+        conn.execute("insert into access_project_grant (account_id, project, role) values (%s, %s, 'reader')",
+                     (person.id, second_project))
+        conn.commit()
+    r = client.get("/entities/names", params=names, headers=there)
+    assert r.status_code == 200 and r.json() == {}  # ridge's register is its own, and empty
+    me = client.get("/auth/me", headers=there).json()
+    assert me["project"] == second_project and me["user"]["permissions"] == ["read"]
+    assert client.post("/work/tick", headers=there).status_code == 403  # a reader there, an operator here
+    assert list(client.get("/entities/names", params=names).json()) == [id]  # the first project is unchanged
+    # A link the browser opens itself (a document) names the project in the query; only reads accept it.
+    assert client.get("/entities/names", params={**names, "fuzer_project": second_project}).json() == {}

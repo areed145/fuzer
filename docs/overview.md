@@ -124,6 +124,16 @@ settings live in the shared `fuzer` schema; the first project's register is in
 `fuzer --project <name>`): its connections search that project's schema, then
 `fuzer`, so no project sees another's register.
 
+In the application, the sidebar's project picker lists the projects a person may
+open: every project for an owner, otherwise those they hold a role in (an owner
+grants roles per project). The browser sends the pick as the `X-Fuzer-Project`
+header (links it opens itself, such as a document, carry `fuzer_project=`); the
+server checks the grant on every request and runs it in that project's schema.
+Dagster starts each schedule and sensor run once per project, tagged
+`fuzer/project`. On Render, each deploy makes Okan the first project and adds every
+other bundle in `fakeplant/bundles` (Kestrel) beside it, loaded and rebuilt, with
+its own agent worker.
+
 ```sh
 fuzer init --bundle fakeplant/bundles/kestrel        # a fresh database: Kestrel Ridge (KRGP)
 FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports fuzer ingest && fuzer rebuild

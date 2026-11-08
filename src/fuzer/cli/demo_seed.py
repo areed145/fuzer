@@ -4,15 +4,16 @@ new built-in mappings and changed exports to one that is already built."""
 import os
 from pathlib import Path
 
-from ..core import db
-from ..core.pack import load_pack
+from ..core import bundles, db, projects
+from ..core.pack import current_pack, load_pack
 from ..ops import pipeline
 from ..sources import catalog, ingest
 
 LOCK = 0x465A444D  # session lock: held across the ingest and rebuild commits
+BUNDLES = Path(__file__).resolve().parents[3] / "fakeplant" / "bundles"
 
 
-def refresh(conn, folder: Path) -> None:
+def refresh(conn, folder: Path, pack=None) -> None:
     """A deploy brings new exports and mappings in the image; an existing register needs them too.
 
     Failing here must not take the application down, so it reports and carries on with what's
@@ -27,7 +28,7 @@ def refresh(conn, folder: Path) -> None:
             if stats[outcome]:
                 print(f"Data refresh {outcome}: {', '.join(stats[outcome])}", flush=True)
         if seeded or changed:
-            built = pipeline.rebuild(conn, load_pack("okan"))
+            built = pipeline.rebuild(conn, pack or load_pack("okan"))
             print(f"Data refreshed: {changed} records changed, {built['entities']} entities.", flush=True)
         else:
             print("Data unchanged.", flush=True)
@@ -86,6 +87,33 @@ def seed(conn, folder: Path) -> None:
         conn.rollback()
         conn.execute("select pg_advisory_unlock(%s)", (LOCK,))
         conn.commit()
+
+
+def register_projects(conn, folder: Path = BUNDLES, by: str = "deploy") -> list[str]:
+    """Make Okan (already seeded) the database's first project, then add every other bundle in fakeplant/bundles
+    beside it, each in its own schema, and load its exports there. Returns the projects added. A bundle that
+    fails is reported and skipped: the application still starts with the projects that are ready."""
+    if not (folder / "okan" / "bundle.yaml").is_file():
+        print(f"No seed bundles in {folder}; serving Okan only.", flush=True)
+        return []
+    try:
+        print(f"Project okan: {bundles.init(conn, folder / 'okan', by=by, upgrade=True)['status']}", flush=True)
+    except bundles.BundleError as e:
+        conn.rollback()
+        print(f"Okan isn't registered as a project, so no other project is added: {e}", flush=True)
+        return []
+    added = []
+    for path in sorted(p for p in folder.iterdir() if p.name != "okan" and (p / "bundle.yaml").is_file()):
+        try:
+            out = bundles.init(conn, path, by=by, upgrade=True)
+            print(f"Project {out['project']}: {out['status']} ({out.get('schema')})", flush=True)
+            with projects.use(conn, out["project"]), db.connect() as c:
+                refresh(c, Path(out["data"]), current_pack(c))
+            added.append(out["project"])
+        except Exception as e:  # noqa: BLE001 - one bundle doesn't take the deployment down
+            conn.rollback()
+            print(f"Project {path.name} isn't registered: {e}", flush=True)
+    return added
 
 
 def main() -> None:

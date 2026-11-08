@@ -166,7 +166,7 @@ def projects_for(conn, person: Principal) -> list[str]:
 
     if not person.enabled:
         return []
-    names = projects.names(conn)
+    names = projects.stored(conn)
     if person.owner:
         return names
     granted = project_roles(conn, person.id)

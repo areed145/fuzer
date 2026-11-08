@@ -93,6 +93,11 @@ def _db_rows(conn) -> dict[str, dict]:
         return {}
 
 
+def stored(conn) -> list[str]:
+    """The projects this database holds (initialised from a bundle), not repository files."""
+    return sorted(_db_rows(conn))
+
+
 def names(conn=None) -> list[str]:
     return sorted(set(_db_rows(conn)) | set(repo_names()))
 

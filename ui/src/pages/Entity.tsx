@@ -1,3 +1,4 @@
+import { projectUrl } from "../authState";
 import "../styles/entity.css";
 import { Bar, Button, ButtonLink, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
 import { Suspense, lazy, useState, type ReactNode } from "react";
@@ -136,7 +137,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
                     {fmt(e.golden.status?.value)}
                   </span>
                 </h2>
-                <ButtonLink href={`/documents/${encodeURIComponent(e.fuzer_id)}/file`} target="_blank"
+                <ButtonLink href={projectUrl(`/documents/${encodeURIComponent(e.fuzer_id)}/file`)} target="_blank"
                    rel="noreferrer">Open document</ButtonLink>
               </div>
               {e.golden.status?.value === "superseded" && (
@@ -145,7 +146,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
               <iframe
                 className="doc-file"
                 title={fmt(e.golden.title?.value)}
-                src={`/documents/${encodeURIComponent(e.fuzer_id)}/file`}
+                src={projectUrl(`/documents/${encodeURIComponent(e.fuzer_id)}/file`)}
               />
             </UICard>
           )}

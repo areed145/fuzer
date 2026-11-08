@@ -26,7 +26,7 @@ from . import (
     workflow,
 )
 from .deps import UI_DIST, get_conn, rebuilder  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
-from .security import RequestBounds, query_timeout
+from .security import ProjectScope, RequestBounds, query_timeout
 
 
 @asynccontextmanager
@@ -47,6 +47,7 @@ async def lifespan(app):
 
 app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(ProjectScope)
 app.add_middleware(RequestBounds)
 app.include_router(auth.router)
 

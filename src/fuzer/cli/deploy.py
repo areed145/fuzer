@@ -7,12 +7,14 @@ import sys
 import threading
 from pathlib import Path
 
-from ..core import db, llm
+from ..core import db, llm, projects
 from ..workflow import engine
-from .demo_seed import seed
+from .demo_seed import register_projects, seed
 
 
-def commands() -> list[tuple[str, list[str]]]:
+def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[str]]]:
+    """The processes this instance runs. Dagster serves every project (a run per project); each project added
+    beside Okan gets its own agent worker, which runs that project's workflow agent steps."""
     port = int(os.environ.get("PORT", "10000"))
     if not 1 <= port <= 65535:
         raise ValueError("PORT must be between 1 and 65535")
@@ -23,6 +25,7 @@ def commands() -> list[tuple[str, list[str]]]:
     ]
     if llm.configured("agents"):
         tasks.append(("Agent worker", ["fuzer", "--pack", os.environ["FUZER_PACK"], "work", "worker"]))
+        tasks += [(f"Agent worker ({name})", ["fuzer", "--project", name, "work", "worker"]) for name in added]
     else:
         print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
               "Configure its key and redeploy to start the worker.", flush=True)
@@ -71,10 +74,14 @@ def main() -> None:
     with db.connect() as conn:
         seed(conn, Path(os.environ["FUZER_DATA_DIR"]))
         engine.load_defaults(conn)
+        added = register_projects(conn)
+    for name in added:
+        with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
+            engine.load_defaults(scoped)
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
-    supervise(commands(), stop)
+    supervise(commands(added), stop)
 
 
 if __name__ == "__main__":
