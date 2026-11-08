@@ -65,7 +65,10 @@ assignments, effective roles, disabled accounts and dynamic owner access.
 After an ambiguous assignment failure, reload recorded assignments before a
 deliberate retry. Reloading is a read, not a replay of the failed mutation.
 
-Sign-in distinguishes a not-enabled account (awaiting approval or deliberately
+Each sign-in state has its own heading (checking, check failed, session ended,
+not configured, sign-in failed or unreachable, first-owner setup, awaiting approval,
+no read access) and names who acts next. Check buttons show that a check is in progress,
+and a changed state moves focus to its heading. Sign-in distinguishes a not-enabled account (awaiting approval or deliberately
 disabled) from an enabled account without read permission. Both explain the
 owner's next action without requesting protected data before access is granted.
 Neither signing in nor workflow assignment grants application authorization.
