@@ -6,8 +6,24 @@ create table if not exists schema_version (
     applied_at timestamptz not null default now()
 );
 
+-- Shared by every project in the instance: accounts and access, the project registry and settings live in
+-- the `fuzer` schema; a project's register lives in its own schema (`public` while a database holds one
+-- project). Connections search the project schema first, then `fuzer`, so queries name tables unqualified.
+-- A database from before the split has these tables in public; they move here in place (no data copy).
+create schema if not exists fuzer;
+do $$
+declare t text;
+begin
+    foreach t in array array['access_account', 'access_role', 'access_membership', 'access_session', 'access_login',
+                             'access_event', 'setting', 'setting_history', 'project'] loop
+        if to_regclass('public.' || t) is not null and to_regclass('fuzer.' || t) is null then
+            execute format('alter table public.%I set schema fuzer', t);
+        end if;
+    end loop;
+end $$;
+
 -- Sign-in identities are independent of workflow routing roles.
-create table if not exists access_account (
+create table if not exists fuzer.access_account (
     id text primary key,
     tenant_id text not null,
     object_id text not null,
@@ -18,29 +34,29 @@ create table if not exists access_account (
     unique (tenant_id, object_id),
     check (not owner or enabled)
 );
-create table if not exists access_role (
+create table if not exists fuzer.access_role (
     name text primary key,
     description text not null,
     permissions text[] not null default '{}'
 );
-create table if not exists access_membership (
-    account_id text references access_account(id) on delete cascade,
-    role text references access_role(name),
+create table if not exists fuzer.access_membership (
+    account_id text references fuzer.access_account(id) on delete cascade,
+    role text references fuzer.access_role(name),
     primary key (account_id, role)
 );
-create table if not exists access_session (
+create table if not exists fuzer.access_session (
     token_hash text primary key,
-    account_id text not null references access_account(id) on delete cascade,
+    account_id text not null references fuzer.access_account(id) on delete cascade,
     csrf text not null,
     expires_at timestamptz not null
 );
-create index if not exists access_session_account on access_session(account_id);
-create table if not exists access_login (
+create index if not exists access_session_account on fuzer.access_session(account_id);
+create table if not exists fuzer.access_login (
     token_hash text primary key,
     flow jsonb not null,
     expires_at timestamptz not null
 );
-create table if not exists access_event (
+create table if not exists fuzer.access_event (
     id bigserial primary key,
     actor text not null,
     action text not null,
@@ -1111,7 +1127,7 @@ create index if not exists study_queue on study (status, id);
 
 -- Settings (#131): values people set, per project ('project:<name>') or for all ('global'); the registry
 -- in core/settings.py holds each setting's type, default and range. Every change is kept.
-create table if not exists setting (
+create table if not exists fuzer.setting (
     scope      text not null,
     key        text not null,
     value      jsonb not null,
@@ -1119,7 +1135,7 @@ create table if not exists setting (
     updated_at timestamptz not null default now(),
     primary key (scope, key)
 );
-create table if not exists setting_history (
+create table if not exists fuzer.setting_history (
     id     bigserial primary key,
     scope  text not null,
     key    text not null,
@@ -1129,11 +1145,11 @@ create table if not exists setting_history (
     reason text,
     at     timestamptz not null default now()
 );
-create index if not exists setting_history_key on setting_history (key, id);
+create index if not exists setting_history_key on fuzer.setting_history (key, id);
 
 -- Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone);
 -- projects/<name>.yaml in the repository is the fallback when there is no row.
-create table if not exists project (
+create table if not exists fuzer.project (
     name       text primary key,
     config     jsonb not null,
     updated_by text not null,

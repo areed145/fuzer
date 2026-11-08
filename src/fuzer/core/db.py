@@ -30,8 +30,15 @@ def database_url() -> str:
     return _server.get_uri()
 
 
+SHARED = "fuzer"  # accounts, access, the project registry and settings: shared by every project in the instance
+PROJECT_SCHEMA = "public"  # the register's tables, while a database holds one project
+SEARCH_PATH = f"{PROJECT_SCHEMA},{SHARED}"
+
+
 def connect(autocommit: bool = False, url: str | None = None) -> psycopg.Connection:
-    return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit)
+    """A connection that finds the project's tables first, then the shared ones, by unqualified name."""
+    return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit,
+                           options=f"-c search_path={SEARCH_PATH}")
 
 
 SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process applies schema.sql at a time
@@ -45,17 +52,19 @@ def schema_hash() -> str:
 
 
 def _schema_tables() -> list[str]:
-    return re.findall(r"(?im)^create table if not exists (\w+)", SCHEMA.read_text())
+    """schema.sql's tables, schema-qualified (`public.entity`, `fuzer.access_account`)."""
+    return [t if "." in t else f"{PROJECT_SCHEMA}.{t}"
+            for t in re.findall(r"(?im)^create table if not exists ([\w.]+)", SCHEMA.read_text())]
 
 
 def _schema_current(conn, current: str) -> bool:
     """schema.sql is applied unchanged and none of its tables has gone missing since (one read, no locks)."""
     if _applied_hash(conn) != current:
         return False
-    tables = _schema_tables()
-    n = conn.execute("select count(*) as n from pg_tables where schemaname = current_schema() and tablename = any(%s)",
+    tables = sorted(set(_schema_tables()))
+    n = conn.execute("select count(*) as n from pg_tables where schemaname || '.' || tablename = any(%s)",
                      (tables,)).fetchone()["n"]
-    return n == len(set(tables))
+    return n == len(tables)
 
 
 def _applied_hash(conn) -> str | None:
@@ -94,7 +103,7 @@ def init_schema(conn) -> None:
 
 
 def reset(conn) -> None:
-    conn.execute("drop schema public cascade; create schema public;")
+    conn.execute(f"drop schema if exists {SHARED} cascade; drop schema public cascade; create schema public;")
     init_schema(conn)
 
 

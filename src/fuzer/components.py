@@ -54,6 +54,6 @@ def _source(pkg: str) -> str:
 
 
 def _tables() -> list[str]:
-    return re.findall(r"create table if not exists (\w+)", (PKG / "schema.sql").read_text())
+    return re.findall(r"create table if not exists (?:\w+\.)?(\w+)", (PKG / "schema.sql").read_text())
 
 
