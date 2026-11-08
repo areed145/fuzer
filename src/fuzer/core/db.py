@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import psycopg
 from psycopg.rows import dict_row
 
-from ..resources import SCHEMA
+from ..resources import SCHEMAS, schema_sql
 
 _server = None
 
@@ -85,7 +85,7 @@ def connect(autocommit: bool = False, url: str | None = None, schema: str | None
 
 
 def create_project_schema(conn, schema: str) -> None:
-    """Make an empty schema for a project and bring it up to schema.sql (configuration only: no data)."""
+    """Make an empty schema for a project and bring it up to the schema (configuration only: no data)."""
     path = search_path(schema)  # validates the name
     was = conn.execute("show search_path").fetchone()["search_path"]
     conn.execute(f'create schema if not exists "{schema}"')
@@ -98,24 +98,24 @@ def create_project_schema(conn, schema: str) -> None:
         conn.commit()
 
 
-SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process applies schema.sql at a time
+SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process applies the schema at a time
 
 
 def schema_hash() -> str:
-    """schema.sql and the shipped ontology (#241), which is seeded with it."""
+    """Every module's schema.sql and the shipped ontology (#241), which is seeded with it."""
     from .ontology import BUILTIN
 
-    return hashlib.sha256(SCHEMA.read_bytes() + BUILTIN.read_bytes()).hexdigest()
+    return hashlib.sha256(b"".join(f.read_bytes() for f in SCHEMAS) + BUILTIN.read_bytes()).hexdigest()
 
 
 def _schema_tables(project_schema: str = PROJECT_SCHEMA) -> list[str]:
-    """schema.sql's tables, schema-qualified (`public.entity`, `fuzer.access_account`)."""
+    """The schema's tables, schema-qualified (`public.entity`, `fuzer.access_account`)."""
     return [t if "." in t else f"{project_schema}.{t}"
-            for t in re.findall(r"(?im)^create table if not exists ([\w.]+)", SCHEMA.read_text())]
+            for t in re.findall(r"(?im)^create table if not exists ([\w.]+)", schema_sql())]
 
 
 def _schema_current(conn, current: str) -> bool:
-    """schema.sql is applied unchanged and none of its tables has gone missing since (one read, no locks)."""
+    """The schema is applied unchanged and none of its tables has gone missing since (one read, no locks)."""
     if _applied_hash(conn) != current:
         return False
     tables = sorted(set(_schema_tables(conn.execute("select current_schema() as s").fetchone()["s"])))
@@ -132,9 +132,9 @@ def _applied_hash(conn) -> str | None:
 
 
 def init_schema(conn) -> None:
-    """Bring the database up to schema.sql (idempotent). Every process calls this when it connects.
+    """Bring the database up to every module's schema.sql (idempotent). Every process calls this when it connects.
 
-    schema.sql's migrations (ALTER TABLE ..., dropping old constraints) take exclusive locks on busy tables,
+    The schema's migrations (ALTER TABLE ..., dropping old constraints) take exclusive locks on busy tables,
     so it runs only when it has changed since it was last applied: the usual call is one read of
     schema_version. Concurrent callers on a new schema take turns on an advisory lock; without these, parallel
     Dagster steps connecting at once deadlocked against each other's queries."""
@@ -147,7 +147,7 @@ def init_schema(conn) -> None:
     conn.commit()
     conn.execute("select pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
     if not _schema_current(conn, current):  # another process may have applied it while we waited
-        conn.execute(SCHEMA.read_text())
+        conn.execute(schema_sql())
         from . import ontology
 
         ontology.seed(conn, commit=False)  # in this transaction, under the lock
