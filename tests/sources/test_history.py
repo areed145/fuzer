@@ -10,7 +10,7 @@ from fuzer.graph import queries
 from fuzer.ops import pipeline
 from fuzer.sources import ingest
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 pytestmark = pytest.mark.sequence  # (#137) a reload that changes nothing, then one that does

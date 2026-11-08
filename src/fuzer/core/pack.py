@@ -32,7 +32,8 @@ class Pack:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
 
 
-DEFAULT = "okan"  # transitional (#376): a database that names no project, with no FUZER_PACK, serves Okan
+NO_PROJECT = ("No project to serve: this database holds none and FUZER_PROJECT isn't set. Initialise it from a seed "
+              "bundle, e.g. `fuzer init --bundle fakeplant/bundles/okan`")
 CACHE_SECONDS = 5.0
 
 
@@ -59,10 +60,9 @@ def pack_from_config(raw: dict) -> Pack:
     )
 
 
-def load_pack(name: str | None = None) -> Pack:
-    """A packaged asset pack by name (src/fuzer/packs/<name>.yaml); FUZER_PACK, else Okan, when no name is given.
-    Code serving requests uses `current_pack`, which follows the database's project."""
-    name = name or os.environ.get("FUZER_PACK") or DEFAULT
+def load_pack(name: str) -> Pack:
+    """A packaged asset pack by name (src/fuzer/packs/<name>.yaml). Code serving requests uses `current_pack`,
+    which follows the project it runs for."""
     path = PACKS_DIR / f"{name}.yaml"
     if not path.is_file():
         raise LookupError(f"no packaged asset pack {name!r}; a seed bundle's pack is stored in its project")
@@ -93,21 +93,23 @@ def _from_config(cfg: dict) -> Pack:
 
 def resolve(conn) -> Pack:
     """The pack of the project this code serves (#376), read now: the request's or job's project, else FUZER_PROJECT,
-    else the database's first project (`fuzer init --bundle`), else the legacy FUZER_PACK or Okan."""
+    else the database's first project (`fuzer init --bundle`). No project is an error, not a default."""
     from . import projects
 
     name = projects.current(conn)
-    return _from_config(projects.config(conn, name)) if name else load_pack()
+    if not name:
+        raise projects.ProjectError(NO_PROJECT)
+    return _from_config(projects.config(conn, name))
 
 
 def current_pack(conn=None) -> Pack:
     """The pack this process serves, following its database at runtime rather than fixed at import. Cached per
     database for a few seconds; a changed project config gives a different pack on the next read. `conn` None
-    opens a short connection (and without a configured database uses the legacy selection)."""
+    opens a short connection (without a configured database, FUZER_PROJECT's repository config)."""
     from . import db
 
     url = os.environ.get("FUZER_DATABASE_URL") or (db._server.get_uri() if db._server is not None else None)
-    key = (url, db.scope(), os.environ.get("FUZER_PROJECT"), os.environ.get("FUZER_PACK"))
+    key = (url, db.scope(), os.environ.get("FUZER_PROJECT"))
     hit = _current.get(key)
     if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
         return hit[1]
@@ -117,7 +119,9 @@ def current_pack(conn=None) -> Pack:
         from . import projects
 
         name = projects.current(None)
-        pack = _from_config(projects.config(None, name)) if name else load_pack()
+        if not name:
+            raise projects.ProjectError(NO_PROJECT)
+        pack = _from_config(projects.config(None, name))
     else:
         with db.connect() as c:
             pack = resolve(c)

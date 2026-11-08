@@ -18,7 +18,6 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
 Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data),
-FUZER_PACK (default: the pack of the project the run is for),
 FUZER_TIMEZONE (default UTC); the Claude model and effort are the
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
@@ -48,7 +47,7 @@ class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack / project to use."""
 
     data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
-    pack: str = os.environ.get("FUZER_PACK", "")  # empty: the pack of the project the run is for (#376)
+    pack: str = ""  # a packaged pack to use instead; empty: the pack of the project the run is for (#376)
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
     project: str = ""  # empty: the run's fuzer/project tag, else the database's first project
 

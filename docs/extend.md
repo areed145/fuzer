@@ -125,8 +125,8 @@ FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports uv run fuzer --project kestrel 
 uv run fuzer --project kestrel rebuild
 ```
 
-`init` stores the project and its pack in the database and names it in `project.active`, so the API, MCP
-server and jobs pick the right pack without environment variables. On a fresh database the bundle becomes
+`init` stores the project and its pack in the database, so the API, MCP server and jobs pick the right pack
+without environment variables (there is no default pack: a database with no project asks for `init`). On a fresh database the bundle becomes
 the first project (in `public`); on a database that already holds one, it is added in its own `proj_<name>`
 schema. Running `init` again with the same bundle is a no-op, and a changed bundle for the same project
 needs `--upgrade`.

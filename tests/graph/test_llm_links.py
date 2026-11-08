@@ -10,7 +10,7 @@ from fuzer.core.pack import load_pack
 from fuzer.graph import llm_links, queries
 from fuzer.ops import pipeline
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 class FakeClaude:

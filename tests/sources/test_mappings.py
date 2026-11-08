@@ -14,7 +14,7 @@ from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline
 from fuzer.sources import extract, ingest, mappings
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 INSTRUMENT_INDEX = """\
 # An instrument index from the engineering contractor: service and range per instrument tag.
@@ -134,7 +134,7 @@ def test_reference_shape_rows_are_code_lists_not_entities():
 
 
 def test_hooks_use_references_with_pack_defaults():
-    pack = load_pack()
+    pack = load_pack("okan")
     pack.reference_data = {
         "damage": {"D03": {"standard_code": "VIB", "name": "Loaded name"}},
         "downtime_reasons": {"WEATHER": {"name": "Loaded weather", "category": "planned"}},
@@ -156,12 +156,12 @@ def test_hooks_use_references_with_pack_defaults():
 
     fallback_downtime = Candidate("ec", "downtime", "2", "downtime", "2")
     extract.downtime(fallback_downtime, {"start": "2024-01-01T00:00", "end": "2024-01-01T01:00",
-                                         "reason_code": "WEATHER"}, load_pack())
+                                         "reason_code": "WEATHER"}, load_pack("okan"))
     assert fallback_downtime.fields["reason"] == "Weather"
     assert fallback_downtime.fields["reason_category"] == "external"
 
     fallback = Candidate("sap", "notification", "2", "notification", "2")
-    extract.iso_code(fallback, {"damage_code": "D03"}, load_pack(), column="damage_code", catalog="damage",
+    extract.iso_code(fallback, {"damage_code": "D03"}, load_pack("okan"), column="damage_code", catalog="damage",
                      field="failure_mode")
     assert fallback.fields["failure_mode"] == "FTS"
 

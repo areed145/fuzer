@@ -7,12 +7,11 @@ from fuzer.cli import deploy
 
 
 def test_commands_share_runtime_environment(monkeypatch):
-    monkeypatch.setenv("FUZER_PACK", "okan")
     monkeypatch.setenv("PORT", "12345")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
     commands = dict(deploy.commands())
     assert commands["API"][-1] == "12345"
-    assert commands["Agent worker"] == ["fuzer", "--pack", "okan", "work", "worker"]
+    assert commands["Agent worker"] == ["fuzer", "work", "worker"]
     assert commands["Dagster webserver"][-4:] == ["-h", "127.0.0.1", "-p", "3000"]
     assert commands["Dagster daemon"] == ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]
     added = dict(deploy.commands(["kestrel"]))  # each project added beside Okan runs its own agent steps

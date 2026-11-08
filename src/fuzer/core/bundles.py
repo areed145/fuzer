@@ -12,9 +12,9 @@
       data: exports           # paths are relative to the bundle
       timeseries: none
 
-`fuzer init --bundle <folder>` validates the bundle, stores the project with its pack in the `project` table
-and names it in the global setting `project.active`. From then on the API, MCP tools, jobs and CLI resolve the
-pack from the database (`pack.current_pack`), not from repository files or FUZER_PACK. Initialising is
+`fuzer init --bundle <folder>` validates the bundle and stores the project with its pack in the `project` table.
+From then on the API, MCP tools, jobs and CLI resolve the pack from the database (`pack.current_pack`), not from
+repository files. Initialising is
 configuration only: it doesn't ingest, rebuild, call a model or touch workflow assignments.
 
 The first project initialised in a database holds its register in `public`. Another project's bundle adds that
@@ -111,10 +111,9 @@ def init(conn, path: Path, *, by: str, upgrade: bool = False) -> dict:
         raise BundleError("this database already holds source data loaded without a project; initialise a fresh "
                           "database, or pass --upgrade to adopt this bundle for the data it holds")
     status = "upgraded" if stored is not None else "initialised"
-    projects.save(conn, name, cfg, by)
-    if active != name:
-        settings.set(conn, projects.ACTIVE, name, by=by, reason=f"fuzer init --bundle {name}")
+    projects.save(conn, name, cfg, by)  # a project without a schema of its own is the database's first
     clear_cache()
+    settings._first.clear()
     return {**out, "status": status}
 
 

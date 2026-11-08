@@ -24,7 +24,7 @@ def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[st
         ("Dagster daemon", ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]),
     ]
     if llm.configured("agents"):
-        tasks.append(("Agent worker", ["fuzer", "--pack", os.environ["FUZER_PACK"], "work", "worker"]))
+        tasks.append(("Agent worker", ["fuzer", "work", "worker"]))  # the database's first project
         tasks += [(f"Agent worker ({name})", ["fuzer", "--project", name, "work", "worker"]) for name in added]
     else:
         print("The agents provider is not configured: Ask and workflow agent steps are unavailable. "
@@ -65,8 +65,6 @@ def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None
 def main() -> None:
     if not os.environ.get("FUZER_DATABASE_URL"):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
-    if os.environ.get("FUZER_PACK") != "okan":
-        raise SystemExit("Render test runtime requires FUZER_PACK=okan")
     home = Path(os.environ.get("DAGSTER_HOME", "/var/lib/fuzer/dagster"))
     home.mkdir(parents=True, exist_ok=True)
     (home / "dagster.yaml").touch(exist_ok=True)

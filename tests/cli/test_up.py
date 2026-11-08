@@ -8,7 +8,7 @@ from fuzer.cli import up
 from fuzer.core import db
 from fuzer.core.pack import load_pack
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 def test_up_makes_data_loads_and_skips_unchanged(monkeypatch, capsys):
@@ -45,10 +45,10 @@ def test_up_without_data_or_fake_plant_says_what_to_do(monkeypatch):
 
 
 def test_demo_picks_pack_and_folder(monkeypatch):
-    for k in ("FUZER_PACK", "FUZER_DATA_DIR"):
+    for k in ("FUZER_PROJECT", "FUZER_DATA_DIR"):
         monkeypatch.delenv(k, raising=False)
     pack = up.use_demo("okan")
-    assert pack.facility == "OKAN" and os.environ["FUZER_PACK"] == "okan"
+    assert pack.facility == "OKAN" and os.environ["FUZER_PROJECT"] == "okan"
     assert os.environ["FUZER_DATA_DIR"].endswith("fakeplant/data/okan")
 
 
@@ -79,7 +79,7 @@ def test_fresh_keeps_claude_readings(monkeypatch):
 
 def test_nothing_configured_means_the_okan_demo(monkeypatch):
     monkeypatch.delenv("FUZER_DATA_DIR", raising=False)
-    monkeypatch.delenv("FUZER_PACK", raising=False)
+    monkeypatch.delenv("FUZER_PROJECT", raising=False)
     seen = []
 
     def use_demo(name):
@@ -161,7 +161,7 @@ def test_up_starts_the_agent_worker(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert up.start_worker(load_pack("okan")) is not None
-    assert started[0][-4:] == ["--pack", "okan", "work", "worker"]
+    assert started[0][-2:] == ["work", "worker"] and "--pack" not in started[0]  # it inherits FUZER_PROJECT
     assert (tmp_path / ".fuzer" / "worker.log").exists()
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with settings.Overrides({"agents.provider": "ollama"}):

@@ -26,7 +26,10 @@ def client(okan_data):
     mp.setenv("FUZER_DATA_DIR", str(data))
     with db.connect() as c:
         db.reset(c)
+        from fuzer.core import projects
         from fuzer.sources import catalog
+
+        projects.save(c, "okan", {"pack": "okan"}, "tests")
 
         catalog.seed(c)
         c.commit()

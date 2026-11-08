@@ -12,7 +12,7 @@ from fuzer.evals import evaluate
 from fuzer.ops import pipeline
 from fuzer.sources import connectors, ingest, suggest
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")

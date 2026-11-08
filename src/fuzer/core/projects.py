@@ -22,15 +22,12 @@ from psycopg.types.json import Jsonb
 from ..resources import ROOT
 
 REPO = ROOT / "projects"
-FIELDS = {"pack": "FUZER_PACK", "data": "FUZER_DATA_DIR", "mappings": "FUZER_MAPPINGS",
+FIELDS = {"data": "FUZER_DATA_DIR", "mappings": "FUZER_MAPPINGS",
           "timeseries": "FUZER_TIMESERIES", "timezone": "FUZER_TIMEZONE", "cache": "FUZER_CACHE_DIR"}
 
 
 class ProjectError(LookupError):
     pass
-
-
-ACTIVE = "project.active"  # the global setting naming the project a database holds (#376)
 
 
 def current(conn=None) -> str | None:
@@ -64,14 +61,12 @@ def use(conn, name: str):
 
 
 def active(conn) -> str | None:
-    """The project this database was initialised for, or None."""
-    try:
-        row = conn.execute("select value #>> '{}' as v from setting where scope = 'global' and key = %s",
-                           (ACTIVE,)).fetchone()
-    except Exception:  # a database from before #131: no setting table yet
-        conn.rollback()
-        return None
-    return ((row["v"] if isinstance(row, dict) else row[0]) or None) if row else None
+    """The database's first project: the stored project whose register is `public` (the first one a bundle
+    initialised), or None. Every other project is added beside it in a schema of its own."""
+    from . import db
+
+    first = [name for name, cfg in _db_rows(conn).items() if (cfg.get("schema") or db.PROJECT_SCHEMA) == db.PROJECT_SCHEMA]
+    return min(first) if first else None
 
 
 def repo_names() -> list[str]:
@@ -120,7 +115,7 @@ def _path(v: str) -> str:
 
 def activate(conn, name: str) -> dict:
     """Make `name` this process's project: FUZER_PROJECT, and the old path/provider variables from its config.
-    The pack is not copied into FUZER_PACK: `pack.current_pack` reads it from the project at runtime (#376)."""
+    `pack.current_pack` reads the pack from the project at runtime (#376)."""
     from . import db
 
     cfg = config(conn, name)

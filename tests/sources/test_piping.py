@@ -7,7 +7,7 @@ from fuzer.core.pack import load_pack
 from fuzer.graph import edges, queries
 from fuzer.sources import llm_pids
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
