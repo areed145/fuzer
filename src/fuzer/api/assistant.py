@@ -36,7 +36,7 @@ def value_rank(r: Ranking, conn=Depends(get_conn)):
 def value_calibration(as_of: str | None = None, conn=Depends(get_conn)):
     """How well the score's ranking agrees with engineers' orderings (Kendall's tau, top-3 overlap)."""
     from ..analysis import value
-    return value.calibrate(conn, deps.PACK, as_of)
+    return value.calibrate(conn, deps.pack(), as_of)
 
 
 class Image(BaseModel):
@@ -147,7 +147,7 @@ def assistant_remember(answer_id: str, r: Remember, conn=Depends(get_conn)):
         raise HTTPException(400, "empty statement")
     if not llm.configured("agents") and memory._client is memory._DEFAULT_CLIENT:
         raise HTTPException(503, "Configure the agents provider API key to let the assistant remember.")
-    out = memory.learn(conn, deps.PACK, answer_id, r.statement.strip(), r.by)
+    out = memory.learn(conn, deps.pack(), answer_id, r.statement.strip(), r.by)
     if out.get("error") == "unknown answer":
         raise HTTPException(404, "unknown answer")
     return out | {"items": [memory.get(conn, i) for i in out.get("facts", [])]}
@@ -160,7 +160,7 @@ def assistant_facts(ref: str | None = None, status: str | None = None, limit: in
     from ..graph import queries
     ids = None
     if ref:
-        if (fid := queries.resolve_ref(conn, deps.PACK, ref)) is None:
+        if (fid := queries.resolve_ref(conn, deps.pack(), ref)) is None:
             raise HTTPException(404, "unknown entity")
         ids = memory.units(conn, fid)
     return memory.facts(conn, ids, status, min(limit, 500))

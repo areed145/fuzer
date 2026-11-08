@@ -1,0 +1,14 @@
+# Kestrel Ridge gas plant: a second, fictional facility that proves Fuzer isn't tied to Okan (#376). It shares no
+# configuration with Okan: its own pack (tag grammar with lettered train areas and 4-digit loops, well names,
+# aliases, policy) and a small hand-written set of source exports that the built-in mappings load.
+#
+#   fuzer init --bundle fakeplant/bundles/kestrel     # in a fresh database: stores the project and its pack
+#   fuzer ingest && fuzer rebuild                     # FUZER_DATA_DIR=fakeplant/bundles/kestrel/data
+bundle: 1
+name: kestrel
+description: "Kestrel Ridge onshore gas plant (fictional): inlet separation, compression and glycol dehydration."
+pack: pack.yaml
+project:
+  data: data
+  timeseries: none
+  timezone: America/Denver

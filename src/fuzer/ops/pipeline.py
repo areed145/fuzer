@@ -1,9 +1,11 @@
 """Extract -> resolve -> golden -> graph. Safe to rerun at any time."""
 
 import threading
+from collections.abc import Callable
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
+from typing import Any
 
 from psycopg.types.json import Jsonb
 
@@ -166,8 +168,8 @@ class BackgroundRebuild:
     """Runs rebuilds on a worker thread. Requests made while one is running are folded into a
     single follow-up run, so a reviewer clicking through many answers triggers few rebuilds."""
 
-    def __init__(self, pack: Pack):
-        self.pack = pack
+    def __init__(self, pack: "Pack | Callable[[Any], Pack]"):
+        self.pack = pack  # a Pack, or a function of the connection that resolves one when each rebuild runs (#376)
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._pending = False
@@ -193,7 +195,8 @@ class BackgroundRebuild:
             started = datetime.now(timezone.utc)
             try:
                 with db.connect() as conn:
-                    self.last = {"started": started.isoformat(), "stats": rebuild(conn, self.pack)}
+                    pack = self.pack if isinstance(self.pack, Pack) else self.pack(conn)
+                    self.last = {"started": started.isoformat(), "stats": rebuild(conn, pack)}
             except Exception as e:  # keep the worker alive; report the failure in status
                 self.last = {"started": started.isoformat(), "error": f"{type(e).__name__}: {e}"}
             self.last["finished"] = datetime.now(timezone.utc).isoformat()

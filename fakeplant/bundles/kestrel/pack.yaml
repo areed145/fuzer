@@ -1,0 +1,62 @@
+# Asset pack for Kestrel Ridge gas plant (KRGP), a fictional onshore facility. Areas are trains named by a letter
+# and a digit: A1 inlet separation, B1 compression, C1 glycol dehydration. Tags carry 4-digit loops:
+# A1-PT-1001, written KRGP-A1-PT1001 (SAP), KRGP:A1.PT1001.PV (PI), "PT1001 (A1 INLET)" (Maximo).
+name: kestrel
+facility: KRGP
+data_notice: Fictional, synthetic data for a second demonstration facility, not a live operating update.
+
+tag_grammar:
+  area: '[A-C]\d'
+  loop_digits: [4, 4]
+  function_codes: [P, V, K, E, PT, TT, LT, FT, VT, PDT, XV, PSV, FIC, PIC, LIC]
+
+# Wells by pad and number: KR 12-03H. Sources write KR12-03H, KR-12-03H or KR_12_03H.
+well_grammar:
+  pattern: 'KR[-_\s]?(?P<pad>\d{2})[-_\s]?(?P<num>\d{2})(?P<h>H?)'
+  key: 'KR {pad}-{num}{h}'
+
+aliases:
+  kestrel ridge: [facility, KRGP]
+  inlet train: [area, KRGP-A1]
+  compression: [area, KRGP-B1]
+  dehy: [area, KRGP-C1]
+  inlet separator: [tag, A1-V-1001]
+  glycol contactor: [tag, C1-V-3001]
+
+matching:
+  equipment:
+    auto_accept: 0.90
+    review_min: 0.60
+
+survivorship:
+  default:
+    priority: [review, sap, maximo, pi]
+    review_on_conflict: false
+  fields:
+    manufacturer: {priority: [review, sap, maximo], review_on_conflict: true}
+    description: {priority: [review, sap, maximo, pi]}
+    uom: {priority: [review, pi]}
+
+classification:
+  taxonomy: iso14224
+  tag_functions:
+    P: PU
+    K: CO
+    E: HE
+    V: VE
+    PT: IP.PR
+    TT: IP.TE
+    LT: IP.LE
+    FT: IP.FL
+    PDT: IP.DP
+    VT: IP.VI
+    FIC: CL
+    PIC: CL
+    LIC: CL
+    XV: VA.ES
+    PSV: VA.PS
+  manufacturer_aliases:
+    ariel: Ariel Corporation
+    caterpillar: Caterpillar
+    cat: Caterpillar
+  extra_classes: {}

@@ -7,7 +7,8 @@ from many systems, works out which records describe the same real thing, links
 them into one graph, and serves that graph to apps, AI agents and engineers.
 
 The current reference project is the Okan field demo. Asset-specific behavior is
-isolated in an **asset pack**; Okan is the only supported pack and project.
+isolated in an **asset pack**. Okan is the main demo; Kestrel Ridge, a small second facility, boots from
+its own seed bundle to show nothing is tied to Okan.
 
 ## Decisions
 
@@ -102,8 +103,25 @@ Edges have `valid_from` / `valid_to`, so you can trace "which wells fed the
 production separator on 2024-01-01".
 
 ## Asset packs
-Everything asset-specific lives in `src/fuzer/packs/okan.yaml`: tag function
-codes, area digits, well platforms, phrase aliases, and matching thresholds and
-survivorship rules that seed the source catalog's rules (edited there afterwards).
-The `okan` project (`FUZER_PROJECT`) selects the pack for the API, MCP server and
-jobs.
+Everything asset-specific lives in a pack: the tag grammar (function codes, the
+area format, loop length, or a whole tag pattern), well names, phrase aliases, and
+matching thresholds and survivorship rules that seed the source catalog's rules
+(edited there afterwards). Okan's is `src/fuzer/packs/okan.yaml`.
+
+A **seed bundle** (#376) holds what a fresh database needs to serve one facility:
+`bundle.yaml`, the pack and, optionally, its exports. `fuzer init --bundle <folder>`
+stores the project and its pack in the database and names it in the setting
+`project.active`; it doesn't ingest or rebuild. The API, MCP server, jobs and CLI
+then resolve the pack from the database they are connected to when they use it,
+not when they start, so a database holds one facility and two databases serve two.
+`FUZER_PROJECT` still picks a project for one process, and a database that names
+none falls back to `FUZER_PACK` or Okan while the move to bundles finishes.
+
+```sh
+fuzer init --bundle fakeplant/bundles/kestrel        # a fresh database: Kestrel Ridge (KRGP)
+FUZER_DATA_DIR=fakeplant/bundles/kestrel/data fuzer ingest && fuzer rebuild
+```
+
+Kestrel Ridge's pack shows the grammar is the pack's: train areas `A1`/`B1`/`C1`
+and four-digit loops (`A1-PT-1001`, written `KRGP:A1.PT1001.PV` in PI), against
+Okan's two-digit areas (`20-PT-3003`).

@@ -45,7 +45,7 @@ def lookup(source: str | None = None, key: str | None = None, text: str | None =
         return queries.lookup_source(conn, source, key)
     if not text:
         raise HTTPException(400, "give source+key or text")
-    return queries.link_text(conn, deps.PACK, text)
+    return queries.link_text(conn, deps.pack(), text)
 
 
 @router.get("/review")

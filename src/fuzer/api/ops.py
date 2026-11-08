@@ -17,7 +17,7 @@ router = APIRouter(route_class=AuthenticatedRoute)
 
 def _facility(conn, ref: str | None) -> str:
     try:
-        fid = queries.resolve_ref(conn, deps.PACK, ref or deps.PACK.facility)
+        fid = queries.resolve_ref(conn, deps.pack(), ref or deps.pack().facility)
     except queries.AmbiguousRef as e:
         raise HTTPException(409, str(e)) from e
     if fid is None:
@@ -31,7 +31,7 @@ def live_figure(kind: str, ref: str | None = None, conn=Depends(get_conn)):
     from ..plots import ChartError, analytics
     fid = _facility(conn, ref)
     try:
-        return analytics.live(conn, deps.PACK, kind, fid)
+        return analytics.live(conn, deps.pack(), kind, fid)
     except (ValueError, ChartError) as e:
         raise HTTPException(404 if kind not in analytics.FIGURES else 400, str(e)) from e
 
@@ -63,8 +63,8 @@ def value_ranking(kind: list[str] | None = Query(None), by: Literal["value", "pe
                   ref: str | None = None, as_of: str | None = None, limit: int = 50, conn=Depends(get_conn)):
     """Upsets, work, plans and opportunities ranked by the shared value / risk score (#100)."""
     from ..analysis import value
-    fid = queries.resolve_ref(conn, deps.PACK, ref) if ref else None
-    return value.ranked(conn, deps.PACK, tuple(kind or value.KINDS), as_of, by, fid, min(limit, 500))
+    fid = queries.resolve_ref(conn, deps.pack(), ref) if ref else None
+    return value.ranked(conn, deps.pack(), tuple(kind or value.KINDS), as_of, by, fid, min(limit, 500))
 
 
 @router.get("/board")
@@ -74,8 +74,8 @@ def board_page(kind: str | None = None, area: str | None = None, unit: str | Non
     """The work board (#99): every outstanding piece of work, ranked by value, one page at a time; with
     `facets`, counts by kind, area and owner for the views."""
     from ..ops import board
-    area_id = area if area and area.startswith("fz-") else queries.resolve_ref(conn, deps.PACK, area) if area else None
-    unit_id = queries.resolve_ref(conn, deps.PACK, unit) if unit else None
+    area_id = area if area and area.startswith("fz-") else queries.resolve_ref(conn, deps.pack(), area) if area else None
+    unit_id = queries.resolve_ref(conn, deps.pack(), unit) if unit else None
     return board.cards(conn, kind, area_id, unit_id, text, since, max(1, page), min(per_page, 200), owner, facets)
 
 
@@ -102,7 +102,7 @@ def board_pin(p: Pin, conn=Depends(get_conn)):
         out = board.pin(conn, p.key, p.by, p.reason, p.rank, p.value_usd)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    board.refresh(conn, deps.PACK)
+    board.refresh(conn, deps.pack())
     return out
 
 
@@ -121,9 +121,9 @@ class Project(BaseModel):
 def board_project(p: Project, conn=Depends(get_conn)):
     """Add a project to the board."""
     from ..ops import board
-    unit_id = queries.resolve_ref(conn, deps.PACK, p.unit) if p.unit else None
+    unit_id = queries.resolve_ref(conn, deps.pack(), p.unit) if p.unit else None
     out = board.add_project(conn, p.title, p.by, unit_id, p.owner, p.due, p.benefit_usd, p.effort_usd, p.scope)
-    board.refresh(conn, deps.PACK)
+    board.refresh(conn, deps.pack())
     return out
 
 
@@ -164,7 +164,7 @@ def opportunity_decide(key: str, d: OpportunityDecision, conn=Depends(get_conn))
         out = opportunities.decide(conn, key, d.decision, d.by, d.reason)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    board.refresh(conn, deps.PACK)
+    board.refresh(conn, deps.pack())
     return out
 
 
@@ -182,9 +182,9 @@ def study_start(s: StudyIn, conn=Depends(get_conn)):
     params = dict(s.params)
     for k in ("target", "scope"):
         if isinstance(params.get(k), str) and params[k] != "facility" and not params[k].startswith("fz-"):
-            params[k] = queries.resolve_ref(conn, deps.PACK, params[k])
+            params[k] = queries.resolve_ref(conn, deps.pack(), params[k])
     try:
-        return study.start(conn, deps.PACK, s.kind, params, s.by, s.now)
+        return study.start(conn, deps.pack(), s.kind, params, s.by, s.now)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -208,6 +208,6 @@ def study_get(sid: int, conn=Depends(get_conn)):
 def study_rerun(sid: int, by: str = "anonymous", conn=Depends(get_conn)):
     from ..ops import study
     try:
-        return study.rerun(conn, deps.PACK, sid, by)
+        return study.rerun(conn, deps.pack(), sid, by)
     except ValueError as e:
         raise HTTPException(404, str(e)) from e

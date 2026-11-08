@@ -14,20 +14,19 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from ..core import access, db
-from ..core.pack import load_pack
+from ..core.pack import Pack, current_pack
 from ..graph import queries
 from ..workflow import bpmn
 from ..workflow import engine as work
 from . import capabilities
 
-PACK = load_pack()
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 # Work tools change Fuzer's own work items, nothing in the plant or outside systems.
 WORK = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 AgentRole = Literal[tuple(sorted(bpmn.AGENT_ROLES))]
 
-INSTRUCTIONS = f"""\
-Fuzer is the asset data graph for facility {PACK.facility} (oil & gas). It merges records from SAP, JDE,
+INSTRUCTIONS = """\
+Fuzer is the asset data graph for {facility} (oil & gas). It merges records from SAP, JDE,
 Maximo, PI / PI AF, Energy Components (allocation network), P&IDs and operator logs into one entity per
 real-world thing, and links them.
 
@@ -58,7 +57,7 @@ landed and kept: `measurements(ref)` returns them per quantity and location next
 Operating limits per point (alarm limits from the DCS and PI AF, integrity operating windows, normal ranges
 learned from history) and excursions outside them, counted only while the unit runs: `limits(ref)`.
 
-Diagnostics return numbers to cite as evidence, {{value, expected, deviation, flag, basis, sources}}:
+Diagnostics return numbers to cite as evidence, {value, expected, deviation, flag, basis, sources}:
 `calc(check, ref)` (decline, gas lift optimum, pump and choke against OEM curves, Weibull / Crow-AMSAA, wall
 loss), `instrument_health(ref)` (frozen, stuck, noisy, out of range, redundant drift), `detect_changes(ref)`
 (steps, drifts, jitter changes with their start times) and `what_changed(since)` (what the records say
@@ -79,7 +78,14 @@ name, a PI point name or a source record key. Every value carries the source it 
 when you answer. If a ref is ambiguous the tool returns candidates; pick one or ask the user.
 """
 
-server = MCPServer(name="fuzer", title="fuzer asset graph", version="0.1.0", instructions=INSTRUCTIONS)
+
+
+def instructions(pack: Pack | None) -> str:
+    return INSTRUCTIONS.replace("{facility}", f"facility {pack.facility}" if pack else "the facility this database holds")
+
+
+# main() names the facility from the database it serves (#376); importing the module doesn't read it.
+server = MCPServer(name="fuzer", title="fuzer asset graph", version="0.1.0", instructions=instructions(None))
 # Each tool declares the agents that use it and its kind (#133). Charts are read-only like queries: a chart
 # is kept (assistant_figure) so the answer can show it, but no plant or register data changes, and clients
 # shouldn't ask for approval per chart.
@@ -122,7 +128,7 @@ def _plain(obj: Any) -> Any:
 def _resolve(conn, ref: str) -> tuple[str | None, dict | None]:
     """Fuzer ID for ref, or an error payload for the agent."""
     try:
-        fid = queries.resolve_ref(conn, PACK, ref)
+        fid = queries.resolve_ref(conn, current_pack(conn), ref)
     except queries.AmbiguousRef as e:
         return None, {"error": f"{ref!r} is ambiguous", "candidates": _plain(e.candidates)}
     if fid is None:
@@ -225,6 +231,7 @@ def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
     db.database_url()  # start embedded Postgres up front if it's in use
     with db.connect() as conn:
         db.init_schema(conn)  # an older database gets any newer tables
+        server._lowlevel_server.instructions = instructions(current_pack(conn))
     if http:
         server.run("streamable-http", host=host, port=port)
     else:
@@ -247,6 +254,8 @@ from .capabilities import work as work_tools  # noqa: E402, F401
 
 
 def __getattr__(name: str):
+    if name == "PACK":  # mcp_server.PACK: the pack of the database's project, read at runtime (#376)
+        return current_pack()
     if c := capabilities.REGISTRY.get(name):
         return c.fn
     raise AttributeError(name)

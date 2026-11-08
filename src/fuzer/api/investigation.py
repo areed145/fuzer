@@ -24,6 +24,6 @@ def investigation(conn=Depends(get_conn)):
     # Enforce the journey's read-only promise even if a future domain call starts writing.
     conn.read_only = True
     try:
-        return okan_investigation(conn, deps.PACK)
+        return okan_investigation(conn, deps.pack())
     except InvestigationUnavailable as e:
         raise HTTPException(404, str(e)) from e

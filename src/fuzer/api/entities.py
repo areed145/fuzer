@@ -20,7 +20,7 @@ router = APIRouter(route_class=AuthenticatedRoute)
 
 @router.get("/entities")
 def search(q: str = "", kind: str | None = None, limit: int = 50, conn=Depends(get_conn)):
-    return queries.search(conn, deps.PACK, q, kind, limit)
+    return queries.search(conn, deps.pack(), q, kind, limit)
 
 
 @router.get("/entities/names")
@@ -31,7 +31,7 @@ def entity_names(id: list[str] = Query(default=[], max_length=200), conn=Depends
 
 @router.get("/entities/{fuzer_id}")
 def entity(fuzer_id: str, as_of: date | None = None, per_group: int = 100, conn=Depends(get_conn)):
-    if (ent := queries.entity(conn, fuzer_id, as_of, min(per_group, 1000), deps.PACK)) is None:
+    if (ent := queries.entity(conn, fuzer_id, as_of, min(per_group, 1000), deps.pack())) is None:
         raise HTTPException(404, "unknown fuzer_id")
     return ent
 
@@ -52,7 +52,7 @@ def entity_maintenance(fuzer_id: str, since: str | None = None, limit: int = 50,
 @router.get("/entities/{fuzer_id}/history")
 def entity_history(fuzer_id: str, limit: int = 50, conn=Depends(get_conn)):
     """How the source records behind this entity changed over time."""
-    return queries.record_history(conn, deps.PACK, fuzer_id, min(limit, 500))
+    return queries.record_history(conn, deps.pack(), fuzer_id, min(limit, 500))
 
 
 @router.get("/entities/{fuzer_id}/spares")
@@ -69,7 +69,7 @@ def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, 
     from ..analysis import values
 
     return values.around(conn, fuzer_id, at, min(hours_before, 24 * 30), min(hours_after, 24 * 30),
-                         direct=direct, pack=deps.PACK)
+                         direct=direct, pack=deps.pack())
 
 
 @router.get("/entities/{fuzer_id}/limits")
@@ -77,14 +77,14 @@ def entity_limits(fuzer_id: str, at: str | None = None, conn=Depends(get_conn)):
     """Operating limits on a point or on every point of a unit: alarm limits by source, IOWs, the learned
     normal range, checks that fail and the latest excursions (#101)."""
     from ..analysis import limits
-    return limits.for_entity(conn, deps.PACK, fuzer_id, at)
+    return limits.for_entity(conn, deps.pack(), fuzer_id, at)
 
 
 @router.get("/limits/issues")
 def limit_issues(conn=Depends(get_conn)):
     """Limits that look wrong or are missing across the asset (#101)."""
     from ..analysis import limits
-    return limits.issues(conn, deps.PACK)
+    return limits.issues(conn, deps.pack())
 
 
 @router.get("/excursions")
@@ -260,7 +260,7 @@ def knowledge_search(q: str, ref: str | None = None, limit: int = 10, include_su
                      failure_mode: list[str] = Query(default=[]), conn=Depends(get_conn)):
     """Cited passages from manuals, guides, procedures and past incidents, optionally scoped to an
     entity (a Fuzer ID or any tag / well name) and what it relates to."""
-    fid = queries.resolve_ref(conn, deps.PACK, ref) if ref else None
+    fid = queries.resolve_ref(conn, deps.pack(), ref) if ref else None
     if ref and not fid:
         raise HTTPException(404, f"nothing found for {ref!r}")
     return knowledge.search(conn, q, fid, min(limit, 50), include_superseded, failure_mode)

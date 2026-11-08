@@ -279,7 +279,7 @@ def connection_table(cid: int, table: str, claude: bool = False, dataset: str | 
     from ..sources import onboard
 
     try:
-        return onboard.preview(conn, deps.PACK, cid, table, _data_dir(), claude=claude, dataset=dataset,
+        return onboard.preview(conn, deps.pack(), cid, table, _data_dir(), claude=claude, dataset=dataset,
                                record_type=record_type)
     except onboard.OnboardError as e:
         raise HTTPException(404, str(e)) from e
@@ -291,7 +291,7 @@ def add_table(cid: int, table: str, body: AddTable, conn=Depends(get_conn)):
     from ..sources import catalog, connections, ingest, onboard
 
     try:
-        return onboard.add(conn, deps.PACK, cid, table, body.yaml, body.by, _data_dir(), body.values, body.load)
+        return onboard.add(conn, deps.pack(), cid, table, body.yaml, body.by, _data_dir(), body.values, body.load)
     except (ingest.DatasetNotFound, ingest.DatasetUnavailable) as e:
         conn.rollback()
         raise HTTPException(404, str(e)) from e
@@ -474,7 +474,7 @@ def impact_preview(body: Impact, conn=Depends(get_conn)):
     from ..sources import impact
 
     try:
-        return impact.preview(conn, deps.PACK, body.yaml, body.version_id, body.limit)
+        return impact.preview(conn, deps.pack(), body.yaml, body.version_id, body.limit)
     except impact.ImpactError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -549,7 +549,7 @@ def mapper_yaml(body: MapperYaml, conn=Depends(get_conn)):
 def rules_list(conn=Depends(get_conn)):
     from ..sources import rules
 
-    rules.seed(conn, deps.PACK)
+    rules.seed(conn, deps.pack())
     conn.commit()
     return rules.listing(conn)
 
@@ -589,7 +589,7 @@ def why(fuzer_id: str, field: str, conn=Depends(get_conn)):
     from ..sources import impact
 
     try:
-        return impact.why(conn, deps.PACK, fuzer_id, field)
+        return impact.why(conn, deps.pack(), fuzer_id, field)
     except impact.ImpactError as e:
         raise HTTPException(404, str(e)) from e
 

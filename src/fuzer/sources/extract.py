@@ -27,9 +27,9 @@ def _num(v) -> float | None:
         return None
 
 
-def area_in(text: str | None) -> str | None:
-    m = re.search(r"\b(\d{2})\b", text or "")
-    return m.group(1) if m else None
+def area_in(text: str | None, pack: Pack) -> str | None:
+    """The area code in `text`, in the pack's area format."""
+    return pack.tags.area_in(text)
 
 
 # ---- value transforms: (value, pack, default area) -> canonical value
@@ -58,7 +58,8 @@ def model_key(v, pack) -> str | None:
 def _floc(floc: str, pack: Pack):
     if "-" not in floc:
         return "facility", floc
-    if re.fullmatch(r"[A-Z]+-\d{2}", floc):
+    head, _, rest = floc.partition("-")
+    if re.fullmatch(r"[A-Z]+", head) and pack.tags.is_area(rest):
         return "area", floc
     if "-WELL-" in floc:
         return "well", pack.wells.parse(floc)
@@ -69,8 +70,8 @@ def _af(parts: list[str], pack: Pack):
     if len(parts) == 1:
         return "facility", parts[0]
     if len(parts) == 2:
-        return "area", f"{parts[0]}-{area_in(parts[1])}"
-    return "tag", pack.tags.parse(parts[-1], default_area=area_in(parts[1]))
+        return "area", f"{parts[0]}-{area_in(parts[1], pack)}"
+    return "tag", pack.tags.parse(parts[-1], default_area=area_in(parts[1], pack))
 
 
 def _ec_node(node: dict, pack: Pack):
@@ -187,7 +188,7 @@ def section_failure_modes(c, p, pack):
 
 def pid_sheet(c, p, pack):
     """Piping and tags from a P&ID sheet, by format: smart (tag list and connections), text PDF, or scan."""
-    area = area_in(p.get("title"))
+    area = area_in(p.get("title"), pack)
     for conn_ in p.get("connections", []):  # piping from smart P&IDs (DEXPI-style)
         c.edges.append(Edge(("tag", pack.tags.parse(conn_["from"], area)), "pipes_to",
                             ("tag", pack.tags.parse(conn_["to"], area)), "pid",

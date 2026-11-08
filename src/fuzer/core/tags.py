@@ -28,29 +28,48 @@ class TagMatch:
 
 
 class TagGrammar:
-    """ISA-style tags: optional area, function letters, loop number, one-letter suffix."""
+    """ISA-style tags: optional area, function letters, loop number, one-letter suffix.
 
-    def __init__(self, function_codes, area_digits=2, loop_digits=(3, 5)):
+    The pack defines the shape (#376): `area` is a regular expression for an area code (default
+    `area_digits` digits), `loop_digits` the loop number's length, and `pattern`, when given, replaces the
+    whole tag expression. A pattern names the groups `func` and `loop` (and optionally `area` and
+    `suffix`) and may use the placeholders {area}, {funcs} and {loop} for the parts above."""
+
+    DEFAULT_PATTERN = (r"(?:(?P<area>{area})[-_.\s]?)?(?P<func>{funcs})[-_.\s]?(?P<loop>{loop})"
+                       r"(?:[- ]?(?P<suffix>[A-Z]))?")
+
+    def __init__(self, function_codes, area_digits=2, loop_digits=(3, 5), *, area: str | None = None,
+                 pattern: str | None = None):
         funcs = "|".join(sorted(map(re.escape, function_codes), key=len, reverse=True))
         lo, hi = loop_digits
-        self._re = re.compile(
-            r"(?<![A-Z0-9])"
-            rf"(?:(?P<area>\d{{{area_digits}}})[-_.\s]?)?"
-            rf"(?P<func>{funcs})[-_.\s]?"
-            rf"(?P<loop>\d{{{lo},{hi}}})"
-            r"(?:[- ]?(?P<suffix>[A-Z]))?"
-            r"(?![A-Z0-9])"
-        )
+        self.area = area or rf"\d{{{area_digits}}}"
+        body = (pattern or self.DEFAULT_PATTERN).replace("{area}", f"(?:{self.area})").replace(
+            "{funcs}", f"(?:{funcs})").replace("{loop}", rf"\d{{{lo},{hi}}}")
+        self._re = re.compile(rf"(?<![A-Z0-9])(?:{body})(?![A-Z0-9])")
+        missing = {"func", "loop"} - set(self._re.groupindex)
+        if missing:
+            raise ValueError(f"tag pattern needs the groups {sorted(missing)}")
+        self._area_re = re.compile(rf"\b({self.area})\b")
+        self._area_full = re.compile(self.area)
 
     def find_all(self, text: str) -> list[TagMatch]:
-        return [
-            TagMatch(m["area"], m["func"], m["loop"], m["suffix"] or "", m.start(), m.end())
-            for m in self._re.finditer(text.upper())
-        ]
+        out = []
+        for m in self._re.finditer(text.upper()):
+            g = m.groupdict()
+            out.append(TagMatch(g.get("area"), g["func"], g["loop"], g.get("suffix") or "", m.start(), m.end()))
+        return out
 
     def parse(self, text: str, default_area: str | None = None) -> str | None:
         found = self.find_all(text)
         return found[0].key(default_area) if found else None
+
+    def area_in(self, text: str | None) -> str | None:
+        """The first area code standing on its own in `text` ("Train 20 inlet" -> "20")."""
+        m = self._area_re.search((text or "").upper())
+        return m.group(1) if m else None
+
+    def is_area(self, code: str) -> bool:
+        return self._area_full.fullmatch(code or "") is not None
 
 
 @dataclass(frozen=True)
