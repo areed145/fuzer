@@ -152,13 +152,15 @@ def _shared_connection_left_clean(request):
     timeout, failing whichever test happens to run next in the random order. A test that wrote without
     committing fails here; one that only read is rolled back, releasing the locks a refresh or schema change
     would need. A test that already failed keeps its own failure: a half-finished transaction is expected."""
-    yield
-    shared = {}  # the plant's connection, and a module's own `conn` fixture (often the same one)
+    shared = {}  # the plant's connection, and a module's own shared `conn` fixture (often the same one)
+    defs = request.node._fixtureinfo.name2fixturedefs
     if "okan_db" in request.fixturenames:
         c = request.getfixturevalue("okan_db").conn
         shared[id(c)] = ("okan_db", c)
-    if "conn" in request.fixturenames and isinstance(c := request.getfixturevalue("conn"), psycopg.Connection):
-        shared.setdefault(id(c), ("conn", c))
+    if "conn" in request.fixturenames and defs.get("conn") and defs["conn"][-1].scope != "function":
+        if isinstance(c := request.getfixturevalue("conn"), psycopg.Connection):  # a test's own conn isn't shared
+            shared.setdefault(id(c), ("conn", c))
+    yield
     leaked = []
     for name, conn in shared.values():
         if conn.closed:
