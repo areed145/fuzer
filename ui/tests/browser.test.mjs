@@ -1731,6 +1731,100 @@ test("Empty facilities show no charts, and old Analytics links land on Home", as
   assert.equal(await page.locator(".chart-show").count(), 0);
 });
 
+const homeRow = (i) => ({ task_id: i, item_id: 100 + i, element: "e", name: null, kind: "task", role: "operator", assignee: null,
+  requires_human: true, due_at: null, escalated_at: null, error: null, created_at: "2026-10-01T00:00:00Z", overdue: false,
+  title: `Check separator level ${i}`, type: "data_review" });
+const homePopulated = {
+  "/stats": { ...homeStats, open_reviews: { entity_match: 12, schema_mapping_field: 3, log_link: 0 } },
+  "/work/inbox": { person: "Ada", roles: ["operator"], mine: [homeRow(1)], queue: [homeRow(2)], counts: { mine: { total: 1 }, queue: { total: 4 } } },
+  "/board": { cards: [{ key: "k1", rank: 1, kind: "upset", title: "Train B vibration", text: null, unit_id: null, unit: null, area_id: null,
+    area: null, owner: "ops", records: [], value_usd: 1000, effective_usd: 1000, item_id: 7 }], total: 1, page: 1, per_page: 50 },
+  "/incidents": { items: [{ id: "fz-incident-1", description: "20-K-2200B tripped", unit: "B", start: "2025-03-11", end: "2025-03-11",
+    signals: 1, events: 1, downtime_records: 1, notifications: 1, lost_oil_sm3: 1450.4 }], total: 1 },
+  "/upsets": [
+    { id: 1, kind: "process", status: "detected", start: "2025-12-21T03:00:00Z", end: null, detections: 4, work_item_id: 31,
+      priority_usd: null, first_unit: "train:B", first_detector: "limits", first_key: "20-PT-3003", first_point: null },
+    { id: 2, kind: "process", status: "detected", start: "2025-12-22T03:00", end: null, detections: 8, work_item_id: null,
+      priority_usd: null, first_unit: null, first_detector: "limits", first_key: null, first_point: "OKAN.20PT3003.PV" },
+  ],
+  "/reports/daily": [],
+  "/sources/health": [],
+  "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity,
+};
+async function homeFixture(fixtures, { fail = false } = {}) {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "Ada"));
+  await page.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path in fixtures) return route.fulfill({ json: fixtures[path] });
+    if (fail && ["/reports/daily", "/work/inbox", "/board", "/incidents", "/upsets", "/sources/health", "/jobs"].includes(path)) {
+      return route.fulfill({ status: 503, json: { detail: "Service unavailable" } });
+    }
+    return route.fallback();
+  });
+}
+
+test("Home leads with reader destinations, labels times and links each item to its owner", async () => {
+  await homeFixture(homePopulated);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${url}/#/`);
+    const guide = page.locator(".home-guide-links a");
+    await guide.first().waitFor();
+    assert.equal(await guide.first().locator("strong").textContent(), "Explore the facility");
+    assert.equal(await guide.last().locator("strong").textContent(), "Application settings");
+    await page.getByRole("link", { name: "schema mapping field · 3", exact: true }).waitFor();
+    await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
+    assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/board?view=kind");
+    await page.getByText("Detected from 2025-12-21 03:00:00 UTC", { exact: false }).waitFor();
+    await page.getByText("Detected from 2025-12-22T03:00 (timezone not supplied)", { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await waveScreenshot(`home-populated-${width}`);
+  }
+});
+
+test("Home with no records keeps only work and health, and readers see no administration", async () => {
+  await homeFixture({ ...homePopulated, "/stats": { ...homeStats, records: 0, open_reviews: {} } });
+  await page.goto(`${url}/#/`);
+  await page.getByRole("heading", { name: "Connect data before exploring", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Needs you", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Data and scheduler health", exact: true }).waitFor();
+  for (const absent of ["Latest daily report", "Top priorities", "Incidents and upsets"]) {
+    assert.equal(await page.getByRole("heading", { name: absent, exact: true }).count(), 0, `${absent} hidden without records`);
+  }
+  await waveScreenshot("home-empty-1440");
+
+  const reader = await browser.newContext();
+  const readerPage = await reader.newPage();
+  const fixtures = { ...homePopulated, "/auth/me": { mode: "microsoft", configured: true, user: signedInUser }, "/demo/config": { enabled: true } };
+  const administrative = [];
+  await readerPage.route("**/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (["/sources/health", "/jobs"].includes(path)) administrative.push(path);
+    if (path.startsWith("/assets/") || path === "/" || path.endsWith(".svg") || path.endsWith(".png")) return route.continue();
+    return route.fulfill({ json: fixtures[path] ?? [] });
+  });
+  await readerPage.goto(`${url}/#/`);
+  await readerPage.getByRole("heading", { name: "Incidents and upsets", exact: true }).waitFor();
+  assert.equal(await readerPage.getByRole("heading", { name: "Data and scheduler health", exact: true }).count(), 0);
+  assert.equal(await readerPage.getByRole("link", { name: /Source readiness|Application settings/ }).count(), 0);
+  assert.deepEqual(administrative, []);
+  await reader.close();
+});
+
+test("Home shows a failed read with its own retry instead of an empty card", async () => {
+  await homeFixture({ "/stats": homeStats }, { fail: true });
+  await page.goto(`${url}/#/`);
+  for (const card of ["Latest daily report", "Needs you", "Top priorities", "Incidents and upsets", "Data and scheduler health"]) {
+    const section = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: card, exact: true }) });
+    await section.getByRole("alert").first().waitFor();
+    assert.ok(await section.getByRole("button", { name: "Try again", exact: true }).count() >= 1, `${card} offers a retry`);
+  }
+  for (const zero of ["Nothing on the work board.", "No incidents recorded.", "Nothing waiting for you.", "No daily report recorded."]) {
+    assert.equal(await page.getByText(zero, { exact: false }).count(), 0, `a failure is not shown as "${zero}"`);
+  }
+});
+
 test("Chart Show swipes over the chart on touch and keeps its slide through rotation", async () => {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();
