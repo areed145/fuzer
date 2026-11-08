@@ -51,6 +51,16 @@ Sign-in identities are independent of workflow routing roles.
 | `csrf` | text |  |
 | `expires_at` | timestamptz |  |
 
+## `access_project_grant`
+
+Application roles in a project other than the database's first one (whose roles are access_membership). Owners span every project; anyone else sees a project only through a grant here.
+
+| Column | Type | Note |
+|---|---|---|
+| `account_id` | text |  |
+| `project` | text |  |
+| `role` | text |  |
+
 ## `access_login`
 
 | Column | Type | Note |

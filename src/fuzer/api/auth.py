@@ -39,9 +39,11 @@ def me(request: Request):
     with db.connect() as conn:
         person = access.session(conn, request.cookies.get(cookie_name("session"), ""))
         has_owner = bool(conn.execute("select 1 from access_account where owner").fetchone())
+        visible = access.projects_for(conn, person) if person else []
     return {"mode": "microsoft", "configured": True,
             "user": None if person is None else {
-                **asdict(person), "actor": person.actor, "permissions": sorted(person.permissions)},
+                **asdict(person), "actor": person.actor, "permissions": sorted(person.permissions),
+                "projects": visible},
             "needs_owner": not has_owner}
 
 
@@ -187,6 +189,23 @@ def role_update(name: str, body: RoleUpdate, request: Request):
     try:
         with db.connect() as conn:
             access.set_role(conn, person, name, **body.model_dump())
+    except access.AccessError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
+class ProjectRoles(BaseModel):
+    roles: list[str] = Field(max_length=100)
+
+
+@router.put("/accounts/{account_id}/projects/{project}")
+def project_roles_update(account_id: str, project: str, body: ProjectRoles, request: Request):
+    """An account's application roles in one project (owners only; owners already span every project)."""
+    person = _owner(request)
+    csrf_check(request, person)
+    try:
+        with db.connect() as conn:
+            access.set_project_roles(conn, person, account_id, project, body.roles)
     except access.AccessError as e:
         raise HTTPException(400, str(e)) from e
     return {"ok": True}

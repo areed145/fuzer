@@ -51,6 +51,14 @@ create table if not exists fuzer.access_session (
     expires_at timestamptz not null
 );
 create index if not exists access_session_account on fuzer.access_session(account_id);
+-- Application roles in a project other than the database's first one (whose roles are access_membership).
+-- Owners span every project; anyone else sees a project only through a grant here.
+create table if not exists fuzer.access_project_grant (
+    account_id text references fuzer.access_account(id) on delete cascade,
+    project    text not null,
+    role       text references fuzer.access_role(name),
+    primary key (account_id, project, role)
+);
 create table if not exists fuzer.access_login (
     token_hash text primary key,
     flow jsonb not null,

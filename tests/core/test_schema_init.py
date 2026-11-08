@@ -95,7 +95,7 @@ def test_a_database_from_before_the_split_moves_shared_tables_in_place(url):
         for t in ("access_account", "access_role", "access_membership", "access_session", "access_login",
                   "access_event", "setting", "setting_history", "project"):
             c.execute(f"alter table fuzer.{t} set schema public")
-        c.execute("drop schema fuzer")
+        c.execute("drop schema fuzer cascade")  # tables added since the split go too, as in an old database
         c.execute("update schema_version set hash = 'old'")
         c.commit()
         db.init_schema(c)
