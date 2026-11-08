@@ -101,14 +101,10 @@ def parse(answer: str) -> dict:
 
 def diagnose(conn, upset: dict, ask=None) -> dict:
     """The Field Operations & Facilities diagnosis of one upset. `ask(question) -> {answer, usage}` defaults to the
-    operations assistant team (agents.ask)."""
+    operations assistant, through the assistant port (core.assistant)."""
+    from ..core import assistant
 
-    if ask is None:
-        from .. import agents
-
-        def ask(q):
-            return agents.ask_sync(q)
-    out = ask(prompt(conn, upset))
+    out = (ask or assistant.ask)(prompt(conn, upset))
     return {"answer": out["answer"], **parse(out["answer"]), "usage": out.get("usage") or {},
             "at": datetime.now().isoformat(timespec="seconds")}
 

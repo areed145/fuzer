@@ -20,11 +20,10 @@ flowchart LR
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 16 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 19 modules</small>"]
+  c_core["Core<br><small>fuzer.core, 20 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
-  c_agents --> c_ops
   c_analysis --> c_ops
   c_graph --> c_ops
   c_plots --> c_ops
@@ -200,7 +199,7 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
 - **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `board`, `daily_report`, `jobs`, `opportunities`, `pipeline`, `sre`, `sre_handoff`, `study`
-- **Uses:** agents, analysis, core, graph, plots, sources, workflow
+- **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `daily_ops_report`, `detection`, `opportunity`, `point_baseline`, `register_summary`, `sre_run`, `sre_suppress`, `study`, `upset`, `work_item` ([schema](schema.md))
 - **Settings:** `daily_report.close_cron`, `daily_report.mover_pct`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
@@ -267,7 +266,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `bundles`, `capabilities`, `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`, `work`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`, `work`
 - **Uses:** nothing else in fuzer
 - **Writes:** `access_account`, `access_event`, `access_membership`, `access_project_grant`, `access_role`, `access_session`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
 - **Settings:** `access.session_hours`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))
