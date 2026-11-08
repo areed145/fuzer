@@ -7,6 +7,7 @@ from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
+from ..core.work import WorkError as PortError
 from . import bpmn
 
 SYSTEM = "system"
@@ -18,7 +19,7 @@ DEFINITIONS_DIR = Path(__file__).with_name("definitions")
 TASK_KINDS = ("user", "agent", "fix")
 
 
-class WorkError(Exception):
+class WorkError(PortError):
     status = 400
 
 

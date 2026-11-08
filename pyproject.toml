@@ -114,3 +114,16 @@ ignore_imports = [
     # The SRE hand-off's default diagnosis asks the operations assistant at run time; callers can pass their own `ask`.
     "fuzer.ops.sre_handoff -> fuzer.agents",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Work port: sources, the graph, analyses, charts and operations raise work through fuzer.core.work, never the engine"
+type = "forbidden"
+source_modules = ["fuzer.sources", "fuzer.graph", "fuzer.analysis", "fuzer.plots", "fuzer.ops"]
+forbidden_modules = ["fuzer.workflow"]
+# Direct imports only: the SRE hand-off reaches the engine indirectly through the assistant (excepted above).
+allow_indirect_imports = true
+ignore_imports = [
+    # The scheduler wiring runs the engine's own timers and loads its definitions; it moves to the platform's jobs
+    # framework when modules declare their schedules.
+    "fuzer.ops.jobs -> fuzer.workflow.engine",
+]

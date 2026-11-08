@@ -20,12 +20,10 @@ flowchart LR
   c_evals["Evals<br><small>fuzer.evals, 4 modules</small>"]
   c_api["API<br><small>fuzer.api, 16 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 17 modules</small>"]
-  c_workflow --> c_sources
+  c_core["Core<br><small>fuzer.core, 18 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
-  c_workflow --> c_analysis
   c_agents --> c_ops
   c_analysis --> c_ops
   c_graph --> c_ops
@@ -174,7 +172,7 @@ flowchart TD
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
 - **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_versions`, `adx`, `alerts`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `pi_web_api`, `preview`, `process_model`, `quality`, `rules`, `suggest`, `timeseries`
-- **Uses:** core, workflow
+- **Uses:** core
 - **Writes:** `curve_digitised`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_system` ([schema](schema.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
@@ -192,7 +190,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
 - **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `equipment`, `flow_capacity`, `hydraulics`, `limits`, `production_efficiency`, `signals`, `studies`, `value`, `values`
-- **Uses:** core, graph, sources, workflow
+- **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Settings:** `alarms.failed_start_minutes`, `sre.hops`, `studies.max_points`, `studies.max_values`, `studies.workers` ([settings](settings.md))
 - **Tests:** [`tests/analysis`](https://github.com/areed145/fuzer/tree/main/tests/analysis)
@@ -221,7 +219,7 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
 - **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `roles`, `runtime`, `work_drafts`, `work_items`
-- **Uses:** nothing else in fuzer
+- **Uses:** core
 - **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
@@ -269,7 +267,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `bundles`, `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `bundles`, `db`, `jsonsafe`, `labels`, `llm`, `model`, `models`, `nel`, `ontology`, `pack`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`, `work`
 - **Uses:** nothing else in fuzer
 - **Writes:** `access_account`, `access_event`, `access_membership`, `access_project_grant`, `access_role`, `access_session`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
 - **Settings:** `access.session_hours`, `llm.effort`, `llm.model`, `sre.handoff.max_usd` ([settings](settings.md))

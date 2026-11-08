@@ -300,7 +300,7 @@ def _changes(old: dict | None, new: dict) -> dict | None:
 def close_day(conn, pack, day: str, by: str = "agent:reporter") -> dict:
     """Work out the day's facts; when they changed since the last version (or there is none), store a new
     version with the plain draft and what changed, and start or update the day's `daily_report` item."""
-    from ..workflow import engine
+    from ..core import work
 
     f = facts(conn, pack, day)
     fp = fingerprint(f)
@@ -316,12 +316,12 @@ def close_day(conn, pack, day: str, by: str = "agent:reporter") -> dict:
         (day, version, Jsonb(_plain(f)), fp, md, Jsonb(check(md, f)), Jsonb(changes) if changes else None)).fetchone()["id"]
     conn.commit()
     try:
-        res = engine.start_or_correlate(conn, "daily_report", {"report_date": day, "report_id": rid, "version": version,
-                                                               **({"changes": changes} if changes else {})},
-                                        by=by, title=f"Daily operations report {day}", priority=None)
+        res = work.start_or_correlate(conn, "daily_report", {"report_date": day, "report_id": rid, "version": version,
+                                                             **({"changes": changes} if changes else {})},
+                                      by=by, title=f"Daily operations report {day}", priority=None)
         conn.execute("update daily_ops_report set item_id = %s where id = %s", (res["item_id"], rid))
         conn.commit()
-    except engine.WorkError as e:
+    except work.WorkError as e:
         res = {"error": str(e)}
     return {"day": day, "version": version, "changed": True, "report_id": rid, "changes": changes,
             **{k: res.get(k) for k in ("item_id", "started", "error") if k in res}}
