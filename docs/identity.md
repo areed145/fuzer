@@ -29,6 +29,9 @@ Wells get the same treatment (`A07`, `A-7`, `OSB_A-07` → `A-07`;
    - below → leave apart
 3. Two items at the same tag with different serials can never merge.
 4. If one record could match two different things, it goes to review.
+5. A reviewer's answer covers the whole item: rejecting a match keeps the record
+   apart from every record merged with the other side, so the queue doesn't ask
+   the same question again about another system's copy.
 
 The scorer is small on purpose. When we need more power we swap in
 [Splink](https://github.com/moj-analytical-services/splink) behind the same

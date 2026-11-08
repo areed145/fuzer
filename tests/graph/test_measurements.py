@@ -3,6 +3,8 @@ table against the wells, tags and pipelines they were taken on, in stored units,
 process values (API, troubleshooting brief, MCP)."""
 
 
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -80,6 +82,13 @@ def test_well_test_history_and_the_planted_stories(conn):
     worst = min(rates, key=rates.get)
     assert rates[worst] < -0.35 and sorted(rates.values())[1] > -0.2
     assert "production flowline" in queries.entity(conn, worst, per_group=1)["golden"]["description"]["value"]
+    # After the breakthrough it loses wall faster still: the November follow-up survey is the thinnest yet at every
+    # CML, and the loss since the summer survey runs well above the line's long-term rate.
+    for s in measurements.for_entity(conn, worst, "wall_thickness")["series"]:
+        *_, summer, follow_up = s["values"]
+        assert follow_up["at"][:10] == "2025-11-18" and summer["at"][:4] == "2025"
+        days = (date.fromisoformat(follow_up["at"][:10]) - date.fromisoformat(summer["at"][:10])).days
+        assert (summer["value"] - follow_up["value"]) / days * 365.25 > 1.5 * -s["per_year"]
 
 
 def test_tag_page_brief_and_mcp(conn):

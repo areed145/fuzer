@@ -49,21 +49,41 @@ def lab_results(rng: random.Random, points: list[dict], start: date, end: date, 
 
 def thickness_readings(rng: random.Random, assets: list[dict], surveys: list[int]) -> list[dict]:
     """assets: {"tag" or "line_id", "nominal_mm", "cmls", optional "rate_mm_y"}; one reading per CML
-    per survey year. Surveys before 2021 were done by a contractor that reported in inches."""
+    per survey year. Surveys before 2021 were done by a contractor that reported in inches.
+
+    Optional per asset: "faster" = (date, rate_mm_y), the wall loss rate from that date on (readings
+    taken after it lose the extra metal), and "follow_up" = an ISO date for one extra survey of every
+    CML, as an inspector books after a change in service. Both draw from their own Random, so an asset
+    with them leaves every other reading unchanged."""
     rows = []
     for a in assets:
         ref = a.get("tag") or a["line_id"]
+        extra = random.Random(ref)  # the follow-up survey's noise, apart from `rng`
         for c in range(1, a["cmls"] + 1):
             rate = a.get("rate_mm_y", rng.uniform(0.02, 0.12)) * rng.uniform(0.7, 1.3)
             start = a["nominal_mm"] * rng.uniform(0.98, 1.04)
+
+            def faster(on: date) -> float:  # extra metal lost by `on` once the faster rate applies
+                return (a["faster"][1] - rate) * (on - a["faster"][0]).days / 365.25 \
+                    if a.get("faster") and on > a["faster"][0] else 0.0
+
             for year in surveys:
                 t = start - rate * (year - surveys[0]) + rng.gauss(0, 0.05)
                 inches = year < 2021
+                day = f"{year}-{rng.randint(4, 9):02d}-{rng.randint(1, 28):02d}"
+                t -= faster(date.fromisoformat(day))
                 rows.append({"reading_id": f"TM-{ref}-{c:02d}-{year}", "tag": a.get("tag", ""),
-                             "line_id": a.get("line_id", ""), "cml": f"CML-{c:02d}",
-                             "survey_date": f"{year}-{rng.randint(4, 9):02d}-{rng.randint(1, 28):02d}",
+                             "line_id": a.get("line_id", ""), "cml": f"CML-{c:02d}", "survey_date": day,
                              "thickness": f"{t / 25.4:.3f}" if inches else f"{t:.2f}", "unit": "in" if inches else "mm",
                              "nominal": f"{a['nominal_mm']:.2f}", "method": "UT" if c % 4 else "profile RT"})
+            if a.get("follow_up"):
+                on = date.fromisoformat(a["follow_up"])
+                # surveys are placed by year, as above; the faster rate adds what it took since it began
+                t = start - rate * (on.year - surveys[0]) - faster(on) + extra.gauss(0, 0.05)
+                rows.append({"reading_id": f"TM-{ref}-{c:02d}-{on:%Y%m}", "tag": a.get("tag", ""),
+                             "line_id": a.get("line_id", ""), "cml": f"CML-{c:02d}", "survey_date": on.isoformat(),
+                             "thickness": f"{t:.2f}", "unit": "mm", "nominal": f"{a['nominal_mm']:.2f}",
+                             "method": "UT" if c % 4 else "profile RT"})
     return rows
 
 
