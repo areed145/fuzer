@@ -80,6 +80,7 @@ def test_handoff_prioritises_diagnoses_and_opens_work(conn, handed_off):
     conn.commit()
     assert sre_handoff.sync_feedback(conn)["false_alarms"] == 1
     conn.execute("update upset set status = 'detected', work_item_id = null where id = %s", (other["upset"],))
+    conn.commit()
     assert other["upset"] not in [u["id"] for u in sre_handoff.candidates(conn)]
 
 

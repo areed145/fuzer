@@ -91,6 +91,7 @@ def test_instruments_read_their_baseline_once_a_day(conn, data, monkeypatch):
     hunting = [d["start"].hour for d in new if d["point"] == "OK_GGCP:20-LT-2001.PV" and d["key"] == "instrument:noisy"]
     old_hunting = [d["start"].hour for d in old if d["point"] == "OK_GGCP:20-LT-2001.PV" and d["key"] == "instrument:noisy"]
     assert max(hunting) >= 18 and max(old_hunting) < 6  # read up to each window, the hunting became its own usual
+    conn.commit()  # keep the day's baselines for the module's other scans, without holding their locks
 
 
 def test_scan_carries_on_from_the_last_run(conn):
