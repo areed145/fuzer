@@ -63,12 +63,14 @@ function Administration({ query }: { query: URLSearchParams }) {
   const enabledOwners = data.data?.accounts.filter(account => account.enabled && account.owner).length ?? 0;
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
-    <p>This is a shared operational demonstration, not a private sandbox. Approved users see the same synthetic facility;
-      operational changes affect that shared facility. Assistant conversations and uploads stay with the account that created them.
-      Facts deliberately learned into shared facility memory are shared knowledge.</p>
-    <p>Approve a signed-in account, choose the least application access it needs, then assign human workflow roles.
-      Assignments alone never enable sign-in or permissions. Disabling an account revokes its active sessions;
-      existing workflow assignments are retained for deliberate handoff in Workflow assignments &amp; routing.</p>
+    <details className="card"><summary>Shared synthetic facility: approving accounts and what access changes</summary>
+      <p>This is a shared operational demonstration, not a private sandbox. Approved users see the same synthetic facility;
+        operational changes affect that shared facility. Assistant conversations and uploads stay with the account that created them.
+        Facts deliberately learned into shared facility memory are shared knowledge.</p>
+      <p>Approve a signed-in account, choose the least application access it needs, then assign human workflow roles.
+        Assignments alone never enable sign-in or permissions. Disabling an account revokes its active sessions;
+        existing workflow assignments are retained for deliberate handoff in Workflow assignments &amp; routing.</p>
+    </details>
     <Status loading={data.loading} error={data.error} />
     {data.error && <Button onClick={data.reload}>Try again</Button>}
     {data.data && <>
