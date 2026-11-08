@@ -49,6 +49,7 @@ def test_unmapped_site_codes_are_reported(conn):
     )
     result = quality.unmapped_site_codes(conn)
     conn.execute("delete from golden where fuzer_id = %s and field = 'unmapped_codes'", (fid_,))
+    conn.commit()  # the row is gone again; don't hold its lock for the next test
     assert not result["passed"] and result["count"] == 1
     assert result["examples"][0]["code"] == "D99"
 
