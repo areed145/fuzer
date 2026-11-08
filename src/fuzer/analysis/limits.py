@@ -595,7 +595,7 @@ def scan(conn, pack, start: str, end: str, step: int = 10, src=None, point_ids: 
 def _open_work(conn, rows: list[tuple[dict, dict]]) -> dict:
     """Start the iow_breach process for one IOW's breaches in a scan (or add them to its open one as
     evidence) and remember the item on the excursions."""
-    from ..workflow import engine
+    from ..core import work
 
     row, x = max(rows, key=lambda r: r[0]["minutes_outside"])
     hours = sum(r["minutes_outside"] for r, _ in rows) / 60
@@ -612,10 +612,10 @@ def _open_work(conn, rows: list[tuple[dict, dict]]) -> dict:
              f"{row['allowed_minutes'] / 60:g} h")
     ids = [r["id"] for r, _ in rows]
     try:
-        res = engine.start_or_correlate(conn, "iow_breach", data, by="agent:sre", title=title,
-                                        subjects=[s for s in (row["point_id"], x.get("unit_id")) if s],
-                                        priority=WORK_LEVELS[row["level"]])
-    except engine.WorkError as e:
+        res = work.start_or_correlate(conn, "iow_breach", data, by="agent:sre", title=title,
+                                      subjects=[s for s in (row["point_id"], x.get("unit_id")) if s],
+                                      priority=WORK_LEVELS[row["level"]])
+    except work.WorkError as e:
         return {"iow": iow, "excursions": ids, "error": str(e)}
     conn.execute("update excursion set work_item_id = %s where id = any(%s)", (res["item_id"], ids))
     return {"iow": iow, "excursions": ids, "item_id": res["item_id"], "started": res.get("started", True), "title": title}

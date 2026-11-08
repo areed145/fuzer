@@ -275,9 +275,9 @@ def history(conn, key: str) -> list[dict]:
 
 def next_work(conn, role: str, limit: int = 5) -> list[dict]:
     """The steps an agent role can take now, in board order (their work item's rank)."""
-    from ..workflow import engine
+    from ..core import work
 
-    steps = engine.agent_work(conn, role, limit=500)
+    steps = work.agent_steps(conn, role, limit=500)
     ranks = {r["item_id"]: r["rank"] for r in conn.execute("select item_id, rank from board_card where item_id is not null")}
     steps.sort(key=lambda t: ranks.get(t.get("item_id"), 10 ** 9))
     return [_plain({**t, "board_rank": ranks.get(t.get("item_id"))}) for t in steps[:limit]]

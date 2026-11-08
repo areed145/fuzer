@@ -31,7 +31,7 @@ def post(text: str) -> bool:
 
 def check(conn, names: list[str] | None = None, by: str = "fuzer") -> dict:
     """Open work items for new problems and close the ones that cleared. Returns what was opened and closed."""
-    from ..workflow import engine
+    from ..core import work
     from . import catalog, quality
 
     rows = quality.health(conn)
@@ -48,13 +48,13 @@ def check(conn, names: list[str] | None = None, by: str = "fuzer") -> dict:
                 continue
             owner = owners.get(r["dataset"])
             text = f"Source {r['dataset']} ({r['system']}) {SAY.get(problem, problem)}"
-            engine.create_item(conn, TYPE, text, by, priority=0.5 if problem in ("failed", "held", "stale") else 0.3,
-                               assignee=owner, role=None if owner else ROLE, source="sources",
-                               payload={"dataset": r["dataset"], "problem": problem, "health": r})
+            work.open_case(conn, TYPE, text, by, priority=0.5 if problem in ("failed", "held", "stale") else 0.3,
+                             assignee=owner, role=None if owner else ROLE, source="sources",
+                             payload={"dataset": r["dataset"], "problem": problem, "health": r})
             post(text + (f"; owner {owner}" if owner else ""))
             opened.append(f"{r['dataset']}: {problem}")
         for (name, problem), item in open_items.items():
             if name == r["dataset"] and problem not in now:
-                engine.transition(conn, item, "done", by, reason="the problem cleared")
+                work.close_case(conn, item, "done", by, reason="the problem cleared")
                 closed.append(f"{name}: {problem}")
     return {"opened": opened, "closed": closed}

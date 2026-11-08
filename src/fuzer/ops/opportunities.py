@@ -181,7 +181,7 @@ def scan(conn, pack, at: str | None = None) -> dict:
     """Find the day's opportunities, keep them, open a work item for each new one, close the ones the data no
     longer supports, and leave decided ones alone unless the data changed materially."""
     from ..analysis import value
-    from ..workflow import engine
+    from ..core import work
 
     cfg = value.config(pack)
     found = {o["key"]: o for o in candidates(conn, at)}
@@ -200,10 +200,10 @@ def scan(conn, pack, at: str | None = None) -> dict:
         usd = value.score(item, cfg)["value_usd"] if o["gain_sm3d"] is not None else None
         item_id = prev["item_id"] if prev and prev["status"] == "open" else None
         if item_id is None:
-            item_id = engine.create_item(conn, "opportunity", o["title"], "agent:opportunity_scan",
-                                         subjects=[s for s in [o["target"]] if s], priority=usd, role="engineer",
-                                         payload={"opportunity": key, **{k: o[k] for k in ("gain_sm3d", "basis", "confidence",
-                                                                                            "evidence", "confirm_by")}})["id"]
+            item_id = work.open_case(conn, "opportunity", o["title"], "agent:opportunity_scan",
+                                     subjects=[s for s in [o["target"]] if s], priority=usd, role="engineer",
+                                     payload={"opportunity": key, **{k: o[k] for k in ("gain_sm3d", "basis", "confidence",
+                                                                                        "evidence", "confirm_by")}})["id"]
             stats["reopened" if reopened else "new"] += 1
         else:
             conn.execute("update work_item set priority = %s, title = %s, updated_at = now() where id = %s", (usd, o["title"], item_id))
@@ -221,9 +221,9 @@ def scan(conn, pack, at: str | None = None) -> dict:
             conn.execute("update opportunity set status = 'gone', scanned_at = now() where key = %s", (key,))
             if prev["item_id"]:
                 try:
-                    engine.transition(conn, prev["item_id"], "cancelled", "agent:opportunity_scan",
-                                      "no longer supported by the data")
-                except engine.WorkError:
+                    work.close_case(conn, prev["item_id"], "cancelled", "agent:opportunity_scan",
+                                    "no longer supported by the data")
+                except work.WorkError:
                     pass
             stats["gone"] += 1
     conn.commit()
@@ -232,7 +232,7 @@ def scan(conn, pack, at: str | None = None) -> dict:
 
 def decide(conn, key: str, decision: str, by: str, reason: str | None = None) -> dict:
     """An engineer accepts, rejects (with a reason) or turns an opportunity into a board project."""
-    from ..workflow import engine
+    from ..core import work
     from . import board
 
     if decision not in DECIDED:
@@ -245,7 +245,7 @@ def decide(conn, key: str, decision: str, by: str, reason: str | None = None) ->
     conn.execute("update opportunity set status = %s, decided_by = %s, decided_at = now(), reason = %s where key = %s",
                  (decision, by, reason, key))
     if o["item_id"]:
-        engine.transition(conn, o["item_id"], "cancelled" if decision == "rejected" else "done", by, reason or decision)
+        work.close_case(conn, o["item_id"], "cancelled" if decision == "rejected" else "done", by, reason or decision)
     project = None
     if decision == "project":
         d = o["detail"]

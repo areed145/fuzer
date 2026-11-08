@@ -137,7 +137,7 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
             today: str | None = None, say=None) -> dict:
     """Prioritise, diagnose (within the caps) and hand off the upsets not handed off yet. `say(msg)`
     gets progress lines."""
-    from ..workflow import engine
+    from ..core import work
 
     max_diagnoses = settings.get(conn, "sre.handoff.max_diagnoses") if max_diagnoses is None else max_diagnoses
     max_usd = settings.get(conn, "sre.handoff.max_usd") if max_usd is None else max_usd
@@ -173,10 +173,10 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
                 **({"pre_diagnosis": {k: diag.get(k) for k in ("answer", "causes", "actions", "error", "at")}} if diag else {})}
         title = f"Upset: {u['text']}"
         try:
-            res = engine.start_or_correlate(conn, "upset", data, by="agent:sre", title=title,
-                                            subjects=[x for x in (u["first_unit"], u["point_id"]) if x],
-                                            priority=s["value_usd"])
-        except engine.WorkError as e:
+            res = work.start_or_correlate(conn, "upset", data, by="agent:sre", title=title,
+                                          subjects=[x for x in (u["first_unit"], u["point_id"]) if x],
+                                          priority=s["value_usd"])
+        except work.WorkError as e:
             out.append({"upset": u["id"], "error": str(e)})
             continue
         conn.execute("update upset set work_item_id = %s, priority_usd = %s, diagnosis = %s where id = %s",

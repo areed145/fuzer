@@ -1,4 +1,4 @@
-"""Exercise the repository's import-linter contract without importing application modules."""
+"""Exercise the repository's import-linter contracts without importing application modules."""
 
 import os
 import re
@@ -16,7 +16,7 @@ CONFIG = ROOT / "pyproject.toml"
 @pytest.fixture
 def package(tmp_path):
     config = tomllib.loads(CONFIG.read_text())
-    contract, = config["tool"]["importlinter"]["contracts"]
+    contract = next(c for c in config["tool"]["importlinter"]["contracts"] if c["type"] == "layers")
     pkg = tmp_path / "src" / "fuzer"
     pkg.mkdir(parents=True)
     (pkg / "__init__.py").write_text("")
@@ -29,6 +29,8 @@ def package(tmp_path):
     for name in ("components", "reference", "resources"):
         (pkg / f"{name}.py").write_text("")
     (pkg / "ops" / "sre_handoff.py").write_text("from fuzer import agents\n")
+    (pkg / "workflow" / "engine.py").write_text("")
+    (pkg / "ops" / "jobs.py").write_text("from fuzer.workflow import engine\n")
     (tmp_path / "pyproject.toml").write_text(CONFIG.read_text())
     return pkg
 
@@ -92,7 +94,7 @@ def test_shared_domain_operations_and_existing_exception_are_allowed(package):
         "agents/tools.py": "from fuzer.sources import quality\n",
         "sources/quality.py": "from fuzer.core import db\n",
         "core/db.py": "from fuzer.resources import SCHEMA\n",
-        "ops/jobs.py": "from fuzer.plots import general\n",
+        "ops/jobs.py": "from fuzer.plots import general\nfrom fuzer.workflow import engine\n",
         "plots/general.py": "from fuzer.ops import board\n",
         "ops/board.py": "",
     }
@@ -102,7 +104,7 @@ def test_shared_domain_operations_and_existing_exception_are_allowed(package):
     result = lint(package)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "1 ignored import" in result.stdout
+    assert "Layers (#135)" in result.stdout and result.stdout.count("(1 ignored import)") == 2
 
 
 def test_stale_exception_fails(package):
@@ -112,3 +114,25 @@ def test_stale_exception_fails(package):
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert "fuzer.ops.sre_handoff -> fuzer.agents" in result.stdout
+
+
+@pytest.mark.parametrize("importer", ["sources/alerts.py", "analysis/limits.py", "ops/sre_handoff.py", "graph/x.py"])
+def test_raising_work_goes_through_the_port(package, importer):
+    (package / "core" / "work.py").write_text("")
+    path = package / importer
+    path.write_text((path.read_text() if path.exists() else "") + "from fuzer.workflow import engine\n")
+
+    result = lint(package)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "fuzer.workflow" in result.stdout and "Work port" in result.stdout
+
+
+def test_the_port_itself_is_allowed(package):
+    (package / "core" / "work.py").write_text("")
+    (package / "sources" / "alerts.py").write_text("from fuzer.core import work\n")
+    (package / "ops" / "board.py").write_text("from fuzer.core import work\n")
+
+    result = lint(package)
+
+    assert result.returncode == 0, result.stdout + result.stderr
