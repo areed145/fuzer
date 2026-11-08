@@ -107,7 +107,9 @@ def _fresh(name: str) -> str:
 
 
 def _drop(name: str) -> None:
-    with db.connect(autocommit=True, url=db.database_url()) as a:
+    from psycopg.conninfo import make_conninfo
+
+    with db.connect(autocommit=True, url=make_conninfo(db.database_url(), dbname="postgres")) as a:
         a.execute(f'drop database if exists "{name}" with (force)')
 
 
@@ -176,9 +178,6 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
             "(select fuzer_id from entity where kind = 'well')").fetchone()["n"]
         assert wells_with_series == 2
 
-        # Another facility's bundle is refused: a database holds one facility.
-        with pytest.raises(bundles.BundleError, match="holds project 'kestrel'"):
-            bundles.init(conn, OKAN, by="test")
 
     # The API resolves the pack from the database it serves, at request time.
     app = FastAPI()
@@ -233,3 +232,67 @@ def test_a_bundle_missing_its_own_exports_folder_fails(tmp_path):
     pack = yaml.safe_load((KESTREL / "pack.yaml").read_text())
     with pytest.raises(bundles.BundleError, match="exports folder exports is missing"):
         bundles.read(_bundle(tmp_path, {"bundle": 1, "name": "x", "project": {"data": "exports"}}, pack))
+
+
+# ---- several projects in one database (multi-project phase 2) ---------------------------------------
+
+def test_two_projects_share_one_database_without_seeing_each_other(serving):
+    """Okan is the database's first project (public); Kestrel is added beside it in its own schema, ingested and
+    rebuilt there. Each project's code sees only its own register, pack and settings; accounts stay shared."""
+    from fuzer.api import deps
+    from fuzer.ops import pipeline
+    from fuzer.sources import ingest
+
+    url = _fresh("two_projects")
+    serving(url)
+    try:
+        with db.connect(url=url) as conn:
+            db.init_schema(conn)
+            assert bundles.init(conn, OKAN, by="test")["status"] == "initialised"
+            added = bundles.init(conn, KESTREL, by="test")
+            assert (added["status"], added["schema"]) == ("added", "proj_kestrel")
+            assert bundles.init(conn, KESTREL, by="test")["status"] == "unchanged"
+            assert projects.active(conn) == "okan"  # the first project stays the database's default
+            conn.execute("insert into access_account (id, tenant_id, object_id, display_name, enabled, owner) "
+                         "values ('a1', 't', 'o', 'Ana', true, true)")
+            conn.commit()
+
+            with projects.use(conn, "kestrel"):
+                with db.connect(url=url) as k:
+                    assert k.execute("select current_schema() as s").fetchone()["s"] == "proj_kestrel"
+                    pack = packs.current_pack(k)
+                    assert pack.facility == "KRGP" and deps.pack().facility == "KRGP"
+                    assert settings.project() == "kestrel"
+                    ingest.ingest(k, Path(added["data"]))
+                    assert pipeline.rebuild(k, pack)["entities"] == 34
+                    assert k.execute("select display_name from access_account").fetchone()["display_name"] == "Ana"
+                # The API's rebuild queue runs Kestrel's rebuild on its own thread, in Kestrel's schema.
+                deps.rebuilder.request()
+                deps.rebuilder.wait()
+                assert deps.rebuilder.last["stats"]["entities"] == 34, deps.rebuilder.last
+            assert deps.rebuilder.status()["last"] is None  # Okan's queue never ran
+
+            # Back in the first project: none of Kestrel's records or entities, and Okan's pack.
+            assert conn.execute("select count(*) as n from source_record").fetchone()["n"] == 0
+            assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0
+            assert packs.current_pack(conn).facility == "OKAN" and deps.pack().facility == "OKAN"
+            n = conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"]
+            assert n >= 34  # Kestrel's register is where it was built
+            with projects.use(conn, "okan"), db.connect(url=url) as o:
+                assert o.execute("select count(*) as n from entity").fetchone()["n"] == 0
+    finally:
+        _drop("two_projects")
+
+
+def test_an_unknown_project_scope_fails(serving):
+    url = _fresh("no_such_project")
+    serving(url)
+    try:
+        with db.connect(url=url) as conn:
+            db.init_schema(conn)
+            with pytest.raises(projects.ProjectError):
+                projects.use(conn, "nowhere")
+        with pytest.raises(ValueError):
+            db.search_path("bad; drop schema public")
+    finally:
+        _drop("no_such_project")

@@ -164,12 +164,11 @@ def rebuild(conn, pack: Pack) -> dict:
     return stats
 
 
-class BackgroundRebuild:
-    """Runs rebuilds on a worker thread. Requests made while one is running are folded into a
-    single follow-up run, so a reviewer clicking through many answers triggers few rebuilds."""
+class _RebuildQueue:
+    """One project's rebuild worker: requests made while one is running fold into a single follow-up run."""
 
-    def __init__(self, pack: "Pack | Callable[[Any], Pack]"):
-        self.pack = pack  # a Pack, or a function of the connection that resolves one when each rebuild runs (#376)
+    def __init__(self, owner: "BackgroundRebuild", scope: db.Scope):
+        self.owner, self.scope = owner, scope
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._pending = False
@@ -194,8 +193,9 @@ class BackgroundRebuild:
                 self._pending = False
             started = datetime.now(timezone.utc)
             try:
-                with db.connect() as conn:
-                    pack = self.pack if isinstance(self.pack, Pack) else self.pack(conn)
+                with db.use(self.scope), db.connect() as conn:  # the requesting project's register, on this thread
+                    p = self.owner.pack
+                    pack = p if isinstance(p, Pack) else p(conn)
                     self.last = {"started": started.isoformat(), "stats": rebuild(conn, pack)}
             except Exception as e:  # keep the worker alive; report the failure in status
                 self.last = {"started": started.isoformat(), "error": f"{type(e).__name__}: {e}"}
@@ -207,3 +207,33 @@ class BackgroundRebuild:
     def wait(self, timeout: float = 120) -> None:
         if self._thread:
             self._thread.join(timeout)
+
+
+class BackgroundRebuild:
+    """Runs rebuilds on worker threads, one queue per project: a reviewer clicking through many answers triggers
+    few rebuilds, and one project's requests never rebuild (or wait behind) another's."""
+
+    def __init__(self, pack: "Pack | Callable[[Any], Pack]"):
+        self.pack = pack  # a Pack, or a function of the connection that resolves one when each rebuild runs (#376)
+        self._queues: dict[db.Scope, _RebuildQueue] = {}
+        self._lock = threading.Lock()
+
+    def _queue(self) -> _RebuildQueue:
+        s = db.scope()
+        with self._lock:
+            if s not in self._queues:
+                self._queues[s] = _RebuildQueue(self, s)
+            return self._queues[s]
+
+    def request(self) -> dict:
+        return self._queue().request()
+
+    def status(self) -> dict:
+        return self._queue().status()
+
+    def wait(self, timeout: float = 120) -> None:
+        self._queue().wait(timeout)
+
+    @property
+    def last(self) -> dict | None:
+        return self._queue().last

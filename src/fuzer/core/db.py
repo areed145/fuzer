@@ -9,6 +9,10 @@ import os
 import re
 from pathlib import Path
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -31,14 +35,67 @@ def database_url() -> str:
 
 
 SHARED = "fuzer"  # accounts, access, the project registry and settings: shared by every project in the instance
-PROJECT_SCHEMA = "public"  # the register's tables, while a database holds one project
-SEARCH_PATH = f"{PROJECT_SCHEMA},{SHARED}"
+PROJECT_SCHEMA = "public"  # the first project's register (a database's original project); others get proj_<name>
+SCHEMA_NAME = re.compile(r"[a-z_][a-z0-9_]{0,62}")
 
 
-def connect(autocommit: bool = False, url: str | None = None) -> psycopg.Connection:
-    """A connection that finds the project's tables first, then the shared ones, by unqualified name."""
+@dataclass(frozen=True)
+class Scope:
+    """Which project a connection serves: its name (None before projects) and the schema holding its register."""
+    project: str | None
+    schema: str = PROJECT_SCHEMA
+
+
+_default = Scope(None)  # the process's project (CLI --project, the server's project); threads see it too
+_scope: ContextVar[Scope | None] = ContextVar("fuzer_scope", default=None)  # one request's or job's project
+
+
+def scope() -> Scope:
+    """The project this code runs for: the request's or job's (`use`), else the process's (`set_default`)."""
+    return _scope.get() or _default
+
+
+def set_default(s: Scope) -> None:
+    global _default
+    _default = s
+
+
+@contextmanager
+def use(s: Scope):
+    """Run the block for one project: every `connect()` inside it searches that project's schema."""
+    token = _scope.set(s)
+    try:
+        yield s
+    finally:
+        _scope.reset(token)
+
+
+def search_path(schema: str | None = None) -> str:
+    schema = schema or scope().schema
+    if not SCHEMA_NAME.fullmatch(schema):
+        raise ValueError(f"not a project schema name: {schema!r}")
+    return f"{schema},{SHARED}"
+
+
+def connect(autocommit: bool = False, url: str | None = None, schema: str | None = None) -> psycopg.Connection:
+    """A connection that finds its project's tables first, then the shared ones, by unqualified name. The project
+    is the current scope's unless `schema` names one; a project never sees another project's schema."""
     return psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=autocommit,
-                           options=f"-c search_path={SEARCH_PATH}")
+                           options=f"-c search_path={search_path(schema)}")
+
+
+def create_project_schema(conn, schema: str) -> None:
+    """Make an empty schema for a project and bring it up to schema.sql (configuration only: no data)."""
+    path = search_path(schema)  # validates the name
+    was = conn.execute("show search_path").fetchone()["search_path"]
+    conn.execute(f'create schema if not exists "{schema}"')
+    conn.execute(f"set search_path = {path}")
+    try:
+        init_schema(conn)
+    finally:
+        conn.rollback()
+        conn.execute(f"set search_path = {was}")
+        conn.commit()
 
 
 SCHEMA_LOCK = 0x46555A52  # pg_advisory_xact_lock key ("FUZR"): one process applies schema.sql at a time
@@ -51,9 +108,9 @@ def schema_hash() -> str:
     return hashlib.sha256(SCHEMA.read_bytes() + BUILTIN.read_bytes()).hexdigest()
 
 
-def _schema_tables() -> list[str]:
+def _schema_tables(project_schema: str = PROJECT_SCHEMA) -> list[str]:
     """schema.sql's tables, schema-qualified (`public.entity`, `fuzer.access_account`)."""
-    return [t if "." in t else f"{PROJECT_SCHEMA}.{t}"
+    return [t if "." in t else f"{project_schema}.{t}"
             for t in re.findall(r"(?im)^create table if not exists ([\w.]+)", SCHEMA.read_text())]
 
 
@@ -61,14 +118,14 @@ def _schema_current(conn, current: str) -> bool:
     """schema.sql is applied unchanged and none of its tables has gone missing since (one read, no locks)."""
     if _applied_hash(conn) != current:
         return False
-    tables = sorted(set(_schema_tables()))
+    tables = sorted(set(_schema_tables(conn.execute("select current_schema() as s").fetchone()["s"])))
     n = conn.execute("select count(*) as n from pg_tables where schemaname || '.' || tablename = any(%s)",
                      (tables,)).fetchone()["n"]
     return n == len(tables)
 
 
 def _applied_hash(conn) -> str | None:
-    if conn.execute("select to_regclass('public.schema_version') as t").fetchone()["t"] is None:
+    if conn.execute("select to_regclass('schema_version') as t").fetchone()["t"] is None:
         return None
     row = conn.execute("select hash from schema_version where id = 1").fetchone()
     return row["hash"] if row else None

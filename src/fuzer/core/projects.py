@@ -34,9 +34,33 @@ ACTIVE = "project.active"  # the global setting naming the project a database ho
 
 
 def current(conn=None) -> str | None:
-    """The project this process serves: FUZER_PROJECT when it was started for one, else the project the database
-    holds (set by `fuzer init --bundle`), else None. `conn` None reads only the process's choice."""
-    return os.environ.get("FUZER_PROJECT") or (active(conn) if conn is not None else None)
+    """The project this code serves: the request's or job's (`use`), else FUZER_PROJECT when the process was started
+    for one, else the database's first project (set by `fuzer init --bundle`), else None. `conn` None reads only
+    the scope and the process's choice."""
+    from . import db
+
+    return db.scope().project or os.environ.get("FUZER_PROJECT") or (active(conn) if conn is not None else None)
+
+
+def schema_of(cfg: dict) -> str:
+    """The schema holding a project's register: `public` for a database's first project, else proj_<name>."""
+    from . import db
+
+    return cfg.get("schema") or db.PROJECT_SCHEMA
+
+
+def scope(conn, name: str):
+    """The connection scope for project `name` (ProjectError if there's no such project)."""
+    from . import db
+
+    return db.Scope(name, schema_of(config(conn, name)))
+
+
+def use(conn, name: str):
+    """`with projects.use(conn, "kestrel"):` runs the block, and every connection it opens, for that project."""
+    from . import db
+
+    return db.use(scope(conn, name))
 
 
 def active(conn) -> str | None:
@@ -92,8 +116,11 @@ def _path(v: str) -> str:
 def activate(conn, name: str) -> dict:
     """Make `name` this process's project: FUZER_PROJECT, and the old path/provider variables from its config.
     The pack is not copied into FUZER_PACK: `pack.current_pack` reads it from the project at runtime (#376)."""
+    from . import db
+
     cfg = config(conn, name)
     os.environ["FUZER_PROJECT"] = name
+    db.set_default(db.Scope(name, schema_of(cfg)))  # this process's connections search the project's schema
     for field, var in FIELDS.items():
         if field == "pack" or cfg.get(field) is None:
             continue

@@ -92,8 +92,8 @@ def _from_config(cfg: dict) -> Pack:
 
 
 def resolve(conn) -> Pack:
-    """The pack for the project `conn`'s database holds (#376), read now: FUZER_PROJECT when a process was started
-    for one project, else the database's active project (`fuzer init --bundle`), else the legacy FUZER_PACK or Okan."""
+    """The pack of the project this code serves (#376), read now: the request's or job's project, else FUZER_PROJECT,
+    else the database's first project (`fuzer init --bundle`), else the legacy FUZER_PACK or Okan."""
     from . import projects
 
     name = projects.current(conn)
@@ -107,7 +107,7 @@ def current_pack(conn=None) -> Pack:
     from . import db
 
     url = os.environ.get("FUZER_DATABASE_URL") or (db._server.get_uri() if db._server is not None else None)
-    key = (url, os.environ.get("FUZER_PROJECT"), os.environ.get("FUZER_PACK"))
+    key = (url, db.scope(), os.environ.get("FUZER_PROJECT"), os.environ.get("FUZER_PACK"))
     hit = _current.get(key)
     if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
         return hit[1]
