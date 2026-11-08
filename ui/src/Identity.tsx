@@ -1,24 +1,46 @@
 /** Signed-in identity; attribution-only names are limited to explicit trusted local mode. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
 import { href, useAsync } from "./lib";
 import { usePerson } from "./work";
-import { Button, Input } from "./ui";
+import { Button, Input, Select } from "./ui";
+import { getProject, switchProject, type AuthSession } from "./authState";
 import { SignOut, useAuth, usePermission } from "./Auth";
+
+/** Which project this tab works in. Only projects the server says this person may open are offered; the server
+ * checks the grant again on every request, so this list is a convenience, not the permission. */
+export function ProjectPicker({ session }: { session: AuthSession | null }) {
+  const options = (session?.mode === "microsoft" ? session.user?.projects : session?.projects) ?? [];
+  const current = session?.project ?? "";
+  const picked = getProject();
+  const known = options.includes(picked);
+  useEffect(() => {
+    // A project picked earlier that this person may no longer open: back to the server's own project.
+    if (session && picked && !known) switchProject("");
+  }, [session, picked, known]);
+  if (options.length < 2 && (!current || options.includes(current))) return null;
+  return <label className="identity small">
+    <span className="muted">Project</span>
+    <Select value={current} aria-label="Project" onChange={(e) => switchProject(e.target.value)}>
+      {!options.includes(current) && <option value={current}>{current || "Default"}</option>}
+      {options.map((name) => <option key={name} value={name}>{name}</option>)}
+    </Select>
+  </label>;
+}
 
 export function Identity() {
   const session = useAuth();
   const configure = usePermission("configure");
   if (session?.mode === "microsoft") {
     const user = session.user;
-    return <div className="identity small">
+    return <><ProjectPicker session={session} /><div className="identity small">
       <strong>{user?.display_name}</strong>
       <p className="muted">{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
       {configure && <p><a href={href("/users")}>Manage users</a></p>}
       <SignOut />
-    </div>;
+    </div></>;
   }
-  return <LocalIdentity />;
+  return <><ProjectPicker session={session} /><LocalIdentity /></>;
 }
 
 function LocalIdentity() {

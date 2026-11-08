@@ -1,3 +1,4 @@
+import { projectUrl } from "../authState";
 import "../styles/review.css";
 import "../styles/trends.css";
 import { useEffect, useState } from "react";
@@ -441,7 +442,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
           {p.manufacturer} {p.model} <span className="muted small">#{id}</span>
         </h3>
         <span className="muted small">
-          {p.document ? <a href={`/documents/${encodeURIComponent(p.document)}/file`} target="_blank" rel="noreferrer">
+          {p.document ? <a href={projectUrl(`/documents/${encodeURIComponent(p.document)}/file`)} target="_blank" rel="noreferrer">
             {p.doc_number}</a> : p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
         </span>
       </div>

@@ -284,6 +284,50 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving):
         _drop("two_projects")
 
 
+def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path):
+    """Dagster (multi-project phase 4): schedules and the export sensor start a run per project, tagged with it,
+    and a tagged run loads that project's own exports into its own schema with its own pack."""
+    import dagster as dg
+
+    from fuzer.ops import jobs
+
+    url = _fresh("dagster_projects")
+    serving(url)
+    before = db._default
+    try:
+        with db.connect(url=url) as conn:
+            db.init_schema(conn)
+            bundles.init(conn, OKAN, by="test")
+            added = bundles.init(conn, KESTREL, by="test")
+        fuzer = jobs.Fuzer(data_dir=str(tmp_path), database_url=url)  # Okan's folder: empty here
+        assert fuzer.targets() == [("kestrel", added["data"]), ("okan", str(tmp_path))]
+
+        schedule = next(s for s in jobs.schedules if s.job_name == "refresh_all")
+        from datetime import datetime, timezone
+
+        at = datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
+        with dg.build_schedule_context(resources={"fuzer": fuzer}, scheduled_execution_time=at) as ctx:
+            runs = schedule.evaluate_tick(ctx).run_requests
+        assert sorted(r.tags[jobs.PROJECT_TAG] for r in runs) == ["kestrel", "okan"]
+
+        sensed = jobs.new_exports(dg.build_sensor_context(resources={"fuzer": fuzer}))
+        assert [r.tags[jobs.PROJECT_TAG] for r in sensed.run_requests] == ["kestrel"]  # only Kestrel has exports
+        again = jobs.new_exports(dg.build_sensor_context(cursor=sensed.cursor, resources={"fuzer": fuzer}))
+        assert isinstance(again, dg.SkipReason)
+
+        result = dg.materialize([*jobs.SOURCES, jobs.register], resources={"fuzer": fuzer},
+                                tags=jobs.project_tags("kestrel"))
+        assert result.success
+        meta = {e.asset_key.path[-1]: e.materialization.metadata for e in result.get_asset_materialization_events()}
+        assert meta["register"]["entities"].value == 34
+        with db.connect(url=url, schema="public") as conn:
+            assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0  # Okan's is untouched
+            assert conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"] >= 34
+    finally:
+        db.set_default(before)
+        _drop("dagster_projects")
+
+
 def test_an_unknown_project_scope_fails(serving):
     url = _fresh("no_such_project")
     serving(url)

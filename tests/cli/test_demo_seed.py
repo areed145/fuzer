@@ -155,3 +155,30 @@ def test_a_failed_refresh_reports_once_and_startup_carries_on(tmp_path, monkeypa
         demo_seed.seed(conn, tmp_path)  # does not raise
     assert len(attempts) == 1
     assert "Data refresh failed" in capsys.readouterr().out
+
+
+def test_deploy_registers_okan_first_and_adds_each_other_bundle(tmp_path, capsys):
+    """Multi-project phase 4: on deploy, Okan becomes the database's first project and every other seed bundle
+    (Kestrel) is added beside it in its own schema, with its exports loaded and rebuilt there."""
+    import shutil
+
+    from fuzer.core import projects
+    from fuzer.core.pack import PACKS_DIR
+
+    bundles = tmp_path / "bundles"
+    shutil.copytree(demo_seed.BUNDLES / "kestrel", bundles / "kestrel")
+    (bundles / "okan").mkdir()
+    (bundles / "okan" / "bundle.yaml").write_text(
+        f"bundle: 1\nname: okan\npack: {PACKS_DIR / 'okan.yaml'}\nproject:\n  data: {tmp_path / 'okan'}\n")
+    (bundles / "broken").mkdir()
+    (bundles / "broken" / "bundle.yaml").write_text("bundle: 1\nname: broken\n")  # no pack: reported, skipped
+    with db.connect() as conn:
+        db.reset(conn)
+        assert demo_seed.register_projects(conn, bundles) == ["kestrel"]
+        assert projects.active(conn) == "okan" and projects.stored(conn) == ["kestrel", "okan"]
+        assert conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"] >= 34
+        assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0  # nothing in Okan's
+        assert demo_seed.register_projects(conn, bundles) == ["kestrel"]  # a redeploy changes nothing
+    out = capsys.readouterr().out
+    assert "Project broken isn't registered" in out and "Project kestrel: unchanged" in out
+    assert demo_seed.register_projects(None, tmp_path / "none") == []

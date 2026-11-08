@@ -5,7 +5,9 @@ const { resolve, dirname } = require("node:path");
 const { runInNewContext } = require("node:vm");
 const ts = require("typescript");
 
-function client() {
+function client(stored = {}) {
+  const localStorage = { getItem: (k) => stored[k] ?? null, setItem: (k, v) => { stored[k] = v; },
+    removeItem: (k) => { delete stored[k]; } };
   const cache = new Map(), calls = [], window = new EventTarget();
   let reply = { ok: true, json: async () => ({ ok: true }), text: async () => "<bpmn />" };
   const load = (path) => {
@@ -16,7 +18,7 @@ function client() {
       compilerOptions: { module: ts.ModuleKind.CommonJS },
     }).outputText;
     runInNewContext(code, {
-      exports, window, Event, URLSearchParams, setTimeout, clearTimeout,
+      exports, window, Event, localStorage, console, URLSearchParams, setTimeout, clearTimeout,
       fetch: async (url, options) => { calls.push({ url, options }); return reply; },
       require: (name) => load(resolve(dirname(path), `${name}.ts`)),
     });
@@ -56,4 +58,18 @@ test("Domain API exports share the facade's in-flight reads and transport", asyn
   await workApi.workDefinitionXml(3);
   assert.equal(c.calls.filter(call => call.url === "/entities/asset").length, 1);
   assert.equal(c.calls.find(call => call.url === "/work/definitions/3/bpmn").options, undefined);
+});
+
+test("Requests carry the picked project, and links the browser opens name it in the query", async () => {
+  const c = client({ "fuzer.project": "kestrel" });
+  await c.api.entity("asset");
+  await c.load(resolve(__dirname, "../src/api/work.ts")).workApi.workDefinitionXml(3);
+  assert.equal(c.calls[0].options.headers["X-Fuzer-Project"], "kestrel");
+  assert.equal(c.calls[1].options.headers["X-Fuzer-Project"], "kestrel");
+  const { projectUrl } = c.load(resolve(__dirname, "../src/authState.ts"));
+  assert.equal(projectUrl("/documents/a/file"), "/documents/a/file?fuzer_project=kestrel");
+  assert.equal(projectUrl("/x?y=1"), "/x?y=1&fuzer_project=kestrel");
+  const plain = client();
+  await plain.api.entity("asset");
+  assert.equal(plain.calls[0].options.headers["X-Fuzer-Project"], undefined);
 });

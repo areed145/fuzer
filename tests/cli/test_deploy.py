@@ -15,6 +15,8 @@ def test_commands_share_runtime_environment(monkeypatch):
     assert commands["Agent worker"] == ["fuzer", "--pack", "okan", "work", "worker"]
     assert commands["Dagster webserver"][-4:] == ["-h", "127.0.0.1", "-p", "3000"]
     assert commands["Dagster daemon"] == ["dagster-daemon", "run", "-m", "fuzer.ops.jobs"]
+    added = dict(deploy.commands(["kestrel"]))  # each project added beside Okan runs its own agent steps
+    assert added["Agent worker (kestrel)"] == ["fuzer", "--project", "kestrel", "work", "worker"]
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     assert "Agent worker" not in dict(deploy.commands())
 

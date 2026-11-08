@@ -129,6 +129,8 @@ class AuthenticatedRoute(APIRoute):
             person = await run_in_threadpool(identify, request)
             if person is None:
                 return await handler(request)
+            if db.scope().project and requested_project(request):
+                await run_in_threadpool(self._project_access, person)
             require(person, permission(self.path, request.method))
             unsafe = request.method not in ("GET", "HEAD")
             if unsafe:
@@ -216,6 +218,12 @@ class AuthenticatedRoute(APIRoute):
                     self._task(conn, person, task_id)
 
     @staticmethod
+    def _project_access(person: access.Principal):
+        with db.connect() as conn:
+            if db.scope().project not in access.projects_for(conn, person):
+                raise HTTPException(403, "You don't have access to this project. Ask an owner to grant it.")
+
+    @staticmethod
     def _item(conn, person, item_id):
         from ..workflow.definitions import roles_of
         try:
@@ -240,6 +248,49 @@ class AuthenticatedRoute(APIRoute):
             raise HTTPException(403, "This step needs its assigned workflow role")
         if row and row["kind"] == "agent" and not person.allows("configure"):
             raise HTTPException(403, "An administrator must hand off automated steps before a person takes over")
+
+
+PROJECT_HEADER = "x-fuzer-project"
+PROJECT_QUERY = "fuzer_project"  # links the browser opens itself (a document, a full-size figure) can't send headers
+
+
+def requested_project(request) -> str | None:
+    """The project a request asks for: the X-Fuzer-Project header, or on a GET the fuzer_project query value."""
+    value = request.headers.get(PROJECT_HEADER, "")
+    if not value and request.method in ("GET", "HEAD"):
+        value = request.query_params.get(PROJECT_QUERY, "")
+    return value.strip() or None
+
+
+class ProjectScope:
+    """Runs each request for the project the UI picked (the X-Fuzer-Project header), so every connection it opens
+    searches that project's schema. No header: the server's own project. The project must be one this database
+    holds; whether this person may open it is checked by AuthenticatedRoute once they are identified."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        name = requested_project(Request(scope))
+        if name is None:
+            return await self.app(scope, receive, send)
+        project = await run_in_threadpool(self._resolve, name)
+        if project is None:
+            response = JSONResponse({"detail": f"No project named {name!r} in this instance"}, status_code=404)
+            return await response(scope, receive, send)
+        with db.use(project):
+            await self.app(scope, receive, send)
+
+    @staticmethod
+    def _resolve(name: str) -> db.Scope | None:
+        from ..core import projects
+
+        with db.connect() as conn:
+            if name not in projects.stored(conn):
+                return None
+            return projects.scope(conn, name)
 
 
 class RequestBounds:

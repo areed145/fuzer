@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 from requests.exceptions import RequestException
 
-from ..core import access, db, settings
+from ..core import access, db, projects, settings
 from .security import cookie_name, csrf_check, identify
 
 router = APIRouter(prefix="/auth")
@@ -33,14 +33,17 @@ def _cookie(response, kind, value, max_age):
 def me(request: Request):
     if access.mode() == "local":
         identify(request)
-        return {"mode": "local", "configured": True, "user": None}
+        with db.connect() as conn:
+            return {"mode": "local", "configured": True, "user": None,
+                    "project": projects.current(conn), "projects": projects.stored(conn)}
     if not access.configured():
         return {"mode": "microsoft", "configured": False, "user": None}
     with db.connect() as conn:
         person = access.session(conn, request.cookies.get(cookie_name("session"), ""))
         has_owner = bool(conn.execute("select 1 from access_account where owner").fetchone())
         visible = access.projects_for(conn, person) if person else []
-    return {"mode": "microsoft", "configured": True,
+        here = projects.current(conn)
+    return {"mode": "microsoft", "configured": True, "project": here,
             "user": None if person is None else {
                 **asdict(person), "actor": person.actor, "permissions": sorted(person.permissions),
                 "projects": visible},

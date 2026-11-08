@@ -2,6 +2,7 @@
 // which loads only when a chart is on the page. The page's theme (light / dark) is applied here, so
 // stored figures carry no colours of their own. Clicking a point opens the Fuzer record behind it.
 
+import { projectUrl } from "./authState";
 import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
@@ -75,7 +76,7 @@ export function FigureView({ id }: { id: string }) {
             {d.by_source === "assistant" && <UIBadge className="badge">assistant-entered data</UIBadge>}
             <span className="spacer" />
             <Button variant="link" onClick={() => setTable((t) => !t)}>{table ? "Hide data" : "Data"}</Button>
-            <a href={`/figures/${encodeURIComponent(d.id)}.html`} target="_blank" rel="noreferrer">Open full size</a>
+            <a href={projectUrl(`/figures/${encodeURIComponent(d.id)}.html`)} target="_blank" rel="noreferrer">Open full size</a>
           </figcaption>
           {table && <FigureTable d={d} />}
         </>
