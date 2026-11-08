@@ -105,7 +105,7 @@ def test_stored_studies_run_queue_and_rerun(conn, monkeypatch):
                                                 "scope": train_a(conn)}, "alice", now=True)
     assert bad["status"] == "failed" and bad["error"]
 
-    monkeypatch.setattr(api.deps, "PACK", PACK)
+    monkeypatch.setattr(api.deps, "pack", lambda: PACK)
     client = TestClient(api.app)
     assert client.get(f"/studies/{s['id']}").json()["kind"] == "modes"
     assert client.get("/studies").json()[0]["id"] == bad["id"]
