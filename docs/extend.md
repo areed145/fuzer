@@ -55,23 +55,17 @@ the work engine, the UI) picks the addition up without code changes.
 A **project** is one facility: an asset pack, the exports or connections that feed it, a time-series
 provider and a timezone. The [Okan field](walkthrough.md) is the reference project.
 
-!!! warning "Project setup is changing"
-    Two pieces of work are in flight and will change the commands in this section:
-
-    - **Seed bundles** ([#383](https://github.com/areed145/fuzer/pull/383), part of #376): a folder with
-      `bundle.yaml`, a pack and optional exports, loaded with `fuzer init --bundle <folder>`. It adds a
-      second demo facility, Kestrel Ridge gas plant (`KRGP`).
-    - **Several projects in one deployment**: each project in its own database schema, with
-      `/p/<project>/` URLs and a project switcher in the UI.
-
-    The pack format below stays the same. How a project is registered and selected is what moves. This
-    page describes both today's route and the bundle route so it stays useful through the change.
+!!! note "One database, several projects"
+    Accounts, access, the project list and settings live in the shared `fuzer` schema. The first project's
+    register is in `public`, and each further project gets its own schema (`proj_<name>`), so no project
+    sees another's register. Commands run for one project at a time: `fuzer --project <name>` (or
+    `FUZER_PROJECT`), and `projects.use(conn, name)` in code. See [Overview](overview.md#asset-packs).
 
 ### 1. Write the asset pack
 
 Everything facility-specific lives in the pack, so no Python changes for a new site. Okan's is
 [`src/fuzer/packs/okan.yaml`](https://github.com/areed145/fuzer/blob/main/src/fuzer/packs/okan.yaml). A
-small pack looks like this (Kestrel Ridge, from #383):
+small pack looks like this (Kestrel Ridge, the second demo facility):
 
 ```yaml
 name: kestrel
@@ -116,7 +110,28 @@ work board's value score) and `limits`.
 
 ### 2. Register the project
 
-**Today (main).** A project is a `project` row in the database, seeded from `projects/<name>.yaml`:
+**From a seed bundle (recommended).** The project, its pack and its exports travel together in one folder:
+
+```text
+fakeplant/bundles/kestrel/
+├── bundle.yaml          # bundle: 1, name, description, pack: pack.yaml, project: {data, timeseries, timezone}
+├── pack.yaml
+└── exports/             # sap_floc.csv, sap_equipment.csv, pi_points.csv, maximo_assets.csv
+```
+
+```sh
+uv run fuzer init --bundle fakeplant/bundles/kestrel    # stores the project and pack; no ingest
+FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports uv run fuzer --project kestrel ingest
+uv run fuzer --project kestrel rebuild
+```
+
+`init` stores the project and its pack in the database and names it in `project.active`, so the API, MCP
+server and jobs pick the right pack without environment variables. On a fresh database the bundle becomes
+the first project (in `public`); on a database that already holds one, it is added in its own `proj_<name>`
+schema. Running `init` again with the same bundle is a no-op, and a changed bundle for the same project
+needs `--upgrade`.
+
+**From a project file.** Without a bundle, a project is seeded from `projects/<name>.yaml`:
 
 ```yaml
 # projects/kestrel.yaml
@@ -128,29 +143,9 @@ timezone: America/Denver
 
 ```sh
 uv run fuzer projects save kestrel        # store it in the database
-uv run fuzer --project kestrel ingest     # or FUZER_PROJECT=kestrel
+uv run fuzer --project kestrel ingest
 uv run fuzer --project kestrel rebuild
 ```
-
-**With seed bundles (#383).** The project, its pack and its exports travel together in one folder, and
-the database remembers which project it holds (`project.active`), so the API, MCP server and jobs pick the
-right pack without environment variables:
-
-```text
-fakeplant/bundles/kestrel/
-├── bundle.yaml          # bundle: 1, name, description, pack: pack.yaml, project: {data, timeseries, timezone}
-├── pack.yaml
-└── exports/             # sap_floc.csv, sap_equipment.csv, pi_points.csv, maximo_assets.csv
-```
-
-```sh
-uv run fuzer init --bundle fakeplant/bundles/kestrel    # a fresh database; config only, no ingest
-FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports uv run fuzer ingest
-uv run fuzer rebuild
-```
-
-Running `init` again with the same bundle is a no-op; a changed bundle for the same project needs
-`--upgrade`; a bundle for a different facility is refused.
 
 ### 3. Load and check
 
