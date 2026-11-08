@@ -66,10 +66,19 @@ def check(p: Path, pkg: str | None) -> list[str]:
         if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in modules
                 and node.value.id not in rebound and isinstance(node.ctx, ast.Load)):
             m = modules[node.value.id]
-            if not hasattr(m, node.attr) and not (hasattr(m, "__path__")
+            if not _has(m, node.attr) and not (hasattr(m, "__path__")
                                                   and importlib.util.find_spec(f"{m.__name__}.{node.attr}")):
                 bad.append(f"{where}:{node.lineno}: {m.__name__} has no {node.attr}")
     return bad
+
+
+def _has(module, name: str) -> bool:
+    """hasattr, except that a module __getattr__ failing for another reason (mcp_server.PACK needs a project in
+    the database) still means the name exists."""
+    try:
+        return hasattr(module, name)
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def main() -> int:
