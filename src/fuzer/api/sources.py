@@ -2,7 +2,6 @@
 one before it loads, and adding a new one in one flow: suggest a mapping (rules, or Claude), save it and load
 the table."""
 
-import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -16,7 +15,10 @@ router = APIRouter(route_class=AuthenticatedRoute)
 
 
 def _data_dir() -> str:
-    return os.environ.get("FUZER_DATA_DIR") or "data"
+    """The exports folder of the project this request runs for."""
+    from ..core import projects
+
+    return projects.field("data") or "data"
 
 
 @router.get("/sources")

@@ -113,6 +113,34 @@ def _path(v: str) -> str:
     return str(p if p.is_absolute() else ROOT / p)
 
 
+_fields: dict[tuple, tuple[float, dict]] = {}
+FIELD_SECONDS = 5.0
+
+
+def field(name: str) -> str | None:
+    """A project setting with an old process-wide variable (data, mappings, timeseries, timezone, cache) for the
+    project this code runs for. A project added beside the first takes its own config, whatever the process's
+    environment says, so one deployment serves several projects; the first project keeps the variable, then its
+    config. Paths come back absolute."""
+    import time
+
+    from . import db
+
+    var = FIELDS[name]
+    s = db.scope()
+    if s.project and s.schema != db.PROJECT_SCHEMA:
+        key = (os.environ.get("FUZER_DATABASE_URL") or (db._server.get_uri() if db._server else None), s)
+        hit = _fields.get(key)
+        if not hit or time.monotonic() - hit[0] >= FIELD_SECONDS:
+            with db.connect() as conn:
+                hit = _fields[key] = (time.monotonic(), config(conn, s.project))
+        value = hit[1].get(name)
+        if value is not None:
+            return _path(value) if name in ("data", "mappings", "cache") else str(value)
+        return None
+    return os.environ.get(var) or None
+
+
 def activate(conn, name: str) -> dict:
     """Make `name` this process's project: FUZER_PROJECT, and the old path/provider variables from its config.
     `pack.current_pack` reads the pack from the project at runtime (#376)."""
@@ -121,6 +149,8 @@ def activate(conn, name: str) -> dict:
     cfg = config(conn, name)
     os.environ["FUZER_PROJECT"] = name
     db.set_default(db.Scope(name, schema_of(cfg)))  # this process's connections search the project's schema
+    if schema_of(cfg) != db.PROJECT_SCHEMA:
+        return cfg  # an added project's settings come from its config (`field`), never the process's variables
     for field, var in FIELDS.items():
         if field == "pack" or cfg.get(field) is None:
             continue
