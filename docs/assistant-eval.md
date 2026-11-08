@@ -41,6 +41,13 @@ answer went to the expected specialists, so each agent's tool list still covers 
 | Cost per answer | $0.84 (total $11.80) |
 | Time per answer | 86 s |
 
+Both missed facts were the key's and the data's fault, not the answers'. The wall-thickness key wanted the well
+OK-J03-02, but the generator thinned J03's flowline at one constant rate from 2019, so nothing in the data tied
+it to the 2025 breakthrough. The reliability key wanted the literal "MTBF", which an answer saying "mean time
+between failures" missed. Since then the flowline loses wall faster after the breakthrough, with a November 2025
+follow-up survey that shows it; the key accepts the line's ID or its jacket alongside the well; and "MTBF" accepts
+its spelled-out forms. The next recorded run is the first on the corrected keys.
+
 ## First run, 2026-10-29
 
 | | |

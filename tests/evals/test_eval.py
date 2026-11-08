@@ -1,6 +1,8 @@
 """Answer-key scoring of search, document links, section failure modes and log reading."""
 
 
+import json
+
 import pytest
 
 from fuzer.core.pack import load_pack
@@ -39,6 +41,7 @@ def test_okan_has_no_cross_register_matches(scores):
     # Okan has one equipment register (SAP), so no record pairs to resolve; a real asset with a second
     # register supplies matches.json, scored as in test_matches_scoring.
     assert "matches" not in scores
+    assert scores["not_scored"]["missing_keys"] == ["matches.json"]  # named, not silently skipped
 
 
 class _Rows:
@@ -59,3 +62,16 @@ def test_matches_scoring():
     m = evaluate.matches(conn, PACK, [pair("1", "J1"), pair("2", "J2"), pair("3", "J3")])
     assert (m["pairs"], m["wrong_merges"], m["not_merged"]) == (3, 1, 1)
     assert m["precision"] == 0.5 and m["recall"] == round(1 / 3, 3)
+
+
+def test_assistant_keys_name_the_wet_line_and_accept_synonyms(okan_db):
+    keys = json.loads((okan_db.data / "answer_keys" / "assistant.json").read_text())
+    walls = next(k for k in keys if "wall thickness" in k["question"])
+    line = walls["must_mention"][2][0]
+    assert line.startswith("OK-PL-") and "{wet_line}" not in json.dumps(keys)
+    readings = (okan_db.data / "inspection_readings.csv").read_text()
+    assert f"TM-{line}-01-202511" in readings  # the follow-up survey is on that line
+    bad_actors = next(k for k in keys if k["domain"] == "reliability")
+    answer = {"answer": "20-K-2200B fails every 41 days (mean time between failures).", "tools": [], "specialists": [],
+              "seconds": 1, "usage": {"cost_usd": 0}}
+    assert evaluate.score_answer(bad_actors, answer)["mentions"] == 1.0
