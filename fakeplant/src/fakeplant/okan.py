@@ -364,7 +364,7 @@ def generate(out, seed: int = 11) -> dict:
         area, rest = tag.split("-", 1)
         return by_tag[f"{area}-{rest.replace('-', '')}"]
 
-    notifications, orders, downtime, logs = [], [], [], []
+    notifications, orders, downtime, logs, log_truth = [], [], [], [], []
     mrng, drng, lrng = random.Random(seed + 3), random.Random(seed + 4), random.Random(seed + 5)
 
     def notify(tag: str, created: str, damage: str, text: str, cause: str | None = None, prio: str = "2") -> dict:
@@ -392,9 +392,12 @@ def generate(out, seed: int = 11) -> dict:
                          "lost_oil_sm3": f"{oil_rate * hours / 24:.0f}", "lost_gas_ksm3": f"{gas_rate * hours / 24:.0f}",
                          "comment": comment})
 
-    def log(when: str, text: str, author: str | None = None):
+    def log(when: str, text: str, author: str | None = None, about: tuple[list[str], list[str]] = ([], [])):
+        """One operator log entry, and its answer key: the entity labels a reader should link (a short name
+        such as J02-04 or NWP-G2 included, which the rules can't resolve) and its event types."""
         logs.append({"entry_id": f"OKLOG-{when[:10]}-{len(logs):05d}", "timestamp": when, "facility": FIELD,
                      "author": author or lrng.choice(AUTHORS), "text": text})
+        log_truth.append({"entry_id": logs[-1]["entry_id"], "mentions": about[0], "event_types": about[1]})
 
     # Background corrective and preventive maintenance on every item (own random sequence).
     for e in equipment:
@@ -416,25 +419,30 @@ def generate(out, seed: int = 11) -> dict:
 
     # Story 1: train B 2nd stage bearing wear -> vibration -> trips -> lift gas shortfall -> lost oil.
     hit = ["J07", "J12", "J15"]
-    log("2024-02-26T09:00:00", "20-VT-2200B on GGCP train B 2nd stage creeping up, 6.8 mm/s. Monitoring.", "GGCP CRO")
-    log("2024-03-08T14:00:00", "Train B 2nd stage compressor vibration 9 mm/s, bearing temp 20-TT-2200B 96 degC.", "GGCP CRO")
+    log("2024-02-26T09:00:00", "20-VT-2200B on GGCP train B 2nd stage creeping up, 6.8 mm/s. Monitoring.", "GGCP CRO",
+        (["20-VT-2200B", "OKAN-20", "20-K-2200B"], ["alarm"]))
+    log("2024-03-08T14:00:00", "Train B 2nd stage compressor vibration 9 mm/s, bearing temp 20-TT-2200B 96 degC.", "GGCP CRO",
+        (["20-K-2200B", "20-TT-2200B"], ["alarm"]))
     n1 = notify("20-K-2200B", "2024-03-09", "D01", "High vibration on train B 2nd stage compressor", "C06", "2")
     for when, hours, p in [("2024-03-14T03:20", 7, 61), ("2024-03-29T22:10", 11, 57)]:
         log(f"{when}:00", f"20-K-2200B tripped on high vibration. Lift gas header pressure 20-PT-3003 dropped from "
-            f"88 to {p} barg. Opened compression bypass 20-XV-3100 to keep lift gas to jackets.", "GGCP CRO")
+            f"88 to {p} barg. Opened compression bypass 20-XV-3100 to keep lift gas to jackets.", "GGCP CRO",
+            (["20-K-2200B", "20-PT-3003", "20-XV-3100"], ["trip"]))
         log(_add_hours(when, 1) + ":00", f"Lift gas shortfall: GL wells on {', '.join(hit)} lost lift, "
-            f"OK-J07-03 and OK-J12-02 died. Prioritised lift gas to J07.", "PP CRO")
+            f"OK-J07-03 and OK-J12-02 died. Prioritised lift gas to J07.", "PP CRO",
+            (["OK-J07-03", "OK-J12-02"], ["shut_in"]))
         lost(FIELD, when, hours, "LIFT-GAS", f"20-K-2200B tripped on high vibration; lift gas shortfall on "
              f"{', '.join(hit)} GL wells, restarted after {hours}h", 1450, 300)
         notify("20-K-2200B", when[:10], "D09", "Train B 2nd stage compressor tripped on high vibration", "C02", "1")
     work(n1, "20-K-2200B", "2024-04-03", "A03", "PM01", "Replace thrust and journal bearings, train B 2nd stage", 4)
     log("2024-04-07T16:00:00", "Train B back in service after bearing replacement on 20-K-2200B, vibration 2.1 mm/s.",
-        "GGCP CRO")
+        "GGCP CRO", (["20-K-2200B"], ["start"]))
 
     # Story 2: train A 3rd stage after-cooler fouling -> high discharge temperature trips in hot months.
     for when in ["2024-06-11T15:00", "2024-07-02T14:30", "2024-07-24T13:45"]:
         log(f"{when}:00", "20-K-2300A tripped on high discharge temperature, 20-TT-2300A 168 degC. After-cooler "
-            "20-E-2350A approach temperature high.", "GGCP CRO")
+            "20-E-2350A approach temperature high.", "GGCP CRO",
+            (["20-K-2300A", "20-TT-2300A", "20-E-2350A"], ["trip"]))
         lost(FIELD, when, 3, "PROC-TRIP", "20-K-2300A tripped on high discharge temp; train A down, "
              "lift gas reduced, restarted after 3h", 600, 150)
     n2 = notify("20-E-2350A", "2024-07-25", "D04", "High temperature on train A 3rd stage after-cooler", "C05")
@@ -442,17 +450,20 @@ def generate(out, seed: int = 11) -> dict:
     # ... and comes back the next summer: cleaning only buys a year, the bundle needs retubing at the TAR.
     for when in ["2025-06-24T14:00", "2025-07-16T15:30"]:
         log(f"{when}:00", "20-K-2300A tripped on high discharge temperature again, 20-TT-2300A 171 degC. "
-            "After-cooler 20-E-2350A fouled again, eddy current found thinned tubes.", "GGCP CRO")
+            "After-cooler 20-E-2350A fouled again, eddy current found thinned tubes.", "GGCP CRO",
+            (["20-K-2300A", "20-TT-2300A", "20-E-2350A"], ["trip"]))
         lost(FIELD, when, 4, "PROC-TRIP", "20-K-2300A tripped on high discharge temp; after-cooler fouled, "
              "restarted after 4h", 600, 150)
     n2b = notify("20-E-2350A", "2025-07-17", "D04", "Repeat fouling, thinned tubes on train A 3rd stage after-cooler", "C05")
     work(n2b, "20-E-2350A", "2025-07-28", "A02", "PM01", "Clean cooler tubes, train A 3rd stage after-cooler", 2)
 
     # Story 3: inlet separator level transmitter erratic -> liquid carryover -> train C scrubber trips.
-    log("2024-11-04T02:00:00", "20-LT-2001 on GGCP inlet separator hunting, disagrees with gauge glass.", "Night Supervisor")
+    log("2024-11-04T02:00:00", "20-LT-2001 on GGCP inlet separator hunting, disagrees with gauge glass.", "Night Supervisor",
+        (["20-LT-2001", "20-V-2001", "OKAN-20"], ["instrument_fault"]))
     for when in ["2024-11-05T05:30", "2024-11-09T18:15"]:
         log(f"{when}:00", "Train C tripped on high level in 1st stage suction scrubber 20-V-2101C. Liquid carryover "
-            "from inlet separator suspected.", "GGCP CRO")
+            "from inlet separator suspected.", "GGCP CRO",
+            (["20-V-2101C", "20-V-2001"], ["trip"]))
         lost(FIELD, when, 5, "PROC-TRIP", "Train C trip on high level in 20-V-2101C, carryover from 20-V-2001; "
              "restarted after 5h", 700, 160)
     n3 = notify("20-V-2001", "2024-11-06", "D07", "Level indication faulty on GGCP inlet separator", "C04")
@@ -461,27 +472,32 @@ def generate(out, seed: int = 11) -> dict:
     # Story 4: hydrates on gas producer OK-NWP-G2 cut the lift gas supply.
     for when, a, b in [("2025-01-14T05:00", 45, 30), ("2025-01-21T04:30", 40, 25)]:
         log(f"{when}:00", f"OK-NWP-G2 WHT falling, rate dropping. Hydrate suspected in flowline, methanol injection "
-            f"started, choke {a} to {b}%.", "Field Operator")
+            f"started, choke {a} to {b}%.", "Field Operator",
+            (["OK-NWP-G2"], ["choke_change"]))
         lost("OKAN NWP-G2", when, 18, "HYDRATE", "OK-NWP-G2 hydrate in flowline, methanol injected", 0, 900)
         log(_add_hours(when, 3) + ":00", "Lift gas supply short with NWP-G2 down; lift gas header 20-PT-3003 at 74 barg, "
-            "reduced GL rates on ST2 jackets.", "PP CRO")
+            "reduced GL rates on ST2 jackets.", "PP CRO",
+            (["OK-NWP-G2", "20-PT-3003"], ["other"]))
 
     # Story 5: EGP curtails gas export.
     for when, hours in [("2025-02-10T08:00", 30), ("2025-03-02T12:00", 14)]:
         log(f"{when}:00", "EGP requested export cut to 40 MMscfd. Routed excess gas to lift gas header and flare, "
-            "NWP export ESDV 50-XV-3100 closed.", "OIM")
+            "NWP export ESDV 50-XV-3100 closed.", "OIM",
+            (["EGP", "20-PT-3003", "50-XV-3100"], ["stop"]))
         lost(FIELD, when, hours, "EXT-EGP", "Escravos Gas Plant curtailed export; gas flared and wells choked back",
              300, 2200)
 
     # Story 6: gas lift valve failures on J07 wells.
     for when, w in [("2024-09-03T10:00", "OK-J07-03"), ("2025-04-15T09:00", "OK-J07-05")]:
-        log(f"{when}:00", f"{w} casing heading, GL valve suspected failed open. Unloading not stable.", "Production Engineer")
+        log(f"{when}:00", f"{w} casing heading, GL valve suspected failed open. Unloading not stable.", "Production Engineer",
+            ([w], ["other"]))
         lost(w, when, 96, "GL-VALVE", f"{w} gas lift valve failure, well shut in for slickline valve change", 45)
 
     # Story 8: oil export pump A loses head as its wear rings open up (discharge pressure low at normal flow);
     # new wear rings in September 2025 restore it. Reading it needs the pump's OEM curve.
     log("2025-09-10T09:00:00", "10-P-1001A discharge pressure 3 bar low at normal export rate; pump curve check "
-        "suggests worn wear rings.", "Production Engineer")
+        "suggests worn wear rings.", "Production Engineer",
+        (["10-P-1001A"], ["other"]))
     n8 = notify("10-P-1001A", "2025-09-11", "D05", "Low output from oil export pump A, head below curve", "C01")
     work(n8, "10-P-1001A", "2025-09-18", "A02", "PM01", "Replace wear rings and inspect impeller, oil export pump A", 2)
     # Story 9: OK-J12-02's choke trim erodes (sand): the same opening passes more and more flow, until the
@@ -489,7 +505,8 @@ def generate(out, seed: int = 11) -> dict:
     j1202 = next(c for c in chokes if c["well"] == "OK-J12-02")
     tag_j1202 = f"{j1202['floc'].split('-')[1]}-HCV-{j1202['floc'][-4:]}"
     log("2025-09-28T07:00:00", f"OK-J12-02 choke {tag_j1202} at 22% but rate as at 35%. Can't trim back, choke "
-        "eroded? Sand seen at the test separator.", "Production Engineer")
+        "eroded? Sand seen at the test separator.", "Production Engineer",
+        (["OK-J12-02", tag_j1202], ["other"]))
     n9 = notify(tag_j1202, "2025-09-29", "D08", "Production choke on OK-J12-02 eroded, flow above characteristic", "C03")
     work(n9, tag_j1202, "2025-10-15", "A01", "PM01", "Replace choke trim and body, OK-J12-02", 1)
     j1202["valid_to"] = "2025-10-15"
@@ -500,12 +517,14 @@ def generate(out, seed: int = 11) -> dict:
     g3 = next(c for c in chokes if c["well"] == "OK-NWP-G3")
     tag_g3 = f"50-HCV-{g3['floc'][-4:]}"
     log("2025-09-04T10:00:00", f"OK-NWP-G3 gas rate down 30% at the same choke opening; {tag_g3} suspected "
-        "partly plugged with scale.", "Production Engineer")
+        "partly plugged with scale.", "Production Engineer",
+        (["OK-NWP-G3", tag_g3], ["other"]))
     n10 = notify(tag_g3, "2025-09-04", "D05", "Production choke on OK-NWP-G3 restricted, flow below characteristic", "C03")
     work(n10, tag_g3, "2025-09-12", "A01", "PM01", "Change choke bean and descale, OK-NWP-G3", 1)
 
     # Story 7: export pump seal leak.
-    log("2025-05-20T11:00:00", "Seal leak on 10-P-1001B oil export pump, started 10-P-1001C, isolated B.", "PP CRO")
+    log("2025-05-20T11:00:00", "Seal leak on 10-P-1001B oil export pump, started 10-P-1001C, isolated B.", "PP CRO",
+        (["10-P-1001B", "10-P-1001C"], ["leak", "changeover"]))
     n7 = notify("10-P-1001B", "2025-05-20", "D02", "Seal / flange leak on oil export pump B", "C01")
     work(n7, "10-P-1001B", "2025-05-22", "A01", "PM01", "Replace mechanical seal on oil export pump B", 2)
 
@@ -520,22 +539,30 @@ def generate(out, seed: int = 11) -> dict:
 
     # Background operator log, two years.
     t0 = date(2024, 1, 1)
+    # Each template gives the text and its answer key; the key draws nothing, so the text is unchanged.
     templates = [
-        lambda w, x: f"Lined up {w['name']} to {x} test separator for monthly well test.",
-        lambda w, x: f"{w['name']} GL rate adjusted from {lrng.randint(8, 14)} to {lrng.randint(10, 18)} kSm3/d.",
-        lambda w, x: f"{w['name'].replace('OK-', '')} choke opened {lrng.randint(20, 40)} to {lrng.randint(40, 64)}%, WHP steady.",
-        lambda w, x: f"Lift gas header 20-PT-3003 steady at {lrng.randint(84, 92)} barg, all three trains running.",
-        lambda w, x: f"Train {lrng.choice('ABC')} on recycle during {x} well test, loading back up.",
-        lambda w, x: f"Gas export to EGP {lrng.randint(55, 85)} MMscfd, 20-FT-3001 reading normal.",
-        lambda w, x: "Swapped oil export pumps 10-P-1001A to 10-P-1001C for planned maintenance.",
-        lambda w, x: f"{w['name']} slugging, increased gas lift.",
+        lambda w, x: (f"Lined up {w['name']} to {x} test separator for monthly well test.", ([w["name"]], ["well_test"])),
+        lambda w, x: (f"{w['name']} GL rate adjusted from {lrng.randint(8, 14)} to {lrng.randint(10, 18)} kSm3/d.",
+                      ([w["name"]], ["other"])),
+        lambda w, x: (f"{w['name'].replace('OK-', '')} choke opened {lrng.randint(20, 40)} to {lrng.randint(40, 64)}%, "
+                      "WHP steady.", ([w["name"]], ["choke_change"])),
+        lambda w, x: (f"Lift gas header 20-PT-3003 steady at {lrng.randint(84, 92)} barg, all three trains running.",
+                      (["20-PT-3003"], [])),
+        lambda w, x: (f"Train {lrng.choice('ABC')} on recycle during {x} well test, loading back up.", ([], ["well_test"])),
+        lambda w, x: (f"Gas export to EGP {lrng.randint(55, 85)} MMscfd, 20-FT-3001 reading normal.",
+                      (["EGP", "20-FT-3001"], [])),
+        lambda w, x: ("Swapped oil export pumps 10-P-1001A to 10-P-1001C for planned maintenance.",
+                      (["10-P-1001A", "10-P-1001C"], ["changeover"])),
+        lambda w, x: (f"{w['name']} slugging, increased gas lift.", ([w["name"]], ["other"])),
     ]
     for i in range(2400):
         day = t0 + timedelta(days=lrng.randint(0, 729))
         w = lrng.choice([w for w in wells if w["type"] == "oil"])
         sat = {"10": "PP", "30": "ST1", "40": "ST2", "50": "NWP"}.get(HOST.get(int(w["site"][1:]), "50")
                                                                    if w["site"].startswith("J") else "50")
-        log(f"{day.isoformat()}T{lrng.choice(['06', '12', '18'])}:00:00", lrng.choice(templates)(w, sat))
+        when = f"{day.isoformat()}T{lrng.choice(['06', '12', '18'])}:00:00"
+        text, about = lrng.choice(templates)(w, sat)
+        log(when, text, about=about)
 
     # DAY001: field figures and the day's events.
     by_day: dict[str, list[dict]] = {}
@@ -650,7 +677,7 @@ def generate(out, seed: int = 11) -> dict:
                           "gor_sm3_sm3": f"{trng.uniform(90, 160):.0f}", "lift_gas_ksm3d": f"{gas:.1f}",
                           "whp_barg": f"{trng.uniform(14, 26):.1f}"})
     log("2025-06-12T10:00:00", "OK-J03-02 water cut up to 72% on test, oil rate down. Water breakthrough suspected.",
-        "Production Engineer")
+        "Production Engineer", (["OK-J03-02"], ["well_test"]))
 
     # ---- EC allocation network ------------------------------------------------------------------------
     nodes = [{"code": f"OKAN_{w['site']}_{w['name'].rsplit('-', 1)[1]}", "type": "well", "name": w["name"]}
@@ -912,6 +939,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "gis_pipelines.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": lines}, indent=1))
     (out / "gis_wells.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": well_feats}, indent=1))
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
+    (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(json.dumps(ASSISTANT_QUESTIONS, indent=1))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source

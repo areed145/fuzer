@@ -35,7 +35,27 @@ def test_log_reading_rules_baseline(scores):
     assert scores["logs"]["events"].startswith("no events yet")
 
 
-def test_equipment_matching(scores):
-    m = scores["matches"]
-    assert m["pairs"] > 20 and m["wrong_merges"] == 0 and m["precision"] == 1.0
-    assert m["recall"] >= 0.85  # the rest wait in the review queue (no serial, no maker)
+def test_okan_has_no_cross_register_matches(scores):
+    # Okan has one equipment register (SAP), so no record pairs to resolve; a real asset with a second
+    # register supplies matches.json, scored as in test_matches_scoring.
+    assert "matches" not in scores
+
+
+class _Rows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self, *_):
+        return self.rows
+
+
+@pytest.mark.unit
+def test_matches_scoring():
+    owner = lambda source, key, fid: {"source": source, "source_key": key, "fuzer_id": fid}  # noqa: E731
+    conn = _Rows([owner("sap", "1", "a"), owner("jde", "J1", "a"),  # merged with its twin
+                  owner("sap", "2", "b"), owner("jde", "J2", "c"),  # still apart (in review)
+                  owner("sap", "3", "d"), owner("jde", "J3", "e"), owner("jde", "J9", "d")])  # merged with the wrong one
+    pair = lambda k, j: {"source": "sap", "key": k, "same_as": {"source": "jde", "key": j}}  # noqa: E731
+    m = evaluate.matches(conn, PACK, [pair("1", "J1"), pair("2", "J2"), pair("3", "J3")])
+    assert (m["pairs"], m["wrong_merges"], m["not_merged"]) == (3, 1, 1)
+    assert m["precision"] == 0.5 and m["recall"] == round(1 / 3, 3)

@@ -134,8 +134,9 @@ test("Wave 1 Downtime rankings fit mobile and recover a failed ranking read", as
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => window.scrollTo(0, 0));
-      const heading = await page.getByRole("heading", { name: "Accounts", exact: true }).boundingBox();
-      assert.ok(heading && heading.y < 900, "Account administration should be discoverable in the first viewport");
+      // The account list and its search start in the first viewport; the guidance above it stays folded.
+      const search = await page.getByRole("searchbox", { name: "Find accounts", exact: true }).boundingBox();
+      assert.ok(search && search.y + search.height < 900, "Account search should be in the first viewport");
       await waveScreenshot(`users-all-accounts-${width}`);
     }
     await page.getByLabel("Account status filter", { exact: true }).selectOption("owners");

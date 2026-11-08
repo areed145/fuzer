@@ -55,7 +55,8 @@ account and legacy-roster contexts. Always explain saved assignments versus effe
 Work context is presentation focus, not a workflow role or permission. No context selector is
 shown until supported presentation behavior exists; do not persist a cosmetic persona choice.
 
-Users account search and enabled/owner filters live in the URL. Counts and owner
+Users account search and enabled/owner filters live in the URL. Explanatory guidance above the account
+list stays in a labelled disclosure so account search starts in the first viewport on a phone. Counts and owner
 recovery guidance come from the loaded account catalog, never filtered results.
 Typing replaces the current search URL so Back does not walk through each character.
 Account edits remain unsaved until confirmation; displayed effective access
