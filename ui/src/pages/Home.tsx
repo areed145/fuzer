@@ -26,13 +26,14 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
   statsError?: string;
 }) {
   const configure = usePermission("configure"), ai = usePermission("ai");
+  const noRecords = stats?.records === 0;
   return (
     <section className="home">
       <PageHeader subtitle="Explore connected facility data, understand what needs attention, and follow work through to completion.">
         Home
       </PageHeader>
       <HomeSearch query={query} />
-      {stats && stats.records === 0 && (
+      {noRecords && (
         <UICard title="Connect data before exploring">
           <p>No source records have been loaded. Add a source, map its fields and load it to build the facility register.</p>
           {configure ? <a href={href("/sources", { view: "add" })}>Open source setup</a>
@@ -42,21 +43,22 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
       <UICard className="home-guide" aria-labelledby="home-guide-title">
         <h2 id="home-guide-title">Where would you like to start?</h2>
         <div className="home-guide-links">
-          {configure && <a href={href("/sources")}><strong>Source readiness</strong><span>Connect and test sources, monitor freshness and recover failed loads.</span></a>}
-          {configure && <a href={href("/settings")}><strong>Application settings</strong><span>Review shared defaults, AI limits and restart requirements.</span></a>}
           <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
           <a href={href("/board")}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
           {ai && <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate with the assistant when a provider is configured by the owner.</span></a>}
           <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
+          {configure && <a href={href("/sources")}><strong>Source readiness</strong><span>Connect and test sources, monitor freshness and recover failed loads.</span></a>}
+          {configure && <a href={href("/settings")}><strong>Application settings</strong><span>Review shared defaults, AI limits and restart requirements.</span></a>}
         </div>
       </UICard>
       {stats && stats.records > 0 && <ChartShow label="Production charts" slides={HOME_FIGURES.map(({ kind, title }) => ({ id: kind, title, render: () => <LiveFigure kind={kind} /> }))} />}
+      {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}
       <div className="home-grid">
-        <LatestReportCard />
+        {!noRecords && <LatestReportCard />}
         <NeedsYouCard stats={stats} statsLoading={statsLoading} statsError={statsError} />
-        <PrioritiesCard />
-        <IncidentsCard />
-        <HealthCard />
+        {!noRecords && <PrioritiesCard />}
+        {!noRecords && <IncidentsCard />}
+        {configure && <HealthCard />}
       </div>
     </section>
   );
@@ -160,7 +162,7 @@ function NeedsYouCard({ stats, statsLoading, statsError }: {
         {stats && (reviews.length ? (
           <div className="row small">
             {reviews.map(([kind, count]) => (
-              <a key={kind} className="badge" href={href("/review", { kind })}>{kind.replace("_", " ")} · {count}</a>
+              <a key={kind} className="badge" href={href("/review", { kind })}>{kind.replace(/_/g, " ")} · {count}</a>
             ))}
           </div>
         ) : <p className="muted small">No open reviews.</p>)}
@@ -233,7 +235,7 @@ function IncidentsCard() {
           {recentIncidents.map((incident) => (
             <li key={incident.id}>
               <a href={entityHref(incident.id)}>{incident.description}</a>
-              <span className="muted small">{incident.start} · {Math.round(incident.lost_oil_sm3).toLocaleString()} Sm³ lost</span>
+              <span className="muted small">Started {incident.start} · {Math.round(incident.lost_oil_sm3).toLocaleString()} Sm³ lost oil</span>
             </li>
           ))}
         </ul>
@@ -241,7 +243,7 @@ function IncidentsCard() {
       <div className="home-subsection">
         <div className="row spread">
           <h3>Detections without a recorded end</h3>
-          <a href={href("/board")}>Work board</a>
+          <a href={href("/board", { view: "kind" })}>Work board by type</a>
         </div>
         <Status loading={upsets.loading && !upsets.data} error={upsets.error} onRetry={upsets.reload}
           empty={upsets.data !== undefined && openUpsets.length === 0}>
@@ -260,19 +262,18 @@ function IncidentsCard() {
 function UpsetItem({ upset }: { upset: Upset }) {
   return (
     <li>
-      <a href={href("/board")}>{upset.first_key || upset.first_point || `Upset ${upset.id}`}</a>
-      <span className="muted small">{upset.start} · {upset.first_unit ?? "Unknown unit"} · {upset.detections} detections</span>
+      <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/board", { view: "kind" })}>
+        {upset.first_key || upset.first_point || `Upset ${upset.id}`}</a>
+      <span className="muted small">Detected from {timestamp(upset.start)} · {upset.first_unit ?? "Unknown unit"} · {upset.detections} detections</span>
     </li>
   );
 }
 
 function HealthCard() {
-  const configure = usePermission("configure");
   return (
     <UICard className="home-card" as="section">
       <h2>Data and scheduler health</h2>
-      {configure ? <><SourceHealthPanel /><JobsHealthPanel /></>
-        : <p className="muted small">Administrators monitor source loads and scheduled jobs. Historic demo timestamps are not live plant outages.</p>}
+      <SourceHealthPanel /><JobsHealthPanel />
     </UICard>
   );
 }
@@ -293,7 +294,7 @@ function SourceHealthPanel() {
       </Status>
       {sources.data && rows.length > 0 && (
         <>
-          <p className="muted small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed checks.
+          <p className="muted small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.
             {" "}Freshness is time since ingestion against configured expectations, not the age of source events.</p>
           {rows.length > 0 && (
             <ul className="home-list">
@@ -339,7 +340,7 @@ function JobsHealthPanel() {
               {failedRuns.map((run) => (
                 <li key={run.run_id}>
                   <a href={href(`/jobs/run/${run.run_id}`)}>{run.job}</a>
-                  <span className="muted small">failed · {run.start ?? "time unavailable"}</span>
+                  <span className="muted small">Run failed · started {timestamp(run.start)}</span>
                 </li>
               ))}
               {failedChecks.slice(0, 3).map((check) => (

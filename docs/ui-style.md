@@ -118,6 +118,13 @@ not the age of historical plant events. Scheduler availability is distinct from 
 availability. Missing scheduler history needs deployment-operator guidance, not an assertion that
 the user should run a local CLI command.
 
+Home's start guide lists reader destinations before administration (Sources, Settings). With no
+records loaded, Home keeps only the setup prompt, Needs you and administrator health; report,
+priority and incident cards would only be empty. Data and scheduler health is shown only to
+administrators. Each card reports a failed read with its own retry, never as an empty result, and
+labels its times (incident start, detection start, run start) with the shared `timestamp` format.
+A detection links to its case when one exists.
+
 Use `lib.timestamp` for ingestion/run/observation timestamps: offset-bearing values are shown in
 UTC, missing/invalid values are unknown, and timezone-free values remain explicitly unzoned.
 Never apply this normalization to source event dates with no supplied timezone. Retain the
