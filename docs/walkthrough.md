@@ -1,5 +1,16 @@
 # From a well test to an answer
 
+```mermaid
+flowchart LR
+  ex["EC export<br><small>ec_well_tests</small>"] -->|mapping<br>ec_well_test.yaml| rec["Source record"]
+  rec -->|rebuild| well["Well OK-J12-02<br><small>stable Fuzer ID</small>"]
+  rec --> m["Measurements<br><small>oil, water cut, GOR,<br>lift gas, WHP</small>"]
+  m --> calc["Decline fit and<br>opportunity scan"]
+  calc --> board["Work board"]
+  calc --> report["Daily report"]
+  m --> tool["well_performance,<br>calc(decline)"] --> ans["Cited answer on Ask"]
+```
+
 For a guided, keyless introduction in the app, choose **Start guided investigation**
 in **Demo -> Trace an issue** after Okan has loaded and your signed-in account is approved,
 or open the compatible `#/investigate/okan`. Follow the March 2024
@@ -31,6 +42,11 @@ reads it through the dataset's connection in the source catalog. `fuzer sources 
 - **measurements** of the well at the test date: oil rate, water cut, GOR, lift gas rate and wellhead pressure, each
   with its unit.
 
+On the Sources page, the dataset's **Mapping** tab shows the same file column by column: what each column is kept
+as, and what it links the record to.
+
+![The Mapping tab of ec_well_tests](assets/screens/dataset-mapping.png){ loading=lazy }
+
 ## 3. Ingest
 
 `fuzer ingest` ([`sources/ingest.py`](https://github.com/areed145/fuzer/blob/main/src/fuzer/sources/ingest.py)) keeps each row as a **source record**,
@@ -45,6 +61,12 @@ PI AF and GIS already describe, by exact keys first and then by scoring. The wel
 Each field becomes an **assertion** with its source, and [`graph/golden.py`](https://github.com/areed145/fuzer/blob/main/src/fuzer/graph/golden.py) picks
 the **golden** value by the pack's source priorities. The measurements land in the `measurement` table
 ([`graph/measurements.py`](https://github.com/areed145/fuzer/blob/main/src/fuzer/graph/measurements.py)), next to the well's PI values.
+
+The well's entity page shows the result: one value per field with the system it came from, the records from SAP,
+GIS and EC that describe this well, and each measured quantity as a series with its change per year.
+
+![Measurements on well OK-J12-02](assets/screens/well-measurements.png){ loading=lazy }
+*Two years of EC well tests on OK-J12-02 (synthetic data). Water cut rises steadily while oil rate declines.*
 
 ## 5. Analyses
 

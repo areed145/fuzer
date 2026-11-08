@@ -57,6 +57,8 @@ it. A change takes effect on the next rebuild (`POST /sources/rematch`).
 **Scheduling.** Dagster has a source asset and a `source_checks` asset check per dataset; a dataset with its own
 cron loads then (`dataset_schedules` sensor); `source_health` runs every 30 minutes.
 
+![The Sources page: readiness and every dataset with its health](assets/screens/sources.png){ loading=lazy }
+
 **On the Sources page**, **+ Add a source** walks through five steps: the system the data comes from (or a new
 one), where it is (one of its connections, or a new one: a folder anywhere, PI Web API, ADX; tested on the spot),
 which table (what the connection holds, new ones first), what its rows mean (a sample, a date-format hint for the
@@ -80,6 +82,11 @@ in the register yet, with **Rebuild now**. **Systems & connections** edits each 
 words: the project data folder, a path, a server) and lists what each connection holds, with an *add it* link per
 new table; a system added here gets no connection until it needs one. **Rules** edits ranks and rules. Held loads
 also show on the Data review page (**Held loads**), linked to their dataset.
+
+![Step 4 of Add a source: a sample and the mapping suggested from its columns](assets/screens/add-source-mapping.png){ loading=lazy }
+*Adding a contractor equipment list. [Extend Fuzer](extend.md#add-a-data-source) walks through every step,
+and the same source as a YAML mapping.*
+
 The API behind Add a source: `GET /sources/connections/{id}/tables`,
 `GET /sources/connections/{id}/tables/{table}` (preview and suggestion) and `POST` to the same path (save and load).
 
