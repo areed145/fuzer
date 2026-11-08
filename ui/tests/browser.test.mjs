@@ -895,7 +895,7 @@ test("pending account can bootstrap only with a setup code and then reach owner-
     permissions: { read: "Browse evidence", ai: "Run paid AI" },
   } }));
   await page.goto(url);
-  await page.getByRole("heading", { name: "Your account is ready for approval" }).waitFor();
+  await page.getByRole("heading", { name: "Set up the first owner" }).waitFor();
   await page.getByLabel("Owner setup code").fill("test-setup-code-at-least-thirty-two-characters");
   await page.getByRole("button", { name: "Set up owner access" }).click();
   await page.getByRole("link", { name: "Manage users" }).click();
@@ -904,6 +904,85 @@ test("pending account can bootstrap only with a setup code and then reach owner-
   await page.getByText("Keep at least one enabled owner;", { exact: false }).waitFor();
   await page.getByText("Advanced: application role definitions", { exact: false }).click();
   await page.getByRole("heading", { name: "Add an application role", exact: true }).waitFor();
+});
+
+test("each sign-in state names what happened and its next action at desktop and mobile without protected reads", async () => {
+  const pending = { ...signedInUser, enabled: false, roles: [], permissions: [] };
+  const states = [
+    { name: "fresh", me: { configured: true, user: null }, heading: "Investigate with evidence, not guesswork", action: ["link", "Continue with Microsoft"] },
+    { name: "unconfigured", me: { configured: false, user: null }, heading: "Sign-in is not available yet", action: ["button", "Check again"] },
+    { name: "sign-in-failed", me: { configured: true, user: null }, hash: "#/?signin=failed", heading: "Sign-in did not complete", action: ["link", "Continue with Microsoft"] },
+    { name: "sign-in-unreachable", me: { configured: true, user: null }, hash: "#/?signin=unavailable", heading: "Microsoft sign-in is unreachable", action: ["link", "Continue with Microsoft"] },
+    { name: "check-failed", status: 503, heading: "Sign-in could not be checked", action: ["button", "Reload sign-in"] },
+    { name: "pending", me: { configured: true, user: pending }, heading: "Your account is ready for approval", action: ["button", "Check approval"] },
+    { name: "first-owner", me: { configured: true, needs_owner: true, user: pending }, heading: "Set up the first owner", action: ["button", "Set up owner access"] },
+    { name: "no-read", me: { configured: true, user: { ...pending, enabled: true } }, heading: "Your account needs application access", action: ["button", "Check access"] },
+  ];
+  let current;
+  await page.route("**/auth/me", (route) => current.status
+    ? route.fulfill({ status: current.status, json: { detail: "Service unavailable" } })
+    : route.fulfill({ json: { mode: "microsoft", ...current.me } }));
+  const protectedRequests = [];
+  page.on("request", (request) => {
+    if (["/stats", "/work/inbox", "/auth/access", "/jobs"].includes(new URL(request.url()).pathname)) protectedRequests.push(request.url());
+  });
+  for (const state of states) {
+    current = state;
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${url}/${state.hash ?? ""}`);
+      await page.reload();  // a hash-only goto keeps the page, and its last session check
+      await page.getByRole("heading", { level: 1, name: state.heading, exact: true }).waitFor();
+      await page.getByRole(state.action[0], { name: state.action[1], exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${state.name} overflows at ${width}`);
+      await waveScreenshot(`sign-in-${state.name}-${width}`);
+    }
+  }
+  assert.deepEqual(protectedRequests, []);
+});
+
+test("sign-in recovery works from the keyboard, shows its check and moves focus to the new state", async () => {
+  let configured = false;
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/auth/me", async (route) => {
+    if (configured) await held;  // the second check waits until the test has seen it in progress
+    await route.fulfill({ json: { mode: "microsoft", configured, user: null } });
+  });
+  await page.goto(url);
+  await page.getByRole("heading", { level: 1, name: "Sign-in is not available yet", exact: true }).waitFor();
+  configured = true;
+  const check = page.getByRole("button", { name: "Check again", exact: true });
+  for (let i = 0; i < 10 && !(await check.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  assert.equal(await check.evaluate((el) => el === document.activeElement), true, "Check again is reachable with Tab");
+  await page.keyboard.press("Enter");
+  const busy = page.getByRole("button", { name: "Checking...", exact: true });
+  await busy.waitFor();
+  assert.equal(await busy.isDisabled(), true);
+  release();
+  const heading = page.getByRole("heading", { level: 1, name: "Investigate with evidence, not guesswork", exact: true });
+  await heading.waitFor();
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Continue with Microsoft");
+});
+
+test("the first owner can submit the setup code from the keyboard", async () => {
+  let owner = false;
+  await page.route("**/auth/me", (route) => route.fulfill({ json: {
+    mode: "microsoft", configured: true, needs_owner: !owner, user: { ...signedInUser, enabled: owner, owner },
+  } }));
+  await page.route("**/auth/bootstrap", async (route) => { owner = true; await route.fulfill({ json: { ok: true } }); });
+  await page.route("**/stats", (route) => route.fulfill({ json: {
+    facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
+  } }));
+  await page.goto(url);
+  await page.getByRole("heading", { level: 1, name: "Set up the first owner", exact: true }).waitFor();
+  await page.getByText("nobody can approve accounts", { exact: false }).waitFor();
+  await page.getByLabel("Owner setup code").focus();
+  await page.keyboard.type("test-setup-code-at-least-thirty-two-characters");
+  await page.keyboard.press("Enter");
+  await page.getByRole("navigation", { name: "Main", exact: true }).waitFor();
 });
 
 test("expired server session exits protected pages and preserves a sign-in recovery path", async () => {
@@ -917,6 +996,8 @@ test("expired server session exits protected pages and preserves a sign-in recov
   });
   await page.goto(`${url}/#/investigate/okan`);
   await page.getByRole("alert").filter({ hasText: "Your session has ended" }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Your session has ended", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");  // focus follows the ended session
   await page.getByRole("button", { name: "Reload sign-in" }).click();
   await page.getByRole("link", { name: "Continue with Microsoft" }).waitFor();
 });
