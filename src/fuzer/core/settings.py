@@ -231,8 +231,11 @@ register(
 
 
 def project() -> str | None:
-    """The current project (#131): FUZER_PROJECT, else the pack name while projects are new."""
-    return os.environ.get("FUZER_PROJECT") or os.environ.get("FUZER_PACK")
+    """The current project (#131): the request's or job's, else FUZER_PROJECT, else the pack name while projects
+    are new."""
+    from . import db
+
+    return db.scope().project or os.environ.get("FUZER_PROJECT") or os.environ.get("FUZER_PACK")
 
 
 def scope_of(project_name: str | None) -> str:

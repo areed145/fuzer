@@ -17,8 +17,10 @@ and names it in the global setting `project.active`. From then on the API, MCP t
 pack from the database (`pack.current_pack`), not from repository files or FUZER_PACK. Initialising is
 configuration only: it doesn't ingest, rebuild, call a model or touch workflow assignments.
 
-A database holds one facility. Initialising again with the same bundle changes nothing; a different bundle for
-the same project is kept out unless `upgrade` is passed; another project is refused.
+The first project initialised in a database holds its register in `public`. Another project's bundle adds that
+project beside it, in its own schema (`proj_<name>`), sharing accounts, access and settings; code reaches it
+inside `projects.use(conn, name)`. Initialising again with the same bundle changes nothing; a different bundle
+for the same project is kept out unless `upgrade` is passed.
 """
 
 import hashlib
@@ -94,12 +96,11 @@ def init(conn, path: Path, *, by: str, upgrade: bool = False) -> dict:
     b = read(path)
     name, cfg = b["name"], b["config"]
     active = projects.active(conn)
-    if active and active != name:
-        raise BundleError(f"this database holds project {active!r}; a database holds one facility, so initialise "
-                          f"{name!r} in a fresh database")
     stored = projects._db_rows(conn).get(name)
     out = {"project": name, "facility": b["pack"].facility, "pack": b["pack"].name,
            "bundle": cfg["bundle"]["digest"], "data": cfg.get("data")}
+    if active and active != name:
+        return add(conn, b, by=by, upgrade=upgrade, out=out, stored=stored)
     if stored is not None and active == name:
         if stored.get("bundle", {}).get("digest") == cfg["bundle"]["digest"]:
             return {**out, "status": "unchanged"}
@@ -115,3 +116,27 @@ def init(conn, path: Path, *, by: str, upgrade: bool = False) -> dict:
         settings.set(conn, projects.ACTIVE, name, by=by, reason=f"fuzer init --bundle {name}")
     clear_cache()
     return {**out, "status": status}
+
+
+def schema_for(name: str) -> str:
+    return "proj_" + re.sub(r"[^a-z0-9_]", "_", name)
+
+
+def add(conn, b: dict, *, by: str, upgrade: bool, out: dict, stored: dict | None) -> dict:
+    """Another project in this instance: its own schema (proj_<name>) holds its register, beside the first
+    project's; accounts, access and settings stay shared. Its schema starts empty, with no data loaded."""
+    from . import db
+
+    name, cfg = b["name"], {**b["config"], "schema": schema_for(b["name"])}
+    out = {**out, "schema": cfg["schema"]}
+    if stored is not None:
+        if stored.get("bundle", {}).get("digest") == cfg["bundle"]["digest"]:
+            return {**out, "status": "unchanged"}
+        if not upgrade:
+            return {**out, "status": "kept", "stored_bundle": stored.get("bundle", {}).get("digest"),
+                    "note": "the stored project differs from this bundle; pass --upgrade to replace it"}
+        cfg["schema"] = stored.get("schema") or cfg["schema"]  # an upgrade keeps the register where it is
+    db.create_project_schema(conn, cfg["schema"])
+    projects.save(conn, name, cfg, by)
+    clear_cache()
+    return {**out, "status": "upgraded" if stored is not None else "added"}

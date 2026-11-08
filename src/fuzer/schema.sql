@@ -7,8 +7,8 @@ create table if not exists schema_version (
 );
 
 -- Shared by every project in the instance: accounts and access, the project registry and settings live in
--- the `fuzer` schema; a project's register lives in its own schema (`public` while a database holds one
--- project). Connections search the project schema first, then `fuzer`, so queries name tables unqualified.
+-- the `fuzer` schema; a project's register lives in its own schema (`public` for a database's first project,
+-- `proj_<name>` for the others), where everything below without a schema name is created. Connections search the project schema first, then `fuzer`, so queries name tables unqualified.
 -- A database from before the split has these tables in public; they move here in place (no data copy).
 create schema if not exists fuzer;
 do $$
@@ -200,16 +200,20 @@ create table if not exists pinned_link (
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
 do $$
+declare ops text;
 begin
     if exists (select 1 from pg_available_extensions where name = 'pg_trgm') then
-        create extension if not exists pg_trgm;
+        -- One copy per database, in the shared schema (older databases have it in public); the operator class
+        -- is named with its schema so every project's schema can use it.
+        create extension if not exists pg_trgm schema fuzer;
+        select extnamespace::regnamespace::text into ops from pg_extension where extname = 'pg_trgm';
         -- Rebuilds sync golden (only changed rows touch the index), so a full index is cheap to keep.
         drop index if exists golden_value_trgm;
         drop index if exists golden_search_trgm;
-        create index if not exists golden_text_trgm on golden using gin ((value::text) gin_trgm_ops);
-        create index if not exists entity_key_trgm on entity_key using gin (key gin_trgm_ops);
-        create index if not exists entity_label_trgm on entity_label using gin (label gin_trgm_ops);
-        create index if not exists crosswalk_key_trgm on crosswalk using gin (source_key gin_trgm_ops);
+        execute format('create index if not exists golden_text_trgm on golden using gin ((value::text) %I.gin_trgm_ops)', ops);
+        execute format('create index if not exists entity_key_trgm on entity_key using gin (key %I.gin_trgm_ops)', ops);
+        execute format('create index if not exists entity_label_trgm on entity_label using gin (label %I.gin_trgm_ops)', ops);
+        execute format('create index if not exists crosswalk_key_trgm on crosswalk using gin (source_key %I.gin_trgm_ops)', ops);
     end if;
 end
 $$;

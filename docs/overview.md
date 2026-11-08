@@ -117,6 +117,13 @@ not when they start, so a database holds one facility and two databases serve tw
 `FUZER_PROJECT` still picks a project for one process, and a database that names
 none falls back to `FUZER_PACK` or Okan while the move to bundles finishes.
 
+One database can hold several projects. Accounts, access, the project list and
+settings live in the shared `fuzer` schema; the first project's register is in
+`public`, and `fuzer init --bundle` for another project adds it in its own schema
+(`proj_<name>`). Code runs for one project at a time (`projects.use(conn, name)`, or
+`fuzer --project <name>`): its connections search that project's schema, then
+`fuzer`, so no project sees another's register.
+
 ```sh
 fuzer init --bundle fakeplant/bundles/kestrel        # a fresh database: Kestrel Ridge (KRGP)
 FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports fuzer ingest && fuzer rebuild
