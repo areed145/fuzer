@@ -111,8 +111,9 @@ def _drop(name: str) -> None:
         a.execute(f'drop database if exists "{name}" with (force)')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def kestrel_url():
+    """A fresh database per test, so the tests don't depend on each other's order."""
     url = _fresh("kestrel_bundle")
     yield url
     _drop("kestrel_bundle")
@@ -196,6 +197,9 @@ def test_each_database_serves_its_own_pack(kestrel_url, serving):
     from fuzer.agents import mcp_server
     from fuzer.api import deps
 
+    with db.connect(url=kestrel_url) as conn:
+        db.init_schema(conn)
+        assert bundles.init(conn, KESTREL, by="test")["status"] == "initialised"
     okan_url = _fresh("okan_bundle")
     try:
         with db.connect(url=okan_url) as conn:
