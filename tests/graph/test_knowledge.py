@@ -6,7 +6,7 @@ import pytest
 from fuzer.core.pack import load_pack
 from fuzer.graph import knowledge, queries
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")

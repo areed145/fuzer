@@ -22,6 +22,9 @@ def fuzer():
     okan.generate(data)
     with db.connect() as c:
         db.reset(c)
+        from fuzer.core import projects
+
+        projects.save(c, "okan", {"pack": "okan"}, "tests")
     return jobs.Fuzer(data_dir=str(data), database_url=db.database_url())
 
 

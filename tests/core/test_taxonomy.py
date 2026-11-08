@@ -7,7 +7,7 @@ from fuzer.core.pack import load_pack
 from fuzer.core.taxonomy import Taxonomy
 from fuzer.graph import queries
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")
@@ -87,7 +87,7 @@ def test_entity_links_are_capped_with_totals(conn):
 
 
 def test_pack_extensions():
-    pack = load_pack()
+    pack = load_pack("okan")
     pack.classification = {**pack.classification, "extra_classes": {
         "FH": {"name": "Fired heaters", "category": "mechanical", "types": {"BX": "Box"}}},
         "tag_functions": {**pack.classification["tag_functions"], "H": "FH.BX"}}

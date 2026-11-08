@@ -7,7 +7,7 @@ from fuzer.core.pack import load_pack
 from fuzer.graph import knowledge, lessons, queries
 from fuzer.ops import pipeline
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 pytestmark = pytest.mark.sequence  # (#137) drafted, then reviewed and approved, then scoped

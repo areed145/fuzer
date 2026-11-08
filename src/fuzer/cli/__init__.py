@@ -19,7 +19,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--project", default=None,
                    help="project (#131): picks the pack, data folder, mappings and time-series provider "
                         "(default: $FUZER_PROJECT; `fuzer projects list` shows them)")
-    p.add_argument("--pack", default=None, help="asset pack (default: the project's, else $FUZER_PACK or okan)")
+    p.add_argument("--pack", default=None, help="a packaged asset pack to use instead of the project's")
     sub = p.add_subparsers(dest="cmd", required=True)
     u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
@@ -160,6 +160,9 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
+NEEDS_NO_PACK = {"init", "ingest", "projects", "settings"}  # these work on a database that holds no project yet
+
+
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
@@ -169,7 +172,7 @@ def main(argv=None):
                 projects.activate(conn, name)
             except projects.ProjectError as e:
                 raise SystemExit(str(e)) from None
-    pack = load_pack(args.pack)
+    pack = load_pack(args.pack) if args.pack else None  # else the project's, read from the database below
     data = Path(getattr(args, "data", None) or data_dir())
 
     if args.cmd == "up":
@@ -212,7 +215,11 @@ def main(argv=None):
             if args.cmd != "reset":
                 db.init_schema(conn)  # idempotent; picks up new tables without a reset
                 if not args.pack:
-                    pack = resolve(conn)  # the pack of the project this database holds (#376)
+                    try:
+                        pack = resolve(conn)  # the pack of the project this code serves (#376)
+                    except projects.ProjectError as e:
+                        if args.cmd not in NEEDS_NO_PACK:
+                            raise SystemExit(str(e)) from None
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "init":

@@ -5,7 +5,7 @@ and why.
     settings.get(conn, "sre.handoff.max_usd")             # this project's value, else the global one, else the default
     settings.set(conn, "sre.handoff.max_usd", 8, by="ana", reason="more diagnoses during the turnaround")
 
-The project is FUZER_PROJECT (or FUZER_PACK until projects land). Values are cached for a few seconds, so
+The project is the request's or job's, else FUZER_PROJECT, else the database's first project. Values are cached for a few seconds, so
 calling get in a loop doesn't hit the database each time.
 """
 
@@ -221,21 +221,38 @@ register(
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
             "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
-    Setting("project.active", "str", "", "The project this database holds, set when it is initialised from a seed "
-            "bundle (`fuzer init --bundle`); its pack is what the API, MCP tools and jobs use, read within seconds. "
-            "FUZER_PROJECT, for a process started for one project, wins; with neither, FUZER_PACK or the packaged "
-            "Okan pack (transitional, #376)", "Project", scopes=(GLOBAL,)),
     Setting("demo.enabled", "bool", True, "Show the Demo tab and guided onboarding for all approved users. "
             "Hiding Demo does not change permissions or disable the underlying tools.", "Demo", scopes=(GLOBAL,)),
 )
 
 
+_first: dict[str, tuple[float, str | None]] = {}
+
+
 def project() -> str | None:
-    """The current project (#131): the request's or job's, else FUZER_PROJECT, else the pack name while projects
-    are new."""
+    """The current project (#131): the request's or job's, else FUZER_PROJECT, else the database's first project."""
     from . import db
 
-    return db.scope().project or os.environ.get("FUZER_PROJECT") or os.environ.get("FUZER_PACK")
+    return db.scope().project or os.environ.get("FUZER_PROJECT") or _first_project()
+
+
+def _first_project() -> str | None:
+    """The database's first project, read with a short connection and cached like setting values."""
+    from . import db, projects
+
+    if not os.environ.get("FUZER_DATABASE_URL") and db._server is None:
+        return None  # don't start the embedded database just to name the project (an import, a test)
+    url = db.database_url()
+    hit = _first.get(url)
+    if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    try:
+        with db.connect(url=url, schema=db.PROJECT_SCHEMA) as c:
+            name = projects.active(c)
+    except Exception:  # noqa: BLE001 - no database yet: no project
+        name = None
+    _first[url] = (time.monotonic(), name)
+    return name
 
 
 def scope_of(project_name: str | None) -> str:

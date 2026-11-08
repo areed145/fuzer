@@ -4,7 +4,7 @@ from fuzer.core.nel import find_mentions
 from fuzer.core.pack import load_pack
 from fuzer.sources.extract import norm_serial
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.mark.parametrize("text,area,expected", [

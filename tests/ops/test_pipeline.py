@@ -27,6 +27,9 @@ def conn():
     okan.generate(data)
     with db.connect() as c:
         db.reset(c)
+        from fuzer.core import projects
+
+        projects.save(c, "okan", {"pack": "okan"}, "tests")
         ingest.ingest(c, data)
         pipeline.rebuild(c, PACK)
         c.data = data

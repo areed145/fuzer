@@ -14,7 +14,7 @@ from fuzer.graph import knowledge, llm_links, queries
 from fuzer.ops import pipeline
 from fuzer.sources import llm_docs
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 class FakeDocReader:

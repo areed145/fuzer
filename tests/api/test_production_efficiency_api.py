@@ -8,7 +8,11 @@ from fuzer.api import ops
 
 
 def client(monkeypatch, resolve=lambda *args: "fz-facility"):
+    from fuzer.api import deps
+    from fuzer.core.pack import load_pack
+
     monkeypatch.setattr(ops.queries, "resolve_ref", resolve)
+    monkeypatch.setattr(deps, "pack", lambda: load_pack("okan"))  # no database here: the routes' pack is given
     app = FastAPI()
     app.include_router(ops.router)
     app.dependency_overrides[ops.get_conn] = lambda: None

@@ -17,7 +17,7 @@ from fuzer.graph import queries
 from fuzer.ops import jobs, pipeline
 from fuzer.sources import adx, connectors, ingest, pi_web_api, timeseries
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")

@@ -149,7 +149,7 @@ def use_demo(name: str):
     if fake is None or name not in fake.PACKS:
         raise SystemExit(f"Unknown demo {name!r}" + (f"; one of {', '.join(fake.PACKS)}" if fake else
                                                      " (the fakeplant package isn't installed)"))
-    os.environ["FUZER_PACK"] = fake.PACKS[name]
+    os.environ["FUZER_PROJECT"] = name  # this process and the jobs and worker it starts serve the demo's project
     os.environ["FUZER_DATA_DIR"] = str(fake.DATA / name)
     return load_pack(fake.PACKS[name])
 
@@ -181,9 +181,9 @@ def start_jobs(port: int) -> subprocess.Popen:
 
 
 def worker_command(pack) -> list[str]:
-    """`fuzer work worker` for this pack, on the same database as this process."""
+    """`fuzer work worker` for this project (it inherits FUZER_PROJECT), on the same database as this process."""
     os.environ.setdefault("FUZER_DATABASE_URL", db.database_url())
-    return [sys.executable, "-c", "from fuzer.cli import main; main()", "--pack", pack.name, "work", "worker"]
+    return [sys.executable, "-c", "from fuzer.cli import main; main()", "work", "worker"]
 
 
 def start_worker(pack) -> subprocess.Popen | None:
@@ -213,11 +213,20 @@ def stop_process(proc: subprocess.Popen | None) -> None:
 
 def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None,
        jobs: bool = True, jobs_port: int = 3000, worker: bool = True) -> None:
-    if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PACK") and _fake_plant():
+    if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PROJECT") and _fake_plant():
         demo = DEFAULT_DEMO  # nothing configured: the Okan field demo
     print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
     if demo:
         pack = use_demo(demo)
+    if pack is None:
+        from ..core.pack import resolve
+        from ..core import projects
+
+        with db.connect() as conn:
+            try:
+                pack = resolve(conn)
+            except projects.ProjectError as e:
+                raise SystemExit(str(e)) from None
     if not fresh:
         with db.connect() as conn:
             db.init_schema(conn)

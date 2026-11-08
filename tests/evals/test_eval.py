@@ -8,7 +8,7 @@ import pytest
 from fuzer.core.pack import load_pack
 from fuzer.evals import evaluate
 
-PACK = load_pack()
+PACK = load_pack("okan")
 
 
 @pytest.fixture(scope="module")

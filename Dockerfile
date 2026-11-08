@@ -17,7 +17,6 @@ COPY --from=ui-build /app/ui/dist /app/ui/dist
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    FUZER_PACK=okan \
     FUZER_DATA_DIR=/app/fakeplant/data/okan \
     FUZER_TIMESERIES=synthetic \
     DAGSTER_HOME=/var/lib/fuzer/dagster

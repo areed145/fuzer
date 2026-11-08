@@ -110,12 +110,13 @@ matching thresholds and survivorship rules that seed the source catalog's rules
 
 A **seed bundle** (#376) holds what a fresh database needs to serve one facility:
 `bundle.yaml`, the pack and, optionally, its exports. `fuzer init --bundle <folder>`
-stores the project and its pack in the database and names it in the setting
-`project.active`; it doesn't ingest or rebuild. The API, MCP server, jobs and CLI
-then resolve the pack from the database they are connected to when they use it,
-not when they start, so a database holds one facility and two databases serve two.
-`FUZER_PROJECT` still picks a project for one process, and a database that names
-none falls back to `FUZER_PACK` or Okan while the move to bundles finishes.
+stores the project and its pack in the database; it doesn't ingest or rebuild. The
+first project initialised in a database is its first project (its register is in
+`public`). The API, MCP server, jobs and CLI resolve the pack from the database they
+are connected to when they use it, not when they start. `FUZER_PROJECT` still picks
+a project for one process. There is no default pack: a database that holds no
+project says so and asks for `fuzer init --bundle`, and Okan is a registered project
+like any other.
 
 One database can hold several projects. Accounts, access, the project list and
 settings live in the shared `fuzer` schema; the first project's register is in

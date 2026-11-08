@@ -89,12 +89,13 @@ disk, and set these environment values (or sync the Blueprint):
 | Variable | Value |
 |---|---|
 | `FUZER_DATABASE_URL` | Existing `fuzer-db` internal connection string (injected by Blueprint) |
-| `FUZER_PACK` | `okan` |
 | `FUZER_DATA_DIR` | `/app/fakeplant/data/okan` |
 | `FUZER_TIMESERIES` | `synthetic` |
 | `DAGSTER_HOME` | `/var/lib/fuzer/dagster` |
 
-Remove stale `FUZER_PROJECT` or other asset-specific overrides. Deploy the merged
+Remove stale `FUZER_PROJECT`, `FUZER_PACK` or other asset-specific overrides: each
+deploy registers Okan as the database's first project from its seed bundle, and the
+pack comes from the project. Deploy the merged
 revision from the branch Render actually tracks. Once it starts, `/health`
 should report `{"ok":true,"pack":"okan"}` and, after approved sign-in, `/stats` should have nonzero records
 and entities. The logs should show `Okan sample loaded` on the first empty load,

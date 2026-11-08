@@ -11,7 +11,7 @@ from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline
 from fuzer.sources import llm_pids
 
-PACK = load_pack()
+PACK = load_pack("okan")
 SHEET = "OKAN-20-PID-005"
 
 

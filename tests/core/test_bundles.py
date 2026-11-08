@@ -126,13 +126,14 @@ def serving(monkeypatch):
     """Point this process at a database, as a deployment does, with no pack or project in the environment."""
     def to(url: str):
         monkeypatch.setenv("FUZER_DATABASE_URL", url)
-        monkeypatch.delenv("FUZER_PACK", raising=False)
         monkeypatch.delenv("FUZER_PROJECT", raising=False)
         packs.clear_cache()
         settings._cache.clear()
+        settings._first.clear()
     yield to
     packs.clear_cache()
     settings._cache.clear()
+    settings._first.clear()
 
 
 def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, serving):
@@ -211,6 +212,35 @@ def test_each_database_serves_its_own_pack(kestrel_url, serving):
         assert "facility KRGP" in mcp_server.instructions(deps.pack())
     finally:
         _drop("okan_bundle")
+
+
+def test_a_database_without_a_project_serves_no_default_pack(serving, capsys):
+    """Phase 5: there is no Okan fallback. A database that holds no project names that, and says how to fix it;
+    the first project is the one a bundle stored with the `public` register, not a setting."""
+    from fuzer.cli import main
+
+    url = _fresh("no_project_yet")
+    serving(url)
+    try:
+        with db.connect(url=url) as conn:
+            db.init_schema(conn)
+            with pytest.raises(projects.ProjectError, match="fuzer init --bundle"):
+                packs.resolve(conn)
+            with pytest.raises(projects.ProjectError, match="holds none"):
+                packs.current_pack()
+            assert settings.project() is None
+        with pytest.raises(SystemExit, match="No project to serve"):
+            main(["rebuild"])
+        main(["init", "--bundle", str(OKAN)])  # works on an empty database
+        assert '"status": "initialised"' in capsys.readouterr().out
+        packs.clear_cache()
+        settings._first.clear()
+        with db.connect(url=url) as conn:
+            assert projects.active(conn) == "okan" and packs.current_pack(conn).facility == "OKAN"
+            assert conn.execute("select count(*) as n from setting where key = 'project.active'").fetchone()["n"] == 0
+        assert settings.project() == "okan"  # settings are scoped to the first project without naming it anywhere
+    finally:
+        _drop("no_project_yet")
 
 
 def test_init_refuses_a_database_with_data_loaded_without_a_project(serving):

@@ -94,6 +94,9 @@ def _template(built: dict, name: str) -> Built:
     try:
         with db.connect(url=_url(f"tpl_{name}")) as c:
             db.init_schema(c)
+            from fuzer.core import projects
+
+            projects.save(c, name, {"pack": pack}, "tests")  # the database's first project (no default pack, #376)
             loaded = ingest.ingest(c, data)
             stats = pipeline.rebuild(c, load_pack(pack))
     finally:
@@ -115,12 +118,14 @@ def _plant_db(request, built: dict, name: str):
     from fuzer.core import db, settings
 
     settings._cache.clear()
+    settings._first.clear()
     try:
         with db.connect() as c:
             yield Plant(c, b.data, url, b)
     finally:
         mp.undo()
         settings._cache.clear()
+        settings._first.clear()
         with _admin() as a:
             a.execute(f'drop database if exists "{db_name}" with (force)')
 
