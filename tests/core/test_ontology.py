@@ -95,6 +95,7 @@ def test_undeclared_kinds_and_links_need_a_definition(conn):
     conn.execute("delete from entity where fuzer_id = 'fz-test-sched-1'")
     conn.commit()
     model._refresh_summary(conn)
+    conn.commit()  # an uncommitted refresh holds the summary row, and the API's next refresh waits 30 s on it
 
 
 def test_rewrite_mapping_keeps_layout():
