@@ -69,7 +69,7 @@ def schema_md() -> str:
     sql = (Path(__file__).parent / "schema.sql").read_text()
     out = ["# Database schema", "", HEADER.format(what="`src/fuzer/schema.sql`"),
            "One Postgres database; `fuzer` creates or updates it on start (idempotent).", ""]
-    for m in re.finditer(r"((?:--[^\n]*\n)*)create table if not exists (\w+) \((.*?)\n\);", sql, re.DOTALL):
+    for m in re.finditer(r"((?:--[^\n]*\n)*)create table if not exists (?:\w+\.)?(\w+) \((.*?)\n\);", sql, re.DOTALL):
         note = " ".join(x.lstrip("- ").strip() for x in m.group(1).splitlines())
         cols = []
         for line in m.group(3).splitlines():
