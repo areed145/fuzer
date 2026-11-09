@@ -445,7 +445,7 @@ export const workApi = {
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
-  plan: (f: { start?: string; end?: string; area?: string; status?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
+  plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
