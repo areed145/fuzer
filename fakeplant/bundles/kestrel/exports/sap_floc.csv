@@ -3,19 +3,92 @@ KRGP,,Kestrel Ridge gas plant,
 KRGP-A1,KRGP,Train A1 inlet separation,
 KRGP-B1,KRGP,Train B1 compression,
 KRGP-C1,KRGP,Train C1 glycol dehydration,
+KRGP-D1,KRGP,Train D1 amine treating,
+KRGP-E1,KRGP,Train E1 hydrocarbon dew point control,
+KRGP-F1,KRGP,Train F1 condensate stabilization,
+KRGP-G1,KRGP,Train G1 utilities,
+KRGP-H1,KRGP,Train H1 flare and sales metering,
 KRGP-A1-V1001,KRGP-A1,Inlet Separator,A
-KRGP-A1-PT1001,KRGP-A1-V1001,Inlet Separator Pressure,C
 KRGP-A1-LT1001,KRGP-A1-V1001,Inlet Separator Liquid Level,C
+KRGP-A1-PSV1001,KRGP-A1-V1001,Inlet Separator Relief Valve,A
+KRGP-A1-PT1001,KRGP-A1-V1001,Inlet Separator Pressure,C
+KRGP-A1-PV1001,KRGP-A1-V1001,Inlet Separator Pressure Control Valve to Flare,B
 KRGP-A1-FT1002,KRGP-A1,Inlet Gas Flow,B
+KRGP-A1-XV1003,KRGP-A1,Inlet ESD Valve,A
+KRGP-A1-V1004,KRGP-A1,Inlet Filter Coalescer,A
+KRGP-A1-PDT1004,KRGP-A1-V1004,Inlet Filter Coalescer Differential Pressure,C
+KRGP-A1-V1006,KRGP-A1,Pig Receiver,B
+KRGP-A1-P1007A,KRGP-A1,Condensate Transfer Pump A,B
+KRGP-A1-P1007B,KRGP-A1,Condensate Transfer Pump B,B
+KRGP-A1-FT1008,KRGP-A1,Inlet Condensate Flow,C
 KRGP-B1-K2001,KRGP-B1,Sales Gas Compressor,A
 KRGP-B1-PT2001,KRGP-B1-K2001,Compressor Discharge Pressure,B
 KRGP-B1-TT2002,KRGP-B1-K2001,Compressor Discharge Temperature,B
 KRGP-B1-VT2003,KRGP-B1-K2001,Compressor Vibration,B
+KRGP-B1-PSV2004,KRGP-B1-K2001,Compressor Discharge Relief Valve,A
+KRGP-B1-PT2006,KRGP-B1-K2001,Compressor Suction Pressure,B
+KRGP-B1-V2005,KRGP-B1,Compressor Suction Scrubber,B
+KRGP-B1-LT2005,KRGP-B1-V2005,Suction Scrubber Liquid Level,B
 KRGP-B1-E2010,KRGP-B1,Compressor Aftercooler,B
 KRGP-B1-TT2011,KRGP-B1-E2010,Aftercooler Outlet Temperature,C
+KRGP-B1-V2012,KRGP-B1,Compressor Discharge Scrubber,B
 KRGP-C1-V3001,KRGP-C1,Glycol Contactor,A
 KRGP-C1-P3002A,KRGP-C1,Glycol Circulation Pump A,B
 KRGP-C1-P3002B,KRGP-C1,Glycol Circulation Pump B,B
-KRGP-C1-FT3005,KRGP-C1,Dry Gas Flow,B
+KRGP-C1-FT3005,KRGP-C1,Dry Gas Check Meter,B
+KRGP-C1-V3006,KRGP-C1,Glycol Flash Tank,B
+KRGP-C1-F3007,KRGP-C1-V3006,Glycol Sock and Carbon Filters,C
+KRGP-C1-H3008,KRGP-C1,TEG Reboiler,A
+KRGP-C1-TT3008,KRGP-C1-H3008,TEG Reboiler Temperature,B
+KRGP-C1-AT3011,KRGP-C1,Dry Gas Water Content,B
+KRGP-D1-V4001,KRGP-D1,Amine Contactor,A
+KRGP-D1-PDT4001,KRGP-D1-V4001,Amine Contactor Differential Pressure,B
+KRGP-D1-F4010,KRGP-D1-V4001,Amine Carbon Filter,C
+KRGP-D1-AT4002,KRGP-D1,Sweet Gas CO2,B
+KRGP-D1-V4003,KRGP-D1,Rich Amine Flash Tank,B
+KRGP-D1-E4004,KRGP-D1,Lean/Rich Amine Exchanger,B
+KRGP-D1-V4005,KRGP-D1,Amine Regenerator,A
+KRGP-D1-E4006,KRGP-D1,Amine Reboiler,A
+KRGP-D1-TT4006,KRGP-D1-E4006,Amine Reboiler Temperature,B
+KRGP-D1-E4007,KRGP-D1,Lean Amine Cooler,B
+KRGP-D1-TT4007,KRGP-D1-E4007,Lean Amine Temperature,C
+KRGP-D1-P4008A,KRGP-D1,Lean Amine Charge Pump A,A
+KRGP-D1-P4008B,KRGP-D1,Lean Amine Charge Pump B,A
+KRGP-D1-FT4009,KRGP-D1,Lean Amine Circulation,B
+KRGP-E1-E5001,KRGP-E1,Gas/Gas Exchanger,B
+KRGP-E1-E5002,KRGP-E1,Propane Chiller,A
+KRGP-E1-V5003,KRGP-E1,Low Temperature Separator,A
+KRGP-E1-TT5003,KRGP-E1-V5003,Low Temperature Separator Temperature,B
+KRGP-E1-K5004,KRGP-E1,Propane Refrigeration Compressor,A
+KRGP-E1-PT5004,KRGP-E1-K5004,Refrigeration Compressor Suction Pressure,B
+KRGP-E1-E5005,KRGP-E1,Propane Condenser,B
+KRGP-E1-TT5005,KRGP-E1-E5005,Propane Condenser Outlet Temperature,C
+KRGP-E1-V5006,KRGP-E1,Propane Accumulator,B
+KRGP-F1-V6001,KRGP-F1,Condensate Flash Drum,B
+KRGP-F1-V6002,KRGP-F1,Condensate Stabilizer,A
+KRGP-F1-E6003,KRGP-F1,Stabilizer Reboiler,B
+KRGP-F1-TT6003,KRGP-F1-E6003,Stabilizer Reboiler Temperature,C
+KRGP-F1-E6004,KRGP-F1,Stabilized Condensate Cooler,C
+KRGP-F1-T6005A,KRGP-F1,Condensate Storage Tank A,B
+KRGP-F1-LT6005A,KRGP-F1-T6005A,Condensate Tank A Level,C
+KRGP-F1-T6005B,KRGP-F1,Condensate Storage Tank B,B
+KRGP-F1-P6006,KRGP-F1,Condensate Truck Loading Pump,C
+KRGP-G1-H7001,KRGP-G1,Hot Oil Heater,A
+KRGP-G1-TT7001,KRGP-G1-H7001,Hot Oil Supply Temperature,B
+KRGP-G1-P7002A,KRGP-G1,Hot Oil Pump A,B
+KRGP-G1-P7002B,KRGP-G1,Hot Oil Pump B,B
+KRGP-G1-V7003,KRGP-G1,Fuel Gas Scrubber,B
+KRGP-G1-K7004A,KRGP-G1,Instrument Air Compressor A,B
+KRGP-G1-K7004B,KRGP-G1,Instrument Air Compressor B,B
+KRGP-G1-V7005,KRGP-G1,Instrument Air Receiver,C
+KRGP-G1-PT7005,KRGP-G1-V7005,Instrument Air Header Pressure,B
+KRGP-G1-G7006,KRGP-G1,Standby Generator,A
+KRGP-G1-T7007,KRGP-G1,Methanol Storage Tank,C
+KRGP-G1-P7008A,KRGP-G1,Methanol Injection Pump A,B
+KRGP-G1-P7008B,KRGP-G1,Methanol Injection Pump B,B
+KRGP-G1-T7009,KRGP-G1,Produced Water Tank,C
+KRGP-H1-V8001,KRGP-H1,Flare Knockout Drum,A
+KRGP-H1-FT8003,KRGP-H1-V8001,Flare Gas Flow,B
+KRGP-H1-FT8010,KRGP-H1,Sales Gas Custody Meter,A
 KRGP-WELL-KR12-03H,KRGP-A1,Well KR 12-03H,
 KRGP-WELL-KR12-04H,KRGP-A1,Well KR 12-04H,

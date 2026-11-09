@@ -1,14 +1,16 @@
 # Asset pack for Kestrel Ridge gas plant (KRGP), a fictional onshore facility. Areas are trains named by a letter
-# and a digit: A1 inlet separation, B1 compression, C1 glycol dehydration. Tags carry 4-digit loops:
+# and a digit, in the order the gas goes through them: A1 inlet separation, B1 compression, D1 amine treating,
+# C1 glycol dehydration, E1 hydrocarbon dew point control (propane refrigeration), F1 condensate stabilization,
+# G1 utilities, H1 flare and sales metering. Tags carry 4-digit loops whose first digit follows the letter:
 # A1-PT-1001, written KRGP-A1-PT1001 (SAP), KRGP:A1.PT1001.PV (PI), "PT1001 (A1 INLET)" (Maximo).
 name: kestrel
 facility: KRGP
 data_notice: Fictional, synthetic data for a second demonstration facility, not a live operating update.
 
 tag_grammar:
-  area: '[A-C]\d'
+  area: '[A-H]\d'
   loop_digits: [4, 4]
-  function_codes: [P, V, K, E, PT, TT, LT, FT, VT, PDT, XV, PSV, FIC, PIC, LIC]
+  function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, AT, PDT, XV, PV, PSV, FIC, PIC, LIC]
 
 # Wells by pad and number: KR 12-03H. Sources write KR12-03H, KR-12-03H or KR_12_03H.
 well_grammar:
@@ -22,6 +24,15 @@ aliases:
   dehy: [area, KRGP-C1]
   inlet separator: [tag, A1-V-1001]
   glycol contactor: [tag, C1-V-3001]
+  amine: [area, KRGP-D1]
+  dew point plant: [area, KRGP-E1]
+  stabilizer: [area, KRGP-F1]
+  utilities: [area, KRGP-G1]
+  flare: [area, KRGP-H1]
+  amine contactor: [tag, D1-V-4001]
+  teg reboiler: [tag, C1-H-3008]
+  propane compressor: [tag, E1-K-5004]
+  sales meter: [tag, H1-FT-8010]
 
 matching:
   equipment:
@@ -43,6 +54,10 @@ classification:
     P: PU
     K: CO
     E: HE
+    H: HB
+    T: TA
+    F: FS
+    G: EG
     V: VE
     PT: IP.PR
     TT: IP.TE
@@ -50,20 +65,41 @@ classification:
     FT: IP.FL
     PDT: IP.DP
     VT: IP.VI
+    AT: IP.AN
     FIC: CL
     PIC: CL
     LIC: CL
     XV: VA.ES
+    PV: VA.CO
     PSV: VA.PS
+  templates:
+    Reciprocating Compressor: CO.RE
+    Air Cooler: HE.AC
+    Pressure Vessel: VE
+    Heat Exchanger: HE
+    Fired Heater: HB
+    Storage Tank: TA
+  description_types:
+    separator: SE
+    scrubber: SC
+    drum: DR
+    contactor: CO
+    regenerator: CO
+    stabilizer: CO
+    cooler: AC
+    condenser: AC
   manufacturer_aliases:
     ariel: Ariel Corporation
     caterpillar: Caterpillar
     cat: Caterpillar
+    frick: Frick
+    atlas copco: Atlas Copco
   extra_classes: {}
 
 # Kestrel's own SAP catalog codes (not Okan's D01/C01/A01), mapped onto ISO 14224.
 maintenance_codes:
-  damage: {DM-VIB: VIB, DM-LEAK: ELP, DM-OHT: OHE, DM-NOI: NOI, DM-FTS: FTS, DM-AIR: AIR, DM-PDE: PDE}
+  damage: {DM-VIB: VIB, DM-LEAK: ELP, DM-OHT: OHE, DM-NOI: NOI, DM-FTS: FTS, DM-AIR: AIR, DM-PDE: PDE, DM-LOO: LOO,
+           DM-PLU: PLU}
   cause: {CA-ALIGN: "1.3", CA-WEAR: "2.4", CA-FOUL: "5.1", CA-SIG: "3.3", CA-ADJ: "3.4", CA-CONT: "5.2"}
   activity: {AC-REPL: "1", AC-REP: "2", AC-ADJ: "4", AC-CHK: "6", AC-SVC: "7", AC-INSP: "9", AC-OVH: "10"}
 

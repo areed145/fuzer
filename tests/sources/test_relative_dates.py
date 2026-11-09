@@ -61,6 +61,56 @@ def test_kestrel_trip_is_placed_relative_to_today():
     assert max(pd) > 60 and min(pd) < 35
 
 
+def test_kestrel_trip_reaches_the_rest_of_the_plant():
+    """Yesterday's compressor trip, read across the expanded plant: the inlet gas goes to flare and the custody meter
+    reads nothing while B1-K-2001 is down, the dew point plant warms without gas, and the amine contactor foams when
+    gas comes back after the restart."""
+    m = process_model.load(KESTREL)
+    y = datetime.combine(date.today() - timedelta(days=1), datetime.min.time())
+
+    def at(point, hh, mm=0):
+        t = y + timedelta(hours=hh, minutes=mm)
+        return m.values(point, t, t, 5)[0][1]
+
+    assert at("KRGP:H1.FT8003.PV", 1) < 10 and at("KRGP:H1.FT8003.PV", 5) > 500  # purge, then flaring
+    assert at("KRGP:H1.FT8010.PV", 1) > 1200 and at("KRGP:H1.FT8010.PV", 6) < 50
+    assert at("KRGP:E1.TT5003.PV", 1) < -15 and at("KRGP:E1.TT5003.PV", 6) > -5
+    assert at("KRGP:D1.PDT4001.PV", 1) < 0.4 and at("KRGP:D1.PDT4001.PV", 7, 30) > 0.6  # foaming after the restart
+    assert at("KRGP:D1.PDT4001.PV", 12) < 0.4
+
+
+def test_kestrel_teg_reboiler_runs_cool_and_the_analyser_agrees_with_the_lab():
+    """The TEG reboiler's burner fouling over six weeks: C1-TT-3008 drifts below its 195 degC alarm, and the online
+    moisture analyser C1-AT-3011 follows the lab's water content at the contactor outlet."""
+    m = process_model.load(KESTREL)
+    now = datetime.combine(date.today(), datetime.min.time()) + timedelta(hours=9)
+    reboiler = [v for _, v in m.values("KRGP:C1.TT3008.PV", now - timedelta(days=45), now, 24 * 60)]
+    assert reboiler[0] > 200 and reboiler[-1] < 195
+    lab = [r for r in connectors.find(KESTREL, "lims_results").rows() if r["analyte"] == "water_content"]
+    for r in lab:
+        t = datetime.fromisoformat(r["sampled_at"])
+        assert abs(m.values("KRGP:C1.AT3011.PV", t, t, 5)[0][1] - float(r["result"])) < 10, r
+
+
+def test_a_controlled_value_holds_steps_drifts_and_idles():
+    spec = {"points": {"P": ["U", "value"]}, "units": {
+        "train:X": {"type": "train"},
+        "U": {"type": "controlled", "value": 100.0, "train": "train:X", "idle": 20.0, "noise": 0.0, "tau": 5}},
+        "events": [{"unit": "U", "kind": "setpoint", "at": "2026-01-01 06:00", "to": 110.0},
+                   {"unit": "U", "kind": "drift", "points": [["2026-01-01 08:00", 0], ["2026-01-01 09:00", -30],
+                                                            ["2026-01-01 10:00", 0]]},
+                   {"unit": "train:X", "kind": "trip", "start": "2026-01-01 12:00", "end": "2026-01-01 15:00"}]}
+    m = process_model.ProcessModel(spec)
+
+    def at(hh, mm=0):
+        t = datetime(2026, 1, 1, hh, mm)
+        return m.values("P", t, t, 5)[0][1]
+
+    assert abs(at(5) - 100) < 0.5 and abs(at(7) - 110) < 0.5  # holds, then steps to its new setpoint
+    assert abs(at(9, 5) - 80) < 3 and abs(at(11) - 110) < 0.5  # drifts and comes back
+    assert abs(at(14) - 20) < 2 and abs(at(17) - 110) < 2  # idles while its train is down
+
+
 def test_coolers_reject_heat_to_the_sites_medium():
     """Okan's coolers keep seawater; an inland plant's air cooler follows the air, cold in a winter night."""
     base = json.loads((KESTREL / "process_model.json").read_text())

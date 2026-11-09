@@ -80,6 +80,13 @@
     "uom": "mm/s",
     "HiHi": 11.2,
     "Hi": 7.1
+   },
+   {
+    "name": "Compressor Suction Pressure",
+    "pi_point": "KRGP:B1.PT2006.PV",
+    "uom": "barg",
+    "Hi": 27.0,
+    "Lo": 20.0
    }
   ]
  },
@@ -104,6 +111,273 @@
     "name": "Dry Gas Flow",
     "pi_point": "KRGP:C1.FT3005.PV",
     "uom": "ksm3/d"
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\D1 AMINE",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\E1 DEW POINT",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\F1 CONDENSATE",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\G1 UTILITIES",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\H1 FLARE SALES",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\A1 INLET\\A1-V-1004",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Inlet Filter Coalescer Differential Pressure",
+    "pi_point": "KRGP:A1.PDT1004.PV",
+    "uom": "bar",
+    "HiHi": 1.0,
+    "Hi": 0.8
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\A1 INLET\\A1-P-1007A",
+  "template": "Pump",
+  "attributes": [
+   {
+    "name": "Inlet Condensate Flow",
+    "pi_point": "KRGP:A1.FT1008.PV",
+    "uom": "m3/d",
+    "Lo": 40
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\B1 COMPRESSION\\B1-V-2005",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Suction Scrubber Liquid Level",
+    "pi_point": "KRGP:B1.LT2005.PV",
+    "uom": "%",
+    "HiHi": 80,
+    "Hi": 65
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\C1 DEHY\\C1-H-3008",
+  "template": "Fired Heater",
+  "attributes": [
+   {
+    "name": "TEG Reboiler Temperature",
+    "pi_point": "KRGP:C1.TT3008.PV",
+    "uom": "degC",
+    "HiHi": 204,
+    "Hi": 202,
+    "Lo": 195,
+    "LoLo": 190
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\C1 DEHY\\C1-V-3001",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Dry Gas Water Content",
+    "pi_point": "KRGP:C1.AT3011.PV",
+    "uom": "mg/Sm3",
+    "HiHi": 112,
+    "Hi": 100
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\D1 AMINE\\D1-V-4001",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Amine Contactor Differential Pressure",
+    "pi_point": "KRGP:D1.PDT4001.PV",
+    "uom": "bar",
+    "HiHi": 0.9,
+    "Hi": 0.6
+   },
+   {
+    "name": "Sweet Gas CO2",
+    "pi_point": "KRGP:D1.AT4002.PV",
+    "uom": "mol%",
+    "HiHi": 2.0,
+    "Hi": 1.8
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\D1 AMINE\\D1-E-4006",
+  "template": "Heat Exchanger",
+  "attributes": [
+   {
+    "name": "Amine Reboiler Temperature",
+    "pi_point": "KRGP:D1.TT4006.PV",
+    "uom": "degC",
+    "HiHi": 127,
+    "Hi": 125,
+    "Lo": 115
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\D1 AMINE\\D1-E-4007",
+  "template": "Heat Exchanger",
+  "attributes": [
+   {
+    "name": "Lean Amine Temperature",
+    "pi_point": "KRGP:D1.TT4007.PV",
+    "uom": "degC",
+    "HiHi": 60,
+    "Hi": 55
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\D1 AMINE\\D1-P-4008A",
+  "template": "Pump",
+  "attributes": [
+   {
+    "name": "Lean Amine Circulation",
+    "pi_point": "KRGP:D1.FT4009.PV",
+    "uom": "m3/h",
+    "Lo": 15,
+    "LoLo": 12
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\E1 DEW POINT\\E1-V-5003",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Low Temperature Separator Temperature",
+    "pi_point": "KRGP:E1.TT5003.PV",
+    "uom": "degC",
+    "HiHi": -12,
+    "Hi": -15
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\E1 DEW POINT\\E1-K-5004",
+  "template": "Compressor",
+  "attributes": [
+   {
+    "name": "Refrigeration Compressor Suction Pressure",
+    "pi_point": "KRGP:E1.PT5004.PV",
+    "uom": "barg",
+    "Hi": 1.5,
+    "Lo": 0.2
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\E1 DEW POINT\\E1-E-5005",
+  "template": "Heat Exchanger",
+  "attributes": [
+   {
+    "name": "Propane Condenser Outlet Temperature",
+    "pi_point": "KRGP:E1.TT5005.PV",
+    "uom": "degC",
+    "Hi": 50
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\F1 CONDENSATE\\F1-E-6003",
+  "template": "Heat Exchanger",
+  "attributes": [
+   {
+    "name": "Stabilizer Reboiler Temperature",
+    "pi_point": "KRGP:F1.TT6003.PV",
+    "uom": "degC",
+    "Hi": 175,
+    "Lo": 150
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\F1 CONDENSATE\\F1-T-6005A",
+  "template": "Storage Tank",
+  "attributes": [
+   {
+    "name": "Condensate Tank A Level",
+    "pi_point": "KRGP:F1.LT6005A.PV",
+    "uom": "%",
+    "HiHi": 90,
+    "Hi": 80,
+    "Lo": 10
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\G1 UTILITIES\\G1-H-7001",
+  "template": "Fired Heater",
+  "attributes": [
+   {
+    "name": "Hot Oil Supply Temperature",
+    "pi_point": "KRGP:G1.TT7001.PV",
+    "uom": "degC",
+    "HiHi": 260,
+    "Hi": 250,
+    "Lo": 215
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\G1 UTILITIES\\G1-V-7005",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Instrument Air Header Pressure",
+    "pi_point": "KRGP:G1.PT7005.PV",
+    "uom": "barg",
+    "Lo": 6.5,
+    "LoLo": 5.5
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\H1 FLARE SALES\\H1-V-8001",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Flare Gas Flow",
+    "pi_point": "KRGP:H1.FT8003.PV",
+    "uom": "ksm3/d",
+    "Hi": 50
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\H1 FLARE SALES\\H1-FT-8010",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Sales Gas Flow",
+    "pi_point": "KRGP:H1.FT8010.PV",
+    "uom": "ksm3/d",
+    "Lo": 1100
    }
   ]
  }

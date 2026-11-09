@@ -1,12 +1,12 @@
 """Coupled synthetic process values (#91): a small model of each unit, evaluated over time.
 
-A fake plant can describe itself in `process_model.json` in its data folder: its units (compressor
-trains, compressors, coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves), which
-PI point measures which of their variables, and timed events (trips, shutdowns, a bearing wearing, a
-cooler fouling, a gas lift valve failing open, choke moves, hydrates). Values then follow from simple
-relations with first-order lags rather than being drawn per point, so causes lead effects: vibration
-before bearing temperature, a compressor trip before the lift gas header falls, the header before the
-wells' gas lift rates.
+A fake plant can describe itself in `process_model.json` in its data folder: its units (compressor trains,
+compressors, coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves, values a controller
+holds), which PI point measures which of their variables, and timed events (trips, shutdowns, a bearing
+wearing, a cooler fouling, a gas lift valve failing open, choke moves, hydrates). Values then follow from
+simple relations with first-order lags rather than being drawn per point, so causes lead effects: vibration
+before bearing temperature, a compressor trip before the lift gas header falls, the header before the wells'
+gas lift rates.
 
 Everything is a function of absolute time on a fixed 5-minute grid (inputs are stateless; lags are
 truncated convolutions with a warm-up before the window), so a timestamp reads the same value from any
@@ -460,6 +460,23 @@ class Window:
                   np.zeros_like(self.t))
         swing = 1 + 0.04 * self.noise(unit + "slow", 360) + 0.01 * self.noise(unit + "m", 30)  # production, surge drum
         return self.lag(base * up * (1 - np.clip(cut, 0, 1)), 20) * swing
+
+    def _controlled(self, unit, u, var):
+        """A value a controller or the process holds near one level: a reboiler or heater temperature, a filter or
+        column differential pressure, an analyser reading, a utility header pressure, a flare's purge flow.
+        `setpoint` events step it, `drift` events add a path (a burner fouling, foaming after a restart, a trip's
+        flaring), and with a `train` it settles at `idle` while that train is down."""
+        if var != "value":
+            raise KeyError(var)
+        v = np.full_like(self.t, float(u["value"]))
+        for e in sorted(self.ev(unit, "setpoint"), key=lambda e: e["at"]):
+            v = np.where(self.t >= minutes(e["at"]), float(e["to"]), v)
+        v = v + sum((self.path(e["points"]) for e in self.ev(unit, "drift")), np.zeros_like(self.t))
+        if u.get("train"):
+            run = self.get(u["train"], "running")
+            v = run * v + (1 - run) * float(u.get("idle", u["value"]))
+        noise = float(u.get("noise", 0.01 * abs(float(u["value"]))))
+        return self.lag(v, float(u.get("tau", 10))) + noise * self.noise(unit + "c", 15)
 
     def _valve(self, unit, u, var):
         if var != "position":

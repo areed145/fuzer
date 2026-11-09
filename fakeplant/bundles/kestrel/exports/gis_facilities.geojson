@@ -76,6 +76,101 @@
     "longitude": -104.5112,
     "latitude": 40.8709
    }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5116,
+     40.8716
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-D1",
+    "floc": "KRGP-D1",
+    "name": "Train D1 amine treating",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5116,
+    "latitude": 40.8716
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5107,
+     40.8714
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-E1",
+    "floc": "KRGP-E1",
+    "name": "Train E1 hydrocarbon dew point control",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5107,
+    "latitude": 40.8714
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5122,
+     40.8704
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-F1",
+    "floc": "KRGP-F1",
+    "name": "Train F1 condensate stabilization",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5122,
+    "latitude": 40.8704
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.513,
+     40.8706
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-G1",
+    "floc": "KRGP-G1",
+    "name": "Train G1 utilities",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.513,
+    "latitude": 40.8706
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.51,
+     40.8702
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-H1",
+    "floc": "KRGP-H1",
+    "name": "Train H1 flare and sales metering",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.51,
+    "latitude": 40.8702
+   }
   }
  ]
 }

@@ -73,9 +73,9 @@ facility: KRGP
 data_notice: Fictional, synthetic data for a second demonstration facility, not a live operating update.
 
 tag_grammar:              # how sources write tags: A1-PT-1001, KRGP:A1.PT1001.PV, "PT1001 (A1 INLET)"
-  area: '[A-C]\d'         # or a whole `pattern` with func / loop / area / suffix groups
+  area: '[A-H]\d'         # or a whole `pattern` with func / loop / area / suffix groups
   loop_digits: [4, 4]
-  function_codes: [P, V, K, E, PT, TT, LT, FT, VT, PDT, XV, PSV, FIC, PIC, LIC]
+  function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, AT, PDT, XV, PV, PSV, FIC, PIC, LIC]
 
 well_grammar:             # KR12-03H, KR-12-03H and KR_12_03H all meet on one well, "KR 12-03H"
   pattern: 'KR[-_\s]?(?P<pad>\d{2})[-_\s]?(?P<num>\d{2})(?P<h>H?)'

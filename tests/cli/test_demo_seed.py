@@ -180,7 +180,7 @@ def test_deploy_registers_okan_first_and_adds_each_other_bundle(tmp_path, capsys
         assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0  # nothing in Okan's
         # Kestrel's open notifications reach its IOC queue at deploy, not at the next scheduled register run.
         assert conn.execute("select count(*) as n from proj_kestrel.exception_record "
-                            "where type = 'sap_notification' and state = 'open'").fetchone()["n"] == 3
+                            "where type = 'sap_notification' and state = 'open'").fetchone()["n"] == 4
         assert demo_seed.register_projects(conn, bundles) == ["kestrel"]  # a redeploy changes nothing
     out = capsys.readouterr().out
     assert "Project broken isn't registered" in out and "Project kestrel: unchanged" in out

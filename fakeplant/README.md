@@ -14,11 +14,23 @@ uv run fakeplant demo                       # reset the database, generate, inge
 ```
 
 Seed bundles (#376) live in `bundles/`: `bundles/okan` points at the generated
-Okan exports and the packaged Okan pack; `bundles/kestrel` is a second, small
+Okan exports and the packaged Okan pack; `bundles/kestrel` is a second
 facility (Kestrel Ridge gas plant, `KRGP`) with its own pack and hand-written
 exports, initialised with `fuzer init --bundle fakeplant/bundles/kestrel`. Kestrel's historian is
-synthetic, driven by the hand-written `exports/process_model.json` (its climate, air-cooled aftercooler, units,
+synthetic, driven by the hand-written `exports/process_model.json` (its climate, air coolers, units,
 PI points and yesterday's compressor trip), so its charts have values without anything running.
+
+Kestrel is a 50 MMscfd (1420 ksm3/d) rich gas plant with a little CO2 and H2S, fed by two Pad 12 wells, with eight
+trains in the order the gas goes through them: A1 inlet (pig receiver, inlet separator, filter coalescer,
+condensate pumps), B1 compression (scrubbers, the Ariel compressor, aftercooler), D1 amine treating for CO2 and H2S
+(contactor, flash tank, regenerator, hot oil reboiler, lean amine pumps), C1 TEG dehydration and regeneration
+(contactor, flash tank, filters, fired reboiler), E1 hydrocarbon dew point control (gas/gas exchanger, propane
+chiller and refrigeration compressor, low temperature separator), F1 condensate stabilization and storage for
+trucking, G1 utilities (hot oil, fuel gas, instrument air, standby generator, methanol, produced water) and H1
+flare and the sales gas custody meter H1-FT-8010. C1-FT-3005 is the dry gas check meter. Beside yesterday's trip
+(which flares the inlet gas and foams the amine on restart), the plant carries slower stories the IOC triages: the
+TEG reboiler's burner fouling (C1-TT-3008 falling, wet sales gas at C1-AT-3011 and in the lab), the inlet filter
+coalescer loading up with too few elements in stock, and an overdue standby generator load test.
 
 Kestrel has the same kinds of sources as Okan, each loaded by the same built-in mapping: SAP floc, equipment,
 notifications, work orders (with turnaround KR-TAR-2027), maintenance plans, BOM and materials; Maximo; PI points
@@ -31,7 +43,7 @@ upset. `uv run fakeplant historian --data fakeplant/bundles/kestrel/exports` ser
 
 Its gas wells report gas and condensate rates in their well tests, not an oil rate and a GOR. And one Kestrel
 system has no built-in mapping on purpose: `bundles/kestrel/measurement/daily_volumes.csv`, a gas measurement
-system's daily volume, energy and heating value per meter, naming plant meters (C1FT3005) and wellhead meters
+system's daily volume, energy and heating value per meter, naming plant meters (C1FT3005, H1FT8010) and wellhead meters
 (KR12-03H) in one column. Add it from the Sources page (Add a source, a folder connection to that path): the
 suggested mapping keys it on meter and day and lands the readings on each tag and well.
 

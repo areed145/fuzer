@@ -1,16 +1,18 @@
 # Kestrel Ridge gas plant: a second, fictional facility that proves Fuzer isn't tied to Okan (#376). It shares no
 # configuration with Okan: its own pack (tag grammar with lettered train areas and 4-digit loops, well names,
 # aliases, policy) and a small hand-written set of source exports that the built-in mappings load: SAP, Maximo, PI and
-# AF, operator logs, EC, DCS alarms, IOWs, inspection, LIMS, OEM curves, P&IDs, GIS and documents. Its historian is
-# the synthetic one driven by exports/process_model.json: an inland climate with an air-cooled aftercooler, one
-# compression train, two gas wells, and yesterday's compressor trip that pinches the wells back and empties the
-# sales gas meter. Dates are written relative to the day they're read ("today-1d 03:10"), so it never goes stale.
+# AF, operator logs, EC, DCS alarms, IOWs, inspection, LIMS, OEM curves, P&IDs, GIS and documents. The plant has eight
+# trains (inlet, compression, amine, TEG dehydration, propane refrigeration dew point control, condensate
+# stabilization, utilities, flare and sales metering) fed by two gas wells. Its historian is the synthetic one driven
+# by exports/process_model.json: an inland climate with air coolers, and yesterday's compressor trip that pinches
+# the wells back, sends the inlet gas to flare, empties the sales gas meter and foams the amine on restart. Dates are
+# written relative to the day they're read ("today-1d 03:10"), so it never goes stale.
 #
 #   fuzer init --bundle fakeplant/bundles/kestrel     # in a fresh database: stores the project and its pack
 #   fuzer ingest && fuzer rebuild                     # FUZER_DATA_DIR=fakeplant/bundles/kestrel/exports
 bundle: 1
 name: kestrel
-description: "Kestrel Ridge onshore gas plant (fictional): inlet separation, compression and glycol dehydration."
+description: "Kestrel Ridge onshore gas plant (fictional): inlet, compression, amine, TEG dehydration, dew point control, condensate stabilization, utilities, flare and sales."
 pack: pack.yaml
 project:
   data: exports
