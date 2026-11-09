@@ -1957,3 +1957,22 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await waveScreenshot("plan");
 });
+
+test("an asset's page shows the open exceptions about it and the work planned on it", async () => {
+  const id = "fz-equipment-0123456789ab";
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "facility", label: "P-101 export pump",
+    golden: {}, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [{ id: 7, type: "leak", key: "w", title: "Leak at P-101",
+    source: "olga", state: "open", priority: null, value_usd: null, subjects: [id], unmatched: [], item_id: null, case_state: null,
+    assignee: null, role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z" }] }));
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [{ id: 12, kind: "maintenance", title: "Replace P-101 seal",
+    source: "sap", source_key: "4000001", subjects: [id], area_id: null, area_label: null, start_at: "2026-11-12T08:00:00Z",
+    end_at: "2026-11-13T16:00:00Z", status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false, deferment_usd: null,
+    exception_id: null, notes: null, assets: [], clashes: [] }] }));
+  await page.goto(`${url}/#/e/${id}`);
+  await page.getByRole("heading", { name: "Work here" }).waitFor();
+  await page.getByRole("link", { name: "Leak at P-101" }).waitFor();
+  await page.getByText("not dispatched").waitFor();
+  await page.getByRole("link", { name: "Replace P-101 seal" }).waitFor();
+});
