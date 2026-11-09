@@ -211,26 +211,26 @@ def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypat
     client = TestClient(app)
 
     assert client.put("/exceptions/types/upset", json={"by": "ann", "label": "x"}).status_code == 400  # code's
-    r = client.put("/exceptions/types/sap_notification", json={"by": "ann", "label": "SAP notification",
-                                                               "role": "role:maintenance", "audience": ["ioc", "field"]})
+    r = client.put("/exceptions/types/scada_alarm", json={"by": "ann", "label": "SCADA alarm",
+                                                          "role": "role:maintenance", "audience": ["ioc", "field"]})
     assert r.status_code == 200, r.text
     kinds = {k["name"]: k for k in client.get("/exceptions/types").json()}
-    assert kinds["sap_notification"]["defined_in"] == "data" and kinds["upset"]["defined_in"] == "code"
+    assert kinds["scada_alarm"]["defined_in"] == "data" and kinds["upset"]["defined_in"] == "code"
 
-    body = {"by": "sap", "type": "sap_notification", "key": "N-1001", "title": "M2 notification: seal leak P-101",
-            "refs": ["sap/10004711"], "evidence": {"priority_code": "2"}, "source": "sap"}
+    body = {"by": "scada", "type": "scada_alarm", "key": "N-1001", "title": "P-101 seal leak alarm",
+            "refs": ["sap/10004711"], "evidence": {"alarm_priority": "high"}, "source": "scada"}
     first = client.post("/exceptions", json=body).json()
     assert first["raised"] and first["subjects"] == ["fz-pump-1"] and first["item_id"]
     assert client.post("/exceptions", json=body).json()["raised"] is False
     assert any(x["id"] == first["id"] for x in client.get("/exceptions", params={"audience": "field"}).json())
-    assert client.delete("/exceptions/types/sap_notification").status_code == 400  # one is open
+    assert client.delete("/exceptions/types/scada_alarm").status_code == 400  # one is open
     assert client.post("/exceptions", json={**body, "type": "nope"}).status_code == 400
 
-    cleared = client.post("/exceptions/clear", json={"by": "sap", "type": "sap_notification", "key": "N-1001",
-                                                     "reason": "notification completed"}).json()
+    cleared = client.post("/exceptions/clear", json={"by": "scada", "type": "scada_alarm", "key": "N-1001",
+                                                       "reason": "alarm returned to normal"}).json()
     assert cleared["state"] == "cleared"
     assert conn.execute("select state from work_item where id = %s", (first["item_id"],)).fetchone()["state"] == "done"
-    assert client.delete("/exceptions/types/sap_notification").json() == {"removed": "sap_notification"}
+    assert client.delete("/exceptions/types/scada_alarm").json() == {"removed": "scada_alarm"}
 
 
 def test_a_dispatch_is_posted_to_the_alert_webhook(conn, types, monkeypatch):

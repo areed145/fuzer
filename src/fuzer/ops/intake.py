@@ -1,0 +1,76 @@
+"""Intake: records other systems already hold that are work the IOC should see, raised as exceptions.
+
+An SAP notification is someone saying "this asset needs attention". While it is open and no work order has been
+raised for it, nobody is working it: it becomes a `sap_notification` exception, matched to the equipment it
+concerns, waiting on the Exceptions page for the IOC to dispatch it to the field, plan it, or leave it for SAP's
+planners. When an order is raised for it, or SAP completes it, the exception clears.
+
+    sync_notifications(conn)   run on each register refresh, after the SAP records are rebuilt
+
+Only notifications created in the last MAX_AGE_DAYS (counted back from the latest data, so a historical asset
+reads as current) are raised: an old backlog is a planning question, not a queue of things to send someone to.
+"""
+
+from datetime import date, timedelta
+
+from ..core.exceptions import clear_exception, exception_type, raise_exception
+from ..graph.operations import as_of
+
+SAP_NOTIFICATION = exception_type(
+    "sap_notification", "SAP notification", audience=("ioc", "field"),
+    description="An open SAP maintenance notification with no work order raised for it yet.").name
+
+OPEN = ("OSNO", "NOPR")  # SAP: outstanding, in process; NOCO (completed) and the rest are closed
+MAX_AGE_DAYS = 30
+BY = "sap"
+
+
+def _status(f: dict) -> str:
+    return str(f.get("status") or "").split()[0].upper() if f.get("status") else ""
+
+
+def _priority(f: dict) -> float | None:
+    """SAP priority 1 (very high) to 4 (low) as a rank where higher comes first."""
+    try:
+        return float(5 - int(str(f.get("priority")).strip()[0]))
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def sync_notifications(conn, max_age_days: int = MAX_AGE_DAYS) -> dict:
+    """Raise an exception for each recent open notification without a work order; clear the ones that got an
+    order or closed. Returns counts."""
+    since = (date.fromisoformat(as_of(conn)) - timedelta(days=max_age_days)).isoformat()
+    rows = conn.execute(
+        """
+        select e.fuzer_id, jsonb_object_agg(g.field, g.value) as f,
+               (select min(k.key) from entity_key k where k.fuzer_id = e.fuzer_id and k.kind = 'notification') as number,
+               (select array_agg(distinct x.dst) from edge x where x.src = e.fuzer_id and x.rel = 'concerns') as concerns,
+               exists (select 1 from edge o where o.dst = e.fuzer_id and o.rel = 'for_notification') as has_order
+        from entity e join golden g on g.fuzer_id = e.fuzer_id
+        where e.kind = 'notification' and e.retired_at is null
+        group by e.fuzer_id
+        """).fetchall()
+    already = {r["key"] for r in conn.execute(
+        "select key from exception_record where type = %s and state = 'open'", (SAP_NOTIFICATION,))}
+    raised = cleared = 0
+    for r in rows:
+        f = {k: v for k, v in r["f"].items() if v not in (None, "")}
+        key = r["number"] or r["fuzer_id"]
+        status = _status(f)
+        wanted = status in OPEN and not r["has_order"] and "ORAS" not in str(f.get("status", "")).upper()
+        if not wanted:
+            if key in already:
+                why = "a work order was raised for it" if r["has_order"] else f"SAP status {status or 'closed'}"
+                cleared += clear_exception(conn, SAP_NOTIFICATION, key, BY, reason=why) is not None
+            continue
+        if key in already or str(f.get("created", ""))[:10] < since:
+            continue  # raised already (a repeat would only bump its count), or too old to send anyone to
+        text = f.get("short_text") or f.get("description") or "SAP notification"
+        evidence = {k: f[k] for k in ("notif_type", "status", "created", "priority", "failure_mode",
+                                       "failure_mechanism", "damage_code", "cause_code") if k in f}
+        raise_exception(conn, SAP_NOTIFICATION, key, f"{text} (notification {key})", BY, source="sap",
+                        refs=r["concerns"] or [r["fuzer_id"]], priority=_priority(f),
+                        evidence={"notification": key, **evidence})
+        raised += 1
+    return {"raised": raised, "cleared": cleared}

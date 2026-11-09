@@ -76,8 +76,8 @@ function Kinds({ person }: { person: string | null }) {
         </tr>)}</tbody>
       </Table>
       {canConfigure && person && <div className="row">
-        <Input aria-label="Type name" placeholder="sap_notification" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-        <Input aria-label="Label" placeholder="SAP notification" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
+        <Input aria-label="Type name" placeholder="scada_alarm" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <Input aria-label="Label" placeholder="SCADA alarm" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
         <Input aria-label="Queue" placeholder="role:maintenance (optional)" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} />
         <label className="small"><input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>

@@ -231,7 +231,7 @@ class FieldReport(BaseModel):
 def _loaded_types() -> None:
     """Exception types are declared by the modules that raise them; load those so labels and audiences resolve."""
     from ..analysis import limits  # noqa: F401
-    from ..ops import sre_handoff  # noqa: F401
+    from ..ops import intake, sre_handoff  # noqa: F401
     from ..sources import alerts  # noqa: F401
 
 
