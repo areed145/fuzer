@@ -127,9 +127,9 @@ register(
             "Schedule", min=30, env="FUZER_WORK_LEASE_SECONDS"),
     Setting("db.work_mem", "str", "256MB", "Postgres work_mem for the rebuild's big queries", "Database",
             env="FUZER_WORK_MEM"),
-    Setting("intake.sap_notifications", "bool", False, "Raise open SAP notifications with no work order as "
+    Setting("intake.sap_notifications", "bool", True, "Raise open SAP notifications with no work order as "
             "exceptions for the IOC to dispatch, on each register refresh", "Work"),
-    Setting("intake.sap_notifications.max_age_days", "int", 30, "Only raise notifications created this many days "
+    Setting("intake.sap_notifications.max_age_days", "int", 60, "Only raise notifications created this many days "
             "before the latest data (an older backlog is a planning question)", "Work", min=1, max=3650),
     Setting("sre.handoff.min_detections", "int", 3, "Detections an upset needs before it is handed off (a lone "
             "detection is evidence, not an upset worth a person's time)", "SRE", min=1),

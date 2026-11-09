@@ -68,6 +68,12 @@ def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) ->
     return _engine().dispatch_item(conn, item_id, by, to, reason)
 
 
+def hand_back(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:
+    """Return what was sent to `person` on a case (its open person step they hold, else the case) to whoever it was
+    handed from, or its role's queue. None when nothing on the case is with them."""
+    return _engine().hand_back_item(conn, item_id, person, by, reason)
+
+
 def roles_of(conn, person: str) -> list[str]:
     """The routing roles a person holds (operator, maintenance, ...), so work sent to `role:<role>` reaches them."""
     return _engine().roles_of(conn, person)

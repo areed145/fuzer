@@ -20,7 +20,7 @@ export function FieldPage() {
   const list = jobs.data.jobs;
   return (
     <section className="field-jobs">
-      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first, then what you're planned onto. Tell them when you're on site, when it's done, or why it couldn't be.">
+      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first, then ones waiting in your queues for whoever is free, then what you're planned onto. Tell them when you're on site, when it's done, or why it couldn't be.">
         My jobs</PageHeader>
       {!list.length && <p className="muted">Nothing dispatched to you right now.</p>}
       {list.map((j) => <Job key={j.id} job={j} person={person} onChange={jobs.reload} />)}
@@ -76,6 +76,9 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
         <span className="muted">seen {job.raised_count}× since {when(job.first_seen)}</span>
       </p>
+      {job.sent && !job.queued && <p className="field-sent">
+        <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
+        <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")} {when(job.sent.at)}</span></p>}
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
@@ -87,7 +90,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
       {job.unmatched.length > 0 && <p className="small muted">Also named: {job.unmatched.join(", ")}</p>}
       {job.seen.length > 0 && <div>
         <h3 className="small">What was seen</h3>
-        <dl className="kv small">{job.seen.map(([k, v]) => <div key={k}><dt>{k.replace(/_/g, " ")}</dt><dd>{v}</dd></div>)}</dl>
+        <dl className="kv small">{job.seen.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       </div>}
       {job.history.length > 0 && <div>
         <h3 className="small">Lately at this asset</h3>
@@ -99,6 +102,11 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         <ul className="plain small">{job.field.map((f, i) => <li key={i}>
           {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""} <span className="muted">{f.by}</span></li>)}</ul>
       </div>}
+      {job.queued ? <div className="row field-actions">
+        <p className="small muted">Waiting in the {job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.</p>
+        <Button variant="primary" disabled={!!busy}
+          onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
+      </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
       <textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="row field-actions">
@@ -109,7 +117,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
         {job.task_id && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
-      </div>
+      </div></>}
       {busy && <p role="status">{busy}…</p>}
       {error && <p role="alert" className="error">{error}</p>}
     </Card>

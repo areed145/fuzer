@@ -125,7 +125,7 @@ def title(u: dict) -> str:
     peak = u.get("magnitude")
     excursion = u.get("detector") == "excursions" and peak is not None
     value = f" (peak {float(peak):,.4g}{' ' + u['uom'] if u.get('uom') else ''})" if excursion else ""
-    spread = f", {len(u['units'])} units" if len(u.get("units") or []) > 1 else ""
+    spread = f", across {len(u['units'])} assets" if len(u.get("units") or []) > 1 else ""
     return f"{what} on {where}{value} from {u['start']:%Y-%m-%d %H:%M}{spread}"
 
 

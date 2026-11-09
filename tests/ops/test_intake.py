@@ -46,9 +46,11 @@ def _open(conn):
         "select * from exception_record where type = 'sap_notification' and state = 'open'")}
 
 
-def test_it_is_off_until_a_deployment_turns_it_on(conn):
+def test_it_is_on_by_default_and_a_deployment_can_turn_it_off(conn):
+    from fuzer.core import settings
+    assert settings.get(conn, "intake.sap_notifications") is True
     before = conn.execute("select count(*) as n, max(updated_at) as at from exception_record").fetchone()
-    assert intake.sync_notifications(conn) == {"raised": 0, "cleared": 0, "enabled": False}
+    assert intake.sync_notifications(conn, enabled=False) == {"raised": 0, "cleared": 0, "enabled": False}
     # nothing raised or cleared, whatever order the tests ran in
     assert conn.execute("select count(*) as n, max(updated_at) as at from exception_record").fetchone() == before
 

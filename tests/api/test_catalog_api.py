@@ -211,7 +211,7 @@ def test_rules_health_alerts_and_lineage(client):
         held = conn.execute("select assignee from work_item where type = 'source_issue' and payload->>'dataset' = "
                             "'vendor_pumps'").fetchone()
         assert held["assignee"] == "ana"  # the held load in the test before went to the dataset's owner
-        assert item["role"] == "role:data_steward" and item["payload"]["dataset"] == "sap_equipment"
+        assert item["role"] == "data_steward" and item["payload"]["dataset"] == "sap_equipment"
         assert alerts.check(conn, ["sap_equipment"])["opened"] == []  # once per problem
     ok(client.patch("/sources/datasets/sap_equipment", json={"values": {"expected_hours": None}, "by": "ana"}))
     with db.connect() as conn:

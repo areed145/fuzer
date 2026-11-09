@@ -2041,8 +2041,10 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     assignee: "fred", role: null, raised_count: 2, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z",
     label: "Leak", due: null, task_id: null, task_name: null,
     assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump", kind: "equipment", lat: 52.1, lon: 4.1 }],
-    seen: [["drips_per_min", "12"]], history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
-    field: [] };
+    seen: [["drips per min", "12"]], history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
+    field: [], queued: false, sent: { by: "ann", at: "2026-11-08T07:05:00Z", reason: "isolate and check the gland" } };
+  const waiting = { ...job, id: 8, key: "scada-1", title: "Compressor trip on high discharge pressure", item_id: 32, assignee: null,
+    role: "operator", queued: true, sent: null, seen: [], history: [] };
   const reports = [];
   const soon = { id: 12, kind: "maintenance", title: "Replace P-101 seal", source: "sap", source_key: "4000001",
     subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: "2026-11-12T08:00:00Z",
@@ -2053,13 +2055,22 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     start_at: new Date().toISOString(), end_at: new Date(Date.now() + 3_600_000).toISOString() };
   const changed = [];
   await page.route("**/plan/13", (route) => { changed.push(route.request().postDataJSON()); return route.fulfill({ json: today }); });
-  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [today, soon] } }));
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job, waiting], coming_up: [today, soon] } }));
+  const taken = [];
+  await page.route("**/exceptions/8/dispatch", (route) => { taken.push(route.request().postDataJSON()); return route.fulfill({ json: waiting }); });
   await page.route("**/exceptions/7/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(`${url}/#/field`);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
-  await page.getByRole("link", { name: "directions" }).waitFor();
+  await page.getByRole("link", { name: "directions" }).first().waitFor();
   await page.getByText("drips per min").waitFor();
+  await page.getByText("isolate and check the gland").waitFor();  // what the IOC asked for, on the job
+  const queued = page.locator(".field-job", { hasText: "Compressor trip" });
+  assert.equal(await queued.getByRole("button", { name: "Done" }).count(), 0);  // not theirs until taken
+  await queued.getByRole("button", { name: "Take it" }).click();
+  await expectReports(taken, 1);
+  assert.deepEqual([taken[0].by, taken[0].to], ["fred", "fred"]);
+  const mine = page.locator(".field-job", { hasText: "Leak at P-101" });
   await page.getByRole("heading", { name: "Coming up" }).waitFor();
   await page.getByText("bring the seal kit").waitFor();
   await page.getByText("for operator").waitFor();
@@ -2068,10 +2079,10 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await coming.getByRole("button", { name: "Done" }).click();
   await expectReports(changed, 1);
   assert.deepEqual(changed[0], { by: "fred", status: "done" });
-  assert.equal(await page.getByRole("button", { name: "Could not do" }).isDisabled(), true);
-  await page.getByRole("button", { name: "On site" }).click();
-  await page.getByLabel(/Note for the IOC/).fill("valve seized");
-  await page.getByRole("button", { name: "Could not do" }).click();
+  assert.equal(await mine.getByRole("button", { name: "Could not do" }).isDisabled(), true);
+  await mine.getByRole("button", { name: "On site" }).click();
+  await mine.getByLabel(/Note for the IOC/).fill("valve seized");
+  await mine.getByRole("button", { name: "Could not do" }).click();
   await expectReports(reports, 2);
   assert.deepEqual(reports.map((r) => r.status), ["on_site", "could_not_do"]);
   assert.equal(reports[1].note, "valve seized");
@@ -2086,9 +2097,11 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("1 waiting to be dispatched").waitFor();
   await page.getByLabel("Dispatch to").fill("fred");
+  await page.getByLabel("What to do").fill("isolate and check the gland");
   await page.getByRole("button", { name: "Dispatch" }).click();
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "fred");
+  assert.equal(dispatched[0].reason, "isolate and check the gland");
 });
 
 async function expectReports(list, n) {

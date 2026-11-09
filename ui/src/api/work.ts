@@ -404,6 +404,8 @@ export interface ExceptionRow {
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; first_seen: string; last_seen: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
+  /** What the source sent with it, and what the field has reported back (`field`). */
+  evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };
 }
 
 /** An exception type: declared by a module in code, or defined as data for another system's exceptions. */
@@ -442,6 +444,10 @@ export interface FieldJob extends ExceptionRow {
   seen: [string, string][];
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null }[];
+  /** Who sent it to them, when, and what they asked for. */
+  sent: { by: string; at: string; reason: string | null } | null;
+  /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
+  queued: boolean;
 }
 
 export const workApi = {

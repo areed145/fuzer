@@ -13,12 +13,13 @@ from .runtime import _Run, _sync_item, _update
 @_op
 def create_item(conn, type: str, title: str, by: str, subjects: list[str] | None = None, priority: float | None = None,
                 assignee: str | None = None, role: str | None = None, due: datetime | None = None,
-                source: str | None = None, payload: dict | None = None) -> dict:
+                source: str | None = None, payload: dict | None = None, reason: str | None = None) -> dict:
     row = conn.execute(
         "insert into work_item (type, title, subjects, priority, assignee, role, due, created_by, source, payload) "
         "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *",
         (type, title, list(subjects or []), priority, assignee, role, due, by, source or by, Jsonb(payload or {}))).fetchone()
-    _event(conn, "created", by, item_id=row["id"], data={"type": type, "assignee": assignee, "role": role})
+    _event(conn, "created", by, item_id=row["id"], data={"type": type, "assignee": assignee, "role": role,
+                                                        **({"reason": reason} if reason else {})})
     return row
 
 def _item(conn, item_id: int, lock: bool = False) -> dict:
@@ -175,3 +176,39 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
     if step:
         return hand_off(conn, step["id"], by, to, reason)
     return assign_item(conn, item_id, by, to, reason)
+
+
+def _back_to(prior: str | None, person: str, role: str | None) -> str | None:
+    """Where handed-back work goes: whoever it was handed from (a person or `role:<role>`), else its role's queue."""
+    from . import bpmn
+
+    if prior and ":" not in prior and prior in bpmn.PERSON_ROLES:
+        prior = f"role:{prior}"  # an item's own hand-off records its role bare
+    if prior and prior != person:
+        return prior
+    return f"role:{role}" if role else None
+
+
+def hand_back_item(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:
+    """Give back what was sent to `person` on a case to whoever it was handed from: the open person step they hold
+    (a process case), else the case itself. A field operator reporting back on a dispatched job, say, returns the
+    IOC's decision step to the IOC instead of leaving it in the operator's list. None when nothing is with them."""
+    step = conn.execute(
+        "select id, role from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
+        "and assignee = %s order by due_at nulls last, id limit 1", (item_id, person)).fetchone()
+    if step:
+        prior = conn.execute(
+            "select data->>'from' as f from work_event where token_id = %s and kind = 'handed_off' "
+            "and data->>'to' = %s order by id desc limit 1", (step["id"], person)).fetchone()
+        to = _back_to(prior and prior["f"], person, step["role"])
+        return hand_off(conn, step["id"], by, to, reason) if to else None
+    item = _item(conn, item_id)
+    if item["assignee"] != person or item["state"] in ("done", "cancelled") or _has_process(conn, item_id):
+        return None
+    prior = conn.execute(  # handed to them, else opened for them: back to whoever opened it (the dispatcher)
+        "select f from (select id, data->>'from' as f from work_event where item_id = %(i)s and token_id is null "
+        "and kind = 'handed_off' and data->>'to' = %(p)s union all select id, actor from work_event "
+        "where item_id = %(i)s and kind = 'created' and data->>'assignee' = %(p)s) x order by id desc limit 1",
+        {"i": item_id, "p": person}).fetchone()
+    to = _back_to(prior and prior["f"], person, item["role"])
+    return assign_item(conn, item_id, by, to, reason) if to else None
