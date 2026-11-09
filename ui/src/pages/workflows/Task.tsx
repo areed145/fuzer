@@ -51,6 +51,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       {done && !demo && <p className="notice small">{done} <a href={href("/inbox")}>Back to your inbox</a></p>}
       <div className="task-layout">
         <div>
+          <FromField v={v} />
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
             <p className="muted">This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</p>
           ) : t.kind === "agent" ? (
@@ -160,6 +161,22 @@ function NoteForm({ element, missing, busy, onSubmit }: {
         <Button variant="primary" disabled={busy} onClick={() => onSubmit(note ? { [`${element}_note`]: note } : {})}>Complete</Button>
       </div>
     </div>
+  );
+}
+
+/** What the field reported on this case, above the decision it informs: their notes (newest first) and, when the
+ * process has a Field check, its result. Empty when nobody has been sent. */
+function FromField({ v }: { v: WorkTaskView }) {
+  const notes = v.evidence.comments.filter((c) => String(c.data.text ?? "").startsWith("Field: ")).slice(0, 5);
+  const asked = typeof v.data.field_ask === "string" && v.data.field_ask ? v.data.field_ask : null;
+  if (!notes.length) return null;
+  return (
+    <UICard className="from-field" title="From the field">
+      {asked && <p className="small muted">You asked: {asked}</p>}
+      <ul className="plain">{notes.map((c) => <li key={c.id}>
+        <strong>{String(c.data.text).slice(7)}</strong> <span className="muted small">· <Actor who={c.actor} /> {when(c.at)}</span>
+      </li>)}</ul>
+    </UICard>
   );
 }
 

@@ -336,6 +336,13 @@ def exception_types(conn=Depends(get_conn)):
     return exceptions.type_listing(conn)
 
 
+@router.get("/exceptions/refs")
+def exception_refs(conn=Depends(get_conn)):
+    """The reference forms an exception's `refs` are matched by, each with an example from this register."""
+    from ..ops import exceptions
+    return exceptions.ref_forms(conn)
+
+
 @router.put("/exceptions/types/{name}")
 def exception_type_define(name: str, k: ExceptionKind, conn=Depends(get_conn)):
     """Define or change a type as data, for another system's exceptions."""

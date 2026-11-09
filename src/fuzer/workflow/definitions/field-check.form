@@ -1,0 +1,14 @@
+{
+  "id": "field-check",
+  "type": "default",
+  "schemaVersion": 19,
+  "components": [
+    {"type": "text", "id": "intro", "text": "Go and look at the asset, then say what you found. The IOC gets this step back with your report next to its decision."},
+    {"type": "textfield", "id": "field_ask", "key": "field_ask", "label": "What the IOC asked", "disabled": true},
+    {"type": "radio", "id": "field_result", "key": "field_result", "label": "Did you check it?",
+     "values": [{"label": "Checked: here is what I found", "value": "done"}, {"label": "Could not check it", "value": "could_not_do"}],
+     "validate": {"required": true}},
+    {"type": "textarea", "id": "field_note", "key": "field_note", "label": "What you found",
+     "description": "A reading, what you saw, what you did, or why it could not be checked.", "validate": {"required": true}}
+  ]
+}

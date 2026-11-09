@@ -62,7 +62,7 @@ def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
     n = rows["1001"]
     assert n["subjects"] == ["fz-pump-1"] and n["priority"] == 3 and n["item_id"] is None  # waits to be dispatched
     assert n["evidence"]["failure_mode"] == "ELU" and "P-101 seal weeping" in n["title"]
-    assert intake.sync_notifications(conn, enabled=True) == {"raised": 0, "cleared": 0}
+    assert intake.sync_notifications(conn, enabled=True) == {"raised": 0, "cleared": 0, "held": 0}
     assert _open(conn)["1001"]["raised_count"] == 1  # a refresh is not a repeat sighting
     conn.commit()
 
@@ -81,3 +81,33 @@ def test_an_order_or_completion_clears_it(conn):
     conn.execute("update golden set value = '\"NOCO\"' where fuzer_id = 'fz-n-1' and field = 'status'")
     assert intake.sync_notifications(conn, enabled=True)["cleared"] == 1
     conn.rollback()
+
+
+def test_a_notification_done_in_the_field_is_held_until_sap_moves(conn):
+    """SAP never hears that the field closed a notification, so intake holds it while SAP's status is the one it
+    had, instead of raising the same notification as a new exception on the next refresh."""
+    from fuzer.ops import exceptions as ex
+
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-n-5', 'notification')")
+    conn.execute("insert into entity_key (kind, key, fuzer_id) values ('notification', '1005', 'fz-n-5')")
+    for k, v in {"short_text": "P-101 flange drip", "status": "OSNO", "created": TODAY}.items():
+        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values ('fz-n-5', %s, %s, 'sap', 't')",
+                     (k, Jsonb(v)))
+    conn.commit()
+    status = lambda v: conn.execute("update golden set value = %s where fuzer_id = 'fz-n-5' and field = 'status'",  # noqa: E731
+                                    (Jsonb(v),))
+    try:
+        intake.sync_notifications(conn, enabled=True)
+        n = _open(conn)["1005"]
+        ex.dispatch(conn, n["id"], "ioc-ann", "fred", reason="check the flange")
+        assert ex.report(conn, n["id"], "fred", "done", note="flange bolts torqued")["state"] == "closed"
+        out = intake.sync_notifications(conn, enabled=True)
+        assert out["raised"] == 0 and out["held"] == 1 and "1005" not in _open(conn)
+        status("NOPR")
+        assert intake.sync_notifications(conn, enabled=True)["raised"] == 1  # SAP moved and it is still open
+        assert "1005" in _open(conn)
+    finally:  # leave it closed in SAP, so the other tests see only their own notifications
+        conn.rollback()
+        status("NOCO")
+        intake.sync_notifications(conn, enabled=True)
+        conn.commit()

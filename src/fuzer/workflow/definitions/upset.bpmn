@@ -27,19 +27,28 @@
         <bpmn:flowNodeRef>raise_notification</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>recheck</bpmn:flowNodeRef>
       </bpmn:lane>
+      <bpmn:lane id="Lane_operator" name="Field operator" fuzer:role="operator">
+        <bpmn:flowNodeRef>field_check</bpmn:flowNodeRef>
+      </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="detected" name="Upset detected" >
       <bpmn:outgoing>f_start</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage">
+    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage" fuzer:dispatch="triage=field_check">
       <bpmn:incoming>f_start</bpmn:incoming>
+      <bpmn:incoming>f_checked</bpmn:incoming>
       <bpmn:outgoing>f_triaged</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:exclusiveGateway id="is_real" name="Real upset?" default="f_real">
       <bpmn:incoming>f_triaged</bpmn:incoming>
       <bpmn:outgoing>f_false</bpmn:outgoing>
+      <bpmn:outgoing>f_field</bpmn:outgoing>
       <bpmn:outgoing>f_real</bpmn:outgoing>
     </bpmn:exclusiveGateway>
+    <bpmn:userTask id="field_check" name="Field check" fuzer:sla="PT8H" fuzer:escalateTo="ops_lead" fuzer:form="field-check">
+      <bpmn:incoming>f_field</bpmn:incoming>
+      <bpmn:outgoing>f_checked</bpmn:outgoing>
+    </bpmn:userTask>
     <bpmn:endEvent id="false_alarm" name="False alarm" >
       <bpmn:incoming>f_false</bpmn:incoming>
     </bpmn:endEvent>
@@ -92,6 +101,10 @@
     <bpmn:sequenceFlow id="f_false" name="False alarm" sourceRef="is_real" targetRef="false_alarm">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">triage == "false_alarm"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_field" name="Send someone to look" sourceRef="is_real" targetRef="field_check">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">triage == "field_check"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_checked" name="Field report" sourceRef="field_check" targetRef="triage" />
     <bpmn:sequenceFlow id="f_real" name="Real" sourceRef="is_real" targetRef="to_diagnose" />
     <bpmn:sequenceFlow id="f_diagnose" sourceRef="to_diagnose" targetRef="diagnose" />
     <bpmn:sequenceFlow id="f_proposed" name="Action proposed" sourceRef="diagnose" targetRef="approve" />
@@ -111,11 +124,13 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_upset">
     <bpmndi:BPMNPlane id="Plane_upset" bpmnElement="Collaboration_upset">
-      <bpmndi:BPMNShape id="Participant_upset_di" bpmnElement="Participant_upset" isHorizontal="true"><dc:Bounds x="0" y="60" width="2080" height="600" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_upset_di" bpmnElement="Participant_upset" isHorizontal="true"><dc:Bounds x="0" y="60" width="2080" height="750" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_engineer_di" bpmnElement="Lane_engineer" isHorizontal="true"><dc:Bounds x="30" y="60" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_field_operations_di" bpmnElement="Lane_field_operations" isHorizontal="true"><dc:Bounds x="30" y="210" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_maintenance_di" bpmnElement="Lane_maintenance" isHorizontal="true"><dc:Bounds x="30" y="360" width="2050" height="150" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_planner_di" bpmnElement="Lane_planner" isHorizontal="true"><dc:Bounds x="30" y="510" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_operator_di" bpmnElement="Lane_operator" isHorizontal="true"><dc:Bounds x="30" y="660" width="2050" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="field_check_di" bpmnElement="field_check"><dc:Bounds x="400" y="695" width="100" height="80" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="detected_di" bpmnElement="detected"><dc:Bounds x="132" y="267" width="36" height="36" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="triage_di" bpmnElement="triage"><dc:Bounds x="250" y="95" width="100" height="80" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="is_real_di" bpmnElement="is_real" isMarkerVisible="true"><dc:Bounds x="425" y="110" width="50" height="50" /></bpmndi:BPMNShape>
@@ -133,6 +148,8 @@
       <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="168" y="285" /><di:waypoint x="209" y="285" /><di:waypoint x="209" y="135" /><di:waypoint x="250" y="135" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_triaged_di" bpmnElement="f_triaged"><di:waypoint x="350" y="135" /><di:waypoint x="425" y="135" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_false_di" bpmnElement="f_false"><di:waypoint x="475" y="135" /><di:waypoint x="582" y="135" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_field_di" bpmnElement="f_field"><di:waypoint x="450" y="160" /><di:waypoint x="450" y="695" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_checked_di" bpmnElement="f_checked"><di:waypoint x="400" y="735" /><di:waypoint x="300" y="735" /><di:waypoint x="300" y="175" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_real_di" bpmnElement="f_real"><di:waypoint x="475" y="135" /><di:waypoint x="525" y="135" /><di:waypoint x="525" y="285" /><di:waypoint x="575" y="285" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_diagnose_di" bpmnElement="f_diagnose"><di:waypoint x="625" y="285" /><di:waypoint x="700" y="285" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_proposed_di" bpmnElement="f_proposed"><di:waypoint x="800" y="285" /><di:waypoint x="825" y="285" /><di:waypoint x="825" y="135" /><di:waypoint x="850" y="135" /></bpmndi:BPMNEdge>

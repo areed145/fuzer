@@ -184,6 +184,8 @@ def _agent_failed(conn, token_id, worker, error, now, max_attempts, backoff) -> 
 _TASKS = """
     select t.id as task_id, t.element, t.name, t.kind, t.role, t.assignee, t.requires_human, t.due_at, t.escalated_at,
            t.error, t.created_at, t.due_at < %(now)s as overdue, t.claimed_by, t.lease_until,
+           (select data->>'reason' from work_event h where h.token_id = t.id and h.kind = 'handed_off'
+            order by h.id desc limit 1) as handed_reason,
            i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id
     from work_token t join work_process p on p.id = t.process_id join work_item i on i.id = t.item_id
     where t.state = 'waiting' and t.kind = any(%(kinds)s) and {who}
@@ -193,7 +195,9 @@ _TASKS = """
 _ITEMS = """
     select null::bigint as task_id, null as element, i.step as name, 'item' as kind, i.role, i.assignee,
            false as requires_human, i.due as due_at, null::timestamptz as escalated_at, null as error, i.created_at,
-           i.due < %(now)s as overdue, null as claimed_by, null::timestamptz as lease_until, i.id as item_id, i.type, i.title, i.priority, i.subjects,
+           i.due < %(now)s as overdue, null as claimed_by, null::timestamptz as lease_until,
+           (select data->>'reason' from work_event h where h.item_id = i.id and h.token_id is null
+            and h.kind = 'handed_off' order by h.id desc limit 1) as handed_reason, i.id as item_id, i.type, i.title, i.priority, i.subjects,
            null::bigint as process_id, null as process_key, null::bigint as definition_id
     from work_item i
     where i.closed_at is null and {who} and not exists (select 1 from work_process p where p.item_id = i.id)

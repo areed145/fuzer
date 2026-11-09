@@ -6,7 +6,7 @@ import { api, type FieldJob, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { Due, usePerson, when } from "../work";
-import { taskHref, useAct } from "./workflows/shared";
+import { SampleTeam, taskHref, useAct } from "./workflows/shared";
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
 
@@ -15,6 +15,7 @@ export function FieldPage() {
   const jobs = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
   if (!person) return <section><PageHeader>My jobs</PageHeader><Card title="Choose who you are">
     <p>Use “You are” in the navigation to pick your name; your dispatched jobs then show here.</p>
+    <SampleTeam />
   </Card></section>;
   if (!jobs.data) return <Status loading={jobs.loading} error={jobs.error} />;
   const list = jobs.data.jobs;
@@ -78,7 +79,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
       </p>
       {job.sent && !job.queued && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
-        <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")} {when(job.sent.at)}</span></p>}
+        {job.sent.by && <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</span>}</p>}
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
@@ -115,7 +116,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
           onClick={() => say("could_not_do")}>Could not do</Button>
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
-        {job.task_id && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
+        {job.task_id && job.own_step && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
       </div></>}
       {busy && <p role="status">{busy}…</p>}

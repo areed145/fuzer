@@ -2092,16 +2092,107 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   const dispatched = [];
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [{ ...job, item_id: null, assignee: null }] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] },
+    { name: "engineer", kind: "person", members: [] }, { name: "maintenance-integrity", kind: "agent", members: [] }] }));
+  await page.route("**/exceptions/refs", (route) => route.fulfill({ json: [{ form: "tag:<key>", example: "tag:20-K-2100B", entities: 812 }] }));
   await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("1 waiting to be dispatched").waitFor();
-  await page.getByLabel("Dispatch to").fill("fred");
+  await page.getByText("tag:20-K-2100B").waitFor();  // what another system's refs should look like
+  const queue = page.getByLabel("Queue");  // a new type routes to a known queue, picked, not typed
+  await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
+  assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
+  await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
+  await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByLabel("What to do").fill("isolate and check the gland");
   await page.getByRole("button", { name: "Dispatch" }).click();
   await expectReports(dispatched, 1);
   assert.equal(dispatched[0].to, "fred");
   assert.equal(dispatched[0].reason, "isolate and check the gland");
+});
+
+test("the field's report sits above the IOC's decision, and operators are only offered their own step (#452)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "erin"));
+  const comment = (id, text, actor, at) => ({ id, kind: "commented", actor, element: null, data: { text }, at });
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    task: { ...demoTask.task, element: "triage", name: "Triage", requires_human: false, assignee: "erin" },
+    data: { field_ask: "read the wellhead gauge", field_result: "done" },
+    evidence: { ...demoTask.evidence, comments: [comment(5, "Field: Done: gauge reads 13 barg", "otto", "2026-11-09T09:00:00Z"),
+      comment(4, "looks like a sticky valve", "erin", "2026-11-09T08:00:00Z")] } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  await page.goto(`${url}/#/inbox/task/42`);
+  const box = page.locator(".from-field");
+  await box.getByRole("heading", { name: "From the field" }).waitFor();
+  await box.getByText("You asked: read the wellhead gauge").waitFor();
+  await box.getByText("Done: gauge reads 13 barg").waitFor();
+  assert.equal(await box.getByText("sticky valve").count(), 0);  // the IOC's own notes stay in the history
+
+  const base = { type: "upset", source: "sre", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+    case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z",
+    label: "Upset", due: null, assets: [], seen: [], history: [], field: [], queued: false, evidence: {} };
+  const theirs = { ...base, id: 1, key: "a", title: "Low pressure across 3 assets", item_id: 31, assignee: null, task_id: 51,
+    task_name: "Field check", own_step: true, sent: { by: "erin", at: "2026-11-09T07:00:00Z", reason: "read the gauge" } };
+  const handed = { ...base, id: 2, key: "b", title: "Gauge reads odd", item_id: 32, assignee: null, task_id: 52,
+    task_name: "Triage", own_step: false, sent: { by: null, at: null, reason: "look at it" } };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "otto", jobs: [theirs, handed], coming_up: [] } }));
+  await page.goto(`${url}/#/field`);
+  await page.locator(".field-job", { hasText: "Low pressure" }).getByRole("link", { name: "Open step: Field check" }).waitFor();
+  const other = page.locator(".field-job", { hasText: "Gauge reads odd" });
+  await other.getByText("look at it").waitFor();
+  assert.equal(await other.getByRole("link", { name: /Open step/ }).count(), 0);  // an engineer's form isn't theirs
+
+  const back = { ...base, id: 3, key: "c", title: "Seal weeping on P-101", item_id: 33, assignee: "erin",
+    evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } };
+  const fresh = { ...base, id: 4, key: "d", title: "Compressor trip", item_id: null, assignee: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [back, fresh] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("button", { name: "1 back from the field" }).click();
+  await page.getByText("Seal weeping on P-101").waitFor();
+  assert.equal(await page.getByText("Compressor trip").count(), 0);
+});
+
+test("a fresh demo offers a sample IOC team, an agent step with no worker can be taken over, evidence reads as words", async () => {
+  const added = [];
+  let roster = [];
+  await page.route("**/work/people", (route) => route.fulfill({ json: roster }));
+  await page.route("**/work/people/*", (route) => {
+    added.push({ name: decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop()), ...route.request().postDataJSON() });
+    roster = [...roster, { name: added.at(-1).name, roles: added.at(-1).roles }];
+    return route.fulfill({ json: { name: added.at(-1).name, roles: added.at(-1).roles } });
+  });
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "riley", jobs: [], coming_up: [] } }));
+  await page.goto(`${url}/#/field`);
+  await page.getByText("Nobody is on the team yet.").waitFor();
+  await page.getByRole("button", { name: "Add the sample team" }).click();
+  await page.getByRole("button", { name: "Confirm Add the sample team" }).click();
+  await expectReports(added, 3);
+  assert.deepEqual(added.map((p) => [p.name, p.roles]), [["riley", ["ops_lead", "engineer"]], ["sam", ["operator"]],
+    ["pat", ["maintenance_planner"]]]);
+  await page.getByText("Nobody is on the team yet.").waitFor({ state: "detached" });
+
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+  const handed = [];
+  const step = { id: 77, process_id: 9, element: "diagnose", name: "Diagnose", kind: "agent", state: "waiting", flow: null,
+    role: "field-operations-facilities", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0,
+    error: null, created_at: new Date().toISOString(), finished_at: null, finished_by: null, unclaimed: true };
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { id: 7, title: "Upset case", type: "upset", state: "open",
+    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", events: [], agents_configured: false,
+    payload: { start: "2025-12-30T00:00", first_detection: "excursions:alarm:lo" },
+    processes: [{ id: 9, process_key: "upset", version: 1, definition_id: 1, parent_token: null, state: "running", outcome: null,
+      data: {}, started_by: "agent:sre", started_at: "2026-11-09T09:00:00Z", path: [], open: [step] }] } }));
+  await page.route("**/work/tasks/77/hand-off", (route) => { handed.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.goto(`${url}/#/cases/7`);
+  await page.getByText("No AI provider is configured for agents").waitFor();  // straight away, not after 10 minutes
+  await page.getByRole("button", { name: "Take it over" }).click();
+  await expectReports(handed, 1);
+  assert.equal(handed[0].to, "riley");
+  await page.getByText("Details").click();
+  await page.getByText("2025-12-30 00:00 (data time)").waitFor();
+  await page.getByText("alarm low excursions").waitFor();
 });
 
 async function expectReports(list, n) {
