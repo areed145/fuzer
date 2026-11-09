@@ -155,4 +155,4 @@ def test_upset_titles_read_as_words():
          "point": "30PT2002.PV", "start": datetime(2025, 12, 24), "units": ["fz-tag-1"]}
     assert sre_handoff.title(u) == "High-high alarm on 30-PT-2002 (peak 90 barg) from 2025-12-24 00:00"
     step = {**u, "key": "step", "detector": "steps", "tag": None, "units": ["a", "b"]}
-    assert sre_handoff.title(step) == "Step change on 30PT2002.PV from 2025-12-24 00:00, 2 units"
+    assert sre_handoff.title(step) == "Step change on 30PT2002.PV from 2025-12-24 00:00, across 2 assets"

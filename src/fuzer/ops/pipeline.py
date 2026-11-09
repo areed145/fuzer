@@ -237,3 +237,17 @@ class BackgroundRebuild:
     @property
     def last(self) -> dict | None:
         return self._queue().last
+
+
+def follow_register(conn, pack: Pack) -> dict:
+    """What follows a register build wherever it runs (the scheduled `register` asset, `fuzer up`): the work board,
+    the integrated plan's SAP work orders and maintenance plans, and the IOC's intake of open SAP notifications,
+    so work that other systems hold reaches the IOC as soon as the register does."""
+    from . import board, intake, plan
+
+    planned = plan.sync_work_orders(conn)
+    planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)
+    notified = intake.sync_notifications(conn)
+    board.refresh(conn, pack)  # last, so the exceptions just raised are on it
+    return {"plan": planned, "notifications": notified}
+

@@ -76,8 +76,9 @@ def _case(conn, t: ExceptionType, row: dict, by: str, assignee: str | None, role
                                        priority=row["priority"])["item_id"]
     if not (assignee or role or t.role):
         return None
+    queue = None if assignee else (role or t.role)
     return work.open_case(conn, t.case_type or t.name, row["title"], by, subjects=row["subjects"],
-                          priority=row["priority"], assignee=assignee, role=None if assignee else (role or t.role),
+                          priority=row["priority"], assignee=assignee, role=queue.removeprefix("role:") if queue else None,
                           source=row["source"], payload={**row["evidence"], "exception_id": row["id"]})["id"]
 
 
@@ -184,7 +185,12 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
 # ---- the IOC dispatching and the field reporting back -------------------------------------------------------------
 
 FIELD_STATUSES = ("on_site", "done", "could_not_do", "note")
-SEEN_SKIP = {"excursions", "priority", "health", "pre_diagnosis", "field", "exception_id", "type", "key"}
+SEEN_SKIP = {"excursions", "priority", "health", "pre_diagnosis", "field", "exception_id", "type", "key", "upset_id",
+             "incident_id", "first_unit", "first_detection"}
+# What a field operator reads: the source's keys as words (the rest are spelled out from their key).
+SEEN_LABELS = {"start": "started (data time)", "ongoing": "still going",
+               "detections": "detections", "first_point": "first seen on", "notif_type": "notification type",
+               "created": "created in SAP"}
 
 
 def _row(conn, exception_id: int, lock: bool = False) -> dict:
@@ -207,8 +213,8 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     else:
         item_id = work.open_case(conn, t.case_type or t.name, row["title"], by, subjects=row["subjects"],
                                  priority=row["priority"], assignee=None if to.startswith("role:") else to,
-                                 role=to if to.startswith("role:") else None, source=row["source"],
-                                 payload={**row["evidence"], "exception_id": row["id"]})["id"]
+                                 role=to.removeprefix("role:") if to.startswith("role:") else None, source=row["source"],
+                                 payload={**row["evidence"], "exception_id": row["id"]}, reason=reason)["id"]
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
     row = _row(conn, exception_id)
     events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row, t), "to": to, "by": by,
@@ -219,7 +225,8 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
 def report(conn, exception_id: int, by: str, status: str, note: str | None = None) -> dict:
     """What a field operator says back: on site, done, could not do (with why) or a note. Kept on the exception's
     evidence (`field`) and its case's history, and published as exception.reported for the IOC. `done` on a case
-    without a process closes it; a process's step is completed with its own form."""
+    without a process closes it. `done` on a process case, or `could_not_do` on any, hands what was sent to them
+    back to whoever sent it (the IOC's step goes back to its queue), so the IOC decides what happens next."""
     if status not in FIELD_STATUSES:
         raise ExceptionError(f"status must be one of {FIELD_STATUSES}")
     if status in ("could_not_do", "note") and not (note or "").strip():
@@ -237,6 +244,13 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
         state = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()["state"]
         if status == "done" and not has_process and state not in ("done", "cancelled"):
             work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")
+            if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next work tick
+                events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(_row(conn, exception_id)))
+        elif status in ("done", "could_not_do") and state not in ("done", "cancelled"):
+            # The field's part is over: what the IOC sent them (its decision step, or the case) goes back to whoever
+            # sent it, with what they found, so it lands in that person's or queue's Inbox instead of staying here.
+            work.hand_back(conn, row["item_id"], by, by, reason=f"Back from the field: {said.lower()} (their note is above)"
+                           if note else f"Back from the field: {said.lower()}")
     row = _row(conn, exception_id)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
@@ -248,8 +262,29 @@ def _seen(evidence: dict) -> list[tuple[str, str]]:
     for k, v in evidence.items():
         if k in SEEN_SKIP or isinstance(v, (dict, list)) or v is None or v == "":
             continue
-        out.append((k, f"{v:g}" if isinstance(v, float) else str(v)[:120]))
+        if isinstance(v, bool):
+            text = "yes" if v else "no"
+        elif isinstance(v, float):
+            text = f"{v:g}"
+        else:
+            text = str(v)[:120]
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?", text):
+                text = text.replace("T", " ")[:16]
+        label = "assets affected" if k == "units" and isinstance(v, int) else SEEN_LABELS.get(k, k.replace("_", " "))
+        out.append((label, text))  # an upset's `units` counts assets; another source's names a unit of measure
     return out[:12]
+
+
+def _sent(conn, item_id: int, person: str) -> dict | None:
+    """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them, else the case
+    being opened for them."""
+    return conn.execute(
+        """
+        select actor as by, at, data->>'reason' as reason from work_event
+        where item_id = %(i)s and ((kind = 'handed_off' and data->>'to' = %(p)s)
+                                   or (kind = 'created' and data->>'assignee' = %(p)s))
+        order by id desc limit 1
+        """, {"i": item_id, "p": person}).fetchone()
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
@@ -277,19 +312,25 @@ def _assets(conn, ids: list[str]) -> list[dict]:
 
 def field_jobs(conn, person: str) -> list[dict]:
     """The open exceptions whose case is with this person (the case, or its open person step), most urgent first,
-    each with where to go, what was seen, what happened at the asset lately and the field log."""
+    then the ones waiting unclaimed in their roles' queues (`queued`, for them to take), each with where to go, what
+    was seen, what happened at the asset lately and the field log."""
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
-               t.id as task_id, t.name as task_name
+               t.id as task_id, t.name as task_name,
+               not (coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)))
+                 as queued
         from exception_record e join work_item w on w.id = e.item_id
-        left join lateral (select id, name, due_at, assignee from work_token
+        left join lateral (select id, name, due_at, assignee, role from work_token
                            where item_id = w.id and kind = 'user' and state in ('ready', 'waiting')
                            order by due_at nulls last, id limit 1) t on true
         where e.state = 'open' and w.state not in ('done', 'cancelled')
-          and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s))
-        order by coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
-        """, {"p": person}).fetchall()
+          and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
+               or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
+               or (t.id is null and w.assignee is null and w.role = any(%(roles)s)))
+        order by coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
+                 coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
+        """, {"p": person, "roles": work.roles_of(conn, person)}).fetchall()
     out, known = [], types(conn)
     for r in rows:
         history = conn.execute(
@@ -298,7 +339,8 @@ def field_jobs(conn, person: str) -> list[dict]:
             (r["id"], r["subjects"])).fetchall() if r["subjects"] else []
         t = known.get(r["type"])
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, r["subjects"]),
-                    "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", [])})
+                    "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
+                    "sent": _sent(conn, r["item_id"], person)})
     return out
 
 

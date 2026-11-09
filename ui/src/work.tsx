@@ -67,7 +67,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const d = e.data;
   const step = d.step ?? e.element;
   switch (e.kind) {
-    case "created": return { text: <>created the item</> };
+    case "created": return { text: <>created the item{d.assignee ? <> for {d.assignee}</> : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "started": return { text: <>started process <span className="mono">{d.process_key}</span> v{d.version}</> };
     case "step_started": return { text: <><strong>{step}</strong> is waiting for {d.assignee ?? (d.agent ? `the ${d.agent} agent` : to(`role:${d.role}`))}</> };
     case "claimed": return { text: <>took <strong>{e.element}</strong>{d.worker ? ` (worker ${d.worker}, try ${d.attempt})` : ""}</> };
@@ -120,7 +120,19 @@ function Value({ v }: { v: unknown }) {
   if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as any).answer === "string") {
     return <Markdown text={(v as any).answer} />;
   }
-  if (v && typeof v === "object" && !Array.isArray(v)) return <DataView data={v} />;
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    // A nested record (a priority score's breakdown, say) folds under its own reason, so the facts a person
+    // decides on aren't pushed off the screen by how they were scored.
+    const o = v as Record<string, unknown>;
+    const n = Object.keys(o).length;
+    if (n <= 3 && !Object.values(o).some((x) => x && typeof x === "object")) return <DataView data={v} />;
+    return (
+      <details className="data-fold">
+        <summary>{typeof o.reason === "string" ? o.reason : `${n} fields`}</summary>
+        <DataView data={Object.fromEntries(Object.entries(o).filter(([k]) => k !== "reason"))} />
+      </details>
+    );
+  }
   return <span className="mono">{fmt(v)}</span>;
 }
 

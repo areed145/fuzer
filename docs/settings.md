@@ -47,8 +47,8 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
-| `intake.sap_notifications` | bool | `False` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
-| `intake.sap_notifications.max_age_days` | int | `30` | 1 to 3650 | Only raise notifications created this many days before the latest data (an older backlog is a planning question). |
+| `intake.sap_notifications` | bool | `True` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
+| `intake.sap_notifications.max_age_days` | int | `60` | 1 to 3650 | Only raise notifications created this many days before the latest data (an older backlog is a planning question). |
 
 ## SRE
 

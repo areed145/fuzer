@@ -91,6 +91,24 @@ API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|tra
 `/work/stats`, `/work/instances`, `/work/definitions/{id}/routing`, `/work/roles/catalog`, `/work/roles/{name}`,
 `/work/people/{name}` and `/work/people/{name}/away`, `/work/workload`.
 
+## Exceptions, dispatch and the field
+
+Work from every source arrives as an **exception** (`#/exceptions`): one per open condition, matched to the assets
+it concerns. Fuzer's detectors raise them (SRE upsets, IOW breaches, source problems), open SAP notifications with no
+work order are raised on each register refresh (`intake.sap_notifications`, on by default, for notifications from the
+last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
+page. A type with a process starts it; one with a queue opens a case in that role's queue; the rest wait for the IOC.
+
+- **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
+  person step) goes to them, and the instruction travels with it.
+- **My jobs** (`#/field`) is the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues
+  (**Take it**), each with the IOC's instruction, where to go, what was seen and what happened there lately. They
+  report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the exception and the
+  case history.
+- **Back to the IOC.** Done on a case without a process closes it and its exception. Done on a process case, or Could
+  not do on any, hands the job back to whoever sent it (the engineer queue's Triage step goes back to that queue),
+  so the decision reappears in the IOC's Inbox with the field's note.
+
 ## The work board
 
 `board.py` keeps all outstanding work in one ranked list (`board_card`), for people (`GET /board`) and

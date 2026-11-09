@@ -13,7 +13,7 @@ export function ExceptionsPage() {
   const [person] = usePerson();
   const [state, setState] = useState("open");
   const [type, setType] = useState("");
-  const rows = useAsync(() => api.exceptions({ state: state || undefined, type: type || undefined }), [state, type]);
+  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const types = [...new Set(rows.data.map((r) => r.type))].sort();
@@ -87,11 +87,15 @@ function Kinds({ person }: { person: string | null }) {
   );
 }
 
+const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
+
 function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string | null; people: string[]; onChange: () => void }) {
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAct();
   const [to, setTo] = useState("");
+  const [ask, setAsk] = useState("");
   const [planOn, setPlanOn] = useState("");
+  const fieldSaid = r.evidence?.field?.[r.evidence.field.length - 1];
   return (
     <tr>
       <td><strong>{r.title}</strong><br /><span className="muted small">{r.type.replace(/_/g, " ")} · {r.source ?? ""}
@@ -102,15 +106,22 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
       <td className="small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={href("/plan")}>planned {new Date(r.planned.start_at).toLocaleDateString(undefined,
           { day: "numeric", month: "short" })}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
-        : <span className="muted">not dispatched</span>}</td>
+        : <span className="muted">not dispatched</span>}
+        {fieldSaid && <div title={fieldSaid.note ?? undefined}>
+          <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
+            {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{fieldSaid.by} · {when(fieldSaid.at)}</span>
+          {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}</td>
       <td className="small">{r.state === "open" && person && <div className="row">
         <Input list={`people-${r.id}`} aria-label="Dispatch to" placeholder="person" value={to}
           onChange={(e) => setTo(e.target.value)} style={{ width: "8rem" }} />
         <datalist id={`people-${r.id}`}>{people.map((p) => <option key={p} value={p} />)}</datalist>
         <Button size="sm" disabled={!to.trim() || !!busy}
-          onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim()), () => { setTo(""); onChange(); })}>
+          onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined),
+            () => { setTo(""); setAsk(""); onChange(); })}>
           {r.item_id ? "Hand to" : "Dispatch"}</Button>
       </div>}
+      {r.state === "open" && person && to.trim() && <Input aria-label="What to do" placeholder="what to check or do (they see this)"
+        value={ask} onChange={(e) => setAsk(e.target.value)} style={{ width: "100%" }} />}
       {r.state === "open" && person && <div className="row">
         <Input type="date" aria-label="Plan for" value={planOn} onChange={(e) => setPlanOn(e.target.value)} style={{ width: "9rem" }} />
         <Button size="sm" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"

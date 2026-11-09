@@ -239,10 +239,11 @@ def _loaded_types() -> None:
 def exception_list(state: str | None = "open", type: str | None = None, subject: str | None = None,
                    audience: Literal["ioc", "field"] | None = None, limit: int = Query(200, le=1000),
                    conn=Depends(get_conn)):
-    """Exceptions from every source, most valuable then newest first, with the case working each and who has it."""
+    """Exceptions from every source, most valuable then newest first, with the case working each and who has it.
+    `state=any` lists every state."""
     from ..ops import exceptions
     _loaded_types()
-    return exceptions.listing(conn, state=state or None, type=type, subject=subject, audience=audience, limit=limit)
+    return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit)
 
 
 @router.get("/exceptions/field")

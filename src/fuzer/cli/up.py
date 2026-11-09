@@ -90,6 +90,24 @@ def load(conn, pack, folder: Path, fresh: bool) -> None:
         say("Building the register ...")
         r = pipeline.rebuild(conn, pack)
         say(f"Register: {r['entities']:,} entities, {r['edges']:,} links")
+    follow(conn, pack)
+
+
+def follow(conn, pack) -> None:
+    """The work board, the plan and the IOC's intake follow the register here too, as they do after a scheduled
+    rebuild: a fresh demo opens with the work other systems hold already waiting on the IOC."""
+    if not conn.execute("select 1 from entity limit 1").fetchone():
+        return
+    try:
+        out = pipeline.follow_register(conn, pack)
+        conn.commit()
+    except Exception as e:  # noqa: BLE001 - the register is built; the UI still starts, and Jobs will retry it
+        conn.rollback()
+        say(f"Work board and intake not refreshed ({e}); the next scheduled rebuild refreshes them.")
+        return
+    n = out["notifications"]
+    if n.get("enabled", True):
+        say(f"Intake: {n['raised']} SAP notification(s) raised for the IOC, {n['cleared']} cleared")
 
 
 def read_with_claude(conn, pack) -> None:

@@ -50,10 +50,10 @@ def test_one_open_exception_per_condition_routed_to_its_queue(conn, types):
     assert again["raised_count"] == 2 and again["evidence"]["mm_s"] == 9.8
     assert again["subjects"] == ["fz-pump-1"] and again["unmatched"] == ["tag:SPARE-9"]
     case = conn.execute("select * from work_item where id = %s", (first["item_id"],)).fetchone()
-    assert case["role"] == "role:reliability" and case["subjects"] == ["fz-pump-1"]
+    assert case["role"] == "reliability" and case["subjects"] == ["fz-pump-1"]  # the engine's bare role: its queue
     assert case["payload"]["exception_id"] == first["id"] and case["payload"]["mm_s"] == 9.1
     raised = [e for e in events.pending(conn, "exception.raised") if e["ref"] == f"exception:{first['id']}"]
-    assert len(raised) == 1 and raised[0]["payload"]["role"] == "role:reliability"
+    assert len(raised) == 1 and raised[0]["payload"]["role"] == "reliability"
 
     cleared = clear_exception(conn, "pump_vibration", "P-101", "sre", reason="back to normal")
     assert cleared["state"] == "cleared"
@@ -186,16 +186,83 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
                                             (sent["item_id"],)).fetchone()["assignee"] == "fred"
     [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
     assert job["assets"][0]["fuzer_id"] == "fz-pump-1" and job["assets"][0]["lat"] == 52.1  # located via its well
-    assert ("drips_per_min", "12") in job["seen"] and not any(k == "detail" for k, _ in job["seen"])
+    assert ("drips per min", "12") in job["seen"] and not any(k == "detail" for k, _ in job["seen"])
+    assert job["sent"]["by"] == "ioc-ann" and job["sent"]["reason"] == "nearest operator"  # what the IOC asked for
     ex.report(conn, e["id"], "fred", "on_site")
     with pytest.raises(ExceptionError, match="say why"):
         ex.report(conn, e["id"], "fred", "could_not_do")
     done = ex.report(conn, e["id"], "fred", "done", note="tightened the gland")
     assert [f["status"] for f in done["evidence"]["field"]] == ["on_site", "done"]
+    assert done["state"] == "closed"  # with its case, so the IOC doesn't see finished work as open
     assert conn.execute("select state from work_item where id = %s", (sent["item_id"],)).fetchone()["state"] == "done"
     assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]  # done: off their list
     topics = {x["topic"] for x in events.pending(conn) if x["ref"] == f"exception:{e['id']}"}
     assert {"exception.raised", "exception.dispatched", "exception.reported"} <= topics
+    conn.commit()
+
+
+def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types):
+    """Dispatching a process case hands its open person step (the IOC's decision) to the operator; when they say
+    done, or that they couldn't, it goes back to whoever had it, so it reappears in the IOC's Inbox."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "olga", ["engineer", "workflow_admin"])
+    engine.publish(conn, engine.import_bpmn(conn, _process("field_proc"), "olga")[0]["id"], "olga")
+    types("pressure_low", process="field_proc", audience=("ioc", "field"))
+    e = raise_exception(conn, "pressure_low", "WHP-3", "Low wellhead pressure", "agent:sre", refs=["fz-well-a12"],
+                        evidence={"start": "2025-12-30T00:00", "ongoing": True, "upset_id": 3})
+    step = lambda: conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' "  # noqa: E731
+                                "and state = 'waiting'", (e["item_id"],)).fetchone()
+    assert step() == {"assignee": None, "role": "engineer"}
+    ex.dispatch(conn, e["id"], "olga", "fred", reason="check the gauge at the wellhead")
+    assert step()["assignee"] == "fred"
+    [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    assert job["sent"]["reason"] == "check the gauge at the wellhead" and job["task_name"] == "Look"
+    assert ("started (data time)", "2025-12-30 00:00") in job["seen"] and ("still going", "yes") in job["seen"]
+    assert not any(k == "upset_id" for k, _ in job["seen"])  # internal ids aren't something to look for on site
+    ex.report(conn, e["id"], "fred", "on_site")
+    assert step()["assignee"] == "fred"  # on site: still theirs
+    ex.report(conn, e["id"], "fred", "done", note="gauge reads 13 barg; wing valve was part closed, reopened")
+    assert step() == {"assignee": None, "role": "engineer"}  # back in the engineer queue
+    assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    back = conn.execute("select data from work_event where item_id = %s and kind = 'handed_off' order by id desc "
+                        "limit 1", (e["item_id"],)).fetchone()["data"]
+    assert back["to"] == "role:engineer" and back["reason"].startswith("Back from the field: done")
+    assert conn.execute("select 1 from work_event where item_id = %s and kind = 'commented' and data->>'text' like "
+                        "'%%wing valve%%'", (e["item_id"],)).fetchone()  # what they found is on the case history
+    conn.commit()
+
+
+def test_a_job_the_field_could_not_do_goes_back_to_the_dispatcher(conn, types):
+    from fuzer.ops import exceptions as ex
+
+    types("walkdown", audience=("ioc", "field"))
+    e = raise_exception(conn, "walkdown", "walk-12", "Smell of gas near P-101", "olga", refs=["tag:P-101"])
+    sent = ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="walk the area")
+    ex.report(conn, e["id"], "fred", "could_not_do", note="area barriered off for lifting")
+    case = conn.execute("select state, assignee from work_item where id = %s", (sent["item_id"],)).fetchone()
+    assert case == {"state": "open", "assignee": "ioc-ann"}
+    assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    conn.commit()
+
+
+def test_a_job_routed_to_the_operators_queue_reaches_the_field(conn, types):
+    """A type routed to role:operator waits in the operators' Inbox queue and on their My jobs until one takes it."""
+    from fuzer.core import work
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "otto", ["operator"])
+    types("scada_trip", role="role:operator", audience=("ioc", "field"))
+    e = raise_exception(conn, "scada_trip", "PSHH-1", "Compressor tripped on high discharge pressure", "scada",
+                        refs=["tag:P-101"])
+    assert [q for q in work._engine().my_work(conn, "otto")["queue"] if q["item_id"] == e["item_id"]]
+    [job] = [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    assert job["queued"] is True
+    ex.dispatch(conn, e["id"], "otto", "otto", reason="taking it")
+    [job] = [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    assert job["queued"] is False
     conn.commit()
 
 

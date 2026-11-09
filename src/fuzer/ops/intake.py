@@ -7,7 +7,8 @@ planners. When an order is raised for it, or SAP completes it, the exception cle
 
     sync_notifications(conn)   run on each register refresh, after the SAP records are rebuilt
 
-It is off until a deployment turns on the `intake.sap_notifications` setting. Only notifications created in the
+It is on by default (the IOC is where work from every source arrives); a deployment whose SAP planners work their
+notifications elsewhere turns the `intake.sap_notifications` setting off. Only notifications created in the
 last `intake.sap_notifications.max_age_days` (counted back from the latest data, so a historical asset reads as
 current) are raised: an old backlog is a planning question, not a queue of things to send someone to.
 """
@@ -40,7 +41,7 @@ def _priority(f: dict) -> float | None:
 
 def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | None = None) -> dict:
     """Raise an exception for each recent open notification without a work order; clear the ones that got an
-    order or closed. Returns counts. Off (nothing raised, nothing cleared) unless the setting turns it on."""
+    order or closed. Returns counts. Nothing is raised or cleared when the setting is off."""
     if not (settings.get(conn, "intake.sap_notifications") if enabled is None else enabled):
         return {"raised": 0, "cleared": 0, "enabled": False}
     if max_age_days is None:
