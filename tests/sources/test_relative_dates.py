@@ -85,3 +85,23 @@ def test_fake_historian_serves_kestrel_with_its_own_tag_grammar():
     client = TestClient(historian.app(KESTREL))
     found = client.get("/piwebapi/dataservers").json()["Items"][0]
     assert found["Name"] == "KRGP-PI"
+
+
+def test_a_meter_export_is_suggested_as_measurements_on_its_tags_and_wells():
+    """Kestrel's gas measurement export (#457 follow-up) has no id column and names plant meters and wellhead meters
+    in one column: it is keyed on meter and day, and its numbers are readings on whichever tag or well each row names,
+    with units read from the headers."""
+    from fuzer.core import bundles
+    from fuzer.sources import suggest
+
+    pack = bundles.read(KESTREL.parent)["pack"]
+    c = connectors.find(KESTREL.parent / "measurement", "daily_volumes")
+    sug = suggest.rules("daily_volumes", suggest.profile(c, pack))
+    assert sug["key"] == ["meter", "gas_day"]  # the plant tag or well, not the measurement system's own meter id
+    assert sug["columns"]["meter"]["meaning"] == "tag_or_well" and sug["shape"] == "measurements"
+    m = suggest.draft("daily_volumes", sug, "measurement", "daily_volume")
+    assert "entity" not in m and m["measurements"]["of"] == {"from": "meter", "as": "tag_or_well"}
+    assert {v["quantity"]: v.get("unit") for v in m["measurements"]["values"]} == {
+        "volume": "kSm3", "energy": "GJ", "hhv": "MJ/Sm3", "flow_hours": "h"}
+    rows = list(c.rows())
+    assert {r["gas_day"] for r in rows} >= {(date.today() - timedelta(days=1)).isoformat()}  # relative dates too

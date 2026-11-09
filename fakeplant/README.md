@@ -29,6 +29,12 @@ model's events, so the demo never goes stale: yesterday's B1-K-2001 trip is on t
 downtime, and in the IOC's queue as an open SAP notification, an IOW breach on the inlet separator and an SRE
 upset. `uv run fakeplant historian --data fakeplant/bundles/kestrel/exports` serves it as PI Web API and ADX.
 
+Its gas wells report gas and condensate rates in their well tests, not an oil rate and a GOR. And one Kestrel
+system has no built-in mapping on purpose: `bundles/kestrel/measurement/daily_volumes.csv`, a gas measurement
+system's daily volume, energy and heating value per meter, naming plant meters (C1FT3005) and wellhead meters
+(KR12-03H) in one column. Add it from the Sources page (Add a source, a folder connection to that path): the
+suggested mapping keys it on meter and day and lands the readings on each tag and well.
+
 | Module | What it makes |
 |---|---|
 | `okan.py` | The Okan field (NMA South Offshore): PP, GGCP trains A/B/C, ST1, ST2, NWP, 24 jackets, gas lift, EGP export, GIS, troubleshooting stories |
