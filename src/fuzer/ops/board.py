@@ -74,14 +74,18 @@ def _work_item_cards(conn, pack) -> list[dict]:
 
 def _exception_cards(conn) -> list[dict]:
     """Open exceptions no case has picked up (a type with no queue, or nobody to route to): they wait here for
-    the IOC to dispatch. Routed ones show through their work item."""
+    the IOC to dispatch, or say when they are planned. Routed ones show through their work item."""
     return [{"key": f"exception:{r['id']}", "kind": r["type"], "title": r["title"],
              "text": f"Seen {r['raised_count']} times since {r['first_seen']:%Y-%m-%d %H:%M}"
                      + (f"; unmatched: {', '.join(r['unmatched'])}" if r["unmatched"] else ""),
              "unit_id": next((s for s in r["subjects"] if not s.startswith("fz-timeseries")), None),
-             "value_usd": r["value_usd"], "reason": f"exception {r['id']} ({r['type']}), not yet dispatched",
+             "value_usd": r["value_usd"], "reason": f"exception {r['id']} ({r['type']}), "
+                     + (f"planned for {r['planned']:%Y-%m-%d}" if r["planned"] else "not yet dispatched"),
              "breakdown": {}}
-            for r in conn.execute("select * from exception_record where state = 'open' and item_id is null")]
+            for r in conn.execute(
+                "select e.*, (select min(p.start_at) from plan_item p where p.exception_id = e.id "
+                "and p.status in ('proposed', 'scheduled', 'in_progress')) as planned "
+                "from exception_record e where e.state = 'open' and e.item_id is null")]
 
 
 def _review_cards(conn) -> list[dict]:

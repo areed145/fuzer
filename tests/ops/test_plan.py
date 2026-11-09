@@ -114,6 +114,11 @@ def test_an_exception_can_be_planned_instead_of_worked_now(conn, monkeypatch):
     item = plan.plan_exception(conn, e["id"], "ann", "2026-11-21", "2026-11-21T04:00:00+00:00")
     assert item["exception_id"] == e["id"] and item["subjects"] == ["fz-pump-1"] and item["status"] == "scheduled"
     assert item["deferment_usd"] == 300
+    from fuzer.ops import board, exceptions
+    listed = next(x for x in exceptions.listing(conn) if x["id"] == e["id"])
+    assert listed["planned"]["id"] == item["id"]  # the IOC sees it is planned, not waiting to be dispatched
+    card = next(c for c in board._exception_cards(conn) if c["key"] == f"exception:{e['id']}")
+    assert "planned for 2026-11-21" in card["reason"]
     with pytest.raises(PlanError, match="no exception"):
         plan.plan_exception(conn, 99999, "ann", T, T)
     conn.rollback()

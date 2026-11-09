@@ -398,6 +398,7 @@ export interface ExceptionRow {
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; first_seen: string; last_seen: string;
+  planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
 }
 
 /** An exception type: declared by a module in code, or defined as data for another system's exceptions. */
