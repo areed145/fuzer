@@ -261,6 +261,9 @@ export interface AssistantCatalog {
   agents: { id: string; label: string; description: string; personas: string[]; skills: string[];
             limits: string[]; human_decisions: string[] }[];
   unavailable: { agent: string; capability: string; needed: string }[];
+  /** The agents provider and whether its key reference is configured (#404); nothing is tested. */
+  provider?: string | null;
+  provider_configured?: boolean;
 }
 
 export interface AssistantJob {

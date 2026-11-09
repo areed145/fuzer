@@ -287,6 +287,11 @@ function Fields({ e }: { e: EntityDetail }) {
   );
 }
 
+/** A PI AF element's key is its path with backslash separators, which read as escapes (#401); show it as a path. */
+function sourceKey(source: string, key: string): string {
+  return source === "pi_af" && key.includes("\\") ? key.split("\\").filter(Boolean).join(" › ") : key;
+}
+
 function Records({ e }: { e: EntityDetail }) {
   return (
     <UICard  as="section">
@@ -300,7 +305,7 @@ function Records({ e }: { e: EntityDetail }) {
               <td>
                 <SourceBadge source={r.source} />
               </td>
-              <td className="mono small">{r.source_key}</td>
+              <td className="mono small" title={r.source_key}>{sourceKey(r.source, r.source_key)}</td>
               <td className="muted small">
                 {r.method === "singleton" ? "only record" : r.method}
                 {r.method === "score" && ` ${r.confidence.toFixed(2)}`}
@@ -340,8 +345,23 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
               })()}
             </span>
           </h3>
+          <LinkList items={items} />
+        </div>
+      ))}
+    </UICard>
+  );
+}
+
+// Relations longer than this show their first few, the rest one click away (#400).
+const LINKS_SHOWN = 5;
+
+function LinkList({ items }: { items: Edge[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all || items.length <= LINKS_SHOWN + 1 ? items : items.slice(0, LINKS_SHOWN);
+  return (
+    <>
           <ul>
-            {items.map((x, i) => (
+            {shown.map((x, i) => (
               <li key={`${x.other}-${x.valid_from}-${i}`}>
                 <a href={entityHref(x.other)} className="mono">
                   {x.other_label ?? x.other}
@@ -361,9 +381,10 @@ function Links({ edges, counts, asOf }: { edges: Edge[]; counts: Record<string, 
               </li>
             ))}
           </ul>
-        </div>
-      ))}
-    </UICard>
+          {shown.length < items.length && (
+            <Button variant="link" size="sm" onClick={() => setAll(true)}>Show all {items.length.toLocaleString()}</Button>
+          )}
+    </>
   );
 }
 

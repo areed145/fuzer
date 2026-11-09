@@ -84,9 +84,11 @@ async def assistant_ask(q: Question):
 
 @router.get("/assistant/agents")
 def assistant_agents():
-    """The specialists, what they cover and what they can't: a static catalog that needs no model or key."""
+    """The specialists, what they cover and what they can't: a static catalog that needs no model or key. With it,
+    whether an agents provider and key reference are configured (#404): presence only, no provider is called."""
     from ..agents.capabilities import public_catalog
-    return public_catalog()
+    from ..core import llm
+    return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.configured("agents")}
 
 
 @router.get("/assistant/jobs/{job_id}")
