@@ -202,6 +202,11 @@ def _pct(v) -> str:
     return "" if v is None else f"{v:.0%}" if v <= 1 else f"{v:g}"
 
 
+def _missing(facts) -> str:
+    """Missed facts for a table cell: a fact with alternatives (a list in the key) reads "a or b"."""
+    return ", ".join(" or ".join(f) if isinstance(f, list) else f for f in facts or [])
+
+
 def eval_results_md() -> str:
     from .evals import ops_eval, runs
 
@@ -231,7 +236,7 @@ def eval_results_md() -> str:
                 ask = q.get("question") or ""
                 ask = ask if len(ask) <= 70 else ask[:69].rsplit(" ", 1)[0] + "…"
                 out.append(f"| {q['domain']}: {_cell(ask)} | {', '.join(q.get('specialists') or [])} | {_pct(q['mentions'])} | "
-                           f"{_cell(', '.join(q.get('missing') or []))} | {q['citations']} | "
+                           f"{_cell(_missing(q.get('missing')))} | {q['citations']} | "
                            f"{', '.join(q.get('charts') or [])} | {q.get('tool_calls') or ''} | {q['seconds']:.0f} s | "
                            f"${q['cost_usd']:.2f} |")
         out.append("")
