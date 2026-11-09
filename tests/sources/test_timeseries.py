@@ -73,3 +73,18 @@ def test_direct_points_of_a_tag(conn):
     assert {s["point"] for s in own["series"]} == {"OK_GGCP:20-VT-2200B.PV"}
     assert len(whole["series"]) > 1
     assert own["upsets"] and own["centre"] in own["upsets"]  # the latest incident on the compressor
+
+
+def test_window_with_nothing_to_centre_on_follows_the_data_not_the_clock(conn):
+    """Synthetic values default to the loaded data's last day, so they line up with its records (#389); a live
+    historian still defaults to now."""
+    from datetime import date
+
+    from fuzer.graph import operations
+
+    last = operations.data_through(conn)
+    assert last == "2025-12-30"
+    synthetic, live = type("S", (), {"name": "synthetic"})(), type("P", (), {"name": "pi"})()
+    assert values._latest(conn, synthetic, 24) == f"{last}T00:00"  # 48 h before to 24 h after: ends with the last day
+    assert values._latest(conn, synthetic, 12) == f"{last}T12:00"
+    assert values._latest(conn, live, 24)[:10] == date.today().isoformat()

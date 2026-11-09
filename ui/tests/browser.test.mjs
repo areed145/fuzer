@@ -282,7 +282,7 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Last ingested (not event date)", exact: true }) });
   await table.getByText("Health unknown", { exact: true }).first().waitFor();
   await table.getByText("Time unknown", { exact: true }).waitFor();
-  await table.getByText("2026-11-06 12:00:00 UTC", { exact: true }).waitFor();
+  await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
   await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
   const dataset = table.getByRole("link", { name: "sap_equipment", exact: true });
@@ -334,7 +334,7 @@ test("Core consistency Jobs preserves metadata units, missing outcomes and actio
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page.getByText("some earlier steps may have completed", { exact: false }).waitFor();
   await page.getByText("Scheduler start: Time unknown", { exact: false }).waitFor();
-  await page.getByText("Scheduler observation: 2026-11-06 12:00:00 UTC", { exact: true }).waitFor();
+  await page.getByText("Scheduler observation: 2026-11-06 12:00 UTC", { exact: true }).waitFor();
   assert.equal(await page.locator(".ui-badge-danger").first().evaluate(e => {
     const probe = document.createElement("span");
     probe.style.color = "var(--danger)";
@@ -1371,6 +1371,34 @@ test("identity changes clear the previous person's inbox while a new response is
   await page.getByText("ben-role", { exact: false }).waitFor();
 });
 
+test("Inbox says which clock due dates use when the loaded data ends well before today (#389)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: {
+    person: "ana", roles: ["engineer"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.route("**/stats", route => route.fulfill({ json: {
+    facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0, open_reviews: {}, rebuild: {}, data_through: "2025-12-30" } }));
+  await page.goto(`${url}/#/inbox`);
+  const note = page.getByRole("note").filter({ hasText: "The loaded data runs to" });
+  await note.waitFor();
+  assert.match(await note.innerText(), /due dates, SLAs and opened times are on today's clock/);
+  await page.route("**/stats", route => route.fulfill({ json: {
+    facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0, open_reviews: {}, rebuild: {},
+    data_through: new Date().toISOString().slice(0, 10) } }));
+  await page.reload();
+  await page.getByText("unclaimed in your roles", { exact: false }).first().waitFor();
+  assert.equal(await page.getByRole("note").filter({ hasText: "The loaded data runs to" }).count(), 0);
+});
+
+test("the page heading takes focus on load without drawing a focus ring (#391)", async () => {
+  await page.goto(`${url}/#/`);
+  await page.locator("#main-content h1").first().waitFor();
+  await page.evaluate(() => { location.hash = "#/cases"; });  // as a pasted link or Back does
+  const heading = page.getByRole("heading", { level: 1, name: "Cases" });
+  await heading.waitFor();
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
+  assert.equal(await heading.evaluate((h) => getComputedStyle(h).outlineStyle), "none");
+});
+
 test("refreshing the same resource keeps its current data visible until the update arrives", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   const inbox = (role) => ({ person: "ana", roles: [role], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } });
@@ -1776,7 +1804,7 @@ test("Home leads with reader destinations, labels times and links each item to i
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
     assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/board?view=kind");
-    await page.getByText("Detected from 2025-12-21 03:00:00 UTC", { exact: false }).waitFor();
+    await page.getByText("Detected from 2025-12-21 03:00 UTC", { exact: false }).waitFor();
     await page.getByText("Detected from 2025-12-22T03:00 (timezone not supplied)", { exact: false }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await waveScreenshot(`home-populated-${width}`);

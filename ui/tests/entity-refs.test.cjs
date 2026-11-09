@@ -83,3 +83,13 @@ test("every id is found once, and a name falls back to its id", () => {
   assert.equal(display(WELL, undefined), WELL);
   assert.ok(TOKEN.test(linkCitations(`OK-J09-04 [${WELL}]`, names)));
 });
+
+test("report citations that are not entities read as words, entity ids stay for linking (#392)", () => {
+  const { readableCitations } = exportsObject;
+  assert.equal(readableCitations("- On the board: X [opportunity:gas_lift:OK-J07-05→OK-J12-09]"),
+    "- On the board: X (work board: gas lift OK-J07-05→OK-J12-09)");
+  assert.equal(readableCitations("- Due [maintenance_plan:INSP-30000038]"), "- Due (maintenance plan: INSP-30000038)");
+  assert.equal(readableCitations(`- Upset [upset:12, ${WELL}]`), `- Upset [${WELL}] (upset 12)`);
+  assert.equal(readableCitations(`- Oil [${DAY}]`), `- Oil [${DAY}]`);
+  assert.equal(readableCitations("[[figure:f_0a1b]] and [not a cite]"), "[[figure:f_0a1b]] and [not a cite]");
+});

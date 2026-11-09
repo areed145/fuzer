@@ -355,7 +355,7 @@ export function JobRunPage({ id }: { id: string }) {
           <tbody>
             {d.log_tail.map((l, i) => (
               <tr key={i} className={l.level === "ERROR" || l.level === "CRITICAL" ? "log-error" : undefined}>
-                <td className="mono">{timestamp(l.time)}</td>
+                <td className="mono" title={l.time ?? undefined}>{timestamp(l.time, "seconds")}</td>
                 <td>{l.level}</td>
                 <td className="mono">{l.step ?? ""}</td>
                 <td>{l.message}</td>

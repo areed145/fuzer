@@ -51,3 +51,24 @@ export function linkCitations(text: string, names: EntityNames | undefined): str
   }
   return out + text.slice(last);
 }
+
+// Daily report lines also cite things that are not entities: an upset, a work board card, a maintenance plan
+// (#392). Their raw keys read as machine text, so they become words; entity ids stay for linkCitations.
+const CITE_KINDS: Record<string, string> = {
+  upset: "upset", opportunity: "work board", maintenance_plan: "maintenance plan", work_item: "case",
+};
+const KEY = /^[a-z_]+:\S/;
+
+export function readableCitations(text: string): string {
+  return text.replace(/(?<!\[)\[([^[\]]+)\](?!\])/g, (whole, inner: string) => {
+    const parts = inner.split(/\s*,\s*/).filter(Boolean);
+    const ids = parts.filter(isId), keys = parts.filter((p) => !isId(p));
+    if (!keys.length || !keys.every((k) => KEY.test(k))) return whole;
+    const words = keys.map((k) => {
+      const [kind, ...rest] = k.split(":");
+      const name = rest.join(" ").replace(/_/g, " ");
+      return `${CITE_KINDS[kind] ?? kind.replace(/_/g, " ")}${/^\d+$/.test(name) ? " " : ": "}${name}`;
+    });
+    return `${ids.length ? ` [${ids.join(", ")}]` : ""} (${words.join("; ")})`.replace(/^ /, "");
+  });
+}

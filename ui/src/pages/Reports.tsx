@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { api, type DailyReport, type DailyStatus } from "../api";
 import { Markdown } from "../Markdown";
+import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { useAct } from "./workflows/shared";
@@ -79,7 +80,7 @@ function Report({ day, onChange }: { day: string; onChange: () => void }) {
                 {d.usage?.cost_usd !== undefined && <span>${d.usage.cost_usd.toFixed(2)}</span>}
                 {d.seconds !== null && <span>{d.seconds} s</span>}
               </div>
-              <Markdown text={d.markdown} />
+              <Markdown text={readableCitations(d.markdown)} />
             </UICard>
             <UICard  as="section">
               <h2>Checks</h2>

@@ -75,13 +75,27 @@ export function fmt(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Operational timestamps have offsets; never assign a timezone to source-local event dates. */
-export function timestamp(value: string | null | undefined): string {
+// Field keys a person reads as labels (#392): standards and codes keep their own spelling, the rest read as words.
+const FIELD_LABELS: Record<string, string> = {
+  ec_code: "EC code", isa95_level: "ISA-95 level", iso14224_level: "ISO 14224 level", iso14224_class: "ISO 14224 class",
+  sap_id: "SAP ID", pi_point: "PI point", api_number: "API number", uom: "Unit of measure", uwi: "UWI", id: "ID",
+  start: "Started", end: "Ended", units: "Units affected", lat: "Latitude", lon: "Longitude", lng: "Longitude",
+};
+
+export function fieldLabel(key: string): string {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  const words = key.replace(/[_.]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Operational timestamps have offsets; never assign a timezone to source-local event dates. Shown to the minute
+ * (#396) unless seconds matter, as in a job's log; the full recorded value is the element's `title` where shown. */
+export function timestamp(value: string | null | undefined, precision: "minutes" | "seconds" = "minutes"): string {
   if (!value) return "Time unknown";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time unknown";
   if (!/(Z|[+-]\d{2}:\d{2})$/i.test(value)) return `${value} (timezone not supplied)`;
-  return date.toISOString().replace("T", " ").replace(".000Z", " UTC").replace("Z", " UTC");
+  return `${date.toISOString().slice(0, precision === "seconds" ? 19 : 16).replace("T", " ")} UTC`;
 }
 
 export function KindBadge({ kind }: { kind: string }) {
