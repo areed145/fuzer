@@ -3,7 +3,7 @@ import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as U
 import { useEffect, useRef, useState } from "react";
 import { api, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
-import { useAsync } from "../lib";
+import { href, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { DemoContext } from "../DemoContext";
 import { usePermission } from "../Auth";
@@ -133,6 +133,14 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       <PageHeader>Ask</PageHeader>
       {demo && <DemoContext step="agents" />}
       {!ai && <p>Questions require AI access from an owner. No model call will be made with your current access.</p>}
+      {ai && catalog.data?.provider_configured === false && (
+        <UICard className="ask-no-provider" role="note">
+          <strong>No AI provider is configured.</strong>{" "}
+          The assistant needs an agents provider and API key{catalog.data.provider ? ` (selected: ${catalog.data.provider})` : ""}, so
+          questions sent now will fail. An owner sets them in <a href={href("/settings")}>application settings</a>. Fuzer has
+          not tested any provider to show this.
+        </UICard>
+      )}
       <p className="muted">
         A read-only operations assistant routes questions to domain specialists and answers from the evidence
         available in Fuzer's linked data. Every fact links to where it came from. It never acts on the plant.

@@ -251,3 +251,4 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .plan-today { position: absolute; top: -0.15rem; bottom: -0.15rem; width: 2px; background: var(--text, #222); opacity: 0.5; }
 .plan-detail { grid-column: 1 / -1; padding: 0.25rem 0 0.5rem; }
 @media (max-width: 640px) { .plan-row { grid-template-columns: 1fr; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

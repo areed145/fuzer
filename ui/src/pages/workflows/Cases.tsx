@@ -74,13 +74,17 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
         <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
         </div>
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">every kind</option>
-          {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-        </Select>
-        <AssignPicker value={who} onChange={setWho} />
+        <label className="small row">Kind
+          <Select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="">every kind</option>
+            {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+          </Select>
+        </label>
+        <label className="small row">With {/* #409: who holds the case's open steps, a person or a role's queue */}
+          <AssignPicker value={who} onChange={setWho} placeholder="anyone" />
+        </label>
         <label className="small"><Input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> overdue</label>
-        <Input placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />
         {list.data && <span className="small muted">{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</span>}
       </div>
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}

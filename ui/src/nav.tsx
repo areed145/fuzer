@@ -6,6 +6,11 @@ import { Button } from "./ui";
 import { useAuth, usePermission } from "./Auth";
 
 export type Badge = "work" | "review";
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const BADGE_WORDS: Record<Badge, (n: number) => string> = {
+  work: (n) => plural(n, "workflow step waiting on you", "workflow steps waiting on you"),
+  review: (n) => plural(n, "data review", "data reviews"),
+};
 
 export interface NavItem {
   label: string;
@@ -192,6 +197,9 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
                   if (!item) return null;
                   const on = group.items.some((entry) => isActive(entry, section));
                   const count = group.items.reduce((n, entry) => n + (entry.badge ? badges[entry.badge] : 0), 0);
+                  // Say what the number counts (#397): "1 workflow step waiting, 14 data reviews".
+                  const counted = group.items.filter((entry) => entry.badge && badges[entry.badge] > 0)
+                    .map((entry) => BADGE_WORDS[entry.badge!](badges[entry.badge!])).join(", ");
                   return (
                     <li key={group.label}>
                       <a
@@ -201,7 +209,8 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
                         {...(item.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       >
                         <span>{group.label}</span>
-                        {count > 0 && <span className="count">{count}</span>}
+                        {count > 0 && <span className="count" title={counted}>
+                          <span aria-hidden="true">{count}</span><span className="sr-only">{counted}</span></span>}
                       </a>
                     </li>
                   );

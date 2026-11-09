@@ -49,12 +49,14 @@ export function StepBadges({ row }: { row: Pick<WorkRow, "requires_human" | "kin
 }
 
 /** A person or a role's queue (role:<role>), optionally an agent (agent:<role>). */
-export function AssignPicker({ value, onChange, agents = false }: { value: string; onChange: (v: string) => void; agents?: boolean }) {
+export function AssignPicker({ value, onChange, agents = false, placeholder = "choose…", label }: {
+  value: string; onChange: (v: string) => void; agents?: boolean; placeholder?: string; label?: string;
+}) {
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">choose…</option>
+    <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <option value="">{placeholder}</option>
       <optgroup label="People">
         {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
       </optgroup>

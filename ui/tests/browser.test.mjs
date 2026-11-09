@@ -307,6 +307,33 @@ test("a case's process diagram opens on the waiting step at a readable size, the
   assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
 });
 
+test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
+  const posts = [];
+  page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });
+  await page.route("**/assistant/agents", route => route.fulfill({ json: { agents: [], unavailable: [], provider: "anthropic", provider_configured: false } }));
+  await page.goto(`${url}/#/ask`);
+  const note = page.getByRole("note").filter({ hasText: "No AI provider is configured." });
+  await note.waitFor();
+  assert.equal(await note.getByRole("link", { name: "application settings" }).count(), 1);
+  assert.deepEqual(posts, []);
+});
+
+test("the Work badge says what it counts and the Cases filters are labelled (#397, #409)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["engineer"], mine: [], queue: [],
+    counts: { mine: { total: 1 }, queue: { total: 0 } } } }));
+  await page.route("**/stats", route => route.fulfill({ json: { facility: "OKAN", pack: "okan", records: 1, entities: {}, edges: 0,
+    open_reviews: { match: 14 }, rebuild: {} } }));
+  await page.goto(`${url}/#/cases`);
+  const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ }).locator(".count");
+  await page.waitForFunction(() => document.querySelector("nav[aria-label=Main] .count")?.getAttribute("title")
+    === "1 workflow step waiting on you, 14 data reviews");
+  assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "15");
+  await page.getByLabel("With", { exact: false }).first().waitFor();
+  assert.equal(await page.getByLabel("Kind", { exact: false }).count() > 0, true);
+  assert.equal(await page.getByRole("option", { name: "anyone", exact: true }).count(), 1);
+});
+
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
   await page.route("**/sources/datasets/sap_equipment", route => route.fulfill({ status: 503, json: { detail: "Dataset unavailable" } }));
   await page.route("**/sources/catalog", route => route.fulfill({ json: {
@@ -2059,6 +2086,25 @@ test("an asset's page shows the open exceptions about it and the work planned on
   await page.getByRole("link", { name: "Leak at P-101" }).waitFor();
   await page.getByText("not dispatched").waitFor();
   await page.getByRole("link", { name: "Replace P-101 seal" }).waitFor();
+});
+
+test("an entity page reads labels, PI AF paths and long relations as a person would (#392, #400, #401)", async () => {
+  const id = "fz-well-0123456789ab";
+  const edge = (i) => ({ direction: "in", rel: "tested", other: `fz-well_test-${String(i).padStart(12, "0")}`, other_kind: "well_test",
+    other_label: `WT-${i}`, other_description: null, valid_from: null, valid_to: null, sources: ["ec"], confidence: 1, props: null });
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "well", label: "OK-J09-04",
+    golden: { isa95_level: { value: "unit", source: "pi_af", rule: "priority" }, latitude: { value: 4.1, source: "gis", rule: "priority" },
+      longitude: { value: 5.2, source: "gis", rule: "priority" }, geometry: { value: { type: "Point" }, source: "gis", rule: "priority" } },
+    values: {}, keys: [], edge_counts: {}, edges: Array.from({ length: 24 }, (_, i) => edge(i + 1)),
+    records: [{ source: "pi_af", record_type: "element", source_key: "OKAN\\20 OK_GGCP\\20-K-2300A", method: "singleton", confidence: 1 }] } }));
+  await page.goto(`${url}/#/e/${id}`);
+  await page.getByRole("rowheader", { name: "ISA-95 level", exact: true }).or(page.getByText("ISA-95 level", { exact: true })).first().waitFor();
+  assert.equal(await page.getByText("geometry", { exact: false }).count(), 0);
+  await page.getByText("OKAN › 20 OK_GGCP › 20-K-2300A", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
+  await page.getByRole("button", { name: "Show all 24", exact: true }).click();
+  assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 24);
 });
 
 test("a turnaround shows its scope on the plan and brings planned work into it", async () => {
