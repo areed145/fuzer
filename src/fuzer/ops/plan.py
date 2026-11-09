@@ -78,7 +78,9 @@ def propose(conn, kind: str, title: str, by: str, start, end, refs=(), source: s
                 %(crew)s, %(hours)s, %(shutdown)s, %(deferment)s, %(exception)s, %(notes)s, %(by)s, %(by)s)
         on conflict (source, source_key) where source_key is not null do update set
             kind = excluded.kind, title = excluded.title, subjects = excluded.subjects, area_id = excluded.area_id,
-            start_at = excluded.start_at, end_at = excluded.end_at, needs_shutdown = excluded.needs_shutdown,
+            start_at = case when plan_item.moved_by is null then excluded.start_at else plan_item.start_at end,
+            end_at = case when plan_item.moved_by is null then excluded.end_at else plan_item.end_at end,
+            needs_shutdown = excluded.needs_shutdown,
             crew = coalesce(plan_item.crew, excluded.crew), crew_hours = coalesce(excluded.crew_hours, plan_item.crew_hours),
             deferment_usd = coalesce(excluded.deferment_usd, plan_item.deferment_usd),
             status = case when plan_item.status in ('done', 'cancelled') then plan_item.status else excluded.status end,
@@ -105,6 +107,8 @@ def update(conn, item_id: int, by: str, **fields) -> dict:
     end = _when(fields["end"]) if fields.get("end") else row["end_at"]
     _check(fields.get("kind"), fields.get("status"), start, end)
     sets = {"start_at": start, "end_at": end, **{k: v for k, v in fields.items() if k not in ("start", "end")}}
+    if (start, end) != (row["start_at"], row["end_at"]):
+        sets["moved_by"] = by  # a person's dates now win over the source's next proposal
     row = conn.execute(
         "update plan_item set " + ", ".join(f"{k} = %({k})s" for k in sets) +
         ", updated_by = %(by)s, updated_at = now() where id = %(id)s returning *", {**sets, "by": by, "id": item_id}).fetchone()

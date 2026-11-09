@@ -384,6 +384,12 @@ class PlanChange(BaseModel):
     notes: str | None = None
 
 
+class TurnaroundBringIn(BaseModel):
+    by: str
+    item_id: int
+    revision: str | None = None
+
+
 class PlanException(BaseModel):
     by: str
     start: str
@@ -439,6 +445,22 @@ def plan_sync(conn=Depends(get_conn)):
     def both(c):
         return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c)}
     return _plan_call(conn, both)
+
+
+@router.get("/turnarounds")
+def turnaround(revision: str | None = None, conn=Depends(get_conn)):
+    """A turnaround's scope (orders on the revision, shutdown-only plans in and out of it, bad actors not in it,
+    spares out of stock) with its window on the plan, the work that could ride along and shutdown-only work planned
+    outside it."""
+    from ..ops import turnaround as ta
+    return _plan_call(conn, ta.scope, revision)
+
+
+@router.post("/turnarounds/bring-in")
+def turnaround_bring_in(b: TurnaroundBringIn, conn=Depends(get_conn)):
+    """Move a plan item into the turnaround's window."""
+    from ..ops import turnaround as ta
+    return _plan_call(conn, ta.bring_in, b.item_id, b.revision, b.by)
 
 
 @router.post("/exceptions/{exception_id}/plan")

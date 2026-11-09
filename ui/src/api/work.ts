@@ -416,6 +416,18 @@ export interface PlanItem {
   clashes: { kind: "same_asset" | "crew" | "bundle"; with: number; title: string; say: string }[];
 }
 
+/** A turnaround's scope read against the plan (GET /turnarounds). */
+export interface TurnaroundScope {
+  revision: string | null; revisions: string[]; as_of: string; planned_start: string | null;
+  scoped_work: { id: string; order: string | null; tag: string | null; tag_id: string | null; priority: string | null;
+    text: string | null; planned_start: string | null; status: string | null }[];
+  shutdown_plans_not_in_scope: { id: string; plan: string | null; task: string | null; tag: string | null; next_due: string }[];
+  bad_actors_not_in_scope: { id: string; tag: string | null; failures: number; lost_oil_sm3: number | null }[];
+  spares_out_of_stock: { for: string | null; material: string | null; id: string; description: string | null }[];
+  window: { start: string; end: string } | null;
+  on_plan: PlanItem[]; ride_along: PlanItem[]; shutdown_outside: PlanItem[];
+}
+
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
@@ -450,6 +462,9 @@ export const workApi = {
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),
   planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
+  turnaround: (revision?: string) => request<TurnaroundScope>("GET", "/turnarounds", { revision }),
+  turnaroundBringIn: (itemId: number, by: string, revision: string | null) =>
+    request<PlanItem>("POST", "/turnarounds/bring-in", undefined, { by, item_id: itemId, revision }),
   planException: (id: number, by: string, start: string, end: string, crew?: string) =>
     request<PlanItem>("POST", `/exceptions/${id}/plan`, undefined, { by, start, end, crew: crew ?? null }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
