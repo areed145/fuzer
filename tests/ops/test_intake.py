@@ -47,12 +47,14 @@ def _open(conn):
 
 
 def test_it_is_off_until_a_deployment_turns_it_on(conn):
+    before = conn.execute("select count(*) as n, max(updated_at) as at from exception_record").fetchone()
     assert intake.sync_notifications(conn) == {"raised": 0, "cleared": 0, "enabled": False}
-    assert not _open(conn)
+    # nothing raised or cleared, whatever order the tests ran in
+    assert conn.execute("select count(*) as n, max(updated_at) as at from exception_record").fetchone() == before
 
 
 def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
-    assert intake.sync_notifications(conn, enabled=True) == {"raised": 1, "cleared": 0}
+    assert intake.sync_notifications(conn, enabled=True)["cleared"] == 0  # raised now, or by an earlier test
     rows = _open(conn)
     assert set(rows) == {"1001"}  # not the closed one, the one with an order, or the old backlog
     n = rows["1001"]
@@ -64,6 +66,9 @@ def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
 
 
 def test_an_order_or_completion_clears_it(conn):
+    intake.sync_notifications(conn, enabled=True)  # raised here or by the test before; either way it is open
+    assert "1001" in _open(conn)
+    conn.commit()
     conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-wo-9', 'for_notification', "
                  "'fz-n-1', '{t}', 1)")
     assert intake.sync_notifications(conn, enabled=True)["cleared"] == 1
