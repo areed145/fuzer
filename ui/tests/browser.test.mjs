@@ -767,7 +767,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/cases", "#/review", "#/processes"]);
+    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/plan", "#/cases", "#/review", "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -1917,3 +1917,36 @@ async function expectReports(list, n) {
   for (let i = 0; i < 50 && list.length < n; i++) await new Promise((r) => setTimeout(r, 100));
   assert.equal(list.length, n);
 }
+
+test("the integrated plan shows clashes and bundling by area and reschedules an item", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const at = (d) => new Date(Date.now() + d * 86_400_000).toISOString();
+  const base = { source: "sap", subjects: ["fz-equipment-0123456789ab"], area_id: "fz-area-0123456789ab", area_label: "North",
+    crew: null, crew_hours: null, deferment_usd: null, exception_id: null, notes: null,
+    assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101" }] };
+  const items = [
+    { ...base, id: 1, kind: "maintenance", title: "Replace P-101 seal", source_key: "4000001", start_at: at(2), end_at: at(3),
+      status: "scheduled", needs_shutdown: false,
+      clashes: [{ kind: "bundle", with: 2, title: "North train overhaul", say: "could be done during “North train overhaul”" },
+        { kind: "same_asset", with: 3, title: "Lube P-101", say: "at the same time as “Lube P-101” on the same asset" }] },
+    { ...base, id: 2, kind: "turnaround", title: "North train overhaul", source_key: "4000002", start_at: at(10), end_at: at(15),
+      status: "proposed", needs_shutdown: true, clashes: [] },
+  ];
+  const changes = [];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: items }));
+  await page.route("**/plan/1", (route) => { changes.push(route.request().postDataJSON()); return route.fulfill({ json: items[0] }); });
+  await page.goto(`${url}/#/plan`);
+  await page.getByRole("heading", { name: "North", exact: true }).waitFor();
+  await page.getByText("1 with a clash").waitFor();
+  await page.getByText("1 could ride along with a shutdown").waitFor();
+  await page.getByRole("button", { name: /Replace P-101 seal/ }).click();
+  await page.getByText(/Clash: at the same time as “Lube P-101”/).waitFor();
+  await page.getByText(/Bundle: could be done during/).waitFor();
+  await page.getByLabel("Crew").fill("fred");
+  await page.getByRole("button", { name: "Reschedule" }).click();
+  await expectReports(changes, 1);
+  assert.equal(changes[0].crew, "fred");
+  await page.setViewportSize({ width: 390, height: 900 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await waveScreenshot("plan");
+});

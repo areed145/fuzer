@@ -176,16 +176,18 @@ SOURCE_CHECKS = [_source_check(name) for name in DATASETS]
 @dg.asset(group_name="register", deps=SOURCES,
           description="Match records, choose golden values and rebuild the graph (full rebuild).")
 def register(fuzer: Fuzer) -> dg.MaterializeResult:
-    from . import board
+    from . import board, plan
     with fuzer.connect() as conn:
         pack = fuzer.pack_for(conn)
         stats = pipeline.rebuild(conn, pack)
         board.refresh(conn, pack)  # the work board follows the register (#99)
+        planned = plan.sync_work_orders(conn)  # and the integrated plan, its SAP work orders
+        conn.commit()
     return dg.MaterializeResult(metadata={
         "entities": stats["entities"], "merged_clusters": stats["merged_clusters"], "edges": stats["edges"],
         "match_reviews": stats["match_reviews"], "conflict_reviews": stats["conflict_reviews"],
         "unresolved_edges": sum(stats["unresolved_edges"].values()),
-        "seconds": dg.MetadataValue.json(stats["seconds"]),
+        "seconds": dg.MetadataValue.json(stats["seconds"]), "plan": dg.MetadataValue.json(planned),
     })
 
 

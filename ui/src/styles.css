@@ -235,3 +235,19 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .field-job dl.kv dt { color: var(--muted, #667); min-width: 8rem; }
 .field-job dl.kv dd { margin: 0; }
 .field-actions .ui-button, .field-actions .ui-button-link { min-height: 2.75rem; }
+
+/* The integrated plan: a label and a timeline bar per item; on a phone the bar drops below the label. */
+.plan-rows { list-style: none; margin: 0; padding: 0; }
+.plan-row { display: grid; grid-template-columns: minmax(14rem, 2fr) 3fr; gap: 0.25rem 0.75rem; align-items: center;
+  padding: 0.35rem 0; border-top: 1px solid var(--border, #e3e3e3); }
+.plan-row:first-child { border-top: 0; }
+.plan-row.status-done .plan-label, .plan-row.status-cancelled .plan-label { opacity: 0.55; }
+.plan-label { all: unset; cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; }
+.plan-label:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+.plan-track { position: relative; height: 0.9rem; background: var(--surface-2, #f1f1f4); border-radius: 0.25rem; }
+.plan-bar { position: absolute; top: 0; bottom: 0; border-radius: 0.25rem; background: var(--accent, #2563eb); }
+.plan-bar.shutdown { background: var(--warn, #b45309); }
+.plan-bar.kind-exception { background: var(--danger, #b91c1c); }
+.plan-today { position: absolute; top: -0.15rem; bottom: -0.15rem; width: 2px; background: var(--text, #222); opacity: 0.5; }
+.plan-detail { grid-column: 1 / -1; padding: 0.25rem 0 0.5rem; }
+@media (max-width: 640px) { .plan-row { grid-template-columns: 1fr; } }

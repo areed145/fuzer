@@ -406,6 +406,15 @@ export interface ExceptionKind {
   audience: string[]; close_case_on_clear: boolean; description: string; defined_in: "code" | "data"; open: number;
 }
 
+/** An item on the integrated plan, with its clashes (same asset, same person) and bundling chances. */
+export interface PlanItem {
+  id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
+  area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
+  crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
+  exception_id: number | null; notes: string | null; assets: { fuzer_id: string; label: string | null }[];
+  clashes: { kind: "same_asset" | "crew" | "bundle"; with: number; title: string; say: string }[];
+}
+
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
@@ -436,6 +445,12 @@ export const workApi = {
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
+  plan: (f: { start?: string; end?: string; area?: string; status?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
+  planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
+    request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),
+  planSync: () => request<{ orders: number; added: number; updated: number; closed: number }>("POST", "/plan/sync"),
+  planException: (id: number, by: string, start: string, end: string, crew?: string) =>
+    request<PlanItem>("POST", `/exceptions/${id}/plan`, undefined, { by, start, end, crew: crew ?? null }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
   defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;
     audience: string[]; description?: string | null }) => request<unknown>("PUT", `/exceptions/types/${encodeURIComponent(name)}`, undefined, k),
