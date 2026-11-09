@@ -1888,7 +1888,11 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     end_at: "2026-11-12T16:00:00Z", status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
     deferment_usd: null, exception_id: null, notes: "bring the seal kit", clashes: [],
     assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump" }] };
-  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [soon] } }));
+  const today = { ...soon, id: 13, title: "Operator rounds", crew: "role:operator", notes: null,
+    start_at: new Date().toISOString(), end_at: new Date(Date.now() + 3_600_000).toISOString() };
+  const changed = [];
+  await page.route("**/plan/13", (route) => { changed.push(route.request().postDataJSON()); return route.fulfill({ json: today }); });
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [today, soon] } }));
   await page.route("**/exceptions/7/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(`${url}/#/field`);
@@ -1897,6 +1901,12 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.getByText("drips per min").waitFor();
   await page.getByRole("heading", { name: "Coming up" }).waitFor();
   await page.getByText("bring the seal kit").waitFor();
+  await page.getByText("for operator").waitFor();
+  const coming = page.locator(".field-coming");
+  assert.equal(await coming.getByRole("button", { name: "Done" }).count(), 1);  // only today's job can be closed
+  await coming.getByRole("button", { name: "Done" }).click();
+  await expectReports(changed, 1);
+  assert.deepEqual(changed[0], { by: "fred", status: "done" });
   assert.equal(await page.getByRole("button", { name: "Could not do" }).isDisabled(), true);
   await page.getByRole("button", { name: "On site" }).click();
   await page.getByLabel(/Note for the IOC/).fill("valve seized");

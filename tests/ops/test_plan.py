@@ -90,7 +90,11 @@ def test_a_field_operator_sees_what_they_are_planned_onto(conn):
             crew="gina")  # a proposal isn't a commitment yet
     propose(conn, "maintenance", "Next month", "ann", now + timedelta(days=40), now + timedelta(days=41),
             crew="gina", status="scheduled")
-    assert [i["id"] for i in plan.coming_up(conn, "gina")] == [soon["id"]]
+    crew = propose(conn, "inspection", "Operator rounds", "ann", now + timedelta(days=1), now + timedelta(days=1, hours=1),
+                   crew="role:operator", status="scheduled")
+    conn.execute("insert into work_person (name, roles) values ('gina', '{operator}') on conflict (name) do update "
+                 "set roles = excluded.roles")
+    assert [i["id"] for i in plan.coming_up(conn, "gina")] == [crew["id"], soon["id"]]  # her own and her role's
     assert plan.coming_up(conn, "nobody") == []
     conn.rollback()
 

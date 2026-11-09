@@ -24,24 +24,37 @@ export function FieldPage() {
         My jobs</PageHeader>
       {!list.length && <p className="muted">Nothing dispatched to you right now.</p>}
       {list.map((j) => <Job key={j.id} job={j} person={person} onChange={jobs.reload} />)}
-      {jobs.data.coming_up.length > 0 && <ComingUp items={jobs.data.coming_up} />}
+      {jobs.data.coming_up.length > 0 && <ComingUp items={jobs.data.coming_up} person={person} onChange={jobs.reload} />}
     </section>
   );
 }
 
 const day = (at: string) => new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
-/** What they are planned onto over the next two weeks, so tomorrow's job is no surprise today. */
-function ComingUp({ items }: { items: PlanItem[] }) {
+/** What they are planned onto over the next two weeks, so tomorrow's job is no surprise today. On the day, they
+ * say when they've started and when it's done; the plan, and the IOC, see it. */
+function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: string; onChange: () => void }) {
+  const { busy, error, run } = useAct();
+  const soon = Date.now() + 86_400_000;
+  const set = (i: PlanItem, status: string) =>
+    run(status === "done" ? "Done" : "Started", () => api.planChange(i.id, person, { status }), onChange);
   return (
     <Card className="field-coming" title="Coming up">
       <ul className="plain">{items.map((i) => <li key={i.id}>
         <strong>{day(i.start_at)}</strong>{day(i.end_at) !== day(i.start_at) ? `–${day(i.end_at)}` : ""} · {i.title}{" "}
-        <span className="muted small">{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}</span>
+        <span className="muted small">{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}
+          {i.crew?.startsWith("role:") ? ` · for ${i.crew.slice(5)}` : ""}</span>
+        {i.status === "in_progress" && <> <Badge tone="ok">started</Badge></>}
         {i.assets.length > 0 && <div className="small">{i.assets.map((a) =>
           <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</div>}
         {i.notes && <div className="small muted">{i.notes}</div>}
+        {new Date(i.start_at).getTime() <= soon && <div className="row field-actions">
+          {i.status !== "in_progress" && <Button size="sm" disabled={!!busy} onClick={() => set(i, "in_progress")}>Started</Button>}
+          <Button size="sm" variant="primary" disabled={!!busy} onClick={() => set(i, "done")}>Done</Button>
+        </div>}
       </li>)}</ul>
+      {busy && <p role="status">{busy}…</p>}
+      {error && <p role="alert" className="error">{error}</p>}
     </Card>
   );
 }
