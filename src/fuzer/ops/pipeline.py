@@ -251,3 +251,38 @@ def follow_register(conn, pack: Pack) -> dict:
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified}
 
+
+
+def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:
+    """On a deployment no SRE scan has run yet, do what the 6-hourly `sre_scan` job and an engineer's first
+    `limits learn` / `limits scan` would: learn normal ranges (when none are learned), check limits over the data's
+    last 6 hours (IOW breaches reach the IOC), scan the last `days` for upsets (the scheduled job's first run covers
+    only one day, which on a quiet day holds nothing of note) and hand them off, without diagnosis
+    (that costs a model call, so the scheduled job does it under its cap). None when a scan has already run, so a
+    second start changes nothing. The caller loads the work engine's process definitions first, as the
+    `sre_scan` job does."""
+    from datetime import timedelta
+
+    from ..graph import operations
+    from . import board, sre, sre_handoff
+
+    if sre.watermark(conn) is not None or not conn.execute("select 1 from entity where kind = 'timeseries' limit 1").fetchone():
+        return None
+    end = datetime.fromisoformat(f"{operations.as_of(conn)}T23:59")
+    out: dict[str, Any] = {}
+    if not conn.execute("select 1 from point_normal limit 1").fetchone():
+        learned = limits.learn(conn, pack, (end - timedelta(days=90)).isoformat(timespec="minutes"),
+                               end.isoformat(timespec="minutes"), 60)
+        out["learned"] = {k: v for k, v in learned.items() if k != "errors"}
+        conn.commit()
+    checked = limits.scan(conn, pack, (end - timedelta(hours=6)).isoformat(timespec="minutes"),
+                          end.isoformat(timespec="minutes"), 10)
+    out["limits"] = {"excursions": checked["excursions"], "iow_breaches": len(checked.get("work") or [])}
+    conn.commit()
+    out["sre"] = sre.scan(conn, pack, since=(end - timedelta(days=days)).isoformat(timespec="minutes"),
+                          max_days=days)
+    handed = sre_handoff.handoff(conn, pack, max_diagnoses=0)
+    out["handoff"] = {k: v for k, v in handed.items() if k != "items"}
+    board.refresh(conn, pack)
+    conn.commit()
+    return out

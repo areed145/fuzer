@@ -39,6 +39,8 @@ DEFAULTS = {
     "weights": {"production": 1.0, "risk": 1.0, "compliance": 1.0},
     "incident_lookback_days": 365,
     "opportunities": {"gas_lift_move_share": 0.25},
+    # an upset still going on producing wells defers this share of their latest tested rate for this many days (#455)
+    "upsets": {"rate_at_risk_share": 0.1, "days": 1.0},
 }
 KINDS = ("incident", "work_order", "maintenance_plan", "opportunity")
 PACK_SOURCE = "pack value config"

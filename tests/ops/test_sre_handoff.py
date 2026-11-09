@@ -156,3 +156,39 @@ def test_upset_titles_read_as_words():
     assert sre_handoff.title(u) == "High-high alarm on 30-PT-2002 (peak 90 barg) from 2025-12-24 00:00"
     step = {**u, "key": "step", "detector": "steps", "tag": None, "units": ["a", "b"]}
     assert sre_handoff.title(step) == "Step change on 30PT2002.PV from 2025-12-24 00:00, across 2 assets"
+
+
+def test_an_upset_on_producing_wells_is_valued_by_the_production_it_defers(conn, monkeypatch):
+    """#455: a low wellhead pressure on a producing gas-lifted well was worth $0 ("nothing at stake found") and sat
+    at the bottom of the board. An upset still going on producing wells puts a share of their latest tested rate
+    at stake while it lasts; a recovered one that keeps coming back, that share for as long as its repeats last."""
+    from datetime import datetime
+
+    from fuzer.analysis import value
+    from fuzer.ops import sre_handoff
+
+    well = conn.execute(
+        """
+        select t.dst as id from edge t join entity w on w.fuzer_id = t.dst and w.kind = 'well'
+        join golden g on g.fuzer_id = t.src and g.field = 'oil_sm3d' where t.rel = 'tests' and (g.value #>> '{}')::float > 0
+        limit 1
+        """).fetchone()["id"]
+    rate = sre_handoff.rate_at_risk(conn, [well])
+    assert rate["wells"] == 1 and rate["oil_sm3d"] > 0
+    cfg = value.config(PACK)["upsets"]
+    up = {"id": 0, "first_unit": well, "units": [well], "start": datetime(2024, 11, 5, 6), "end": None,
+          "point_id": None, "key": "alarm:lo", "label": "WHP alarm:lo", "text": "Low alarm"}
+    s = sre_handoff.priority(conn, PACK, up)
+    p = s["components"]["production"]
+    assert p["status"] == "ok" and p["days"] == cfg["days"] and s["value_usd"] > 0
+    assert p["oil_sm3d"] == round(rate["oil_sm3d"] * cfg["rate_at_risk_share"], 1)
+    assert "producing well(s) it reaches" in p["sources"]["oil_sm3d"]
+
+    recovered = {**up, "end": datetime(2024, 11, 5, 9)}
+    monkeypatch.setattr(sre_handoff, "repeats", lambda c, u: 1)  # once: no rate at stake, as before
+    assert "producing well" not in str(sre_handoff.priority(conn, PACK, recovered)["components"]["production"])
+    monkeypatch.setattr(sre_handoff, "repeats", lambda c, u: 4)  # four times in 30 days: 12 repeats in 90 days
+    s = sre_handoff.priority(conn, PACK, recovered)
+    p = s["components"]["production"]
+    assert p["days"] == round(3 / 24 * 4 / 30 * 90, 1) and s["value_usd"] > 0
+    assert "4 times in the last 30 d" in p["sources"]["oil_sm3d"] and s["urgency"]["status"] != "unknown"

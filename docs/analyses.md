@@ -347,7 +347,10 @@ latest detection and their units are within 4 hops in the plant model. The links
 
 The earliest detection is the likely first cause; at the same minute, a stop comes before an excursion,
 and an excursion before a step. Bad instruments and slow findings (drifts, curves) are upsets of their
-own, one per unit and finding. After each scan the recent detections are regrouped. An upset keeps its
+own, one per unit and finding. Alarms already on when scanning began are `standing`, not an upset; a new
+detection that joins them brings along only the standing ones on its own point or unit, or one link away, so
+one new alarm can't chain a field's worth of standing alarms into one upset (#455). After each scan the recent
+detections are regrouped. An upset keeps its
 id, and any status a person gave it, while most of its detections stay together.
 
 Process upsets are signals in `incidents.py`, on their first-cause unit. Downtime, log events and
@@ -364,6 +367,10 @@ week. MCP: `get_upsets`, `upset_detail`.
 haven't been handed off are handled highest priority first:
 - **Priority:** each is scored by #100 from its first-cause unit's oil lost per day to downtime,
   criticality and failure rate. One still going is due now; a recovered one is scored as a repeat.
+  On producing wells (units that are wells, or equipment part of one), what's at stake is the production it
+  defers, whichever is larger: a share (value config `upsets.rate_at_risk_share`, 10%) of the wells' latest
+  tested oil and gas rate, for `upsets.days` (1) while it lasts, or, for a recovered upset that came back
+  2 or more times in 30 days, for as long as its repeats would last over the horizon (#455).
 - **Diagnosis:** while the run's cap allows (`ClaudeSettings.max_upset_diagnoses`, 10, and
   `max_sre_usd`, $5), the operations assistant's Field Operations & Facilities specialist diagnoses it. It returns likely causes
   with confidence, the records that support each (a cause with none is marked uncited), what would

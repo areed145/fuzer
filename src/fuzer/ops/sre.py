@@ -483,6 +483,8 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
             open_.append(home)
         home["detections"].append(d)
         home["last"] = max(home["last"], d["start"])
+    next_to: dict = {}  # _near caches reach per unit for one hop count, so one hop keeps its own
+    groups = [part for g in groups for part in _unchain_standing(g, adj, next_to)]
     out = []
     for g in groups:
         ds = sorted(g["detections"], key=lambda x: x["start"])
@@ -495,6 +497,25 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
                     "end": None if any(e is None for e in ends) else max(ends),
                     "units": list(dict.fromkeys(x.get("unit_id") for x in ds if x.get("unit_id")))})
     return out
+
+
+def _unchain_standing(g: dict, adj: dict[str, set[str]], cache: dict) -> list[dict]:
+    """A new detection that joins alarms already on when scanning began (#142) brings along only the ones on its own
+    point or unit, or next to it (#455): the rest stay `standing`. Otherwise one new low wellhead pressure chains
+    every standing alarm across the field (26 wells on Okan) into one upset, titled and valued after a well that
+    had nothing new."""
+    ds = g["detections"]
+    new = [d for d in ds if not d.get("standing")]
+    if g["kind"] != "process" or not new or len(new) == len(ds):
+        return [g]
+
+    def close(d):
+        return any(d["point"] == n["point"] or (d.get("unit_id") and d.get("unit_id") == n.get("unit_id"))
+                   or _near(adj, d.get("unit_id"), n.get("unit_id"), cache, 1) for n in new)
+
+    keep = [d for d in ds if not d.get("standing") or close(d)]
+    rest = [d for d in ds if d.get("standing") and not close(d)]
+    return [{**g, "detections": keep}] + ([{**g, "detections": rest}] if rest else [])
 
 
 def regroup(conn, since: datetime) -> dict:
