@@ -432,9 +432,13 @@ def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
 
 @router.post("/plan/sync")
 def plan_sync(conn=Depends(get_conn)):
-    """Bring the plan's SAP work orders up to date with the register now (the rebuild does it too)."""
+    """Bring the plan's SAP work orders and maintenance plans up to date with the register now (the rebuild does it
+    too)."""
     from ..ops import plan
-    return _plan_call(conn, plan.sync_work_orders)
+
+    def both(c):
+        return {**plan.sync_work_orders(c), "maintenance_plans": plan.sync_maintenance_plans(c)}
+    return _plan_call(conn, both)
 
 
 @router.post("/exceptions/{exception_id}/plan")

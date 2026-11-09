@@ -38,7 +38,7 @@ export function PlanPage() {
   return (
     <section>
       <PageHeader subtitle="Every planned activity from every source on one timeline, by area: SAP work orders, turnaround work, inspections and the exceptions the IOC chose to plan."
-        actions={<Button disabled={!!busy} onClick={() => run("Refreshing SAP orders", () => api.planSync(), plan.reload)}>Refresh SAP orders</Button>}>
+        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Integrated plan</PageHeader>
       <div className="row">
         <label className="small">From <Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
