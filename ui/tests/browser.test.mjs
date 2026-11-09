@@ -353,6 +353,8 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   await table.getByText("Time unknown", { exact: true }).waitFor();
   await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
   await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
+  // with datasets the how-to steps fold away so the table is on the first screen (#415)
+  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), false);
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
   const dataset = table.getByRole("link", { name: "sap_equipment", exact: true });
   await dataset.focus();
@@ -466,6 +468,7 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   await page.getByRole("button", { name: "Refresh source readiness" }).click();
   await page.getByText("0 connections", { exact: false }).waitFor();
   assert.match(await page.getByRole("link", { name: "Connect & test" }).getAttribute("href"), /view=systems/);
+  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), true);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
