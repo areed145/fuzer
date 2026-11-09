@@ -8,3 +8,4 @@ KRGP:B1.VT2003.PV,Compressor Vibration,mm/s,OPC
 KRGP:C1.FT3005.PV,Dry Gas Flow,ksm3/d,OPC
 KR12-03H.THP,Well KR 12-03H Tubing Head Pressure,barg,OPC
 KR12-04H.THP,Well KR 12-04H Tubing Head Pressure,barg,OPC
+KRGP:B1.TT2011.PV,Aftercooler Outlet Temperature,degC,OPC

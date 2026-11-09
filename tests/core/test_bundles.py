@@ -2,6 +2,7 @@
 from Okan, and the pack follows the database a process connects to, not an import-time global."""
 
 import re
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,13 @@ from fuzer.core.tags import TagGrammar
 
 ROOT = Path(__file__).resolve().parents[2]
 KESTREL = ROOT / "fakeplant" / "bundles" / "kestrel"
+KESTREL_DATASETS = {
+    "sap_floc", "sap_equipment", "pi_points", "maximo_assets", "pi_af",
+    "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials",
+    "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
+    "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
+    "gis_facilities", "gis_pipelines", "gis_wells"}
+KESTREL_ENTITIES = 141
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 
@@ -156,14 +164,17 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         pack = packs.current_pack(conn)
         assert (pack.name, pack.facility) == ("kestrel", "KRGP")
         loaded = ingest.ingest(conn, Path(first["data"]))
-        assert set(loaded["loaded"]) == {"sap_floc", "sap_equipment", "pi_points", "maximo_assets"}
+        assert set(loaded["loaded"]) == KESTREL_DATASETS and not loaded["held"]  # each through a built-in mapping
         built = pipeline.rebuild(conn, pack)
-        assert built["entities"] > 0
+        assert built["entities"] > 0 and built["incidents"] >= 1
 
         kinds = {r["kind"]: r["n"] for r in conn.execute(
             "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind")}
-        assert kinds["facility"] == 1 and kinds["area"] == 3 and kinds["tag"] == 13 and kinds["well"] == 2
+        assert kinds["facility"] == 1 and kinds["area"] == 3 and kinds["tag"] == 14 and kinds["well"] == 2
         assert kinds["equipment"] == 6  # Maximo's four assets merged into SAP's by serial, despite its formats
+        # Its own work, drawings, map and documents: what the IOC triages and the field operator is sent with.
+        assert kinds["notification"] == 7 and kinds["work_order"] == 12 and kinds["log_entry"] == 16
+        assert kinds["pipeline"] == 2 and kinds["document"] >= 8 and kinds["well_test"] == 24
         keys = {r["kind"]: set() for r in conn.execute("select distinct kind from entity")}
         for r in conn.execute("select e.kind, k.key from entity e join entity_key k using (fuzer_id) "
                               "where e.merged_into is null"):
@@ -178,6 +189,15 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
             "select count(distinct src) as n from edge where rel = 'has_timeseries' and src in "
             "(select fuzer_id from entity where kind = 'well')").fetchone()["n"]
         assert wells_with_series == 2
+        # Its records are written relative to today, so the compressor trip is yesterday's, and the notification
+        # it raised reaches the IOC's queue (#456).
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        trip = conn.execute("select g.value #>> '{}' as v from golden g join entity_key k using (fuzer_id) "
+                            "where k.kind = 'notification' and k.key = '10004001' and g.field = 'created'").fetchone()
+        assert trip["v"] == yesterday
+        assert pipeline.follow_register(conn, pack)["notifications"]["raised"] == 3
+        assert conn.execute("select count(*) as n from exception_record where type = 'sap_notification' "
+                            "and key = '10004001' and state = 'open'").fetchone()["n"] == 1
 
 
     # The API resolves the pack from the database it serves, at request time.
@@ -187,7 +207,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
     client = TestClient(app)
     stats = client.get("/stats").json()
     assert (stats["pack"], stats["facility"]) == ("kestrel", "KRGP")
-    assert stats["entities"]["tag"] == 13
+    assert stats["entities"]["tag"] == 14
     assert client.get("/demo/okan/investigation").status_code >= 400  # the Okan journey isn't Kestrel's
 
 
@@ -296,7 +316,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                     assert pack.facility == "KRGP" and deps.pack().facility == "KRGP"
                     assert settings.project() == "kestrel"
                     ingest.ingest(k, Path(added["data"]))
-                    assert pipeline.rebuild(k, pack)["entities"] == 34
+                    assert pipeline.rebuild(k, pack)["entities"] == KESTREL_ENTITIES
                     assert k.execute("select display_name from access_account").fetchone()["display_name"] == "Ana"
                 # Kestrel's own settings, whatever the process's environment says (one deployment, two projects).
                 from fuzer.sources import timeseries
@@ -306,20 +326,20 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                 provider = timeseries.provider()
                 assert provider.name == "synthetic" and provider.model and provider.model.covers("KRGP:B1.PT2001.PV")
                 assert provider.model.climate["mean"] == 10.0  # inland Colorado, not Okan's offshore tropics
-                # Its historian has values, and they move together: the 2026-11-06 compressor trip drops the
-                # compressor's discharge pressure from about 66 barg to its settle-out pressure.
+                # Its historian has values, and they move together: yesterday's compressor trip (placed relative to
+                # today, #456) drops the compressor's discharge pressure from about 66 barg to its settle-out pressure.
                 from fuzer.analysis import values
 
                 with db.connect(url=url) as k:
                     k2001 = k.execute("select fuzer_id from entity_key where key = 'B1-K-2001'").fetchone()["fuzer_id"]
-                    got = values.around(k, k2001, "2026-11-06T04:30", 12, 12, pack=pack)
+                    got = values.around(k, k2001, f"{date.today() - timedelta(days=1)}T04:30", 12, 12, pack=pack)
                 pd = {s["point"]: s for s in got["series"]}["KRGP:B1.PT2001.PV"]
                 assert pd.get("modelled") and pd["max"] > 60 and pd["min"] < 35
                 assert all(s["values"] for s in got["series"])
                 # The API's rebuild queue runs Kestrel's rebuild on its own thread, in Kestrel's schema.
                 deps.rebuilder.request()
                 deps.rebuilder.wait()
-                assert deps.rebuilder.last["stats"]["entities"] == 34, deps.rebuilder.last
+                assert deps.rebuilder.last["stats"]["entities"] == KESTREL_ENTITIES, deps.rebuilder.last
             assert deps.rebuilder.status()["last"] is None  # Okan's queue never ran
             assert projects.field("data") == "/srv/okan" and projects.field("timeseries") == "synthetic"
 
@@ -328,7 +348,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
             assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0
             assert packs.current_pack(conn).facility == "OKAN" and deps.pack().facility == "OKAN"
             n = conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"]
-            assert n >= 34  # Kestrel's register is where it was built
+            assert n >= KESTREL_ENTITIES  # Kestrel's register is where it was built
             with projects.use(conn, "okan"), db.connect(url=url) as o:
                 assert o.execute("select count(*) as n from entity").fetchone()["n"] == 0
     finally:
@@ -370,10 +390,10 @@ def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path
                                 tags=jobs.project_tags("kestrel"))
         assert result.success
         meta = {e.asset_key.path[-1]: e.materialization.metadata for e in result.get_asset_materialization_events()}
-        assert meta["register"]["entities"].value == 34
+        assert meta["register"]["entities"].value == KESTREL_ENTITIES
         with db.connect(url=url, schema="public") as conn:
             assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0  # Okan's is untouched
-            assert conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"] >= 34
+            assert conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"] >= KESTREL_ENTITIES
     finally:
         db.set_default(before)
         _drop("dagster_projects")

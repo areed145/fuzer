@@ -17,8 +17,17 @@ Seed bundles (#376) live in `bundles/`: `bundles/okan` points at the generated
 Okan exports and the packaged Okan pack; `bundles/kestrel` is a second, small
 facility (Kestrel Ridge gas plant, `KRGP`) with its own pack and hand-written
 exports, initialised with `fuzer init --bundle fakeplant/bundles/kestrel`. Kestrel's historian is
-synthetic, driven by the hand-written `exports/process_model.json` (its climate, units, PI points and a
-compressor trip on 2026-11-06), so its charts have values without anything running.
+synthetic, driven by the hand-written `exports/process_model.json` (its climate, air-cooled aftercooler, units,
+PI points and yesterday's compressor trip), so its charts have values without anything running.
+
+Kestrel has the same kinds of sources as Okan, each loaded by the same built-in mapping: SAP floc, equipment,
+notifications, work orders (with turnaround KR-TAR-2027), maintenance plans, BOM and materials; Maximo; PI points
+and AF; operator logs, EC downtime, well tests and network; DCS alarms, IOW register, inspection and LIMS
+readings; OEM curves; smart P&IDs; GIS facilities, pipelines and wells; and documents. Its dated records are
+written relative to the day they are read (`today-1d 03:10`, `fuzer.sources.relative_dates`), as are the process
+model's events, so the demo never goes stale: yesterday's B1-K-2001 trip is on the charts, in the log and
+downtime, and in the IOC's queue as an open SAP notification, an IOW breach on the inlet separator and an SRE
+upset. `uv run fakeplant historian --data fakeplant/bundles/kestrel/exports` serves it as PI Web API and ADX.
 
 | Module | What it makes |
 |---|---|

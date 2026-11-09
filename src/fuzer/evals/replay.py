@@ -31,6 +31,7 @@ from pathlib import Path
 
 from ..analysis import limits
 from ..core import db
+from ..sources import process_model
 
 STEP = timedelta(hours=6)
 LEAD = timedelta(hours=1)  # a detection this long before an event is still about it (lags, noise)
@@ -229,7 +230,7 @@ def run(conn, pack, detector, since: str, until: str, data_dir=None, src=None, l
     name = detector if isinstance(detector, str) else getattr(detector, "__name__", "detector")
     fn = DETECTORS[detector] if isinstance(detector, str) else detector
     src = src or provider()
-    spec = json.loads(path.read_text())
+    spec = process_model.read(path)
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
     saved = conn.execute("select * from point_normal").fetchall() if learn_days else None
     found: list[dict] = []

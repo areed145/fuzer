@@ -60,3 +60,17 @@ classification:
     caterpillar: Caterpillar
     cat: Caterpillar
   extra_classes: {}
+
+# Kestrel's own SAP catalog codes (not Okan's D01/C01/A01), mapped onto ISO 14224.
+maintenance_codes:
+  damage: {DM-VIB: VIB, DM-LEAK: ELP, DM-OHT: OHE, DM-NOI: NOI, DM-FTS: FTS, DM-AIR: AIR, DM-PDE: PDE}
+  cause: {CA-ALIGN: "1.3", CA-WEAR: "2.4", CA-FOUL: "5.1", CA-SIG: "3.3", CA-ADJ: "3.4", CA-CONT: "5.2"}
+  activity: {AC-REPL: "1", AC-REP: "2", AC-ADJ: "4", AC-CHK: "6", AC-SVC: "7", AC-INSP: "9", AC-OVH: "10"}
+
+# Energy Components downtime reasons at Kestrel. "equipment" reasons are expected to name the equipment.
+downtime_reasons:
+  COMP-TRIP: {name: Compressor trip, category: equipment}
+  PLAN-MAINT: {name: Planned maintenance, category: planned}
+  POWER: {name: Utility power loss, category: external}
+  HYDRATE: {name: Hydrates, category: process}
+  SALES-CURT: {name: Sales pipeline curtailment, category: external}

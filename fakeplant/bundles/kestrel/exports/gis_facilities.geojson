@@ -1,0 +1,81 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.512,
+     40.871
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP",
+    "floc": "KRGP",
+    "name": "Kestrel Ridge Gas Plant",
+    "type": "gas plant",
+    "install_year": 2015,
+    "longitude": -104.512,
+    "latitude": 40.871
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5126,
+     40.8712
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-A1",
+    "floc": "KRGP-A1",
+    "name": "Train A1 inlet separation",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5126,
+    "latitude": 40.8712
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5119,
+     40.8712
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-B1",
+    "floc": "KRGP-B1",
+    "name": "Train B1 compression",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5119,
+    "latitude": 40.8712
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5112,
+     40.8709
+    ]
+   },
+   "properties": {
+    "facility_id": "KRGP-C1",
+    "floc": "KRGP-C1",
+    "name": "Train C1 glycol dehydration",
+    "type": "process area",
+    "install_year": 2015,
+    "longitude": -104.5112,
+    "latitude": 40.8709
+   }
+  }
+ ]
+}

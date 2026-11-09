@@ -1,0 +1,70 @@
+[
+ {
+  "doc_number": "KR-TG-B1-001",
+  "revision": "A",
+  "doc_type": "troubleshooting_guide",
+  "title": "Sales gas compressor trip response",
+  "status": "current",
+  "effective_date": "2023-05-01",
+  "file": "documents/KR-TG-B1-001.md",
+  "tags": [
+   "B1-K-2001",
+   "B1-VT-2003",
+   "B1-TT-2002",
+   "B1-E-2010",
+   "A1-PT-1001"
+  ]
+ },
+ {
+  "doc_number": "KR-PR-A1-001",
+  "revision": "B",
+  "doc_type": "procedure",
+  "title": "Choking back Pad 12 wells to hold inlet pressure",
+  "status": "current",
+  "effective_date": "2024-02-01",
+  "file": "documents/KR-PR-A1-001.md",
+  "tags": [
+   "A1-V-1001",
+   "A1-PT-1001",
+   "A1-PSV-1001"
+  ]
+ },
+ {
+  "doc_number": "KR-PR-C1-001",
+  "revision": "A",
+  "doc_type": "procedure",
+  "title": "Glycol circulation pump changeover",
+  "status": "current",
+  "effective_date": "2023-05-01",
+  "file": "documents/KR-PR-C1-001.md",
+  "tags": [
+   "C1-P-3002A",
+   "C1-P-3002B",
+   "C1-V-3001"
+  ]
+ },
+ {
+  "doc_number": "KR-DS-K2001",
+  "revision": "A",
+  "doc_type": "datasheet",
+  "title": "Ariel JGK/4 reciprocating compressor datasheet",
+  "status": "current",
+  "effective_date": "2015-04-01",
+  "file": "documents/KR-DS-K2001.md",
+  "manufacturer": "Ariel",
+  "model": "JGK/4",
+  "equipment_class": "CO"
+ },
+ {
+  "doc_number": "KR-DS-P3002",
+  "revision": "A",
+  "doc_type": "datasheet",
+  "title": "Kimray PV-45 glycol pump datasheet",
+  "status": "current",
+  "effective_date": "2015-04-01",
+  "file": "documents/KR-DS-P3002.md",
+  "manufacturer": "Kimray",
+  "model": "PV-45",
+  "equipment_class": "PU"
+ }
+]

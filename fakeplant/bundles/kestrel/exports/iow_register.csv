@@ -1,0 +1,4 @@
+iow_id,revision,tag,parameter,iow_class,low_limit,high_limit,unit,max_time_outside,damage_mechanism,response,effective_date,superseded_date
+IOW-KR-001,A,B1-TT-2002,Compressor discharge temperature,Critical,,150,degC,2 h,"Valve and rod packing damage, lube oil breakdown","Cut load, check the aftercooler fans and fins",2023-03-01,
+IOW-KR-002,A,A1-PT-1001,Inlet separator pressure,Standard,,27.0,barg,2 h,Overpressure toward the PSV set pressure (30 barg),"Choke back the Pad 12 wells, restore compression or flare",2023-03-01,
+IOW-KR-003,A,B1-VT-2003,Compressor frame vibration,Standard,,7.1,mm/s,4 h,"Crosshead and foundation bolt loosening, bearing wear","Reduce load, inspect frame bolts and crosshead clearances",2023-03-01,

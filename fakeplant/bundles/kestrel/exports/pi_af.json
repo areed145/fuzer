@@ -1,0 +1,110 @@
+[
+ {
+  "path": "KRGP",
+  "template": "Plant",
+  "description": "Kestrel Ridge gas plant",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\A1 INLET",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\B1 COMPRESSION",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\C1 DEHY",
+  "template": "Train",
+  "attributes": []
+ },
+ {
+  "path": "KRGP\\A1 INLET\\A1-V-1001",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Inlet Separator Pressure",
+    "pi_point": "KRGP:A1.PT1001.PV",
+    "uom": "barg",
+    "HiHi": 28.5,
+    "Hi": 27.0,
+    "Lo": 22.0,
+    "LoLo": 20.0
+   },
+   {
+    "name": "Inlet Separator Liquid Level",
+    "pi_point": "KRGP:A1.LT1001.PV",
+    "uom": "%",
+    "HiHi": 80,
+    "Hi": 70,
+    "Lo": 20,
+    "LoLo": 10
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\A1 INLET\\A1-FT-1002",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Inlet Gas Flow",
+    "pi_point": "KRGP:A1.FT1002.PV",
+    "uom": "ksm3/d"
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\B1 COMPRESSION\\B1-K-2001",
+  "template": "Reciprocating Compressor",
+  "attributes": [
+   {
+    "name": "Compressor Discharge Pressure",
+    "pi_point": "KRGP:B1.PT2001.PV",
+    "uom": "barg",
+    "HiHi": 75,
+    "Hi": 72,
+    "Lo": 55
+   },
+   {
+    "name": "Compressor Discharge Temperature",
+    "pi_point": "KRGP:B1.TT2002.PV",
+    "uom": "degC",
+    "HiHi": 150,
+    "Hi": 140
+   },
+   {
+    "name": "Compressor Vibration",
+    "pi_point": "KRGP:B1.VT2003.PV",
+    "uom": "mm/s",
+    "HiHi": 11.2,
+    "Hi": 7.1
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\B1 COMPRESSION\\B1-E-2010",
+  "template": "Air Cooler",
+  "attributes": [
+   {
+    "name": "Aftercooler Outlet Temperature",
+    "pi_point": "KRGP:B1.TT2011.PV",
+    "uom": "degC",
+    "HiHi": 55,
+    "Hi": 45
+   }
+  ]
+ },
+ {
+  "path": "KRGP\\C1 DEHY\\C1-FT-3005",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Dry Gas Flow",
+    "pi_point": "KRGP:C1.FT3005.PV",
+    "uom": "ksm3/d"
+   }
+  ]
+ }
+]

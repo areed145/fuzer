@@ -17,7 +17,11 @@ deterministic synthetic signals (fuzer.sources.timeseries.SyntheticProvider), an
 from the plant's own records, not from Fuzer: each downtime record and each operator log entry about
 a trip, vibration, leak, alarm etc. upsets the points whose tag shares the area and loop number of
 the first tag it names (20-K-2200B -> 20-VT-2200B, 20PT2200B). So trends lead into incidents the way they would on a real
-historian.
+historian. Tags are read with the bundle's own tag grammar when the exports sit in a seed bundle
+(fakeplant/bundles/<name>/exports: Kestrel's lettered trains, KRGP:B1.PT2001.PV is loop 2001 in B1), else Okan's
+numeric areas.
+
+    uv run fakeplant historian --data fakeplant/bundles/kestrel/exports
 """
 
 import base64
@@ -40,10 +44,22 @@ UPSET_WORDS = re.compile(r"trip|vibration|leak|alarm|fault|high|low |shut|hydrat
 LOOP = re.compile(r"(?<![0-9])(\d{2})[-_ ]?[A-Z]{1,4}[-_ ]?(\d{3,4}[A-Z]?)(?![0-9A-Z])")
 
 
-def loops(text: str) -> set[tuple[str, str]]:
-    """(area, loop number) for every tag in text: 20-P-1001B, 20VT1001B and OK_GGCP:20-PT-1001B.PV all give
-    ('20', '1001B')."""
-    return {(m.group(1), m.group(2)) for m in LOOP.finditer(text.upper())}
+def loops(text: str, grammar=None) -> list[tuple[str, str]]:
+    """(area, loop number) for every tag in text, first named first: 20-P-1001B, 20VT1001B and
+    OK_GGCP:20-PT-1001B.PV all give ('20', '1001B'). With a pack's tag grammar, its own tags: KRGP:B1.VT2003.PV
+    gives ('B1', '2003')."""
+    if grammar is not None:
+        return [(m.area, m.loop + m.suffix) for m in grammar.find_all(text) if m.area]
+    return [(m.group(1), m.group(2)) for m in LOOP.finditer(text.upper())]
+
+
+def bundle_grammar(data_dir: Path):
+    """The tag grammar of the seed bundle whose exports these are, or None (Okan's generated folder has none)."""
+    if not (Path(data_dir).parent / "bundle.yaml").is_file():
+        return None
+    from fuzer.core import bundles
+
+    return bundles.read(Path(data_dir).parent)["pack"].tags
 
 
 def _web_id(prefix: str, path: str) -> str:
@@ -81,6 +97,7 @@ class Plant:
         self.points = {r["tag"]: r for r in table.rows()} if table else {}
         af = data_dir / "pi_af.json"
         self.elements = json.loads(af.read_text()) if af.is_file() else []
+        self.grammar = bundle_grammar(data_dir)
         root = (self.elements[0]["path"].split("\\")[0] if self.elements else data_dir.name.upper())
         self.data_server, self.af_server, self.af_database = f"{root}-PI", f"{root}-AF", root
         self.upsets = self._upsets(data_dir)
@@ -97,13 +114,13 @@ class Plant:
             for r in table.rows():
                 body = str(r.get(text) or "")
                 # the first tag named is the one in trouble ("20-P-1001B tripped ... Started 20-P-1001A")
-                if r.get(when) and (name == "ec_downtime" or UPSET_WORDS.search(body)) and (m := LOOP.search(body.upper())):
-                    out[(m.group(1), m.group(2))].add(_time(str(r[when])))
+                if r.get(when) and (name == "ec_downtime" or UPSET_WORDS.search(body)) and (lp := loops(body, self.grammar)):
+                    out[lp[0]].add(_time(str(r[when])))
         return {k: sorted(v) for k, v in out.items()}
 
     def values(self, point: str, start: datetime, end: datetime, step_minutes: int) -> list[tuple[datetime, float]]:
         p = self.points[point]
-        near = [u for lp in loops(point) for u in self.upsets.get(lp, [])
+        near = [u for lp in set(loops(point, self.grammar)) for u in self.upsets.get(lp, [])
                 if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
         return [(_time(t), v) for t, v in
                 self._signal.values(point, p.get("engunits") or "", start, end, step_minutes, near,

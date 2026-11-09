@@ -1,0 +1,92 @@
+{
+ "nodes": [
+  {
+   "code": "KR_12_03H",
+   "type": "well",
+   "name": "KR 12-03H"
+  },
+  {
+   "code": "KR_12_04H",
+   "type": "well",
+   "name": "KR 12-04H"
+  },
+  {
+   "code": "PAD12-MAN",
+   "type": "manifold",
+   "name": "Pad 12 production manifold"
+  },
+  {
+   "code": "KRGP-INLET",
+   "type": "separator",
+   "tag": "A1V1001",
+   "name": "Inlet Separator"
+  },
+  {
+   "code": "KRGP-COMP",
+   "type": "compressor",
+   "tag": "B1K2001",
+   "name": "Sales Gas Compressor"
+  },
+  {
+   "code": "KRGP-DEHY",
+   "type": "separator",
+   "tag": "C1V3001",
+   "name": "Glycol Contactor"
+  },
+  {
+   "code": "KRGP-SALESMTR",
+   "type": "meter",
+   "tag": "C1FT3005",
+   "name": "Dry Gas Sales Meter"
+  },
+  {
+   "code": "SALES-TIE",
+   "type": "sales_point",
+   "name": "Interstate pipeline tie-in"
+  }
+ ],
+ "edges": [
+  {
+   "from": "KR_12_03H",
+   "to": "PAD12-MAN",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KR_12_04H",
+   "to": "PAD12-MAN",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "PAD12-MAN",
+   "to": "KRGP-INLET",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-INLET",
+   "to": "KRGP-COMP",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-COMP",
+   "to": "KRGP-DEHY",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-DEHY",
+   "to": "KRGP-SALESMTR",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-SALESMTR",
+   "to": "SALES-TIE",
+   "valid_from": "",
+   "valid_to": ""
+  }
+ ]
+}
