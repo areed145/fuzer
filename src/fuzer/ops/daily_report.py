@@ -45,6 +45,13 @@ def _f(template: str, cites: list[str], **values) -> dict:
             "cites": [c for c in dict.fromkeys(cites) if c]}
 
 
+def _vs(ref: str, delta: float) -> str:
+    """Phrase a comparison so the change never reads as a production value (#390)."""
+    if round(delta, 1) == 0:
+        return "Oil unchanged from " + ref
+    return "Oil {change} Sm3 " + ("above " if delta > 0 else "below ") + ref
+
+
 def _show(v):
     if isinstance(v, float):
         return f"{v:,.1f}" if abs(v) < 100 else f"{v:,.0f}"
@@ -85,11 +92,13 @@ def facts(conn, pack, day: str) -> dict:
               eff=round(oil / pot * 100, 1) if pot else None)
     sections["Production and deferment"].append(prod)
     if prev:
-        sections["Production and deferment"].append(_f("{change} Sm3 against yesterday's {prev} Sm3", [today["id"], prev["id"]],
-                                                       change=oil - num(prev.get("oil_sm3")), prev=num(prev.get("oil_sm3"))))
+        p_oil = num(prev.get("oil_sm3"))
+        sections["Production and deferment"].append(_f(_vs("yesterday's {prev} Sm3", oil - p_oil), [today["id"], prev["id"]],
+                                                       change=abs(oil - p_oil), prev=p_oil))
     if avg is not None:
-        sections["Production and deferment"].append(_f("{change} Sm3 against the 7-day average of {avg} Sm3",
-                                                       [today["id"], *[r["id"] for r in week]], change=round(oil - avg), avg=round(avg)))
+        sections["Production and deferment"].append(_f(_vs("the 7-day average of {avg} Sm3", round(oil - avg)),
+                                                       [today["id"], *[r["id"] for r in week]],
+                                                       change=abs(round(oil - avg)), avg=round(avg)))
     sections["Production and deferment"].append(_f(
         "Gas export {gas} kSm3, lift gas {lift} kSm3, flare {flare} kSm3", [today["id"]],
         gas=num(today.get("gas_export_ksm3")), lift=num(today.get("lift_gas_ksm3")), flare=num(today.get("flare_ksm3"))))

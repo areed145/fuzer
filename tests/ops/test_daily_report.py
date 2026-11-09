@@ -154,3 +154,12 @@ def test_reporter_step_and_tools(conn, monkeypatch):
     rv = client.get(f"/reports/daily/{day}").json()["review"]
     assert rv["status"] == "published" and rv["step"] is None
     assert {d["day"]: d["status"] for d in client.get("/reports/daily").json()}[day] == "published"
+
+
+def test_comparisons_never_read_as_production_values():
+    """A change from yesterday or the 7-day average is phrased as above, below or unchanged (#390)."""
+    assert daily_report._vs("yesterday's {prev} Sm3", 0.0) == "Oil unchanged from yesterday's {prev} Sm3"
+    up = daily_report._f(daily_report._vs("the 7-day average of {avg} Sm3", 20), [], change=20, avg=7452)
+    assert up["text"] == "Oil 20 Sm3 above the 7-day average of 7,452 Sm3"
+    down = daily_report._f(daily_report._vs("yesterday's {prev} Sm3", -35.5), [], change=35.5, prev=7472.0)
+    assert down["text"] == "Oil 35.5 Sm3 below yesterday's 7,472 Sm3"
