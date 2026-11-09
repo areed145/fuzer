@@ -39,6 +39,12 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
   }
   return (
     <section>
+      {/* Sources' own pages sit where every other area's secondary navigation does, above the heading (#394). */}
+      <nav className="area-navigation" aria-label="Sources pages">
+        {[["datasets", "Datasets"], ["systems", "Systems & connections"], ["rules", "Rules"]].map(([k, label]) => (
+          <a key={k} href={href("/sources", { view: k })} aria-current={view === k ? "page" : undefined}>{label}</a>
+        ))}
+      </nav>
       <div className="row spread">
         <PageHeader>Sources</PageHeader>
         <ButtonLink variant="primary" href={href("/sources", { view: "add" })}>+ Add a source</ButtonLink>
@@ -48,11 +54,6 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
         to change it. Every change is kept with who made it and why.
       </p>
       <RebuildBanner />
-      <div className="tabs">
-        {[["datasets", "Datasets"], ["systems", "Systems & connections"], ["rules", "Rules"]].map(([k, label]) => (
-          <a key={k} className={view === k ? "on" : ""} href={href("/sources", { view: k })}>{label}</a>
-        ))}
-      </div>
       {view === "datasets" && <Datasets />}
       {view === "systems" && <Systems />}
       {view === "rules" && <Rules />}

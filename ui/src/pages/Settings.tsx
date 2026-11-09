@@ -45,8 +45,8 @@ function Configuration({ query }: { query: URLSearchParams }) {
       <PageHeader subtitle="Your browser preferences and the facility's operational configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
-        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Application configuration</a>
-        <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>Configuration</a>
+        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Readiness</a>
+        <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
       </nav>
       {!configuration ? <ApplicationReadiness list={list} /> : <>
       <p className="muted">

@@ -471,7 +471,7 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-mobile.png`, fullPage: true });
   await page.getByRole("main").getByRole("link", { name: "Settings", exact: true }).click();
-  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Application readiness", exact: true }).waitFor();
   await page.getByText("Attention: the owner bootstrap secret", { exact: false }).waitFor();
   assert.equal(await page.getByRole("heading", { name: "Source readiness", exact: true }).count(), 0);
   await page.getByRole("link", { name: "Configure assistant", exact: true }).click();
@@ -480,7 +480,7 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   await page.getByText("agents.api_key", { exact: true }).waitFor();
   assert.equal(await page.getByText("sources.pi.url", { exact: true }).count(), 0);
   await page.goBack();
-  await page.getByRole("heading", { name: "Application configuration", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Application readiness", exact: true }).waitFor();
   await page.getByRole("link", { name: "Assistant limits", exact: true }).click();
   assert.equal(await page.getByRole("textbox", { name: "Filter settings" }).inputValue(), "assistant.");
   await page.getByText("assistant.timeout_seconds", { exact: true }).waitFor();
@@ -793,6 +793,37 @@ test("a match review spells out its reasons and where its score sits against the
   await page.getByText("Same tag 76-HCV-1003; description similarity 1.00", { exact: false }).waitFor();
   await page.getByText("scores from 0.60 to 0.90 come here for a person to decide", { exact: false }).waitFor();
   await page.getByLabel("Match score 0.70 of 1").waitFor();
+});
+
+test("an event grouped on two units says which unit each incident is on and links the other (#402)", async () => {
+  const inc = (id, unit) => ({ id, description: "Train C trip", unit, start: "2024-11-05", end: "2024-11-05", signals: 2, events: 1,
+    downtime_records: 1, notifications: 0, lost_oil_sm3: 300 });
+  await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 2,
+    items: [inc("fz-incident-000000000001", "20-V-2001"), inc("fz-incident-000000000002", "20-V-2101C")] } }));
+  await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
+  await page.goto(`${url}/#/incidents`);
+  await page.getByText("on 20-V-2001", { exact: true }).waitFor();
+  const first = page.locator(".timeline li").first();
+  await first.getByText("also on", { exact: false }).waitFor();
+  assert.equal(await first.getByRole("link", { name: "20-V-2101C", exact: true }).getAttribute("href"), "#/e/fz-incident-000000000002");
+});
+
+test("the map fits the field's wells and platforms, not the export line, and says when base tiles fail (#398)", async () => {
+  const pt = (id, kind, lon, lat) => ({ type: "Feature", id, geometry: { type: "Point", coordinates: [lon, lat] }, properties: { kind, label: id } });
+  await page.route("**/map", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [
+    pt("W1", "well", 5.000, 4.000), pt("W2", "well", 5.010, 4.010), pt("P1", "area", 5.005, 4.005),
+    { type: "Feature", id: "L1", geometry: { type: "LineString", coordinates: [[5.005, 4.005], [6.5, 5.5]] },
+      properties: { kind: "pipeline", service: "oil export", label: "Export" } }] } }));
+  const zooms = [];
+  await page.route("https://tile.openstreetmap.org/**", (route) => {
+    zooms.push(Number(new URL(route.request().url()).pathname.split("/")[1]));
+    return route.fulfill({ status: 503, body: "" });
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/map`);
+  await page.getByText("Base map unavailable", { exact: false }).waitFor();
+  // Fitted to points about 1 km apart the tiles come at a close zoom; fitting the 200 km export line would ask for about 8.
+  assert.ok(Math.max(...zooms) >= 12, `expected a close fit to the field, tiles came at zoom ${[...new Set(zooms)]}`);
 });
 
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {

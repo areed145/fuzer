@@ -110,6 +110,7 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [basemapName, setBasemapName] = useState<Basemap>(basemap ? "osm" : "none");
   const [mapMessage, setMapMessage] = useState("");
+  const [baseError, setBaseError] = useState(false);  // #398: say so when the base map tiles can't load
   const [isFullscreen, setIsFullscreen] = useState(false);
   const themeVersion = useTheme();
   const colors = {
@@ -146,10 +147,14 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
     tiles.current = null;
     if (basemapName !== "none") {
       const selected = BASEMAPS[basemapName];
+      setBaseError(false);
+      let loaded = false;
       tiles.current = L.tileLayer(selected.url, {
         maxZoom: selected.maxZoom,
         attribution: selected.attribution,
-      }).addTo(m);
+      }).on("tileload", () => { loaded = true; setBaseError(false); })
+        .on("tileerror", () => { if (!loaded) setBaseError(true); })
+        .addTo(m);
     }
   }, [basemapName]);
 
@@ -272,7 +277,10 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
         .addTo(g);
     }
     if (shown.length) {
-      const bounds = L.geoJSON({ type: "FeatureCollection", features: shown } as GeoJSON.FeatureCollection).getBounds();
+      // Fit to the wells and platforms where the work is, not the export lines running off to a terminal (#398);
+      // lines count only when no points are shown.
+      const fit = points.length ? points : shown;
+      const bounds = L.geoJSON({ type: "FeatureCollection", features: fit } as GeoJSON.FeatureCollection).getBounds();
       if (bounds.isValid()) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
     }
   }, [data, hidden, focus, themeVersion]);
@@ -353,6 +361,8 @@ export function MapView({ data, focus, height = "70vh", basemap = true }: {
           </Button>
         </div>
         {mapMessage && <div className="map-message" role="status">{mapMessage}</div>}
+        {baseError && basemapName !== "none" && <div className="map-message" role="status">
+          Base map unavailable: its tiles could not load, so features are drawn on a plain background.</div>}
         <div ref={el} className={`map${basemapName === "none" ? "" : ` map-basemap-${basemapName}`}`} style={{ height }} />
       </div>
     </div>

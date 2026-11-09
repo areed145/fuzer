@@ -12,7 +12,7 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
   const rows = list.data?.settings ?? [];
   const deployment = list.data?.deployment;
   return <div>
-    <h2>Application configuration</h2>
+    <h2>Application readiness</h2>
     <p>Application-wide defaults, sign-in references and optional AI. For connecting, testing, loading and
       recovering source data, open <a href={href("/sources")}>Sources</a>. Viewing this page makes no changes or AI calls.</p>
     <Button disabled={list.loading} onClick={list.reload}>Refresh configuration</Button>

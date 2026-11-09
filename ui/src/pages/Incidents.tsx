@@ -13,7 +13,8 @@ export function IncidentsPage() {
       <PageHeader>Incidents</PageHeader>
       <p className="muted">
         Logged events, downtime records and SAP notifications on the same piece of plant within a few days of each
-        other, grouped into one upset. Newest first. Lost production ranked by cause is
+        other, grouped into one upset per piece of plant, so a trip that touched two units shows once on each, marked
+        "also on". Newest first. Lost production ranked by cause is
         under <a href={href("/downtime")}>Downtime</a>; each day's story is in <a href={href("/reports")}>Daily reports</a>.
       </p>
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
@@ -33,6 +34,8 @@ export function IncidentsPage() {
 }
 
 export function IncidentList({ items }: { items: Incident[] }) {
+  // The same event grouped on more than one unit (#402): same start, same description.
+  const twins = (i: Incident) => items.filter((o) => o.id !== i.id && o.start === i.start && o.description === i.description);
   return (
     <ul className="timeline card">
       {items.map((i) => (
@@ -41,6 +44,9 @@ export function IncidentList({ items }: { items: Incident[] }) {
           <div className="what">
             <a href={entityHref(i.id)}>{i.description}</a>
             <div className="row small muted">
+              {i.unit && <span>on {i.unit}</span>}
+              {twins(i).length > 0 && <span>also on {twins(i).map((o, n) => <span key={o.id}>{n > 0 && ", "}
+                <a href={entityHref(o.id)}>{o.unit || "another unit"}</a></span>)}</span>}
               {i.downtime_records > 0 && <UIBadge className="badge event-type">downtime</UIBadge>}
               {i.events > 0 && <span>{i.events} events</span>}
               {i.notifications > 0 && <span>{i.notifications} notifications</span>}
