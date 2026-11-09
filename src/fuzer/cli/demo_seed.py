@@ -28,8 +28,14 @@ def refresh(conn, folder: Path, pack=None) -> None:
             if stats[outcome]:
                 print(f"Data refresh {outcome}: {', '.join(stats[outcome])}", flush=True)
         if seeded or changed:
-            built = pipeline.rebuild(conn, pack or load_pack("okan"))
-            print(f"Data refreshed: {changed} records changed, {built['entities']} entities.", flush=True)
+            pack = pack or load_pack("okan")
+            built = pipeline.rebuild(conn, pack)
+            # what follows every register build (the work board, plan and SAP notification intake), so work in the
+            # new records reaches the IOC's queue at deploy, not at the next scheduled register run
+            notified = pipeline.follow_register(conn, pack)["notifications"]
+            conn.commit()
+            print(f"Data refreshed: {changed} records changed, {built['entities']} entities, "
+                  f"{notified.get('raised', 0)} notifications raised.", flush=True)
         else:
             print("Data unchanged.", flush=True)
     except Exception as e:  # noqa: BLE001 - startup reports it and the application still starts
