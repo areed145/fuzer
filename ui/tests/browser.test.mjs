@@ -1945,7 +1945,9 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
     { ...base, id: 1, kind: "maintenance", title: "Replace P-101 seal", source_key: "4000001", start_at: at(2), end_at: at(3),
       status: "scheduled", needs_shutdown: false,
       clashes: [{ kind: "bundle", with: 2, title: "North train overhaul", say: "could be done during “North train overhaul”" },
-        { kind: "same_asset", with: 3, title: "Lube P-101", say: "at the same time as “Lube P-101” on the same asset" }] },
+        { kind: "same_asset", with: 3, title: "Lube P-101", say: "at the same time as “Lube P-101” on the same asset" }],
+      parts_short: [{ id: "fz-material-0123456789ab", label: "10001 seal kit", description: "Mechanical seal", mpn: null, bin: null,
+        for: "fz-equipment-0123456789ab" }] },
     { ...base, id: 2, kind: "turnaround", title: "North train overhaul", source_key: "4000002", start_at: at(10), end_at: at(15),
       status: "proposed", needs_shutdown: true, clashes: [] },
   ];
@@ -1959,6 +1961,8 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.getByRole("button", { name: /Replace P-101 seal/ }).click();
   await page.getByText(/Clash: at the same time as “Lube P-101”/).waitFor();
   await page.getByText(/Bundle: could be done during/).waitFor();
+  await page.getByText("1 waiting on parts").waitFor();
+  await page.getByText(/no stock on record.*10001 seal kit \(Mechanical seal\)/).waitFor();
   await page.getByLabel("Crew").fill("fred");
   await page.getByRole("button", { name: "Reschedule" }).click();
   await expectReports(changes, 1);

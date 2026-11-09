@@ -34,6 +34,7 @@ export function PlanPage() {
   const pos = (at: string) => Math.min(100, Math.max(0, ((new Date(at).getTime() - t0) / (t1 - t0)) * 100));
   const clashes = plan.data.filter((i) => i.clashes.some((c) => c.kind !== "bundle")).length;
   const bundles = plan.data.filter((i) => i.clashes.some((c) => c.kind === "bundle")).length;
+  const waiting = plan.data.filter((i) => i.parts_short?.length).length;
   const today = pos(new Date().toISOString());
   return (
     <section>
@@ -48,6 +49,7 @@ export function PlanPage() {
         <Badge>{plan.data.length} items</Badge>
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}
+        {waiting > 0 && <Badge tone="warn">{waiting} waiting on parts</Badge>}
       </div>
       {busy && <p role="status">{busy}…</p>}
       {error && <p role="alert" className="error">{error}</p>}
@@ -61,6 +63,7 @@ export function PlanPage() {
               {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
               {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
               {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
+              {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
             </button>
             <div className="plan-track" aria-hidden="true">
               {today > 0 && today < 100 && <span className="plan-today" style={{ left: `${today}%` }} />}
@@ -85,6 +88,9 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
     <div className="plan-detail">
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
         {c.kind === "bundle" ? "Bundle: " : "Clash: "}{c.say}</p>)}
+      {!!item.parts_short?.length && <p className="small">
+        Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
+          `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</p>}
       <p className="small">{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</p>
       <p className="small muted">{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · $${Math.round(item.deferment_usd).toLocaleString()} at risk` : ""}</p>

@@ -414,6 +414,8 @@ export interface PlanItem {
   crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
   exception_id: number | null; notes: string | null; assets: { fuzer_id: string; label: string | null }[];
   clashes: { kind: "same_asset" | "crew" | "bundle"; with: number; title: string; say: string }[];
+  /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
+  parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
 }
 
 /** A turnaround's scope read against the plan (GET /turnarounds). */
