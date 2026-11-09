@@ -131,6 +131,11 @@ def add_dataset(conn, name: str, system_name: str, by: str, reason: str | None =
         raise CatalogError(f"dataset {name!r} already exists")
     s = system(conn, system_name) or add_system(conn, system_name, by, kind=SYSTEM_KINDS.get(system_name),
                                                 reason=f"for dataset {name}")
+    if (via := values.pop("connection", None)) is not None:  # a connection of this system by name (#417)
+        r = conn.execute("select id from source_connection where system_id = %s and name = %s", (s["id"], str(via))).fetchone()
+        if not r:
+            raise CatalogError(f"system {system_name!r} has no connection {via!r}")
+        values["connection_id"] = r["id"]
     _changes({}, values, (*DATASET_FIELDS, "seeded"))
     _check_dataset(values)
     values.setdefault("connection_id", _default_connection(conn, s["id"]))

@@ -175,12 +175,28 @@ def test_sources_cli_preserves_domain_load_results_and_errors(conn, data):
     assert catalog.runs(conn, "sap_equipment")[0]["trigger"] == "manual"
     assert sources.run(conn, None, data, args)["unchanged"] == ["sap_equipment"]
     args.names = ["typo"]
-    with pytest.raises(SystemExit, match="no dataset 'typo'"):
+    with pytest.raises(SystemExit, match="no dataset 'typo'.*looked in the data folder"):
         sources.run(conn, None, data, args)
     args.names = ["sap_equipment"]
     catalog.pause(conn, "sap_equipment", "ana")
     conn.commit()
     assert sources.run(conn, None, data, args)["paused"] == ["sap_equipment"]
+
+
+def test_add_dataset_picks_a_named_connection_and_says_which(conn, data):
+    from types import SimpleNamespace
+
+    from fuzer.cli import sources
+
+    catalog.add_system(conn, "sap", "ana")
+    catalog.add_connection(conn, "sap", "extracts", "folder", "ana", {"path": str(data)}, {})
+    conn.commit()
+    args = SimpleNamespace(action="add-dataset", by="cli", reason=None, names=["sap_extra", "sap"],
+                           set=["connection=extracts", "record_type=equipment"])
+    assert sources.run(conn, None, data, args)["connection"] == "extracts"
+    args.names, args.set = ["sap_extra2", "sap"], ["connection=nope"]
+    with pytest.raises(SystemExit, match="no connection 'nope'"):
+        sources.run(conn, None, data, args)
 
 
 def test_read_failure_is_recorded_once_and_requires_a_deliberate_retry(conn, data, monkeypatch):
