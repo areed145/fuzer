@@ -17,7 +17,7 @@ export function ExceptionsPage() {
   const people = useAsync(() => api.workPeople(), []);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const types = [...new Set(rows.data.map((r) => r.type))].sort();
-  const waiting = rows.data.filter((r) => !r.item_id && r.state === "open");
+  const waiting = rows.data.filter((r) => !r.item_id && !r.planned && r.state === "open");
   return (
     <section>
       <PageHeader subtitle={<>Every exception raised by Fuzer's detectors, other systems and the field, once per open
@@ -100,6 +100,8 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
         {r.unmatched.length > 0 && <div className="muted">unmatched: {r.unmatched.join(", ")}</div>}</td>
       <td className="small">{r.raised_count}× · last {when(r.last_seen)}</td>
       <td className="small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
+        : r.planned ? <a href={href("/plan")}>planned {new Date(r.planned.start_at).toLocaleDateString(undefined,
+          { day: "numeric", month: "short" })}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <span className="muted">not dispatched</span>}</td>
       <td className="small">{r.state === "open" && person && <div className="row">
         <Input list={`people-${r.id}`} aria-label="Dispatch to" placeholder="person" value={to}

@@ -162,11 +162,16 @@ def reconcile(conn) -> dict:
 
 def listing(conn, state: str | None = OPEN, type: str | None = None, subject: str | None = None,
             audience: str | None = None, limit: int = 200) -> list[dict]:
-    """Exceptions, most valuable then newest first, with the case that works them and who has it."""
+    """Exceptions, most valuable then newest first, with the case that works them and who has it, and when it is
+    planned if the IOC put it on the integrated plan instead of working it now."""
     names = [n for n, t in types(conn).items() if audience is None or audience in t.audience]
     return conn.execute(
         """
-        select e.*, w.state as case_state, w.assignee, w.role from exception_record e
+        select e.*, w.state as case_state, w.assignee, w.role,
+               (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
+                from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
+                order by p.start_at limit 1) as planned
+        from exception_record e
         left join work_item w on w.id = e.item_id
         where (%(state)s::text is null or e.state = %(state)s) and (%(type)s::text is null or e.type = %(type)s)
           and (%(subject)s::text is null or %(subject)s = any(e.subjects))
