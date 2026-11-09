@@ -8,7 +8,8 @@
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
 two items at once. Bundling: an item due within BUNDLE_DAYS of a turnaround or shutdown of its area could be
-done in it (and one that needs the unit down should be).
+done in it (and one that needs the unit down should be). Readiness: active work starting within READY_DAYS lists
+its assets' spare parts recorded with zero stock (`parts_short`), so stores can be asked before the crew turns up.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
@@ -18,6 +19,7 @@ from ..core.plan import KINDS, STATUSES, PlanError
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
 SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
+READY_DAYS = 30  # how far ahead planned work is checked for spare parts out of stock
 BUNDLE_DAYS = 21
 FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "needs_shutdown", "deferment_usd", "notes")
 
@@ -167,9 +169,29 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         order by p.start_at, p.id
         """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject}).fetchall()
     clashes = _clashes(rows)
-    return [{**r, "clashes": clashes[r["id"]]} for r in rows
-            if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
-            and (crew is None or r["crew"] == crew)]
+    shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
+             and (crew is None or r["crew"] == crew)]
+    short = _parts_short(conn, shown, now)
+    return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], [])} for r in shown]
+
+
+def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]:
+    """For active items starting within READY_DAYS (and not yet over): the spare parts of their assets whose
+    recorded stock is zero, by item id. A part with no stock record is not reported (unknown is not short), and
+    a stock count is not a reservation: this says what to check with stores, not what is booked."""
+    from ..graph import queries
+    by_asset: dict[str, list[dict]] = {}
+    out: dict[int, list[dict]] = {}
+    for r in rows:
+        if r["status"] not in ACTIVE or r["end_at"] < now or r["start_at"] > now + timedelta(days=READY_DAYS):
+            continue
+        for s in r["subjects"]:
+            if s not in by_asset:
+                by_asset[s] = [{"id": p["fuzer_id"], "label": p["label"], "description": p["description"],
+                                "mpn": p["mpn"], "bin": p["bin"], "for": s} for p in queries.spares(conn, s)
+                               if p["stock"] is not None and p["stock"] <= 0]
+            out.setdefault(r["id"], []).extend(by_asset[s])
+    return out
 
 
 def coming_up(conn, person: str, days: int = 14) -> list[dict]:

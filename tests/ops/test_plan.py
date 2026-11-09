@@ -154,3 +154,28 @@ def test_maintenance_plans_put_their_next_due_task_on_the_plan_and_roll_forward(
     assert out["added"] == 1 and out["rolled_forward"] == 1
     assert conn.execute("select status from plan_item where id = %s", (psv["id"],)).fetchone()["status"] == "done"
     conn.rollback()
+
+
+def test_work_starting_soon_shows_spare_parts_with_no_stock(conn):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-mat-seal', 'material'), ('fz-mat-brg', 'material'), "
+                 "('fz-mat-oring', 'material') on conflict do nothing")
+    conn.execute("insert into entity_label (fuzer_id, label) values ('fz-mat-seal', '10001 seal kit') "
+                 "on conflict do nothing")
+    for m in ("fz-mat-seal", "fz-mat-brg", "fz-mat-oring"):
+        conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-pump-1', 'uses_part', %s, "
+                     "'{t}', 1)", (m,))
+    for m, stock in (("fz-mat-seal", 0), ("fz-mat-brg", 4)):  # the o-ring has no stock record: unknown, not short
+        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'stock', %s, 'sap', 't')",
+                     (m, Jsonb(stock)))
+    soon = propose(conn, "maintenance", "Reseal P-101", "ann", now + timedelta(days=5), now + timedelta(days=6),
+                   refs=["fz-pump-1"])
+    later = propose(conn, "maintenance", "Reseal P-101 again", "ann", now + timedelta(days=45), now + timedelta(days=46),
+                    refs=["fz-pump-1"])
+    rows = {r["id"]: r for r in plan.items(conn, now, now + timedelta(days=60))}
+    assert [p["id"] for p in rows[soon["id"]]["parts_short"]] == ["fz-mat-seal"]
+    assert rows[soon["id"]]["parts_short"][0]["label"] == "10001 seal kit"
+    assert rows[later["id"]]["parts_short"] == []  # too far out to chase yet
+    conn.rollback()
