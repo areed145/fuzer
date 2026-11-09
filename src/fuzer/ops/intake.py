@@ -7,12 +7,14 @@ planners. When an order is raised for it, or SAP completes it, the exception cle
 
     sync_notifications(conn)   run on each register refresh, after the SAP records are rebuilt
 
-Only notifications created in the last MAX_AGE_DAYS (counted back from the latest data, so a historical asset
-reads as current) are raised: an old backlog is a planning question, not a queue of things to send someone to.
+It is off until a deployment turns on the `intake.sap_notifications` setting. Only notifications created in the
+last `intake.sap_notifications.max_age_days` (counted back from the latest data, so a historical asset reads as
+current) are raised: an old backlog is a planning question, not a queue of things to send someone to.
 """
 
 from datetime import date, timedelta
 
+from ..core import settings
 from ..core.exceptions import clear_exception, exception_type, raise_exception
 from ..graph.operations import as_of
 
@@ -21,7 +23,6 @@ SAP_NOTIFICATION = exception_type(
     description="An open SAP maintenance notification with no work order raised for it yet.").name
 
 OPEN = ("OSNO", "NOPR")  # SAP: outstanding, in process; NOCO (completed) and the rest are closed
-MAX_AGE_DAYS = 30
 BY = "sap"
 
 
@@ -37,9 +38,13 @@ def _priority(f: dict) -> float | None:
         return None
 
 
-def sync_notifications(conn, max_age_days: int = MAX_AGE_DAYS) -> dict:
+def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | None = None) -> dict:
     """Raise an exception for each recent open notification without a work order; clear the ones that got an
-    order or closed. Returns counts."""
+    order or closed. Returns counts. Off (nothing raised, nothing cleared) unless the setting turns it on."""
+    if not (settings.get(conn, "intake.sap_notifications") if enabled is None else enabled):
+        return {"raised": 0, "cleared": 0, "enabled": False}
+    if max_age_days is None:
+        max_age_days = settings.get(conn, "intake.sap_notifications.max_age_days")
     since = (date.fromisoformat(as_of(conn)) - timedelta(days=max_age_days)).isoformat()
     rows = conn.execute(
         """

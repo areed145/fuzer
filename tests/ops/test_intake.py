@@ -46,14 +46,19 @@ def _open(conn):
         "select * from exception_record where type = 'sap_notification' and state = 'open'")}
 
 
+def test_it_is_off_until_a_deployment_turns_it_on(conn):
+    assert intake.sync_notifications(conn) == {"raised": 0, "cleared": 0, "enabled": False}
+    assert not _open(conn)
+
+
 def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
-    assert intake.sync_notifications(conn) == {"raised": 1, "cleared": 0}
+    assert intake.sync_notifications(conn, enabled=True) == {"raised": 1, "cleared": 0}
     rows = _open(conn)
     assert set(rows) == {"1001"}  # not the closed one, the one with an order, or the old backlog
     n = rows["1001"]
     assert n["subjects"] == ["fz-pump-1"] and n["priority"] == 3 and n["item_id"] is None  # waits to be dispatched
     assert n["evidence"]["failure_mode"] == "ELU" and "P-101 seal weeping" in n["title"]
-    assert intake.sync_notifications(conn) == {"raised": 0, "cleared": 0}
+    assert intake.sync_notifications(conn, enabled=True) == {"raised": 0, "cleared": 0}
     assert _open(conn)["1001"]["raised_count"] == 1  # a refresh is not a repeat sighting
     conn.commit()
 
@@ -61,11 +66,11 @@ def test_open_notifications_without_an_order_are_raised_once_and_matched(conn):
 def test_an_order_or_completion_clears_it(conn):
     conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-wo-9', 'for_notification', "
                  "'fz-n-1', '{t}', 1)")
-    assert intake.sync_notifications(conn)["cleared"] == 1
+    assert intake.sync_notifications(conn, enabled=True)["cleared"] == 1
     assert not _open(conn)
     row = conn.execute("select state, evidence from exception_record where key = '1001'").fetchone()
     assert row["state"] == "cleared"
     conn.rollback()
     conn.execute("update golden set value = '\"NOCO\"' where fuzer_id = 'fz-n-1' and field = 'status'")
-    assert intake.sync_notifications(conn)["cleared"] == 1
+    assert intake.sync_notifications(conn, enabled=True)["cleared"] == 1
     conn.rollback()
