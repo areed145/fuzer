@@ -26,6 +26,7 @@ from .network import (  # noqa: F401
     members,
     neighborhood,
     network,
+    network_rels,
 )
 from .records import (  # noqa: F401
     SEARCH_FIELDS,
