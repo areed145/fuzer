@@ -2,7 +2,7 @@
  * go, the asset and what happened there lately, what was seen, and the few things to say back (on site, done,
  * could not do, a note). What they report lands on the exception as evidence the IOC sees. */
 import { useState } from "react";
-import { api, type FieldJob } from "../api";
+import { api, type FieldJob, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { Due, usePerson, when } from "../work";
@@ -20,11 +20,29 @@ export function FieldPage() {
   const list = jobs.data.jobs;
   return (
     <section className="field-jobs">
-      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first. Tell them when you're on site, when it's done, or why it couldn't be.">
+      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first, then what you're planned onto. Tell them when you're on site, when it's done, or why it couldn't be.">
         My jobs</PageHeader>
       {!list.length && <p className="muted">Nothing dispatched to you right now.</p>}
       {list.map((j) => <Job key={j.id} job={j} person={person} onChange={jobs.reload} />)}
+      {jobs.data.coming_up.length > 0 && <ComingUp items={jobs.data.coming_up} />}
     </section>
+  );
+}
+
+const day = (at: string) => new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+
+/** What they are planned onto over the next two weeks, so tomorrow's job is no surprise today. */
+function ComingUp({ items }: { items: PlanItem[] }) {
+  return (
+    <Card className="field-coming" title="Coming up">
+      <ul className="plain">{items.map((i) => <li key={i.id}>
+        <strong>{day(i.start_at)}</strong>{day(i.end_at) !== day(i.start_at) ? `–${day(i.end_at)}` : ""} · {i.title}{" "}
+        <span className="muted small">{i.kind.replace(/_/g, " ")}{i.needs_shutdown ? " · in the shutdown" : ""}</span>
+        {i.assets.length > 0 && <div className="small">{i.assets.map((a) =>
+          <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</div>}
+        {i.notes && <div className="small muted">{i.notes}</div>}
+      </li>)}</ul>
+    </Card>
   );
 }
 
