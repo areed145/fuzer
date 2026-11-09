@@ -1160,6 +1160,23 @@ Exceptions (core/exceptions.py): anything that should draw the IOC's attention a
 | `closed_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `exception_kind`
+
+Exception types a deployment defines as data (ops/exceptions.define), so other systems (SAP notifications, SCADA alarms, a reporting app) raise them over the API without code. Types declared in code are not stored here.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `label` | text |  |
+| `role` | text, | the queue a case goes to |
+| `process` | text, | or a published BPMN process to start / feed |
+| `case_type` | text |  |
+| `audience` | text[] |  |
+| `close_case_on_clear` | boolean |  |
+| `description` | text |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

@@ -203,8 +203,8 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
 
 - **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `board`, `daily_report`, `exceptions`, `jobs`, `opportunities`, `pipeline`, `sre`, `sre_handoff`, `study`
 - **Uses:** analysis, core, graph, plots, sources, workflow
-- **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `daily_ops_report`, `detection`, `exception_record`, `opportunity`, `point_baseline`, `register_summary`, `sre_run`, `sre_suppress`, `study`, `upset`, `work_item` ([schema](schema.md))
-- **Owns:** `sre_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record` (its `schema.sql`)
+- **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `daily_ops_report`, `detection`, `exception_kind`, `exception_record`, `opportunity`, `point_baseline`, `register_summary`, `sre_run`, `sre_suppress`, `study`, `upset`, `work_item` ([schema](schema.md))
+- **Owns:** `sre_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `exception_kind` (its `schema.sql`)
 - **Settings:** `daily_report.close_cron`, `daily_report.mover_pct`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 

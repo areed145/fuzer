@@ -1,5 +1,6 @@
 """The value ranking, board, daily reports, opportunities and studies."""
 
+import re
 from datetime import date
 from typing import Any, Literal
 
@@ -255,30 +256,97 @@ def exception_field_jobs(person: str, conn=Depends(get_conn)):
 @router.post("/exceptions/{exception_id}/dispatch")
 def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get_conn)):
     """Send an exception to a person or `role:<role>`: its case opens for them, or is handed to them."""
-    from ..core.exceptions import ExceptionError
-    from ..core.work import WorkError
     from ..ops import exceptions
-    _loaded_types()
-    try:
-        row = exceptions.dispatch(conn, exception_id, d.by, d.to, d.reason)
-    except (ExceptionError, WorkError) as e:
-        conn.rollback()
-        raise HTTPException(404 if "no exception" in str(e) else 400, str(e)) from e
-    conn.commit()
-    return row
+    return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
 
 
 @router.post("/exceptions/{exception_id}/report")
 def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note)
+
+
+class ExceptionRaise(BaseModel):
+    by: str
+    type: str
+    key: str
+    title: str
+    refs: list[str] = []
+    priority: float | None = None
+    value_usd: float | None = None
+    evidence: dict[str, Any] = {}
+    source: str | None = None
+
+
+class ExceptionClear(BaseModel):
+    by: str
+    type: str
+    key: str
+    reason: str | None = None
+
+
+class ExceptionKind(BaseModel):
+    by: str
+    label: str
+    role: str | None = None
+    process: str | None = None
+    case_type: str | None = None
+    audience: list[Literal["ioc", "field"]] = ["ioc"]
+    close_case_on_clear: bool = True
+    description: str | None = None
+
+
+def _exception_call(conn, fn, *args, **kwargs):
     from ..core.exceptions import ExceptionError
     from ..core.work import WorkError
-    from ..ops import exceptions
     _loaded_types()
     try:
-        row = exceptions.report(conn, exception_id, r.by, r.status, r.note)
+        out = fn(conn, *args, **kwargs)
     except (ExceptionError, WorkError) as e:
         conn.rollback()
-        raise HTTPException(404 if "no exception" in str(e) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no exception \d", str(e)) else 400, str(e)) from e
     conn.commit()
-    return row
+    return out
+
+
+@router.post("/exceptions")
+def exception_raise(r: ExceptionRaise, conn=Depends(get_conn)):
+    """Raise an exception from another system (or a person): opened once per type and key, matched to entities by
+    `refs` (a Fuzer ID, kind:key or source/key), routed by its type. A repeat updates the open one."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.raise_, r.type, r.key, r.title, r.by, refs=r.refs, priority=r.priority,
+                           value_usd=r.value_usd, evidence=r.evidence, source=r.source)
+
+
+@router.post("/exceptions/clear")
+def exception_clear(c: ExceptionClear, conn=Depends(get_conn)):
+    """The other system says the condition went away: clear the open exception (and close its case, per its type)."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.clear, c.type, c.key, c.by, reason=c.reason) or {"cleared": None}
+
+
+@router.get("/exceptions/types")
+def exception_types(conn=Depends(get_conn)):
+    """Every exception type, whether a module declares it in code or the deployment defined it as data."""
+    from ..ops import exceptions
+    _loaded_types()
+    return exceptions.type_listing(conn)
+
+
+@router.put("/exceptions/types/{name}")
+def exception_type_define(name: str, k: ExceptionKind, conn=Depends(get_conn)):
+    """Define or change a type as data, for another system's exceptions."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.define, name, k.by, k.label, role=k.role, process=k.process,
+                           case_type=k.case_type, audience=tuple(k.audience),
+                           close_case_on_clear=k.close_case_on_clear, description=k.description)
+
+
+@router.delete("/exceptions/types/{name}")
+def exception_type_remove(name: str, conn=Depends(get_conn)):
+    """Remove a type defined as data (refused while any of it is open)."""
+    from ..ops import exceptions
+    if not _exception_call(conn, exceptions.undefine, name):
+        raise HTTPException(404, f"no data-defined type {name}")
+    return {"removed": name}

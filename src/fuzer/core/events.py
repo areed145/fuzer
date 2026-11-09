@@ -18,7 +18,7 @@ from importlib import import_module
 
 from psycopg.types.json import Jsonb
 
-SUBSCRIBERS = ("fuzer.sources.alerts",)
+SUBSCRIBERS = ("fuzer.ops.exceptions", "fuzer.sources.alerts")
 MAX_ATTEMPTS = 5
 Handler = Callable[[object, dict], None]  # (conn, event row)
 HANDLERS: dict[str, list[Handler]] = {}

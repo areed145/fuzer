@@ -400,6 +400,12 @@ export interface ExceptionRow {
   raised_count: number; first_seen: string; last_seen: string;
 }
 
+/** An exception type: declared by a module in code, or defined as data for another system's exceptions. */
+export interface ExceptionKind {
+  name: string; label: string; role: string | null; process: string | null; case_type: string | null;
+  audience: string[]; close_case_on_clear: boolean; description: string; defined_in: "code" | "data"; open: number;
+}
+
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
@@ -430,6 +436,10 @@ export const workApi = {
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
+  exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
+  defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;
+    audience: string[]; description?: string | null }) => request<unknown>("PUT", `/exceptions/types/${encodeURIComponent(name)}`, undefined, k),
+  removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),
   dispatch: (id: number, by: string, to: string, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),

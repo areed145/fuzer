@@ -234,3 +234,18 @@ insert into exception_record (type, key, title, source, priority, subjects, evid
     where w.type = 'integrity' and w.state not in ('done', 'cancelled') and w.payload->'start' ? 'iow'
       and not exists (select 1 from exception_record e where e.item_id = w.id)
     on conflict do nothing;
+
+-- Exception types a deployment defines as data (ops/exceptions.define), so other systems (SAP notifications, SCADA
+-- alarms, a reporting app) raise them over the API without code. Types declared in code are not stored here.
+create table if not exists exception_kind (
+    name                text primary key,
+    label               text not null,
+    role                text,                    -- the queue a case goes to
+    process             text,                    -- or a published BPMN process to start / feed
+    case_type           text,
+    audience            text[] not null default '{ioc}',
+    close_case_on_clear boolean not null default true,
+    description         text,
+    updated_by          text not null,
+    updated_at          timestamptz not null default now()
+);
