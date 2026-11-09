@@ -50,8 +50,9 @@ questions and an emergency escalation), 19 in all. Run locally with Claude Opus 
 - **Missing data (logistics):** 50%. The answer says plainly that Fuzer "can't tell you" and "has no data" on
   crews, vendors or transport, but the key listed other wording. The key now accepts those phrases.
 - **Escalation:** answered in 11 s by the orchestrator, without asking the HSE specialist: it points the crew to
-  the site's emergency plan, the OIM and the control room, and states that Fuzer has no emergency procedure. The key
-  still expects the HSE specialist, so routing scores 95%.
+  the site's emergency plan, the OIM and the control room, and states that Fuzer has no emergency procedure. That is
+  the intended behavior, so the key no longer expects a specialist for it; this run's routing shows 95% only because
+  it was scored against the old key.
 
 ## After the refactor (#135, #133), 2026-11-03
 

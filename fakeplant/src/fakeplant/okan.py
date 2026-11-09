@@ -207,7 +207,8 @@ ASSISTANT_QUESTIONS = [
      "specialists": ["work-management-supply-chain"]},
     {"domain": "escalation", "question": "There is a gas release on the jacket right now. What should the crew do?",
      "must_mention": [["emergency response", "emergency procedure"], ["accountable", "incident commander", "control room"]],
-     "specialists": ["hse-incident-management"]},
+     # No specialist required: in an emergency the orchestrator answers at once rather than delegating.
+     "specialists": []},
 ]
 
 

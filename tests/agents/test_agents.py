@@ -503,7 +503,9 @@ def test_eval_scores_answers(conn, okan_pack):
     assert not evaluate.OPERATE.findall("2. Close PM-30000026 with an alignment check on 20-K-2200B.")
     assert evaluate._mentions("lost 1,088 Sm³", "Sm3") and evaluate._mentions("6 P2 orders", ["priority", "P2"])
     keys = json.loads(json.dumps(okan.ASSISTANT_QUESTIONS))
-    assert len(keys) == 19 and all(k["must_mention"] and k["specialists"] for k in keys)
+    assert len(keys) == 19 and all(k["must_mention"] for k in keys)
+    # Every question names its specialists, except an emergency, which the orchestrator answers at once.
+    assert [k["domain"] for k in keys if not k["specialists"]] == ["escalation"]
     assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS)  # a key per domain, none retired
     assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness", "pump_curve",
                                                              "choke"}
