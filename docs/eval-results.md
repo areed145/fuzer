@@ -9,28 +9,34 @@ Mechanical checks against `answer_keys/assistant.json`: the facts a good answer 
 
 | Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Cost / answer | Time / answer |
 |---|---|---|---|---|---|---|---|---|---|
+| 2026-11-09 | claude-opus-5-5 | 19 | 94% | 90% | 100% | 95% | 75% | $0.45 | 82.5 s |
 | 2026-11-03 | claude-opus-5-5 | 14 | 94% | 86% | 100% | 100% | 75% | $0.84 | 86 s |
 | 2026-11-02 | claude-opus-5-5 | 14 | 98% | 86% | 100% | 100% | 75% | $0.67 | 102 s |
 | 2026-10-29 | claude-opus-5-5 | 9 | 100% | 100% | 100% | 100% |  | $0.55 | 71 s |
 
-### Latest run by question (2026-11-03)
+### Latest run by question (2026-11-09)
 
 | Question | Specialists | Facts | Missing | Citations | Charts | Tool calls | Time | Cost |
 |---|---|---|---|---|---|---|---|---|
-| curves: Is oil export pump 10-P-1001A performing to its curve, and what… | maintenance, troubleshooter | 100% |  | 9 | vibration, pump_curve | 30 | 85 s | $1.04 |
-| curves: Why did OK-J12-02's choke stop controlling the rate in 2025? | maintenance, production | 100% |  | 9 | choke, custom | 43 | 106 s | $0.83 |
-| charts: Show me the decline on OK-J07-03 and what it will make over the next… | production | 100% |  | 3 | decline, measurements | 9 | 68 s | $0.35 |
-| charts: Which pipelines are losing wall thickness fastest, and why? | maintenance, production | 67% | OK-J03-02 | 1 | custom, custom | 86 | 142 s | $1.50 |
-| troubleshooting: Why did 20-K-2200B keep tripping in March 2024, and what should we… | maintenance, troubleshooter | 100% |  | 4 | trend | 31 | 80 s | $0.87 |
-| production efficiency: What was our production efficiency in 2025, and what were the… | production | 100% |  | 9 | bar | 11 | 56 s | $0.32 |
-| production surveillance: How did oil production trend through 2025, and what explains the… | maintenance, production | 100% |  | 6 | custom, bar, bar | 26 | 72 s | $0.67 |
-| constraint management: What has been limiting production over the last two years, and how… | maintenance, production | 100% |  | 10 | custom, bar | 69 | 168 s | $2.07 |
-| production engineering: Which wells lost the most oil rate in 2025, and why? | production | 100% |  | 8 | bar, decline | 22 | 73 s | $0.44 |
-| reliability: Who are our bad actors over the last two years, and what are their… | maintenance | 50% | MTBF | 3 | bar, bar | 27 | 75 s | $0.63 |
-| work orders: What in the work order backlog should we tackle first? | maintenance | 100% |  | 13 | custom | 13 | 69 s | $0.65 |
-| turnarounds: What is planned for the next turnaround, and what is missing from… | maintenance | 100% |  | 2 | wall_ranking | 7 | 55 s | $0.52 |
-| gas lift: How is lift gas distributed across the headers, and where would… | production | 100% |  | 3 | gas_lift_allocation | 8 | 55 s | $0.39 |
-| across domains: Why does lift gas keep running short, and what should go in the next… | maintenance, production, troubleshooter | 100% |  | 12 | bar, bar | 47 | 98 s | $1.51 |
+| curves: Is oil export pump 10-P-1001A performing to its curve, and what… | field-operations-facilities, maintenance-integrity | 100% |  | 13 | vibration, pump_curve | 20 | 57 s | $0.50 |
+| curves: Why did OK-J12-02's choke stop controlling the rate in 2025? | maintenance-integrity, wells-subsurface | 67% | OK-J12-02 | 9 | choke | 28 | 58 s | $0.45 |
+| charts: Show me the decline on OK-J07-03 and what it will make over the next… | wells-subsurface | 100% |  | 7 | decline, measurements | 8 | 49 s | $0.19 |
+| charts: Which pipelines are losing wall thickness fastest, and why? | maintenance-integrity | 75% | OK-J03-02 or breakthrough | 3 | measurements | 22 | 59 s | $0.29 |
+| troubleshooting: Why did 20-K-2200B keep tripping in March 2024, and what should we… | field-operations-facilities, maintenance-integrity | 100% |  | 7 | trend | 19 | 65 s | $0.47 |
+| production efficiency: What was our production efficiency in 2025, and what were the… | production-surveillance | 100% |  | 8 | bar | 12 | 46 s | $0.29 |
+| production surveillance: How did oil production trend through 2025, and what explains the… | production-surveillance, wells-subsurface | 100% |  | 7 | bar, bar, custom | 22 | 61 s | $0.48 |
+| constraint management: What has been limiting production over the last two years, and how… | field-operations-facilities, maintenance-integrity, production-surveillance | 100% |  | 4 | bar, bar | 42 | 72 s | $0.97 |
+| production engineering: Which wells lost the most oil rate in 2025, and why? | production-surveillance, wells-subsurface | 100% |  | 5 | bar, measurements, custom | 21 | 97 s | $0.56 |
+| reliability: Who are our bad actors over the last two years, and what are their… | maintenance-integrity | 100% |  | 3 | bar | 20 | 68 s | $0.55 |
+| work orders: What in the work order backlog should we tackle first? | work-management-supply-chain | 100% |  | 4 |  | 12 | 52 s | $0.37 |
+| turnarounds: What is planned for the next turnaround, and what is missing from… | work-management-supply-chain | 100% |  | 1 |  | 13 | 51 s | $0.31 |
+| gas lift: How is lift gas distributed across the headers, and where would… | production-surveillance | 100% |  | 3 | gas_lift_allocation | 11 | 51 s | $0.37 |
+| across domains: Why does lift gas keep running short, and what should go in the next… | field-operations-facilities, maintenance-integrity, production-surveillance, work-management-supply-chain | 100% |  | 8 | bar | 54 | 86 s | $1.10 |
+| incident evidence: Give me the recorded timeline and corrective work for the March 2024… | hse-incident-management, work-management-supply-chain | 100% |  | 16 |  | 15 | 282 s | $0.36 |
+| reporting: Summarize 2025 production, losses and the work backlog for the asset… | asset-performance-reporting | 100% |  | 4 | bar, custom | 19 | 322 s | $0.44 |
+| missing data: regulatory: Are we compliant with our flaring permit? | hse-incident-management | 100% |  | 8 | flare | 13 | 39 s | $0.36 |
+| missing data: logistics: Are the crews, vendors and transport ready for the next turnaround? | work-management-supply-chain | 50% | unknown or not available or unavailable or no crew or does not have | 4 |  | 18 | 41 s | $0.41 |
+| escalation: There is a gas release on the jacket right now. What should the crew… |  | 100% |  | 0 |  | 1 | 11 s | $0.09 |
 
 ## Operations loop
 
