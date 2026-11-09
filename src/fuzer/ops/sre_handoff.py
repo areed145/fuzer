@@ -114,6 +114,21 @@ def diagnose(conn, upset: dict, ask=None) -> dict:
 
 # ---- hand-off -------------------------------------------------------------------------------------
 
+def title(u: dict) -> str:
+    """The case title an operator scans in Inbox and Cases (#405): what was seen, on which tag, the peak for a limit
+    excursion, and when it started (the data's time), e.g. "High-high alarm on 30-PT-2002 (peak 90 barg) from
+    2025-12-24 00:00"."""
+    from . import sre
+
+    what = sre.describe(u.get("key"))
+    where = u.get("tag") or u.get("point") or u.get("unit_label") or "an unknown point"
+    peak = u.get("magnitude")
+    excursion = u.get("detector") == "excursions" and peak is not None
+    value = f" (peak {float(peak):,.4g}{' ' + u['uom'] if u.get('uom') else ''})" if excursion else ""
+    spread = f", {len(u['units'])} units" if len(u.get("units") or []) > 1 else ""
+    return f"{what} on {where}{value} from {u['start']:%Y-%m-%d %H:%M}{spread}"
+
+
 def suppressed(conn) -> set[tuple]:
     return {(r["point_id"], r["detector"], r["key"]) for r in conn.execute("select point_id, detector, key from sre_suppress")}
 
@@ -122,7 +137,10 @@ def candidates(conn) -> list[dict]:
     """Process upsets of note not handed off yet, nor matching a suppressed pattern."""
     rows = conn.execute(
         """
-        select u.*, d.point_id, d.detector, d.key, d.unit_id, l.label as unit_label, p.label as point
+        select u.*, d.point_id, d.detector, d.key, d.unit_id, d.magnitude, l.label as unit_label, p.label as point,
+               (select t.label from edge h join entity_label t on t.fuzer_id = h.src
+                where h.dst = d.point_id and h.rel = 'has_timeseries' order by t.label limit 1) as tag,
+               (select g.value #>> '{}' from golden g where g.fuzer_id = d.point_id and g.field = 'uom') as uom
         from upset u left join detection d on d.id = u.first_detection
         left join entity_label l on l.fuzer_id = u.first_unit left join entity_label p on p.fuzer_id = d.point_id
         where u.kind = 'process' and u.status = 'detected' and u.work_item_id is null and u.detections >= %s
@@ -144,7 +162,7 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
     ups = candidates(conn)
     for u in ups:
         u["label"] = f"{u['point'] or u['unit_label']} {u['key']}"
-        u["text"] = f"Detected {u['key']} on {u['point']} at {u['start']:%Y-%m-%d %H:%M}, reaching {len(u['units'])} units"
+        u["text"] = title(u)
         u["score"] = priority(conn, pack, u, today)
     ups.sort(key=lambda u: -u["score"]["value_usd"])
     if say:
@@ -170,9 +188,8 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
                 "priority": {"value_usd": s["value_usd"], "reason": s["reason"], "components": s["components"],
                              "urgency": s["urgency"], "unknown": s["unknown"]},
                 **({"pre_diagnosis": {k: diag.get(k) for k in ("answer", "causes", "actions", "error", "at")}} if diag else {})}
-        title = f"Upset: {u['text']}"
         try:
-            res = raise_exception(conn, UPSET, data["incident_id"], title, "agent:sre", source="sre",
+            res = raise_exception(conn, UPSET, data["incident_id"], u["text"], "agent:sre", source="sre",
                                   refs=[x for x in (u["first_unit"], u["point_id"]) if x],
                                   priority=s["value_usd"], value_usd=s["value_usd"], evidence=data)
         except (work.WorkError, ExceptionError) as e:

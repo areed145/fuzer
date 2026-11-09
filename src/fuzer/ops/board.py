@@ -47,7 +47,9 @@ def _upset_cards(conn) -> list[dict]:
         from upset u left join detection d on d.id = u.first_detection left join entity_label p on p.fuzer_id = d.point_id
         where u.kind = 'process' and u.status in ('detected', 'confirmed') and u.priority_usd is not null
         """).fetchall()
-    return [{"key": f"upset:{r['id']}", "kind": "upset", "title": f"Upset: {r['key']} on {r['point']}",
+    from .sre import describe
+
+    return [{"key": f"upset:{r['id']}", "kind": "upset", "title": f"{describe(r['key'])} on {r['point']}",
              "text": f"{r['detections']} detections from {r['start']:%Y-%m-%d %H:%M}" + (", still going" if r["end"] is None else ""),
              "unit_id": r["first_unit"], "value_usd": r["priority_usd"], "reason": "SRE upset priority (#100)",
              "breakdown": {}} for r in rows]

@@ -77,11 +77,12 @@ function Ranking({ title, rows, error, reload, named }: {
       <Status loading={!rows && !error} error={error} onRetry={reload} empty={rows?.length === 0}>
         Nothing recorded.
       </Status>
-      {rows && rows.length > 0 && <p className="muted small">Oil lost (Sm³)</p>}
+      {rows && rows.length > 0 && <p className="muted small">Oil lost (Sm³){rows.some((r) => r.unattributed)
+        ? "; the last row is loss whose records name no equipment" : ""}</p>}
       <ul className="coverage ranking">
         {rows?.map((r) => (
-          <li key={r.label ?? "none"}>
-            <span title={(named ? r.label : r.description) ?? ""}>
+          <li key={r.label ?? "none"} className={r.unattributed ? "unattributed" : undefined}>
+            <span title={(named || r.unattributed ? r.description : r.label) ?? ""}>
               {r.fuzer_id ? (
                 <a href={entityHref(r.fuzer_id)}>{named ? (r.description ?? r.label) : r.label}</a>
               ) : (

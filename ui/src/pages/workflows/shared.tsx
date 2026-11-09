@@ -9,6 +9,13 @@ export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
 export const processHref = (key: string, tab?: string) => href(`/processes/${key}`, tab ? { tab } : undefined);
 
+/** A case's priority as shown: a 0–1 score to two places, a value in USD rounded. Zero means it has not been scored
+ * yet, which reads as no priority rather than "priority 0.00" (#405). */
+export function priorityText(p: number | null | undefined): string | null {
+  if (p == null || p === 0) return null;
+  return p < 2 ? p.toFixed(2) : Math.round(p).toLocaleString();
+}
+
 /** Most urgent first: overdue (longest first), then due soonest, then highest priority. */
 export function byUrgency<T extends { due_at?: string | null; due?: string | null; priority: number | null }>(a: T, b: T) {
   const due = (x: T) => (x.due_at ?? x.due) ? new Date((x.due_at ?? x.due)!).getTime() : Infinity;

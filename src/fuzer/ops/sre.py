@@ -61,6 +61,31 @@ def _grid(a: datetime, b: datetime, step: int) -> list[datetime]:
     return [a + timedelta(minutes=step * i) for i in range(int((b - a).total_seconds() // 60 // step) + 1)]
 
 
+_LIMIT_WORDS = {"hihi": "high-high", "hi": "high", "lo": "low", "lolo": "low-low"}
+_BASIS_WORDS = {"alarm": "alarm", "iow": "IOW limit", "learned": "learned normal range"}
+_KEY_WORDS = {"stopped": "Stopped", "step": "Step change", "drift_up": "Drifting up", "spe": "Multivariate anomaly",
+              "dp_rising": "Pressure drop rising"}
+
+
+def describe(key: str | None) -> str:
+    """A detection key as words a console operator reads (#405): alarm:hihi is "High-high alarm", iow:hi "High IOW
+    limit", learned:lo "Below learned normal range", instrument:flatline "Instrument fault (flatline)"."""
+    if not key:
+        return "Process upset"
+    if key in _KEY_WORDS:
+        return _KEY_WORDS[key]
+    head, _, tail = key.partition(":")
+    if head in _BASIS_WORDS and tail in _LIMIT_WORDS:
+        if head == "learned":
+            return ("Above" if tail in ("hi", "hihi") else "Below") + " learned normal range"
+        words = f"{_LIMIT_WORDS[tail]} {_BASIS_WORDS[head]}"
+        return words[0].upper() + words[1:]
+    if head == "instrument":
+        return f"Instrument fault ({tail.replace('_', ' ')})"
+    words = key.replace(":", " ").replace("_", " ")
+    return words[0].upper() + words[1:]
+
+
 # ---- detectors ------------------------------------------------------------------------------------
 
 def excursions(conn, pack, since, until, src) -> list[dict]:

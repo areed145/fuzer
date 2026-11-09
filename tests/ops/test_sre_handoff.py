@@ -138,3 +138,21 @@ def test_board_ranks_everything_once(conn, handed_off):
     assert train["cards"] and all(c["unit"] == "20-V-2001" for c in train["cards"])
     steps = mcp_server.next_work("troubleshooter")
     assert [s["board_rank"] for s in steps["steps"]] == sorted(s["board_rank"] or 10 ** 9 for s in steps["steps"])
+
+
+def test_upset_titles_read_as_words():
+    """Case titles name what was seen on which tag, with the peak and the data's time, not raw keys (#405)."""
+    from datetime import datetime
+
+    from fuzer.ops import sre, sre_handoff
+
+    assert sre.describe("alarm:hihi") == "High-high alarm"
+    assert sre.describe("iow:lo") == "Low IOW limit"
+    assert sre.describe("learned:hi") == "Above learned normal range"
+    assert sre.describe("instrument:flatline") == "Instrument fault (flatline)"
+    assert sre.describe("drift_up") == "Drifting up"
+    u = {"key": "alarm:hihi", "detector": "excursions", "magnitude": 90.0, "uom": "barg", "tag": "30-PT-2002",
+         "point": "30PT2002.PV", "start": datetime(2025, 12, 24), "units": ["fz-tag-1"]}
+    assert sre_handoff.title(u) == "High-high alarm on 30-PT-2002 (peak 90 barg) from 2025-12-24 00:00"
+    step = {**u, "key": "step", "detector": "steps", "tag": None, "units": ["a", "b"]}
+    assert sre_handoff.title(step) == "Step change on 30PT2002.PV from 2025-12-24 00:00, 2 units"

@@ -63,14 +63,17 @@ def downtime(conn, fuzer_id: str | None = None, since: str | None = None, until:
 
 def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str | None = None,
                      limit: int = 20) -> list[dict]:
-    """Lost oil ranked by causing tag, by the class of the causing tag, or by reason."""
+    """Lost oil ranked by causing tag, by the class of the causing tag, or by reason. Reasons with no loss are left
+    out; equipment and class rankings end with an `unattributed` row for the loss that names no equipment (or no
+    classified equipment), so each ranking accounts for the whole total (#403)."""
     params = {"id": None, "since": since, "until": until, "limit": limit}
     if by == "reason":
         sql = """
             select coalesce(f->>'reason', 'Unknown') as label, null::text as description, null::text as fuzer_id,
                    count(*) as events, sum((f->>'lost_oil_sm3')::numeric) as lost_oil_sm3,
                    sum((f->>'duration_h')::numeric) as hours
-            from dd group by 1 order by lost_oil_sm3 desc nulls last limit %(limit)s
+            from dd group by 1 having coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) > 0
+            order by lost_oil_sm3 desc nulls last limit %(limit)s
         """
     elif by in ("tag", "class"):
         via = ("join edge k on k.src = c.dst and k.rel = 'classified_as'" if by == "class" else "")
@@ -87,8 +90,24 @@ def downtime_ranking(conn, by: str = "tag", since: str | None = None, until: str
         """
     else:
         raise ValueError("by must be tag, class or reason")
-    return [{**r, "lost_oil_sm3": float(r["lost_oil_sm3"] or 0), "hours": float(r["hours"] or 0)}
+    rows = [{**r, "lost_oil_sm3": float(r["lost_oil_sm3"] or 0), "hours": float(r["hours"] or 0)}
             for r in conn.execute(_DOWNTIME + sql, params)]
+    if by in ("tag", "class"):
+        named = ("exists (select 1 from edge c join edge k on k.src = c.dst and k.rel = 'classified_as' "
+                 "where c.src = dd.id and c.rel = 'caused_by')" if by == "class" else
+                 "exists (select 1 from edge c where c.src = dd.id and c.rel = 'caused_by')")
+        rest = conn.execute(_DOWNTIME + f"""
+            select count(*) as events, coalesce(sum((f->>'lost_oil_sm3')::numeric), 0) as lost_oil_sm3,
+                   coalesce(sum((f->>'duration_h')::numeric), 0) as hours
+            from dd where not {named}
+        """, params).fetchone()
+        if rest["lost_oil_sm3"] > 0:
+            rows.append({"label": "No equipment named" if by == "tag" else "No classified equipment named",
+                         "description": "Downtime whose record names no " + ("equipment" if by == "tag" else
+                                                                               "equipment with a class"),
+                         "fuzer_id": None, "events": rest["events"], "lost_oil_sm3": float(rest["lost_oil_sm3"]),
+                         "hours": float(rest["hours"]), "unattributed": True})
+    return rows
 
 
 def downtime_reason_checks(conn, limit: int = 100) -> list[dict]:
