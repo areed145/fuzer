@@ -211,3 +211,74 @@ def study_rerun(sid: int, by: str = "anonymous", conn=Depends(get_conn)):
         return study.rerun(conn, deps.pack(), sid, by)
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
+
+
+# ---- exceptions: one router for the IOC and the field ------------------------------------------------------------
+
+class ExceptionDispatch(BaseModel):
+    by: str
+    to: str
+    reason: str | None = None
+
+
+class FieldReport(BaseModel):
+    by: str
+    status: Literal["on_site", "done", "could_not_do", "note"]
+    note: str | None = None
+
+
+def _loaded_types() -> None:
+    """Exception types are declared by the modules that raise them; load those so labels and audiences resolve."""
+    from ..analysis import limits  # noqa: F401
+    from ..ops import sre_handoff  # noqa: F401
+    from ..sources import alerts  # noqa: F401
+
+
+@router.get("/exceptions")
+def exception_list(state: str | None = "open", type: str | None = None, subject: str | None = None,
+                   audience: Literal["ioc", "field"] | None = None, limit: int = Query(200, le=1000),
+                   conn=Depends(get_conn)):
+    """Exceptions from every source, most valuable then newest first, with the case working each and who has it."""
+    from ..ops import exceptions
+    _loaded_types()
+    return exceptions.listing(conn, state=state or None, type=type, subject=subject, audience=audience, limit=limit)
+
+
+@router.get("/exceptions/field")
+def exception_field_jobs(person: str, conn=Depends(get_conn)):
+    """A field operator's dispatched jobs: where to go, what was seen, the asset's recent history, the field log."""
+    from ..ops import exceptions
+    _loaded_types()
+    return {"person": person, "jobs": exceptions.field_jobs(conn, person)}
+
+
+@router.post("/exceptions/{exception_id}/dispatch")
+def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get_conn)):
+    """Send an exception to a person or `role:<role>`: its case opens for them, or is handed to them."""
+    from ..core.exceptions import ExceptionError
+    from ..core.work import WorkError
+    from ..ops import exceptions
+    _loaded_types()
+    try:
+        row = exceptions.dispatch(conn, exception_id, d.by, d.to, d.reason)
+    except (ExceptionError, WorkError) as e:
+        conn.rollback()
+        raise HTTPException(404 if "no exception" in str(e) else 400, str(e)) from e
+    conn.commit()
+    return row
+
+
+@router.post("/exceptions/{exception_id}/report")
+def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
+    """A field operator reports back: on site, done, could not do (with why), or a note."""
+    from ..core.exceptions import ExceptionError
+    from ..core.work import WorkError
+    from ..ops import exceptions
+    _loaded_types()
+    try:
+        row = exceptions.report(conn, exception_id, r.by, r.status, r.note)
+    except (ExceptionError, WorkError) as e:
+        conn.rollback()
+        raise HTTPException(404 if "no exception" in str(e) else 400, str(e)) from e
+    conn.commit()
+    return row

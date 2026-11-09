@@ -767,7 +767,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/cases", "#/review", "#/processes"]);
+    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/cases", "#/review", "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -1872,3 +1872,48 @@ test("a rendering failure has a usable recovery screen and Return home restores 
   await page.getByRole("button", { name: "Return home", exact: true }).click();
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
 });
+
+test("a field operator sees a dispatched job on a phone and reports back; the IOC dispatches from Exceptions", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = { id: 7, type: "leak", key: "walk-9", title: "Leak at P-101", source: "olga", state: "open", priority: null,
+    value_usd: 1200, subjects: ["fz-equipment-0123456789ab"], unmatched: ["tag:SPARE-9"], item_id: 31, case_state: "open",
+    assignee: "fred", role: null, raised_count: 2, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z",
+    label: "Leak", due: null, task_id: null, task_name: null,
+    assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump", kind: "equipment", lat: 52.1, lon: 4.1 }],
+    seen: [["drips_per_min", "12"]], history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
+    field: [] };
+  const reports = [];
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job] } }));
+  await page.route("**/exceptions/7/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/field`);
+  await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
+  await page.getByRole("link", { name: "directions" }).waitFor();
+  await page.getByText("drips per min").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Could not do" }).isDisabled(), true);
+  await page.getByRole("button", { name: "On site" }).click();
+  await page.getByLabel(/Note for the IOC/).fill("valve seized");
+  await page.getByRole("button", { name: "Could not do" }).click();
+  await expectReports(reports, 2);
+  assert.deepEqual(reports.map((r) => r.status), ["on_site", "could_not_do"]);
+  assert.equal(reports[1].note, "valve seized");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await waveScreenshot("field-jobs");
+
+  const dispatched = [];
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [{ ...job, item_id: null, assignee: null }] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByText("1 waiting to be dispatched").waitFor();
+  await page.getByLabel("Dispatch to").fill("fred");
+  await page.getByRole("button", { name: "Dispatch" }).click();
+  await expectReports(dispatched, 1);
+  assert.equal(dispatched[0].to, "fred");
+});
+
+async function expectReports(list, n) {
+  for (let i = 0; i < 50 && list.length < n; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(list.length, n);
+}

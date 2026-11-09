@@ -1,0 +1,86 @@
+/** My jobs: what a field operator has been sent to, on a phone. Each job is one exception routed to them: where to
+ * go, the asset and what happened there lately, what was seen, and the few things to say back (on site, done,
+ * could not do, a note). What they report lands on the exception as evidence the IOC sees. */
+import { useState } from "react";
+import { api, type FieldJob } from "../api";
+import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
+import { Status, entityHref, href, useAsync } from "../lib";
+import { Due, usePerson, when } from "../work";
+import { taskHref, useAct } from "./workflows/shared";
+
+const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
+
+export function FieldPage() {
+  const [person] = usePerson();
+  const jobs = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
+  if (!person) return <section><PageHeader>My jobs</PageHeader><Card title="Choose who you are">
+    <p>Use “You are” in the navigation to pick your name; your dispatched jobs then show here.</p>
+  </Card></section>;
+  if (!jobs.data) return <Status loading={jobs.loading} error={jobs.error} />;
+  const list = jobs.data.jobs;
+  return (
+    <section className="field-jobs">
+      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first. Tell them when you're on site, when it's done, or why it couldn't be.">
+        My jobs</PageHeader>
+      {!list.length && <p className="muted">Nothing dispatched to you right now.</p>}
+      {list.map((j) => <Job key={j.id} job={j} person={person} onChange={jobs.reload} />)}
+    </section>
+  );
+}
+
+function Job({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
+  const { busy, error, run } = useAct();
+  const [note, setNote] = useState("");
+  const say = (status: string) => {
+    const sent = note.trim();
+    // Clear only the note that went: words typed while the request was in flight stay.
+    return run(SAID[status], () => api.fieldReport(job.id, person, status, sent || undefined),
+      () => { setNote((n) => (n.trim() === sent ? "" : n)); onChange(); });
+  };
+  const last = job.field[job.field.length - 1];
+  return (
+    <Card className="field-job" title={<>{job.title} <Badge>{job.label}</Badge></>}>
+      <p className="row small">
+        <Due at={job.due} />
+        {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
+        <span className="muted">seen {job.raised_count}× since {when(job.first_seen)}</span>
+      </p>
+      {job.assets.length > 0 && <div>
+        <h3 className="small">Where</h3>
+        <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
+          <a href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id}</a> <span className="muted small">{a.kind}</span>
+          {a.lat != null && a.lon != null && <> · <a href={`https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lon}`}
+            target="_blank" rel="noreferrer">directions</a></>}
+        </li>)}</ul>
+      </div>}
+      {job.unmatched.length > 0 && <p className="small muted">Also named: {job.unmatched.join(", ")}</p>}
+      {job.seen.length > 0 && <div>
+        <h3 className="small">What was seen</h3>
+        <dl className="kv small">{job.seen.map(([k, v]) => <div key={k}><dt>{k.replace(/_/g, " ")}</dt><dd>{v}</dd></div>)}</dl>
+      </div>}
+      {job.history.length > 0 && <div>
+        <h3 className="small">Lately at this asset</h3>
+        <ul className="plain small">{job.history.map((h) => <li key={h.id}>
+          {when(h.first_seen)} · {h.title} <span className="muted">({h.state})</span></li>)}</ul>
+      </div>}
+      {job.field.length > 0 && <div>
+        <h3 className="small">Field log</h3>
+        <ul className="plain small">{job.field.map((f, i) => <li key={i}>
+          {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""} <span className="muted">{f.by}</span></li>)}</ul>
+      </div>}
+      <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
+      <textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      <div className="row field-actions">
+        <Button disabled={!!busy} onClick={() => say("on_site")}>On site</Button>
+        <Button variant="primary" disabled={!!busy} onClick={() => say("done")}>Done</Button>
+        <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
+          onClick={() => say("could_not_do")}>Could not do</Button>
+        <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
+        {job.task_id && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
+        {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
+      </div>
+      {busy && <p role="status">{busy}…</p>}
+      {error && <p role="alert" className="error">{error}</p>}
+    </Card>
+  );
+}

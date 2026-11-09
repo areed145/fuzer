@@ -25,12 +25,15 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from ..core import db
+from ..core.exceptions import ExceptionError, exception_type, raise_exception
 
 COLS = ["record", "limit_type", "point_id", "source", "basis", "value", "unit", "reported", "level", "allowed_minutes",
         "enabled", "valid_from", "valid_to", "note"]
 TYPES = ("lolo", "lo", "hi", "hihi")
 HIGH = {"hi", "hihi"}
 DEFAULTS = {"priority": ["dcs", "pi_af"], "run_signals": [{"uom": "kW", "above": 20}, {"uom": "rpm", "above": 1000}]}
+IOW_BREACH = exception_type("iow_breach", "IOW breach", process="iow_breach", audience=("ioc", "field"),
+                            description="An integrity operating window held past its allowed time.").name
 WORK_LEVELS = {"critical": 2.0, "standard": 1.0}  # IOW classes whose breaches past their time open work, by priority
 MERGE_MINUTES = 30  # outside again within this long is the same excursion
 DEADBAND = 0.01  # of the limit: how far back inside a value must come to end an excursion
@@ -593,8 +596,8 @@ def scan(conn, pack, start: str, end: str, step: int = 10, src=None, point_ids: 
 
 
 def _open_work(conn, rows: list[tuple[dict, dict]]) -> dict:
-    """Start the iow_breach process for one IOW's breaches in a scan (or add them to its open one as
-    evidence) and remember the item on the excursions."""
+    """Raise the IOW's breach exception for its breaches in a scan: its iow_breach process starts, or the open one
+    gets them as evidence. The case is remembered on the excursions."""
     from ..core import work
 
     row, x = max(rows, key=lambda r: r[0]["minutes_outside"])
@@ -612,13 +615,14 @@ def _open_work(conn, rows: list[tuple[dict, dict]]) -> dict:
              f"{row['allowed_minutes'] / 60:g} h")
     ids = [r["id"] for r, _ in rows]
     try:
-        res = work.start_or_correlate(conn, "iow_breach", data, by="agent:sre", title=title,
-                                      subjects=[s for s in (row["point_id"], x.get("unit_id")) if s],
-                                      priority=WORK_LEVELS[row["level"]])
-    except work.WorkError as e:
+        res = raise_exception(conn, IOW_BREACH, iow, title, "agent:sre", source="limits",
+                              refs=[s for s in (row["point_id"], x.get("unit_id")) if s],
+                              priority=WORK_LEVELS[row["level"]], evidence=data)
+    except (work.WorkError, ExceptionError) as e:
         return {"iow": iow, "excursions": ids, "error": str(e)}
     conn.execute("update excursion set work_item_id = %s where id = any(%s)", (res["item_id"], ids))
-    return {"iow": iow, "excursions": ids, "item_id": res["item_id"], "started": res.get("started", True), "title": title}
+    return {"iow": iow, "excursions": ids, "item_id": res["item_id"], "started": res["raised"], "title": title,
+            "exception_id": res["id"]}
 
 
 def _excursion_out(r: dict) -> dict:

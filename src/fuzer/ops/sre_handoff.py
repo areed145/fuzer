@@ -23,9 +23,12 @@ from datetime import datetime
 from psycopg.types.json import Jsonb
 
 from ..core import settings
+from ..core.exceptions import ExceptionError, exception_type, raise_exception
 from ..core.jsonsafe import plain as _plain
 
 # Defaults; the values in effect are settings (#131): sre.handoff.min_detections, .max_diagnoses, .max_usd
+UPSET = exception_type("upset", "Process upset", process="upset", audience=("ioc", "field"),
+                       description="Detections grouped into one upset by time and plant topology.").name
 MIN_DETECTIONS = 3  # a lone detection is evidence, not an upset worth a person's time
 MAX_DIAGNOSES = 10  # per run
 MAX_USD = 5.0  # per run
@@ -169,10 +172,10 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
                 **({"pre_diagnosis": {k: diag.get(k) for k in ("answer", "causes", "actions", "error", "at")}} if diag else {})}
         title = f"Upset: {u['text']}"
         try:
-            res = work.start_or_correlate(conn, "upset", data, by="agent:sre", title=title,
-                                          subjects=[x for x in (u["first_unit"], u["point_id"]) if x],
-                                          priority=s["value_usd"])
-        except work.WorkError as e:
+            res = raise_exception(conn, UPSET, data["incident_id"], title, "agent:sre", source="sre",
+                                  refs=[x for x in (u["first_unit"], u["point_id"]) if x],
+                                  priority=s["value_usd"], value_usd=s["value_usd"], evidence=data)
+        except (work.WorkError, ExceptionError) as e:
             out.append({"upset": u["id"], "error": str(e)})
             continue
         conn.execute("update upset set work_item_id = %s, priority_usd = %s, diagnosis = %s where id = %s",

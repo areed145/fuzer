@@ -19,6 +19,8 @@ import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
+import { FieldPage } from "./pages/Field";
+import { ExceptionsPage } from "./pages/Exceptions";
 import { TaskPage } from "./pages/workflows/Task";
 import { CasePage, CasesPage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
@@ -149,6 +151,10 @@ function App() {
             <TaskPage key={`${path[2]}:${query.get("demo")}`} id={Number(path[2])} demo={query.get("demo") === "workflow"} />
           ) : section === "inbox" || section === "work" ? (
             <InboxPage />
+          ) : section === "field" ? (
+            <FieldPage />
+          ) : section === "exceptions" ? (
+            <ExceptionsPage />
           ) : section === "cases" && path[1] ? (
             <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
           ) : section === "cases" ? (

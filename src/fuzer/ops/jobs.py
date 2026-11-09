@@ -326,11 +326,13 @@ def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
 @dg.op(description="Fire due work-engine timers, escalate person tasks past their SLA (#97) and deliver the "
                    "event outbox.")
 def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
-    from ..core import events
+    from ..core import events, exceptions
     from ..workflow import engine
     with fuzer.connect() as conn:
         context.log.info(f"work tick: {engine.tick(conn)}")
-        context.log.info(f"events: {events.deliver(conn)}")
+        closed = exceptions.reconcile(conn)
+        conn.commit()
+        context.log.info(f"exceptions: {closed}, events: {events.deliver(conn)}")
 
 
 @dg.job(description="Work engine timers and SLAs: re-checks that are due, reminders and escalations.")
