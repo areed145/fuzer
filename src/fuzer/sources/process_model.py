@@ -49,6 +49,9 @@ def load(data_dir) -> "ProcessModel | None":
 class ProcessModel:
     def __init__(self, spec: dict):
         self.seed = int(spec.get("seed", 0))
+        # The site's air temperature (degC): its mean, diurnal and annual swings and the day of the year it peaks.
+        # Okan's offshore tropics are the default; an onshore plant inland sets its own.
+        self.climate = {"mean": 27.5, "diurnal": 2.5, "annual": 1.5, "peak_day": 80, **spec.get("climate", {})}
         self.points: dict[str, tuple[str, str]] = {k: tuple(v) for k, v in spec["points"].items()}
         self.units: dict[str, dict] = spec["units"]
         self.events: dict[str, list[dict]] = {}
@@ -161,7 +164,8 @@ class Window:
     # ---- field ----
 
     def ambient(self) -> np.ndarray:
-        return 27.5 + 2.5 * self.diurnal() + 1.5 * self.annual()
+        c = self.m.climate
+        return c["mean"] + c["diurnal"] * self.diurnal() + c["annual"] * self.annual(c["peak_day"])
 
     def shutdown(self) -> np.ndarray:
         """1 while the whole field is down for planned maintenance."""

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "seed": 23,
+  "climate": {"mean": 10.0, "diurnal": 7.0, "annual": 12.0, "peak_day": 200},
+  "points": {
+    "KRGP:A1.PT1001.PV": ["A1-V-1001", "vessel_pressure"],
+    "KRGP:A1.LT1001.PV": ["A1-V-1001", "liquid_level"],
+    "KRGP:A1.FT1002.PV": ["meter:inlet", "flow"],
+    "KRGP:B1.PT2001.PV": ["B1-K-2001", "discharge_pressure"],
+    "KRGP:B1.TT2002.PV": ["B1-K-2001", "discharge_temperature"],
+    "KRGP:B1.VT2003.PV": ["B1-K-2001", "vibration"],
+    "KRGP:C1.FT3005.PV": ["meter:dry_gas", "flow"],
+    "KR12-03H.THP": ["KR 12-03H", "whp"],
+    "KR12-04H.THP": ["KR 12-04H", "whp"]
+  },
+  "units": {
+    "train:B1": {"type": "train"},
+    "A1-V-1001": {"type": "vessel", "pressure": 25.0, "level": 40},
+    "B1-K-2001": {"type": "compressor", "train": "train:B1", "p_suction": 24.0, "p_discharge": 70.0, "p_settle": 30.0, "vibration": 2.4},
+    "meter:inlet": {"type": "meter", "base": 1420.0},
+    "meter:dry_gas": {"type": "meter", "base": 1385.0},
+    "KR 12-03H": {"type": "well", "kind": "gas", "choke0": 50, "choke": {"cv_max": 100.0, "trim": "linear"}, "p_res": 120.0, "c_gas": 0.107, "k_gas": 0.304},
+    "KR 12-04H": {"type": "well", "kind": "gas", "choke0": 50, "choke": {"cv_max": 100.0, "trim": "linear"}, "p_res": 128.0, "c_gas": 0.111, "k_gas": 0.294}
+  },
+  "events": [
+    {"unit": "train:B1", "kind": "trip", "start": "2026-11-06T03:10", "end": "2026-11-06T06:40"},
+    {"unit": "meter:dry_gas", "kind": "curtail", "start": "2026-11-06T03:10", "end": "2026-11-06T06:40", "factor": 1.0},
+    {"unit": "meter:inlet", "kind": "curtail", "start": "2026-11-06T03:15", "end": "2026-11-06T06:40", "factor": 0.6},
+    {"unit": "A1-V-1001", "kind": "setpoint", "at": "2026-11-06T03:12", "to": 27.5},
+    {"unit": "A1-V-1001", "kind": "setpoint", "at": "2026-11-06T06:45", "to": 25.0},
+    {"unit": "KR 12-03H", "kind": "choke", "at": "2026-11-06T03:15", "to": 10},
+    {"unit": "KR 12-03H", "kind": "choke", "at": "2026-11-06T06:40", "to": 50},
+    {"unit": "KR 12-04H", "kind": "choke", "at": "2026-11-06T03:15", "to": 10},
+    {"unit": "KR 12-04H", "kind": "choke", "at": "2026-11-06T06:40", "to": 50}
+  ]
+}

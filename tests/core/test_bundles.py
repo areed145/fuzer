@@ -302,7 +302,20 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                 from fuzer.sources import timeseries
 
                 assert projects.field("data") == added["data"] and projects.field("timezone") == "America/Denver"
-                assert timeseries.provider().name == "none"  # no historian yet: empty series, not Okan's synthetic
+                # Its own historian: Kestrel's process model, from its own data folder, not Okan's.
+                provider = timeseries.provider()
+                assert provider.name == "synthetic" and provider.model and provider.model.covers("KRGP:B1.PT2001.PV")
+                assert provider.model.climate["mean"] == 10.0  # inland Colorado, not Okan's offshore tropics
+                # Its historian has values, and they move together: the 2026-11-06 compressor trip drops the
+                # compressor's discharge pressure from about 66 barg to its settle-out pressure.
+                from fuzer.analysis import values
+
+                with db.connect(url=url) as k:
+                    k2001 = k.execute("select fuzer_id from entity_key where key = 'B1-K-2001'").fetchone()["fuzer_id"]
+                    got = values.around(k, k2001, "2026-11-06T04:30", 12, 12, pack=pack)
+                pd = {s["point"]: s for s in got["series"]}["KRGP:B1.PT2001.PV"]
+                assert pd.get("modelled") and pd["max"] > 60 and pd["min"] < 35
+                assert all(s["values"] for s in got["series"])
                 # The API's rebuild queue runs Kestrel's rebuild on its own thread, in Kestrel's schema.
                 deps.rebuilder.request()
                 deps.rebuilder.wait()
