@@ -7,6 +7,7 @@ import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { useAct } from "./workflows/shared";
+import { usePermission } from "../Auth";
 
 export function ExceptionsPage() {
   const [person] = usePerson();
@@ -40,7 +41,49 @@ export function ExceptionsPage() {
             people={(people.data ?? []).map((p) => p.name)} onChange={rows.reload} />)}</tbody>
         </Table>}
       </Card>
+      <Kinds person={person} />
     </section>
+  );
+}
+
+/** The exception types: what modules raise, and the ones defined here so other systems (SAP notifications, SCADA
+ * alarms, a reporting app) can raise them through POST /exceptions without code. */
+function Kinds({ person }: { person: string | null }) {
+  const kinds = useAsync(() => api.exceptionKinds(), []);
+  const canConfigure = usePermission("configure");
+  const { busy, error, run } = useAct();
+  const [f, setF] = useState({ name: "", label: "", role: "", field: true });
+  if (!kinds.data) return <Status loading={kinds.loading} error={kinds.error} />;
+  const save = () => run("Saving", () => api.defineExceptionKind(f.name.trim(), {
+    by: person ?? "", label: f.label.trim(), role: f.role.trim() || null, audience: f.field ? ["ioc", "field"] : ["ioc"],
+  }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
+  return (
+    <Card title="Exception types">
+      <p className="muted small">Modules declare the types they raise. Define one here for another system to raise
+        with <code>POST /exceptions</code> (type, key, title, refs); a repeat with the same key updates the open one,
+        and <code>POST /exceptions/clear</code> clears it.</p>
+      <Table variant="results">
+        <thead><tr><th>Type</th><th>Worked by</th><th>Seen by</th><th>Open</th><th>Defined</th><th /></tr></thead>
+        <tbody>{kinds.data.map((k) => <tr key={k.name}>
+          <td><strong>{k.label}</strong> <span className="muted small">{k.name}</span></td>
+          <td className="small">{k.process ? `process ${k.process}` : k.role ?? <span className="muted">waits to be dispatched</span>}</td>
+          <td className="small">{k.audience.join(", ")}</td>
+          <td>{k.open}</td>
+          <td className="small">{k.defined_in}</td>
+          <td>{k.defined_in === "data" && canConfigure && <Button size="sm" disabled={!!busy || k.open > 0}
+            title={k.open ? "Clear its open exceptions first" : undefined}
+            onClick={() => run("Removing", () => api.removeExceptionKind(k.name), kinds.reload)}>Remove</Button>}</td>
+        </tr>)}</tbody>
+      </Table>
+      {canConfigure && person && <div className="row">
+        <Input aria-label="Type name" placeholder="sap_notification" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <Input aria-label="Label" placeholder="SAP notification" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
+        <Input aria-label="Queue" placeholder="role:maintenance (optional)" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} />
+        <label className="small"><input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
+        <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
+      </div>}
+      {error && <p role="alert" className="error">{error}</p>}
+    </Card>
   );
 }
 

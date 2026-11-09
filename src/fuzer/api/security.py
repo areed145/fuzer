@@ -82,7 +82,7 @@ def permission(path: str, method: str) -> str:
     if path.startswith(("/settings", "/sources", "/ontology", "/jobs", "/rebuild")):
         return "configure"
     if method not in ("GET", "HEAD"):
-        if (path.startswith(("/work/definitions", "/work/forms", "/work/roles", "/work/people"))
+        if (path.startswith(("/work/definitions", "/work/forms", "/work/roles", "/work/people", "/exceptions/types"))
                 or path == "/work/tick" or path.endswith("/migrate")):
             return "configure"
         return "operate"

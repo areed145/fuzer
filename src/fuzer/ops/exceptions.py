@@ -11,6 +11,8 @@ States: open (the condition holds), cleared (it went away) and closed (its case 
 raise opens a new exception and a new case, so a closed case never hides a condition that came back).
 """
 
+import re
+
 from psycopg.types.json import Jsonb
 
 from ..core import events, work
@@ -19,10 +21,24 @@ from ..core.exceptions import TYPES, ExceptionError, ExceptionType
 OPEN = "open"
 
 
-def _type(name: str) -> ExceptionType:
-    if name not in TYPES:
-        raise ExceptionError(f"no exception type {name}; declare it with exception_type()")
-    return TYPES[name]
+KIND_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_on_clear", "description")
+
+
+def types(conn) -> dict[str, ExceptionType]:
+    """Every exception type: the ones a deployment defined as data (exception_kind, for other systems' exceptions)
+    and the ones modules declare in code, which win on a clash."""
+    data = {r["name"]: ExceptionType(r["name"], r["label"], role=r["role"], process=r["process"],
+                                     case_type=r["case_type"], audience=tuple(r["audience"]),
+                                     close_case_on_clear=r["close_case_on_clear"], description=r["description"] or "")
+            for r in conn.execute("select * from exception_kind")}
+    return {**data, **TYPES}
+
+
+def _type(conn, name: str) -> ExceptionType:
+    t = TYPES.get(name) or types(conn).get(name)
+    if t is None:
+        raise ExceptionError(f"no exception type {name}; declare it with exception_type() or define it as data")
+    return t
 
 
 def match(conn, refs) -> tuple[list[str], list[str]]:
@@ -43,11 +59,11 @@ def match(conn, refs) -> tuple[list[str], list[str]]:
     return ids, unmatched
 
 
-def _payload(row: dict) -> dict:
+def _payload(row: dict, t: ExceptionType | None = None) -> dict:
     keep = ("id", "type", "key", "title", "source", "state", "priority", "value_usd", "subjects", "unmatched",
             "item_id", "raised_count")
     out = {k: row[k] for k in keep}
-    t = TYPES.get(row["type"])  # its declaring module may not be loaded in this process (the work tick)
+    t = t or TYPES.get(row["type"])  # its declaring module may not be loaded in this process (the work tick)
     out["audience"] = list(t.audience) if t else []
     return out
 
@@ -78,7 +94,7 @@ def _close_if_case_finished(conn, row: dict | None) -> dict | None:
 def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: float | None = None,
            value_usd: float | None = None, evidence: dict | None = None, source: str | None = None,
            assignee: str | None = None, role: str | None = None) -> dict:
-    t = _type(type)
+    t = _type(conn, type)
     if not key:
         raise ExceptionError("an exception needs a key: the source's own identity for the condition")
     subjects, unmatched = match(conn, refs)
@@ -110,12 +126,12 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         row = conn.execute("update exception_record set item_id = %s where id = %s returning *",
                            (item_id, row["id"])).fetchone()
     case = conn.execute("select assignee, role from work_item where id = %s", (item_id,)).fetchone() if item_id else None
-    events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row), **(case or {})})
+    events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row, t), **(case or {})})
     return {**row, "raised": True}
 
 
 def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
-    t = _type(type)
+    t = _type(conn, type)
     row = conn.execute("select * from exception_record where type = %s and key = %s and state = %s for update",
                        (type, key, OPEN)).fetchone()
     if row is None:
@@ -126,7 +142,7 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict
         item = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()
         if item and item["state"] not in ("done", "cancelled"):
             work.close_case(conn, row["item_id"], "done", by, reason=reason or "the condition cleared")
-    events.publish(conn, "exception.cleared", f"exception:{row['id']}", {**_payload(row), "reason": reason})
+    events.publish(conn, "exception.cleared", f"exception:{row['id']}", {**_payload(row, t), "reason": reason})
     return row
 
 
@@ -147,7 +163,7 @@ def reconcile(conn) -> dict:
 def listing(conn, state: str | None = OPEN, type: str | None = None, subject: str | None = None,
             audience: str | None = None, limit: int = 200) -> list[dict]:
     """Exceptions, most valuable then newest first, with the case that works them and who has it."""
-    types = [n for n, t in TYPES.items() if audience is None or audience in t.audience]
+    names = [n for n, t in types(conn).items() if audience is None or audience in t.audience]
     return conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role from exception_record e
@@ -156,7 +172,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
           and (%(subject)s::text is null or %(subject)s = any(e.subjects))
           and (%(all)s or e.type = any(%(types)s))
         order by e.value_usd desc nulls last, e.priority desc nulls last, e.last_seen desc limit %(limit)s
-        """, {"state": state, "type": type, "subject": subject, "all": audience is None, "types": types,
+        """, {"state": state, "type": type, "subject": subject, "all": audience is None, "types": names,
               "limit": limit}).fetchall()
 
 
@@ -180,17 +196,17 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     row = _row(conn, exception_id, lock=True)
     if row["state"] != OPEN:
         raise ExceptionError(f"exception {exception_id} is {row['state']}")
+    t = types(conn).get(row["type"]) or ExceptionType(row["type"], row["type"])
     if row["item_id"]:
         work.dispatch(conn, row["item_id"], by, to, reason)
     else:
-        t = TYPES.get(row["type"]) or ExceptionType(row["type"], row["type"])
         item_id = work.open_case(conn, t.case_type or t.name, row["title"], by, subjects=row["subjects"],
                                  priority=row["priority"], assignee=None if to.startswith("role:") else to,
                                  role=to if to.startswith("role:") else None, source=row["source"],
                                  payload={**row["evidence"], "exception_id": row["id"]})["id"]
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
     row = _row(conn, exception_id)
-    events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row), "to": to, "by": by,
+    events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row, t), "to": to, "by": by,
                                                                             "reason": reason})
     return row
 
@@ -269,13 +285,74 @@ def field_jobs(conn, person: str) -> list[dict]:
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s))
         order by coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
         """, {"p": person}).fetchall()
-    out = []
+    out, known = [], types(conn)
     for r in rows:
         history = conn.execute(
             "select id, title, state, first_seen from exception_record where id <> %s and subjects && %s "
             "and first_seen > now() - interval '90 days' order by first_seen desc limit 5",
             (r["id"], r["subjects"])).fetchall() if r["subjects"] else []
-        t = TYPES.get(r["type"])
+        t = known.get(r["type"])
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, r["subjects"]),
                     "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", [])})
     return out
+
+
+
+# ---- exception types as data: other systems' exceptions without code ------------------------------------------
+
+def define(conn, name: str, by: str, label: str, role: str | None = None, process: str | None = None,
+           case_type: str | None = None, audience=("ioc",), close_case_on_clear: bool = True,
+           description: str | None = None) -> dict:
+    """Define (or change) an exception type as data, so another system (SAP notifications, SCADA alarms, a
+    reporting app) can raise it over the API. Types modules declare in code can't be redefined here."""
+    from ..core.exceptions import AUDIENCES
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", name or ""):
+        raise ExceptionError("a type name is lower case letters, digits and _ (sap_notification, say)")
+    if name in TYPES:
+        raise ExceptionError(f"{name} is declared in code ({TYPES[name].label}); it can't be redefined as data")
+    if bad := set(audience) - set(AUDIENCES):
+        raise ExceptionError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
+    if not (label or "").strip():
+        raise ExceptionError("a type needs a label")
+    return conn.execute(
+        """
+        insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,
+                                    updated_by)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (name) do update set label = excluded.label, role = excluded.role, process = excluded.process,
+            case_type = excluded.case_type, audience = excluded.audience,
+            close_case_on_clear = excluded.close_case_on_clear, description = excluded.description,
+            updated_by = excluded.updated_by, updated_at = now()
+        returning *
+        """, (name, label.strip(), role or None, process or None, case_type or None, list(audience), close_case_on_clear,
+              description, by)).fetchone()
+
+
+def undefine(conn, name: str) -> bool:
+    """Remove a type defined as data; refused while any exception of it is open."""
+    if conn.execute("select 1 from exception_record where type = %s and state = 'open' limit 1", (name,)).fetchone():
+        raise ExceptionError(f"{name} has open exceptions; clear them first")
+    return conn.execute("delete from exception_kind where name = %s", (name,)).rowcount > 0
+
+
+def type_listing(conn) -> list[dict]:
+    """Every type, where it is defined (code or data), and how many of it are open."""
+    open_n = {r["type"]: r["n"] for r in conn.execute(
+        "select type, count(*) as n from exception_record where state = 'open' group by type")}
+    return [{"name": n, "label": t.label, "role": t.role, "process": t.process, "case_type": t.case_type,
+             "audience": list(t.audience), "close_case_on_clear": t.close_case_on_clear, "description": t.description,
+             "defined_in": "code" if n in TYPES else "data", "open": open_n.get(n, 0)}
+            for n, t in sorted(types(conn).items())]
+
+
+@events.subscriber("exception.dispatched")
+def tell_who_was_sent(conn, event: dict) -> None:
+    """Post a dispatch to the alert webhook (Teams / Slack), naming who was sent, so a field operator hears of it
+    without watching the app."""
+    from ..sources import alerts
+
+    e = event["payload"]
+    who = e.get("to") or ""
+    alerts.post(f"Dispatched to {who.removeprefix('role:')}: {e.get('title')}"
+                + (f" ({e['reason']})" if e.get("reason") else ""))

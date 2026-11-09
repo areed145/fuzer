@@ -197,3 +197,51 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     topics = {x["topic"] for x in events.pending(conn) if x["ref"] == f"exception:{e['id']}"}
     assert {"exception.raised", "exception.dispatched", "exception.reported"} <= topics
     conn.commit()
+
+
+def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import ops as ops_api
+
+    app = FastAPI()
+    app.include_router(ops_api.router)
+    app.dependency_overrides[ops_api.get_conn] = lambda: conn
+    client = TestClient(app)
+
+    assert client.put("/exceptions/types/upset", json={"by": "ann", "label": "x"}).status_code == 400  # code's
+    r = client.put("/exceptions/types/sap_notification", json={"by": "ann", "label": "SAP notification",
+                                                               "role": "role:maintenance", "audience": ["ioc", "field"]})
+    assert r.status_code == 200, r.text
+    kinds = {k["name"]: k for k in client.get("/exceptions/types").json()}
+    assert kinds["sap_notification"]["defined_in"] == "data" and kinds["upset"]["defined_in"] == "code"
+
+    body = {"by": "sap", "type": "sap_notification", "key": "N-1001", "title": "M2 notification: seal leak P-101",
+            "refs": ["sap/10004711"], "evidence": {"priority_code": "2"}, "source": "sap"}
+    first = client.post("/exceptions", json=body).json()
+    assert first["raised"] and first["subjects"] == ["fz-pump-1"] and first["item_id"]
+    assert client.post("/exceptions", json=body).json()["raised"] is False
+    assert any(x["id"] == first["id"] for x in client.get("/exceptions", params={"audience": "field"}).json())
+    assert client.delete("/exceptions/types/sap_notification").status_code == 400  # one is open
+    assert client.post("/exceptions", json={**body, "type": "nope"}).status_code == 400
+
+    cleared = client.post("/exceptions/clear", json={"by": "sap", "type": "sap_notification", "key": "N-1001",
+                                                     "reason": "notification completed"}).json()
+    assert cleared["state"] == "cleared"
+    assert conn.execute("select state from work_item where id = %s", (first["item_id"],)).fetchone()["state"] == "done"
+    assert client.delete("/exceptions/types/sap_notification").json() == {"removed": "sap_notification"}
+
+
+def test_a_dispatch_is_posted_to_the_alert_webhook(conn, types, monkeypatch):
+    from fuzer.ops import exceptions as ex
+    from fuzer.sources import alerts
+
+    posted = []
+    monkeypatch.setattr(alerts, "post", lambda text: posted.append(text) or True)
+    types("gas_smell", audience=("ioc", "field"))
+    e = raise_exception(conn, "gas_smell", "pad-4", "Gas smell at pad 4", "olga")
+    ex.dispatch(conn, e["id"], "ann", "fred", reason="closest")
+    conn.commit()
+    events.deliver(conn)
+    assert "Dispatched to fred: Gas smell at pad 4 (closest)" in posted
