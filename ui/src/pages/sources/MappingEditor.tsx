@@ -87,11 +87,16 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
             <Input width="sm" value={form.record_type} onChange={(e) => update({ ...form, record_type: e.target.value })} />
           </td></tr>
           <tr><th>Record key</th><td>
-            <Select multiple value={form.key} onChange={(e) => update({ ...form, key: Array.from(e.target.selectedOptions, (o) => o.value) })}
-              size={Math.min(4, names.length)}>
-              {names.map((n) => <option key={n}>{n}</option>)}
-            </Select>
-            <span className="muted"> the column(s) that identify a row (several: joined by &gt;)</span>
+            {/* Checkboxes rather than a cramped multi-select (#414); several keys join in column order. */}
+            <div className="key-picker" role="group" aria-label="Record key columns">
+              {names.map((n) => (
+                <label key={n} className={`chip${form.key.includes(n) ? " on" : ""}`}>
+                  <input type="checkbox" checked={form.key.includes(n)} onChange={(e) => update({ ...form,
+                    key: names.filter((x) => (x === n ? e.target.checked : form.key.includes(x))) })} /> <code>{n}</code>
+                </label>
+              ))}
+            </div>
+            <span className="muted small">the column(s) that identify a row (several: joined by &gt; in column order)</span>
           </td></tr>
           {form.kind && (
             <tr><th>Matched on</th><td>
