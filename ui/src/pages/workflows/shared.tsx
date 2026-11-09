@@ -1,5 +1,7 @@
 import "../../styles/work.css";
-import { Select , Badge as UIBadge} from "../../ui";
+import { Button, ConfirmAction, Select , Badge as UIBadge} from "../../ui";
+import { useAuth, usePermission } from "../../Auth";
+import { usePerson } from "../../work";
 /** Shared by the Workflows pages: links, urgency order, step badges and an "assign to" picker. */
 import { useState } from "react";
 import { api, type WorkRow } from "../../api";
@@ -13,14 +15,25 @@ const IDLE_MINUTES = 10;
 
 /** An agent step no worker has claimed for a while (#393). Agents only run when an agent worker is running, which
  * `fuzer up` skips without an AI provider; say so instead of letting the step look busy. */
-export function AgentIdle({ step }: { step: { kind: string; unclaimed?: boolean; created_at?: string | null } | null | undefined }) {
+export function AgentIdle({ step, configured, onTakeOver }: {
+  step: { kind: string; unclaimed?: boolean; created_at?: string | null } | null | undefined;
+  /** False: no agents provider, so no worker will ever pick it up; say so straight away. */
+  configured?: boolean;
+  /** Offered with the note: hand the agent's step to yourself and do it as a person step. */
+  onTakeOver?: () => void;
+}) {
   if (!step || step.kind !== "agent" || !step.unclaimed || !step.created_at) return null;
+  const take = onTakeOver && <> <Button size="sm" onClick={onTakeOver}>Take it over</Button></>;
+  if (configured === false) return <span className="small agent-idle" role="note">
+    No AI provider is configured for agents, so no agent worker runs and this step will wait. Take it over to do it
+    yourself, or configure a provider in <a href={href("/settings")}>application settings</a>.{take}
+  </span>;
   const minutes = (Date.now() - new Date(step.created_at).getTime()) / 60_000;
   if (!(minutes >= IDLE_MINUTES)) return null;
   const waited = minutes < 120 ? `${Math.round(minutes)} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} d`;
   return <span className="small agent-idle" role="note">
     Waiting for an agent worker: none has picked this step up in {waited}. The agent worker may not be running; it
-    needs an AI provider, which <a href={href("/settings")}>application settings</a> show.
+    needs an AI provider, which <a href={href("/settings")}>application settings</a> show.{take}
   </span>;
 }
 
@@ -91,4 +104,37 @@ export function useAct() {
     }
   };
   return { busy, error, run };
+}
+
+/** A sample IOC team for a fictional demo field: an ops lead who triages, a field operator who gets dispatched and
+ * a maintenance planner. Offered only where nobody is on the roster, the demo is on and names are attribution, not
+ * accounts (local mode), so a real deployment's roster is never touched. Uses the ordinary roster write. */
+export const SAMPLE_TEAM: { name: string; roles: string[]; does: string }[] = [
+  { name: "riley", roles: ["ops_lead", "engineer"], does: "IOC ops lead: triages and dispatches" },
+  { name: "sam", roles: ["operator"], does: "field operator: gets sent to look" },
+  { name: "pat", roles: ["maintenance_planner"], does: "maintenance planner: raises notifications" },
+];
+
+export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
+  const session = useAuth();
+  const configure = usePermission("configure");
+  const [person, setPerson] = usePerson();
+  const demo = useAsync(() => api.demoConfig(), []);
+  const people = useAsync(() => api.workPeople(), []);
+  const { busy, error, run } = useAct();
+  if (session?.mode === "microsoft" || !configure || !demo.data?.enabled || !people.data || people.data.length) return null;
+  const add = () => run("Adding the sample team", async () => {
+    for (const p of SAMPLE_TEAM) await api.setWorkPerson(p.name, p.roles, person || "demo");
+  }, () => { if (!person) setPerson("riley"); people.reload(); onAdded?.(); });
+  return (
+    <div className="notice small sample-team">
+      <p><strong>Nobody is on the team yet.</strong> Inbox and My jobs need people with roles. For this fictional
+        field, add a sample IOC team, then switch “You are” between them to follow work from triage to the field:</p>
+      <ul className="plain">{SAMPLE_TEAM.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</ul>
+      <ConfirmAction label="Add the sample team" busy={!!busy}
+        consequence="Adds riley, sam and pat to this project's shared roster with the roles shown, and sets you to riley if you haven't picked a name. They are sample names for a demo field; remove them on Teams & routing." onConfirm={add} />
+      {" "}<a href={href("/teams")}>Or add your own people on Teams &amp; routing</a>
+      {error && <p role="alert" className="error">{error}</p>}
+    </div>
+  );
 }
