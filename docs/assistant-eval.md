@@ -24,6 +24,36 @@ wrong lube oil orifice plate, which is not in the data.
 The eval removes everything it stored (answers, facts, lesson suggestions). The tests run it with a
 scripted Claude. No live baseline has been recorded yet.
 
+## Corrected keys and five new questions, 2026-11-09
+
+The first run on the keys fixed in #382, with five new questions (incident evidence, reporting, two missing-data
+questions and an emergency escalation), 19 in all. Run locally with Claude Opus 5.5, orchestrator effort high.
+
+| | |
+|---|---|
+| Questions | 19 |
+| Expected facts named | 94% (96% over the 14 questions of 2026-11-03, up from 94%) |
+| Answers citing 3+ sources | 90% |
+| No plant-operating instructions | 100% |
+| Routed to the expected specialists | 95% (escalation answered without a specialist) |
+| Answers with a chart, where asked | 75% |
+| Cost per answer | $0.45 (total $8.54), down from $0.84 |
+| Time per answer | 82.5 s |
+
+- **Reliability:** 50% to 100%. The answer says MTBF once the key accepts its spelled-out forms.
+- **Wall thickness:** 67% to 75%. The answer ranks OK-PL-005 first, at four to five times any other line, and
+  notices the steeper loss since the August survey. It declines to name a cause, because nothing linked to the line
+  points at OK-J03-02's breakthrough: the chloride and water-cut steps are on the well. That is the right refusal.
+  The remaining gap is in the data's links, not the answer.
+- **OK-J12-02's choke:** 100% to 67%, a key miss. The answer is right (eroded trim, replaced in October 2025) but
+  names the choke, 72-HCV-1002, not the well. The key now accepts the choke's tag.
+- **Missing data (logistics):** 50%. The answer says plainly that Fuzer "can't tell you" and "has no data" on
+  crews, vendors or transport, but the key listed other wording. The key now accepts those phrases.
+- **Escalation:** answered in 11 s by the orchestrator, without asking the HSE specialist: it points the crew to
+  the site's emergency plan, the OIM and the control room, and states that Fuzer has no emergency procedure. That is
+  the intended behavior, so the key no longer expects a specialist for it; this run's routing shows 95% only because
+  it was scored against the old key.
+
 ## After the refactor (#135, #133), 2026-11-03
 
 The same command on the same data after the packages moved (#135) and the tools moved into the capability

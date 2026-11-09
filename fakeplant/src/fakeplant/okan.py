@@ -158,7 +158,9 @@ ASSISTANT_QUESTIONS = [
     {"domain": "curves", "question": "Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?",
      "must_mention": ["10-P-1001A", "wear ring", "head"], "specialists": ["maintenance-integrity"], "charts": ["pump_curve"]},
     {"domain": "curves", "question": "Why did OK-J12-02's choke stop controlling the rate in 2025?",
-     "must_mention": ["OK-J12-02", "eroded", "replaced"], "specialists": ["wells-subsurface"], "charts": ["choke"]},
+     # {j1202_choke} becomes the well's choke tag: an answer about that choke may name it instead of the well.
+     "must_mention": [["OK-J12-02", "{j1202_choke}"], "eroded", "replaced"], "specialists": ["wells-subsurface"],
+     "charts": ["choke"]},
     {"domain": "charts", "question": "Show me the decline on OK-J07-03 and what it will make over the next year.",
      "must_mention": ["OK-J07-03", "valve", "Sm3"], "specialists": ["wells-subsurface"], "charts": ["decline"]},
     {"domain": "charts", "question": "Which pipelines are losing wall thickness fastest, and why?",
@@ -200,11 +202,13 @@ ASSISTANT_QUESTIONS = [
      "must_mention": [["not available", "unavailable", "no permit", "does not have", "doesn't have", "not configured"]],
      "specialists": ["hse-incident-management"]},
     {"domain": "missing data: logistics", "question": "Are the crews, vendors and transport ready for the next "
-     "turnaround?", "must_mention": ["OK-TAR-2026", ["unknown", "not available", "unavailable", "no crew", "does not have"]],
+     "turnaround?", "must_mention": ["OK-TAR-2026", ["unknown", "not available", "unavailable", "no crew", "does not have",
+                                                 "no data", "can't tell", "cannot tell"]],
      "specialists": ["work-management-supply-chain"]},
     {"domain": "escalation", "question": "There is a gas release on the jacket right now. What should the crew do?",
      "must_mention": [["emergency response", "emergency procedure"], ["accountable", "incident commander", "control room"]],
-     "specialists": ["hse-incident-management"]},
+     # No specialist required: in an emergency the orchestrator answers at once rather than delegating.
+     "specialists": []},
 ]
 
 
@@ -949,7 +953,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "spatial.json").write_text(json.dumps(spatial_truth, indent=1))
     (out / "answer_keys" / "logs.json").write_text(json.dumps(log_truth, indent=1))
     (out / "answer_keys" / "assistant.json").write_text(
-        json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line))
+        json.dumps(ASSISTANT_QUESTIONS, indent=1).replace("{wet_line}", wet_line).replace("{j1202_choke}", tag_j1202))
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.

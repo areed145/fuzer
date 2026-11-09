@@ -68,7 +68,7 @@ def test_assistant_keys_name_the_wet_line_and_accept_synonyms(okan_db):
     keys = json.loads((okan_db.data / "answer_keys" / "assistant.json").read_text())
     walls = next(k for k in keys if "wall thickness" in k["question"])
     line = walls["must_mention"][2][0]
-    assert line.startswith("OK-PL-") and "{wet_line}" not in json.dumps(keys)
+    assert line.startswith("OK-PL-") and "{wet_line}" not in json.dumps(keys) and "{j1202_choke}" not in json.dumps(keys)
     readings = (okan_db.data / "inspection_readings.csv").read_text()
     assert f"TM-{line}-01-202511" in readings  # the follow-up survey is on that line
     bad_actors = next(k for k in keys if k["domain"] == "reliability")
