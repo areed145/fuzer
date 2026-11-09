@@ -148,12 +148,15 @@ def rows(okan: Path, version: int = 0, seed: int = 11) -> tuple[list[dict], dict
     return out, truth
 
 
-def write(okan: Path, out_dir: Path, update: bool = False) -> dict:
-    """Write the Delta table (version 0, or version 1 over it with --update) and its answer key."""
+def write(okan: Path, out_dir: Path, update: bool = False, fixed: bool = False) -> dict:
+    """Write the Delta table (version 0, or version 1 over it with --update) and its answer key. `fixed` drops the
+    copied row (the planner's fix after the first load is held on the duplicate key), as a new table version."""
     import pyarrow as pa
     from deltalake import write_deltalake
 
     data, truth = rows(okan, 1 if update else 0)
+    if fixed:
+        data = list({r["activity_id"]: r for r in reversed(data)}.values())[::-1]  # the first of each id
     schema = pa.schema([*((c, pa.string()) for c in ("activity_id", "project_id", "parent_id", "wbs", "name", "location",
                                                        "start", "finish", "baseline_start", "baseline_finish",
                                                        "actual_start", "actual_finish")),

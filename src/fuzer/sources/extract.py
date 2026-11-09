@@ -41,7 +41,21 @@ TRANSFORMS = {
     "upper": lambda v, pack, area: v.upper() if isinstance(v, str) else v,
     "number": lambda v, pack, area: _num(v),
     "model_key": lambda v, pack, area: model_key(v, pack),
+    "date": lambda v, pack, area: iso_date(v),
 }
+
+_ISO = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?)?")
+
+
+def iso_date(v) -> str | None:
+    """A date or date-time as ISO text (2026-04-06, 2026-04-06T07:30). A value in another format is kept as written:
+    the system's date format (formats.py) reads local dates before mapping, so what is left isn't guessed at."""
+    if v in (None, ""):
+        return None
+    m = _ISO.match(str(v).strip())
+    if not m:
+        return str(v).strip()
+    return f"{m.group(1)}T{m.group(2)}" if m.group(2) and m.group(2) != "00:00" else m.group(1)
 
 
 def model_key(v, pack) -> str | None:
@@ -90,8 +104,44 @@ def _tag_or_well(v: str, pack: Pack):
     return None
 
 
+def _place(v: str, pack: Pack):
+    """A plant location written in any of the styles planners and contractors use: a name the pack knows
+    ("ggcp"), the facility, a FLOC (OKAN-20, OKAN-20-K2200B), an area code (20), a tag in any spacing
+    (20-K-2200B, 20K2200B, 20 K 2200B) or a well (OK-J12-07, OK J12 07). None when it names nothing known."""
+    v = str(v or "").strip()
+    if not v:
+        return None
+    if alias := pack.aliases.get(v.lower()):
+        return tuple(alias)
+    u, fac = v.upper(), pack.facility.upper()
+    if u == fac:
+        return "facility", pack.facility
+    if u.startswith(fac + "-"):
+        found = _floc(u, pack)
+        if found and found[1]:
+            return found
+    if pack.tags.is_area(u):
+        return "area", f"{pack.facility}-{u}"
+    if tag := pack.tags.parse(v) or pack.tags.parse(re.sub(r"\s+", "-", v)):
+        return "tag", tag
+    if well := pack.wells.parse(v):
+        return "well", well
+    return None
+
+
+def _document_part(row, pack: Pack):
+    """A row of a documents folder (connectors.DocumentFolder): section 0 is the document itself (by its file name),
+    the others its sections ("<file>#003")."""
+    if not isinstance(row, dict) or not row.get("file"):
+        return None
+    n = int(row.get("section") or 0)
+    return ("document", row["file"]) if n == 0 else ("document_section", f"{row['file']}#{n:03d}")
+
+
 RESOLVERS = {
     "floc": _floc,
+    "document_part": _document_part,
+    "place": _place,
     "af_path": lambda v, pack: _af(v.split("\\"), pack),
     "af_parent": lambda v, pack: _af(v.split("\\")[:-1], pack) if "\\" in v else None,
     "ec_node": _ec_node,

@@ -71,7 +71,7 @@ def _subfolders(c: dict, data_dir: Path) -> list[dict]:
     if c["type"] != "folder":
         return []
     root = connections.open_(c).root(data_dir)
-    if not root.is_dir() or connectors.is_table_folder(root):
+    if not root.is_dir() or connectors.is_table_folder(root) or connectors.is_document_folder(root):
         return []
     out = []
     for sub in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
@@ -116,11 +116,8 @@ def preview(conn, pack, connection_id: int, table: str, data_dir, rows: int = 8,
     dataset = dataset or table
     record_type = record_type or _record_type(table, c["system"])
     sample = [x for _, x in zip(range(rows), r.rows())] if hasattr(r, "rows") else []
-    s = suggest.suggest_table(conn, pack, dataset, r, claude=claude)
+    s = suggest.suggest_table(conn, pack, dataset, r, claude=claude, source=c["system"], record_type=record_type)
     m = {**s["mapping"], "source": c["system"], "record_type": record_type, "dataset": dataset}
-    ent = m.get("entity")
-    if isinstance(ent, dict) and ent.get("kind") == s["mapping"]["record_type"]:  # a generic kind follows the record type
-        m["entity"] = {**ent, "kind": record_type}
     if dataset != table:
         m["location"] = table
     sys_row = catalog.system(conn, c["system"]) or {}
