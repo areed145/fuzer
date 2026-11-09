@@ -826,6 +826,25 @@ test("the map fits the field's wells and platforms, not the export line, and say
   assert.ok(Math.max(...zooms) >= 12, `expected a close fit to the field, tiles came at zoom ${[...new Set(zooms)]}`);
 });
 
+test("Add a source offers a connection for a subfolder when its folder's tables are all loaded (#412)", async () => {
+  const system = { id: 1, name: "contractor", kind: null, description: null, owner: "ana", steward: null, timezone: null, encoding: null,
+    decimal: null, date_format: null, rank: null, enabled: true, notes: null, datasets: [],
+    connections: [{ id: 4, name: "files", type: "folder", config: {}, display: "data folder" }] };
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [system],
+    types: { connections: { folder: { config: { path: "" }, secrets: [] } }, load_modes: [], drift_policies: [], statuses: [] },
+    check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } } }));
+  await page.route("**/sources/connections/4/test", (route) => route.fulfill({ json: { ok: true, steps: [] } }));
+  await page.route("**/sources/connections/4/tables", (route) => route.fulfill({ json: { connection: "files", system: "contractor",
+    type: "folder", tables: [{ table: "equipment", dataset: "contractor_equipment" }],
+    subfolders: [{ name: "incoming", path: "incoming", tables: 6 }] } }));
+  await page.goto(`${url}/#/sources?view=add&system=contractor&connection=4`);
+  await page.getByText("A folder connection reads only the tables directly in its folder", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Add a connection for incoming/ (6 tables)" }).click();
+  await page.getByRole("heading", { name: /Where is the data\?/ }).waitFor();
+  assert.equal(await page.getByPlaceholder("name (default folder)").inputValue(), "incoming");
+  assert.equal(await page.locator("input[value='incoming']").count() >= 2, true);  // the name and the path
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",

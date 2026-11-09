@@ -149,11 +149,11 @@ function TableList({ tables, system, connection }: { tables: { table: string; da
 }
 
 /** A new connection: its type's config fields and secret references, then a test. */
-export function ConnectionForm({ system, types, onDone }: { system: string; types: Catalog["types"]["connections"];
-                                                      onDone: (c: Json) => void }) {
+export function ConnectionForm({ system, types, onDone, initial }: { system: string; types: Catalog["types"]["connections"];
+                                                      onDone: (c: Json) => void; initial?: { name: string; path: string } }) {
   const [type, setType] = useState("folder");
-  const [name, setName] = useState("");
-  const [cfg, setCfg] = useState<Record<string, string>>({});
+  const [name, setName] = useState(initial?.name ?? "");
+  const [cfg, setCfg] = useState<Record<string, string>>(initial ? { path: initial.path } : {});
   const [sec, setSec] = useState<Record<string, string>>({});
   const a = useAction();
   const t = types[type] ?? { config: {}, secrets: [] };

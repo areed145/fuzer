@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 from ..core.jsonsafe import plain
-from . import catalog, connections
+from . import catalog, connections, connectors
 
 _DMY = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})( \d{1,2}:\d{2})?$")
 _MDY_OR_DMY = re.compile(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})")
@@ -61,7 +61,28 @@ def tables(conn, connection_id: int, data_dir) -> dict:
     cov = _covered(conn, c)
     rows = [{"table": t, "dataset": cov.get(t)} for t in found]
     return {"connection": c["name"], "system": c["system"], "type": c["type"],
-            "tables": sorted(rows, key=lambda r: (r["dataset"] is not None, r["table"]))}
+            "tables": sorted(rows, key=lambda r: (r["dataset"] is not None, r["table"])),
+            "subfolders": _subfolders(c, Path(data_dir))}
+
+
+def _subfolders(c: dict, data_dir: Path) -> list[dict]:
+    """A folder connection reads only its own folder; subfolders holding tables of their own each need a connection
+    (#412). Each with how many tables it holds and its path relative to the data folder where it is inside it."""
+    if c["type"] != "folder":
+        return []
+    root = connections.open_(c).root(data_dir)
+    if not root.is_dir() or connectors.is_table_folder(root):
+        return []
+    out = []
+    for sub in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
+        if connectors.is_table_folder(sub) or not (n := len(connectors.datasets(sub))):
+            continue
+        try:
+            path = str(sub.relative_to(data_dir))
+        except ValueError:
+            path = str(sub)
+        out.append({"name": sub.name, "path": path, "tables": n})
+    return out
 
 
 def date_hint(sample: list[dict]) -> dict | None:

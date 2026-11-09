@@ -151,6 +151,8 @@ export interface WhyValue {
 
 export interface ConnectionTables {
   connection: string; system: string; type: string; tables: { table: string; dataset: string | null }[];
+  /** Subfolders of a folder connection that hold tables of their own, each needing its own connection (#412). */
+  subfolders?: { name: string; path: string; tables: number }[];
 }
 
 export interface TablePreview {

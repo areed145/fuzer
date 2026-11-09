@@ -367,3 +367,20 @@ def test_folder_paths(client, okan_data, tmp_path, monkeypatch):
     shutil.rmtree(lake)
     gone = client.get(f"/sources/connections/{c['id']}/tables")
     assert gone.status_code == 400 and "no folder" in gone.json()["detail"]
+
+
+def test_a_folder_connection_lists_subfolders_that_hold_tables(client, tmp_path):
+    """A folder connection reads only its own folder, so subfolders with tables of their own are listed for the
+    wizard to suggest a connection for each (#412); a table folder is a table, not a subfolder."""
+    drop = tmp_path / "drop"
+    (drop / "incoming").mkdir(parents=True)
+    (drop / "incoming" / "contractor_equipment_list.csv").write_text("tag,serial\n10-P-1001A,S1\n")
+    (drop / "incoming" / "spares.csv").write_text("part,qty\nA,1\n")
+    (drop / "empty").mkdir()
+    (drop / "top.csv").write_text("a,b\n1,2\n")
+    ok(client.post("/sources/systems", json={"name": "contractor", "by": "ana"}))
+    c = ok(client.post("/sources/systems/contractor/connections",
+                       json={"name": "drop", "type": "folder", "config": {"path": str(drop)}, "by": "ana"}))
+    t = ok(client.get(f"/sources/connections/{c['id']}/tables"))
+    assert [x["table"] for x in t["tables"]] == ["top"]
+    assert t["subfolders"] == [{"name": "incoming", "path": str(drop / "incoming"), "tables": 2}]

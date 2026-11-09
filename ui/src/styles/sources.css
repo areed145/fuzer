@@ -15,3 +15,10 @@ pre.diff .del { color: var(--warn); background: var(--warn-soft); text-decoratio
 pre.diff .same { color: var(--muted); }
 .tabs.dataset-tabs { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; }
 .tabs.dataset-tabs > a { flex-shrink: 0; }
+/* Add a source: a sample column's detected meaning sits under its name (#413); the record key is a set of chips (#414). */
+.sample-meaning { display: block; font-weight: 400; }
+.key-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.key-picker .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--line);
+  border-radius: 999px; cursor: pointer; font-size: 12px; }
+.key-picker .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.key-picker .chip code { color: inherit; background: none; }

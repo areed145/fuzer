@@ -31,6 +31,7 @@ export function AddWizard({ system, connection, table }: { system: string | null
   const [tbl, setTbl] = useState<string | null>(table);
   const [mapping, setMapping] = useState<{ yaml: string; dataset: string } | null>(null);
   const [result, setResult] = useState<AddTableResult | null>(null);
+  const [suggest, setSuggest] = useState<{ name: string; path: string } | null>(null);
   if (!cat.data) return <Status loading={cat.loading} error={cat.error} />;
   const s = cat.data.systems.find((x) => x.name === sys);
   const c = s?.connections.find((x) => x.id === conn);
@@ -41,12 +42,13 @@ export function AddWizard({ system, connection, table }: { system: string | null
       </Step>
       <Step n={2} title="Where is the data?" done={!!c} open={step === 2 && !!s}
         summary={c && <><code>{c.name}</code> ({c.type}) {c.display}</>} onEdit={() => setStep(2)}>
-        {s && <PickConnection s={s} types={cat.data.types.connections} dataDir={cat.data.data_dir}
-          onPick={(id) => { setConn(id); setTbl(null); cat.reload(); setStep(3); }} />}
+        {s && <PickConnection key={suggest?.path ?? ""} s={s} types={cat.data.types.connections} dataDir={cat.data.data_dir}
+          suggest={suggest} onPick={(id) => { setConn(id); setTbl(null); setSuggest(null); cat.reload(); setStep(3); }} />}
       </Step>
       <Step n={3} title="Which table?" done={!!tbl && step > 3} open={step === 3 && !!c} summary={<code>{tbl}</code>}
         onEdit={() => setStep(3)}>
-        {c && <PickTable connection={c.id} onPick={(t) => { setTbl(t); setMapping(null); setStep(4); }} />}
+        {c && <PickTable connection={c.id} folder={c.type === "folder"} onPick={(t) => { setTbl(t); setMapping(null); setStep(4); }}
+          onOtherConnection={(sub) => { setSuggest(sub ?? null); setStep(2); }} />}
       </Step>
       <Step n={4} title="What do its rows mean?" done={!!mapping && step > 4} open={step === 4 && !!tbl && conn !== null}
         summary={mapping && <>dataset <code>{mapping.dataset}</code></>} onEdit={() => setStep(4)}>
@@ -80,10 +82,11 @@ function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null
   );
 }
 
-function PickConnection({ s, types, dataDir, onPick }: { s: CatalogSystem; types: Catalog["types"]["connections"];
-                                                         dataDir: string; onPick: (id: number) => void }) {
+function PickConnection({ s, types, dataDir, onPick, suggest }: { s: CatalogSystem; types: Catalog["types"]["connections"];
+                                                         dataDir: string; onPick: (id: number) => void;
+                                                         suggest?: { name: string; path: string } | null }) {
   const hasDataFolder = s.connections.some((c) => c.type === "folder" && !(c.config as { path?: string }).path);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(!!suggest);
   const a = useAction();
   const [tested, setTested] = useState<Record<number, Awaited<ReturnType<typeof api.testConnection>>>>({});
   return (
@@ -111,14 +114,17 @@ function PickConnection({ s, types, dataDir, onPick }: { s: CatalogSystem; types
         </div>
       )}
       {adding ? (
-        <ConnectionForm system={s.name} types={types} onDone={(c) => onPick(Number(c.id))} />
+        <ConnectionForm system={s.name} types={types} initial={suggest ?? undefined} onDone={(c) => onPick(Number(c.id))} />
       ) : <Button variant="secondary" onClick={() => setAdding(true)}>+ A new connection</Button>}
       {a.error && <p className="error small">{a.error}</p>}
     </>
   );
 }
 
-function PickTable({ connection, onPick }: { connection: number; onPick: (t: string) => void }) {
+function PickTable({ connection, folder, onPick, onOtherConnection }: {
+  connection: number; folder: boolean; onPick: (t: string) => void;
+  onOtherConnection: (sub?: { name: string; path: string }) => void;
+}) {
   const t = useAsync(() => api.connectionTables(connection), [connection]);
   const test = useAsync(() => api.testConnection(connection), [connection]);
   if (!t.data) return <Status loading={t.loading} error={t.error} />;
@@ -126,7 +132,26 @@ function PickTable({ connection, onPick }: { connection: number; onPick: (t: str
   return (
     <>
       {test.data && !test.data.ok && <><p className="error small">The connection test failed:</p><TestSteps steps={test.data.steps} /></>}
-      {fresh.length === 0 && <p className="muted small">Everything this connection holds is already a dataset.</p>}
+      {fresh.length === 0 && (
+        // Not a dead end (#412): new tables elsewhere need a connection that points there.
+        <div className="small">
+          <p className="muted">Everything this connection holds is already a dataset.
+            {folder && " A folder connection reads only the tables directly in its folder, not in its subfolders."}</p>
+          <Button variant="secondary" size="sm" onClick={() => onOtherConnection()}>
+            {folder ? "Add a connection for another folder" : "Choose or add another connection"}</Button>
+        </div>
+      )}
+      {(t.data.subfolders ?? []).length > 0 && (
+        <div className="small">
+          <p className="muted">Subfolders with tables of their own, each read through its own connection:</p>
+          <div className="row wrap">
+            {t.data.subfolders!.map((f) => (
+              <Button key={f.path} variant="secondary" size="sm" onClick={() => onOtherConnection({ name: f.name, path: f.path })}>
+                Add a connection for <code>{f.name}/</code> ({f.tables} {f.tables === 1 ? "table" : "tables"})</Button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="row wrap">
         {fresh.map((x) => <Button key={x.table} variant="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></Button>)}
       </div>
@@ -165,7 +190,9 @@ function MapTable({ connection, table, initial, onDone }: { connection: number; 
       <h3>Sample</h3>
       <div className="scroll-x">
         <Table variant="list" density="compact">
-          <thead><tr>{cols.map((x) => <th key={x}>{x} <span className="muted">{d.suggested.columns[x]?.meaning}</span></th>)}</tr></thead>
+          <thead><tr>{cols.map((x) => <th key={x}>{x}{d.suggested.columns[x]?.meaning && (
+            // the detected meaning under the column name, not run into it (#413)
+            <span className="sample-meaning muted small" title="detected meaning">{d.suggested.columns[x]?.meaning}</span>)}</th>)}</tr></thead>
           <tbody>{d.sample.map((r, i) => <tr key={i}>{cols.map((x) => <td key={x}>{cell(r[x])}</td>)}</tr>)}</tbody>
         </Table>
       </div>
