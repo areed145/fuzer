@@ -486,6 +486,8 @@ export const workApi = {
   planException: (id: number, by: string, start: string, end: string, crew?: string) =>
     request<PlanItem>("POST", `/exceptions/${id}/plan`, undefined, { by, start, end, crew: crew ?? null }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
+  /** The reference forms another system's refs are matched by, each with an example from this register. */
+  exceptionRefs: () => request<{ form: string; example: string; entities: number }[]>("GET", "/exceptions/refs"),
   defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;
     audience: string[]; description?: string | null }) => request<unknown>("PUT", `/exceptions/types/${encodeURIComponent(name)}`, undefined, k),
   removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),

@@ -2092,11 +2092,19 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   const dispatched = [];
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [{ ...job, item_id: null, assignee: null }] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] },
+    { name: "engineer", kind: "person", members: [] }, { name: "maintenance-integrity", kind: "agent", members: [] }] }));
+  await page.route("**/exceptions/refs", (route) => route.fulfill({ json: [{ form: "tag:<key>", example: "tag:20-K-2100B", entities: 812 }] }));
   await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
   await page.getByText("1 waiting to be dispatched").waitFor();
-  await page.getByLabel("Dispatch to").fill("fred");
+  await page.getByText("tag:20-K-2100B").waitFor();  // what another system's refs should look like
+  const queue = page.getByLabel("Queue");  // a new type routes to a known queue, picked, not typed
+  await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
+  assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
+  await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
+  await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByLabel("What to do").fill("isolate and check the gland");
   await page.getByRole("button", { name: "Dispatch" }).click();
   await expectReports(dispatched, 1);

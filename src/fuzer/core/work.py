@@ -81,6 +81,11 @@ def report_field_step(conn, item_id: int, person: str, result: str, note: str | 
     return _engine().report_field_step(conn, item_id, person, result, note, reason)
 
 
+def person_roles(conn) -> list[str]:
+    """The person roles (queues) work can be routed to: `role:<name>` for each."""
+    return _engine().person_roles(conn)
+
+
 def roles_of(conn, person: str) -> list[str]:
     """The routing roles a person holds (operator, maintenance, ...), so work sent to `role:<role>` reaches them."""
     return _engine().roles_of(conn, person)

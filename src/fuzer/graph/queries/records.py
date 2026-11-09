@@ -326,10 +326,16 @@ def record_history(conn, pack: Pack, fuzer_id: str, limit: int = 50) -> list[dic
 
 
 def names(conn, ids: list[str]) -> dict:
-    """What to call each entity: its label and description. Ids that aren't entities are left out."""
+    """What to call each entity: its label and description, and for a physical item (equipment, labelled by its
+    serial number) the tag it is installed at (`at`), which is what people in the field know it by. Ids that aren't
+    entities are left out."""
     rows = conn.execute(
-        """select e.fuzer_id as id, l.label, d.value #>> '{}' as description
+        """select e.fuzer_id as id, l.label, d.value #>> '{}' as description, t.label as at
            from entity e left join entity_label l using (fuzer_id)
            left join golden d on d.fuzer_id = e.fuzer_id and d.field = 'description'
+           left join lateral (select tl.label from edge x join entity_label tl on tl.fuzer_id = x.dst
+                              where x.src = e.fuzer_id and x.rel = 'installed_at' and x.valid_to is null
+                              order by tl.label limit 1) t on e.kind = 'equipment'
            where e.fuzer_id = any(%s)""", (ids,)).fetchall()
-    return {r["id"]: {"label": r["label"], "description": r["description"]} for r in rows}
+    return {r["id"]: {"label": r["label"], "description": r["description"], **({"at": r["at"]} if r["at"] else {})}
+            for r in rows}

@@ -118,6 +118,11 @@ page. A type with a process starts it; one with a queue opens a case in that rol
 - **Seeing it come back.** The task page shows a **From the field** box above the form, the Inbox says why a step
   came back ("Back from the field: done: gauge reads 13 barg"), and Exceptions filters to **back from the field**.
   My jobs only offers to open a step in the operator's own roles.
+- **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
+  picks its queue from the person roles on Teams & routing, and the API refuses a queue that isn't one. Equipment
+  reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor") rather than its serial
+  number. The exception types card lists the ref forms this register matches (`GET /exceptions/refs`), each with an
+  example, and a raised exception whose refs matched nothing comes back with an `unmatched_note` saying so.
 - **SAP notifications done in the field** close with their case and are held, not raised again, while SAP shows the
   status they had when the field closed them; SAP never hears of a field close, so a planner still closes it there.
 

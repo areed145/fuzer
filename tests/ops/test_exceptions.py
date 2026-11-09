@@ -280,7 +280,10 @@ def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypat
     assert client.put("/exceptions/types/upset", json={"by": "ann", "label": "x"}).status_code == 400  # code's
     r = client.put("/exceptions/types/scada_alarm", json={"by": "ann", "label": "SCADA alarm",
                                                           "role": "role:maintenance", "audience": ["ioc", "field"]})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 400 and "no role queue 'maintenance'" in r.text  # a queue no Inbox would show
+    r = client.put("/exceptions/types/scada_alarm", json={"by": "ann", "label": "SCADA alarm",
+                                                          "role": "operator", "audience": ["ioc", "field"]})
+    assert r.status_code == 200 and r.json()["role"] == "role:operator", r.text
     kinds = {k["name"]: k for k in client.get("/exceptions/types").json()}
     assert kinds["scada_alarm"]["defined_in"] == "data" and kinds["upset"]["defined_in"] == "code"
 
@@ -288,6 +291,13 @@ def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypat
             "refs": ["sap/10004711"], "evidence": {"alarm_priority": "high"}, "source": "scada"}
     first = client.post("/exceptions", json=body).json()
     assert first["raised"] and first["subjects"] == ["fz-pump-1"] and first["item_id"]
+    assert first["unmatched_note"] is None
+    odd = client.post("/exceptions", json={**body, "key": "N-1002", "refs": ["tag:KRGP-B1-PT-2001"]}).json()
+    assert odd["unmatched"] == ["tag:KRGP-B1-PT-2001"] and "matched nothing" in odd["unmatched_note"]
+    assert "tag:P-101" in odd["unmatched_note"]  # the forms Fuzer does know, with an example from this register
+    forms = {f["form"]: f for f in client.get("/exceptions/refs").json()}
+    assert forms["tag:<key>"]["example"] == "tag:P-101" and forms["sap/<source key>"]["example"] == "sap/10004711"
+    client.post("/exceptions/clear", json={"by": "scada", "type": "scada_alarm", "key": "N-1002"})
     assert client.post("/exceptions", json=body).json()["raised"] is False
     assert any(x["id"] == first["id"] for x in client.get("/exceptions", params={"audience": "field"}).json())
     assert client.delete("/exceptions/types/scada_alarm").status_code == 400  # one is open
@@ -358,4 +368,26 @@ def test_an_operator_handed_another_roles_step_is_not_offered_it(conn, types):
     ex.dispatch(conn, e["id"], "olga", "otto", reason="look at it")
     [job] = [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
     assert job["task_id"] and job["own_step"] is False
+    conn.commit()
+
+
+def test_equipment_reads_as_the_tag_it_is_installed_at(conn, types):
+    """An operator finds "20-K-2100B 1st stage compressor" on site, not "S/N 81710"."""
+    from fuzer.graph.queries.records import names
+    from fuzer.ops import exceptions as ex
+    from psycopg.types.json import Jsonb
+
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-equipment-81710', 'equipment'), ('fz-tag-k2100b', 'tag')")
+    conn.execute("insert into entity_label (fuzer_id, label) values ('fz-equipment-81710', 'S/N 81710'), "
+                 "('fz-tag-k2100b', '20-K-2100B')")
+    conn.execute("insert into golden (fuzer_id, field, value, source, rule) values "
+                 "('fz-equipment-81710', 'description', %s, 'sap', 't')", (Jsonb("1st stage compressor"),))
+    conn.execute("insert into edge (src, dst, rel, sources, confidence) values "
+                 "('fz-equipment-81710', 'fz-tag-k2100b', 'installed_at', '{sap}', 1)")
+    types("vib", audience=("ioc", "field"))
+    e = raise_exception(conn, "vib", "V-1", "High vibration", "scada", refs=["fz-equipment-81710"])
+    ex.dispatch(conn, e["id"], "ioc-ann", "fred")
+    [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    assert job["assets"][0]["label"] == "20-K-2100B 1st stage compressor"
+    assert names(conn, ["fz-equipment-81710"])["fz-equipment-81710"]["at"] == "20-K-2100B"
     conn.commit()

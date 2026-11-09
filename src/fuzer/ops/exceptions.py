@@ -59,6 +59,34 @@ def match(conn, refs) -> tuple[list[str], list[str]]:
     return ids, unmatched
 
 
+def ref_forms(conn, per_kind: int = 1) -> list[dict]:
+    """The reference forms `match` resolves, each with an example from this register, so another system knows what
+    to send: a key kind (`tag:20-K-2100B`), a source's own key (`sap/10004711`), or a Fuzer ID. Most entities first."""
+    keys = conn.execute(
+        """
+        select kind, count(distinct fuzer_id) as entities, min(kind || ':' || key) as example
+        from entity_key where kind <> 'tag_noarea' group by kind order by count(distinct fuzer_id) desc, kind
+        """).fetchall()
+    sources = conn.execute(
+        """
+        select source || '/' as form, count(*) as entities, min(source || '/' || source_key) as example
+        from crosswalk group by source order by count(*) desc, source
+        """).fetchall()
+    fid = conn.execute("select min(fuzer_id) as f, count(*) as n from entity where retired_at is null").fetchone()
+    return ([{"form": f"{k['kind']}:<key>", "example": k["example"], "entities": k["entities"]} for k in keys]
+            + [{"form": f"{r['form']}<source key>", "example": r["example"], "entities": r["entities"]} for r in sources]
+            + ([{"form": "Fuzer ID", "example": fid["f"], "entities": fid["n"]}] if fid["f"] else []))
+
+
+def _unmatched_note(conn, unmatched: list[str]) -> str | None:
+    """What a sender is told when refs matched nothing: which, and the forms that would have, with examples."""
+    if not unmatched:
+        return None
+    forms = ", ".join(f["example"] for f in ref_forms(conn)[:4])
+    return (f"{len(unmatched)} ref{'s' if len(unmatched) > 1 else ''} matched nothing in the register "
+            f"({', '.join(unmatched[:5])}); refs look like {forms or 'kind:key, source/key or a Fuzer ID'}")
+
+
 def _payload(row: dict, t: ExceptionType | None = None) -> dict:
     keep = ("id", "type", "key", "title", "source", "state", "priority", "value_usd", "subjects", "unmatched",
             "item_id", "raised_count")
@@ -114,7 +142,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
             """, (title, priority, value_usd, Jsonb(evidence or {}), subjects, unmatched, current["id"])).fetchone()
         if t.process:  # new evidence for the process already working it
             _case(conn, t, {**row, "evidence": evidence or {}}, by, assignee, role)
-        return {**row, "raised": False}
+        return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}
     row = conn.execute(
         """
         insert into exception_record (type, key, title, source, priority, value_usd, subjects, unmatched, evidence)
@@ -128,7 +156,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
                            (item_id, row["id"])).fetchone()
     case = conn.execute("select assignee, role from work_item where id = %s", (item_id,)).fetchone() if item_id else None
     events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row, t), **(case or {})})
-    return {**row, "raised": True}
+    return {**row, "raised": True, "unmatched_note": _unmatched_note(conn, unmatched)}
 
 
 def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
@@ -291,7 +319,9 @@ def _sent(conn, item_id: int, person: str) -> dict | None:
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
-    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of."""
+    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of.
+    Equipment reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor"), not its
+    serial number, since that is what an operator finds on site."""
     if not ids:
         return []
     rows = conn.execute(
@@ -301,10 +331,15 @@ def _assets(conn, ids: list[str]) -> list[dict]:
             union all
             select up.start, e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
             where up.depth < 3)
-        select distinct on (s.id) s.id as fuzer_id, l.label, en.kind, g.cy as lat, g.cx as lon
+        select distinct on (s.id) s.id as fuzer_id, coalesce(t.label || coalesce(' ' || (d.value #>> '{}'), ''),
+               l.label) as label, en.kind, g.cy as lat, g.cx as lon
         from unnest(%s::text[]) with ordinality s (id, n)
         left join entity_label l on l.fuzer_id = s.id
         left join entity en on en.fuzer_id = s.id
+        left join golden d on d.fuzer_id = s.id and d.field = 'description'
+        left join lateral (select tl.label from edge x join entity_label tl on tl.fuzer_id = x.dst
+                           where x.src = s.id and x.rel = 'installed_at' and x.valid_to is null
+                           order by tl.label limit 1) t on en.kind = 'equipment'
         left join up on up.start = s.id
         left join geo_index g on g.fuzer_id = up.fuzer_id
         order by s.id, g.fuzer_id is null, up.depth
@@ -372,6 +407,12 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
         raise ExceptionError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
     if not (label or "").strip():
         raise ExceptionError("a type needs a label")
+    if role:  # a queue nobody can be in would hold its cases where no Inbox shows them
+        queue = role.removeprefix("role:")
+        known = work.person_roles(conn)
+        if queue not in known:
+            raise ExceptionError(f"no role queue '{queue}'; pick one of {', '.join(known)} (or add the role on Teams)")
+        role = f"role:{queue}"
     return conn.execute(
         """
         insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,

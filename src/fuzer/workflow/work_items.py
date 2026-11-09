@@ -280,3 +280,11 @@ def hand_back_item(conn, item_id: int, person: str, by: str, reason: str | None 
         {"i": item_id, "p": person}).fetchone()
     to = _back_to(prior and prior["f"], person, item["role"])
     return assign_item(conn, item_id, by, to, reason) if to else None
+
+
+def person_roles(conn) -> list[str]:
+    """The person roles work can be routed to (the queues on Teams & routing), built-in ones seeded first."""
+    from . import roles
+
+    roles.refresh(conn)
+    return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
