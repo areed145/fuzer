@@ -73,6 +73,7 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
               <OntologyPanel o={o} selected={selected} kindDef={kindDef} relDef={relDef} edit={edit} />
             </UICard>
           </div>
+          {view === "all" && <p className="muted small">Link names show when you point at a link or a kind, or select a kind.</p>}
           <Legend kinds={o.kinds.map((k) => k.kind)} />
         </>
       ) : (
@@ -97,8 +98,9 @@ function ontologyElements(o: OntologyData, view: string): ElementDefinition[] {
           size: 26 + 14 * Math.log10(k.count + 1),
         },
       })),
+    // All views has too many links to label at once: names show on hover, or for a selected kind (#399).
     ...relations.map((r) => ({
-      classes: "labeled",
+      classes: view === "all" ? "" : "labeled",
       data: {
         id: relId(r),
         source: r.src_kind,
