@@ -68,6 +68,11 @@ def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) ->
     return _engine().dispatch_item(conn, item_id, by, to, reason)
 
 
+def roles_of(conn, person: str) -> list[str]:
+    """The routing roles a person holds (operator, maintenance, ...), so work sent to `role:<role>` reaches them."""
+    return _engine().roles_of(conn, person)
+
+
 def comment(conn, item_id: int, by: str, text: str) -> dict:
     """A note on a case's history (what a field operator reported, say)."""
     return _engine().comment(conn, item_id, by, text)

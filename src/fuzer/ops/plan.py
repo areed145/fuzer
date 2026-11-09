@@ -170,10 +170,14 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
 
 def coming_up(conn, person: str, days: int = 14) -> list[dict]:
     """What a field operator is planned onto over the next days, so the job a phone shows tomorrow is no surprise
-    today: scheduled and started plan items with them as crew, in start order (proposals aren't commitments yet)."""
+    today: scheduled and started plan items with them, or a role they hold, as crew, in start order (proposals
+    aren't commitments yet)."""
+    from ..core import work
+
+    crews = {person, *(f"role:{r}" for r in work.roles_of(conn, person))}
     now = datetime.now(timezone.utc)
-    return [i for i in items(conn, now, now + timedelta(days=days), crew=person)
-            if i["status"] in ("scheduled", "in_progress")]
+    return [i for i in items(conn, now, now + timedelta(days=days))
+            if i["crew"] in crews and i["status"] in ("scheduled", "in_progress")]
 
 
 # ---- sources of plan items ---------------------------------------------------------------------------------------
