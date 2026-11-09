@@ -1,0 +1,82 @@
+"""The exception contract: one way for any source to put something in front of the IOC.
+
+An exception is anything that should draw the IOC's attention and be worked: an upset, an IOW breach, a source
+that stopped loading, an overdue PM, deferment above plan, a notification from SAP, a report from the field. Fuzer
+is the router: whatever raised it, an exception is matched to the entities it is about, kept once per open
+condition, sent to the role or process that works it, and published on the event outbox so the board, the field
+and other systems hear of it the same way.
+
+    TYPE = exception_type("source_issue", "Source problem", role="role:data_steward")   declared by the module
+    raise_exception(conn, "source_issue", key, title, by, refs=[...], ...)               open, or update the open one
+    clear_exception(conn, "source_issue", key, by, reason)                               the condition went away
+
+Each type says who works it (`role`, or a BPMN `process` that is started or correlated), who sees it
+(`audience`: the IOC desk, and the field once a case is dispatched to someone there) and whether clearing the
+condition closes its case. Callers pass `refs` in whatever terms they have: a Fuzer ID, `kind:key` (tag:12-FI-101,
+well:A-12) or `source/key` (sap/10004711); the ones that match no entity stay on the exception, visible.
+
+This module is the port, in platform core so sources, analyses and operations raise exceptions without importing
+the implementation (fuzer.ops.exceptions today, the IOC core module later), which `use()` can replace.
+"""
+
+from dataclasses import dataclass
+from importlib import import_module
+from types import ModuleType
+
+DEFAULT = "fuzer.ops.exceptions"
+AUDIENCES = ("ioc", "field")
+_impl: ModuleType | None = None
+
+
+class ExceptionError(ValueError):
+    """An exception the contract refused: an unknown type, a missing key."""
+
+
+@dataclass(frozen=True)
+class ExceptionType:
+    name: str
+    label: str
+    role: str | None = None              # the queue a case goes to; None with no process: the exception waits on the board
+    process: str | None = None           # a published BPMN process to start, or to send evidence to when one is open
+    case_type: str | None = None         # the work item type of its case (default: the exception type's name)
+    audience: tuple[str, ...] = ("ioc",)
+    close_case_on_clear: bool = True     # a case without a process closes when the condition clears
+    description: str = ""
+
+
+TYPES: dict[str, ExceptionType] = {}
+
+
+def exception_type(name: str, label: str, **kw) -> ExceptionType:
+    """Declare an exception type, next to the code that raises it."""
+    if name in TYPES:
+        raise ValueError(f"exception type {name} is declared twice")
+    t = ExceptionType(name, label, **kw)
+    if bad := set(t.audience) - set(AUDIENCES):
+        raise ValueError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
+    TYPES[name] = t
+    return t
+
+
+def use(module: str | ModuleType | None) -> None:
+    """Choose the implementation (a module with raise_ and clear); None restores the built-in one."""
+    global _impl
+    _impl = import_module(module) if isinstance(module, str) else module
+
+
+def _engine() -> ModuleType:
+    global _impl
+    if _impl is None:
+        _impl = import_module(DEFAULT)  # by name: core must not import the modules above it
+    return _impl
+
+
+def raise_exception(conn, type: str, key: str, title: str, by: str, **fields) -> dict:
+    """Open an exception of `type` for `key`, or update the one already open (refs, priority, value_usd, evidence,
+    source, assignee, role as keywords). Returns its row, with `raised` true when it is new."""
+    return _engine().raise_(conn, type, key, title, by, **fields)
+
+
+def clear_exception(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
+    """The condition went away: clear the open exception (closing its case if the type says so). None if none open."""
+    return _engine().clear(conn, type, key, by, reason=reason)

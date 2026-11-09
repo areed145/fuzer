@@ -184,3 +184,37 @@ create table if not exists study (
     finished_at timestamptz
 );
 create index if not exists study_queue on study (status, id);
+
+-- Exceptions (core/exceptions.py): anything that should draw the IOC's attention and be worked, from any source,
+-- once per open condition (type and the source's own key), matched to the entities it is about and routed to the
+-- case that works it. open: the condition holds; cleared: it went away; closed: its case finished while it held.
+create table if not exists exception_record (
+    id           bigserial primary key,
+    type         text not null,
+    key          text not null,
+    title        text not null,
+    source       text,                           -- the module or system that raised it
+    state        text not null default 'open',   -- open | cleared | closed
+    priority     double precision,
+    value_usd    double precision,
+    subjects     text[] not null default '{}',   -- fuzer ids it was matched to
+    unmatched    text[] not null default '{}',   -- references that matched no entity, kept visible
+    evidence     jsonb not null default '{}',
+    item_id      bigint,                         -- the case that works it
+    raised_count integer not null default 1,
+    first_seen   timestamptz not null default now(),
+    last_seen    timestamptz not null default now(),
+    closed_at    timestamptz,
+    updated_at   timestamptz not null default now()
+);
+create unique index if not exists exception_record_open on exception_record (type, key) where state = 'open';
+create index if not exists exception_record_subjects on exception_record using gin (subjects);
+-- Source problems opened as work items before the exception contract become its open exceptions, so the next
+-- health check updates them instead of opening a second case.
+insert into exception_record (type, key, title, source, priority, evidence, item_id, first_seen, last_seen)
+    select 'source_issue', (w.payload->>'dataset') || ':' || (w.payload->>'problem'), w.title, 'sources', w.priority,
+           w.payload, w.id, w.created_at, w.updated_at
+    from work_item w
+    where w.type = 'source_issue' and w.state not in ('done', 'cancelled') and w.payload ? 'dataset'
+      and not exists (select 1 from exception_record e where e.item_id = w.id)
+    on conflict do nothing;

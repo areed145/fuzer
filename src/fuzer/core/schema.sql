@@ -145,3 +145,17 @@ create table if not exists ontology_audit (
     reason text
 );
 create index if not exists ontology_audit_of on ontology_audit (object, name, id desc);
+
+-- The event outbox (core/events.py): what happened, written in the transaction that made the change, then handed
+-- to subscribers by the work tick. A handler that fails leaves its event pending, with the error, to retry.
+create table if not exists event_outbox (
+    id           bigserial primary key,
+    topic        text not null,                  -- exception.raised, exception.cleared, ...
+    ref          text,                           -- what it is about: exception:<id>, work_item:<id>, ...
+    payload      jsonb not null default '{}',
+    created_at   timestamptz not null default now(),
+    delivered_at timestamptz,
+    attempts     integer not null default 0,
+    last_error   text
+);
+create index if not exists event_outbox_pending on event_outbox (id) where delivered_at is null;

@@ -166,6 +166,21 @@ The data model as data (#241): entity kinds and link types. core/ontology.yaml s
 | `new` | jsonb |  |
 | `reason` | text |  |
 
+### `event_outbox`
+
+The event outbox (core/events.py): what happened, written in the transaction that made the change, then handed to subscribers by the work tick. A handler that fails leaves its event pending, with the error, to retry.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `topic` | text | exception.raised, exception.cleared, ... |
+| `ref` | text, | what it is about: exception:<id>, work_item:<id>, ... |
+| `payload` | jsonb |  |
+| `created_at` | timestamptz |  |
+| `delivered_at` | timestamptz |  |
+| `attempts` | integer |  |
+| `last_error` | text |  |
+
 ## Work engine
 
 [`src/fuzer/workflow/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/schema.sql)
@@ -1120,6 +1135,30 @@ Studies (#106): a correlation or clustering run kept with its parameters, top re
 | `created_by` | text |  |
 | `created_at` | timestamptz |  |
 | `finished_at` | timestamptz |  |
+
+### `exception_record`
+
+Exceptions (core/exceptions.py): anything that should draw the IOC's attention and be worked, from any source, once per open condition (type and the source's own key), matched to the entities it is about and routed to the case that works it. open: the condition holds; cleared: it went away; closed: its case finished while it held.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `type` | text |  |
+| `key` | text |  |
+| `title` | text |  |
+| `source` | text, | the module or system that raised it |
+| `state` | text | open \| cleared \| closed |
+| `priority` | double precision |  |
+| `value_usd` | double precision |  |
+| `subjects` | text[] | fuzer ids it was matched to |
+| `unmatched` | text[] | references that matched no entity, kept visible |
+| `evidence` | jsonb |  |
+| `item_id` | bigint, | the case that works it |
+| `raised_count` | integer |  |
+| `first_seen` | timestamptz |  |
+| `last_seen` | timestamptz |  |
+| `closed_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
 
 ## Charts
 
