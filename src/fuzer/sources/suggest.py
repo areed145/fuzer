@@ -22,6 +22,7 @@ from ..core import llm
 from ..core.llm import call, text_hash, usage
 from ..core.pack import Pack
 from . import connectors
+from .extract import RESOLVERS
 
 SAMPLE_ROWS = 2000
 PROMPT_VERSION = "2026-10-29.1"
@@ -47,9 +48,10 @@ MEANINGS = {
     "latitude": "latitude",
     "longitude": "longitude",
     "person": "person or role",
+    "point": "historian point or time series name (a tag or well with a signal suffix, 20PT3003.PV)",
     "other": "none of these, for example the row's own id",
 }
-REFERENCES = {"tag", "well", "location", "parent", "from", "to", "ref"}
+REFERENCES = {"tag", "well", "location", "parent", "from", "to", "ref", "point"}
 
 HEADER_HINTS = {
     "description": {"description", "descr", "desc", "descriptor", "shorttext", "name", "title", "service",
@@ -60,8 +62,11 @@ HEADER_HINTS = {
     "unit": {"unit", "units", "uom", "engunits", "eu"},
     "latitude": {"lat", "latitude"},
     "longitude": {"lon", "lng", "long", "longitude"},
-    "person": {"author", "user", "createdby", "operator", "testedby", "inspector", "person", "by"},
-    "parent": {"parent", "superior", "parentlocation", "superiorloc", "parentfloc", "parenttag"},
+    "person": {"author", "user", "createdby", "operator", "testedby", "inspector", "person", "by", "owner",
+               "responsible", "assignee", "assignedto", "planner"},
+    "parent": {"parent", "superior", "parentlocation", "superiorloc", "parentfloc", "parenttag", "parentid",
+               "parentactivity", "parentactivityid"},
+    "code": {"wbs", "wbscode", "wbsid", "wbselement"},
     "from": {"from", "fromtag", "upstream", "fromnode", "fromequipment"},
     "to": {"to", "totag", "downstream", "tonode", "toequipment"},
     "text": {"comment", "comments", "remarks", "notes", "text", "log", "narrative"},
@@ -72,6 +77,15 @@ OBJECT_WORDS = ("object", "asset", "equip", "loc", "well", "tag", "node", "floc"
 NUMBER_HINT = re.compile(r"(qty|quantity|stock|count|cost|rate|weight|volume|pressure|temp|level|flow|sm3|bbl|"
                          r"pct|percent|reading|value|amount|price|hours|duration|size)")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[+-]\d{2}:?\d{2})?$")
+# dates in an export's local format (31/12/2025, 12.31.2025 14:00, 06-Apr-2026): read as dates once the system's
+# date format is set (formats.py; the Add a source page offers it)
+LOCAL_DATE = re.compile(r"^(\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}[ -](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
+                        r"[ -]\d{4})( \d{1,2}:\d{2}(:\d{2})?)?$", re.IGNORECASE)
+POINT = re.compile(r"[./:][A-Z][A-Z0-9_]*$")  # a historian point's signal suffix: .PV, .WHP, /PV
+START = {"start", "startdate", "plannedstart", "earlystart", "begin", "scheduledstart", "targetstart"}
+FINISH = {"finish", "finishdate", "plannedfinish", "earlyfinish", "end", "enddate", "scheduledfinish", "targetfinish",
+          "due", "duedate"}
+INSTALLED = re.compile(r"(install|commission|startup|inservice|fitted)")
 UNITS = {"barg", "bara", "bar", "psi", "psig", "kpa", "mpa", "degc", "degf", "%", "m3/h", "sm3/d", "bbl/d", "kg",
          "mm", "in", "mm/s", "hz", "rpm", "kw", "mw", "ppm", "m3", "l/min", "ft", "kgf/cm2"}
 
@@ -131,11 +145,13 @@ def profile(c, pack: Pack, sample_rows: int = SAMPLE_ROWS, makers: set[str] = fr
             "numeric": round(len(nums) / n, 3),
             "integer": bool(nums) and all(x == int(x) for x in nums),
             "max": max(nums) if nums else None,
-            "date": round(frac(lambda v: bool(DATE.match(v))), 3),
+            "date": round(frac(lambda v: bool(DATE.match(v) or LOCAL_DATE.match(v))), 3),
             "location": round(frac(lambda v: v.upper() == fac or v.upper().startswith(fac + "-")), 3),
             "tag": round(frac(lambda v: (pack.tags.parse(v) or pack.tags.parse(v, default_area=_area(v, pack))) is not None), 3),
             "tag_or_well": round(frac(lambda v: pack.tags.parse(v) is not None or pack.wells.parse(v) is not None), 3),
             "well": round(frac(lambda v: v.upper() == fac or pack.wells.parse(v) is not None), 3),
+            "place": round(frac(lambda v: RESOLVERS["place"](v, pack) is not None), 3),
+            "point": round(frac(lambda v: bool(POINT.search(v.upper())) and RESOLVERS["tag_or_well"](v, pack) is not None), 3),
             "spaces": round(frac(lambda v: " " in v), 3),
             "unit": round(frac(lambda v: v.lower() in UNITS), 3),
             "manufacturer": round(frac(lambda v: v.upper() in makers), 3),
@@ -202,6 +218,8 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
         code_hint = bool(CODE_HINT.search(n)) and not any(w in n for w in OBJECT_WORDS) and c["distinct"] <= 50
         if hint in ("description", "manufacturer", "model", "serial", "unit", "latitude", "longitude", "person"):
             m, why = hint, "header"
+        elif hint == "code" and c["name"] != key:
+            m, why = "code", "header names a code"
         elif hint in ("parent", "from", "to") and refish:
             m, why = hint, "header"
         elif c["date"] >= 0.9:
@@ -210,12 +228,16 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
             m, why = "location", "values are plant locations"
         elif code_hint and c["name"] != key:
             m, why = "code", "header names a code"
+        elif c.get("point", 0) >= 0.8 and names_one:
+            m, why = "point", "values are historian point names (a tag or well with a signal suffix)"
         elif c["tag"] >= 0.8 and c["tag"] >= c["well"] and names_one:
             m, why = "tag", "values read as tags"
         elif c["well"] >= 0.8 and names_one:
             m, why = "well", "values read as wells"
         elif c["tag_or_well"] >= 0.8 and names_one:
             m, why = ("tag", "values read as tags or wells") if c["tag"] >= c["well"] else ("well", "values read as wells or tags")
+        elif c.get("place", 0) >= 0.6 and names_one and c["name"] != key:
+            m, why = "location", "values are plant locations (tags, wells, areas) written in several styles"
         elif c["name"] in refs and c["name"] != key:
             m, why = "ref", f"values are keys of {refs[c['name']]} records"
         elif c["numeric"] >= 0.95:
@@ -250,6 +272,14 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
             if c["name"] != key and vals and out[c["name"]]["meaning"] in (out[key]["meaning"], "code", "other") \
                     and sum(v in keyset for v in vals) / len(vals) >= 0.8:
                 out[c["name"]] = {"meaning": "parent", "by": "rules", "why": "values are keys of this table"}
+        parents = [c for c, v in out.items() if v["meaning"] == "parent"]
+        if len(parents) > 1:  # one parent: the column whose header says so, else the most specific (most distinct)
+            named = [c for c in parents if "parent" in _norm(c) or HEADER_HINTS["parent"] & {_norm(c)}]
+            distinct = {c["name"]: c["distinct"] for c in prof["columns"]}
+            keep = named[0] if named else max(parents, key=lambda c: distinct.get(c, 0))
+            for c in parents:
+                if c != keep:
+                    out[c] = {"meaning": "code", "by": "rules", "why": f"also keys of this table; {keep} is the parent"}
     return {"columns": out, "key": key, **_shape(out, key)}
 
 
@@ -267,18 +297,37 @@ def _shape(cols: dict, key: str | None) -> dict:
     else:
         shape = "records"
     kind = {"tag": "tag", "well": "well", "location": "location"}.get(key_m)
-    if kind is None:
-        kind = "equipment" if has("serial") else None
+    if key_m == "point":
+        shape, kind = "timeseries", "timeseries"
+    elif has("serial") and (has("manufacturer") or has("model")):
+        # an equipment list (#411): the physical items, keyed on serial and blocked by the tag they're installed
+        # at, so a contractor's copy matches SAP's equipment at once
+        kind = "equipment"
+    elif kind is None and has("serial"):
+        kind = "equipment"
+    elif key_m not in ("tag", "well", "location") and _dated(cols, START) and _dated(cols, FINISH):
+        kind = "activity"  # planned start and finish: a schedule's projects and activities (the shipped kind, #241)
+        shape = "hierarchy" if shape == "hierarchy" else "records"
     return {"shape": shape, "kind": kind}
+
+
+def _dated(cols: dict, names: set[str]) -> str | None:
+    return next((c for c, v in cols.items() if v["meaning"] == "timestamp" and _norm(c) in names), None)
 
 
 # ---- draft mapping
 
 
-def draft(dataset: str, sug: dict) -> dict:
-    """A mapping (mappings.py syntax) from a suggestion, for a reviewer to accept or edit."""
-    source, _, rest = dataset.partition("_")
-    record_type = rest or "row"
+# Link types for what a suggested entity points at, where the ontology has a specific one (#241); refers_to otherwise.
+RELS = {("activity", "location"): "located_at", ("activity", "tag"): "located_at", ("activity", "well"): "located_at",
+        ("activity", "work_order"): "executes", ("equipment", "tag"): "installed_at"}
+
+
+def draft(dataset: str, sug: dict, source: str | None = None, record_type: str | None = None) -> dict:
+    """A mapping (mappings.py syntax) from a suggestion, for a reviewer to accept or edit. `source` and
+    `record_type` default to the dataset name's parts (sap_equipment: sap, equipment)."""
+    first, _, rest = dataset.partition("_")
+    source, record_type = source or first, record_type or rest or "row"
     cols, key, kind = sug["columns"], sug["key"], sug["kind"]
     m = {"source": source, "record_type": record_type, "shape": sug["shape"], "dataset": dataset}
     if key:
@@ -286,7 +335,9 @@ def draft(dataset: str, sug: dict) -> dict:
     as_of = {"tag": {"as": "tag"}, "well": {"as": "well"}, "location": {"as": "floc"}}
     by = lambda meaning: [c for c, v in cols.items() if v["meaning"] == meaning]  # noqa: E731
     entity = None
-    if kind in ("tag", "well"):
+    if kind == "timeseries":
+        entity = {"kind": "timeseries", "key": {"from": key, "as": "upper"}}
+    elif kind in ("tag", "well"):
         entity = {"kind": kind, "key": {"from": key, "as": kind}}
     elif kind == "location":
         entity = {"node": {"from": key, "as": "floc"}}
@@ -295,7 +346,7 @@ def draft(dataset: str, sug: dict) -> dict:
         if tags := by("tag") or by("location"):
             entity["block"] = {"from": tags[0], "as": "tag"}
     elif sug["shape"] != "network":
-        entity = {"kind": record_type, **({"key": key} if key else {})}
+        entity = {"kind": kind or record_type, **({"key": key} if key else {})}
     if entity is not None:
         fields = []
         for c, v in cols.items():
@@ -303,21 +354,36 @@ def draft(dataset: str, sug: dict) -> dict:
             if mean in REFERENCES or c == key and mean == "other":
                 continue
             name = mean if mean in ("description", "manufacturer", "model", "serial") else _snake(c)
+            if kind == "timeseries" and mean == "unit":
+                name = "uom"  # what the time series providers read the unit from
             if mean == "number":
                 fields.append([name, {"from": c, "as": "number"}])
+            elif mean == "timestamp":
+                fields.append([name, {"from": c, "as": "date"}])  # a detected date stays a date (#411)
             else:
                 fields.append(c if name == c else [name, c])
         entity["fields"] = fields
         m["entity"] = entity
+    own = entity.get("kind") if entity else None
 
     def endpoint(c):
         mean = cols[c]["meaning"]
-        domain = mean if mean in as_of else (cols[key]["meaning"] if key and cols[key]["meaning"] in as_of else "tag")
         if mean == "ref" or cols[c].get("ref"):
             return {"ref": cols[c].get("ref") or "unknown:record", "from": c}
+        if mean == "point":
+            return {"kind": "timeseries", "from": c, "as": "upper"}
+        if mean == "location":
+            return {"from": c, "as": "place"}  # tags, wells, areas and the facility, in whatever style it's written
+        if mean == "parent" and own and own not in ("tag", "well") and (not key or cols[key]["meaning"] == "other"):
+            return {"kind": own, "from": c}  # the parent is another row of this table, by its key as written
+        domain = mean if mean in as_of else (cols[key]["meaning"] if key and cols[key]["meaning"] in as_of else "tag")
         if domain == "location":
             return {"from": c, "as": "floc"}
         return {"kind": domain, "from": c, **as_of[domain]}
+
+    def rel(c, default):
+        target = (cols[c].get("ref") or "").partition(":")[2] or cols[c]["meaning"]
+        return RELS.get((own, target), default)
 
     links = []
     for c in by("parent"):
@@ -330,18 +396,39 @@ def draft(dataset: str, sug: dict) -> dict:
             if props:
                 link["props"] = props
         links.append(link)
+    if kind == "timeseries":  # a point list: each point belongs to the tag or well its name contains
+        links.append({"rel": "has_timeseries", "from": {"from": "_key", "as": "tag_or_well"}, "to": "self",
+                      "confidence": 0.9})
     for c, v in cols.items():
-        if c == key or v["meaning"] not in ("tag", "well", "location", "ref"):
+        if v["meaning"] not in ("tag", "well", "location", "ref", "point"):
             continue
         if kind == "equipment" and entity and entity.get("block", {}).get("from") == c:
-            links.append({"rel": "installed_at", "when": c, "to": {"kind": "tag", "from": c, "as": "tag"}})
+            link = {"rel": "installed_at", "when": c, "to": {"kind": "tag", "from": c, "as": "tag"}}
+            if since := next((x for x in by("timestamp") if INSTALLED.search(_norm(x))), None):
+                link["valid_from"] = since  # installed there from this date
+            links.append(link)
+        elif c == key:
+            continue
         elif entity is not None:
-            links.append({"rel": "refers_to", "when": c, "to": endpoint(c)})
+            links.append({"rel": rel(c, "refers_to"), "when": c, "to": endpoint(c)})
     if links:
         m["links"] = links
     if entity is not None and (texts := by("text")):
         m["mentions"] = [{"from": c} for c in texts]
     return m
+
+
+def document_draft(dataset: str, source: str, record_type: str = "document") -> dict:
+    """The mapping for a folder of documents (connectors.DocumentFolder): row 0 of each file is the document, the
+    rest its sections, part of it, searchable by their text and linked to the tags and wells the text mentions."""
+    return {"source": source, "record_type": record_type, "shape": "documents", "dataset": dataset,
+            "key": ["file", "section"],
+            "entity": {"node": {"from": "_row", "as": "document_part"}, "fields": [
+                "title", "heading", ["page", {"from": "page", "as": "number"}], "text", ["index", "section"],
+                "format", ["pages", {"from": "pages", "as": "number"}], ["file_sha256", "sha256"], "needs_ocr",
+                ["description", {"from": "heading", "default": {"from": "title"}, "keep": True}]]},
+            "links": [{"rel": "part_of", "when": "heading", "to": {"kind": "document", "from": "file"}}],
+            "mentions": [{"from": "text"}]}
 
 
 def to_yaml(mapping: dict) -> str:
@@ -429,8 +516,9 @@ def ask_claude(conn, dataset: str, payload: dict, *, client=None, model: str | N
 
 
 def suggest_table(conn, pack: Pack, dataset: str, c, *, exclude=frozenset(), claude: bool = False,
-                  client=None, **claude_opts) -> dict:
-    """Profile, rules (and Claude), and the draft mapping for one table."""
+                  client=None, source: str | None = None, record_type: str | None = None, **claude_opts) -> dict:
+    """Profile, rules (and Claude), and the draft mapping for one table. A folder of documents gets the documents
+    mapping, whatever its columns look like."""
     prof = profile(c, pack, makers=known_manufacturers(conn, pack))
     rows_by_col: dict[str, list[str]] = {}
     for i, row in enumerate(c.rows()):
@@ -449,7 +537,17 @@ def suggest_table(conn, pack: Pack, dataset: str, c, *, exclude=frozenset(), cla
         payload = claude_input(dataset, prof, sug)
         result, spent = ask_claude(conn, dataset, payload, client=client, **claude_opts)
         sug = apply_claude(sug, result)
-    return {"profile": prof, "suggestion": sug, "mapping": draft(dataset, sug), "claude": spent}
+    if getattr(c, "kind", None) == "documents":
+        first, _, rest = dataset.partition("_")
+        what = {"file": ("other", "the document's file"), "section": ("other", "section number in the file (0: the document itself)"),
+                "title": ("description", "the document's title"), "heading": ("description", "the section's heading"),
+                "page": ("number", "page the section starts on"), "text": ("text", "the section's text")}
+        cols = {k: ({"meaning": what[k][0], "by": "rules", "why": what[k][1]} if k in what else
+                    {"meaning": "other", "by": "rules", "why": "about the file"}) for k in sug["columns"]}
+        sug = {"columns": cols, "key": "file, section", "shape": "documents", "kind": "document_section"}
+        return {"profile": prof, "suggestion": sug, "claude": spent,
+                "mapping": document_draft(dataset, source or first, record_type or rest or "document")}
+    return {"profile": prof, "suggestion": sug, "mapping": draft(dataset, sug, source, record_type), "claude": spent}
 
 
 def save(conn, dataset: str, text: str, by: str) -> dict:

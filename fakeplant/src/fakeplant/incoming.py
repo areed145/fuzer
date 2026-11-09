@@ -23,7 +23,7 @@ BUILT_IN = {
                                     "manufacturer": "manufacturer", "model": "model", "serial": "serial"}),
     "maximo_assets": ("assetnum", {"assetnum": "other", "description": "description",
                                    "manufacturer": "manufacturer", "serial": "serial", "location": "tag"}),
-    "pi_points": ("tag", {"tag": ["tag", "well"], "descriptor": "description", "engunits": "unit",
+    "pi_points": ("tag", {"tag": ["point", "tag", "well"], "descriptor": "description", "engunits": "unit",
                           "pointsource": "code"}),
     "sap_notifications": ("qmnum", {"qmnum": "other", "notif_type": "code", "created": "timestamp", "equnr": "ref",
                                     "floc": "location", "priority": "code", "short_text": ["description", "text"],

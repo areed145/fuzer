@@ -12,7 +12,8 @@ part files and a Delta table alike:
 Tables are found by name in the data folder: `<name>/` (Delta if it has a `_delta_log`, else
 Parquet part files), `<name>.parquet`, `<name>.csv`, `<name>.geojson` (GIS), `<name>.xlsx` (its first
 sheet; `<book>.<sheet>` names one sheet of `<book>.xlsx`), `<name>.jsonl` or `<name>.json` (a list of
-objects), in that order (#132). ADLS later: the same pyarrow datasets over an fsspec filesystem.
+objects), in that order (#132). A folder holding only documents (PDF, Markdown, text) is one table too, a row
+per section (DocumentFolder, #227). ADLS later: the same pyarrow datasets over an fsspec filesystem.
 
 Some datasets can come from a live system instead (`live()`): with FUZER_PI_WEB_API_URL set, the PI
 point list and AF tree are read through PI Web API (pi_web_api.py); with FUZER_ADX_URL, the ADX
@@ -292,6 +293,71 @@ class JsonTable:
         yield from self._rows()
 
 
+DOCUMENT_SUFFIXES = (".pdf", ".md", ".txt")
+TABLE_SUFFIXES = (".csv", ".parquet", ".geojson", ".xlsx", ".json", ".jsonl")
+
+
+def _document_files(folder: Path) -> list[Path]:
+    return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in DOCUMENT_SUFFIXES
+                  and not p.name.startswith((".", "~$")))
+
+
+def is_document_folder(folder: Path) -> bool:
+    """A folder of documents (PDF, Markdown, plain text) and no tables: read as one table, a row per section."""
+    if not folder.is_dir() or is_table_folder(folder):
+        return False
+    if any(p.is_file() and p.suffix.lower() in TABLE_SUFFIXES for p in folder.iterdir()):
+        return False
+    return bool(_document_files(folder))
+
+
+class DocumentFolder:
+    """A folder of documents as a table (#227): for each file a row for the document itself (section 0: its title,
+    format, page count and fingerprint) and a row per section (documents.py splits them on headings and keeps page
+    numbers), so the sections can be searched and linked to the tags and wells they mention. The key is file and
+    section number. A PDF with no text layer is a document row saying it needs OCR, with no sections guessed."""
+
+    kind = "documents"
+    watermarks = False
+    COLUMNS = [["file", "string"], ["section", "int64"], ["title", "string"], ["heading", "string"],
+               ["page", "int64"], ["text", "string"], ["format", "string"], ["pages", "int64"],
+               ["sha256", "string"], ["needs_ocr", "bool"]]
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def fingerprint(self) -> str:
+        return _stat(_document_files(self.path), self.path)
+
+    def schema(self) -> list[list[str]]:
+        return [list(c) for c in self.COLUMNS]
+
+    @staticmethod
+    def _title(file: Path) -> str:
+        if file.suffix.lower() == ".md":
+            for line in file.read_text(errors="replace").splitlines():
+                if line.startswith("# "):
+                    return line[2:].strip()
+        return re.sub(r"[_-]+", " ", file.stem).strip()
+
+    def rows(self, since=None) -> Iterator[dict]:
+        from .documents import sections
+
+        for file in _document_files(self.path):
+            try:
+                secs, facts = sections(file)
+            except Exception as e:  # an unreadable file is a document row saying so, not a failed load
+                secs, facts = [], {"format": file.suffix.lstrip(".").lower(), "error": str(e)[:200]}
+            title = self._title(file)
+            yield {"file": file.name, "section": 0, "title": title, "heading": None, "page": None,
+                   "text": facts.get("error") or ("needs OCR: no text layer" if facts.get("needs_ocr") else None),
+                   "format": facts.get("format"), "pages": facts.get("pages"),
+                   "sha256": hashlib.sha256(file.read_bytes()).hexdigest(), "needs_ocr": bool(facts.get("needs_ocr"))}
+            for i, sec in enumerate(secs, 1):
+                yield {"file": file.name, "section": i, "title": title, "heading": sec["heading"], "page": sec["page"],
+                       "text": sec["text"], "format": None, "pages": None, "sha256": None, "needs_ocr": None}
+
+
 class LiveTable:
     """A dataset read from a live system. There is no cheap change marker, so the first call reads
     everything once (kept for the rows() that follows) and the fingerprint is a hash of the content."""
@@ -349,6 +415,8 @@ def find(data_dir: Path, name: str):
     folder = data_dir / name
     if is_table_folder(folder):
         return ParquetTable(folder)
+    if is_document_folder(folder):
+        return DocumentFolder(folder)
     if (data_dir / f"{name}.parquet").is_file():
         return ParquetTable(data_dir / f"{name}.parquet")
     if (data_dir / f"{name}.csv").is_file():
@@ -375,6 +443,8 @@ def at(path: Path, kind: str | None = None):
     path = Path(path)
     if not path.exists():
         return None
+    if kind == "documents" or (kind is None and is_document_folder(path)):
+        return DocumentFolder(path) if path.is_dir() else None
     kind = kind or ("excel" if path.suffix == ".xlsx" else path.suffix.lstrip(".") if path.is_file() else
                     "delta" if (path / "_delta_log").is_dir() else "parquet")
     if kind in ("parquet", "delta"):
@@ -391,16 +461,25 @@ def datasets(data_dir: Path) -> list[str]:
     is read when a mapping names it, but isn't offered as a new table: fake plants and exports keep other
     JSON beside their tables (manifests, process models). Inside a Parquet or Delta table folder there are no
     tables of their own: its part files are one table (the folder)."""
-    if not data_dir.is_dir() or is_table_folder(data_dir):
+    if not data_dir.is_dir() or is_table_folder(data_dir) or is_document_folder(data_dir):
         return []
     names = {p.stem for p in data_dir.glob("*.csv")} | {p.stem for p in data_dir.glob("*.parquet")} | \
             {p.stem for p in data_dir.glob("*.geojson")} | {p.stem for p in data_dir.glob("*.jsonl")}
-    names |= {p.name for p in data_dir.iterdir() if p.is_dir() and find(data_dir, p.name)}
+    names |= {p.name for p in data_dir.iterdir() if p.is_dir() and find(data_dir, p.name)
+              and not (is_document_folder(p) and _in_manifest(data_dir, p.name))}
     for book in data_dir.glob("*.xlsx"):
         if not book.name.startswith("~$"):  # Excel's lock file
             sheets = ExcelTable.sheets(book)
             names |= {book.stem} if len(sheets) == 1 else {f"{book.stem}.{s}" for s in sheets}
     return sorted(names)
+
+
+def _in_manifest(data_dir: Path, folder: str) -> bool:
+    """Whether a JSON manifest beside the folder names files in it (documents.json lists documents/*.md): those
+    documents already load through the manifest's own reader, so the folder isn't offered again as a table."""
+    needle = f'"{folder}/'
+    return any(needle in p.read_text(errors="replace") for p in data_dir.glob("*.json")
+               if p.stat().st_size < 20_000_000)
 
 
 def schema_drift(old: list[list[str]] | None, new: list[list[str]]) -> dict:

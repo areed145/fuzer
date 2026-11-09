@@ -90,6 +90,23 @@ and the same source as a YAML mapping.*
 The API behind Add a source: `GET /sources/connections/{id}/tables`,
 `GET /sources/connections/{id}/tables/{table}` (preview and suggestion) and `POST` to the same path (save and load).
 
+What the suggestion recognises, so the mapping can usually be accepted as offered (#227, #411;
+`tests/api/test_add_source_ui_only.py` adds each from these calls alone, with no YAML written by hand):
+
+- **Schedules** (P6 or MS Project exports): planned start and finish make each row an `activity`, part of its parent
+  row, `located_at` its plant location (a tag, well, area or the facility, in whatever style it's written: the `place`
+  resolver) and `executes` the SAP work order it names. Dates in the export's local format (31/12/2025) are detected,
+  and the page offers the system's date format to read them.
+- **Equipment lists** with serial and manufacturer (or model): `equipment` keyed on serial, blocked by tag, with an
+  `installed_at` link dated by the install date, so a contractor's list matches SAP's equipment at once. Detected
+  dates are kept as `date` fields.
+- **Historian point lists**: names that are a tag or well with a signal suffix (`20PT3003.PV`, `OK_J12_04.GLIR`) make a
+  `timeseries` per point, owned (`has_timeseries`) by the tag or well its name contains, with the unit as `uom`.
+  Values stay in the historian; the project's time series provider reads them.
+- **A folder of documents** (PDF, Markdown, text, and no tables) is one table: a row for each document and one per
+  section (split on headings, with page numbers). The sections are part of their document, searchable, and linked to
+  the tags and wells their text mentions. A folder a manifest already loads (`documents.json`) isn't offered again.
+
 ## Connectors, shapes and mappings
 
 Every dataset is described by three independent things, so a new source is configuration, not code.

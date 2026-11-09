@@ -23,11 +23,13 @@ TARGETS = {
     "tag_or_well": {"as": "tag_or_well"},
     "facility_or_well": {"as": "facility_or_well"},
     "floc": {"as": "floc"},
+    "place": {"as": "place"},
 }
 TARGET_LABELS = {"tag": "a tag", "well": "a well", "equipment": "equipment (by serial number)",
                  "tag_or_well": "a tag or a well", "facility_or_well": "a facility or a well",
-                 "floc": "a functional location (FLOC)"}
-FIELD_AS = {None: "text", "number": "number", "upper": "upper case"}
+                 "floc": "a functional location (FLOC)",
+                 "place": "a plant location in any style (tag, well, area or facility)"}
+FIELD_AS = {None: "text", "number": "number", "date": "date", "upper": "upper case"}
 KEY_AS = {None: "as written", "tag": "a tag", "well": "a well", "serial": "a serial number", "upper": "upper case"}
 LINK_KEYS = {"rel", "to", "when", "confidence", "valid_from", "valid_to"}
 
@@ -123,7 +125,8 @@ def form(text: str, columns: list[str] | None = None) -> dict:
 
 # the kinds each resolver can land on (`as:` in an endpoint), for checking a mapping against the ontology
 RESOLVER_KINDS = {"tag": ["tag"], "well": ["well"], "serial": ["equipment"], "tag_or_well": ["tag", "well"],
-                  "facility_or_well": ["facility", "well"], "floc": ["facility", "area", "tag"]}
+                  "facility_or_well": ["facility", "well"], "floc": ["facility", "area", "tag"],
+                  "place": ["facility", "area", "tag", "well"], "document_part": ["document", "document_section"]}
 
 
 def produces(text: str, ref_kind=lambda ref: None) -> list[tuple[str, str, str | None]]:

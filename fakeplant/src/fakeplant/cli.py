@@ -24,6 +24,7 @@ def main(argv=None):
     sc.add_argument("--out", default="fakeplant/data/okan_lake", help="lake folder (the table is <out>/project_schedules)")
     sc.add_argument("--okan", default="fakeplant/data/okan", help="the Okan exports it is built from")
     sc.add_argument("--update", action="store_true", help="write version 1: progress moves, a finish slips, a row goes")
+    sc.add_argument("--fixed", action="store_true", help="without the copied row (the planner's fix for the held load)")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
     h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/okan)")
     h.add_argument("--host", default="127.0.0.1")
@@ -41,7 +42,7 @@ def main(argv=None):
 
         if not (Path(args.okan) / "sap_work_orders.csv").is_file():
             raise SystemExit(f"No Okan exports in {args.okan}; run `fakeplant generate` first.")
-        _print(schedules.write(Path(args.okan), Path(args.out), args.update))
+        _print(schedules.write(Path(args.okan), Path(args.out), args.update, args.fixed))
     elif args.cmd == "historian":
         from . import historian
 
