@@ -80,3 +80,8 @@ def raise_exception(conn, type: str, key: str, title: str, by: str, **fields) ->
 def clear_exception(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
     """The condition went away: clear the open exception (closing its case if the type says so). None if none open."""
     return _engine().clear(conn, type, key, by, reason=reason)
+
+
+def reconcile(conn) -> dict:
+    """Close open exceptions whose case finished; the work tick runs it."""
+    return _engine().reconcile(conn)

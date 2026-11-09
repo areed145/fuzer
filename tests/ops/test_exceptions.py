@@ -117,12 +117,83 @@ def test_every_subscriber_module_is_loaded_by_deliver():
     assert declared == set(events.SUBSCRIBERS)
 
 
-def test_source_problems_opened_before_the_contract_are_adopted(conn):
+def test_work_opened_before_the_contract_is_adopted(conn):
     from fuzer.core import work
 
     item = work.open_case(conn, "source_issue", "Source x is stale", "fuzer", role="role:data_steward",
                           payload={"dataset": "x", "problem": "stale"})
+    iow = work.open_case(conn, "integrity", "IOW 9 breach", "agent:sre", payload={"start": {"iow": "IOW-9"}})
     conn.execute((PACKAGE / "ops" / "schema.sql").read_text())  # idempotent, as on every schema change
     row = conn.execute("select * from exception_record where item_id = %s", (item["id"],)).fetchone()
     assert row["type"] == "source_issue" and row["key"] == "x:stale" and row["state"] == "open"
+    row = conn.execute("select * from exception_record where item_id = %s", (iow["id"],)).fetchone()
+    assert row["type"] == "iow_breach" and row["key"] == "IOW-9"
     conn.rollback()
+
+
+def _process(key: str) -> str:
+    from fuzer.workflow import bpmn
+
+    body = ('<bpmn:startEvent id="s"/><bpmn:userTask id="u" name="Look" fuzer:role="engineer" fuzer:sla="P1D"/>'
+            '<bpmn:endEvent id="e"/><bpmn:sequenceFlow id="f1" sourceRef="s" targetRef="u"/>'
+            '<bpmn:sequenceFlow id="f2" sourceRef="u" targetRef="e"/>')
+    return (f'<bpmn:definitions xmlns:bpmn="{bpmn.BPMN}" xmlns:fuzer="{bpmn.FUZER}" id="d">'
+            f'<bpmn:process id="{key}" name="{key}" isExecutable="true" fuzer:correlationKey="key">{body}'
+            '</bpmn:process></bpmn:definitions>')
+
+
+def test_a_process_type_starts_once_and_gets_repeats_as_evidence(conn, types):
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "olga", ["engineer", "workflow_admin"])
+    engine.publish(conn, engine.import_bpmn(conn, _process("exc_proc"), "olga")[0]["id"], "olga")
+    types("breach", process="exc_proc")
+    first = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached", "agent:sre", evidence={"hours": 3})
+    again = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached again", "agent:sre", evidence={"hours": 5})
+    assert first["raised"] and not again["raised"] and again["item_id"] == first["item_id"]
+    assert conn.execute("select count(*) as n from work_item where type = 'exc_proc'").fetchone()["n"] == 1
+    messages = conn.execute("select count(*) as n from work_event where item_id = %s and kind = 'message'",
+                            (first["item_id"],)).fetchone()["n"]
+    assert messages == 1  # the repeat went to the open process as evidence
+    conn.commit()
+
+
+def test_finished_cases_close_their_exceptions(conn, types):
+    from fuzer.core import work
+    from fuzer.core.exceptions import reconcile
+
+    types("overdue_pm", role="role:maintenance")
+    e = raise_exception(conn, "overdue_pm", "PM-1", "PM 1 overdue", "sap")
+    work.close_case(conn, e["item_id"], "done", "mia")
+    assert reconcile(conn)["closed"] >= 1
+    assert conn.execute("select state from exception_record where id = %s", (e["id"],)).fetchone()["state"] == "closed"
+    assert any(x["ref"] == f"exception:{e['id']}" for x in events.pending(conn, "exception.closed"))
+    conn.commit()
+
+
+def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
+    from fuzer.ops import exceptions as ex
+
+    conn.execute("insert into geo_index (fuzer_id, kind, geom_type, minx, miny, maxx, maxy, cx, cy, geometry) values "
+                 "('fz-well-a12', 'well', 'Point', 4.1, 52.1, 4.1, 52.1, 4.1, 52.1, '{}') on conflict do nothing")
+    conn.execute("insert into edge (src, dst, rel, sources, confidence) values ('fz-pump-1', 'fz-well-a12', 'part_of', '{test}', 1)")
+    types("leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak", "walk-9", "Leak at P-101", "olga", refs=["tag:P-101"],
+                        evidence={"seen_by": "walkdown", "drips_per_min": 12.0, "detail": {"x": 1}})
+    assert e["item_id"] is None
+    sent = ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="nearest operator")
+    assert sent["item_id"] and conn.execute("select assignee from work_item where id = %s",
+                                            (sent["item_id"],)).fetchone()["assignee"] == "fred"
+    [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    assert job["assets"][0]["fuzer_id"] == "fz-pump-1" and job["assets"][0]["lat"] == 52.1  # located via its well
+    assert ("drips_per_min", "12") in job["seen"] and not any(k == "detail" for k, _ in job["seen"])
+    ex.report(conn, e["id"], "fred", "on_site")
+    with pytest.raises(ExceptionError, match="say why"):
+        ex.report(conn, e["id"], "fred", "could_not_do")
+    done = ex.report(conn, e["id"], "fred", "done", note="tightened the gland")
+    assert [f["status"] for f in done["evidence"]["field"]] == ["on_site", "done"]
+    assert conn.execute("select state from work_item where id = %s", (sent["item_id"],)).fetchone()["state"] == "done"
+    assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]  # done: off their list
+    topics = {x["topic"] for x in events.pending(conn) if x["ref"] == f"exception:{e['id']}"}
+    assert {"exception.raised", "exception.dispatched", "exception.reported"} <= topics
+    conn.commit()

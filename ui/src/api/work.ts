@@ -392,6 +392,23 @@ export interface BoardFilter {
   since?: string;
 }
 
+/** An exception as the IOC sees it (fuzer.core.exceptions): one open condition from any source, matched to assets. */
+export interface ExceptionRow {
+  id: number; type: string; key: string; title: string; source: string | null; state: string;
+  priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
+  item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
+  raised_count: number; first_seen: string; last_seen: string;
+}
+
+/** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
+export interface FieldJob extends ExceptionRow {
+  label: string; due: string | null; task_id: number | null; task_name: string | null;
+  assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
+  seen: [string, string][];
+  history: { id: number; title: string; state: string; first_seen: string }[];
+  field: { at: string; by: string; status: string; note: string | null }[];
+}
+
 export const workApi = {
   board: (f: BoardFilter, page = 1) =>
     request<BoardPage>("GET", "/board", { ...f, page, per_page: 50, facets: "true" }),
@@ -408,6 +425,13 @@ export const workApi = {
       "DELETE", `/work/people/${encodeURIComponent(name)}`, { by }),
   workRoleSummary: () => request<WorkRoleSummary[]>("GET", "/work/roles/summary"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
+  exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
+    request<ExceptionRow[]>("GET", "/exceptions", f),
+  fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[] }>("GET", "/exceptions/field", { person }),
+  fieldReport: (id: number, by: string, status: string, note?: string) =>
+    request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
+  dispatch: (id: number, by: string, to: string, reason?: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),

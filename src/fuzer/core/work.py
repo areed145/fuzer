@@ -8,6 +8,8 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     start_or_correlate(conn, process_key, data, by, ...)  start a process, or add evidence to its open one
     close_case(conn, item_id, state, by, reason)          finish or cancel a case
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
+    dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
+    comment(conn, item_id, by, text)                      add a note to a case's history
 
 Every function takes the caller's connection and writes in its transaction, as the engine always has. The
 implementation is the built-in engine unless `use()` names another module with the same functions.
@@ -58,3 +60,14 @@ def close_case(conn, item_id: int, state: str, by: str, reason: str | None = Non
 def agent_steps(conn, role: str, limit: int = 100) -> list[dict]:
     """Open steps waiting for an agent role, most urgent first."""
     return _engine().agent_work(conn, role, limit=limit)
+
+
+def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """Give a case to a person, `role:<role>` or `agent:<role>`: a case without a process directly, a process's
+    open person step otherwise (the one due first)."""
+    return _engine().dispatch_item(conn, item_id, by, to, reason)
+
+
+def comment(conn, item_id: int, by: str, text: str) -> dict:
+    """A note on a case's history (what a field operator reported, say)."""
+    return _engine().comment(conn, item_id, by, text)

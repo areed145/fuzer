@@ -161,3 +161,14 @@ def process(conn, process_id: int) -> dict:
         raise NotFound("unknown process")
     detail = item(conn, row["item_id"])
     return next(p for p in detail["processes"] if p["id"] == process_id) | {"item_id": row["item_id"]}
+
+
+def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """Give a case to someone: an item without a process directly, else its open person step due first."""
+    from .assignment import hand_off
+
+    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
+                        "order by due_at nulls last, id limit 1", (item_id,)).fetchone()
+    if step:
+        return hand_off(conn, step["id"], by, to, reason)
+    return assign_item(conn, item_id, by, to, reason)

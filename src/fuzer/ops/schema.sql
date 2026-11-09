@@ -218,3 +218,19 @@ insert into exception_record (type, key, title, source, priority, evidence, item
     where w.type = 'source_issue' and w.state not in ('done', 'cancelled') and w.payload ? 'dataset'
       and not exists (select 1 from exception_record e where e.item_id = w.id)
     on conflict do nothing;
+-- Upsets and IOW breaches handed off before they were exceptions become open ones, so the next scan feeds the
+-- process already working them instead of starting another.
+insert into exception_record (type, key, title, source, priority, value_usd, subjects, evidence, item_id, first_seen,
+                              last_seen)
+    select 'upset', 'upset:' || u.id, w.title, 'sre', w.priority, u.priority_usd, w.subjects,
+           coalesce(w.payload->'start', '{}'), w.id, w.created_at, w.updated_at
+    from upset u join work_item w on w.id = u.work_item_id
+    where w.state not in ('done', 'cancelled') and not exists (select 1 from exception_record e where e.item_id = w.id)
+    on conflict do nothing;
+insert into exception_record (type, key, title, source, priority, subjects, evidence, item_id, first_seen, last_seen)
+    select 'iow_breach', w.payload->'start'->>'iow', w.title, 'limits', w.priority, w.subjects, w.payload->'start',
+           w.id, w.created_at, w.updated_at
+    from work_item w
+    where w.type = 'integrity' and w.state not in ('done', 'cancelled') and w.payload->'start' ? 'iow'
+      and not exists (select 1 from exception_record e where e.item_id = w.id)
+    on conflict do nothing;
