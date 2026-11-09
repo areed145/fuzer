@@ -5,6 +5,9 @@
 :is(h1, h2, h3, main)[tabindex="-1"]:focus { outline: none; }
 .ui-page-header p { margin: 4px 0 0; }
 .ui-page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Header buttons stay on one line each; on wide screens the long subtitle gives way, not the buttons (#399). */
+.ui-page-actions > * { white-space: nowrap; }
+@media (min-width: 700px) { .ui-page-actions { flex: none; max-width: 50%; justify-content: flex-end; } }
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 500; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; text-decoration: none; }
 .ui-button-md { padding: 6px 10px; }
 .ui-button-sm { padding: 3px 8px; font-size: 12px; }

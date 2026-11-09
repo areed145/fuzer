@@ -78,10 +78,10 @@ function stylesheet() {
         "text-background-padding": "2px",
       },
     },
-    { selector: "edge.labeled, edge:selected, edge.hover", style: { label: "data(label)" } },
+    { selector: "edge.labeled, edge:selected, edge.hover, edge.near", style: { label: "data(label)" } },
     { selector: "edge[?ended]", style: { "line-style": "dashed" } },
     {
-      selector: "edge:selected, edge.hover",
+      selector: "edge:selected, edge.hover, edge.near",
       style: { "line-color": t.accent, "target-arrow-color": t.accent, opacity: 1, color: t.text },
     },
   ];
@@ -144,6 +144,9 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     cy.on("dbltap", "node", (e) => handlers.current.onExpand?.(e.target.id()));
     cy.on("mouseover", "edge", (e) => e.target.addClass("hover"));
     cy.on("mouseout", "edge", (e) => e.target.removeClass("hover"));
+    // A hovered or selected node names its own links, so unlabelled graphs stay readable (#399).
+    cy.on("mouseover", "node", (e) => e.target.connectedEdges().addClass("near"));
+    cy.on("mouseout", "node", (e) => { if (!e.target.selected()) e.target.connectedEdges().removeClass("near"); });
     const restyle = () => cy.style(stylesheet() as cytoscape.StylesheetJson);
     window.addEventListener(THEME_CHANGED, restyle);
     cyRef.current = cy;
@@ -176,7 +179,11 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     const cy = cyRef.current;
     if (!cy) return;
     cy.$(":selected").unselect();
-    if (selectedId) cy.getElementById(selectedId).select();
+    cy.edges(".near").removeClass("near");
+    if (selectedId) {
+      const picked = cy.getElementById(selectedId).select();
+      if (picked.isNode()) picked.connectedEdges().addClass("near");
+    }
   }, [selectedId, elements]);
 
   const fit = () => cyRef.current?.fit(undefined, 24);

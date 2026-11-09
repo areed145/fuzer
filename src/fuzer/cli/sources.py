@@ -23,7 +23,8 @@ ACTIONS = {
     "delete-connection": "a connection by id (no dataset may read through it)",
     "delete-system": "a system with no datasets, and its connections",
     "edit": "change a dataset (--set field=value): load_mode, drift_policy, schedule, key, location, ...",
-    "add-dataset": "add a dataset to a system (--set field=value)",
+    "add-dataset": "add a dataset to a system (--set field=value; --set connection=<name> picks the connection, "
+                   "else the system's first)",
     "add-system": "add a system of record (--set field=value)",
     "edit-system": "change a system (--set field=value): owner, timezone, decimal, date_format, rank, ...",
     "add-connection": "add a connection to a system: NAME TYPE (--config k=v, --secret k=env:NAME)",
@@ -87,6 +88,13 @@ def _need(args, n: int, what: str) -> list[str]:
     return args.names
 
 
+def _data_hint(data: Path) -> str:
+    """Where Fuzer looked for files, and how to point it elsewhere (#416)."""
+    there = "" if Path(data).is_dir() else ", which doesn't exist"
+    return (f"Fuzer looked in the data folder {Path(data).resolve()}{there}; point it at the project's data with "
+            "--project NAME, --data PATH or FUZER_DATA_DIR.")
+
+
 def run(conn, pack, data: Path, args) -> object:
     from ..core.jsonsafe import plain
     from ..sources import catalog, connections, impact, ingest, preview, quality, rules
@@ -100,7 +108,10 @@ def run(conn, pack, data: Path, args) -> object:
         if a == "show":
             return show(conn, _need(args, 1, "a dataset")[0])
         if a == "preview":
-            return preview.preview(conn, pack, data, _need(args, 1, "a dataset")[0], args.rows)
+            try:
+                return preview.preview(conn, pack, data, _need(args, 1, "a dataset")[0], args.rows)
+            except ValueError as e:
+                raise SystemExit(f"{str(e).rstrip('.')}. {_data_hint(data)}") from None
         if a == "seed":
             out = catalog.seed(conn)
         elif a == "export":
@@ -141,6 +152,9 @@ def run(conn, pack, data: Path, args) -> object:
         elif a == "add-dataset":
             name, system = _need(args, 2, "a dataset name and its system")[:2]
             out = catalog.add_dataset(conn, name, system, by, why, **_pairs(args.set))
+            # say which connection it reads through, since one isn't always named (#417)
+            via = catalog.connection(conn, out["connection_id"]) if out.get("connection_id") else None
+            out = {**out, "connection": via["name"] if via else None}
         elif a == "add-system":
             out = catalog.add_system(conn, _need(args, 1, "a system name")[0], by, why, **_pairs(args.set))
         elif a == "edit-system":
@@ -206,7 +220,8 @@ def run(conn, pack, data: Path, args) -> object:
     except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError,
             ingest.DatasetNotFound, ingest.DatasetUnavailable, connections.ConnectionError_) as e:
         conn.rollback()
-        raise SystemExit(str(e)) from None
+        hint = f" {_data_hint(data)}" if isinstance(e, (ingest.DatasetUnavailable, ingest.DatasetNotFound)) else ""
+        raise SystemExit(f"{str(e).rstrip('.')}.{hint}" if hint else str(e)) from None
     conn.commit()
     return plain(out)
 

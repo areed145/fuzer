@@ -353,6 +353,8 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   await table.getByText("Time unknown", { exact: true }).waitFor();
   await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
   await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
+  // with datasets the how-to steps fold away so the table is on the first screen (#415)
+  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), false);
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
   const dataset = table.getByRole("link", { name: "sap_equipment", exact: true });
   await dataset.focus();
@@ -466,6 +468,7 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   await page.getByRole("button", { name: "Refresh source readiness" }).click();
   await page.getByText("0 connections", { exact: false }).waitFor();
   assert.match(await page.getByRole("link", { name: "Connect & test" }).getAttribute("href"), /view=systems/);
+  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), true);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -2210,4 +2213,23 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   await page.getByRole("button", { name: "Bring into TA26" }).first().click();
   await expectReports(brought, 1);
   assert.deepEqual(brought[0], { by: "ann", item_id: 6, revision: "TA26" });
+});
+
+test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/ontology", (route) => route.fulfill({ json: {
+    kinds: [{ kind: "tag", label: "Tag", count: 40 }, { kind: "well", label: "Well", count: 12 }],
+    relations: [{ src_kind: "tag", rel: "measures", dst_kind: "well", n: 30 }],
+    groups: [], views: [], model: { kinds: [], relations: [] },
+    needs_definition: { kinds: [], relations: [], not_allowed: [] },
+  } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/ontology`);
+  const add = page.getByRole("button", { name: "Add link type", exact: true });
+  await add.waitFor();
+  const lineHeight = await add.evaluate((b) => parseFloat(getComputedStyle(b).lineHeight) || 20);
+  const box = await add.boundingBox();
+  assert.ok(box.height < lineHeight * 2, `Add link type wraps (${box.height}px)`);
+  await page.getByText("Link names show when you point at a link or a kind", { exact: false }).waitFor();
 });
