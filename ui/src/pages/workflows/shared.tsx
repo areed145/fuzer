@@ -9,6 +9,21 @@ export const taskHref = (id: number) => href(`/inbox/task/${id}`);
 export const caseHref = (id: number) => href(`/cases/${id}`);
 export const processHref = (key: string, tab?: string) => href(`/processes/${key}`, tab ? { tab } : undefined);
 
+const IDLE_MINUTES = 10;
+
+/** An agent step no worker has claimed for a while (#393). Agents only run when an agent worker is running, which
+ * `fuzer up` skips without an AI provider; say so instead of letting the step look busy. */
+export function AgentIdle({ step }: { step: { kind: string; unclaimed?: boolean; created_at?: string | null } | null | undefined }) {
+  if (!step || step.kind !== "agent" || !step.unclaimed || !step.created_at) return null;
+  const minutes = (Date.now() - new Date(step.created_at).getTime()) / 60_000;
+  if (!(minutes >= IDLE_MINUTES)) return null;
+  const waited = minutes < 120 ? `${Math.round(minutes)} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} d`;
+  return <span className="small agent-idle" role="note">
+    Waiting for an agent worker: none has picked this step up in {waited}. The agent worker may not be running; it
+    needs an AI provider, which <a href={href("/settings")}>application settings</a> show.
+  </span>;
+}
+
 /** A case's priority as shown: a 0–1 score to two places, a value in USD rounded. Zero means it has not been scored
  * yet, which reads as no priority rather than "priority 0.00" (#405). */
 export function priorityText(p: number | null | undefined): string | null {

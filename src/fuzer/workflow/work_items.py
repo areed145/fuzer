@@ -145,7 +145,10 @@ def item(conn, item_id: int) -> dict:
         "where p.item_id = %s order by p.id", (item_id,)).fetchall()
     steps = conn.execute(
         "select id, process_id, element, name, kind, state, flow, role, assignee, requires_human, due_at, escalated_at, "
-        "attempts, error, created_at, finished_at, finished_by from work_token where item_id = %s order by id",
+        "attempts, error, created_at, finished_at, finished_by, "
+        # an agent step no worker holds (#393): with nobody claiming it for long, the agent worker may not be running
+        "(kind = 'agent' and state = 'waiting' and (lease_until is null or lease_until < now())) as unclaimed "
+        "from work_token where item_id = %s order by id",
         (item_id,)).fetchall()
     for p in procs:
         mine = [s for s in steps if s["process_id"] == p["id"]]

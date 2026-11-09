@@ -7,7 +7,7 @@ import { Markdown } from "../Markdown";
 import { readableCitations } from "../entityRefs";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
-import { useAct } from "./workflows/shared";
+import { AgentIdle, useAct } from "./workflows/shared";
 import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
 
 const STATUS_CLASS: Record<string, string> = {
@@ -131,6 +131,7 @@ function Review({ d, onDone }: { d: DailyReport; onDone: () => void }) {
           {rv.closed_at && ` ${when(rv.closed_at)}`}</span>
         {rv.comments && rv.status === "sent back" && <span>Asked for: “{rv.comments}”</span>}
         {step?.error && <span className="error">{step.error}</span>}
+        <AgentIdle step={step} />
         {caseLink}
       </p>
     );

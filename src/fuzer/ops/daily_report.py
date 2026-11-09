@@ -408,7 +408,9 @@ def _reviews(conn, item_ids: list[int]) -> dict[int, dict]:
     steps = {}
     for t in conn.execute(
             """select distinct on (t.item_id) t.item_id, t.id, t.element, t.name, t.kind, t.assignee, t.role, t.due_at,
-                      t.error, p.data ->> 'review_comments' as comments
+                      t.error, t.created_at,
+                      (t.kind = 'agent' and (t.lease_until is null or t.lease_until < now())) as unclaimed,
+                      p.data ->> 'review_comments' as comments
                from work_token t join work_process p on p.id = t.process_id
                where t.item_id = any(%s) and t.state = 'waiting' and t.kind in ('user', 'agent', 'fix')
                order by t.item_id, t.id desc""", (item_ids,)):
@@ -428,7 +430,8 @@ def _reviews(conn, item_ids: list[int]) -> dict[int, dict]:
             status = it["state"]
         out[i] = _plain({"item_id": i, "status": status, "outcome": it["outcome"], "closed_at": it["closed_at"],
                          "comments": step["comments"] if step else None,
-                         "step": {k: step[k] for k in ("id", "element", "name", "kind", "assignee", "role", "due_at", "error")}
+                         "step": {k: step[k] for k in ("id", "element", "name", "kind", "assignee", "role", "due_at", "error",
+                                                         "created_at", "unclaimed")}
                          if step else None})
     return out
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
 const url = "http://127.0.0.1:5174";
 let server, browser, context, page, errors;
@@ -263,6 +264,47 @@ test("Core consistency Home separates historical reports, unavailable counts and
   await report.getByText("not a live operating update", { exact: false }).waitFor();
   assert.equal(attempts, 2);
   assert.equal(await page.getByRole("heading", { name: "Today", exact: true }).count(), 0);
+});
+
+test("a report waiting on an agent no worker has claimed says the agent worker may not be running (#393)", async () => {
+  const report = (unclaimed, minutesAgo) => ({ day: "2025-12-30", version: 1, versions: [1], drafted_by: "template", markdown: "# Report",
+    checks: { ok: true, uncited_lines: [], unknown_citations: [], unknown_numbers: [] }, seconds: null, changes: null,
+    production_day: null, facts: { sections: {} }, review: { item_id: 5, status: "drafting", outcome: null, closed_at: null, comments: null,
+      step: { id: 9, element: "draft", name: "Draft report", kind: "agent", assignee: null, role: "reporter", due_at: null, error: null,
+        created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(), unclaimed } } });
+  let current = report(true, 90);
+  await page.route("**/reports/daily", route => route.fulfill({ json: [{ day: "2025-12-30", status: "drafting" }] }));
+  await page.route("**/reports/daily/2025-12-30*", route => route.fulfill({ json: current }));
+  await page.goto(`${url}/#/reports?day=2025-12-30`);
+  const note = page.getByRole("note").filter({ hasText: "Waiting for an agent worker" });
+  await note.waitFor();
+  assert.match(await note.innerText(), /none has picked this step up in 90 min/);
+  assert.equal(await note.getByRole("link", { name: "application settings" }).count(), 1);
+  current = report(false, 90);  // a worker holds it: just drafting
+  await page.reload();
+  await page.getByText("the reporter agent is drafting it", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).count(), 0);
+});
+
+test("a case's process diagram opens on the waiting step at a readable size, the whole process a click away (#406)", async () => {
+  const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/upset.bpmn", import.meta.url), "utf8");
+  const step = { id: 3, process_id: 1, element: "triage", name: "Triage", kind: "user", state: "waiting", flow: null, role: "engineer",
+    assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0, error: null,
+    created_at: "2026-11-09T09:00:00Z", finished_at: null, finished_by: null };
+  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Upset case", type: "upset", state: "open",
+    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", events: [],
+    processes: [{ id: 1, process_key: "upset", version: 1, definition_id: 1, parent_token: null, state: "running", outcome: null,
+      data: {}, started_by: "agent:sre", started_at: "2026-11-09T09:00:00Z", path: [], open: [step] }] } }));
+  await page.route("**/work/definitions/1/bpmn", route => route.fulfill({ body: xml, contentType: "application/xml" }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/cases/7`);
+  const whole = page.getByRole("button", { name: "Show the whole process", exact: true });
+  await whole.waitFor();
+  await page.getByText("Showing the waiting step at a readable size.", { exact: false }).waitFor();
+  await whole.click();
+  await page.getByRole("button", { name: "Zoom to the waiting step", exact: true }).waitFor();
+  const gap = await page.locator(".bpmn-legend").evaluate((el) => getComputedStyle(el).columnGap);
+  assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
 });
 
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
