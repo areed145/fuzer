@@ -188,7 +188,11 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
         <h3>Same item? <span className="muted small">#{id}</span></h3>
         <Score value={p.score} />
       </div>
-      <p className="muted small">{p.why}</p>
+      <p className="muted small">{p.why.charAt(0).toUpperCase() + p.why.slice(1)}.{" "}
+        Match score {p.score.toFixed(2)}
+        {p.review_min != null && p.auto_accept != null
+          ? `; scores from ${p.review_min.toFixed(2)} to ${p.auto_accept.toFixed(2)} come here for a person to decide, higher ones match on their own`
+          : ""}.</p>
       <Table variant="compare">
         <thead>
           <tr>
@@ -404,7 +408,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
 
 function Score({ value }: { value: number }) {
   return (
-    <span className="score" title="Match score (0–1)">
+    <span className="score" title="Match score from 0 (different) to 1 (the same item)" aria-label={`Match score ${value.toFixed(2)} of 1`}>
       <Bar className="bar" value={Math.round(value * 100)} />
       {value.toFixed(2)}
     </span>

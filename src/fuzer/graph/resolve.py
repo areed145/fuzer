@@ -67,7 +67,10 @@ def score_equipment(a: Candidate, b: Candidate) -> tuple[float, str]:
     mfr = _sim(a.fields.get("manufacturer"), b.fields.get("manufacturer"))
     desc = _sim(a.fields.get("description"), b.fields.get("description")) or 0.0
     mfr_score = 0.5 if mfr is None else mfr  # unknown manufacturer is neutral
-    why = f"same tag {a.block}; manufacturer {'unknown' if mfr is None else f'{mfr:.2f}'}, description {desc:.2f}"
+    # Spelled out for the reviewer (#410): what was compared, how alike, and how a missing value counted.
+    why = (f"same tag {a.block}; description similarity {desc:.2f}; "
+           + ("manufacturer unknown on at least one side, counted as neutral (0.50)" if mfr is None
+              else f"manufacturer similarity {mfr:.2f}") + "; the score weighs manufacturer 60%, description 40%")
     return round(0.6 * mfr_score + 0.4 * desc, 3), why
 
 
@@ -143,7 +146,8 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
                 why += "; more than one possible match"
             left, right = sorted((a, b), key=lambda c: c.ref)
             reviews.append((f"{left.ref}|{right.ref}",
-                            {"left": _summary(left), "right": _summary(right), "score": s, "why": why}))
+                            {"left": _summary(left), "right": _summary(right), "score": s, "why": why,
+                             "review_min": cfg["review_min"], "auto_accept": cfg["auto_accept"]}))
     replace_open_reviews(conn, "match", reviews)
 
     assigned = _assign_ids(conn, cl.groups(), by_ref)

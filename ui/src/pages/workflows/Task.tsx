@@ -68,6 +68,10 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
                   : <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("release", () => api.release(id, person), view.reload)}>Release back to the queue</Button>)}
                 {others && <span className="small muted">{t.assignee} has it.</span>}
               </div>
+              {!t.assignee && !demo && t.kind !== "fix" && (
+                <p className="small muted">Not claimed yet. Completing it now records it as done by you; claim it first to hold it
+                  while you work on it.</p>
+              )}
               {completion && demo ? <div><h3>Review task response</h3><DataView data={completion} />
                 <ConfirmAction label="task completion" busy={!!a.busy}
                   consequence="Save this response and complete the shared task. This may advance the process or queue downstream agent work with configured AI costs. Completion is not proof that downstream work finished. After a failure, inspect the recorded task and case before retrying."

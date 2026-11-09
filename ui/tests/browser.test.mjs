@@ -784,6 +784,17 @@ test("review lifecycle confirms shared decisions and exposes failures without ma
   assert.equal(attempts, 2);
 });
 
+test("a match review spells out its reasons and where its score sits against the thresholds (#410)", async () => {
+  const side = (ref, source, m) => ({ ref, source, key: null, block: "76-HCV-1003", fields: { description: "Control valve", ...(m ? { manufacturer: m } : {}) } });
+  await page.route("**/review?*", (route) => route.fulfill({ json: [{ id: 9, kind: "match", payload: {
+    left: side("sap:equipment:1", "sap", "Fisher"), right: side("maximo:asset:2", "maximo"), score: 0.7, review_min: 0.6, auto_accept: 0.9,
+    why: "same tag 76-HCV-1003; description similarity 1.00; manufacturer unknown on at least one side, counted as neutral (0.50); the score weighs manufacturer 60%, description 40%" } }] }));
+  await page.goto(`${url}/#/review?kind=match`);
+  await page.getByText("Same tag 76-HCV-1003; description similarity 1.00", { exact: false }).waitFor();
+  await page.getByText("scores from 0.60 to 0.90 come here for a person to decide", { exact: false }).waitFor();
+  await page.getByLabel("Match score 0.70 of 1").waitFor();
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
@@ -2105,6 +2116,22 @@ test("an entity page reads labels, PI AF paths and long relations as a person wo
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 5);
   await page.getByRole("button", { name: "Show all 24", exact: true }).click();
   assert.equal(await page.getByRole("link", { name: /^WT-/ }).count(), 24);
+});
+
+test("work board cards are dense rows and don't repeat 'unassigned' (#408)", async () => {
+  const card = (rank, owner) => ({ key: `k${rank}`, kind: "sap_backlog", title: `Replace seal ${rank}`, text: null, unit_id: null,
+    unit: null, area_id: null, area: "North", owner, records: [`r${rank}`], value_usd: 1000, effective_usd: 1000, reason: null,
+    breakdown: {}, rank, prev_rank: rank, moved: null, pinned: false, pin_reason: null, pinned_by: null, item_id: null,
+    first_seen: "2026-11-01T00:00:00Z" });
+  await page.route("**/board?*", route => route.fulfill({ json: { total: 2, page: 1, per_page: 50,
+    cards: [card(1, "unassigned"), card(2, "ana")], facets: { kind: {}, owner: {}, area: [] } } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/board`);
+  await page.getByText("Replace seal 1", { exact: true }).waitFor();
+  const box = await page.locator(".board-card").first().boundingBox();
+  assert.ok(box.height <= 60, `a card should be a dense row, got ${box.height}px`);
+  assert.equal(await page.locator(".board-card").getByText("unassigned", { exact: true }).count(), 0);
+  await page.locator(".board-card").getByText("ana", { exact: true }).waitFor();
 });
 
 test("a turnaround shows its scope on the plan and brings planned work into it", async () => {
