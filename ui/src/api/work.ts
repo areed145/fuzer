@@ -442,7 +442,7 @@ export const workApi = {
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
-  fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[] }>("GET", "/exceptions/field", { person }),
+  fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),

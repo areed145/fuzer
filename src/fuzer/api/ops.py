@@ -247,10 +247,11 @@ def exception_list(state: str | None = "open", type: str | None = None, subject:
 
 @router.get("/exceptions/field")
 def exception_field_jobs(person: str, conn=Depends(get_conn)):
-    """A field operator's dispatched jobs: where to go, what was seen, the asset's recent history, the field log."""
-    from ..ops import exceptions
+    """A field operator's dispatched jobs (where to go, what was seen, the asset's recent history, the field log)
+    and what they are planned onto over the next two weeks."""
+    from ..ops import exceptions, plan
     _loaded_types()
-    return {"person": person, "jobs": exceptions.field_jobs(conn, person)}
+    return {"person": person, "jobs": exceptions.field_jobs(conn, person), "coming_up": plan.coming_up(conn, person)}
 
 
 @router.post("/exceptions/{exception_id}/dispatch")

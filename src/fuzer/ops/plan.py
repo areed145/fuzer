@@ -138,7 +138,7 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
-          subject: str | None = None) -> list[dict]:
+          subject: str | None = None, crew: str | None = None) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows."""
@@ -160,7 +160,16 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject}).fetchall()
     clashes = _clashes(rows)
     return [{**r, "clashes": clashes[r["id"]]} for r in rows
-            if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)]
+            if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
+            and (crew is None or r["crew"] == crew)]
+
+
+def coming_up(conn, person: str, days: int = 14) -> list[dict]:
+    """What a field operator is planned onto over the next days, so the job a phone shows tomorrow is no surprise
+    today: scheduled and started plan items with them as crew, in start order (proposals aren't commitments yet)."""
+    now = datetime.now(timezone.utc)
+    return [i for i in items(conn, now, now + timedelta(days=days), crew=person)
+            if i["status"] in ("scheduled", "in_progress")]
 
 
 # ---- sources of plan items ---------------------------------------------------------------------------------------

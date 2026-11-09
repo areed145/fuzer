@@ -80,6 +80,21 @@ def test_sap_work_orders_become_plan_items_and_clashes_and_bundles_show(conn):
     conn.commit()
 
 
+def test_a_field_operator_sees_what_they_are_planned_onto(conn):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    soon = propose(conn, "maintenance", "Grease P-101", "ann", now + timedelta(days=2), now + timedelta(days=2, hours=2),
+                   refs=["fz-pump-1"], crew="gina", status="scheduled")
+    propose(conn, "maintenance", "Maybe later", "ann", now + timedelta(days=3), now + timedelta(days=3, hours=1),
+            crew="gina")  # a proposal isn't a commitment yet
+    propose(conn, "maintenance", "Next month", "ann", now + timedelta(days=40), now + timedelta(days=41),
+            crew="gina", status="scheduled")
+    assert [i["id"] for i in plan.coming_up(conn, "gina")] == [soon["id"]]
+    assert plan.coming_up(conn, "nobody") == []
+    conn.rollback()
+
+
 def test_a_closed_order_leaves_the_plan_and_people_choices_stick(conn):
     seal = conn.execute("select * from plan_item where source_key = '4000001'").fetchone()
     assert seal["crew"] == "fred"

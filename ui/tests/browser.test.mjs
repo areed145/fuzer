@@ -1883,13 +1883,20 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     seen: [["drips_per_min", "12"]], history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
     field: [] };
   const reports = [];
-  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job] } }));
+  const soon = { id: 12, kind: "maintenance", title: "Replace P-101 seal", source: "sap", source_key: "4000001",
+    subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: "2026-11-12T08:00:00Z",
+    end_at: "2026-11-12T16:00:00Z", status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
+    deferment_usd: null, exception_id: null, notes: "bring the seal kit", clashes: [],
+    assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump" }] };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [soon] } }));
   await page.route("**/exceptions/7/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(`${url}/#/field`);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
   await page.getByRole("link", { name: "directions" }).waitFor();
   await page.getByText("drips per min").waitFor();
+  await page.getByRole("heading", { name: "Coming up" }).waitFor();
+  await page.getByText("bring the seal kit").waitFor();
   assert.equal(await page.getByRole("button", { name: "Could not do" }).isDisabled(), true);
   await page.getByRole("button", { name: "On site" }).click();
   await page.getByLabel(/Note for the IOC/).fill("valve seized");
