@@ -59,6 +59,34 @@ def match(conn, refs) -> tuple[list[str], list[str]]:
     return ids, unmatched
 
 
+def ref_forms(conn, per_kind: int = 1) -> list[dict]:
+    """The reference forms `match` resolves, each with an example from this register, so another system knows what
+    to send: a key kind (`tag:20-K-2100B`), a source's own key (`sap/10004711`), or a Fuzer ID. Most entities first."""
+    keys = conn.execute(
+        """
+        select kind, count(distinct fuzer_id) as entities, min(kind || ':' || key) as example
+        from entity_key where kind <> 'tag_noarea' group by kind order by count(distinct fuzer_id) desc, kind
+        """).fetchall()
+    sources = conn.execute(
+        """
+        select source || '/' as form, count(*) as entities, min(source || '/' || source_key) as example
+        from crosswalk group by source order by count(*) desc, source
+        """).fetchall()
+    fid = conn.execute("select min(fuzer_id) as f, count(*) as n from entity where retired_at is null").fetchone()
+    return ([{"form": f"{k['kind']}:<key>", "example": k["example"], "entities": k["entities"]} for k in keys]
+            + [{"form": f"{r['form']}<source key>", "example": r["example"], "entities": r["entities"]} for r in sources]
+            + ([{"form": "Fuzer ID", "example": fid["f"], "entities": fid["n"]}] if fid["f"] else []))
+
+
+def _unmatched_note(conn, unmatched: list[str]) -> str | None:
+    """What a sender is told when refs matched nothing: which, and the forms that would have, with examples."""
+    if not unmatched:
+        return None
+    forms = ", ".join(f["example"] for f in ref_forms(conn)[:4])
+    return (f"{len(unmatched)} ref{'s' if len(unmatched) > 1 else ''} matched nothing in the register "
+            f"({', '.join(unmatched[:5])}); refs look like {forms or 'kind:key, source/key or a Fuzer ID'}")
+
+
 def _payload(row: dict, t: ExceptionType | None = None) -> dict:
     keep = ("id", "type", "key", "title", "source", "state", "priority", "value_usd", "subjects", "unmatched",
             "item_id", "raised_count")
@@ -114,7 +142,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
             """, (title, priority, value_usd, Jsonb(evidence or {}), subjects, unmatched, current["id"])).fetchone()
         if t.process:  # new evidence for the process already working it
             _case(conn, t, {**row, "evidence": evidence or {}}, by, assignee, role)
-        return {**row, "raised": False}
+        return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}
     row = conn.execute(
         """
         insert into exception_record (type, key, title, source, priority, value_usd, subjects, unmatched, evidence)
@@ -128,7 +156,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
                            (item_id, row["id"])).fetchone()
     case = conn.execute("select assignee, role from work_item where id = %s", (item_id,)).fetchone() if item_id else None
     events.publish(conn, "exception.raised", f"exception:{row['id']}", {**_payload(row, t), **(case or {})})
-    return {**row, "raised": True}
+    return {**row, "raised": True, "unmatched_note": _unmatched_note(conn, unmatched)}
 
 
 def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict | None:
@@ -247,10 +275,13 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next work tick
                 events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(_row(conn, exception_id)))
         elif status in ("done", "could_not_do") and state not in ("done", "cancelled"):
-            # The field's part is over: what the IOC sent them (its decision step, or the case) goes back to whoever
-            # sent it, with what they found, so it lands in that person's or queue's Inbox instead of staying here.
-            work.hand_back(conn, row["item_id"], by, by, reason=f"Back from the field: {said.lower()} (their note is above)"
-                           if note else f"Back from the field: {said.lower()}")
+            # The field's part is over. A process with a field step of its own (the upset's Field check) has it
+            # completed with what they found, and the IOC's decision it returns to goes to whoever sent them; else
+            # what the IOC sent them (its decision step, or the case) goes back to whoever sent it. Either way it
+            # lands in that person's or queue's Inbox, with the reason saying it is back from the field.
+            back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
+            if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
+                work.hand_back(conn, row["item_id"], by, by, reason=back)
     row = _row(conn, exception_id)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
@@ -288,7 +319,9 @@ def _sent(conn, item_id: int, person: str) -> dict | None:
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
-    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of."""
+    """Each subject with its label, kind and a location: its own, else the nearest located thing it is part of.
+    Equipment reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor"), not its
+    serial number, since that is what an operator finds on site."""
     if not ids:
         return []
     rows = conn.execute(
@@ -298,10 +331,15 @@ def _assets(conn, ids: list[str]) -> list[dict]:
             union all
             select up.start, e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
             where up.depth < 3)
-        select distinct on (s.id) s.id as fuzer_id, l.label, en.kind, g.cy as lat, g.cx as lon
+        select distinct on (s.id) s.id as fuzer_id, coalesce(t.label || coalesce(' ' || (d.value #>> '{}'), ''),
+               l.label) as label, en.kind, g.cy as lat, g.cx as lon
         from unnest(%s::text[]) with ordinality s (id, n)
         left join entity_label l on l.fuzer_id = s.id
         left join entity en on en.fuzer_id = s.id
+        left join golden d on d.fuzer_id = s.id and d.field = 'description'
+        left join lateral (select tl.label from edge x join entity_label tl on tl.fuzer_id = x.dst
+                           where x.src = s.id and x.rel = 'installed_at' and x.valid_to is null
+                           order by tl.label limit 1) t on en.kind = 'equipment'
         left join up on up.start = s.id
         left join geo_index g on g.fuzer_id = up.fuzer_id
         order by s.id, g.fuzer_id is null, up.depth
@@ -317,22 +355,29 @@ def field_jobs(conn, person: str) -> list[dict]:
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
-               t.id as task_id, t.name as task_name,
+               t.id as task_id, t.name as task_name, t.role as task_role, p.data->>'field_ask' as ask,
                not (coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)))
                  as queued
         from exception_record e join work_item w on w.id = e.item_id
         left join lateral (select id, name, due_at, assignee, role from work_token
                            where item_id = w.id and kind = 'user' and state in ('ready', 'waiting')
                            order by due_at nulls last, id limit 1) t on true
+        left join work_process p on p.id = (select process_id from work_token where id = t.id)
         where e.state = 'open' and w.state not in ('done', 'cancelled')
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
                or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
                or (t.id is null and w.assignee is null and w.role = any(%(roles)s)))
         order by coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
                  coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
-        """, {"p": person, "roles": work.roles_of(conn, person)}).fetchall()
+        """, {"p": person, "roles": (roles := work.roles_of(conn, person))}).fetchall()
     out, known = [], types(conn)
     for r in rows:
+        # Their own step (a Field check, in the operator role) can be opened; another role's step handed to them
+        # (an engineer's Triage) can't: they report back from here and it returns to whoever sent it.
+        r["own_step"] = bool(r["task_id"]) and r["task_role"] in roles
+        sent = _sent(conn, r["item_id"], person)
+        if r["ask"] and r["task_role"] == "operator":  # what the IOC asked when it sent the process to the field
+            sent = {**(sent or {"by": None, "at": None}), "reason": r["ask"]}
         history = conn.execute(
             "select id, title, state, first_seen from exception_record where id <> %s and subjects && %s "
             "and first_seen > now() - interval '90 days' order by first_seen desc limit 5",
@@ -340,7 +385,7 @@ def field_jobs(conn, person: str) -> list[dict]:
         t = known.get(r["type"])
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, r["subjects"]),
                     "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
-                    "sent": _sent(conn, r["item_id"], person)})
+                    "sent": sent})
     return out
 
 
@@ -362,6 +407,12 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
         raise ExceptionError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
     if not (label or "").strip():
         raise ExceptionError("a type needs a label")
+    if role:  # a queue nobody can be in would hold its cases where no Inbox shows them
+        queue = role.removeprefix("role:")
+        known = work.person_roles(conn)
+        if queue not in known:
+            raise ExceptionError(f"no role queue '{queue}'; pick one of {', '.join(known)} (or add the role on Teams)")
+        role = f"role:{queue}"
     return conn.execute(
         """
         insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,

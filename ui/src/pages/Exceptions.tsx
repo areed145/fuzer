@@ -13,11 +13,16 @@ export function ExceptionsPage() {
   const [person] = usePerson();
   const [state, setState] = useState("open");
   const [type, setType] = useState("");
-  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
+  const back = state === "back";  // open, and the field's last word was done or could not do: the IOC decides next
+  const rows = useAsync(() => api.exceptions({ state: back ? "open" : state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);
+  const roles = useAsync(() => api.rolesCatalog(), []);
+  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const types = [...new Set(rows.data.map((r) => r.type))].sort();
   const waiting = rows.data.filter((r) => !r.item_id && !r.planned && r.state === "open");
+  const backRows = rows.data.filter(backFromField);
+  const shown = back ? backRows : rows.data;
   return (
     <section>
       <PageHeader subtitle={<>Every exception raised by Fuzer's detectors, other systems and the field, once per open
@@ -27,29 +32,35 @@ export function ExceptionsPage() {
       <div className="row">
         <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
           <option value="open">open</option><option value="cleared">cleared</option>
-          <option value="closed">closed</option><option value="">any state</option>
+          <option value="closed">closed</option><option value="back">back from the field</option>
+          <option value="">any state</option>
         </Select>
         <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every type</option>{types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>
         {waiting.length > 0 && <Badge tone="warn">{waiting.length} waiting to be dispatched</Badge>}
+        {!back && backRows.length > 0 && <Button size="sm" onClick={() => setState("back")}>
+          {backRows.length} back from the field</Button>}
       </div>
       <Card>
-        {!rows.data.length ? <p className="muted">Nothing here.</p> : <Table variant="results">
+        {!shown.length ? <p className="muted">{back ? "Nothing back from the field waiting on the IOC." : "Nothing here."}</p> : <Table variant="results">
           <thead><tr><th>Exception</th><th>Assets</th><th>Seen</th><th>With</th><th /></tr></thead>
-          <tbody>{rows.data.map((r) => <Row key={r.id} r={r} person={person}
-            people={(people.data ?? []).map((p) => p.name)} onChange={rows.reload} />)}</tbody>
+          <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
+            people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</tbody>
         </Table>}
+        {people.data && !people.data.length && <p className="small muted">Nobody is on the roster yet, so dispatch can
+          only go to a role's queue. Add the IOC team and field operators on <a href={href("/teams")}>Teams &amp; routing</a>.</p>}
       </Card>
-      <Kinds person={person} />
+      <Kinds person={person} queues={queues} />
     </section>
   );
 }
 
 /** The exception types: what modules raise, and the ones defined here so other systems (SAP notifications, SCADA
  * alarms, a reporting app) can raise them through POST /exceptions without code. */
-function Kinds({ person }: { person: string | null }) {
+function Kinds({ person, queues }: { person: string | null; queues: string[] }) {
   const kinds = useAsync(() => api.exceptionKinds(), []);
+  const refs = useAsync(() => api.exceptionRefs(), []);
   const canConfigure = usePermission("configure");
   const { busy, error, run } = useAct();
   const [f, setF] = useState({ name: "", label: "", role: "", field: true });
@@ -62,6 +73,12 @@ function Kinds({ person }: { person: string | null }) {
       <p className="muted small">Modules declare the types they raise. Define one here for another system to raise
         with <code>POST /exceptions</code> (type, key, title, refs); a repeat with the same key updates the open one,
         and <code>POST /exceptions/clear</code> clears it.</p>
+      {refs.data && refs.data.length > 0 && <div className="small">
+        <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
+          is kept as unmatched and the sender is told)</span>
+        <ul className="plain">{refs.data.slice(0, 8).map((f) => <li key={f.form}>
+          <code>{f.example}</code> <span className="muted">{f.form} · {f.entities.toLocaleString()} entities</span></li>)}</ul>
+      </div>}
       <Table variant="results">
         <thead><tr><th>Type</th><th>Worked by</th><th>Seen by</th><th>Open</th><th>Defined</th><th /></tr></thead>
         <tbody>{kinds.data.map((k) => <tr key={k.name}>
@@ -78,7 +95,10 @@ function Kinds({ person }: { person: string | null }) {
       {canConfigure && person && <div className="row">
         <Input aria-label="Type name" placeholder="scada_alarm" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <Input aria-label="Label" placeholder="SCADA alarm" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
-        <Input aria-label="Queue" placeholder="role:maintenance (optional)" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} />
+        <Select aria-label="Queue" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+          <option value="">waits for the IOC to dispatch</option>
+          {queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}
+        </Select>
         <label className="small"><input type="checkbox" checked={f.field} onChange={(e) => setF({ ...f, field: e.target.checked })} /> field sees it</label>
         <Button disabled={!!busy || !f.name.trim() || !f.label.trim()} onClick={save}>Define type</Button>
       </div>}
@@ -87,9 +107,24 @@ function Kinds({ person }: { person: string | null }) {
   );
 }
 
+/** Open, and the field's latest report says done or could not do: their part is over and the case is back with the
+ * IOC to decide what happens next. */
+const backFromField = (r: ExceptionRow) => {
+  const last = r.evidence?.field?.[r.evidence.field.length - 1];
+  return r.state === "open" && !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
+};
+
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 
-function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string | null; people: string[]; onChange: () => void }) {
+type Person = { name: string; roles: string[]; away_until?: string | null };
+
+/** Equipment by the tag it is installed at and what it is ("20-K-2100B 1st stage compressor"), not its serial. */
+const assetName = (id: string, n?: { label: string | null; description: string | null; at?: string }) =>
+  n?.at ? `${n.at}${n.description ? ` ${n.description}` : ""}` : n?.label ?? id;
+
+function Row({ r, person, people, queues, onChange }: {
+  r: ExceptionRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+}) {
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAct();
   const [to, setTo] = useState("");
@@ -100,7 +135,8 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
     <tr>
       <td><strong>{r.title}</strong><br /><span className="muted small">{r.type.replace(/_/g, " ")} · {r.source ?? ""}
         {r.value_usd != null ? ` · $${Math.round(r.value_usd).toLocaleString()}` : ""}</span></td>
-      <td className="small">{r.subjects.map((s) => <div key={s}><a href={entityHref(s)}>{names?.[s]?.label ?? s}</a></div>)}
+      <td className="small">{r.subjects.map((s) => <div key={s}><a href={entityHref(s)}
+        title={names?.[s]?.at ? names[s].label ?? undefined : undefined}>{assetName(s, names?.[s])}</a></div>)}
         {r.unmatched.length > 0 && <div className="muted">unmatched: {r.unmatched.join(", ")}</div>}</td>
       <td className="small">{r.raised_count}× · last {when(r.last_seen)}</td>
       <td className="small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
@@ -112,9 +148,13 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
             {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <span className="muted">{fieldSaid.by} · {when(fieldSaid.at)}</span>
           {fieldSaid.note && <div className="muted">{fieldSaid.note}</div>}</div>}</td>
       <td className="small">{r.state === "open" && person && <div className="row">
-        <Input list={`people-${r.id}`} aria-label="Dispatch to" placeholder="person" value={to}
-          onChange={(e) => setTo(e.target.value)} style={{ width: "8rem" }} />
-        <datalist id={`people-${r.id}`}>{people.map((p) => <option key={p} value={p} />)}</datalist>
+        <Select aria-label="Dispatch to" value={to} onChange={(e) => setTo(e.target.value)} style={{ maxWidth: "12rem" }}>
+          <option value="">send to…</option>
+          {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
+            {p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
+            {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
+          <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
+        </Select>
         <Button size="sm" disabled={!to.trim() || !!busy}
           onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined),
             () => { setTo(""); setAsk(""); onChange(); })}>

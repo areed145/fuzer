@@ -1,6 +1,9 @@
 export const workflowComponents = [
   { id: "start", name: "Start", type: "bpmn:StartEvent", icon: "start-event-none" },
   { id: "person", name: "Person's task", type: "bpmn:UserTask", icon: "user-task" },
+  // Send a field operator to look: My jobs completes it with what they found (field_result, field_note), and the IOC
+  // can dispatch to it from a step that declares fuzer:dispatch (the upset's Triage).
+  { id: "field", name: "Field check", type: "bpmn:UserTask", icon: "user-task", role: "operator", form: "field-check" },
   { id: "agent", name: "Agent's task", type: "bpmn:ServiceTask", icon: "service-task" },
   { id: "anomaly", name: "Anomaly detection", type: "bpmn:ServiceTask", icon: "service-task",
     agent: "field-operations-facilities", instructions: "Use detections to inspect anomalies for the work item's subjects. Report the detector, time window, evidence and uncertainty; propose actions only." },

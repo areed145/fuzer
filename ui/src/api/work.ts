@@ -187,6 +187,8 @@ export interface WorkRow {
   process_key: string | null;
   bulk: string[];
   covering_for?: string | null;
+  /** Why it was last handed on, e.g. "Back from the field: done: gauge reads 13 barg". */
+  handed_reason?: string | null;
 }
 
 export interface WorkRoleRow {
@@ -445,7 +447,10 @@ export interface FieldJob extends ExceptionRow {
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null }[];
   /** Who sent it to them, when, and what they asked for. */
-  sent: { by: string; at: string; reason: string | null } | null;
+  sent: { by: string | null; at: string | null; reason: string | null } | null;
+  /** The open step is in one of their roles (a Field check), so they can open it; another role's step handed to
+   * them (an engineer's Triage) is reported back on from My jobs instead. */
+  own_step: boolean;
   /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
   queued: boolean;
 }
@@ -481,6 +486,8 @@ export const workApi = {
   planException: (id: number, by: string, start: string, end: string, crew?: string) =>
     request<PlanItem>("POST", `/exceptions/${id}/plan`, undefined, { by, start, end, crew: crew ?? null }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
+  /** The reference forms another system's refs are matched by, each with an example from this register. */
+  exceptionRefs: () => request<{ form: string; example: string; entities: number }[]>("GET", "/exceptions/refs"),
   defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;
     audience: string[]; description?: string | null }) => request<unknown>("PUT", `/exceptions/types/${encodeURIComponent(name)}`, undefined, k),
   removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),

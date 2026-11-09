@@ -2,7 +2,8 @@
 // This rewrites them into tokens Markdown renders as links. It's only about display: the text the
 // agents wrote, what's stored and what the evals count all keep their ids.
 
-export interface EntityName { label: string | null; description: string | null }
+/** `at`: for equipment (labelled by serial number), the tag it is installed at, which is what people know it by. */
+export interface EntityName { label: string | null; description: string | null; at?: string }
 export type EntityNames = Record<string, EntityName>;
 
 const ID = "fz-[a-z_]+-[0-9a-f]{12}";

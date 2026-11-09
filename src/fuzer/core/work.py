@@ -9,6 +9,7 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     close_case(conn, item_id, state, by, reason)          finish or cancel a case
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
+    report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
     comment(conn, item_id, by, text)                      add a note to a case's history
 
 Every function takes the caller's connection and writes in its transaction, as the engine always has. The
@@ -72,6 +73,17 @@ def hand_back(conn, item_id: int, person: str, by: str, reason: str | None = Non
     """Return what was sent to `person` on a case (its open person step they hold, else the case) to whoever it was
     handed from, or its role's queue. None when nothing on the case is with them."""
     return _engine().hand_back_item(conn, item_id, person, by, reason)
+
+
+def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str) -> dict | None:
+    """Complete the field step `person` holds on a case (`done` or `could_not_do`, with their note) and hand the step
+    the process returns to back to whoever sent them. None when they hold no field step there."""
+    return _engine().report_field_step(conn, item_id, person, result, note, reason)
+
+
+def person_roles(conn) -> list[str]:
+    """The person roles (queues) work can be routed to: `role:<name>` for each."""
+    return _engine().person_roles(conn)
 
 
 def roles_of(conn, person: str) -> list[str]:

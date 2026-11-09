@@ -3,7 +3,8 @@
 An SAP notification is someone saying "this asset needs attention". While it is open and no work order has been
 raised for it, nobody is working it: it becomes a `sap_notification` exception, matched to the equipment it
 concerns, waiting on the Exceptions page for the IOC to dispatch it to the field, plan it, or leave it for SAP's
-planners. When an order is raised for it, or SAP completes it, the exception clears.
+planners. When an order is raised for it, or SAP completes it, the exception clears. One the field reports done
+closes with its case and is held (not raised again) until SAP's status for it changes, since SAP never hears of it.
 
     sync_notifications(conn)   run on each register refresh, after the SAP records are rebuilt
 
@@ -59,7 +60,15 @@ def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | No
         """).fetchall()
     already = {r["key"] for r in conn.execute(
         "select key from exception_record where type = %s and state = 'open'", (SAP_NOTIFICATION,))}
-    raised = cleared = 0
+    # Notifications the field said were done: SAP doesn't hear of it, so the same open notification would come
+    # straight back. Each is held while SAP still shows the status it had when the field closed it; a new status
+    # (or an order, which clears it above) means SAP moved, and a status that is still open raises it again.
+    done_in_field = {r["key"]: r["status"] for r in conn.execute(
+        """
+        select distinct on (key) key, evidence->>'status' as status, evidence->'field'->-1->>'status' as said
+        from exception_record where type = %s and state = 'closed' order by key, closed_at desc
+        """, (SAP_NOTIFICATION,)) if r["said"] == "done"}
+    raised = cleared = held = 0
     for r in rows:
         f = {k: v for k, v in r["f"].items() if v not in (None, "")}
         key = r["number"] or r["fuzer_id"]
@@ -72,6 +81,9 @@ def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | No
             continue
         if key in already or str(f.get("created", ""))[:10] < since:
             continue  # raised already (a repeat would only bump its count), or too old to send anyone to
+        if key in done_in_field and done_in_field[key] == f.get("status"):
+            held += 1  # done in the field; waiting for SAP's planners to close or change it
+            continue
         text = f.get("short_text") or f.get("description") or "SAP notification"
         evidence = {k: f[k] for k in ("notif_type", "status", "created", "priority", "failure_mode",
                                        "failure_mechanism", "damage_code", "cause_code") if k in f}
@@ -79,4 +91,4 @@ def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | No
                         refs=r["concerns"] or [r["fuzer_id"]], priority=_priority(f),
                         evidence={"notification": key, **evidence})
         raised += 1
-    return {"raised": raised, "cleared": cleared}
+    return {"raised": raised, "cleared": cleared, "held": held}

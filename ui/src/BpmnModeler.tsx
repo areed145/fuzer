@@ -98,6 +98,7 @@ function WorkflowPalette({ modeler }: { modeler: Modeler }) {
       ...("agent" in component ? { "fuzer:agent": component.agent, "fuzer:component": component.id,
         "fuzer:instructions": component.instructions } : {}),
       ...(component.id === "person" ? { "fuzer:role": "engineer", "fuzer:sla": "PT4H" } : {}),
+      ...("form" in component ? { "fuzer:role": component.role, "fuzer:sla": "PT8H", "fuzer:form": component.form } : {}),
     });
     const shape = factory.createShape({ type: component.type, businessObject: bo,
       ...("eventDefinitionType" in component ? { eventDefinitionType: component.eventDefinitionType } : {}) });
