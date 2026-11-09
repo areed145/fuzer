@@ -16,7 +16,9 @@ uv run fakeplant demo                       # reset the database, generate, inge
 Seed bundles (#376) live in `bundles/`: `bundles/okan` points at the generated
 Okan exports and the packaged Okan pack; `bundles/kestrel` is a second, small
 facility (Kestrel Ridge gas plant, `KRGP`) with its own pack and hand-written
-exports, initialised with `fuzer init --bundle fakeplant/bundles/kestrel`.
+exports, initialised with `fuzer init --bundle fakeplant/bundles/kestrel`. Kestrel's historian is
+synthetic, driven by the hand-written `exports/process_model.json` (its climate, units, PI points and a
+compressor trip on 2026-11-06), so its charts have values without anything running.
 
 | Module | What it makes |
 |---|---|
