@@ -5,7 +5,7 @@
 Open **Home -> Source readiness -> Sources** with configure permission to connect, test,
 ingest, monitor freshness and recover failed loads. The existing dataset list owns readiness;
 Systems & connections owns deliberate tests, and Jobs owns scheduler/run diagnostics.
-**Settings -> Application configuration** owns deployment/sign-in references, application defaults,
+**Settings -> Readiness** owns deployment/sign-in references, application defaults,
 optional AI/limits and restart requirements. Home links to these destinations without duplicating
 configuration. Refresh reads existing configuration and
 diagnostics only; it does not call AI, test credentials, load data or restart processes.
