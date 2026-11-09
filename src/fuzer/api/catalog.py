@@ -190,6 +190,32 @@ def import_(body: Text, conn=Depends(get_conn)):
     return _do(conn, catalog.import_, conn, body.yaml, body.by, body.note)
 
 
+class PackImport(BaseModel):
+    yaml: str
+    config: dict[str, dict[str, Any]] = Field(default_factory=dict)  # connection name -> config changes
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+@router.get("/systems/{name}/pack")
+def export_pack(name: str, conn=Depends(get_conn)):
+    """One system as a source pack: its connections, datasets, mappings in use and checks, in one YAML file."""
+    from ..sources import catalog
+
+    try:
+        return {"system": name, "yaml": catalog.export_pack(conn, name)}
+    except catalog.CatalogError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/packs")
+def import_pack(body: PackImport, conn=Depends(get_conn)):
+    """Add or update a source pack's system, connections, datasets, mappings and checks (safe to repeat)."""
+    from ..sources import catalog
+
+    return _do(conn, catalog.import_pack, conn, body.yaml, body.by, body.reason, body.config)
+
+
 # ---- systems and connections -------------------------------------------------------------------
 
 @router.post("/systems")
