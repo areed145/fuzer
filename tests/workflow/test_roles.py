@@ -67,10 +67,10 @@ def test_roles_are_data(conn):
 
 
 def test_existing_databases_gain_the_domain_agents(conn):
-    """Roles are seeded once, so a database from before the domain agents gets them from schema.sql, without
+    """Roles are seeded once, so a database from before the domain agents gets them from the work engine's schema.sql, without
     resurrecting anything else; an empty table stays empty so the first seed still runs."""
     statement = re.search(r"insert into work_role .*?on conflict do nothing;",
-                          (Path(db.__file__).parents[1] / "schema.sql").read_text(), re.S).group(0)
+                          (Path(db.__file__).parents[1] / "workflow" / "schema.sql").read_text(), re.S).group(0)
     domains = ("production-surveillance", "hse-incident-management")
     conn.execute("delete from work_role where name = any(%s)", (list(domains),))
     conn.execute(statement)

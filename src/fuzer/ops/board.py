@@ -72,6 +72,18 @@ def _work_item_cards(conn, pack) -> list[dict]:
     return out
 
 
+def _exception_cards(conn) -> list[dict]:
+    """Open exceptions no case has picked up (a type with no queue, or nobody to route to): they wait here for
+    the IOC to dispatch. Routed ones show through their work item."""
+    return [{"key": f"exception:{r['id']}", "kind": r["type"], "title": r["title"],
+             "text": f"Seen {r['raised_count']} times since {r['first_seen']:%Y-%m-%d %H:%M}"
+                     + (f"; unmatched: {', '.join(r['unmatched'])}" if r["unmatched"] else ""),
+             "unit_id": next((s for s in r["subjects"] if not s.startswith("fz-timeseries")), None),
+             "value_usd": r["value_usd"], "reason": f"exception {r['id']} ({r['type']}), not yet dispatched",
+             "breakdown": {}}
+            for r in conn.execute("select * from exception_record where state = 'open' and item_id is null")]
+
+
 def _review_cards(conn) -> list[dict]:
     return [{"key": f"review:{r['kind']}", "kind": "review", "title": f"{r['n']} open {r['kind']} reviews",
              "text": "Questions about the register for a person to decide", "unit_id": None, "value_usd": None,
@@ -163,8 +175,8 @@ def rank(cards: list[dict], pins: dict[str, dict]) -> list[dict]:
 
 def refresh(conn, pack) -> dict:
     """Rebuild the board from its sources, keep each card's rank history and say why it moved."""
-    cards = _value_cards(conn, pack) + _upset_cards(conn) + _work_item_cards(conn, pack) + _review_cards(conn) \
-        + _project_cards(conn)
+    cards = _value_cards(conn, pack) + _upset_cards(conn) + _work_item_cards(conn, pack) + _exception_cards(conn) \
+        + _review_cards(conn) + _project_cards(conn)
     cards = merge(cards, _links(conn, {c["key"] for c in cards}))
     pins = {r["key"]: dict(r) for r in conn.execute("select * from board_pin")}
     cards = rank(cards, pins)

@@ -53,7 +53,13 @@ def _source(pkg: str) -> str:
     return "\n".join(f.read_text() for f in sorted((PKG / pkg).rglob("*.py")))
 
 
+def owned_tables(pkg: str) -> list[str]:
+    """The tables `pkg` owns: the ones its own schema.sql creates."""
+    f = PKG / pkg / "schema.sql"
+    return re.findall(r"create table if not exists (?:\w+\.)?(\w+)", f.read_text()) if f.exists() else []
+
+
 def _tables() -> list[str]:
-    return re.findall(r"create table if not exists (?:\w+\.)?(\w+)", (PKG / "schema.sql").read_text())
+    return [t for p in COMPONENTS for t in owned_tables(p)]
 
 

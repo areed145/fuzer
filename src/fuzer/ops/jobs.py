@@ -323,11 +323,14 @@ def flow_vs_piping(fuzer: Fuzer) -> dg.AssetCheckResult:
                                          for k, v in result.items() if k != "passed"})
 
 
-@dg.op(description="Fire due work-engine timers and escalate person tasks past their SLA (#97).")
+@dg.op(description="Fire due work-engine timers, escalate person tasks past their SLA (#97) and deliver the "
+                   "event outbox.")
 def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..core import events
     from ..workflow import engine
     with fuzer.connect() as conn:
         context.log.info(f"work tick: {engine.tick(conn)}")
+        context.log.info(f"events: {events.deliver(conn)}")
 
 
 @dg.job(description="Work engine timers and SLAs: re-checks that are due, reminders and escalations.")
@@ -398,14 +401,15 @@ def studies_job():
 
 @dg.op(description="Tell owners about stale or broken sources, and close what cleared (#225).")
 def source_health_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..core import events
     from ..sources import alerts
     with fuzer.connect() as conn:
         out = alerts.check(conn)
         conn.commit()
-        context.log.info(f"source health: {out}")
+        context.log.info(f"source health: {out}, events: {events.deliver(conn)}")
 
 
-@dg.job(description="Source health: stale data, failed or held loads, failing checks -> work items and alerts.")
+@dg.job(description="Source health: stale data, failed or held loads, failing checks -> exceptions, cases and alerts.")
 def source_health():
     source_health_op()
 

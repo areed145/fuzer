@@ -1,16 +1,20 @@
 """Telling a source's owner when it breaks (#225): a failed or held load, failing checks, profile drift and stale
-data each open one work item (type `source_issue`) for the dataset's owner (else its system's owner, else the
-`data_steward` role queue), and post to the alert webhook (alerts.webhook). An item closes itself when the
-problem clears. Run after each load and by the scheduled health check.
+data each raise one `source_issue` exception (fuzer.core.exceptions), whose case goes to the dataset's owner (else
+its system's owner, else the `data_steward` role queue). The exception clears, closing its case, when the problem
+does. A new one is posted to the alert webhook (alerts.webhook) when the outbox delivers it. Run after each load
+and by the scheduled health check.
 """
 
 import json
 import urllib.request
 
-from ..core import settings
+from ..core import events, settings
+from ..core.exceptions import clear_exception, exception_type, raise_exception
 
 TYPE = "source_issue"
 ROLE = "role:data_steward"
+exception_type(TYPE, "Source problem", role=ROLE, description="A dataset failed, is held, fails its checks, "
+               "changed shape or is stale.")
 SAY = {"failed": "failed to load", "held": "is held (its schema or a blocking check needs a look)",
        "checks failing": "has failing checks", "profile drift": "changed shape (profile drift)",
        "stale": "is stale (no new delivery within its expected hours)"}
@@ -30,31 +34,38 @@ def post(text: str) -> bool:
 
 
 def check(conn, names: list[str] | None = None, by: str = "fuzer") -> dict:
-    """Open work items for new problems and close the ones that cleared. Returns what was opened and closed."""
-    from ..core import work
+    """Raise exceptions for new problems and clear the ones that went away. Returns what was opened and closed."""
     from . import catalog, quality
 
     rows = quality.health(conn)
     if names is not None:
         rows = [r for r in rows if r["dataset"] in names]
     owners = {n: d["owner"] or d["system_owner"] for n, d in catalog.datasets(conn).items()}
-    open_items = {(r["payload"]["dataset"], r["payload"]["problem"]): r["id"] for r in conn.execute(
-        "select id, payload from work_item where type = %s and state not in ('done', 'cancelled')", (TYPE,))}
+    held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open'",
+                                           (TYPE,))}
     opened, closed = [], []
     for r in rows:
         now = set(r["problems"]) if r["status"] == "active" else set()
-        for problem in now:
-            if (r["dataset"], problem) in open_items:
-                continue
+        for problem in sorted(now):
             owner = owners.get(r["dataset"])
             text = f"Source {r['dataset']} ({r['system']}) {SAY.get(problem, problem)}"
-            work.open_case(conn, TYPE, text, by, priority=0.5 if problem in ("failed", "held", "stale") else 0.3,
-                             assignee=owner, role=None if owner else ROLE, source="sources",
-                             payload={"dataset": r["dataset"], "problem": problem, "health": r})
-            post(text + (f"; owner {owner}" if owner else ""))
-            opened.append(f"{r['dataset']}: {problem}")
-        for (name, problem), item in open_items.items():
+            out = raise_exception(conn, TYPE, f"{r['dataset']}:{problem}", text, by, source="sources",
+                                  priority=0.5 if problem in ("failed", "held", "stale") else 0.3, assignee=owner,
+                                  evidence={"dataset": r["dataset"], "problem": problem, "health": r})
+            if out["raised"]:
+                opened.append(f"{r['dataset']}: {problem}")
+        for key in held:
+            name, _, problem = key.rpartition(":")
             if name == r["dataset"] and problem not in now:
-                work.close_case(conn, item, "done", by, reason="the problem cleared")
+                clear_exception(conn, TYPE, key, by, reason="the problem cleared")
                 closed.append(f"{name}: {problem}")
     return {"opened": opened, "closed": closed}
+
+
+@events.subscriber("exception.raised")
+def notify(conn, event: dict) -> None:
+    """Post a new source problem to the alert webhook, naming who has it."""
+    e = event["payload"]
+    if e.get("type") == TYPE:
+        owner = e.get("assignee")
+        post(e["title"] + (f"; owner {owner}" if owner else ""))

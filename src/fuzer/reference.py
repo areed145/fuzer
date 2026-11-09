@@ -1,5 +1,5 @@
 """Reference pages generated from the code (#134): settings from the registry, CLI commands from argparse,
-the database schema from schema.sql, and the architecture (components, their imports, tables, settings and
+the database schema from each module's schema.sql, and the architecture (components, their imports, tables, settings and
 tests; what feeds which entity kinds; the scheduled jobs and the scan's path) and the recorded eval runs. A test fails when a committed
 page is out of date.
 
@@ -11,8 +11,8 @@ import argparse
 import re
 from pathlib import Path
 
-from .components import COMPONENTS, GITHUB, PKG, _imports, _source, _tables
-from .resources import ROOT
+from .components import COMPONENTS, GITHUB, PKG, _imports, _source, _tables, owned_tables
+from .resources import ROOT, SCHEMA_MODULES, SCHEMAS
 
 HEADER = "Generated from {what}; don't edit by hand (`uv run python -m fuzer.reference`)."
 
@@ -66,9 +66,18 @@ def cli_md() -> str:
 
 
 def schema_md() -> str:
-    sql = (Path(__file__).parent / "schema.sql").read_text()
-    out = ["# Database schema", "", HEADER.format(what="`src/fuzer/schema.sql`"),
-           "One Postgres database; `fuzer` creates or updates it on start (idempotent).", ""]
+    out = ["# Database schema", "", HEADER.format(what="each module's `schema.sql`"),
+           "One Postgres database; `fuzer` creates or updates it on start (idempotent). Each module owns the tables "
+           "in its own `schema.sql`, applied in the order below.", ""]
+    for module, path in zip(SCHEMA_MODULES, SCHEMAS):
+        link = f"src/fuzer/{module}/schema.sql"
+        out += [f"## {COMPONENTS[module][0]}", "", f"[`{link}`]({GITHUB}{link})", ""]
+        out += _tables_md(path.read_text())
+    return "\n".join(out)
+
+
+def _tables_md(sql: str) -> list[str]:
+    out = []
     for m in re.finditer(r"((?:--[^\n]*\n)*)create table if not exists (?:\w+\.)?(\w+) \((.*?)\n\);", sql, re.DOTALL):
         note = " ".join(x.lstrip("- ").strip() for x in m.group(1).splitlines())
         cols = []
@@ -82,9 +91,9 @@ def schema_md() -> str:
                            maxsplit=1, flags=re.IGNORECASE)[0].strip()
             comment = line.split("--", 1)[1].strip() if "--" in line else ""
             cols.append(f"| `{name}` | {_cell(typ)} | {_cell(comment)} |")
-        out += [f"## `{m.group(2)}`", "", *([_cell(note), ""] if note else []),
+        out += [f"### `{m.group(2)}`", "", *([_cell(note), ""] if note else []),
                 "| Column | Type | Note |", "|---|---|---|", *cols, ""]
-    return "\n".join(out)
+    return out
 
 
 SCAN = [  # the scheduled scan, step by step: (function, what it does, the table it writes)
@@ -110,7 +119,7 @@ def architecture_md() -> str:
     tables = _tables()
     deps = {p: _imports(p) for p in COMPONENTS}
     out = ["# Architecture", "", HEADER.format(what="the code: package imports, mappings, the capability and settings "
-                                                    "registries, the schedules and `schema.sql`"),
+                                                    "registries, the schedules and the modules' `schema.sql`"),
            "Each box is a package under `src/fuzer`; click one to open it. An arrow points from a package to the ones "
            "that use it, so data flows along the arrows. Everything uses core, so its arrows are left out.", "",
            "## Components", "", "```mermaid", "flowchart LR",
@@ -176,6 +185,8 @@ def architecture_md() -> str:
                 f"- **Uses:** {', '.join(sorted(deps[p])) or 'nothing else in fuzer'}"]
         if writes[p]:
             out.append(f"- **Writes:** {', '.join(f'`{t}`' for t in writes[p])} ([schema](schema.md))")
+        if owns := owned_tables(p):
+            out.append(f"- **Owns:** {', '.join(f'`{t}`' for t in owns)} (its `schema.sql`)")
         if reads[p]:
             out.append(f"- **Settings:** {', '.join(f'`{k}`' for k in reads[p])} ([settings](settings.md))")
         if p == "agents":
