@@ -91,6 +91,7 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
   const names = useEntityNames(r.subjects);
   const { busy, error, run } = useAct();
   const [to, setTo] = useState("");
+  const [planOn, setPlanOn] = useState("");
   return (
     <tr>
       <td><strong>{r.title}</strong><br /><span className="muted small">{r.type.replace(/_/g, " ")} · {r.source ?? ""}
@@ -107,6 +108,12 @@ function Row({ r, person, people, onChange }: { r: ExceptionRow; person: string 
         <Button size="sm" disabled={!to.trim() || !!busy}
           onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim()), () => { setTo(""); onChange(); })}>
           {r.item_id ? "Hand to" : "Dispatch"}</Button>
+      </div>}
+      {r.state === "open" && person && <div className="row">
+        <Input type="date" aria-label="Plan for" value={planOn} onChange={(e) => setPlanOn(e.target.value)} style={{ width: "9rem" }} />
+        <Button size="sm" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"
+          onClick={() => run("Planning", () => api.planException(r.id, person, planOn, `${planOn}T23:59:00Z`),
+            () => { setPlanOn(""); onChange(); })}>Plan</Button>
       </div>}{error && <p role="alert" className="error">{error}</p>}</td>
     </tr>
   );

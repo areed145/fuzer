@@ -350,3 +350,95 @@ def exception_type_remove(name: str, conn=Depends(get_conn)):
     if not _exception_call(conn, exceptions.undefine, name):
         raise HTTPException(404, f"no data-defined type {name}")
     return {"removed": name}
+
+
+# ---- the integrated plan -----------------------------------------------------------------------------------------
+
+class PlanPropose(BaseModel):
+    by: str
+    kind: str
+    title: str
+    start: str
+    end: str
+    refs: list[str] = []
+    source: str | None = None
+    source_key: str | None = None
+    crew: str | None = None
+    crew_hours: float | None = None
+    needs_shutdown: bool = False
+    deferment_usd: float | None = None
+    notes: str | None = None
+
+
+class PlanChange(BaseModel):
+    by: str
+    title: str | None = None
+    kind: str | None = None
+    start: str | None = None
+    end: str | None = None
+    status: str | None = None
+    crew: str | None = None
+    crew_hours: float | None = None
+    needs_shutdown: bool | None = None
+    notes: str | None = None
+
+
+class PlanException(BaseModel):
+    by: str
+    start: str
+    end: str
+    crew: str | None = None
+    needs_shutdown: bool = False
+    notes: str | None = None
+
+
+def _plan_call(conn, fn, *args, **kwargs):
+    from ..core.plan import PlanError
+    try:
+        out = fn(conn, *args, **kwargs)
+    except PlanError as e:
+        conn.rollback()
+        raise HTTPException(404 if re.match(r"no (plan item|exception) \d", str(e)) else 400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.get("/plan")
+def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
+               subject: str | None = None, conn=Depends(get_conn)):
+    """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
+    (same asset, same person) and bundling chances (could ride along with a shutdown of its area)."""
+    from ..ops import plan
+    return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject)
+
+
+@router.post("/plan")
+def plan_propose(p: PlanPropose, conn=Depends(get_conn)):
+    """Put an item on the plan; with a source_key, proposing again updates it."""
+    from ..ops import plan
+    return _plan_call(conn, plan.propose, p.kind, p.title, p.by, p.start, p.end, refs=p.refs, source=p.source,
+                      source_key=p.source_key, crew=p.crew, crew_hours=p.crew_hours, needs_shutdown=p.needs_shutdown,
+                      deferment_usd=p.deferment_usd, notes=p.notes)
+
+
+@router.patch("/plan/{item_id}")
+def plan_change(item_id: int, c: PlanChange, conn=Depends(get_conn)):
+    """Reschedule an item, give it a crew, or move it on (scheduled, in progress, done, cancelled)."""
+    from ..ops import plan
+    fields = {k: v for k, v in c.model_dump(exclude={"by"}).items() if v is not None}
+    return _plan_call(conn, plan.update, item_id, c.by, **fields)
+
+
+@router.post("/plan/sync")
+def plan_sync(conn=Depends(get_conn)):
+    """Bring the plan's SAP work orders up to date with the register now (the rebuild does it too)."""
+    from ..ops import plan
+    return _plan_call(conn, plan.sync_work_orders)
+
+
+@router.post("/exceptions/{exception_id}/plan")
+def exception_plan(exception_id: int, p: PlanException, conn=Depends(get_conn)):
+    """Plan an exception rather than work it now: a plan item on its assets, linked to it."""
+    from ..ops import plan
+    return _plan_call(conn, plan.plan_exception, exception_id, p.by, p.start, p.end, crew=p.crew,
+                      needs_shutdown=p.needs_shutdown, notes=p.notes)

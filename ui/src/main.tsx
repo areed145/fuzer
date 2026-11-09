@@ -21,6 +21,7 @@ import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
 import { FieldPage } from "./pages/Field";
 import { ExceptionsPage } from "./pages/Exceptions";
+import { PlanPage } from "./pages/Plan";
 import { TaskPage } from "./pages/workflows/Task";
 import { CasePage, CasesPage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
@@ -155,6 +156,8 @@ function App() {
             <FieldPage />
           ) : section === "exceptions" ? (
             <ExceptionsPage />
+          ) : section === "plan" ? (
+            <PlanPage />
           ) : section === "cases" && path[1] ? (
             <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
           ) : section === "cases" ? (

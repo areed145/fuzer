@@ -249,3 +249,33 @@ create table if not exists exception_kind (
     updated_by          text not null,
     updated_at          timestamptz not null default now()
 );
+
+-- The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders,
+-- exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches,
+-- so the IOC sees clashes on an asset or a crew and work that could ride along with a shutdown.
+create table if not exists plan_item (
+    id             bigserial primary key,
+    kind           text not null,                  -- maintenance | inspection | well_intervention | turnaround | ...
+    title          text not null,
+    source         text,                           -- the system or module that proposed it
+    source_key     text,                           -- its identity there (an SAP order number): proposals are idempotent
+    subjects       text[] not null default '{}',   -- fuzer ids it touches
+    area_id        text,                           -- the area of its first located subject
+    start_at       timestamptz not null,
+    end_at         timestamptz not null,
+    status         text not null default 'proposed', -- proposed | scheduled | in_progress | done | cancelled
+    crew           text,                           -- a person or role:<role>
+    crew_hours     double precision,
+    needs_shutdown boolean not null default false,
+    deferment_usd  double precision,               -- production at risk while it runs
+    exception_id   bigint,                         -- the exception it works, if any
+    notes          text,
+    created_by     text not null,
+    updated_by     text not null,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
+    check (end_at >= start_at)
+);
+create unique index if not exists plan_item_source on plan_item (source, source_key) where source_key is not null;
+create index if not exists plan_item_window on plan_item (start_at, end_at);
+create index if not exists plan_item_subjects on plan_item using gin (subjects);

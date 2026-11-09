@@ -1177,6 +1177,33 @@ Exception types a deployment defines as data (ops/exceptions.define), so other s
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `plan_item`
+
+The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders, exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches, so the IOC sees clashes on an asset or a crew and work that could ride along with a shutdown.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text | maintenance \| inspection \| well_intervention \| turnaround \| ... |
+| `title` | text |  |
+| `source` | text, | the system or module that proposed it |
+| `source_key` | text, | its identity there (an SAP order number): proposals are idempotent |
+| `subjects` | text[] | fuzer ids it touches |
+| `area_id` | text, | the area of its first located subject |
+| `start_at` | timestamptz |  |
+| `end_at` | timestamptz |  |
+| `status` | text | proposed \| scheduled \| in_progress \| done \| cancelled |
+| `crew` | text, | a person or role:<role> |
+| `crew_hours` | double precision |  |
+| `needs_shutdown` | boolean |  |
+| `deferment_usd` | double precision, | production at risk while it runs |
+| `exception_id` | bigint, | the exception it works, if any |
+| `notes` | text |  |
+| `created_by` | text |  |
+| `updated_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
