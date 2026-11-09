@@ -2233,3 +2233,32 @@ test("Ontology header buttons stay on one line and All views explains its hidden
   assert.ok(box.height < lineHeight * 2, `Add link type wraps (${box.height}px)`);
   await page.getByText("Link names show when you point at a link or a kind", { exact: false }).waitFor();
 });
+
+test("sidebar and Jobs agree when the scheduler isn't running, and Jobs says how to start it (#325)", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.goto(`${url}/#/jobs`);
+  await page.locator("#sidebar .health").getByText("Scheduler history unavailable", { exact: true }).waitFor();
+  await page.getByText("Scheduler history is unavailable in this deployment", { exact: false }).waitFor();
+  await page.getByText("fuzer jobs", { exact: true }).waitFor();
+});
+
+test("a big flow network opens on its largest manifold, and can show the whole network (#300)", async () => {
+  const nodes = [], edges = [];
+  const add = (id, kind) => nodes.push({ id, kind, label: id });
+  const link = (src, dst) => edges.push({ id: edges.length + 1, src, rel: "flows_to", dst, valid_from: null, valid_to: null, sources: [] });
+  add("SEP-1", "separator"); add("SALES", "meter"); link("SEP-1", "SALES");
+  for (const [m, n] of [["MAN-A", 40], ["MAN-B", 25]]) {
+    add(m, "manifold"); link(m, "SEP-1");
+    for (let i = 0; i < n; i++) { add(`${m}-W${i}`, "well"); link(`${m}-W${i}`, m); }
+  }
+  await page.route("**/network*", (route) => route.fulfill({ json: { nodes, edges, truncated: false } }));
+  await page.goto(`${url}/#/network`);
+  const show = page.getByRole("combobox", { name: "Show part of the network" });
+  await show.waitFor();
+  assert.equal(await show.inputValue(), "MAN-A");
+  await show.selectOption("all");
+  assert.equal(await show.inputValue(), "all");
+  await show.selectOption("MAN-B");
+  assert.equal(await show.inputValue(), "MAN-B");
+});

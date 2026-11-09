@@ -51,6 +51,8 @@ export function JobsPage() {
         <UICard className="">
           <p>Scheduler history is unavailable in this deployment. This does not mean loaded facility records are unavailable
             or that a plant outage occurred. A deployment operator can check the scheduler service and its storage.</p>
+          <p className="small">Running Fuzer yourself? Start the scheduler with <code>fuzer up</code> (without{" "}
+            <code>--no-jobs</code>), or on its own with <code>fuzer jobs</code>.</p>
           <p><a href={href("/sources")}>Inspect recorded source loads</a> or <a href={href("/browse")}>Explore loaded records</a>.</p>
           <Button disabled={o.loading} onClick={o.reload}>Refresh scheduler history</Button>
         </UICard>

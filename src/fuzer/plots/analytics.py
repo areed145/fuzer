@@ -62,27 +62,40 @@ def production_efficiency(out: dict, notice: str) -> Figure:
                       f"Flags: {', '.join(p['flags']) or 'none'}"]
         return "<br>".join(escape(line) for line in lines)
 
+    # At a near-100% day the two rate lines overlap on a zero-based axis (#307), so the maximum is dashed (it shows
+    # through allocated in either theme) and the gap gets its own fitted axis on the right, where its changes show.
     data = []
-    for field, label, extra in [("dynamic_max_sm3d", "Dynamic maximum", {}), ("allocated_sm3d", "Allocated production", {}),
-                                ("gap_sm3d", "Unrealized gap", {"visible": "legendonly"})]:
+    for field, label, extra in [("dynamic_max_sm3d", "Dynamic maximum", {"line": {"width": 2, "dash": "dash"}}),
+                                ("allocated_sm3d", "Allocated production", {}),
+                                ("gap_sm3d", "Unrealized gap", {"yaxis": "y2", "mode": "lines", "line": {"width": 1.5, "dash": "dot"}})]:
         data.append({"type": "scatter", "mode": "lines+markers", "name": f"{label} (Sm3/d)", "x": days,
                      "y": [p[field] for p in points], "connectgaps": False, "marker": {"size": 8}, "line": {"width": 2},
                      "text": [hover(p, field, label) for p in points], "hovertemplate": "%{text}<extra></extra>", **extra})
     efficiency = summary["efficiency_pct"]
+    gaps = [p for p in points if p["gap_sm3d"] is not None]
+    lost = sum(p["gap_sm3d"] for p in gaps) if gaps else None
+    by_cause: dict[str, float] = {}
+    for p in gaps:
+        by_cause[constraint_label(p, constraints)] = by_cause.get(constraint_label(p, constraints), 0) + p["gap_sm3d"]
+    cause = max(by_cause, key=by_cause.get) if lost else None
     rows = [[p["date"], _number(p["dynamic_max_sm3d"]), _number(p["allocated_sm3d"]), _number(p["gap_sm3d"]),
              _number(p["efficiency_pct"]), constraint_label(p, constraints),
              _words(p["capacity_basis"]) + (f" · {', '.join(p['flags'])}" if p["flags"] else "")] for p in points]
     return Figure(
         kind="production-efficiency", title="Production efficiency", data=data,
-        layout=layout("", height=HEIGHT, hovermode="x unified", margin={"t": 12, "r": 16, "b": 60, "l": 64},
+        layout=layout("", height=HEIGHT, hovermode="x unified", margin={"t": 12, "r": 64, "b": 60, "l": 64},
                       xaxis={"title": {"text": "Production day (UTC)"}, "type": "date", "tickformat": "%d %b"},
                       yaxis={"title": {"text": "Oil rate (Sm3/d)"}, "rangemode": "tozero"},
+                      yaxis2={"title": {"text": "Gap (Sm3/d)"}, "overlaying": "y", "side": "right", "showgrid": False},
                       legend={"orientation": "h", "y": -0.28, "x": 0, "font": {"size": 11}},
                       uirevision=f"{out['facility']['id']}:{out['end']}"),
         summary={
             "context": f"{out['facility']['label']} · {days[0]} to {out['end']} inclusive · {notice}",
             "headline": None if summary["paired_days"] else "No paired production and capacity values in this window.",
             "stats": [
+                # lead with what was lost and why (#307): at ~100% efficiency the totals alone say little
+                {"label": "Unrealized gap · paired days", "value": _number(lost), "unit": "Sm3"},
+                *([{"label": "Biggest cause", "value": cause}] if cause else []),
                 {"label": "Weighted efficiency", "value": "Unknown" if efficiency is None else f"{_number(efficiency)}%"},
                 {"label": "Allocated · paired days", "value": _number(summary["allocated_sm3"]), "unit": "Sm3"},
                 {"label": "Dynamic maximum · paired days", "value": _number(summary["dynamic_max_sm3"]), "unit": "Sm3"},

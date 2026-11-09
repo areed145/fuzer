@@ -122,7 +122,8 @@ def test_production_keeps_gaps_and_names_ties():
     assert fig.data[0]["y"][12] == 100
     assert fig.data[0]["y"][0] is None
     assert fig.data[0]["connectgaps"] is False
-    assert fig.data[2]["visible"] == "legendonly"
+    assert fig.data[2]["yaxis"] == "y2", "the gap has its own fitted axis so it shows at ~100% efficiency"
+    assert fig.summary["stats"][0]["label"].startswith("Unrealized gap")
     assert fig.layout["yaxis"]["rangemode"] == "tozero", "A rate axis starts at zero, so small moves stay small"
     assert "Binding: Export [export]" in fig.data[0]["text"][12]
     assert fig.summary["tables"][0]["rows"][0][1] == "Unknown"
