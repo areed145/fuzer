@@ -276,6 +276,8 @@ create table if not exists plan_item (
     updated_at     timestamptz not null default now(),
     check (end_at >= start_at)
 );
+-- who last moved it by hand: a source's next proposal keeps a person's dates instead of resetting them
+alter table plan_item add column if not exists moved_by text;
 create unique index if not exists plan_item_source on plan_item (source, source_key) where source_key is not null;
 create index if not exists plan_item_window on plan_item (start_at, end_at);
 create index if not exists plan_item_subjects on plan_item using gin (subjects);

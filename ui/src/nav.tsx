@@ -63,6 +63,7 @@ export const NAV: NavGroup[] = [
       { label: "My jobs", section: "field" },
       { label: "Exceptions", section: "exceptions" },
       { label: "Plan", section: "plan" },
+      { label: "Turnaround", section: "turnaround" },
       { label: "Cases", section: "cases" },
       { label: "Data review", section: "review", badge: "review" },
       { label: "Processes", section: "processes" },

@@ -767,7 +767,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/plan", "#/cases", "#/review", "#/processes"]);
+    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/plan", "#/turnaround", "#/cases", "#/review", "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -1985,4 +1985,32 @@ test("an asset's page shows the open exceptions about it and the work planned on
   await page.getByRole("link", { name: "Leak at P-101" }).waitFor();
   await page.getByText("not dispatched").waitFor();
   await page.getByRole("link", { name: "Replace P-101 seal" }).waitFor();
+});
+
+test("a turnaround shows its scope on the plan and brings planned work into it", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const item = (id, title, extra = {}) => ({ id, kind: "inspection", title, source: "sap_plan", source_key: null, subjects: [],
+    area_id: "fz-area-0123456789ab", area_label: "North", start_at: "2027-03-01T00:00:00Z", end_at: "2027-03-02T00:00:00Z",
+    status: "proposed", crew: null, crew_hours: null, needs_shutdown: true, deferment_usd: null, exception_id: null, notes: null,
+    assets: [], clashes: [], ...extra });
+  const scope = { revision: "TA26", revisions: ["TA26"], as_of: "2026-11-09", planned_start: "2026-11-20",
+    scoped_work: [{ id: "fz-wo-1", order: "4000002", tag: "P-101", tag_id: "fz-equipment-0123456789ab", priority: "2",
+      text: "North train overhaul", planned_start: "2026-11-20", status: "CRTD" }],
+    shutdown_plans_not_in_scope: [], bad_actors_not_in_scope: [{ id: "fz-equipment-1", tag: "K-201", failures: 4, lost_oil_sm3: 900 }],
+    spares_out_of_stock: [{ for: "P-101", material: "Mech seal", id: "fz-material-1", description: "seal kit" }],
+    window: { start: "2026-11-20T00:00:00Z", end: "2026-11-25T00:00:00Z" }, on_plan: [],
+    ride_along: [item(5, "Repack P-102", { needs_shutdown: false, kind: "maintenance", start_at: "2026-11-10T00:00:00Z" })],
+    shutdown_outside: [item(6, "PSV-101 statutory test")] };
+  const brought = [];
+  await page.route("**/turnarounds?*", (route) => route.fulfill({ json: scope }));
+  await page.route("**/turnarounds", (route) => route.fulfill({ json: scope }));
+  await page.route("**/turnarounds/bring-in", (route) => { brought.push(route.request().postDataJSON()); return route.fulfill({ json: scope.shutdown_outside[0] }); });
+  await page.goto(`${url}/#/turnaround`);
+  await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor();
+  await page.getByText("North train overhaul").waitFor();
+  await page.getByText("1 spares out of stock").waitFor();
+  await page.getByRole("heading", { name: "Needs the unit down, planned outside it" }).waitFor();
+  await page.getByRole("button", { name: "Bring into TA26" }).first().click();
+  await expectReports(brought, 1);
+  assert.deepEqual(brought[0], { by: "ann", item_id: 6, revision: "TA26" });
 });
