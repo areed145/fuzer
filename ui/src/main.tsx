@@ -221,7 +221,8 @@ function HealthIndicator({ health, rebuildError }: { health?: JobsHealth; rebuil
   if (!health && !rebuildError) return null;
   const level = rebuildError ? "red" : health?.level ?? "unknown";
   const parts = [rebuildError && "last update failed", health?.available && health.summary].filter(Boolean);
-  const text = parts.join("; ") || "Jobs: no history yet";
+  // Say the same thing as the Jobs page when the scheduler can't be read (#325), not "no history yet".
+  const text = parts.join("; ") || (health && !health.available ? "Scheduler history unavailable" : "Jobs: no history yet");
   return (
     <a className={`health health-${level}`} href={href("/jobs")} title={rebuildError ?? undefined}>
       <i className="dot" aria-hidden="true" />
