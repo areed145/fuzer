@@ -14,6 +14,9 @@ export interface MatchPayload {
   right: MatchSide;
   score: number;
   why: string;
+  /** The project's thresholds (#410): scores from review_min go to review, from auto_accept match on their own. */
+  review_min?: number;
+  auto_accept?: number;
 }
 
 export interface ConflictPayload {

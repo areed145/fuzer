@@ -147,12 +147,12 @@ function Card({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         {c.item_id ? <a href={href(`/cases/${c.item_id}`)}>{c.title}</a> : <span>{c.title}</span>}
         <span className="spacer" />
         <strong title={c.reason ?? ""}>{money(c.effective_usd)}</strong>
-        <Button variant="link" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</Button>
+        <Button variant="link" size="sm" onClick={() => setOpen(!open)}>{open ? "less" : "why"}</Button>
       </div>
       <div className="row small muted">
         {c.unit && c.unit_id && <a href={entityHref(c.unit_id)}>{c.unit}</a>}
         {c.area && <span>{c.area}</span>}
-        <span>{c.owner}</span>
+        {c.owner && c.owner !== "unassigned" && <span>{c.owner}</span>}
         {c.pinned && <UIBadge className="badge key" title={c.pin_reason ?? ""}>pinned by {c.pinned_by}: {c.pin_reason}</UIBadge>}
         {c.records.length > 1 && <span>{c.records.length} records</span>}
       </div>

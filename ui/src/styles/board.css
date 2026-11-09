@@ -1,6 +1,10 @@
 /* work board */
 ol.board { list-style: none; padding: 0; margin: 8px 0; }
-.board-card { padding: 10px 12px; margin-bottom: 6px; }
+/* Dense rows (#408): a card is a line of content plus its context, so twice as many fit on a screen. */
+.board-card { padding: 5px 12px; margin-bottom: 4px; }
+.board-card > .row { gap: 6px; min-height: 0; }
+.board-card > .row.small { margin-top: 1px; }
+.board-card > .row.small:empty { display: none; }
 .board-card.pinned { border-left: 3px solid var(--accent); }
 .board-card .rank { min-width: 2.5em; color: var(--muted); }
 .board-card .spacer { flex: 1; }
