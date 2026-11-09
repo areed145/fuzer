@@ -182,6 +182,7 @@ def register(fuzer: Fuzer) -> dg.MaterializeResult:
         stats = pipeline.rebuild(conn, pack)
         board.refresh(conn, pack)  # the work board follows the register (#99)
         planned = plan.sync_work_orders(conn)  # and the integrated plan, its SAP work orders
+        planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)  # and what SAP's plans have due
         notified = intake.sync_notifications(conn)  # and open SAP notifications nobody has an order for yet
         conn.commit()
     return dg.MaterializeResult(metadata={

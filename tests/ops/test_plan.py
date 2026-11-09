@@ -123,3 +123,30 @@ def test_an_exception_can_be_planned_instead_of_worked_now(conn, monkeypatch):
     with pytest.raises(PlanError, match="no exception"):
         plan.plan_exception(conn, 99999, "ann", T, T)
     conn.rollback()
+
+
+def test_maintenance_plans_put_their_next_due_task_on_the_plan_and_roll_forward(conn):
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-mp-1', 'maintenance_plan'), "
+                 "('fz-mp-2', 'maintenance_plan') on conflict do nothing")
+    conn.execute("insert into entity_key (kind, key, fuzer_id) values ('maintenance_plan', 'MP-7', 'fz-mp-1'), "
+                 "('maintenance_plan', 'MP-8', 'fz-mp-2') on conflict do nothing")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-mp-1', 'concerns', 'fz-pump-1', "
+                 "'{t}', 1) on conflict do nothing")
+    for fid, fields in {"fz-mp-1": {"kind": "INSP", "task": "PSV-101 statutory test", "next_due": "2026-11-18",
+                                    "interval_days": 365.0, "needs_shutdown": "X"},
+                        "fz-mp-2": {"kind": "PM", "task": "No date yet"}}.items():
+        for k, v in fields.items():
+            conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, %s, %s, 'sap', 't')",
+                         (fid, k, Jsonb(v)))
+    out = plan.sync_maintenance_plans(conn)
+    assert out["added"] == 1 and out["skipped"] == 1
+    psv = conn.execute("select * from plan_item where source = 'sap_plan'").fetchone()
+    assert psv["kind"] == "inspection" and psv["needs_shutdown"] and psv["status"] == "proposed"
+    assert psv["subjects"] == ["fz-pump-1"] and psv["source_key"] == "MP-7:2026-11-18" and "every 365 days" in psv["notes"]
+    assert plan.sync_maintenance_plans(conn)["added"] == 0  # idempotent
+
+    conn.execute("update golden set value = '\"2027-11-18\"' where fuzer_id = 'fz-mp-1' and field = 'next_due'")
+    out = plan.sync_maintenance_plans(conn)
+    assert out["added"] == 1 and out["rolled_forward"] == 1
+    assert conn.execute("select status from plan_item where id = %s", (psv["id"],)).fetchone()["status"] == "done"
+    conn.rollback()

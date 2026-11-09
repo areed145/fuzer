@@ -3,11 +3,12 @@
     propose / update             the contract (core/plan.py)
     items(conn, start, end)      the plan in a window, each item with its clashes and bundling chances
     sync_work_orders(conn)       open SAP work orders with dates in the register, as plan items
+    sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
-two items at once. Bundling: an item in an area that needs no shutdown, due within BUNDLE_DAYS of a shutdown of
-that area, could be done in it.
+two items at once. Bundling: an item due within BUNDLE_DAYS of a turnaround or shutdown of its area could be
+done in it (and one that needs the unit down should be).
 """
 
 from datetime import date, datetime, time, timedelta, timezone
@@ -16,6 +17,7 @@ from ..core import events
 from ..core.plan import KINDS, STATUSES, PlanError
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
+SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
 BUNDLE_DAYS = 21
 FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "needs_shutdown", "deferment_usd", "notes")
 
@@ -129,11 +131,13 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
                 for x, y in ((a, b), (b, a)):
                     out[x["id"]].append({"kind": "crew", "with": y["id"], "title": y["title"],
                                          "say": f"{x['crew']} is also on “{y['title']}” then"})
-            for s, o in ((a, b), (b, a)):  # o could ride along with shutdown s
-                if (s["needs_shutdown"] and not o["needs_shutdown"] and s["area_id"] and s["area_id"] == o["area_id"]
-                        and not overlap and abs((o["start_at"] - s["start_at"]).days) <= BUNDLE_DAYS):
+            for s, o in ((a, b), (b, a)):  # o could ride along with shutdown s (a turnaround or shutdown itself)
+                if (s["kind"] in SHUTDOWNS and o["kind"] not in SHUTDOWNS and s["area_id"]
+                        and s["area_id"] == o["area_id"] and not overlap
+                        and abs((o["start_at"] - s["start_at"]).days) <= BUNDLE_DAYS):
+                    say = "needs the unit down: do it during" if o["needs_shutdown"] else "could be done during"
                     out[o["id"]].append({"kind": "bundle", "with": s["id"], "title": s["title"],
-                                         "say": f"could be done during “{s['title']}” ({s['start_at']:%d %b})"})
+                                         "say": f"{say} “{s['title']}” ({s['start_at']:%d %b})"})
     return out
 
 
@@ -223,6 +227,51 @@ def sync_work_orders(conn, by: str = "sap") -> dict:
         added += row["created"]
         updated += not row["created"]
     return {"orders": len(rows), "added": added, "updated": updated, "closed": closed, "skipped": skipped}
+
+
+def sync_maintenance_plans(conn, by: str = "sap") -> dict:
+    """Each SAP maintenance or inspection plan's next due task as a proposed plan item on that day (INSP plans as
+    inspections), one item per due date: when SAP rolls a plan forward, the new date is a new item and the old one,
+    if nobody closed it, is marked done. Tasks that need the unit down are marked as needing a shutdown, so the
+    plan shows them against the next turnaround."""
+    rows = conn.execute(
+        """
+        select e.fuzer_id, jsonb_object_agg(g.field, g.value) as f,
+               (select array_agg(distinct x.dst) from edge x where x.src = e.fuzer_id and x.rel = 'concerns') as concerns,
+               (select min(k.key) from entity_key k where k.fuzer_id = e.fuzer_id and k.kind = 'maintenance_plan') as number,
+               (select l.label from entity_label l where l.fuzer_id = e.fuzer_id) as label
+        from entity e join golden g on g.fuzer_id = e.fuzer_id
+        where e.kind = 'maintenance_plan' and e.retired_at is null
+        group by e.fuzer_id
+        """).fetchall()
+    added = updated = rolled = skipped = 0
+    current = []
+    for r in rows:
+        f = {k: v for k, v in r["f"].items() if v not in (None, "")}
+        plan_key = r["number"] or r["label"] or r["fuzer_id"]
+        try:
+            due = _when(str(f["next_due"])[:10])
+        except (KeyError, PlanError):
+            skipped += 1
+            continue
+        key = f"{plan_key}:{due:%Y-%m-%d}"
+        current.append(key)
+        inspection = str(f.get("kind", "")).upper().startswith("INSP")
+        row = propose(conn, "inspection" if inspection else "maintenance",
+                      str(f.get("task") or f.get("description") or f"Plan {plan_key}"), by, due, due + timedelta(days=1),
+                      refs=r["concerns"] or [r["fuzer_id"]], source="sap_plan", source_key=key,
+                      needs_shutdown=f.get("needs_shutdown") == "X",
+                      notes=f"SAP {'inspection' if inspection else 'maintenance'} plan {plan_key}"
+                            + (f", every {f['interval_days']:g} days" if isinstance(f.get("interval_days"), (int, float)) else ""))
+        added += row["created"]
+        updated += not row["created"]
+    if current:  # a due date SAP has moved past: done there, so done here
+        rolled = conn.execute(
+            "update plan_item set status = 'done', updated_by = %s, updated_at = now() "
+            "where source = 'sap_plan' and status = any(%s) and source_key <> all(%s) "
+            "and regexp_replace(source_key, ':[^:]*$', '') = any(%s)",
+            (by, list(ACTIVE), current, [k.rsplit(":", 1)[0] for k in current])).rowcount
+    return {"plans": len(rows), "added": added, "updated": updated, "rolled_forward": rolled, "skipped": skipped}
 
 
 def plan_exception(conn, exception_id: int, by: str, start, end, crew: str | None = None,
