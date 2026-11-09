@@ -302,6 +302,8 @@ export interface WorkProcess {
 }
 
 export interface WorkItem {
+  /** False when no agents provider is configured: no agent worker runs, so agent steps wait for a person. */
+  agents_configured?: boolean;
   id: number;
   type: string;
   title: string;

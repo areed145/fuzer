@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson } from "../../work";
-import { StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
+import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
 
 export function InboxPage() {
   const [person] = usePerson();
@@ -19,6 +19,7 @@ export function InboxPage() {
     <p>Use “You are” in the navigation to select the name used by your team. On a small screen, open the menu first.</p>
     <p className="muted">This records who makes decisions; it is not a sign-in. Team roles determine which queues appear.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
+    <SampleTeam />
   </UICard></section>;
   if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
   const d = inbox.data;
@@ -57,6 +58,7 @@ export function InboxPage() {
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && <p className="muted">Nothing waiting for you. <a href={href("/cases")}>All cases</a></p>}
+      {!all.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
       <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />

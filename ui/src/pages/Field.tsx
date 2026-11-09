@@ -6,7 +6,7 @@ import { api, type FieldJob, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { Due, usePerson, when } from "../work";
-import { taskHref, useAct } from "./workflows/shared";
+import { SampleTeam, taskHref, useAct } from "./workflows/shared";
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
 
@@ -15,6 +15,7 @@ export function FieldPage() {
   const jobs = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
   if (!person) return <section><PageHeader>My jobs</PageHeader><Card title="Choose who you are">
     <p>Use “You are” in the navigation to pick your name; your dispatched jobs then show here.</p>
+    <SampleTeam />
   </Card></section>;
   if (!jobs.data) return <Status loading={jobs.loading} error={jobs.error} />;
   const list = jobs.data.jobs;

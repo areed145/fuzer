@@ -111,9 +111,23 @@ export function DataView({ data }: { data: unknown }) {
   );
 }
 
+const LIMIT_WORDS: Record<string, string> = { lo: "low", lolo: "low-low", hi: "high", hihi: "high-high" };
+
+/** Short machine values as a person reads them (#14 of the walkthrough): a source-local time without the "T" (its
+ * timezone isn't known, so none is added; the recorded value stays in the tooltip), and a detection key
+ * (`excursions:alarm:lo`) as words ("alarm low excursions"). Anything else is shown as recorded. */
+export function readable(v: string): string {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v)) return `${v.slice(0, 16).replace("T", " ")} (data time)`;
+  const m = /^([a-z]+):([a-z_]+):([a-z]+)$/.exec(v);
+  if (m) return `${m[2].replace(/_/g, " ")} ${LIMIT_WORDS[m[3]] ?? m[3]} ${m[1].replace(/_/g, " ")}`;
+  return v;
+}
+
 function Value({ v }: { v: unknown }) {
   if (typeof v === "string") {
     if (isId(v)) return <EntityLinks ids={[v]} />;
+    const shown = readable(v);
+    if (shown !== v) return <span title={v}>{shown}</span>;
     return v.length > 80 || v.includes("\n") || v.includes("[[figure:") ? <Markdown text={v} /> : <>{v}</>;
   }
   if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && isId(x))) return <EntityLinks ids={v as string[]} />;

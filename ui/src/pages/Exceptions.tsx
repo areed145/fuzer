@@ -6,7 +6,7 @@ import { Badge, Button, Card, Input, PageHeader, Select, Table } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
-import { useAct } from "./workflows/shared";
+import { SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 
 export function ExceptionsPage() {
@@ -50,6 +50,7 @@ export function ExceptionsPage() {
         </Table>}
         {people.data && !people.data.length && <p className="small muted">Nobody is on the roster yet, so dispatch can
           only go to a role's queue. Add the IOC team and field operators on <a href={href("/teams")}>Teams &amp; routing</a>.</p>}
+        <SampleTeam onAdded={people.reload} />
       </Card>
       <Kinds person={person} queues={queues} />
     </section>

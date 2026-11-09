@@ -137,6 +137,7 @@ function BulkReassign({ ids, person, onDone }: { ids: number[]; person: string; 
 export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
   const [person] = usePerson();
+  const takeOver = useAct();
   const it = item.data;
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
@@ -179,10 +180,13 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
                 <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
                 <StepBadges row={s} />
                 <Due at={s.due_at} />
-                <AgentIdle step={s} />
+                <AgentIdle step={s} configured={it.agents_configured}
+                  onTakeOver={demo || !person ? undefined : () => takeOver.run("take over", () =>
+                    api.handOff(s.id, person, person, "no agent worker picked it up; done by a person"), item.reload)} />
               </li>
             ))}
           </ul>
+          {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
         </UICard>
       )}
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
