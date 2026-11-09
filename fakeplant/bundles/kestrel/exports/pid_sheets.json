@@ -1,0 +1,89 @@
+[
+ {
+  "sheet": "KRGP-A1-PID-001",
+  "title": "TRAIN A1 - INLET SEPARATION",
+  "revision": "C",
+  "format": "smart",
+  "tags": [
+   "A1-XV-1003",
+   "A1-V-1001",
+   "A1-PT-1001",
+   "A1-LT-1001",
+   "A1-PSV-1001",
+   "A1-FT-1002"
+  ],
+  "connections": [
+   {
+    "from": "A1-XV-1003",
+    "to": "A1-V-1001",
+    "line": "8\"-G-1001-A1"
+   },
+   {
+    "from": "A1-V-1001",
+    "to": "A1-FT-1002",
+    "line": "8\"-G-1002-A1"
+   },
+   {
+    "from": "A1-FT-1002",
+    "to": "B1-K-2001",
+    "line": "8\"-G-1003-A1"
+   }
+  ]
+ },
+ {
+  "sheet": "KRGP-B1-PID-001",
+  "title": "TRAIN B1 - COMPRESSION",
+  "revision": "B",
+  "format": "smart",
+  "tags": [
+   "B1-K-2001",
+   "B1-PT-2001",
+   "B1-TT-2002",
+   "B1-VT-2003",
+   "B1-PSV-2004",
+   "B1-E-2010",
+   "B1-TT-2011"
+  ],
+  "connections": [
+   {
+    "from": "B1-K-2001",
+    "to": "B1-E-2010",
+    "line": "6\"-G-2001-B2"
+   },
+   {
+    "from": "B1-E-2010",
+    "to": "C1-V-3001",
+    "line": "6\"-G-2002-B2"
+   }
+  ]
+ },
+ {
+  "sheet": "KRGP-C1-PID-001",
+  "title": "TRAIN C1 - GLYCOL DEHYDRATION",
+  "revision": "B",
+  "format": "smart",
+  "tags": [
+   "C1-V-3001",
+   "C1-P-3002A",
+   "C1-P-3002B",
+   "C1-FT-3005"
+  ],
+  "connections": [
+   {
+    "from": "C1-P-3002A",
+    "to": "C1-V-3001",
+    "line": "1\"-TEG-3001-C1"
+   },
+   {
+    "from": "C1-P-3002B",
+    "to": "C1-V-3001",
+    "line": "1\"-TEG-3002-C1"
+   },
+   {
+    "from": "C1-V-3001",
+    "to": "C1-FT-3005",
+    "line": "6\"-G-3003-B2"
+   }
+  ]
+ }
+]

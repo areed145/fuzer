@@ -1,0 +1,69 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -104.531,
+      40.8795
+     ],
+     [
+      -104.524,
+      40.877
+     ],
+     [
+      -104.5127,
+      40.8713
+     ]
+    ]
+   },
+   "properties": {
+    "line_id": "KR-PL-001",
+    "name": "8\" gathering line Pad 12 to Kestrel Ridge inlet",
+    "service": "gas gathering",
+    "from_floc": "",
+    "to_floc": "KRGP-A1",
+    "diameter_in": 8,
+    "length_km": 1.9,
+    "mop_barg": 90,
+    "install_year": 2015,
+    "status": "in service"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -104.511,
+      40.8708
+     ],
+     [
+      -104.5,
+      40.865
+     ],
+     [
+      -104.487,
+      40.86
+     ]
+    ]
+   },
+   "properties": {
+    "line_id": "KR-PL-002",
+    "name": "12\" sales gas line Kestrel Ridge to the interstate tie-in",
+    "service": "sales gas",
+    "from_floc": "KRGP-C1",
+    "to_floc": "",
+    "diameter_in": 12,
+    "length_km": 2.4,
+    "mop_barg": 80,
+    "install_year": 2015,
+    "status": "in service"
+   }
+  }
+ ]
+}

@@ -15,6 +15,9 @@ sheet; `<book>.<sheet>` names one sheet of `<book>.xlsx`), `<name>.jsonl` or `<n
 objects), in that order (#132). A folder holding only documents (PDF, Markdown, text) is one table too, a row
 per section (DocumentFolder, #227). ADLS later: the same pyarrow datasets over an fsspec filesystem.
 
+A small hand-written CSV or JSON export may write dates relative to the day it is read (`today-1d 03:10`,
+relative_dates.py), so a demonstration facility's records stay recent; its fingerprint includes the day.
+
 Some datasets can come from a live system instead (`live()`): with FUZER_PI_WEB_API_URL set, the PI
 point list and AF tree are read through PI Web API (pi_web_api.py); with FUZER_ADX_URL, the ADX
 series catalog (adx.py). They yield the same rows as the file exports, as a full snapshot.
@@ -26,14 +29,44 @@ import hashlib
 import re
 from collections.abc import Iterator
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path
+
+from . import relative_dates
 
 BATCH_ROWS = 50_000
 
 
 def _stat(paths: list[Path], root: Path) -> str:
     parts = [f"{p.relative_to(root)}:{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in paths]
+    if any(_relative(p) for p in paths):  # its dates move with the calendar: a new day reads it again
+        parts.append(dt.date.today().isoformat())
     return hashlib.sha1("|".join(parts).encode()).hexdigest()
+
+
+RELATIVE_MAX_BYTES = 5_000_000  # hand-written synthetic exports are small; a real export is never scanned
+
+
+@lru_cache(maxsize=256)
+def _relative_at(path: str, size: int, mtime: int) -> bool:
+    return size <= RELATIVE_MAX_BYTES and relative_dates.mentions(Path(path).read_bytes())
+
+
+def _relative(path: Path) -> bool:
+    """Whether a CSV or JSON export writes dates relative to today (relative_dates)."""
+    if path.suffix not in (".csv", ".json", ".jsonl") or not path.is_file():
+        return False
+    st = path.stat()
+    return _relative_at(str(path), st.st_size, st.st_mtime_ns)
+
+
+def _resolved(rows, path: Path):
+    if not _relative(path):
+        yield from rows
+        return
+    today = dt.date.today()
+    for r in rows:
+        yield relative_dates.resolve_all(r, today)
 
 
 def _type(t) -> str:
@@ -73,7 +106,7 @@ class CsvTable:
 
     def rows(self, since=None) -> Iterator[dict]:
         with self.path.open(newline="", encoding=self.encoding) as f:
-            yield from csv.DictReader(f)
+            yield from _resolved(csv.DictReader(f), self.path)
 
 
 class ParquetTable:
@@ -247,7 +280,7 @@ class ExcelTable:
         return _schema_of(self._rows()[:200])
 
     def rows(self, since=None) -> Iterator[dict]:
-        yield from self._rows()
+        yield from _resolved(self._rows(), self.path)
 
     @staticmethod
     def sheets(path: Path) -> list[str]:
@@ -290,7 +323,7 @@ class JsonTable:
         return _schema_of(self._rows()[:200])
 
     def rows(self, since=None) -> Iterator[dict]:
-        yield from self._rows()
+        yield from _resolved(self._rows(), self.path)
 
 
 DOCUMENT_SUFFIXES = (".pdf", ".md", ".txt")

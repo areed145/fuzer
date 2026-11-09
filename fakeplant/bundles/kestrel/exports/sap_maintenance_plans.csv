@@ -1,0 +1,8 @@
+plan,kind,equnr,floc,task,interval_days,last_done,next_due,needs_shutdown
+PM-50000002,PM,50000002,KRGP-B1-K2001,"4000-hour service, sales gas compressor",166,today-90d,today+76d,
+PM-50000003,PM,50000003,KRGP-B1-E2010,"Annual fan and belt service, compressor aftercooler",365,today-58d,today+307d,
+PM-50000004,PM,50000004,KRGP-C1-V3001,"Tray and mist eliminator check, glycol contactor",182,today-170d,today+12d,
+PM-50000005,PM,50000005,KRGP-C1-P3002A,"Quarterly service, glycol circulation pump A",91,today-20d,today+71d,
+PM-50000006,PM,50000006,KRGP-C1-P3002B,"Quarterly service, glycol circulation pump B",91,today-97d,today-6d,
+INSP-50000001,INSP,50000001,KRGP-A1-V1001,"Statutory internal inspection, inlet separator",1826,today-1666d,today+160d,X
+INSP-50000004,INSP,50000004,KRGP-C1-V3001,"Statutory internal inspection, glycol contactor",1826,today-1661d,today+165d,X

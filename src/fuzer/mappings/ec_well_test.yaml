@@ -1,4 +1,5 @@
-# Energy Components well tests: rate, water cut, GOR, lift gas and wellhead pressure on the test separator.
+# Energy Components well tests on the test separator: oil wells report rate, water cut, GOR, lift gas and wellhead
+# pressure; gas wells report gas and condensate rates instead (gas_ksm3d, condensate_sm3d).
 source: ec
 record_type: well_test
 shape: events
@@ -14,6 +15,8 @@ entity:
     - [gor_sm3_sm3, {from: gor_sm3_sm3, as: number}]
     - [lift_gas_ksm3d, {from: lift_gas_ksm3d, as: number}]
     - [whp_barg, {from: whp_barg, as: number}]
+    - [gas_ksm3d, {from: gas_ksm3d, as: number}]
+    - [condensate_sm3d, {from: condensate_sm3d, as: number}]
     - [description, {template: "Well test {well} {test_date}", keep: true}]
 links:
   - rel: tests
@@ -28,3 +31,6 @@ measurements:
     - {quantity: gor, from: gor_sm3_sm3, unit: Sm3/Sm3}
     - {quantity: lift_gas_rate, from: lift_gas_ksm3d, unit: kSm3/d}
     - {quantity: wellhead_pressure, from: whp_barg, unit: barg}
+    # gas wells: measured gas and condensate rates, not an oil rate and a GOR
+    - {quantity: gas_rate, from: gas_ksm3d, unit: kSm3/d}
+    - {quantity: condensate_rate, from: condensate_sm3d, unit: Sm3/d}

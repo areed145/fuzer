@@ -12,6 +12,7 @@ KRGP-B1-PT2001,KRGP-B1-K2001,Compressor Discharge Pressure,B
 KRGP-B1-TT2002,KRGP-B1-K2001,Compressor Discharge Temperature,B
 KRGP-B1-VT2003,KRGP-B1-K2001,Compressor Vibration,B
 KRGP-B1-E2010,KRGP-B1,Compressor Aftercooler,B
+KRGP-B1-TT2011,KRGP-B1-E2010,Aftercooler Outlet Temperature,C
 KRGP-C1-V3001,KRGP-C1,Glycol Contactor,A
 KRGP-C1-P3002A,KRGP-C1,Glycol Circulation Pump A,B
 KRGP-C1-P3002B,KRGP-C1,Glycol Circulation Pump B,B

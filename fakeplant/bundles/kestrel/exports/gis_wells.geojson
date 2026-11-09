@@ -1,0 +1,41 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5312,
+     40.8794
+    ]
+   },
+   "properties": {
+    "well_name": "KR 12-03H",
+    "well_type": "gas",
+    "lift_type": "NF",
+    "status": "producing",
+    "longitude": -104.5312,
+    "latitude": 40.8794
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -104.5309,
+     40.8796
+    ]
+   },
+   "properties": {
+    "well_name": "KR 12-04H",
+    "well_type": "gas",
+    "lift_type": "NF",
+    "status": "producing",
+    "longitude": -104.5309,
+    "latitude": 40.8796
+   }
+  }
+ ]
+}

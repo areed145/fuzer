@@ -1,0 +1,9 @@
+manufacturer,model,curve,series,x,y,x_unit,y_unit
+Ariel,JGK/4,compressor,capacity,18,1180,barg,ksm3/d
+Ariel,JGK/4,compressor,capacity,21,1340,barg,ksm3/d
+Ariel,JGK/4,compressor,capacity,24,1500,barg,ksm3/d
+Ariel,JGK/4,compressor,capacity,27,1650,barg,ksm3/d
+Ariel,JGK/4,compressor,power,18,980,barg,kW
+Ariel,JGK/4,compressor,power,21,1040,barg,kW
+Ariel,JGK/4,compressor,power,24,1090,barg,kW
+Ariel,JGK/4,compressor,power,27,1130,barg,kW

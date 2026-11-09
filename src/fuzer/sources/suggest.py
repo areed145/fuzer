@@ -49,9 +49,10 @@ MEANINGS = {
     "longitude": "longitude",
     "person": "person or role",
     "point": "historian point or time series name (a tag or well with a signal suffix, 20PT3003.PV)",
+    "tag_or_well": "a tag on some rows and a well on others (a meter list naming plant meters and wellhead meters)",
     "other": "none of these, for example the row's own id",
 }
-REFERENCES = {"tag", "well", "location", "parent", "from", "to", "ref", "point"}
+REFERENCES = {"tag", "well", "tag_or_well", "location", "parent", "from", "to", "ref", "point"}
 
 HEADER_HINTS = {
     "description": {"description", "descr", "desc", "descriptor", "shorttext", "name", "title", "service",
@@ -85,6 +86,10 @@ POINT = re.compile(r"[./:][A-Z][A-Z0-9_]*$")  # a historian point's signal suffi
 START = {"start", "startdate", "plannedstart", "earlystart", "begin", "scheduledstart", "targetstart"}
 FINISH = {"finish", "finishdate", "plannedfinish", "earlyfinish", "end", "enddate", "scheduledfinish", "targetfinish",
           "due", "duedate"}
+# A measured column's unit, from the end of its header (volume_ksm3, energy_gj, hhv_mj_sm3): the quantity is the rest.
+UNIT_SUFFIXES = [("mj_sm3", "MJ/Sm3"), ("ksm3d", "kSm3/d"), ("ksm3", "kSm3"), ("sm3d", "Sm3/d"), ("sm3", "Sm3"),
+                 ("gj", "GJ"), ("barg", "barg"), ("kpa", "kPa"), ("psig", "psig"), ("degc", "degC"), ("degf", "degF"),
+                 ("pct", "%"), ("ppm", "ppm"), ("mmscf", "MMscf"), ("mcf", "Mcf"), ("bbl", "bbl")]
 INSTALLED = re.compile(r"(install|commission|startup|inservice|fitted)")
 UNITS = {"barg", "bara", "bar", "psi", "psig", "kpa", "mpa", "degc", "degf", "%", "m3/h", "sm3/d", "bbl/d", "kg",
          "mm", "in", "mm/s", "hz", "rpm", "kw", "mw", "ppm", "m3", "l/min", "ft", "kgf/cm2"}
@@ -156,7 +161,17 @@ def profile(c, pack: Pack, sample_rows: int = SAMPLE_ROWS, makers: set[str] = fr
             "unit": round(frac(lambda v: v.lower() in UNITS), 3),
             "manufacturer": round(frac(lambda v: v.upper() in makers), 3),
         })
-    return {"rows_sampled": len(rows), "columns": cols}
+    return {"rows_sampled": len(rows), "columns": cols, "pairs": _unique_pairs(rows, cols)}
+
+
+def _unique_pairs(rows: list[dict], cols: list[dict]) -> list[list[str]]:
+    """Pairs of full columns, neither unique alone, that are unique together (a meter and its day): a table with no
+    id column of its own is keyed on them."""
+    if not rows or any(c["unique"] and c["filled"] == 1 for c in cols):
+        return []
+    full = [c["name"] for c in cols if c["filled"] == 1][:30]
+    return [[a, b] for i, a in enumerate(full) for b in full[i + 1:]
+            if len({(str(r.get(a)).strip(), str(r.get(b)).strip()) for r in rows}) == len(rows)]
 
 
 def references(conn, prof: dict, rows_by_col: dict[str, list[str]], exclude: set[tuple[str, str]],
@@ -191,8 +206,9 @@ def references(conn, prof: dict, rows_by_col: dict[str, list[str]], exclude: set
 # ---- rules
 
 
-def pick_key(prof: dict) -> str | None:
-    """The row's own id: a full, unique column, preferring one whose header says id / number / code."""
+def pick_key(prof: dict) -> str | list[str] | None:
+    """The row's own id: a full, unique column, preferring one whose header says id / number / code. With none, a
+    thing and a date that are unique together (meter, gas_day)."""
     keyable = [c["name"] for c in prof["columns"] if c["unique"] and c["filled"] == 1]
     found = next((c for c in keyable if ID_HINT.search(_norm(c))), None) or (keyable[0] if keyable else None)
     if found:
@@ -200,7 +216,17 @@ def pick_key(prof: dict) -> str | None:
     # an export with a few repeated ids still has an id column: the load holds it for the duplicates (#225)
     nearly = [c for c in prof["columns"] if c["filled"] == 1 and c["rows"] and c["distinct"] >= 0.95 * c["rows"]
               and ID_HINT.search(_norm(c["name"]))]
-    return max(nearly, key=lambda c: c["distinct"])["name"] if nearly else None
+    if nearly:
+        return max(nearly, key=lambda c: c["distinct"])["name"]
+    col = {c["name"]: c for c in prof["columns"]}
+    asset = lambda c: max(col[c]["tag_or_well"], col[c]["location"]) >= 0.8  # noqa: E731
+    found = []
+    for a, b in prof.get("pairs", []):
+        dated = [x for x in (a, b) if col[x]["date"] >= 0.9]
+        other = [x for x in (a, b) if x not in dated]
+        if len(dated) == 1 and other and (asset(other[0]) or ID_HINT.search(_norm(other[0]))):
+            found.append((not asset(other[0]), [other[0], dated[0]]))  # the thing first: A1FT1002 on 2026-11-08
+    return min(found)[1] if found else None  # a plant tag or well over the source's own id for it
 
 
 def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None = None) -> dict:
@@ -209,6 +235,7 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
     refs = refs or {}
     rows = prof["rows_sampled"]
     key = pick_key(prof)
+    one = key if isinstance(key, str) else None  # the row's own id column; a pair keys the row but names neither
     out = {}
     for c in prof["columns"]:
         n = _norm(c["name"])
@@ -234,6 +261,8 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
             m, why = "tag", "values read as tags"
         elif c["well"] >= 0.8 and names_one:
             m, why = "well", "values read as wells"
+        elif c["tag_or_well"] >= 0.8 and names_one and min(c["tag"], c["well"]) >= 0.1:
+            m, why = "tag_or_well", "values read as tags on some rows and wells on others"
         elif c["tag_or_well"] >= 0.8 and names_one:
             m, why = ("tag", "values read as tags or wells") if c["tag"] >= c["well"] else ("well", "values read as wells or tags")
         elif c.get("place", 0) >= 0.6 and names_one and c["name"] != key:
@@ -264,12 +293,12 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
             m, why = "other", "no rule matched"
         out[c["name"]] = {"meaning": m, "by": "rules", "why": why}
 
-    if key and values and out[key]["meaning"] in ("location", "tag", "well", "other"):
+    if one and values and out[one]["meaning"] in ("location", "tag", "well", "other"):
         # A column holding values of the key column, in the same domain, is the parent (a hierarchy).
-        keyset = set(values.get(key, []))
+        keyset = set(values.get(one, []))
         for c in prof["columns"]:
             vals = values.get(c["name"]) or []
-            if c["name"] != key and vals and out[c["name"]]["meaning"] in (out[key]["meaning"], "code", "other") \
+            if c["name"] != one and vals and out[c["name"]]["meaning"] in (out[one]["meaning"], "code", "other") \
                     and sum(v in keyset for v in vals) / len(vals) >= 0.8:
                 out[c["name"]] = {"meaning": "parent", "by": "rules", "why": "values are keys of this table"}
         parents = [c for c, v in out.items() if v["meaning"] == "parent"]
@@ -283,10 +312,15 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
     return {"columns": out, "key": key, **_shape(out, key)}
 
 
-def _shape(cols: dict, key: str | None) -> dict:
+def _shape(cols: dict, key) -> dict:
     meanings = {c: v["meaning"] for c, v in cols.items()}
     has = lambda m: m in meanings.values()  # noqa: E731
-    key_m = meanings.get(key)
+    key_m = meanings.get(key) if isinstance(key, str) else None
+    if isinstance(key, list) and has("number") and not has("text") and \
+            {meanings.get(k) for k in key} & {"tag", "well", "tag_or_well", "location"} and \
+            "timestamp" in {meanings.get(k) for k in key}:
+        # readings of one thing at one time (a meter's daily volume, a tank's gauge): measurements on that thing
+        return {"shape": "measurements", "kind": None}
     if has("parent"):
         shape = "hierarchy"
     elif has("from") and has("to"):
@@ -332,6 +366,9 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
     m = {"source": source, "record_type": record_type, "shape": sug["shape"], "dataset": dataset}
     if key:
         m["key"] = key
+    if sug["shape"] == "measurements":
+        return {**m, "measurements": _measured(cols, key)}
+    one = key if isinstance(key, str) else None
     as_of = {"tag": {"as": "tag"}, "well": {"as": "well"}, "location": {"as": "floc"}}
     by = lambda meaning: [c for c, v in cols.items() if v["meaning"] == meaning]  # noqa: E731
     entity = None
@@ -346,7 +383,7 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
         if tags := by("tag") or by("location"):
             entity["block"] = {"from": tags[0], "as": "tag"}
     elif sug["shape"] != "network":
-        entity = {"kind": kind or record_type, **({"key": key} if key else {})}
+        entity = {"kind": kind or record_type, **({"key": one} if one else {})}
     if entity is not None:
         fields = []
         for c, v in cols.items():
@@ -372,11 +409,13 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
             return {"ref": cols[c].get("ref") or "unknown:record", "from": c}
         if mean == "point":
             return {"kind": "timeseries", "from": c, "as": "upper"}
+        if mean == "tag_or_well":
+            return {"from": c, "as": "tag_or_well"}
         if mean == "location":
             return {"from": c, "as": "place"}  # tags, wells, areas and the facility, in whatever style it's written
-        if mean == "parent" and own and own not in ("tag", "well") and (not key or cols[key]["meaning"] == "other"):
+        if mean == "parent" and own and own not in ("tag", "well") and (not one or cols[one]["meaning"] == "other"):
             return {"kind": own, "from": c}  # the parent is another row of this table, by its key as written
-        domain = mean if mean in as_of else (cols[key]["meaning"] if key and cols[key]["meaning"] in as_of else "tag")
+        domain = mean if mean in as_of else (cols[one]["meaning"] if one and cols[one]["meaning"] in as_of else "tag")
         if domain == "location":
             return {"from": c, "as": "floc"}
         return {"kind": domain, "from": c, **as_of[domain]}
@@ -400,7 +439,7 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
         links.append({"rel": "has_timeseries", "from": {"from": "_key", "as": "tag_or_well"}, "to": "self",
                       "confidence": 0.9})
     for c, v in cols.items():
-        if v["meaning"] not in ("tag", "well", "location", "ref", "point"):
+        if v["meaning"] not in ("tag", "well", "tag_or_well", "location", "ref", "point"):
             continue
         if kind == "equipment" and entity and entity.get("block", {}).get("from") == c:
             link = {"rel": "installed_at", "when": c, "to": {"kind": "tag", "from": c, "as": "tag"}}
@@ -416,6 +455,31 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
     if entity is not None and (texts := by("text")):
         m["mentions"] = [{"from": c} for c in texts]
     return m
+
+
+def _measured(cols: dict, key: list[str]) -> dict:
+    """What a measurements table measures: on the thing in its key, at the date in its key, each number column a
+    quantity with the unit its header ends in."""
+    thing = next(k for k in key if cols[k]["meaning"] != "timestamp")
+    at = next(k for k in key if cols[k]["meaning"] == "timestamp")
+    meaning = cols[thing]["meaning"]
+    of = {"from": thing, "as": {"location": "place"}.get(meaning, meaning)}
+    if meaning in ("tag", "well"):
+        of = {"kind": meaning, **of}
+    values = []
+    for c, v in cols.items():
+        if v["meaning"] != "number":
+            continue
+        name = _snake(c)
+        quantity, unit = name, None
+        for suffix, u in UNIT_SUFFIXES:
+            if name.endswith("_" + suffix):
+                quantity, unit = name[: -len(suffix) - 1], u
+                break
+        if unit is None and name.endswith("hours"):
+            unit = "h"
+        values.append({"quantity": quantity, "from": c, **({"unit": unit} if unit else {})})
+    return {"of": of, "at": at, "values": values}
 
 
 def document_draft(dataset: str, source: str, record_type: str = "document") -> dict:

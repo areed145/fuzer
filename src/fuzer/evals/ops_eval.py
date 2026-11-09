@@ -36,14 +36,12 @@ def scripted_ask(question: str) -> dict:
 def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_diagnoses: int = 5, say=None) -> dict:
     """Score the scheduled jobs over [since, until] on the fake plant in `data_dir`. `say(msg)` gets progress
     lines."""
-    import json
-    from pathlib import Path
-
     from ..ops import daily_report, opportunities, sre, sre_handoff
+    from ..sources import process_model
     from ..workflow import engine
     from . import replay
 
-    spec = json.loads((Path(data_dir) / "process_model.json").read_text())
+    spec = process_model.read(data_dir)
     say = say or (lambda msg: None)
     t0 = time.perf_counter()
     say(f"ops eval {since} to {until}: 1/4 SRE replay")

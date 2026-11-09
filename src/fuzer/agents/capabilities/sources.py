@@ -57,7 +57,8 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
 def measurements(ref: str, quantity: str | None = None, since: str | None = None, until: str | None = None,
                  history: bool = False) -> dict[str, Any]:
     """Sparse measurements that aren't in PI, on a well, tag, equipment, pipeline or an incident's unit:
-    well tests (oil_rate, water_cut, gor, lift_gas_rate, wellhead_pressure), lab results at sample points
+    well tests (oil_rate, water_cut, gor, lift_gas_rate, wellhead_pressure; gas wells: gas_rate, condensate_rate),
+    daily meter readings from an onboarded measurement system (volume, energy, hhv), lab results at sample points
     (bsw, salt, density, oil_in_water, h2s, co2, water_dewpoint, chloride) and wall thickness at CMLs
     (wall_thickness, mm). One series per quantity and location with the latest value, min / max, the
     change per year (wall loss rate, decline) and the last three readings; history=true returns every

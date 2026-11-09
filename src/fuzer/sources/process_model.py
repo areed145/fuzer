@@ -16,7 +16,7 @@ window or step, as with the per-point provider. Points the model doesn't cover f
 import json
 import math
 import threading
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -34,28 +34,45 @@ def minutes(t: datetime | str) -> float:
 
 
 @lru_cache(maxsize=4)
-def _load(path: str, mtime: float) -> "ProcessModel":
-    return ProcessModel(json.loads(Path(path).read_text()))
+def _load(path: str, mtime: float, today: date) -> "ProcessModel":
+    return ProcessModel(read(Path(path), today))
+
+
+def read(path, today: date | None = None) -> dict:
+    """A process_model.json (or the folder holding one) as a spec, its relative event times (`today-1d 03:10`,
+    relative_dates) placed on the calendar, so a demonstration facility's upsets stay recent (#456)."""
+    from . import relative_dates
+
+    path = Path(path)
+    path = path / "process_model.json" if path.is_dir() else path
+    spec = json.loads(path.read_text())
+    if "events" in spec:
+        spec["events"] = relative_dates.resolve_all(spec["events"], today)
+    return spec
 
 
 def load(data_dir) -> "ProcessModel | None":
-    """The model in a data folder, if it has one (cached until the file changes)."""
+    """The model in a data folder, if it has one (cached until the file changes or the day turns)."""
     if not data_dir:
         return None
     p = Path(data_dir) / "process_model.json"
-    return _load(str(p), p.stat().st_mtime) if p.is_file() else None
+    return _load(str(p), p.stat().st_mtime, date.today()) if p.is_file() else None
 
 
 class ProcessModel:
     def __init__(self, spec: dict):
         self.seed = int(spec.get("seed", 0))
         # The site's air temperature (degC): its mean, diurnal and annual swings and the day of the year it peaks.
-        # Okan's offshore tropics are the default; an onshore plant inland sets its own.
-        self.climate = {"mean": 27.5, "diurnal": 2.5, "annual": 1.5, "peak_day": 80, **spec.get("climate", {})}
+        # Okan's offshore tropics are the default; an onshore plant inland sets its own. `coolant` is what the
+        # coolers reject heat to: "sea" (seawater at `sea_mean` +- `sea_annual`, Okan's default) or "air" (ambient).
+        self.climate = {"mean": 27.5, "diurnal": 2.5, "annual": 1.5, "peak_day": 80, "coolant": "sea",
+                        "sea_mean": 26.5, "sea_annual": 1.5, **spec.get("climate", {})}
         self.points: dict[str, tuple[str, str]] = {k: tuple(v) for k, v in spec["points"].items()}
         self.units: dict[str, dict] = spec["units"]
         self.events: dict[str, list[dict]] = {}
-        for e in spec.get("events", []):
+        from . import relative_dates
+
+        for e in relative_dates.resolve_all(spec.get("events", [])):
             self.events.setdefault(e["unit"], []).append(e)
         self._windows: dict[tuple[int, int], Window] = {}
         self._lock = threading.Lock()
@@ -223,9 +240,11 @@ class Window:
             raise KeyError(var)
         run = self.get(u["train"], "running") if u.get("train") else 1.0
         fouling = sum((self.path(e["points"]) for e in self.ev(unit, "fouling")), np.zeros_like(self.t))
-        sea = 26.5 + 1.5 * self.annual()
+        c = self.m.climate
+        medium = (self.ambient() if u.get("coolant", c["coolant"]) == "air"
+                  else c["sea_mean"] + c["sea_annual"] * self.annual())
         approach = u.get("approach", 9.0) * (1 + 0.15 * self.diurnal()) + fouling * (1 + 0.5 * np.maximum(self.diurnal(), 0))
-        hot = sea + approach
+        hot = medium + approach
         return self.lag(run * hot + (1 - run) * self.ambient(), 30) + 0.3 * self.noise(unit + "to", 15)
 
     def _vessel(self, unit, u, var):

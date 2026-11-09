@@ -1,0 +1,8 @@
+qmnum,notif_type,created,equnr,floc,priority,short_text,damage_code,cause_code,status
+10004001,M2,today-1d,50000002,KRGP-B1-K2001,2,High vibration trip on sales gas compressor,DM-VIB,CA-ALIGN,OSNO
+10004002,M1,today-4d,50000005,KRGP-C1-P3002A,3,Packing leak on glycol circulation pump A,DM-LEAK,CA-WEAR,OSNO
+10004007,M1,today-2d,50000004,KRGP-C1-V3001,3,Sales gas water content high; check contactor glycol rate,DM-PDE,CA-CONT,OSNO
+10004003,M1,today-9d,50000001,KRGP-A1-V1001,3,Inlet separator level transmitter disagrees with gauge glass,DM-AIR,CA-SIG,NOPR
+10004004,M2,today-35d,50000002,KRGP-B1-K2001,2,High discharge temperature on sales gas compressor,DM-OHT,CA-FOUL,NOCO
+10004005,M1,today-60d,50000003,KRGP-B1-E2010,3,Aftercooler fan belt worn and noisy,DM-NOI,CA-WEAR,NOCO
+10004006,M1,today-120d,50000006,KRGP-C1-P3002B,4,Glycol pump B failed to start on changeover,DM-FTS,CA-ADJ,NOCO

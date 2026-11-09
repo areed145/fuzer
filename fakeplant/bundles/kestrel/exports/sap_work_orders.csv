@@ -1,0 +1,13 @@
+aufnr,order_type,qmnum,equnr,floc,start,finish,basic_finish,status,priority,revision,activity_code,cost,text
+40007002,PM01,10004003,50000001,KRGP-A1-V1001,today-8d,,today+5d,REL,3,,AC-ADJ,1800,Recalibrate inlet separator level transmitter A1-LT-1001
+40007003,PM01,10004004,50000002,KRGP-B1-K2001,today-34d,today-33d,today-33d,TECO,2,,AC-SVC,6400,Clean aftercooler fins and check compressor discharge valves
+40007004,PM01,10004005,50000003,KRGP-B1-E2010,today-58d,today-58d,today-57d,TECO,3,,AC-REPL,950,Replace aftercooler fan belts
+40007005,PM01,10004006,50000006,KRGP-C1-P3002B,today-119d,today-118d,today-118d,TECO,4,,AC-ADJ,600,Adjust glycol pump B start interlock
+40007006,PM02,,50000002,KRGP-B1-K2001,today-90d,today-89d,today-89d,TECO,3,,AC-SVC,4200,"4000-hour service, sales gas compressor"
+40007007,PM02,,50000002,KRGP-B1-K2001,,,today+76d,CRTD,3,,AC-SVC,4300,"4000-hour service, sales gas compressor"
+40007008,PM02,,50000004,KRGP-C1-V3001,,,today+12d,REL,3,,AC-CHK,1200,Glycol contactor tray and mist eliminator check
+40007012,PM02,,50000005,KRGP-C1-P3002A,today-20d,today-20d,today-20d,TECO,4,,AC-SVC,500,Glycol pump A quarterly service
+40007013,PM02,,50000006,KRGP-C1-P3002B,,,today-6d,REL,4,,AC-SVC,500,Glycol pump B quarterly service
+40007009,PM03,,50000001,KRGP-A1-V1001,,,today+160d,CRTD,2,KR-TAR-2027,AC-INSP,38000,Internal inspection inlet separator (turnaround)
+40007010,PM03,,50000002,KRGP-B1-K2001,,,today+165d,CRTD,2,KR-TAR-2027,AC-OVH,145000,"Compressor overhaul: valves, rings and rod packing (turnaround)"
+40007011,PM03,,50000004,KRGP-C1-V3001,,,today+165d,CRTD,3,KR-TAR-2027,AC-INSP,22000,Internal inspection glycol contactor (turnaround)
