@@ -335,6 +335,8 @@ uv run fuzer sources health                      # stale, held, failed, failing 
 uv run fuzer sources impact my_change.yaml       # what a mapping change would do, before approving it
 uv run fuzer sources why <fuzer_id> manufacturer  # the records, mapping version and load behind a value
 uv run fuzer sources export --out review/        # the catalog as YAML, for review or another environment
+uv run fuzer sources export-pack planning --out planning.yaml   # one system, ready for another project
+uv run fuzer sources import-pack planning.yaml --config export.path=/data/lake
 ```
 
 A new table needs only its file in the data folder and a mapping, from **Sources > New tables**, a suggestion

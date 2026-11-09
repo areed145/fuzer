@@ -12,6 +12,10 @@ ACTIONS = {
     "seed": "import the built-in mapping files (never overwrites what a person changed)",
     "export": "write the catalog as YAML (mapping files and systems.yaml), for review and other environments",
     "import": "a mapping file becomes a draft version; systems.yaml updates systems and connections",
+    "export-pack": "SYSTEM: one system as a source pack (its connections, datasets, mappings in use and checks) in "
+                   "one YAML file, for another project or database (--out FILE)",
+    "import-pack": "FILE: add or update a source pack's system, connections, datasets, mappings and checks; safe to "
+                   "repeat (--config CONNECTION.key=value changes a connection's config, e.g. its folder here)",
     "approve": "make a draft mapping version the one in use",
     "rollback": "put an older mapping version back in use (as a new version)",
     "discard": "set a draft mapping version aside without using it",
@@ -60,7 +64,7 @@ def add_parser(sub) -> None:
     so.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE", help="field values (YAML scalars)")
     so.add_argument("--config", action="append", default=[], metavar="KEY=VALUE", help="connection config")
     so.add_argument("--secret", action="append", default=[], metavar="KEY=env:NAME", help="connection secret reference")
-    so.add_argument("--out", default=None, help="export: folder to write the files to (default: print them)")
+    so.add_argument("--out", default=None, help="export: folder to write the files to; export-pack: the file (default: print them)")
     so.add_argument("--full", action="store_true", help="run: read every dataset again, even unchanged ones")
     so.add_argument("--retract", action="store_true", help="retire: remove its records")
     so.add_argument("--keep", action="store_true", help="retire: keep its records as history")
@@ -124,6 +128,20 @@ def run(conn, pack, data: Path, args) -> object:
             return {"written": sorted(files), "to": args.out}
         elif a == "import":
             out = [catalog.import_(conn, Path(f).read_text(), by, why) for f in _need(args, 1, "a file")]
+        elif a == "export-pack":
+            text = catalog.export_pack(conn, _need(args, 1, "a system")[0])
+            if not args.out:
+                return text
+            Path(args.out).write_text(text)
+            return {"written": args.out}
+        elif a == "import-pack":
+            cfg: dict[str, dict] = {}
+            for k, v in _pairs(args.config).items():
+                name, _, key = k.partition(".")
+                if not key:
+                    raise SystemExit(f"import-pack --config is CONNECTION.key=value, got {k!r}")
+                cfg.setdefault(name, {})[key] = v
+            out = [catalog.import_pack(conn, Path(f).read_text(), by, why, cfg) for f in _need(args, 1, "a pack file")]
         elif a == "approve":
             out = catalog.approve(conn, int(_need(args, 1, "a version id")[0]), by, why)
         elif a == "discard":

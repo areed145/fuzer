@@ -1,11 +1,13 @@
 """Compatibility facade for the source catalog's focused internal modules.
 
 Systems, connections, and datasets live in ``_catalog_entities``; mapping versions
-in ``_catalog_versions``; and seeding and interchange in ``_catalog_io``.
+in ``_catalog_versions``; seeding and interchange in ``_catalog_io``; one system as a source pack in
+``_catalog_packs``.
 """
 
 from . import _catalog_entities as _entities
 from . import _catalog_io as _io
+from . import _catalog_packs as _packs
 from . import _catalog_versions as _versions
 from ._catalog_common import (CATALOG, CONNECTION_FIELDS, DATASET_FIELDS, DRIFT_POLICIES, LOAD_MODES, SEED,
                               STATUSES, SYSTEM_FIELDS, SYSTEM_KINDS, WHERE, CatalogError, _audit, _changes,
@@ -51,6 +53,8 @@ _seed_dataset = _io._seed_dataset
 _adopt_old_state = _io._adopt_old_state
 export = _io.export
 import_ = _io.import_
+export_pack = _packs.export_pack
+import_pack = _packs.import_pack
 
 
 def ensure(conn) -> None:

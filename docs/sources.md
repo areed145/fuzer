@@ -30,6 +30,15 @@ what a person changed: a built-in mapping that moved ahead of an edited one beco
 to YAML (the mapping files as written, plus a `catalog:` block with how each loads, and `systems.yaml`) for code
 review and other environments; `fuzer sources import` makes a mapping file a draft.
 
+**Source packs** carry one system to another project or database in one file (#227): `fuzer sources export-pack
+planning --out planning.yaml` (or `GET /sources/systems/{name}/pack`) writes the system, its connections (secrets
+as references only), and each dataset with how it loads, its mapping in use and its checks. `fuzer sources
+import-pack planning.yaml --config export.path=/data/lake` (or `POST /sources/packs`) adds or updates them, with
+a connection's config changed on the way in. It is safe to repeat: what is already the same is left alone. A new
+dataset's mapping is approved, since the pack is the reviewed setup. A mapping that differs from one a person
+approved here becomes a draft for review. `tests/api/test_source_packs.py` exports a source added from the UI
+alone, imports it into a fresh copy of the project, and checks the records and links come out the same.
+
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is
