@@ -101,6 +101,8 @@ export interface RankRow {
   events: number;
   lost_oil_sm3: number;
   hours: number;
+  /** The loss whose records name no (classified) equipment, so the ranking adds up to the total (#403). */
+  unattributed?: boolean;
 }
 
 export interface Incident {

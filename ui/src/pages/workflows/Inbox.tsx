@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson } from "../../work";
-import { StepBadges, byUrgency, caseHref, taskHref, useAct } from "./shared";
+import { StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
 
 export function InboxPage() {
   const [person] = usePerson();
@@ -92,7 +92,7 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
         <a href={open} className="work-title">{r.title}</a>
         <div className="small muted">
           <strong>{r.name ?? "open"}</strong> · <UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
-          {r.priority != null && <> · priority {r.priority < 2 ? r.priority.toFixed(2) : Math.round(r.priority).toLocaleString()}</>}
+          {priorityText(r.priority) && <> · priority {priorityText(r.priority)}</>}
         </div>
         <div className="row small"><StepBadges row={r} /></div>
       </td>

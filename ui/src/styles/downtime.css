@@ -7,3 +7,4 @@
   .downtime-rankings { grid-template-columns: minmax(0, 1fr); }
   .downtime > .row { align-items: stretch; }
 }
+.ranking li.unattributed > span:first-child { font-style: italic; color: var(--muted); }

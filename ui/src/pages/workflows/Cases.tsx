@@ -5,7 +5,7 @@ import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
-import { AssignPicker, StepBadges, byUrgency, caseHref, processHref, taskHref, useAct } from "./shared";
+import { AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
 
@@ -107,7 +107,7 @@ function CaseLine({ r, picked, toggle }: { r: CaseRow; picked: boolean; toggle: 
       <td className="small">{r.closed_at ? <UIBadge className="badge ok">{r.state}{r.outcome ? `: ${r.outcome}` : ""}</UIBadge> : r.step ?? r.state}</td>
       <td className="small">{r.closed_at ? "" : holder(r.assignee, r.role)}</td>
       <td className="nowrap">{!r.closed_at && <Due at={r.due} />}</td>
-      <td className="small">{r.priority != null ? (r.priority < 2 ? r.priority.toFixed(2) : Math.round(r.priority).toLocaleString()) : ""}</td>
+      <td className="small">{priorityText(r.priority) ?? ""}</td>
       <td className="small muted">{when(r.created_at)}</td>
     </tr>
   );
@@ -151,7 +151,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
           <div className="row small">
             <UIBadge className="badge">{it.type.replace(/_/g, " ")}</UIBadge>
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
-            {it.priority != null && <span className="muted">priority {it.priority < 2 ? it.priority.toFixed(2) : Math.round(it.priority).toLocaleString()}</span>}
+            {priorityText(it.priority) && <span className="muted">priority {priorityText(it.priority)}</span>}
             <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
           </div>
           {(it.subjects.length > 0 || dataset) && (
