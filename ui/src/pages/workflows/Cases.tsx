@@ -4,7 +4,7 @@ import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as 
 import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, describe, holder, usePerson, when } from "../../work";
+import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
 import { AssignPicker, StepBadges, byUrgency, caseHref, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
@@ -68,6 +68,7 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
         process; open one for where it is, who has it and its history. The steps waiting on you are in
         your <a href={href("/inbox")}>Inbox</a>; all outstanding work ranked by value, workflow or not, is
         the <a href={href("/board")}>Work board</a>.</p>
+      <ScenarioClock />
       <NewWorkItem onCreated={list.reload} />
       <div className="row wrap">
         <div className="tabs">
@@ -162,6 +163,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         </div>
         {!closed && <Due at={it.due} />}
       </div>
+      <ScenarioClock />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">

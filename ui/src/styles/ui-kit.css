@@ -1,6 +1,8 @@
 .ui-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 16px; }
 .ui-page-header h1 { margin: 0; }
-.ui-page-header h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+/* Headings and main take focus on route changes so screen readers announce the new page; they are not controls,
+   so they draw no focus ring, which after a reload or Back looked like a selected text box (#391). */
+:is(h1, h2, h3, main)[tabindex="-1"]:focus { outline: none; }
 .ui-page-header p { margin: 4px 0 0; }
 .ui-page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 500; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; text-decoration: none; }

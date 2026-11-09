@@ -28,7 +28,7 @@ import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard, TrendCard } from "../Trend";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
-import { Dates, KindBadge, SourceBadge, Status, entityHref, fmt, href, timestamp, useAsync } from "../lib";
+import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
 const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
@@ -238,13 +238,15 @@ function Why({ id, field }: { id: string; field: string }) {
 }
 
 function Fields({ e }: { e: EntityDetail }) {
-  const fields = Object.keys(e.golden).sort();
+  // A point's GeoJSON geometry repeats its latitude and longitude as raw JSON; the map shows it (#392).
+  const located = "latitude" in e.golden && "longitude" in e.golden;
+  const fields = Object.keys(e.golden).filter((f) => !(located && f === "geometry")).sort();
   const [why, setWhy] = useState<string | null>(null);
   return (
     <UICard  as="section">
       <h2>Values</h2>
       <p className="muted small">The chosen value, which source it came from, and what every other source says.</p>
-      <Table variant="keyValue">
+      <Table variant="keyValue" headingCase="verbatim">
         <tbody>
           {fields.map((f) => {
             const g = e.golden[f];
@@ -252,7 +254,7 @@ function Fields({ e }: { e: EntityDetail }) {
             const others = all.filter((v) => fmt(v.value) !== fmt(g.value));
             return (
               <tr key={f}>
-                <th>{f.replace("_", " ")}</th>
+                <th>{fieldLabel(f)}</th>
                 <td>
                   <div className="row">
                     <span>{fmt(g.value)}</span>

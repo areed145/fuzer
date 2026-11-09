@@ -16,14 +16,20 @@ from .queries import _DOWNTIME
 OPEN = ("CRTD", "REL", "OSNO", "OSTS")  # SAP: created, released, outstanding notification / task
 
 
-def as_of(conn) -> str:
+def data_through(conn) -> str | None:
+    """The latest day the loaded production reports cover, or None when there are none. On a historical or
+    synthetic scenario this is the scenario's "today", well before the wall clock (#389)."""
     row = conn.execute(
         """
         select max(g.value #>> '{}') as d from golden g join entity e on e.fuzer_id = g.fuzer_id
         where e.kind = 'production_day' and g.field = 'report_date'
         """
     ).fetchone()
-    return row["d"] or date.today().isoformat()
+    return row["d"]
+
+
+def as_of(conn) -> str:
+    return data_through(conn) or date.today().isoformat()
 
 
 def _window(conn, since: str | None, until: str | None, days: int = 365) -> tuple[str, str]:

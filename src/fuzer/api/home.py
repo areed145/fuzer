@@ -7,7 +7,7 @@ from fastapi.responses import (
     JSONResponse,
 )
 
-from ..graph import queries
+from ..graph import operations, queries
 from . import deps
 from .deps import UI_DIST, get_conn
 
@@ -35,4 +35,5 @@ def health():
 
 @router.get("/stats")
 def stats(conn=Depends(get_conn)):
-    return {**queries.stats(conn, deps.pack()), "rebuild": deps.rebuilder.status()}
+    return {**queries.stats(conn, deps.pack()), "data_through": operations.data_through(conn),
+            "rebuild": deps.rebuilder.status()}

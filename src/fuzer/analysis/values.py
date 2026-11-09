@@ -3,6 +3,7 @@ the Values tab, the assistant's `process_values` tool and the troubleshooting br
 
 from datetime import datetime, timedelta
 
+from ..graph.operations import data_through
 from ..sources.timeseries import (
     FIRST_TIMED,
     Provider,
@@ -62,7 +63,10 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     ))
     if not at and row["kind"] != "incident" and upsets:
         at = upsets[-1].isoformat()
-    centre = datetime.fromisoformat(at or row["start"] or datetime.now().isoformat(timespec="minutes"))
+    src = src or provider()
+    if not (at or row["start"]):
+        at = _latest(conn, src, hours_after)
+    centre = datetime.fromisoformat(at or row["start"])
     if row["kind"] == "timeseries":
         points = [p for p in [_point(conn, fuzer_id)] if p]
     else:
@@ -70,7 +74,6 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
     start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
     step_minutes = step_minutes or auto_step(hours_before + hours_after)
     near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
-    src = src or provider()
     series, errors = [], []
     for p in points:
         try:
@@ -90,3 +93,13 @@ def around(conn, fuzer_id: str, at: str | None = None, hours_before: int = 48, h
            "end": end.isoformat(timespec="minutes"), "step_minutes": step_minutes, "provider": src.name,
            "upsets": [u.isoformat(timespec="minutes") for u in near], "series": series}
     return out | ({"errors": errors[:5]} if errors else {})
+
+
+def _latest(conn, src, hours_after: int) -> str:
+    """Where the window sits with nothing to centre on: now for a live historian, but for synthetic values the
+    end of the loaded data's last day, so they line up with the scenario's records instead of today's clock (#389)."""
+    last = data_through(conn) if src.name == "synthetic" else None
+    if last:
+        end = datetime.fromisoformat(last) + timedelta(days=1)
+        return (end - timedelta(hours=hours_after)).isoformat(timespec="minutes")
+    return datetime.now().isoformat(timespec="minutes")

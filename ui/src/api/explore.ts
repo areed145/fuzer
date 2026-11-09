@@ -9,6 +9,8 @@ export interface Stats {
   open_reviews: Record<string, number>;
   records: number;
   edges: number;
+  /** The latest day the loaded production reports cover; null when none are loaded (#389). */
+  data_through?: string | null;
   rebuild: { running: boolean; pending: boolean; last: { finished?: string; error?: string } | null };
 }
 

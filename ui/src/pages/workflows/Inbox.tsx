@@ -4,7 +4,7 @@ import { Button, ButtonLink, PageHeader, Table, Card as UICard, Input, Select , 
 import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
-import { Due, holder, usePerson } from "../../work";
+import { Due, ScenarioClock, holder, usePerson } from "../../work";
 import { StepBadges, byUrgency, caseHref, taskHref, useAct } from "./shared";
 
 export function InboxPage() {
@@ -47,6 +47,7 @@ export function InboxPage() {
         {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
+      <ScenarioClock />
       <div className="row">
         <Input aria-label="Filter inbox by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter inbox by case type" value={type} onChange={(e) => setType(e.target.value)}>
