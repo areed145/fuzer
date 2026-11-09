@@ -6,13 +6,16 @@
 3. Readers: the configured LLM provider reads whatever it hasn't read yet (operator logs, P&ID
    drawings, document sections), then the register is rebuilt with what it found.
 4. Web UI: built when missing or older than its source.
-5. Jobs: Dagster (schedules and sensors: SRE scans, studies, refreshes, day close) on
+5. First process scan: on a database no SRE scan has run on, learn normal ranges, check limits and scan the last
+   7 days for upsets in the background, handing them to the IOC (#453); the scheduled scan carries on from there.
+   The project served is stored when the database holds none, so commands in another shell serve it too.
+6. Jobs: Dagster (schedules and sensors: SRE scans, studies, refreshes, day close) on
    http://127.0.0.1:3000, its log in .dagster/dagster.log; `--no-jobs` leaves it out.
-6. Agent worker: `fuzer work worker`, which runs the workflow's agent steps (drafting daily reports,
+7. Agent worker: `fuzer work worker`, which runs the workflow's agent steps (drafting daily reports,
    specialists' proposals), its log in .fuzer/worker.log. It needs a configured agents provider:
    without one it isn't started, so the steps wait instead of failing over to a person. `--no-worker`
    leaves it out.
-7. Serve on http://127.0.0.1:8000. Ctrl+C stops all of them.
+8. Serve on http://127.0.0.1:8000. Ctrl+C stops all of them.
 
 `--fresh` starts over: empties the database and, for the fake plant, makes new data. LLM
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
@@ -108,6 +111,57 @@ def follow(conn, pack) -> None:
     n = out["notifications"]
     if n.get("enabled", True):
         say(f"Intake: {n['raised']} SAP notification(s) raised for the IOC, {n['cleared']} cleared")
+
+
+def first_scan(pack) -> None:
+    """The first SRE scan on a deployment that has never had one (`pipeline.first_scan`), so work from the process
+    data reaches the IOC soon after the UI opens rather than after the first 6-hourly `sre_scan` job, which carries
+    on from where it stopped. Runs on its own connection."""
+    from ..workflow import engine
+
+    try:
+        with db.connect() as conn:
+            engine.load_defaults(conn)  # the upset and IOW breach processes the hand-off starts
+            out = pipeline.first_scan(conn, pack, FIRST_SCAN_DAYS)
+    except Exception as e:  # noqa: BLE001 - the UI is up; the scheduled scan tries again
+        say(f"First process scan stopped ({e}); the 6-hourly SRE job runs it.")
+        return
+    if out is None:
+        return
+    lim, sre, hand = out["limits"], out["sre"], out["handoff"]
+    say(f"Process data: {sre.get('upsets', 0)} upset(s) found in the last {FIRST_SCAN_DAYS} days, "
+        f"{hand.get('handed_off', 0)} handed to the IOC; {lim['iow_breaches']} IOW breach(es) in the last 6 hours")
+
+
+FIRST_SCAN_DAYS = 7
+
+
+def start_first_scan(pack):
+    """`first_scan` in the background when no scan has run: a week of process data takes a few minutes, and the UI
+    shouldn't wait for it. None when a scan has already run."""
+    import threading
+
+    from ..ops import sre
+
+    with db.connect() as conn:
+        if sre.watermark(conn) is not None:
+            return None
+    say(f"Scanning the last {FIRST_SCAN_DAYS} days of process data in the background (a few minutes); "
+        "upsets reach the IOC's Inbox when it finishes.")
+    t = threading.Thread(target=first_scan, args=(pack,), name="first-scan", daemon=True)
+    t.start()
+    return t
+
+
+def remember_project(conn) -> None:
+    """Store the project this process serves when the database holds none, so a later `fuzer limits learn` (or any
+    command) in another shell serves it too, without FUZER_PROJECT. A project a bundle stored is never replaced."""
+    from ..core import projects
+
+    name = os.environ.get("FUZER_PROJECT")
+    if not name or projects.active(conn) or (cfg := projects.repo_config(name)) is None:
+        return
+    projects.save(conn, name, cfg, by="fuzer up")
 
 
 def read_with_claude(conn, pack) -> None:
@@ -255,8 +309,10 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
     os.environ["FUZER_DATA_DIR"] = str(folder)
     with db.connect() as conn:
         load(conn, pack, folder, fresh)
+        remember_project(conn)
         read_with_claude(conn, pack)
     build_ui()
+    start_first_scan(pack)
     proc = start_jobs(jobs_port) if jobs else None
     agents = start_worker(pack) if worker else None
     print(f"\nFuzer is running: http://{host}:{port}   (Ctrl+C to stop)\n", flush=True)

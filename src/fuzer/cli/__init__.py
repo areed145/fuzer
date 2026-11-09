@@ -166,10 +166,15 @@ NEEDS_NO_PACK = {"init", "ingest", "projects", "settings"}  # these work on a da
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
-    if name := (args.project or projects.current()):
+    name = args.project or projects.current()
+    if name or args.cmd not in ("up", "reset"):
         with db.connect() as conn:
+            # no project named: the database's first project (the one `fuzer up` or `fuzer init` stored), so a
+            # command in another shell serves what `fuzer up` serves, with its data folder
+            name = name or projects.active(conn)
             try:
-                projects.activate(conn, name)
+                if name:
+                    projects.activate(conn, name)
             except projects.ProjectError as e:
                 raise SystemExit(str(e)) from None
     pack = load_pack(args.pack) if args.pack else None  # else the project's, read from the database below

@@ -53,12 +53,17 @@ port 3000.
 
 Without provider credentials, `fuzer up` reports what it did not read and carries on; the register, the
 work board, the guided investigation and the workflows all work. The agent worker isn't started either, so
-the daily report stays a template draft until a provider is configured. Without Dagster (`--no-jobs`), run
-the scheduled loop by hand to fill the board, cases and reports:
+the daily report stays a template draft until a provider is configured.
+
+On a database that has never been scanned, `fuzer up` learns normal ranges, checks limits and scans the last 7
+days of process data in the background (a few minutes, no model calls), so upsets reach the IOC's Inbox soon
+after the UI opens; the 6-hourly SRE job carries on from there. `fuzer up` also stores the project it serves
+when the database holds none, so commands in another shell (`fuzer limits learn`, `fuzer report`) serve it
+without `FUZER_PROJECT`. Without Dagster (`--no-jobs`), run the rest of the scheduled loop by hand:
 
 ```sh
-uv run fuzer limits learn && uv run fuzer limits scan      # normal ranges, then IOW breaches
-uv run fuzer sre --handoff --max-diagnoses 0               # upsets, handed to the workflow (no model calls)
+uv run fuzer limits scan                                   # IOW breaches since the last check
+uv run fuzer sre --handoff --max-diagnoses 0               # new upsets, handed to the workflow (no model calls)
 uv run fuzer report                                        # close the latest production day
 uv run fuzer board refresh
 ```

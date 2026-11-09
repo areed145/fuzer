@@ -57,12 +57,80 @@ def priority(conn, pack, upset: dict, today: str | None = None) -> dict:
         chance = min(1.0, (fpy or 0) * horizon / 365.25) if fpy is not None else None
         ttc = 365.25 / fpy if fpy else None
         src["chance"] = f"failures per year of the unit over {horizon} d"
+    duration, notes = None, [f"reached {len(upset['units'])} units"] + ([] if ongoing else ["recovered: scored as a repeat"])
+    # On producing wells, what's at stake is the production it defers (#455): while it lasts, or as often as it
+    # has come back
+    rate = rate_at_risk(conn, upset.get("units") or [upset["first_unit"]])
+    times = 1 if ongoing else repeats(conn, upset)
+    if rate and (ongoing or times >= 2):
+        share = cfg["upsets"]["rate_at_risk_share"]
+        oil, gas = rate["oil_sm3d"] * share, rate["gas_ksm3d"] * share
+        if ongoing:
+            days, how = cfg["upsets"]["days"], f"for {cfg['upsets']['days']:g} d while it lasts"
+        else:
+            lasted = max((upset["end"] - upset["start"]).total_seconds() / 86400, 1 / 24)
+            days = lasted * times / REPEAT_DAYS * horizon
+            how = (f"for {lasted * 24:,.1f} h each time, {times} times in the last {REPEAT_DAYS} d, "
+                   f"so about {times / REPEAT_DAYS * horizon:,.0f} times in {horizon} d")
+        if oil * days > (t.get("oil_sm3d") or 0) * horizon * (chance or 0):  # more than its unit's downtime history
+            t["oil_sm3d"], t["gas_ksm3d"], duration, chance = oil, gas, days, 1.0
+            src["oil_sm3d"] = (f"{share:.0%} of the latest tested rate of the {rate['wells']} producing well(s) it "
+                               f"reaches ({rate['oil_sm3d']:,.1f} Sm3/d oil, {rate['gas_ksm3d']:,.1f} kSm3/d gas), {how}")
+            src["chance"] = "still going" if ongoing else f"came back {times - 1} time(s) in {REPEAT_DAYS} d"
+            notes = notes[:1] + ([] if ongoing else [f"recovered: {times} times in {REPEAT_DAYS} d"])
+            if not ongoing:
+                ttc = REPEAT_DAYS / times
+                src["time_to_consequence_days"] = f"the next repeat, at the rate it came back in {REPEAT_DAYS} d"
     item = value.Item("upset", f"upset:{upset['id']}", upset.get("label") or f"upset {upset['id']}",
                       upset.get("text"), upset.get("unit_label"), upset["first_unit"], oil_sm3d=t.get("oil_sm3d"),
+                      gas_ksm3d=t.get("gas_ksm3d"), duration_days=duration,
                       chance=chance, criticality=t.get("criticality"), failures_per_year=fpy,
-                      time_to_consequence_days=ttc, sources=src,
-                      notes=[f"reached {len(upset['units'])} units"] + ([] if ongoing else ["recovered: scored as a repeat"]))
+                      time_to_consequence_days=ttc, sources=src, notes=notes)
     return value.score(item, cfg)
+
+
+REPEAT_DAYS = 30  # a recovered upset is valued by how often the same finding came back over this many days
+
+
+def repeats(conn, upset: dict) -> int:
+    """How many upsets (this one too) started from the same point and finding in the REPEAT_DAYS up to its start."""
+    if not upset.get("point_id"):
+        return 1
+    r = conn.execute(
+        """
+        select count(*) as n from upset u join detection d on d.id = u.first_detection
+        where u.kind = 'process' and d.point_id = %s and d.key = %s
+          and u.start between %s::timestamp - make_interval(days => %s) and %s
+        """, (upset["point_id"], upset["key"], upset["start"], REPEAT_DAYS, upset["start"])).fetchone()
+    return max(1, r["n"])
+
+
+def rate_at_risk(conn, unit_ids: list[str]) -> dict | None:
+    """The producing wells an upset reaches (its units that are wells, or equipment part of a well) and their
+    latest EC well test: oil (Sm3/d) and gas (kSm3/d, the test's gas rate or oil x GOR). None when it reaches no
+    tested producing well."""
+    rows = conn.execute(
+        """
+        with wells as (
+          select e.fuzer_id as well from entity e where e.kind = 'well' and e.fuzer_id = any(%(u)s)
+          union select p.dst from edge p join entity w on w.fuzer_id = p.dst and w.kind = 'well'
+          where p.rel = 'part_of' and p.src = any(%(u)s)),
+        tests as (
+          select t.dst as well, jsonb_object_agg(g.field, g.value) as f
+          from edge t join golden g on g.fuzer_id = t.src
+          where t.rel = 'tests' and t.dst in (select well from wells) group by t.dst, t.src)
+        select distinct on (well) well, f from tests order by well, f->>'test_date' desc nulls last
+        """, {"u": list(unit_ids)}).fetchall()
+    from ..analysis.value import _num
+
+    oil = gas = 0.0
+    wells = 0
+    for r in rows:
+        q = _num(r["f"].get("oil_sm3d"))
+        g = _num(r["f"].get("gas_ksm3d")) or q * _num(r["f"].get("gor_sm3_sm3")) / 1000.0
+        if q > 0 or g > 0:
+            oil, gas, wells = oil + q, gas + g, wells + 1
+    return {"oil_sm3d": oil, "gas_ksm3d": gas, "wells": wells} if wells else None
 
 
 # ---- diagnosis ------------------------------------------------------------------------------------

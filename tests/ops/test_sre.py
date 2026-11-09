@@ -147,6 +147,33 @@ def test_alarms_already_on_at_the_start_are_standing():
     assert [g["kind"] for g in sre.group_detections(fresh, {})] == ["process", "process"]  # no scan start: as before
 
 
+def test_a_new_detection_does_not_chain_every_standing_alarm_into_its_upset():
+    """#455: on Okan's first scan, low wellhead pressure alarms already on across 24 wells, chained through their
+    manifolds, became one upset of 26 assets as soon as one new alarm joined. Now the new detection brings along
+    only standing alarms on its own point or unit, or next to it; the rest stay standing."""
+    t0 = datetime(2024, 6, 10)
+
+    def det(point, unit, minutes, key="alarm:lo"):
+        return {"point": point, "unit_id": unit, "detector": "excursions", "key": key,
+                "start": t0 + timedelta(minutes=minutes), "end": None}
+
+    # wells w1..w4 on manifold m1, w5 on m2; m1 and m2 share a header: all within the default hops
+    adj = {"w1": {"m1"}, "w2": {"m1"}, "w3": {"m1"}, "w4": {"m1"}, "w5": {"m2"},
+           "m1": {"w1", "w2", "w3", "w4", "h"}, "m2": {"w5", "h"}, "h": {"m1", "m2"}}
+    standing = [det(f"W{i}.WHP", f"w{i}", 0) for i in range(1, 6)] + [det("M1.PT", "m1", 0)]
+    new = det("W5.FLOW", "w5", 20, "step")
+    groups = sre.group_detections(standing + [new], adj, standing_before=t0)
+    process = [g for g in groups if g["kind"] == "process"]
+    assert len(process) == 1 and process[0]["units"] == ["w5"]  # the new step and the standing alarm on its well
+    assert [d["point"] for d in process[0]["detections"]] == ["W5.WHP", "W5.FLOW"]
+    rest = [g for g in groups if g["kind"] == "standing"]
+    assert sum(len(g["detections"]) for g in rest) == 5
+
+    beside = det("M1.FLOW", "m1", 20, "step")  # next to the manifold: its wells' standing alarms come along
+    process = [g for g in sre.group_detections(standing + [beside], adj, standing_before=t0) if g["kind"] == "process"]
+    assert sorted(process[0]["units"]) == ["m1", "w1", "w2", "w3", "w4"]
+
+
 def test_bad_instruments_roll_into_one_summary_a_week():
     """#141: instrument faults on any unit in the same week are one instrument-health summary, not an upset
     each; the next week starts another, and they never join a process upset."""
