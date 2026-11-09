@@ -231,6 +231,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 /* My jobs (field operators, on a phone): the note spans the card and the actions are easy to hit. */
 .field-job .field-sent { margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-left: 3px solid var(--accent, #2563eb); }
 .field-job label { display: block; margin-top: 0.75rem; }
+.from-field { border-left: 3px solid var(--accent, #2563eb); }
+.field-back { color: var(--accent, #2563eb); }
 .field-job textarea { display: block; width: 100%; box-sizing: border-box; margin: 0.25rem 0 0.5rem; }
 .field-job dl.kv > div { display: flex; gap: 0.5rem; }
 .field-job dl.kv dt { color: var(--muted, #667); min-width: 8rem; }

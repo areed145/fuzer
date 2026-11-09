@@ -187,6 +187,8 @@ export interface WorkRow {
   process_key: string | null;
   bulk: string[];
   covering_for?: string | null;
+  /** Why it was last handed on, e.g. "Back from the field: done: gauge reads 13 barg". */
+  handed_reason?: string | null;
 }
 
 export interface WorkRoleRow {
@@ -445,7 +447,10 @@ export interface FieldJob extends ExceptionRow {
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null }[];
   /** Who sent it to them, when, and what they asked for. */
-  sent: { by: string; at: string; reason: string | null } | null;
+  sent: { by: string | null; at: string | null; reason: string | null } | null;
+  /** The open step is in one of their roles (a Field check), so they can open it; another role's step handed to
+   * them (an engineer's Triage) is reported back on from My jobs instead. */
+  own_step: boolean;
   /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
   queued: boolean;
 }

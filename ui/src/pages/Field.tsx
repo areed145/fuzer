@@ -78,7 +78,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
       </p>
       {job.sent && !job.queued && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
-        <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")} {when(job.sent.at)}</span></p>}
+        {job.sent.by && <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</span>}</p>}
       {job.assets.length > 0 && <div>
         <h3 className="small">Where</h3>
         <ul className="plain">{job.assets.map((a) => <li key={a.fuzer_id}>
@@ -115,7 +115,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
           onClick={() => say("could_not_do")}>Could not do</Button>
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
-        {job.task_id && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
+        {job.task_id && job.own_step && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
       </div></>}
       {busy && <p role="status">{busy}…</p>}

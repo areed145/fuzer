@@ -12,7 +12,9 @@ Fuzer properties are attributes in the `fuzer:` namespace:
   `<fuzer:threshold name=".." value=".."/>` in extensionElements, read in conditions as `thresholds["..."]`.
 - lane: `fuzer:role` (a person role) or `fuzer:agent` (an agent role); the lane name is used otherwise.
 - userTask: `fuzer:role`, `fuzer:assignee`, `fuzer:requiresHuman`, `fuzer:sla` (ISO 8601 duration),
-  `fuzer:escalateTo` (the role that gets it once the SLA passes), `fuzer:form` (form-js form key).
+  `fuzer:escalateTo` (the role that gets it once the SLA passes), `fuzer:form` (form-js form key),
+  `fuzer:dispatch` (`triage=field_check`: the form data that completes it when the IOC dispatches the case to
+  someone outside its role, so the process goes to its own field step and that step is handed to them).
 - serviceTask: `fuzer:agent`, `fuzer:fallbackRole` (who gets it when the agent keeps failing),
   `fuzer:component` (canvas preset) and `fuzer:instructions` (parameters passed to the agent worker).
 
@@ -297,6 +299,8 @@ def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Proble
         out.append(Problem(n.id, "a user task needs a role (fuzer:role or a lane)"))
     elif n.role not in person_roles:
         out.append(Problem(n.id, f"unknown role '{n.role}'"))
+    if (via := n.attrs.get("dispatch")) is not None and not re.fullmatch(r"\s*\w+\s*=\s*[^,=]+(,\s*\w+\s*=\s*[^,=]+)*", via):
+        out.append(Problem(n.id, f"dispatch '{via}' isn't key=value pairs (triage=field_check)"))
     if (esc := n.attrs.get("escalateTo")) and esc not in person_roles:
         out.append(Problem(n.id, f"unknown role '{esc}' in escalateTo"))
     sla = n.attrs.get("sla")

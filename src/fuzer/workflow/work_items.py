@@ -6,7 +6,7 @@ from psycopg.types.json import Jsonb
 
 from .assignment import hand_off
 from .definitions import (
-    DUE_SOON, Conflict, NotFound, WorkError, _event, _op, utcnow,
+    DUE_SOON, Conflict, NotFound, WorkError, _definition, _event, _op, utcnow,
 )
 from .runtime import _Run, _sync_item, _update
 
@@ -167,15 +167,83 @@ def process(conn, process_id: int) -> dict:
     return next(p for p in detail["processes"] if p["id"] == process_id) | {"item_id": row["item_id"]}
 
 
-def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
-    """Give a case to someone: an item without a process directly, else its open person step due first."""
-    from .assignment import hand_off
+FIELD_ASK = "field_ask"  # the process data key a dispatch's "what to check or do" lands in
 
-    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
-                        "order by due_at nulls last, id limit 1", (item_id,)).fetchone()
-    if step:
+
+def _dispatch_data(text: str | None) -> dict | None:
+    """A step's `fuzer:dispatch` ("triage=field_check"): the form data that sends the process to its own field step."""
+    pairs = [p.split("=", 1) for p in (text or "").split(",") if "=" in p]
+    return {k.strip(): v.strip() for k, v in pairs if k.strip()} or None
+
+
+def _outside_role(conn, to: str, role: str | None) -> bool:
+    """Is `to` (a person or `role:<role>`) someone other than the step's own role would send it to?"""
+    from .definitions import roles_of
+
+    if to.startswith("agent:") or not role:
+        return False
+    if to.startswith("role:"):
+        return to[5:] != role
+    return role not in roles_of(conn, to)
+
+
+def _open_user_steps(conn, item_id: int, after: int = 0) -> list[dict]:
+    return conn.execute("select id, element, role, assignee from work_token where item_id = %s and kind = 'user' "
+                        "and state in ('ready', 'waiting') and id > %s order by id", (item_id, after)).fetchall()
+
+
+def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """Give a case to someone: an item without a process directly, else its open person step due first.
+
+    A step that declares `fuzer:dispatch` (the upset's Triage: `triage=field_check`) has its own way to the field:
+    sending it to someone outside its role completes it with that data and the reason as `field_ask`, and the step
+    the process reaches (its Field check) is handed to them. The IOC's decision stays with the IOC, and the field's
+    part shows on the process diagram."""
+    from .assignment import complete, hand_off
+
+    step = conn.execute("select id, process_id, element, role, assignee from work_token where item_id = %s "
+                        "and kind = 'user' and state in ('ready', 'waiting') order by due_at nulls last, id limit 1",
+                        (item_id,)).fetchone()
+    if not step:
+        return assign_item(conn, item_id, by, to, reason)
+    data = None
+    if step["process_id"]:
+        proc = conn.execute("select definition_id from work_process where id = %s", (step["process_id"],)).fetchone()
+        node = _definition(conn, proc["definition_id"]).nodes.get(step["element"])
+        data = _dispatch_data(node.attrs.get("dispatch")) if node else None
+    if not (data and _outside_role(conn, to, step["role"])):
         return hand_off(conn, step["id"], by, to, reason)
-    return assign_item(conn, item_id, by, to, reason)
+    if step["assignee"] and step["assignee"] != by:
+        hand_off(conn, step["id"], by, by, f"to send it to {to.removeprefix('role:')}")
+    complete(conn, step["id"], by, {**data, FIELD_ASK: (reason or "").strip()})
+    nxt = _open_user_steps(conn, item_id, after=step["id"])
+    if not nxt:
+        return {"task_id": step["id"], "to": None}
+    return hand_off(conn, nxt[0]["id"], by, to, reason)
+
+
+def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str) -> dict | None:
+    """Complete a field step (an open `operator` step `person` holds) with what they found (`field_result`,
+    `field_note`), then hand the step the process comes back to (the IOC's decision) to whoever sent them, with
+    `reason`. None when they hold no field step on the case."""
+    from .assignment import complete, hand_off
+
+    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state = 'waiting' "
+                        "and assignee = %s and role = 'operator' order by id limit 1", (item_id, person)).fetchone()
+    if not step:
+        return None
+    sender = conn.execute(  # who sent them: the hand-off to them, else whoever completed the step before it
+        """
+        select coalesce((select actor from work_event where token_id = %(t)s and kind = 'handed_off'
+                         and data->>'to' = %(p)s and actor <> %(p)s order by id desc limit 1),
+                        (select actor from work_event where item_id = %(i)s and kind = 'completed' and token_id < %(t)s
+                         and actor not like 'agent:%%' and actor <> 'system' order by id desc limit 1)) as who
+        """, {"t": step["id"], "p": person, "i": item_id}).fetchone()["who"]
+    complete(conn, step["id"], person, {"field_result": result, "field_note": note or ""})
+    back = _open_user_steps(conn, item_id, after=step["id"])
+    if back and sender:
+        hand_off(conn, back[0]["id"], person, sender, reason)
+    return {"task_id": step["id"], "back_to": sender, "next": back[0]["id"] if back else None}
 
 
 def _back_to(prior: str | None, person: str, role: str | None) -> str | None:

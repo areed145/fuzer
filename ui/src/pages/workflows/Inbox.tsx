@@ -94,6 +94,8 @@ function Row({ r, person, picked, toggle }: { r: WorkRow; person: string; picked
           <strong>{r.name ?? "open"}</strong> · <UIBadge className="badge">{r.type.replace(/_/g, " ")}</UIBadge> · with {holder(r.assignee, r.role, r.kind)}
           {priorityText(r.priority) && <> · priority {priorityText(r.priority)}</>}
         </div>
+        {r.handed_reason && <div className={r.handed_reason.startsWith("Back from the field") ? "small field-back" : "small muted"}>
+          {r.handed_reason}</div>}
         <div className="row small"><StepBadges row={r} /></div>
       </td>
       <td className="nowrap"><Due at={r.due_at} /></td>

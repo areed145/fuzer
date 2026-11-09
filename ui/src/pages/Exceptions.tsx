@@ -13,11 +13,14 @@ export function ExceptionsPage() {
   const [person] = usePerson();
   const [state, setState] = useState("open");
   const [type, setType] = useState("");
-  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
+  const back = state === "back";  // open, and the field's last word was done or could not do: the IOC decides next
+  const rows = useAsync(() => api.exceptions({ state: back ? "open" : state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const types = [...new Set(rows.data.map((r) => r.type))].sort();
   const waiting = rows.data.filter((r) => !r.item_id && !r.planned && r.state === "open");
+  const backRows = rows.data.filter(backFromField);
+  const shown = back ? backRows : rows.data;
   return (
     <section>
       <PageHeader subtitle={<>Every exception raised by Fuzer's detectors, other systems and the field, once per open
@@ -27,17 +30,20 @@ export function ExceptionsPage() {
       <div className="row">
         <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
           <option value="open">open</option><option value="cleared">cleared</option>
-          <option value="closed">closed</option><option value="">any state</option>
+          <option value="closed">closed</option><option value="back">back from the field</option>
+          <option value="">any state</option>
         </Select>
         <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every type</option>{types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>
         {waiting.length > 0 && <Badge tone="warn">{waiting.length} waiting to be dispatched</Badge>}
+        {!back && backRows.length > 0 && <Button size="sm" onClick={() => setState("back")}>
+          {backRows.length} back from the field</Button>}
       </div>
       <Card>
-        {!rows.data.length ? <p className="muted">Nothing here.</p> : <Table variant="results">
+        {!shown.length ? <p className="muted">{back ? "Nothing back from the field waiting on the IOC." : "Nothing here."}</p> : <Table variant="results">
           <thead><tr><th>Exception</th><th>Assets</th><th>Seen</th><th>With</th><th /></tr></thead>
-          <tbody>{rows.data.map((r) => <Row key={r.id} r={r} person={person}
+          <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
             people={(people.data ?? []).map((p) => p.name)} onChange={rows.reload} />)}</tbody>
         </Table>}
       </Card>
@@ -86,6 +92,13 @@ function Kinds({ person }: { person: string | null }) {
     </Card>
   );
 }
+
+/** Open, and the field's latest report says done or could not do: their part is over and the case is back with the
+ * IOC to decide what happens next. */
+const backFromField = (r: ExceptionRow) => {
+  const last = r.evidence?.field?.[r.evidence.field.length - 1];
+  return r.state === "open" && !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
+};
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
 

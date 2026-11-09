@@ -108,6 +108,18 @@ page. A type with a process starts it; one with a queue opens a case in that rol
 - **Back to the IOC.** Done on a case without a process closes it and its exception. Done on a process case, or Could
   not do on any, hands the job back to whoever sent it (the engineer queue's Triage step goes back to that queue),
   so the decision reappears in the IOC's Inbox with the field's note.
+- **Field check, a step of its own.** The upset process has a **Field check** step in a Field operator lane. Triage
+  can choose "Not sure: send someone to look" (with what to check), and dispatching an upset from Exceptions to
+  someone outside the engineer role does the same: Triage declares `fuzer:dispatch="triage=field_check"`, so it is
+  completed with that choice and the Field check is handed to whoever was picked. The engineer's form never lands in
+  the operator's list. The operator's Done or Could not do completes the Field check (`field_result`, `field_note`)
+  and Triage comes back to whoever sent them. Any process can do the same with the **Field check** component in the
+  modeler and `fuzer:dispatch` on the step that sends to it.
+- **Seeing it come back.** The task page shows a **From the field** box above the form, the Inbox says why a step
+  came back ("Back from the field: done: gauge reads 13 barg"), and Exceptions filters to **back from the field**.
+  My jobs only offers to open a step in the operator's own roles.
+- **SAP notifications done in the field** close with their case and are held, not raised again, while SAP shows the
+  status they had when the field closed them; SAP never hears of a field close, so a planner still closes it there.
 
 ## The work board
 

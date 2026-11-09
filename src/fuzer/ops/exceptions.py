@@ -247,10 +247,13 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next work tick
                 events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(_row(conn, exception_id)))
         elif status in ("done", "could_not_do") and state not in ("done", "cancelled"):
-            # The field's part is over: what the IOC sent them (its decision step, or the case) goes back to whoever
-            # sent it, with what they found, so it lands in that person's or queue's Inbox instead of staying here.
-            work.hand_back(conn, row["item_id"], by, by, reason=f"Back from the field: {said.lower()} (their note is above)"
-                           if note else f"Back from the field: {said.lower()}")
+            # The field's part is over. A process with a field step of its own (the upset's Field check) has it
+            # completed with what they found, and the IOC's decision it returns to goes to whoever sent them; else
+            # what the IOC sent them (its decision step, or the case) goes back to whoever sent it. Either way it
+            # lands in that person's or queue's Inbox, with the reason saying it is back from the field.
+            back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
+            if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
+                work.hand_back(conn, row["item_id"], by, by, reason=back)
     row = _row(conn, exception_id)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
@@ -317,22 +320,29 @@ def field_jobs(conn, person: str) -> list[dict]:
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
-               t.id as task_id, t.name as task_name,
+               t.id as task_id, t.name as task_name, t.role as task_role, p.data->>'field_ask' as ask,
                not (coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)))
                  as queued
         from exception_record e join work_item w on w.id = e.item_id
         left join lateral (select id, name, due_at, assignee, role from work_token
                            where item_id = w.id and kind = 'user' and state in ('ready', 'waiting')
                            order by due_at nulls last, id limit 1) t on true
+        left join work_process p on p.id = (select process_id from work_token where id = t.id)
         where e.state = 'open' and w.state not in ('done', 'cancelled')
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
                or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
                or (t.id is null and w.assignee is null and w.role = any(%(roles)s)))
         order by coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
                  coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
-        """, {"p": person, "roles": work.roles_of(conn, person)}).fetchall()
+        """, {"p": person, "roles": (roles := work.roles_of(conn, person))}).fetchall()
     out, known = [], types(conn)
     for r in rows:
+        # Their own step (a Field check, in the operator role) can be opened; another role's step handed to them
+        # (an engineer's Triage) can't: they report back from here and it returns to whoever sent it.
+        r["own_step"] = bool(r["task_id"]) and r["task_role"] in roles
+        sent = _sent(conn, r["item_id"], person)
+        if r["ask"] and r["task_role"] == "operator":  # what the IOC asked when it sent the process to the field
+            sent = {**(sent or {"by": None, "at": None}), "reason": r["ask"]}
         history = conn.execute(
             "select id, title, state, first_seen from exception_record where id <> %s and subjects && %s "
             "and first_seen > now() - interval '90 days' order by first_seen desc limit 5",
@@ -340,7 +350,7 @@ def field_jobs(conn, person: str) -> list[dict]:
         t = known.get(r["type"])
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, r["subjects"]),
                     "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
-                    "sent": _sent(conn, r["item_id"], person)})
+                    "sent": sent})
     return out
 
 

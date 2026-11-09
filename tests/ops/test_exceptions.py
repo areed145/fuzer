@@ -312,3 +312,50 @@ def test_a_dispatch_is_posted_to_the_alert_webhook(conn, types, monkeypatch):
     conn.commit()
     events.deliver(conn)
     assert "Dispatched to fred: Gas smell at pad 4 (closest)" in posted
+
+
+def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
+    """The upset's Triage declares a way to the field: dispatching it to an operator completes Triage with
+    `field_check` and hands the process's Field check step to them, so the engineer's decision never lands in the
+    operator's list. Their report completes the Field check and Triage comes back to whoever sent them."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.load_defaults(conn)
+    engine.set_person(conn, "erin", ["engineer"])
+    engine.set_person(conn, "otto", ["operator"])
+    types("upset_t", process="upset", audience=("ioc", "field"))
+    e = raise_exception(conn, "upset_t", "UP-1", "Low wellhead pressure across 3 assets", "agent:sre",
+                        refs=["fz-well-a12"], evidence={"incident_id": "UP-1", "start": "2025-12-30T00:00"})
+    steps = lambda: conn.execute("select element, assignee, role from work_token where item_id = %s and kind = 'user' "  # noqa: E731
+                                 "and state = 'waiting' order by id", (e["item_id"],)).fetchall()
+    assert [s["element"] for s in steps()] == ["triage"]
+    ex.dispatch(conn, e["id"], "erin", "otto", reason="read the wellhead gauge")
+    assert steps() == [{"element": "field_check", "assignee": "otto", "role": "operator"}]
+    [job] = [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    assert job["task_name"] == "Field check" and job["own_step"] is True
+    assert job["sent"]["reason"] == "read the wellhead gauge" and job["sent"]["by"] == "erin"
+    ex.report(conn, e["id"], "otto", "done", note="gauge reads 13 barg, wing valve part closed")
+    assert steps() == [{"element": "triage", "assignee": "erin", "role": "engineer"}]  # back with whoever sent them
+    data = conn.execute("select data from work_process where item_id = %s", (e["item_id"],)).fetchone()["data"]
+    assert data["field_result"] == "done" and "13 barg" in data["field_note"]
+    [row] = [r for r in engine.my_work(conn, "erin")["mine"] if r["item_id"] == e["item_id"]]
+    assert row["handed_reason"].startswith("Back from the field: done: gauge reads 13 barg")  # why it is back
+    assert not [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    conn.commit()
+
+
+def test_an_operator_handed_another_roles_step_is_not_offered_it(conn, types):
+    """A step without a field route handed to an operator stays the IOC's decision: My jobs doesn't offer to open it."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "olga", ["engineer", "workflow_admin"])
+    engine.set_person(conn, "otto", ["operator"])
+    engine.publish(conn, engine.import_bpmn(conn, _process("own_proc"), "olga")[0]["id"], "olga")
+    types("own_t", process="own_proc", audience=("ioc", "field"))
+    e = raise_exception(conn, "own_t", "OWN-1", "Gauge reads odd", "agent:sre", refs=["fz-well-a12"])
+    ex.dispatch(conn, e["id"], "olga", "otto", reason="look at it")
+    [job] = [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
+    assert job["task_id"] and job["own_step"] is False
+    conn.commit()
