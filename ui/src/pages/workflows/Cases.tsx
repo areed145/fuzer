@@ -5,7 +5,7 @@ import { Suspense, lazy, useMemo, useState } from "react";
 import { api, type CaseRow, type WorkItem, type WorkProcess } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
-import { AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
+import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
 
@@ -175,6 +175,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
                 <span className="small muted">with {holder(s.assignee, s.role, s.kind)}</span>
                 <StepBadges row={s} />
                 <Due at={s.due_at} />
+                <AgentIdle step={s} />
               </li>
             ))}
           </ul>

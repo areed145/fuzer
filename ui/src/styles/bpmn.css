@@ -59,3 +59,8 @@
 .workflow-palette .ui-button { cursor: grab; }
 .prop textarea, .workflow-agent textarea { width: 100%; box-sizing: border-box; }
 .workflow-agent { margin: 12px 0; }
+/* The legend and zoom controls under a diagram (#406): their own spacing, since the graph styles may not be loaded. */
+.bpmn-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.bpmn-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.bpmn-legend i.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.bpmn-zoom { justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

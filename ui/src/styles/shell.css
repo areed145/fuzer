@@ -1,6 +1,8 @@
 /* top bar */
 /* App shell: a sidebar (a drawer with a top bar below 900px) and the page. Nav data lives in nav.tsx. */
-.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh;
+  /* The sidebar column keeps its panel colour and edge the whole height of a long page, not just the first screen (#395). */
+  background: linear-gradient(to right, var(--panel) 0 219px, var(--line) 219px 220px, transparent 220px); }
 .sidebar {
   position: sticky; top: 0; z-index: 1101; height: 100vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 10px;
@@ -42,7 +44,7 @@
 .area-navigation a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 900px) {
-  .app { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .app { grid-template-columns: minmax(0, 1fr); align-content: start; background: none; }
   .topbar {
     position: sticky; top: 0; z-index: 1101; display: flex; align-items: center; gap: 8px;
     padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);

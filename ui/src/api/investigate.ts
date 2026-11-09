@@ -363,7 +363,7 @@ export interface DailyReview {
   closed_at: string | null;
   comments: string | null;
   step: { id: number; element: string; name: string | null; kind: string; assignee: string | null; role: string | null;
-    due_at: string | null; error: string | null } | null;
+    due_at: string | null; error: string | null; created_at?: string | null; unclaimed?: boolean } | null;
 }
 
 export interface Study {

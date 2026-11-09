@@ -275,6 +275,8 @@ export interface WorkStep {
   created_at: string;
   finished_at: string | null;
   finished_by: string | null;
+  /** An agent step no worker holds (#393). */
+  unclaimed?: boolean;
 }
 
 export interface WorkProcess {

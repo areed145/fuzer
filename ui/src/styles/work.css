@@ -50,3 +50,4 @@ ol.timeline > li::before { content: ""; position: absolute; left: -6px; top: 9px
 ol.timeline > li.ev-completed::before, ol.timeline > li.ev-agent_result::before { border-color: var(--ok); }
 ol.timeline > li.ev-escalated::before, ol.timeline > li.ev-failed::before, ol.timeline > li.ev-agent_failed::before { border-color: var(--danger); }
 ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { border-color: var(--accent); }
+.agent-idle { color: var(--warn); flex-basis: 100%; }
