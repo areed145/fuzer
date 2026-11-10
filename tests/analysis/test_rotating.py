@@ -54,3 +54,16 @@ def test_a_health_summary_combines_the_checks_with_basis_dates_and_confidence(co
     checks = {f["check"] for f in pump["findings"]} | {u["check"] for u in pump["unknown"]}
     assert {"pump_curve", "pump_bep", "vibration", "reliability"} <= checks
     assert all(u["why"] for u in pump["unknown"])  # what couldn't be checked says why
+
+
+def test_fleet_screen_finds_the_planted_faults_unnamed(conn):
+    """Asked which machines need attention, the screen puts the planted fault first at each date."""
+    march = rotating.screen(conn, "2024-03-05T00:00")
+    assert march["machines"][0]["machine"] == "20-K-2200B" and march["machines"][0]["status"] == "act"
+    assert "zone_d" in march["machines"][0]["flags"] and march["by_status"]["act"] == 1
+    sept = rotating.screen(conn, "2025-09-08T00:00")
+    first = next(m for m in sept["machines"] if "head_loss" in m["flags"])
+    assert first["machine"] == "10-P-1001A" and first["status"] == "act"
+    # the compressor class's failure rate is listed once, not as a reason to look at each compressor
+    assert sept["class_wide_failures"] and all("class_wide_failures" not in m["flags"] for m in sept["machines"])
+    assert sept["machines_checked"] >= 12

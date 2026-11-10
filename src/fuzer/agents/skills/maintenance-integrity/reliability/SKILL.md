@@ -49,7 +49,10 @@ A repeat failure is the same failure mode on the same unit more than once in the
    limit; `calc("peers", ref)` the class's units side by side, an outlier being a bad unit and
    `class_wide_failures` a problem with the model or its service. Charts: `plot_compressor_performance`,
    `plot_cooler_fouling`, `plot_peers`.
-7. **Rotating equipment health (start here for "how is this pump / compressor").**
+7. **Rotating equipment health (start here for "how is this pump / compressor").** When the question names no
+   machine ("which machines need attention?", "anything wrong with the compressors?"), start with
+   `rotating_screen(at)`: every pump, compressor, gas turbine and motor through the same checks, `act` first.
+   Take the date from the question. Then run `calc("rotating_health", ref)` on the ones it names.
    `calc("rotating_health", ref)` runs every check that applies and returns a status (`act`, `watch`, `ok`),
    each finding with its basis, data dates and confidence, what couldn't be checked and why, and
    recommendations. Then read the findings in this order, because it is the order an experienced machinery

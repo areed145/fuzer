@@ -184,6 +184,14 @@ ASSISTANT_QUESTIONS = [
     {"domain": "reliability", "question": "Who are our bad actors over the last two years, and what are their "
      "repeat failure modes?", "must_mention": ["20-K-2200B", ["MTBF", "mean time between failures", "between failures"]],
      "specialists": ["maintenance-integrity"]},
+    # The planted rotating faults, found without naming the machine (#474): the fleet screen has to find them.
+    {"domain": "rotating equipment", "question": "Which of our pumps and compressors needed attention in early March "
+     "2024, and why?", "must_mention": ["20-K-2200B", ["vibration", "zone D"]], "specialists": ["maintenance-integrity"]},
+    {"domain": "rotating equipment", "question": "Which rotating machines needed attention in early September 2025, "
+     "and what should we do about them?", "must_mention": ["10-P-1001A", ["head", "curve"]],
+     "specialists": ["maintenance-integrity"]},
+    {"domain": "work orders", "question": "Is our maintenance backlog healthy?",
+     "must_mention": [["90 days", "90-day"], ["priority", "P1", "P2"]], "specialists": ["work-management-supply-chain"]},
     {"domain": "work orders", "question": "What in the work order backlog should we tackle first?",
      "must_mention": ["overdue", ["priority", "P1", "P2"]], "specialists": ["work-management-supply-chain"]},
     {"domain": "turnarounds", "question": "What is planned for the next turnaround, and what is missing from "
