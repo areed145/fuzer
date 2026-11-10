@@ -17,7 +17,14 @@ from dataclasses import dataclass, field
 from psycopg.types.json import Jsonb
 
 from ..core import llm, nel
-from ..core.llm import DEFAULT_EFFORT, DEFAULT_MODEL, call, run_batch, text_hash, usage  # noqa: F401  (also used from here)
+from ..core.llm import (  # noqa: F401  (also used from here)
+    DEFAULT_EFFORT,
+    DEFAULT_MODEL,
+    call,
+    run_batch,
+    text_hash,
+    usage,
+)
 from ..core.model import Candidate, Edge
 from ..core.pack import Pack
 
@@ -219,10 +226,10 @@ def _parse(message, entries: list[dict]) -> tuple[dict[str, dict], dict]:
         def resolve(cid):
             if cid is None:
                 return None
-            if cid not in cands:
+            if cid not in cands:  # noqa: B023
                 dropped["unknown_candidate"] += 1
                 return None
-            return cands[cid]
+            return cands[cid]  # noqa: B023
 
         mentions = []
         for m in item["mentions"]:

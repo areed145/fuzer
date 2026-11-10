@@ -4,12 +4,31 @@ from datetime import datetime, timedelta
 
 from . import bpmn
 from .definitions import (
-    DEFAULT_SLA, DUE_SOON, SYSTEM, TASK_KINDS, Conflict, Forbidden, NotFound, WorkError,
-    _definition, _event, _op, form, is_agent, roles_of, utcnow,
+    DEFAULT_SLA,
+    DUE_SOON,
+    SYSTEM,
+    TASK_KINDS,
+    Conflict,
+    Forbidden,
+    NotFound,
+    WorkError,
+    _definition,
+    _event,
+    _op,
+    form,
+    is_agent,
+    roles_of,
+    utcnow,
 )
 from .runtime import (
-    _Run, _advance, _cancel_boundaries, _leave, _owner, _update,
+    _advance,
+    _cancel_boundaries,
+    _leave,
+    _owner,
+    _Run,
+    _update,
 )
+
 
 @_op
 def remove_person(conn, name: str, by: str = SYSTEM, now: datetime | None = None) -> dict:

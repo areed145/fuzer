@@ -256,7 +256,7 @@ def _first_project() -> str | None:
     try:
         with db.connect(url=url, schema=db.PROJECT_SCHEMA) as c:
             name = projects.active(c)
-    except Exception:  # noqa: BLE001 - no database yet: no project
+    except Exception:
         name = None
     _first[url] = (time.monotonic(), name)
     return name
@@ -335,7 +335,7 @@ def get(conn, key: str, project_name: str | None = None) -> Any:
     return v
 
 
-def set(conn, key: str, value: Any, *, by: str, reason: str | None = None, project_name: str | None = None) -> dict:  # noqa: A001
+def set(conn, key: str, value: Any, *, by: str, reason: str | None = None, project_name: str | None = None) -> dict:
     """Set a value (for one project, or globally without a project), checked against the registry."""
     s = _setting(key)
     scope = scope_of(project_name)

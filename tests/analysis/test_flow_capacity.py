@@ -6,7 +6,7 @@ from fuzer.analysis.flow_capacity import calculate, flow_capacity, stages
 from fuzer.analysis.production_efficiency import production_efficiency
 
 END = date(2026, 11, 5)
-node = lambda id, type, description=None: {"id": id, "label": id, "type": type, "description": description}  # noqa: E731
+node = lambda id, type, description=None: {"id": id, "label": id, "type": type, "description": description}
 NODES = {n["id"]: n for n in [
     node("w1", "well"), node("w2", "well"),
     node("m1", "manifold"), node("m2", "manifold"),

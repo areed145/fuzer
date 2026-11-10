@@ -62,8 +62,8 @@ class SyntheticProvider:
     name = "synthetic"
 
     def __init__(self, data_dir=None):
-        from . import process_model
         from ..core import projects
+        from . import process_model
 
         self.model = process_model.load(data_dir or projects.field("data"))
 

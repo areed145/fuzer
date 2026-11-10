@@ -119,7 +119,7 @@ def test_backlog_and_compliance(conn):
     fig = maintenance.compliance(conn)
     s = fig.summary
     assert sum(sum(t["y"]) for t in fig.data) == sum(k["plans"] for k in s["summary"].values())
-    assert [t["name"] for t in fig.data][0] == "overdue" and "condition" in s["note"]  # a date, not a verdict
+    assert next(t["name"] for t in fig.data) == "overdue" and "condition" in s["note"]  # a date, not a verdict
     assert s["as_of"] in fig.title
 
 
@@ -302,7 +302,7 @@ def test_agent_makes_a_chart_looks_at_it_and_answers_with_the_marker(conn, okan_
             if step == 0:
                 return _message([{"type": "tool_use", "id": "t0", "name": "plot_bar",
                                   "input": {"dataset": "deferment_by_reason"}}], "tool_use")
-            text = lambda b: "".join(x.get("text", "") for x in b["content"] if x.get("type") == "text")  # noqa: E731
+            text = lambda b: "".join(x.get("text", "") for x in b["content"] if x.get("type") == "text")
             marker = json.loads(text(results[0]))["marker"]
             if step == 1:
                 return _message([{"type": "tool_use", "id": "t1", "name": "look_at_figure",
@@ -312,7 +312,7 @@ def test_agent_makes_a_chart_looks_at_it_and_answers_with_the_marker(conn, okan_
     fake = Claude()
     team = agents.team(agents.client(anthropic_client=fake))
     out = asyncio.run(agents.ask("What are our biggest losses? Show me.", team))
-    looked = [b for b in fake.requests[2]["messages"][-1]["content"] if b.get("type") == "tool_result"][0]
+    looked = next(b for b in fake.requests[2]["messages"][-1]["content"] if b.get("type") == "tool_result")
     assert [x["type"] for x in looked["content"]] == ["text", "image"]
     assert looked["content"][1]["source"]["media_type"] == "image/png"
     assert "[[figure:f_" in out["answer"] and [t["tool"] for t in out["tools"]] == ["plot_bar", "look_at_figure"]

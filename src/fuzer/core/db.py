@@ -7,11 +7,10 @@ PostgreSQL). Without it, an embedded Postgres is started under .fuzer/pgdata.
 import hashlib
 import os
 import re
-from pathlib import Path
-
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row

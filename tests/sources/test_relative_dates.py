@@ -36,7 +36,7 @@ def test_a_csv_with_relative_dates_reads_real_ones_and_changes_its_fingerprint_d
     today = date.today()
     assert rows[0]["created"] == (today - timedelta(days=1)).isoformat() and rows[0]["text"] == "Tripped today"
     assert rows[1]["created"] == f"{today} 07:00"
-    assert list(real.rows())[0]["created"] == "2026-11-08"  # real dates untouched
+    assert next(iter(real.rows()))["created"] == "2026-11-08"  # real dates untouched
 
     before_rel, before_real = rel.fingerprint(), real.fingerprint()
 

@@ -23,6 +23,7 @@ separator carryover, hydrates on an NWP gas producer, EGP export curtailment, ga
 failures and an export pump seal leak.
 """
 
+import itertools
 import json
 import math
 import random
@@ -690,7 +691,7 @@ def generate(out, seed: int = 11) -> dict:
     # ---- EC allocation network ------------------------------------------------------------------------
     nodes = [{"code": f"OKAN_{w['site']}_{w['name'].rsplit('-', 1)[1]}", "type": "well", "name": w["name"]}
              for w in wells]
-    sep = lambda area, tag, name, code: {"code": code, "type": "separator", "tag": tag, "name": name}  # noqa: E731
+    sep = lambda area, tag, name, code: {"code": code, "type": "separator", "tag": tag, "name": name}
     nodes += [
         sep("10", "10V2001", "PP HP Production Separator", "PP-HPSEP"),
         sep("10", "10V2002", "PP LP Production Separator", "PP-LPSEP"),
@@ -712,11 +713,11 @@ def generate(out, seed: int = 11) -> dict:
                              "site": f"{FIELD}-{60 + j}"} for j in range(1, JACKETS + 1)] + [
         {"code": f"OKJ{j:02d}-GLM", "type": "manifold", "name": f"OKJ-{j:02d} Gas Lift Manifold", "site": f"{FIELD}-{60 + j}"}
         for j in range(1, JACKETS + 1)]
-    edge = lambda a, b, frm="", to="": {"from": a, "to": b, "valid_from": frm, "valid_to": to}  # noqa: E731
-    lift = lambda a, b, frm="": {**edge(a, b, frm), "service": "lift_gas"}  # noqa: E731
+    edge = lambda a, b, frm="", to="": {"from": a, "to": b, "valid_from": frm, "valid_to": to}
+    lift = lambda a, b, frm="": {**edge(a, b, frm), "service": "lift_gas"}
     host_node = {"10": "PP-HPSEP", "30": "ST1-PRODSEP", "40": "ST2-PRODSEP"}
     header = {"10": "LG-HDR-GGCP", "30": "LG-HDR-ST1", "40": "LG-HDR-ST2"}
-    jacket_code = lambda area: f"OKJ{int(area) - 60:02d}"  # noqa: E731
+    jacket_code = lambda area: f"OKJ{int(area) - 60:02d}"
     edges = []
     for w in wells:
         code = f"OKAN_{w['site']}_{w['name'].rsplit('-', 1)[1]}"
@@ -768,12 +769,12 @@ def generate(out, seed: int = 11) -> dict:
 
     def pipe(service: str, a: str, b: str, frm: list, to: list, dia: int, mop: int, year: int, status="in service"):
         # Surveyed ends sit within ~15 m of the platform position.
-        jit = lambda p: [round(p[0] + rng.uniform(-1.2e-4, 1.2e-4), 6), round(p[1] + rng.uniform(-1.2e-4, 1.2e-4), 6)]  # noqa: E731
+        jit = lambda p: [round(p[0] + rng.uniform(-1.2e-4, 1.2e-4), 6), round(p[1] + rng.uniform(-1.2e-4, 1.2e-4), 6)]
         frm, to = jit(frm), jit(to)
         mid = [round((frm[0] + to[0]) / 2 + rng.uniform(-0.004, 0.004), 6),
                round((frm[1] + to[1]) / 2 + rng.uniform(-0.004, 0.004), 6)]
         coords = [frm, mid, to]
-        floc_of = lambda x: x if x in ("EGP", "ESCRAVOS") else f"{FIELD}-{x}"  # noqa: E731
+        floc_of = lambda x: x if x in ("EGP", "ESCRAVOS") else f"{FIELD}-{x}"
         line_id = f"OK-PL-{len(lines) + 1:03d}"
         # Legacy (1998) jacket flowlines were digitised without asset IDs: only their route says where they go.
         legacy = service == "production flowline" and year == 1998 and status == "in service"
@@ -831,7 +832,7 @@ def generate(out, seed: int = 11) -> dict:
                  "revision": rng.choice("BCD"), "format": fmt, "image": f"pid/{FIELD}-{area}-PID-{i + 1:03d}.png"}
         eq = [t.canonical for t in tags if t.func in ("P", "K", "E", "V")]  # a turbine drives by shaft, not pipe
         conns = [{"from": a, "to": b, "line": f'{rng.choice([6, 8, 10])}"-P-{area}{100 + i * 10 + k}-A1'}
-                 for k, (a, b) in enumerate(zip(eq, eq[1:]))]
+                 for k, (a, b) in enumerate(itertools.pairwise(eq))]
         if fmt == "smart":
             sheet["tags"] = [t.canonical for t in tags]
             sheet["connections"] = conns

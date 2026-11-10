@@ -55,6 +55,7 @@ dev = [
     "import-linter>=2.1",
     "pytest-xdist>=3.6",
     "pytest-randomly>=3.15",
+    "ruff==0.16.9",
 ]
 docs = [
     "mkdocs-material>=9.8.0",
@@ -91,6 +92,26 @@ markers = [
 
 [tool.importlinter]
 root_package = "fuzer"
+
+[tool.ruff]
+# Lines run to about 120 characters; ruff doesn't enforce a length (E501 is off in its defaults).
+line-length = 120
+
+[tool.ruff.lint]
+# ruff's default rules, less the ones this code breaks on purpose (#460):
+ignore = [
+    "B008",    # FastAPI routes take Depends(...) and Query(...) as defaults
+    "DTZ001", "DTZ005", "DTZ007", "DTZ011",  # naive datetimes are plant-local wall-clock time (FUZER_TIMEZONE)
+    "ISC004",  # long strings in tables wrap onto the next line without parentheses
+    "BLE001", "S112",  # connectors, agents and jobs catch any error at their edge, report it and carry on
+    "RUF012",  # class-level constant tables on connectors and test fakes
+    "SIM102",  # nested ifs that read as two separate conditions
+]
+
+[tool.ruff.lint.per-file-ignores]
+# import facades: they re-export their parts' names (private helpers too), in an order that decides which wins
+"src/fuzer/workflow/engine.py" = ["F401", "F403", "I001"]
+"src/fuzer/sources/catalog.py" = ["F401", "I001"]
 
 [[tool.importlinter.contracts]]
 name = "Layers (#135): a module imports only from its own layer and the ones below"

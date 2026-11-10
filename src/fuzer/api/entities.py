@@ -12,7 +12,6 @@ from fastapi.responses import (
 from ..graph import edges, knowledge, queries
 from . import deps
 from .deps import get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)

@@ -6,9 +6,17 @@ from psycopg.types.json import Jsonb
 
 from .assignment import hand_off
 from .definitions import (
-    DUE_SOON, Conflict, NotFound, WorkError, _definition, _event, _op, utcnow,
+    DUE_SOON,
+    Conflict,
+    NotFound,
+    WorkError,
+    _definition,
+    _event,
+    _op,
+    utcnow,
 )
-from .runtime import _Run, _sync_item, _update
+from .runtime import _Run, _update
+
 
 @_op
 def create_item(conn, type: str, title: str, by: str, subjects: list[str] | None = None, priority: float | None = None,

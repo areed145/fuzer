@@ -31,7 +31,13 @@ from psycopg.types.json import Jsonb
 from ..analysis import calcs, limits, signals
 from ..core import settings
 from ..core.jsonsafe import plain as _plain
-from ..graph.topology import HOPS, LINKS, TRAIN, _near, topology  # noqa: F401  (sre.topology, as before)
+from ..graph.topology import (  # noqa: F401  (sre.topology, as before)
+    HOPS,
+    LINKS,
+    TRAIN,
+    _near,
+    topology,
+)
 
 # Defaults; the values in effect are settings (#131): sre.step_minutes, .lookback_hours, .drift_rise,
 # .learned_minutes, .spe_minutes, .merge_minutes, .group_gap_hours, .hops

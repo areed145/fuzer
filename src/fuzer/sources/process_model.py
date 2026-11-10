@@ -98,8 +98,8 @@ class ProcessModel:
         return [(x.isoformat(timespec="minutes"), round(float(v), 3)) for x, v in zip(times, out)]
 
     def window(self, start: datetime, end: datetime) -> "Window":
-        a = int(math.floor(minutes(start - WARM) / DT)) * DT
-        b = int(math.ceil(minutes(end) / DT)) * DT + DT
+        a = math.floor(minutes(start - WARM) / DT) * DT
+        b = math.ceil(minutes(end) / DT) * DT + DT
         with self._lock:
             w = self._windows.get((a, b))
             if w is None:

@@ -104,7 +104,7 @@ def follow(conn, pack) -> None:
     try:
         out = pipeline.follow_register(conn, pack)
         conn.commit()
-    except Exception as e:  # noqa: BLE001 - the register is built; the UI still starts, and Jobs will retry it
+    except Exception as e:
         conn.rollback()
         say(f"Work board and intake not refreshed ({e}); the next scheduled rebuild refreshes them.")
         return
@@ -123,7 +123,7 @@ def first_scan(pack) -> None:
         with db.connect() as conn:
             engine.load_defaults(conn)  # the upset and IOW breach processes the hand-off starts
             out = pipeline.first_scan(conn, pack, FIRST_SCAN_DAYS)
-    except Exception as e:  # noqa: BLE001 - the UI is up; the scheduled scan tries again
+    except Exception as e:
         say(f"First process scan stopped ({e}); the 6-hourly SRE job runs it.")
         return
     if out is None:
@@ -291,8 +291,8 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
     if demo:
         pack = use_demo(demo)
     if pack is None:
-        from ..core.pack import resolve
         from ..core import projects
+        from ..core.pack import resolve
 
         with db.connect() as conn:
             try:

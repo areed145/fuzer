@@ -196,7 +196,7 @@ class Mapping:
                 kind, ckey = e.get("kind"), self._value(e.get("key", "_key"))
                 if not kind:
                     raise MappingError(f"entity needs a kind or a node resolver{self._where}")
-                kind_key = lambda k, r, p: (kind, ckey(k, r, p))  # noqa: E731
+                kind_key = lambda k, r, p: (kind, ckey(k, r, p))
             spec = e.get("fields") or []
             fields = []
             for f in spec if isinstance(spec, list) else spec.items():
@@ -233,11 +233,11 @@ class Mapping:
             return lambda k, r, p: c
         if "template" in expr and not expr.get("as"):
             tmpl = expr["template"]
-            f = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
+            f = lambda k, r, p: tmpl.format(_key=k, **r)
         else:
             if "template" in expr:  # a template, then a transform (e.g. "{manufacturer}|{model}" as model_key)
                 tmpl = expr["template"]
-                base = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
+                base = lambda k, r, p: tmpl.format(_key=k, **r)
             else:
                 base = self._value(expr.get("from", "_key"))
             t = expr.get("as")
@@ -252,16 +252,16 @@ class Mapping:
             elif t in ex.TRANSFORMS:
                 tr, area_col = ex.TRANSFORMS[t], expr.get("area_from")
                 if area_col:
-                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col), p))  # noqa: E731
+                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col), p))
                 else:
-                    f = lambda k, r, p: tr(base(k, r, p), p, None)  # noqa: E731
+                    f = lambda k, r, p: tr(base(k, r, p), p, None)
             else:
                 raise MappingError(f"unknown transform {t!r}{self._where}")
         if "default" in expr:
             d = expr["default"]
             dflt = self._value(d) if isinstance(d, dict) else (lambda k, r, p: d)
             inner = f
-            f = lambda k, r, p: v if (v := inner(k, r, p)) not in (None, "") else dflt(k, r, p)  # noqa: E731
+            f = lambda k, r, p: v if (v := inner(k, r, p)) not in (None, "") else dflt(k, r, p)
         return f
 
     def _endpoint(self, spec):
@@ -305,7 +305,7 @@ class Mapping:
     def _measurements(self, spec):
         if not (spec.get("of") and spec.get("at") and spec.get("values")):
             raise MappingError(f"measurements need of, at and values{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
         of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
         if any(o == "self" for o in of) and not self._entity:
             raise MappingError(f"measurements of self need an entity{self._where}")
@@ -320,8 +320,8 @@ class Mapping:
     def _limits(self, spec):
         if not (spec.get("of") and spec.get("values")):
             raise MappingError(f"limits need of and values{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
-        col = lambda c: self._value(c) if c else (lambda k, r, p: None)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
+        col = lambda c: self._value(c) if c else (lambda k, r, p: None)
         of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
         values = []
         for v in spec["values"]:
@@ -336,7 +336,7 @@ class Mapping:
     def _curves(self, spec):
         if not (spec.get("of") and spec.get("series") and "x" in spec):
             raise MappingError(f"curves need of, series and x{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
         return (self._endpoint(spec["of"]), text(spec.get("curve")), text(spec["series"]), self._value(spec["x"]),
                 self._value(spec["y"]) if spec.get("y") else (lambda k, r, p: None),
                 text(spec.get("x_unit", {"from": "x_unit"})), text(spec.get("y_unit", {"from": "y_unit"})))

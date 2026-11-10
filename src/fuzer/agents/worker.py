@@ -111,7 +111,7 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     call = _call(conn, t, worker, now, lease)
     try:
         result = agents[t["role"]](call) or {}
-    except Exception as e:  # noqa: BLE001 - any agent failure is retried, then goes to a person
+    except Exception as e:
         log.warning("agent step %s (%s) failed: %s", t["id"], t["role"], e)
         return engine.agent_failed(conn, t["id"], worker, f"{type(e).__name__}: {e}", now, max_attempts)
     try:

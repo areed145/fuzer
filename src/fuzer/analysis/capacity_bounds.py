@@ -91,7 +91,7 @@ def derive(conn, pack, rows: dict) -> dict:
     facility = queries.resolve_ref(conn, pack, pack.facility)
     if facility is None:
         return {}
-    _day = lambda value: date.fromisoformat(str(value)[:10])  # noqa: E731
+    _day = lambda value: date.fromisoformat(str(value)[:10])
     ratings = [{"id": r[2], "quantity": r[1], "at": _day(r[3]), "value": r[4], "method": r[8]} for r in keep]
     oil_tests, cuts = defaultdict(dict), {}
     for r in rows.values():
@@ -127,7 +127,7 @@ def derive(conn, pack, rows: dict) -> dict:
         cut = water_cut(held)
         gas, export = pe._number(report.get("gas")), pe._number(report.get("gas_export"))
         total = sum(q for q, _ in held.values())
-        oil_of = lambda quantity, value: as_oil(quantity, value, cut, potential, gas, export)  # noqa: B023, E731
+        oil_of = lambda quantity, value: as_oil(quantity, value, cut, potential, gas, export)  # noqa: B023
         for stage, wells in zip(grouped, ups):
             through = sum(held[w][0] for w in wells if w in held)
             if not through:

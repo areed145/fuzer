@@ -51,6 +51,6 @@ def _check_dataset(values: dict) -> None:
 
         if values["connector"] not in CONNECTORS:
             raise CatalogError(f"unknown connector {values['connector']!r}; one of {list(CONNECTORS)}")
-    if "schedule" in values and values["schedule"]:
+    if values.get("schedule"):
         if len(str(values["schedule"]).split()) != 5:
             raise CatalogError("schedule is a cron expression with five fields, e.g. '0 * * * *'")

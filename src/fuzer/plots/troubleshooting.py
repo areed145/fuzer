@@ -68,12 +68,12 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
     ids = [fid]
     if upstream:
         ids += [r["fuzer_id"] for r in edges.trace(conn, fid, "flows_to", "up", None, 1)][:2]
-    series, upsets, out = _window(conn, ids + ([target] if target else []), at, hours_before, hours_after,
+    series, _upsets, out = _window(conn, ids + ([target] if target else []), at, hours_before, hours_after,
                                   max_points=max_points)
     series = [s for s in series if len(s["values"]) >= 5 and s["max"] != s["min"]][:max_points]
     if len(series) < 2:
         raise ChartError("fewer than two points with values that change")
-    times = sorted(set.intersection(*(set(t for t, _ in s["values"]) for s in series)))
+    times = sorted(set.intersection(*({t for t, _ in s["values"]} for s in series)))
     cols = [[dict(s["values"])[t] for t in times] for s in series]
     names = [s["point"] for s in series]
     z = [[rnd(studies.pearson(a, b), 2) if i != j else 1.0 for j, b in enumerate(cols)] for i, a in enumerate(cols)]
@@ -94,7 +94,7 @@ def correlation(conn, fid: str, at: str | None = None, hours_before: int = 72, h
             raise ChartError("target must be a timeseries with values in the window")
         others = [k for k in range(len(cols)) if k != tgt]
         _, lag, r = studies.lagged(np.array([cols[k] for k in others], float).T, np.array(cols[tgt], float),
-                                   range(0, min(24, len(times) // 3)))  # leads only, as before
+                                   range(min(24, len(times) // 3)))  # leads only, as before
         lags = [{"point": names[k], "r": rnd(float(r[i]), 2), "leads_by_minutes": int(lag[i]) * out["step_minutes"]}
                 for i, k in enumerate(others)]
         lags.sort(key=lambda r: -abs(r["r"] or 0))

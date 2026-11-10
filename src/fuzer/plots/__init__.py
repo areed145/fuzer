@@ -24,7 +24,7 @@ from ..analysis.calcs import CalcError
 
 TRACES = {"scatter", "scattergl", "bar", "histogram", "box", "heatmap", "contour"}
 MAX_POINTS = 20000
-SAFE_TAGS = re.compile(r"</?(b|i|br|sup|sub|em|extra)\s*/?>", re.I)
+SAFE_TAGS = re.compile(r"</?(b|i|br|sup|sub|em|extra)\s*/?>", re.IGNORECASE)
 
 
 @dataclass
@@ -281,4 +281,9 @@ def html(fid: str, title: str, spec: dict) -> str:
 
 PLOTLY_VERSION = "4.1.2"  # same as the web UI (ui/package.json)
 
-from . import general, maintenance, production, troubleshooting  # noqa: E402,F401  (builders)
+from . import (  # noqa: F401  (builders)
+    general,
+    maintenance,
+    production,
+    troubleshooting,
+)

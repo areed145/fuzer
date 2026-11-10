@@ -7,8 +7,8 @@ import json
 from contextvars import ContextVar
 
 from fastapi import HTTPException, Request
-from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -94,9 +94,9 @@ def _arguments(kwargs):
     person = current.get()
     if person is None or not mutating.get():
         return
-    for key, value in kwargs.items():
+    for value in kwargs.values():
         if isinstance(value, BaseModel) and "by" in type(value).model_fields:
-            setattr(value, "by", person.actor)
+            value.by = person.actor
     if "by" in kwargs:
         kwargs["by"] = person.actor
 

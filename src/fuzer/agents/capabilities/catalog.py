@@ -74,7 +74,7 @@ class SkillDefinition:
 
     @property
     def purpose(self) -> str:
-        return re.search(r"^description: (.+)$", self.markdown, re.M).group(1)
+        return re.search(r"^description: (.+)$", self.markdown, re.MULTILINE).group(1)
 
     def tools(self, known) -> tuple[str, ...]:
         """The registered tools the SKILL.md tells an agent to call, in name order."""

@@ -1,10 +1,10 @@
 """Extract -> resolve -> golden -> graph. Safe to rerun at any time."""
 
 import threading
-from collections.abc import Callable
 import time
+from collections.abc import Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -191,7 +191,7 @@ class _RebuildQueue:
                     self._running = False
                     return
                 self._pending = False
-            started = datetime.now(timezone.utc)
+            started = datetime.now(UTC)
             try:
                 with db.use(self.scope), db.connect() as conn:  # the requesting project's register, on this thread
                     p = self.owner.pack
@@ -199,7 +199,7 @@ class _RebuildQueue:
                     self.last = {"started": started.isoformat(), "stats": rebuild(conn, pack)}
             except Exception as e:  # keep the worker alive; report the failure in status
                 self.last = {"started": started.isoformat(), "error": f"{type(e).__name__}: {e}"}
-            self.last["finished"] = datetime.now(timezone.utc).isoformat()
+            self.last["finished"] = datetime.now(UTC).isoformat()
 
     def status(self) -> dict:
         return {"running": self._running, "pending": self._pending, "last": self.last}

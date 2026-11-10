@@ -12,7 +12,7 @@ done in it (and one that needs the unit down should be). Readiness: active work 
 its assets' spare parts recorded with zero stock (`parts_short`), so stores can be asked before the crew turns up.
 """
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 
 from ..core import events
 from ..core.plan import KINDS, STATUSES, PlanError
@@ -26,9 +26,9 @@ FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "need
 
 def _when(v) -> datetime:
     if isinstance(v, datetime):
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
     if isinstance(v, date):
-        return datetime.combine(v, time(), timezone.utc)
+        return datetime.combine(v, time(), UTC)
     try:
         return _when(datetime.fromisoformat(str(v)))
     except ValueError as e:
@@ -152,7 +152,7 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = _when(start) if start else now - timedelta(days=7)
     end = _when(end) if end else now + timedelta(days=56)
     margin = timedelta(days=BUNDLE_DAYS)
@@ -201,7 +201,7 @@ def coming_up(conn, person: str, days: int = 14) -> list[dict]:
     from ..core import work
 
     crews = {person, *(f"role:{r}" for r in work.roles_of(conn, person))}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [i for i in items(conn, now, now + timedelta(days=days))
             if i["crew"] in crews and i["status"] in ("scheduled", "in_progress")]
 

@@ -25,8 +25,20 @@ from .catalog import (
     SkillDefinition,
 )
 
-__all__ = ["AGENT_BY_ID", "AGENT_CATALOG", "AGENTS", "ASKER", "KINDS", "PERSONA_DISPOSITION", "REGISTRY",
-           "SKILL_CATALOG", "UNAVAILABLE", "AgentDefinition", "Capability", "SkillDefinition"]
+__all__ = [
+    "AGENTS",
+    "AGENT_BY_ID",
+    "AGENT_CATALOG",
+    "ASKER",
+    "KINDS",
+    "PERSONA_DISPOSITION",
+    "REGISTRY",
+    "SKILL_CATALOG",
+    "UNAVAILABLE",
+    "AgentDefinition",
+    "Capability",
+    "SkillDefinition",
+]
 
 
 def registrar(server, annotations: dict[str, Any]) -> Callable:
@@ -78,7 +90,7 @@ def catalogue() -> str:
 
     by_agent = tools_by_agent()
     shared = [c for c in REGISTRY.values() if len([a for a in c.agents if a != "orchestrator"]) > 1]
-    rows = lambda cs: ["| Tool | Kind | Parameters | What it does |", "|---|---|---|---|"] + [  # noqa: E731
+    rows = lambda cs: ["| Tool | Kind | Parameters | What it does |", "|---|---|---|---|"] + [
         f"| `{c.name}` | {c.kind} | {_params(c.fn)} | {_summary(c.fn)} |" for c in cs]
     out = ["# Capabilities and agent catalog", "",
            "Generated from the capability registry (`src/fuzer/agents/capabilities/`, #133); don't edit by hand. "

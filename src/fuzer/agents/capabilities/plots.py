@@ -2,6 +2,7 @@
 
 import json
 from typing import Any, Literal
+
 from ...core import db
 from ..mcp_server import _chart, _plain, capability
 

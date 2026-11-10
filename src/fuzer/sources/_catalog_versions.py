@@ -2,8 +2,8 @@
 
 import yaml
 
-from ._catalog_common import CatalogError, _audit
 from . import _catalog_entities as entities
+from ._catalog_common import CatalogError, _audit
 
 
 def current_mappings(conn) -> list[dict]:

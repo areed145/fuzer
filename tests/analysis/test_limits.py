@@ -130,7 +130,7 @@ def test_units_run_status(conn):
     a, b = datetime(2025, 5, 19), datetime(2025, 5, 25)
     m = limits.modes(conn, PACK, set(pumps.values()), a, b, 30)
     t = [a + (b - a) * i / (len(m[pumps["10-P-1001B"]]) - 1) for i in range(len(m[pumps["10-P-1001B"]]))]
-    at = lambda when: t.index(datetime.fromisoformat(when))  # noqa: E731
+    at = lambda when: t.index(datetime.fromisoformat(when))
     assert m[pumps["10-P-1001B"]][at("2025-05-21T12:00")] == "stopped"  # seal leak, isolated
     assert m[pumps["10-P-1001C"]][at("2025-05-21T12:00")] == "running"  # the standby covering for it
     assert m[pumps["10-P-1001C"]][at("2025-05-19T12:00")] == "stopped"

@@ -292,4 +292,6 @@ def extract(record: dict, pack: Pack, maps: dict | None = None) -> tuple[list[Ca
     return m.extract(record["source_key"], record["payload"], pack)
 
 
-from . import mappings  # noqa: E402  (mappings uses the transforms, resolvers and hooks above)
+from . import (
+    mappings,
+)

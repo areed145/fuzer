@@ -221,8 +221,8 @@ def _client():
 def learn_later(answer_id: str, statement: str | None = None, by: str = "anonymous") -> None:
     """learn() on its own connection, for a background task after a rating; without a key it does nothing."""
     import logging
-    from ..core import db
-    from ..core import llm
+
+    from ..core import db, llm
     from . import mcp_server
 
     if not llm.configured("agents") and _client is _DEFAULT_CLIENT:

@@ -59,7 +59,7 @@ def deliver(conn, limit: int = 200) -> dict:
             try:
                 handler(conn, row)
                 conn.execute("release savepoint event_handler")
-            except Exception as e:  # noqa: BLE001  (a handler's failure must not stop the others)
+            except Exception as e:
                 conn.execute("rollback to savepoint event_handler")
                 error = f"{handler.__module__}.{handler.__name__}: {e}"
         if error is None:

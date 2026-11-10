@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 
 from ..core import access, projects, settings
 from .deps import get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)

@@ -11,7 +11,7 @@ def test_web_assistant_admits_bounded_questions_and_times_out_with_recovery(okan
         def create_session(self, **kwargs):
             return object()
 
-    import fuzer.agents as agents
+    from fuzer import agents
 
     saved = []
     monkeypatch.setattr(service, "_jobs", {})

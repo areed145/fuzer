@@ -25,7 +25,7 @@ warnings.warn("fuzer.{mod} moved to fuzer.{pkg}.{mod}", DeprecationWarning, stac
 sys.modules[__name__] = importlib.import_module("fuzer.{pkg}.{mod}")
 '''
 IMPORT = re.compile(r"^(?P<indent>[ \t]*)from[ \t]+(?P<base>\.+[\w.]*|fuzer(?:\.[\w.]+)?)[ \t]+import[ \t]+"
-                    r"(?P<names>\([^)]*\)|[^\n#]+?)(?P<tail>[ \t]*#[^\n]*)?$", re.M)
+                    r"(?P<names>\([^)]*\)|[^\n#]+?)(?P<tail>[ \t]*#[^\n]*)?$", re.MULTILINE)
 
 
 def package_of(path: Path) -> str | None:

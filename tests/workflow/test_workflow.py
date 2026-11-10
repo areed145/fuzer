@@ -132,7 +132,7 @@ class Spiff:
         self._engine()
 
     def _engine(self):
-        record = lambda t: self.done.append(t.task_spec.bpmn_id)  # noqa: E731
+        record = lambda t: self.done.append(t.task_spec.bpmn_id)
         self.wf.do_engine_steps(did_complete_task=record)
         self.wf.refresh_waiting_tasks()
         self.wf.do_engine_steps(did_complete_task=record)
@@ -176,7 +176,7 @@ class Spiff:
 def spiff_clock():
     from datetime import datetime
 
-    import SpiffWorkflow.bpmn.specs.event_definitions.timer as timer
+    from SpiffWorkflow.bpmn.specs.event_definitions import timer
     offset = [timedelta()]
 
     class Clock(datetime):
@@ -624,8 +624,8 @@ def test_ten_thousand_open_items_list_and_filter_fast(conn):
     db.copy_rows(conn, "work_item", ["type", "title", "subjects", "state", "priority", "assignee", "role", "due", "created_by"], rows)
     conn.execute("analyze work_item")
     conn.commit()
-    queries = [dict(), dict(type="upset"), dict(roles=["engineer"]), dict(assignee="person8"), dict(overdue=True),
-               dict(subject="fz-42"), dict(q="item 99"), dict(type="opportunity", roles=["ops_lead"], offset=200)]
+    queries = [{}, {"type": "upset"}, {"roles": ["engineer"]}, {"assignee": "person8"}, {"overdue": True},
+               {"subject": "fz-42"}, {"q": "item 99"}, {"type": "opportunity", "roles": ["ops_lead"], "offset": 200}]
     for q in queries:
         t0 = time.perf_counter()
         out = engine.list_items(conn, **q)

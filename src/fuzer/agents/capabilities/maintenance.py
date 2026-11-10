@@ -49,13 +49,15 @@ def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, lim
 
 
 @capability("maintenance-integrity", "work-management-supply-chain", "asset-performance-reporting", kind="query")
-def turnaround_scope(revision: str | None = None) -> dict[str, Any]:
+def turnaround_scope(revision: str | None = None, as_of: str | None = None) -> dict[str, Any]:
     """Turnaround (shutdown) scope: work orders planned for the revision (default: the next one), plans
-    that need the unit down and aren't in scope yet, bad actors not in scope, and spares for scoped
-    units that are out of stock (order long-lead items now)."""
+    that need the unit down and aren't in scope yet, bad actors not in scope, spares for scoped
+    units that are out of stock (order long-lead items now), and the planning schedule's activities for the
+    revision when one is loaded: what is late (finish passed, not done) or slipped past its baseline, as of
+    `as_of` (default: the data's latest day)."""
     from ...graph import operations
     with db.connect() as conn:
-        return _plain(operations.turnaround_scope(conn, revision))
+        return _plain(operations.turnaround_scope(conn, revision, as_of_date=as_of))
 
 
 @capability(

@@ -132,7 +132,7 @@ def compile_bpmn(draft: Draft, key: str, name: str) -> str:
         sub(elements[conn.target], bpmn.BPMN, "incoming").text = fid
         edge = sub(plane, DIAGRAM, "BPMNEdge", id=unique(f"edge_{i}"), bpmnElement=fid)
         x, y, w, h = bounds[conn.source]
-        tx, ty, tw, th = bounds[conn.target]
+        tx, ty, _tw, th = bounds[conn.target]
         sub(edge, DI, "waypoint", x=x + w, y=y + h // 2)
         sub(edge, DI, "waypoint", x=tx, y=ty + th // 2)
     for el in elements.values():

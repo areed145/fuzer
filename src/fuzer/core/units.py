@@ -52,7 +52,7 @@ def reading(raw) -> tuple[float, str | None] | None:
     return (float(m.group(2)), m.group(1)) if m else None
 
 
-DURATION = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?)\s*$", re.I)
+DURATION = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?)\s*$", re.IGNORECASE)
 PER = {"m": 1, "h": 60, "d": 1440}
 
 

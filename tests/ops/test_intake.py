@@ -94,7 +94,7 @@ def test_a_notification_done_in_the_field_is_held_until_sap_moves(conn):
         conn.execute("insert into golden (fuzer_id, field, value, source, rule) values ('fz-n-5', %s, %s, 'sap', 't')",
                      (k, Jsonb(v)))
     conn.commit()
-    status = lambda v: conn.execute("update golden set value = %s where fuzer_id = 'fz-n-5' and field = 'status'",  # noqa: E731
+    status = lambda v: conn.execute("update golden set value = %s where fuzer_id = 'fz-n-5' and field = 'status'",
                                     (Jsonb(v),))
     try:
         intake.sync_notifications(conn, enabled=True)

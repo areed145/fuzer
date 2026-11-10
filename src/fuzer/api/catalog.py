@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from . import deps
 from .deps import get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(prefix="/sources", route_class=AuthenticatedRoute)
@@ -119,7 +118,7 @@ def catalog_view(conn=Depends(get_conn)):
             return True
         try:
             return connections.connector(d, data_dir) is not None
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False
 
     systems = []
@@ -161,7 +160,7 @@ def health(dataset: str | None = None, conn=Depends(get_conn)):
 
 
 @router.get("/audit")
-def audit(object: str | None = None, object_id: int | None = None, limit: int = 100, conn=Depends(get_conn)):  # noqa: A002
+def audit(object: str | None = None, object_id: int | None = None, limit: int = 100, conn=Depends(get_conn)):
     from ..sources import catalog
 
     return catalog.audit(conn, object, object_id, min(limit, 500))
@@ -519,9 +518,7 @@ class MapperYaml(BaseModel):
 @router.post("/mapper/form")
 def mapper_form(body: MapperForm, conn=Depends(get_conn)):
     """A mapping as the column form; with a dataset, its columns from the latest profile, with samples."""
-    from ..sources import mapper, quality
-
-    from ..sources import catalog
+    from ..sources import catalog, mapper, quality
 
     columns, samples = body.columns, {}
     if body.dataset and (p := (quality.profiles(conn, body.dataset, 1) or [None])[0]):

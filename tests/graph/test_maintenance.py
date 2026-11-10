@@ -8,7 +8,7 @@ from test_llm_links import (
 )
 
 from fuzer.core.pack import load_pack
-from fuzer.graph import llm_links, queries, quality
+from fuzer.graph import llm_links, quality, queries
 from fuzer.ops import pipeline
 
 PACK = load_pack("okan")

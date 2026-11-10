@@ -191,7 +191,7 @@ def test_when_and_unless_test_values():
          "to": {"kind": "well", "from": "b"}},
         {"rel": "lift_gas_to", "when": {"service": "lift_gas"}, "from": {"kind": "well", "from": "a"},
          "to": {"kind": "well", "from": "b"}}]})
-    rels = lambda row: [e.rel for e in m.extract("k", row, pack)[1]]  # noqa: E731
+    rels = lambda row: [e.rel for e in m.extract("k", row, pack)[1]]
     assert rels({"a": "x", "b": "y"}) == ["flows_to"]
     assert rels({"a": "x", "b": "y", "service": "lift_gas"}) == ["lift_gas_to"]
     with pytest.raises(mappings.MappingError, match="unless"):

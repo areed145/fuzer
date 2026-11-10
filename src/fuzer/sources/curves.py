@@ -6,6 +6,7 @@ both in equipment_curve against the equipment_model entity, so every pump or cho
 the curve through instance_of. Charts (plot_pump_curve, plot_choke) read them from here.
 """
 
+import itertools
 from collections import Counter
 
 from ..core import db
@@ -89,7 +90,7 @@ def for_model(conn, model_id: str) -> dict | None:
 def at(points: list[list[float]], x: float) -> float | None:
     """A curve's value at x, interpolated (None outside it)."""
     pts = sorted(points)
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+    for (x0, y0), (x1, y1) in itertools.pairwise(pts):
         if x0 <= x <= x1 and x1 > x0:
             return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
     return None

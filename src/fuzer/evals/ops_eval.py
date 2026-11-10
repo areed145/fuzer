@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timedelta
 
 INSTRUCTION = re.compile(r"\b(increase|decrease|reduce|raise|lower|open|close|set|adjust|start|stop|shut)\s+(the\s+)?"
-                         r"\w+.*\bto\s+\d", re.I)  # "set the choke to 40%": an operating instruction
+                         r"\w+.*\bto\s+\d", re.IGNORECASE)  # "set the choke to 40%": an operating instruction
 
 
 def scripted_ask(question: str) -> dict:

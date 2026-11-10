@@ -77,7 +77,7 @@ def _iso(t: datetime) -> str:
 
 
 def _time(s: str) -> datetime:
-    return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
+    return datetime.fromisoformat(s).replace(tzinfo=None)
 
 
 def _interval_minutes(s: str) -> int:

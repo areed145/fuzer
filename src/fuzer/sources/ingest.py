@@ -11,10 +11,10 @@ is a source_run row, and the dataset keeps its state (fingerprint, schema, water
 
 import hashlib
 import json
-from pathlib import Path
-
 import time
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from pathlib import Path
+from typing import NamedTuple
 
 from psycopg.types.json import Jsonb
 
@@ -312,7 +312,7 @@ def _alert(conn, names: list[str]) -> None:
     try:
         alerts.check(conn, names)
         conn.commit()
-    except Exception:  # noqa: BLE001
+    except Exception:
         conn.rollback()
         logging.getLogger(__name__).exception("source alerts failed")
 

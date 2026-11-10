@@ -135,7 +135,7 @@ def measurements(conn, fid: str, quantity: str | None = None, since: str | None 
 def xy(conn, x_id: str, y_id: str, at: str | None = None, hours_before: int = 72, hours_after: int = 24,
        fit: bool = True) -> Figure:
     """One timeseries against another at the same times, coloured by time, with a straight-line fit."""
-    series, upsets, out = _window(conn, [x_id, y_id], at, hours_before, hours_after, max_points=1)
+    series, _upsets, out = _window(conn, [x_id, y_id], at, hours_before, hours_after, max_points=1)
     by_id = {s["id"]: s for s in series}
     if x_id not in by_id or y_id not in by_id:
         raise ChartError("x and y must each be one timeseries (a PI point)")
@@ -224,7 +224,7 @@ def distribution(conn, fid: str, split_at: str, hours_before: int = 168, hours_a
 
     def stats(v):
         v = sorted(v)
-        q = lambda f: v[min(len(v) - 1, int(f * len(v)))]  # noqa: E731
+        q = lambda f: v[min(len(v) - 1, int(f * len(v)))]
         return {"n": len(v), "median": rnd(q(0.5)), "p10": rnd(q(0.1)), "p90": rnd(q(0.9))}
 
     data = [{"type": "box", "name": "before", "y": before, "boxpoints": False},

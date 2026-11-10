@@ -363,7 +363,7 @@ def health(conn, name: str | None = None) -> list[dict]:
     know before an answer rests on this data."""
     from . import catalog
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     out = []
     stats = {r["source"]: r["stats"] for r in conn.execute(
         "select distinct on (source) source, stats from source_match_stat order by source, id desc")}
@@ -463,7 +463,7 @@ def next_load(cron: str | None, tz: str | None = None) -> str | None:
 
         return next(cron_string_iterator(time.time(), cron, tz or os.environ.get("FUZER_TIMEZONE") or "UTC")).isoformat(
             timespec="minutes")
-    except Exception:  # noqa: BLE001  (a cron Dagster can't read: shown as not scheduled)
+    except Exception:
         return None
 
 
