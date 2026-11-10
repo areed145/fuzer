@@ -414,6 +414,73 @@ def closeout_discard(closeout_id: int, d: CloseoutDecision, conn=Depends(get_con
     return _exception_call(conn, closeout.discard, closeout_id, d.by, d.reason)
 
 
+# ---- shift handover (#467) -----------------------------------------------------------------------------------------
+
+class HandoverNotes(BaseModel):
+    by: str
+    notes: str
+
+
+class HandoverAck(BaseModel):
+    by: str
+    note: str | None = None
+
+
+class HandoverDraft(BaseModel):
+    by: str
+    refresh: bool = True
+
+
+@router.get("/handovers")
+def handover_list(limit: int = Query(60, le=500), conn=Depends(get_conn)):
+    """Past and current shift handovers, newest first."""
+    from ..ops import handover
+    return handover.listing(conn, limit)
+
+
+@router.get("/handovers/current")
+def handover_current(conn=Depends(get_conn)):
+    """The latest handover, and the shift it covers; null when none was drafted yet."""
+    from ..ops import handover
+    rows = handover.listing(conn, 1)
+    return handover.get(conn, rows[0]["id"]) if rows else None
+
+
+@router.get("/handovers/{handover_id}")
+def handover_get(handover_id: int, conn=Depends(get_conn)):
+    from ..core.exceptions import ExceptionError
+    from ..ops import handover
+    try:
+        return handover.get(conn, handover_id)
+    except ExceptionError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/handovers/draft")
+def handover_draft(d: HandoverDraft, conn=Depends(get_conn)):
+    """Draft the handover for the shift change just passed now (or refresh it from live work while unacknowledged)."""
+    from ..ops import handover
+    out = _exception_call(conn, handover.draft, d.by, force=d.refresh)
+    if out is None:
+        rows = handover.listing(conn, 1)
+        return handover.get(conn, rows[0]["id"]) if rows else None
+    return out
+
+
+@router.post("/handovers/{handover_id}/notes")
+def handover_notes(handover_id: int, d: HandoverNotes, conn=Depends(get_conn)):
+    """The outgoing lead's notes."""
+    from ..ops import handover
+    return _exception_call(conn, handover.add_notes, handover_id, d.by, d.notes)
+
+
+@router.post("/handovers/{handover_id}/acknowledge")
+def handover_ack(handover_id: int, d: HandoverAck, conn=Depends(get_conn)):
+    """The incoming lead has read it: kept with who and when, and its case closes."""
+    from ..ops import handover
+    return _exception_call(conn, handover.acknowledge, handover_id, d.by, d.note)
+
+
 # ---- the integrated plan -----------------------------------------------------------------------------------------
 
 class PlanPropose(BaseModel):

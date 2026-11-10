@@ -308,3 +308,22 @@ create table if not exists source_closeout (
     applied_at    timestamptz                      -- the demo applied it to the system's export
 );
 create index if not exists source_closeout_exception on source_closeout (exception_id);
+
+-- Shift handovers (#467, ops/handover.py): drafted from live work at each shift change, the outgoing lead's notes,
+-- and the incoming lead's acknowledgement (also on its case's history).
+create table if not exists shift_handover (
+    id                bigserial primary key,
+    shift_start       timestamptz not null,
+    shift_end         timestamptz not null unique,     -- the shift change it hands over at
+    facts             jsonb not null,                  -- sections: {name: [{text, cites}]}, more: {name: n}
+    state             text not null default 'draft',   -- draft | handed_over (notes added) | acknowledged
+    item_id           bigint,                          -- its case on the ops lead queue
+    created_by        text not null,
+    drafted_at        timestamptz not null default now(),
+    notes             text,
+    notes_by          text,
+    notes_at          timestamptz,
+    acknowledged_by   text,
+    acknowledged_at   timestamptz,
+    acknowledged_note text
+);

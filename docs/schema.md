@@ -1238,6 +1238,27 @@ Close-outs back to the source (#466, ops/closeout.py): what the field did, draft
 | `decided_at` | timestamptz |  |
 | `applied_at` | timestamptz | the demo applied it to the system's export |
 
+### `shift_handover`
+
+Shift handovers (#467, ops/handover.py): drafted from live work at each shift change, the outgoing lead's notes, and the incoming lead's acknowledgement (also on its case's history).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `shift_start` | timestamptz |  |
+| `shift_end` | timestamptz | the shift change it hands over at |
+| `facts` | jsonb | sections: {name: [{text, cites}]}, more: {name: n} |
+| `state` | text | draft \| handed_over (notes added) \| acknowledged |
+| `item_id` | bigint, | its case on the ops lead queue |
+| `created_by` | text |  |
+| `drafted_at` | timestamptz |  |
+| `notes` | text |  |
+| `notes_by` | text |  |
+| `notes_at` | timestamptz |  |
+| `acknowledged_by` | text |  |
+| `acknowledged_at` | timestamptz |  |
+| `acknowledged_note` | text |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

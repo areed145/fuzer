@@ -406,8 +406,14 @@ def work_role_summary(conn=Depends(get_conn)):
 
 @router.post("/work/tick")
 def work_tick(conn=Depends(get_conn)):
-    """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes)."""
-    return work.tick(conn)
+    """Fire due timers and escalate overdue tasks now (the Dagster schedule does this every few minutes), and draft
+    the shift handover when a shift change has passed."""
+    from ..ops import handover
+
+    out = work.tick(conn)
+    drafted = handover.at_shift_change(conn)
+    conn.commit()
+    return {**out, "handover": drafted["id"] if drafted else None}
 
 
 
