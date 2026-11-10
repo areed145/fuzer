@@ -264,3 +264,23 @@ update ontology_relation set from_kinds = array_replace(from_kinds, 'daily_repor
     where 'daily_report' = any(from_kinds) or 'daily_report' = any(to_kinds);
 update register_summary set value = replace(value::text, '"daily_report"', '"production_day"')::jsonb
     where name = 'ontology' and value::text like '%"daily_report"%';
+
+-- Values a steward set across many entities at once (#476: one spelling for a manufacturer, say). Each row keeps what
+-- the golden value was, so the batch can be undone; the value itself is held as a 'review' assertion, which wins on
+-- every rebuild.
+create table if not exists steward_fix (
+    id          bigserial primary key,
+    batch       text not null,
+    fuzer_id    text not null,
+    field       text not null,
+    old_value   jsonb,
+    old_source  text,
+    old_rule    text,
+    new_value   jsonb not null,
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    reason      text,
+    undone_at   timestamptz,
+    undone_by   text
+);
+create index if not exists steward_fix_batch on steward_fix (batch);

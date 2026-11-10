@@ -885,6 +885,26 @@ Sparse, manual measurements landed from sources (well tests, lab samples, inspec
 | `method` | text |  |
 | `location` | text, | where on it: a CML, a sample point |
 
+### `steward_fix`
+
+Values a steward set across many entities at once (#476: one spelling for a manufacturer, say). Each row keeps what the golden value was, so the batch can be undone; the value itself is held as a 'review' assertion, which wins on every rebuild.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `batch` | text |  |
+| `fuzer_id` | text |  |
+| `field` | text |  |
+| `old_value` | jsonb |  |
+| `old_source` | text |  |
+| `old_rule` | text |  |
+| `new_value` | jsonb |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `reason` | text |  |
+| `undone_at` | timestamptz |  |
+| `undone_by` | text |  |
+
 ## Analyses
 
 [`src/fuzer/analysis/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/schema.sql)
