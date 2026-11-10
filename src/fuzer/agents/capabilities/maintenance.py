@@ -39,6 +39,17 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
 
+@capability("work-management-supply-chain", "maintenance-integrity", kind="query")
+def backlog_health(as_of: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """Backlog health: ageing of open corrective (PM01) orders (flag when over 25 % are older than 90 days),
+    priority 1-2 orders past basic finish, unplanned notifications on bad actors, and the open orders
+    ranked by value / risk in money (production at risk, criticality, compliance, effort). Each flag
+    states its threshold; use `ranked` to argue what to do first."""
+    from ...analysis import backlog
+    with db.connect() as conn:
+        return _plain(backlog.health(conn, mcp_server.PACK, as_of, min(limit, 50)))
+
+
 @capability("maintenance-integrity", "work-management-supply-chain", "asset-performance-reporting", kind="query")
 def maintenance_compliance(as_of: str | None = None, horizon_days: int = 90, limit: int = 25) -> dict[str, Any]:
     """Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks

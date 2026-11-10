@@ -325,7 +325,7 @@ def work_order_backlog(conn, as_of_date: str | None = None, limit: int = 20) -> 
     overdue = sorted((i for i in items if i["overdue_days"]), key=lambda i: (i["priority"] or "9", -i["overdue_days"]))
     unplanned = [{"id": n["id"], "notification": n["label"], "created": n["f"].get("created"),
                   "priority": n["f"].get("priority"), "tag": (tags.get(n["id"]) or {}).get("label"),
-                  "text": n["f"].get("short_text"), "failure_mode": n["f"].get("failure_mode_name")}
+                  "tag_id": (tags.get(n["id"]) or {}).get("id"), "text": n["f"].get("short_text"), "failure_mode": n["f"].get("failure_mode_name")}
                  for n in notes if n["id"] not in planned]
     return {"as_of": today, "source": "SAP work orders and notifications", "open_orders": len(items),
             "by_priority": count("priority"), "by_type": count("type"), "by_age": buckets,
