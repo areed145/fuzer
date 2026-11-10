@@ -52,6 +52,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       <div className="task-layout">
         <div>
           <FromField v={v} />
+          <Sources v={v} />
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
             <p className="muted">This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</p>
           ) : t.kind === "agent" ? (
@@ -176,6 +177,22 @@ function FromField({ v }: { v: WorkTaskView }) {
       <ul className="plain">{notes.map((c) => <li key={c.id}>
         <strong>{String(c.data.text).slice(7)}</strong> <span className="muted small">· <Actor who={c.actor} /> {when(c.at)}</span>
       </li>)}</ul>
+    </UICard>
+  );
+}
+
+/** Every system that reported the event this case works, each with what it saw, so the decision weighs them together
+ * (#464). Shown only when more than one source reported it. */
+function Sources({ v }: { v: WorkTaskView }) {
+  const all = v.sources ?? [];
+  if (all.length < 2) return null;
+  return (
+    <UICard className="sources" title={`Reported by ${all.length} sources`}>
+      {all.map((x) => <details key={x.id} open className="evidence-item">
+        <summary><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
+          <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></summary>
+        {x.seen.length > 0 && <dl className="kv small">{x.seen.map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>}
+      </details>)}
     </UICard>
   );
 }

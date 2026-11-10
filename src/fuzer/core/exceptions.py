@@ -42,6 +42,7 @@ class ExceptionType:
     audience: tuple[str, ...] = ("ioc",)
     close_case_on_clear: bool = True     # a case without a process closes when the condition clears
     description: str = ""
+    joins: bool = True                   # about an asset another open exception's case already works: join that case
 
 
 TYPES: dict[str, ExceptionType] = {}

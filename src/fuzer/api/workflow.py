@@ -194,8 +194,14 @@ def work_agent_queue(role: str, conn=Depends(get_conn)):
 
 @router.get("/work/tasks/{task_id}")
 def work_task(task_id: int, conn=Depends(get_conn)):
-    """One step with its item, process data, form-js form, bulk actions and evidence."""
-    return work.task(conn, task_id)
+    """One step with its item, process data, form-js form, bulk actions and evidence, and every exception its case
+    works (`sources`: one event reported by several systems, #464)."""
+    from ..ops import exceptions
+
+    out = work.task(conn, task_id)
+    if isinstance(out, dict) and out.get("item"):
+        out["sources"] = exceptions.on_case(conn, out["item"]["id"])
+    return out
 
 
 @router.post("/work/tasks/bulk-complete")

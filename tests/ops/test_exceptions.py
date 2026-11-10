@@ -391,3 +391,160 @@ def test_equipment_reads_as_the_tag_it_is_installed_at(conn, types):
     assert job["assets"][0]["label"] == "20-K-2100B 1st stage compressor"
     assert names(conn, ["fz-equipment-81710"])["fz-equipment-81710"]["at"] == "20-K-2100B"
     conn.commit()
+
+
+# ---- one event, one case (#464) -------------------------------------------------------------------------------------
+
+@pytest.fixture
+def compressor(conn):
+    """A compressor tag with its equipment installed at it, a pressure transmitter part of it and that
+    transmitter's historian point, as Kestrel's B1-K-2001 is: what SAP, the IOW check and the SRE each refer to."""
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-k-2001', 'tag'), ('fz-pt-2001', 'tag'), "
+                 "('fz-eq-82001', 'equipment'), ('fz-pv-2001', 'timeseries'), ('fz-area-b1', 'area'), "
+                 "('fz-v-1001', 'tag') on conflict do nothing")
+    conn.execute(
+        """
+        insert into edge (src, rel, dst, sources, confidence) values
+          ('fz-eq-82001', 'installed_at', 'fz-k-2001', '{test}', 1), ('fz-pt-2001', 'part_of', 'fz-k-2001', '{test}', 1),
+          ('fz-pt-2001', 'has_timeseries', 'fz-pv-2001', '{test}', 1), ('fz-k-2001', 'part_of', 'fz-area-b1', '{test}', 1),
+          ('fz-v-1001', 'part_of', 'fz-area-b1', '{test}', 1)
+        on conflict do nothing
+        """)
+    conn.commit()
+    return {"tag": "fz-k-2001", "pt": "fz-pt-2001", "equipment": "fz-eq-82001", "point": "fz-pv-2001",
+            "elsewhere": "fz-v-1001"}
+
+
+@pytest.fixture
+def three_sources(conn, types, compressor):
+    types("sap_note", role="role:maintenance")
+    types("iow_hi", role="role:engineer")
+    types("upset_x", role="role:engineer")
+    yield
+    # each test's event is over, so the next test's trip is an event of its own
+    conn.rollback()
+    conn.execute("update work_item set state = 'done' where id in (select item_id from exception_record "
+                 "where subjects && %s::text[] and state = 'open')", (list(compressor.values()),))
+    conn.execute("update exception_record set state = 'closed' where subjects && %s::text[] and state = 'open'",
+                 (list(compressor.values()),))
+    conn.commit()
+
+
+def _raise_trip(conn, c, n):
+    sap = raise_exception(conn, "sap_note", f"N-{n}", "High vibration trip on sales gas compressor", "sap",
+                          refs=[c["equipment"]], value_usd=5000, evidence={"notif_type": "M2"})
+    iow = raise_exception(conn, "iow_hi", f"IOW-{n}", "Inlet pressure IOW breach", "limits", refs=[c["point"]],
+                          value_usd=20000, evidence={"minutes_outside": 95.0})
+    sre = raise_exception(conn, "upset_x", f"U-{n}", "Step change across six assets", "sre", refs=[c["pt"]],
+                          evidence={"detections": 6})
+    return sap, iow, sre
+
+
+def test_one_event_reported_by_three_systems_is_one_case(conn, compressor, three_sources):
+    sap, iow, sre = _raise_trip(conn, compressor, 1)
+    assert sap["item_id"] and not sap.get("joined")
+    assert iow["joined"] == sre["joined"] == sap["id"] and iow["item_id"] == sre["item_id"] == sap["item_id"]
+    assert conn.execute("select count(*) as n from work_item where id = any(%s)",
+                        ([sap["item_id"], iow["item_id"], sre["item_id"]],)).fetchone()["n"] == 1
+    [row] = [r for r in impl.listing(conn) if sap["id"] in [r["id"]] + [j["id"] for j in r["joined"]]]
+    assert row["id"] == sap["id"] and [j["id"] for j in row["joined"]] == [iow["id"], sre["id"]]
+    assert row["value_usd"] == 20000  # the event carries its largest value
+    assert set(row["subjects"]) == {compressor["equipment"], compressor["point"], compressor["pt"]}
+    notes = [r["data"]["text"] for r in conn.execute(
+        "select data from work_event where item_id = %s and kind = 'commented' order by id", (sap["item_id"],))]
+    assert notes == ["Also reported: iow_hi from limits: Inlet pressure IOW breach",
+                     "Also reported: upset_x from sre: Step change across six assets"]
+    sources = impl.on_case(conn, sap["item_id"])
+    assert [s["id"] for s in sources] == [sap["id"], iow["id"], sre["id"]]
+    assert ("minutes outside", "95") in sources[1]["seen"]
+    again = raise_exception(conn, "iow_hi", "IOW-1", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
+    assert not again["raised"] and again["item_id"] == sap["item_id"]  # a repeat stays on the shared case
+    conn.commit()
+
+
+def test_another_asset_or_a_type_that_does_not_join_gets_its_own_case(conn, compressor, three_sources, types):
+    sap, _, _ = _raise_trip(conn, compressor, 2)
+    other = raise_exception(conn, "iow_hi", "IOW-V", "Inlet separator level", "limits", refs=[compressor["elsewhere"]])
+    assert not other.get("joined") and other["item_id"] != sap["item_id"]  # same area is not the same event
+    types("data_gap", role="role:engineer", joins=False)
+    gap = raise_exception(conn, "data_gap", "G-1", "Point stale", "sources", refs=[compressor["point"]])
+    assert not gap.get("joined") and gap["item_id"] != sap["item_id"]
+    conn.commit()
+
+
+def test_joining_can_be_turned_off(conn, compressor, three_sources):
+    from fuzer.core import settings
+
+    settings.set(conn, "exceptions.join_hours", 0, by="test")
+    try:
+        sap, iow, _ = _raise_trip(conn, compressor, 3)
+        assert not iow.get("joined") and iow["item_id"] != sap["item_id"]
+    finally:
+        settings.set(conn, "exceptions.join_hours", 48, by="test")
+    conn.commit()
+
+
+def test_the_event_is_dispatched_reported_and_closed_once(conn, compressor, three_sources):
+    from fuzer.core import work
+    from fuzer.core.exceptions import reconcile
+
+    sap, iow, sre = _raise_trip(conn, compressor, 4)
+    sent = impl.dispatch(conn, iow["id"], "ioc-ann", "fred", reason="check the compressor")  # from any source's row
+    assert sent["id"] == sap["id"]
+    assert [j["id"] for j in impl.field_jobs(conn, "fred") if j["item_id"] == sap["item_id"]] == [sap["id"]]
+    [job] = [j for j in impl.field_jobs(conn, "fred") if j["item_id"] == sap["item_id"]]
+    assert len(job["sources"]) == 3 and {a["fuzer_id"] for a in job["assets"]} >= {compressor["point"]}
+    said = impl.report(conn, sre["id"], "fred", "note", note="bearing hot to touch")
+    assert said["id"] == sap["id"] and said["evidence"]["field"][-1]["note"] == "bearing hot to touch"
+    work.close_case(conn, sap["item_id"], "done", "ann")
+    reconcile(conn)
+    states = {r["id"]: r["state"] for r in conn.execute(
+        "select id, state from exception_record where id = any(%s)", ([sap["id"], iow["id"], sre["id"]],))}
+    assert set(states.values()) == {"closed"}
+    conn.commit()
+
+
+def test_a_source_that_clears_leaves_the_case_with_the_others(conn, compressor, three_sources):
+    sap, iow, sre = _raise_trip(conn, compressor, 5)
+    clear_exception(conn, "iow_hi", "IOW-5", "limits")  # a joined source clears: nothing else changes
+    assert conn.execute("select state from work_item where id = %s", (sap["item_id"],)).fetchone()["state"] != "done"
+    clear_exception(conn, "sap_note", "N-5", "sap", reason="notification closed")  # the host clears
+    assert conn.execute("select state from work_item where id = %s", (sap["item_id"],)).fetchone()["state"] != "done"
+    [row] = [r for r in impl.listing(conn) if r["item_id"] == sap["item_id"]]
+    assert row["id"] == sre["id"]  # still holding: it carries the case now, the cleared ones under it
+    assert sorted((j["id"], j["state"]) for j in row["joined"]) == [(sap["id"], "cleared"), (iow["id"], "cleared")]
+    clear_exception(conn, "upset_x", "U-5", "sre")
+    assert conn.execute("select state from work_item where id = %s", (sap["item_id"],)).fetchone()["state"] == "done"
+    conn.commit()
+
+
+def test_the_ioc_splits_a_source_that_was_a_different_event(conn, compressor, three_sources):
+    sap, iow, _ = _raise_trip(conn, compressor, 6)
+    with pytest.raises(ExceptionError, match="isn't part of another's case"):
+        impl.split(conn, sap["id"], "ann")
+    out = impl.split(conn, iow["id"], "ann", reason="instrument drift, not the trip")
+    assert out["joined_to"] is None and out["item_id"] and out["item_id"] != sap["item_id"]
+    assert conn.execute("select role from work_item where id = %s", (out["item_id"],)).fetchone()["role"] == "engineer"
+    note = conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = 'commented' "
+                        "order by id desc limit 1", (sap["item_id"],)).fetchone()["t"]
+    assert note.startswith("Split out: iow_hi: Inlet pressure IOW breach (instrument drift, not the trip)")
+    conn.commit()
+
+
+def test_a_waiting_exception_joins_the_case_another_source_opens(conn, compressor, three_sources, types):
+    """An SAP notification waits on Exceptions to be dispatched (no case). When the IOW check opens a case on the same
+    compressor, the notification joins it; two notifications both waiting join when the IOC dispatches one."""
+    types("note_waiting")  # no queue: waits to be dispatched
+    waiting = raise_exception(conn, "note_waiting", "W-1", "Vibration trip", "sap", refs=[compressor["equipment"]])
+    assert waiting["item_id"] is None
+    iow = raise_exception(conn, "iow_hi", "IOW-7", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
+    row = conn.execute("select joined_to, item_id from exception_record where id = %s", (waiting["id"],)).fetchone()
+    assert row["joined_to"] == iow["id"] and row["item_id"] == iow["item_id"]
+    impl.split(conn, waiting["id"], "ann")  # its type routes nowhere: split out, it waits again
+    assert conn.execute("select item_id from exception_record where id = %s", (waiting["id"],)).fetchone()["item_id"] is None
+    clear_exception(conn, "iow_hi", "IOW-7", "limits")  # the breach is over, its case closes
+    other = raise_exception(conn, "note_waiting", "W-2", "Seal leak", "sap", refs=[compressor["pt"]])
+    sent = impl.dispatch(conn, other["id"], "ann", "fred")
+    row = conn.execute("select joined_to, item_id from exception_record where id = %s", (waiting["id"],)).fetchone()
+    assert row["joined_to"] == other["id"] and row["item_id"] == sent["item_id"]
+    conn.commit()
