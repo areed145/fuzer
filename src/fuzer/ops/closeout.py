@@ -144,13 +144,17 @@ def discard(conn, closeout_id: int, by: str, reason: str | None = None) -> dict:
 @events.subscriber(TOPIC)
 def apply_to_exports(conn, event: dict) -> None:
     """Demo only (`closeout.apply_to_exports`): apply a sent update to the system's export file, as the system would."""
-    if not settings.get(conn, "closeout.apply_to_exports"):
-        return
     u = event["payload"]
+
+    def skipped(why: str) -> None:  # kept on the close-out, so a sent update that changed nothing says why
+        log.warning("close-out %s not applied: %s", u.get("closeout_id"), why)
+        conn.execute("update source_closeout set applied_note = %s where id = %s", (why, u.get("closeout_id")))
+
+    if not settings.get(conn, "closeout.apply_to_exports"):
+        return skipped("closeout.apply_to_exports is off")
     found = _export_for(conn, u["system"], u["record"])
     if found is None:
-        log.warning("close-out %s: no CSV export holds %s/%s", u.get("closeout_id"), u["system"], u["record"])
-        return
+        return skipped(f"no CSV export holds {u['system']}/{u['record']} (data folder {projects_data()})")
     path, key_cols = found
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -158,7 +162,7 @@ def apply_to_exports(conn, event: dict) -> None:
     keyed = lambda r: ">".join(str(r.get(k, "")) for k in key_cols)
     mine = next((r for r in rows if keyed(r) == u["record"]), None)
     if mine is None:
-        return
+        return skipped(f"{path} has no row keyed {u['record']}")
     if u["action"] == "complete":
         if "status" in cols and u.get("status"):
             mine["status"] = u["status"]
@@ -177,7 +181,14 @@ def apply_to_exports(conn, event: dict) -> None:
         w = csv.DictWriter(f, fieldnames=cols, lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
-    conn.execute("update source_closeout set applied_at = now() where id = %s", (u["closeout_id"],))
+    conn.execute("update source_closeout set applied_at = now(), applied_note = %s where id = %s",
+                 (str(path), u["closeout_id"]))
+
+
+def projects_data() -> str | None:
+    from ..core import projects
+
+    return projects.field("data")
 
 
 def _export_for(conn, system: str, record: str):

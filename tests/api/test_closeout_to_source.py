@@ -111,6 +111,10 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                 conn.rollback()
 
             events.deliver(conn)  # the demo's SAP adapter
+            applied = conn.execute("select id, action, applied_at, applied_note from source_closeout order by id").fetchall()
+            assert all(r["applied_at"] for r in applied), (applied, str(sap), conn.execute(
+                "select topic, attempts, last_error from event_outbox where topic = 'source.update'").fetchall())
+            assert {r["applied_note"] for r in applied} == {str(sap)}
             notes = _sap(sap)
             assert notes["10004002"]["status"] == "NOCO"
             new = [n for q, n in notes.items() if q not in ("10004001", "10004002", "10004003", "10004004", "10004005",
