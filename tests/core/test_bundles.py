@@ -316,6 +316,8 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
     from fuzer.ops import pipeline
     from fuzer.sources import ingest
 
+    deps.rebuilder.wait()  # an earlier test's rebuild on the default queue finishes first, so it can't land here
+    okan_before = deps.rebuilder.status()["last"]
     url = _fresh("two_projects")
     serving(url)
     monkeypatch.setenv("FUZER_TIMESERIES", "synthetic")  # as on Render: process-wide, meant for the first project
@@ -363,7 +365,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                 deps.rebuilder.request()
                 deps.rebuilder.wait()
                 assert deps.rebuilder.last["stats"]["entities"] == KESTREL_ENTITIES, deps.rebuilder.last
-            assert deps.rebuilder.status()["last"] is None  # Okan's queue never ran
+            assert deps.rebuilder.status()["last"] == okan_before  # Okan's queue didn't run
             assert projects.field("data") == "/srv/okan" and projects.field("timeseries") == "synthetic"
 
             # Back in the first project: none of Kestrel's records or entities, and Okan's pack.
