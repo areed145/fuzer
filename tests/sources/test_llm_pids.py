@@ -23,18 +23,28 @@ class FakeVision:
         self.truth, self.requests = truth, []
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self.create))
 
+    @staticmethod
+    def topology(sheet, truth):
+        """Lines, off-page ends and loops as drawn; on OKAN-20-PID-006 (train C) it misses the off-page end, so
+        the inlet separator's line to train C is shown by one sheet only."""
+        offpage = [{k: o[k] for k in ("direction", "sheet", "tag", "other", "line")} for o in truth["offpage"]
+                   if sheet != "OKAN-20-PID-006"]
+        return {"connections": [{"from": c["from"], "to": c["to"], "line": c["line"], "via": c["via"]}
+                                for c in truth["connections"] if c.get("to") and not c.get("offpage")],
+                "offpage": offpage, "loops": [{"members": lp["members"]} for lp in truth["loops"]]}
+
     def create(self, **kw):
         self.requests.append(kw)
         content = kw["messages"][0]["content"]
-        assert sum(1 for b in content if b["type"] == "image") == 4  # 2200 x 1500 -> 2 x 2 tiles
         sheet = next(b["text"] for b in content if b["type"] == "text").split()[1].rstrip(".")
         truth = self.truth[sheet]
         width, height = truth["size"]
+        assert sum(1 for b in content if b["type"] == "image") == len(llm_pids.tile_boxes(width, height))
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
             tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
                     for x in truth["tags"]]
             data = {"title_block": {"drawing_number": sheet, "title": "", "revision": ""}, "tags": tags,
-                    "connections": [{"from": ln["from"], "to": ln["to"], "line": ln["text"]} for ln in truth["lines"]]}
+                    **self.topology(sheet, truth)}
             return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                    usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
         tags = []
@@ -55,8 +65,7 @@ class FakeVision:
         tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300},
                  {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300}]
         data = {"title_block": {"drawing_number": SHEET, "title": "AREA 20 - TRAIN B", "revision": "D"},
-                "tags": tags, "connections": [{"from": ln["from"], "to": ln["to"], "line": ln["text"]}
-                                              for ln in truth["lines"]]}
+                "tags": tags, **self.topology(sheet, truth)}
         return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
 
@@ -85,14 +94,14 @@ def test_image_is_ingested_with_fingerprint(setup):
 
 
 def test_tiles_stay_within_size_limit(setup):
-    conn, _ = setup
+    conn, truth = setup
     p = conn.execute("select payload from source_record where source_key = %s", (SHEET,)).fetchone()["payload"]
     import io
 
     from PIL import Image
     t = llm_pids.tiles(p["image_path"])
-    assert len(t) == 4 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
-    assert [box for _, _, box in t] == llm_pids.tile_boxes(2200, 1880)
+    assert len(t) == 6 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
+    assert [box for _, _, box in t] == llm_pids.tile_boxes(*truth[SHEET]["size"])  # a two-band train sheet: 3 x 2
 
 
 def test_every_drawn_sheet_but_smart_is_read(setup):
@@ -126,12 +135,12 @@ def test_read_link_and_score(setup, read):
 
 
 def test_drawing_endpoint_places_readings(setup, read):
-    conn, _truth = setup
+    conn, truth = setup
     from fuzer.api import app
     client = TestClient(app)
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
     d = client.get(f"/documents/{fid}/drawing").json()
-    assert (d["width"], d["height"], d["format"]) == (2200, 1880, "image") and d["read_by"]
+    assert [d["width"], d["height"]] == truth[SHEET]["size"] and d["format"] == "image" and d["read_by"]
     status = {m["status"] for m in d["marks"]}
     assert status == {"linked", "not_a_tag", "not_in_register", "line"}
     linked = [m for m in d["marks"] if m["status"] == "linked"]
@@ -186,3 +195,45 @@ def test_image_endpoint(setup):
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
     r = TestClient(app).get(f"/documents/{fid}/image")
     assert r.status_code == 200 and r.content[:4] == b"\x89PNG"
+
+
+def test_lines_cross_sheets_where_both_drawings_agree(setup, read):
+    """Off-page ends both sheets show become piping links; one only one sheet shows becomes a review question."""
+    conn, _ = setup
+    pipes = {(r["a"], r["b"]): r["props"] for r in conn.execute(
+        """
+        select la.label as a, lb.label as b, e.props from edge e
+        join entity_label la on la.fuzer_id = e.src join entity_label lb on lb.fuzer_id = e.dst
+        where e.rel = 'pipes_to' and e.props ? 'offpage'
+        """)}
+    assert ("20-V-2001", "20-V-2101A") in pipes and ("20-V-2001", "20-V-2101B") in pipes
+    assert ("10-V-2004", "10-P-1001A") in pipes  # a smart sheet confirms its end too
+    assert ("20-V-2001", "20-V-2101C") not in pipes
+    q = conn.execute("select payload from review_item where kind = 'pid_connection' and status = 'open'").fetchall()
+    assert [(r["payload"]["from"], r["payload"]["to"]) for r in q] == [("20-V-2001", "20-V-2101C")]
+    # loops are kept with the reading; Okan's controllers and control valves aren't in the register
+    loops = conn.execute("select result->'loops' as l from llm_extraction where source_key = %s", (SHEET,)).fetchone()
+    assert loops["l"] and all(len(lp["members"]) >= 2 for lp in loops["l"])
+
+    # a reviewer who checks both sheets and accepts links the two items
+    from fuzer.api import app, deps
+    item = conn.execute("select id from review_item where kind = 'pid_connection' and status = 'open'").fetchone()
+    conn.commit()
+    r = TestClient(app).post(f"/review/{item['id']}", json={"decision": "accept", "by": "tester"})
+    assert r.status_code == 200, r.text
+    deps.rebuilder.wait()
+    conn.rollback()
+    assert conn.execute(
+        """
+        select 1 from edge e join entity_label la on la.fuzer_id = e.src join entity_label lb on lb.fuzer_id = e.dst
+        where e.rel = 'pipes_to' and la.label = '20-V-2001' and lb.label = '20-V-2101C' and 'review' = any(e.sources)
+        """).fetchone()
+
+
+def test_benchmark_scores_each_element_and_level(setup, read):
+    conn, truth = setup
+    s = llm_pids.score(conn, truth)
+    assert {"tags", "connections", "offpage", "loops", "line_numbers"} <= set(s["elements"])
+    assert s["elements"]["loops"]["recall"] == 1.0 and s["elements"]["connections"]["recall"] == 1.0
+    assert s["elements"]["offpage"]["recall"] < 1.0  # train C's end was missed
+    assert {"scan", "old", "poor"} <= set(s["by_level"])

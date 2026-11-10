@@ -24,7 +24,7 @@ from ..graph import (
     queries,
     spatial,
 )
-from ..graph.resolve import resolve, resolve_keyed, retire_unused, sync_labels
+from ..graph.resolve import replace_open_reviews, resolve, resolve_keyed, retire_unused, sync_labels
 from ..sources import curves, llm_docs, llm_pids, mappings, quality, rules
 from ..sources.extract import extract, link_part_numbers
 
@@ -101,6 +101,8 @@ def rebuild(conn, pack: Pack) -> dict:
 
     assigned, key_index, stats = resolve(conn, cands, pack)
     lap("resolve")
+    # Off-page lines only one drawing shows are questions for a person, not links (#475).
+    replace_open_reviews(conn, "pid_connection", llm_pids.reviews(conn, pid_sheets))
     golden_stats, values, golden_rows = golden.build(conn, cands, assigned, pack)
     stats |= golden_stats
     lap("golden")

@@ -58,7 +58,7 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -78,6 +78,12 @@ export interface CurvePayload {
   reading: CurveReading;
 }
 
+/** An off-page line one drawing shows and the drawing it points to doesn't (#475). */
+export interface PidConnectionPayload {
+  sheet: string; other_sheet: string; direction: "to" | "from"; tag: string | null; other: string | null;
+  line: string; from: string | null; to: string | null; question: string;
+}
+
 export interface HeldLoadPayload {
   dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
 }
@@ -88,6 +94,7 @@ export type ReviewItem =
   | { id: number; kind: "mapping"; subject: string; status: string; label: null; payload: MappingPayload }
   | { id: number; kind: "curve"; subject: string; status: string; label: null; payload: CurvePayload }
   | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
+  | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
   | {
       id: number;
       kind: "conflict";

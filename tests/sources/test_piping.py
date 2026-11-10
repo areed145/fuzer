@@ -41,7 +41,9 @@ def test_claude_connections_from_drawings():
                             {"from": "20-K-9999", "to": "20-V-2001", "line": "?"}]}
     out = llm_pids.interpret(data, {"sheet": "X", "title": "AREA 20"}, PACK,
                              {"20-K-2200B", "20-K-2300A", "20-V-2001"})
-    assert out["connections"] == [{"from": "20-K-2200B", "to": "20-K-2300A", "line": '6"-P-44479-A1'}]
+    assert out["connections"] == [{"from": "20-K-2200B", "to": "20-K-2300A", "line": '6"-P-44479-A1', "via": [],
+                                   "line_parts": {"size_in": 6.0, "service": "P", "number": "44479", "spec": "A1",
+                                                  "insulation": None}}]
     assert out["findings"][0]["issue"] == "end not in register"
 
 
