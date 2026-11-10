@@ -22,6 +22,8 @@ def find_mentions(text: str, pack: Pack, default_area: str | None = None) -> lis
     found = []
     for phrase, (kind, key) in pack.aliases.items():
         for m in re.finditer(rf"\b{re.escape(phrase.upper())}\b", upper):
+            if _starts_bare_well(upper, m.start(), m.end(), pack):
+                continue  # J15 in "J15-05" is the start of a well's name, not the jacket
             found.append(Mention(kind, key, m.start(), m.end(), text[m.start():m.end()], "alias", 0.8))
     for t in pack.tags.find_all(text):
         key = t.key(default_area)
@@ -39,3 +41,12 @@ def find_mentions(text: str, pack: Pack, default_area: str | None = None) -> lis
             out.append(m)
             last_end = m.end
     return out
+
+
+def _starts_bare_well(upper: str, start: int, end: int, pack: Pack) -> bool:
+    """Whether the text from `start` is a well written without the field's prefix that runs past `end`."""
+    prefix = getattr(pack.wells, "prefix", "")
+    if not prefix:
+        return False
+    hits = pack.wells.find_all(prefix + upper[start:start + 40])
+    return bool(hits) and hits[0].start == 0 and hits[0].end > len(prefix) + end - start

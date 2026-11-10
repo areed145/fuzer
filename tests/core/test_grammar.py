@@ -43,3 +43,9 @@ def test_serial_normalization():
 def test_mentions_prefer_longest_alias():
     ms = find_mentions("Train B down on OK_GGCP, lift gas short to OKA_ST2", PACK)
     assert {"OKAN-20", "OKAN-40"} <= {m.key for m in ms}
+
+
+def test_jacket_alias_is_not_the_start_of_a_well():
+    # J15 names the jacket, but in "J15-05" it is the start of a well written without its prefix (#459).
+    assert [m.key for m in find_mentions("J15-05 choke opened 24 to 52%", PACK)] == []
+    assert [m.key for m in find_mentions("Jacket J15 shut in for riser work", PACK)] == ["OKAN-75"]
