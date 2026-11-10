@@ -15,6 +15,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 W, H = 2200, 1500  # sheets with more than two rows of equipment grow taller (ROW_H each)
 ROW_H = 520
 EQUIPMENT_FUNCS = ("P", "K", "V", "E", "GT")
+# Gas plants also draw tanks, filters, fired heaters and generators as equipment (Kestrel's bundle).
+PLANT_EQUIPMENT_FUNCS = EQUIPMENT_FUNCS + ("T", "F", "H", "G")
 
 
 def _font(size: int):
@@ -43,6 +45,23 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
         d.polygon([(cx - 70, cy - 25), (cx + 70, cy - 45), (cx + 70, cy + 45), (cx - 70, cy + 25)], outline=0, width=3)
         d.rectangle([cx - 20, cy - 70, cx + 20, cy - 35], outline=0, width=3)
         box = (box[0], cy - 70, box[2], box[3])
+    elif func == "T":  # storage tank: flat bottom, domed roof
+        box = (cx - 70, cy - 90, cx + 70, cy + 90)
+        d.rectangle([cx - 70, cy - 70, cx + 70, cy + 90], outline=0, width=3)
+        d.arc([cx - 70, cy - 90, cx + 70, cy - 50], 180, 360, fill=0, width=3)
+    elif func == "F":  # filter: housing with a diagonal element
+        box = (cx - 40, cy - 80, cx + 40, cy + 80)
+        d.rounded_rectangle(box, radius=20, outline=0, width=3)
+        d.line([(cx - 40, cy + 60), (cx + 40, cy - 60)], fill=0, width=2)
+    elif func == "H":  # fired heater: box with a burner zigzag
+        box = (cx - 60, cy - 80, cx + 60, cy + 80)
+        d.rectangle(box, outline=0, width=3)
+        d.line([(cx - 40, cy + 50), (cx - 20, cy + 20), (cx, cy + 50), (cx + 20, cy + 20), (cx + 40, cy + 50)],
+               fill=0, width=3)
+    elif func == "G":  # generator: circle marked G
+        box = (cx - 50, cy - 50, cx + 50, cy + 50)
+        d.ellipse(box, outline=0, width=3)
+        d.text((cx, cy), "G", font=_font(40), fill=0, anchor="mm")
     elif func == "E":
         box = (cx - 50, cy - 50, cx + 50, cy + 50)
         d.ellipse(box, outline=0, width=3)
@@ -56,10 +75,11 @@ def _equipment(d: ImageDraw.ImageDraw, func: str, cx: float, cy: float) -> tuple
 
 
 def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: random.Random,
-         connections: list[dict] = (), scan: bool = True) -> dict:
+         connections: list[dict] = (), scan: bool = True, equipment_funcs: tuple[str, ...] = EQUIPMENT_FUNCS) -> dict:
     """Render one drawing. Returns {size, tags: [{key, kind, x, y}], lines: [{text, from, to, x, y}]}:
-    what is drawn where (pixels), for scoring readings and checking overlays."""
-    n_groups = sum(t.func in EQUIPMENT_FUNCS for t in tags) + any(t.func not in EQUIPMENT_FUNCS for t in tags)
+    what is drawn where (pixels), for scoring readings and checking overlays. `equipment_funcs`: the
+    function letters drawn as equipment symbols; every other tag is an instrument bubble."""
+    n_groups = sum(t.func in equipment_funcs for t in tags) + any(t.func not in equipment_funcs for t in tags)
     height = max(H, 320 + math.ceil(n_groups / 4) * ROW_H) if n_groups > 8 else H
     img = Image.new("L", (W, height), 255)
     d = ImageDraw.Draw(img)
@@ -72,10 +92,10 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     d.text((tb[0] + 20, tb[1] + 75), f"DWG No. {sheet['sheet']}", font=f_tag, fill=0)
     d.text((tb[0] + 20, tb[1] + 130), f"REV {sheet['revision']}    SCALE NTS", font=f_tag, fill=0)
 
-    equipment = [t for t in tags if t.func in EQUIPMENT_FUNCS]
-    groups = [(eq, [t for t in tags if t.func not in EQUIPMENT_FUNCS and t.loop == eq.loop and t.suffix == eq.suffix])
+    equipment = [t for t in tags if t.func in equipment_funcs]
+    groups = [(eq, [t for t in tags if t.func not in equipment_funcs and t.loop == eq.loop and t.suffix == eq.suffix])
               for eq in equipment]
-    loose = [t for t in tags if t.func not in EQUIPMENT_FUNCS and not any(t in g for _, g in groups)]
+    loose = [t for t in tags if t.func not in equipment_funcs and not any(t in g for _, g in groups)]
     if loose:
         groups.append((None, loose))
 
@@ -114,6 +134,9 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
             continue
         y = (a[1] + a[3]) / 2 if abs(((a[1] + a[3]) / 2) - ((b[1] + b[3]) / 2)) < 5 else a[3] - 20
         x1, x2 = a[2], b[0]
+        if any(k not in (c["from"], c["to"]) and o[0] < x2 and o[2] > x1 and o[1] < y < o[3]
+               for k, o in boxes.items()):
+            continue  # it would run through other equipment: kept in the piping list, not drawn
         d.line([(x1, y), (x2, y)], fill=0, width=3)
         d.polygon([(x2, y), (x2 - 16, y - 8), (x2 - 16, y + 8)], fill=0)
         d.text(((x1 + x2) / 2, y - 18), c["line"], font=f_small, fill=0, anchor="mm")
