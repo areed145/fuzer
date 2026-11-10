@@ -2393,3 +2393,57 @@ test("on a phone the ontology graph takes the full width, its panel sits below, 
   const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
   assert.ok(scroll <= 390, `page scrolls sideways (${scroll}px)`);
 });
+
+test("one network draws several link types together, filtered by link type and kind of thing", async () => {
+  const nodes = [
+    { id: "W1", kind: "well", label: "W1" }, { id: "MAN", kind: "allocation_node", label: "MAN" },
+    { id: "V-1", kind: "tag", label: "V-1" }, { id: "LG", kind: "allocation_node", label: "LG" },
+  ];
+  const edge = (id, src, rel, dst) => ({ id, src, rel, dst, valid_from: null, valid_to: null, sources: [] });
+  const asked = [];
+  await page.route("**/ontology/declared", (route) => route.fulfill({ json: { groups: [], kinds: [],
+    views: [{ id: "flow", label: "Flow / allocation" }, { id: "physical", label: "Physical" }],
+    relations: [
+      { name: "flows_to", label: "flows to", description: "Production and allocation flow.", view: "flow" },
+      { name: "lift_gas_to", label: "lift gas to", description: "Gas lift.", view: "flow" },
+      { name: "part_of", label: "part of", description: "", view: "physical" },
+    ] } }));
+  await page.route("**/network*", (route) => {
+    const rels = new URL(route.request().url()).searchParams.get("rels");
+    asked.push(rels);
+    const on = rels ? rels.split(",") : ["flows_to", "lift_gas_to"];
+    const edges = [edge(1, "W1", "flows_to", "MAN"), edge(2, "MAN", "flows_to", "V-1"), edge(3, "LG", "lift_gas_to", "W1"),
+      edge(4, "V-1", "part_of", "MAN")].filter((e) => on.includes(e.rel));
+    return route.fulfill({ json: { rels: on, nodes, edges, truncated: false } });
+  });
+  await page.goto(`${url}/#/network`);
+  const links = page.getByRole("group", { name: "Link types" });
+  const flows = links.getByRole("button", { name: /flows to/ });
+  const lift = links.getByRole("button", { name: /lift gas to/ });
+  await flows.waitFor();
+  // No tabs: the default draws the ontology's whole flow view at once.
+  assert.equal(asked[0], null);
+  assert.equal(await flows.getAttribute("aria-pressed"), "true");
+  assert.equal(await lift.getAttribute("aria-pressed"), "true");
+  assert.equal(await page.getByRole("button", { name: "Allocation (EC)" }).count(), 0);
+
+  await lift.click();
+  await page.waitForFunction(() => location.hash.includes("rels=flows_to"));
+  assert.equal(asked.at(-1), "flows_to");
+  assert.equal(await lift.getAttribute("aria-pressed"), "false");
+
+  // Any relation in the ontology can join the network.
+  await page.getByText("More link types").click();
+  await links.getByRole("button", { name: /part of/ }).click();
+  await page.waitForFunction(() => location.hash.includes("rels=flows_to%2Cpart_of"));
+  assert.equal(asked.at(-1), "flows_to,part_of");
+
+  const kinds = page.getByRole("group", { name: "Kinds of thing" });
+  const tags = kinds.getByRole("button", { name: /tag/ });
+  await tags.click();
+  await page.waitForFunction(() => location.hash.includes("hide=tag"));
+  assert.equal(await tags.getAttribute("aria-pressed"), "false");
+
+  for (const r of ["flows to", "part of"]) await links.getByRole("button", { name: new RegExp(r) }).click();
+  await page.getByText("Pick at least one link type to draw.").waitFor();
+});

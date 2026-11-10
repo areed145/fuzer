@@ -52,3 +52,8 @@ ul.plain li { padding: 2px 0; }
   .model-form .ui-input:not([type="checkbox"]):not([type="color"]) { width: 100%; }
 }
 .page-tabs { margin-bottom: 16px; }
+.network-filters .chips { align-items: center; margin: 8px 0; }
+.network-filters .chip .dot { width: 8px; height: 8px; margin-right: 2px; box-shadow: 0 0 0 1.5px var(--panel); }
+.more-rels { flex-basis: 100%; }
+.more-rels summary { cursor: pointer; color: var(--muted); }
+.more-rels .chips { margin: 6px 0 0; }
