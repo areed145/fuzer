@@ -376,7 +376,11 @@ class DocumentFolder:
     def rows(self, since=None) -> Iterator[dict]:
         from .documents import sections
 
+        seen = set()
         for file in _document_files(self.path):
+            if (sha := file_sha256(file)) in seen:  # the same document saved twice under another name (#458)
+                continue
+            seen.add(sha)
             try:
                 secs, facts = sections(file)
             except Exception as e:  # an unreadable file is a document row saying so, not a failed load
@@ -385,7 +389,7 @@ class DocumentFolder:
             yield {"file": file.name, "section": 0, "title": title, "heading": None, "page": None,
                    "text": facts.get("error") or ("needs OCR: no text layer" if facts.get("needs_ocr") else None),
                    "format": facts.get("format"), "pages": facts.get("pages"),
-                   "sha256": hashlib.sha256(file.read_bytes()).hexdigest(), "needs_ocr": bool(facts.get("needs_ocr"))}
+                   "sha256": sha, "needs_ocr": bool(facts.get("needs_ocr"))}
             for i, sec in enumerate(secs, 1):
                 yield {"file": file.name, "section": i, "title": title, "heading": sec["heading"], "page": sec["page"],
                        "text": sec["text"], "format": None, "pages": None, "sha256": None, "needs_ocr": None}
@@ -500,11 +504,56 @@ def datasets(data_dir: Path) -> list[str]:
             {p.stem for p in data_dir.glob("*.geojson")} | {p.stem for p in data_dir.glob("*.jsonl")}
     names |= {p.name for p in data_dir.iterdir() if p.is_dir() and find(data_dir, p.name)
               and not (is_document_folder(p) and _in_manifest(data_dir, p.name))}
+    names -= _repeated_document_folders(data_dir, names)
     for book in data_dir.glob("*.xlsx"):
         if not book.name.startswith("~$"):  # Excel's lock file
             sheets = ExcelTable.sheets(book)
             names |= {book.stem} if len(sheets) == 1 else {f"{book.stem}.{s}" for s in sheets}
     return sorted(names)
+
+
+def file_sha256(path: Path) -> str:
+    """A file's content hash, kept while its size and modification time stay the same."""
+    st = path.stat()
+    return _sha256(str(path.resolve()), st.st_size, st.st_mtime_ns)
+
+
+@lru_cache(maxsize=4096)
+def _sha256(path: str, size: int, mtime_ns: int) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _manifest_documents(data_dir: Path) -> set[str]:
+    """Content hashes of the files a JSON manifest beside the folders names (documents.json's `file` entries)."""
+    import json
+
+    out = set()
+    for m in data_dir.glob("*.json"):
+        if m.stat().st_size >= 20_000_000:
+            continue
+        try:
+            items = json.loads(m.read_text(errors="replace"))
+        except ValueError:
+            continue
+        for d in items if isinstance(items, list) else []:
+            if isinstance(d, dict) and isinstance(d.get("file"), str) and (f := data_dir / d["file"]).is_file():
+                out.add(file_sha256(f))
+    return out
+
+
+def _repeated_document_folders(data_dir: Path, names: set[str]) -> set[str]:
+    """Document folders whose every file is already loaded another way (#458): named by a manifest, or the same
+    files (by content, whatever the folder is called) as a folder before it. Offering those again loads a copy."""
+    folders = sorted(n for n in names if (data_dir / n).is_dir() and is_document_folder(data_dir / n))
+    if not folders:
+        return set()
+    known, out = _manifest_documents(data_dir), set()
+    for n in folders:
+        hashes = {file_sha256(f) for f in _document_files(data_dir / n)}
+        if hashes and hashes <= known:
+            out.add(n)
+        known |= hashes
+    return out
 
 
 def _in_manifest(data_dir: Path, folder: str) -> bool:

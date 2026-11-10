@@ -53,8 +53,20 @@ export interface CatalogDatasetRow {
 export interface CatalogSystem {
   id: number; name: string; kind: string | null; description: string | null; owner: string | null; steward: string | null;
   timezone: string | null; encoding: string | null; decimal: string | null; date_format: string | null; rank: number | null;
-  enabled: boolean; notes: string | null; connections: CatalogConnection[]; datasets: CatalogDatasetRow[];
+  enabled: boolean; notes: string | null; webhook_secret?: string | null; connections: CatalogConnection[];
+  datasets: CatalogDatasetRow[];
 }
+
+/** The work a system brings (#465): exception types, rules over its loaded records, and its webhook. */
+export interface SystemWorkflows {
+  types: { name: string; label: string; role: string | null; process: string | null; audience: string[];
+           close_case_on_clear: boolean; description: string | null; open: number }[];
+  rules: { name: string; dataset: string; type: string; when: Json; clear_when?: Json; key?: string; refs?: unknown[];
+           title?: string; priority?: number; value_usd?: number | string; enabled?: boolean; updated_by: string }[];
+  webhook: { path: string; secret: string | null; ready: boolean };
+}
+
+export interface PackReport { [section: string]: string[] }
 
 export interface Catalog {
   systems: CatalogSystem[];
@@ -258,5 +270,11 @@ export const sourcesApi = {
   addTable: (id: number, table: string, body: { yaml: string; values: Json; by: string; load?: boolean }) =>
     request<AddTableResult>("POST", `/sources/connections/${id}/tables/${encodeURIComponent(table)}`, undefined, body),
   sourceHealth: () => request<SourceHealth[]>("GET", "/sources/health"),
+  exportPack: (system: string) => request<{ system: string; yaml: string }>("GET", `/sources/systems/${encodeURIComponent(system)}/pack`),
+  importPack: (yaml: string, config: Record<string, Json>, by: string, reason?: string) =>
+    request<PackReport>("POST", "/sources/packs", undefined, { yaml, config, by, reason }),
+  systemWorkflows: (system: string) => request<SystemWorkflows>("GET", `/sources/systems/${encodeURIComponent(system)}/workflows`),
+  deleteExceptionRule: (system: string, rule: string, by: string) =>
+    request<Json>("DELETE", `/sources/systems/${encodeURIComponent(system)}/rules/${encodeURIComponent(rule)}`, { by }),
   why: (id: string, field: string) => request<WhyValue>("GET", `/sources/why/${encodeURIComponent(id)}/${encodeURIComponent(field)}`),
 };

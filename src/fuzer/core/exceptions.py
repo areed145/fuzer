@@ -86,3 +86,24 @@ def clear_exception(conn, type: str, key: str, by: str, reason: str | None = Non
 def reconcile(conn) -> dict:
     """Close open exceptions whose case finished; the work tick runs it."""
     return _engine().reconcile(conn)
+
+
+def define_type(conn, name: str, by: str, label: str, **fields) -> dict:
+    """Define (or change) a type as data (role, process, case_type, audience, close_case_on_clear, description,
+    joins, source_system as keywords): how a source pack brings the exceptions its system raises (#465)."""
+    return _engine().define(conn, name, by, label, **fields)
+
+
+def types(conn) -> dict[str, ExceptionType]:
+    """Every type: the ones declared in code and the ones defined as data."""
+    return _engine().types(conn)
+
+
+def defined_types(conn, source_system: str | None = None) -> list[dict]:
+    """Types defined as data (all, or the ones a system brought), each with how many are open."""
+    return _engine().defined_types(conn, source_system)
+
+
+def open_keys(conn, type: str, rule: str | None = None) -> set[str]:
+    """Keys of the open exceptions of a type (only the ones a given source rule raised, when named)."""
+    return _engine().open_keys(conn, type, rule)

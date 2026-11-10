@@ -1,0 +1,74 @@
+# Kestrel's gas measurement system as a source pack (#465): the daily meter volumes, and the work they bring. Import
+# it from Sources > Import a source pack (or `fuzer sources import-pack`); a short gas day on a meter then reaches
+# the production engineers' queue, and an estimated volume the engineers', each matched to the tag or well metered.
+fuzer_source_pack: 1
+system:
+  name: measurement
+  kind: measurement
+  owner: ana
+  enabled: true
+  webhook_secret: env:KESTREL_MEASUREMENT_HOOK
+connections:
+- name: export
+  type: folder
+  config:
+    path: fakeplant/bundles/kestrel/measurement
+  secrets: {}
+  enabled: true
+datasets:
+- name: daily_volumes
+  connection: export
+  record_type: daily_volume
+  key:
+  - meter
+  - gas_day
+  load_mode: snapshot
+  drift_policy: hold_breaking
+  duplicates: hold
+  status: active
+  mappings:
+  - source: measurement
+    record_type: daily_volume
+    yaml: |
+      source: measurement
+      record_type: daily_volume
+      shape: measurements
+      dataset: daily_volumes
+      key: [meter, gas_day]
+      measurements:
+        of: {from: meter, as: tag_or_well}
+        at: gas_day
+        values:
+        - {quantity: volume, from: volume_ksm3, unit: kSm3}
+        - {quantity: energy, from: energy_gj, unit: GJ}
+        - {quantity: hhv, from: hhv_mj_sm3, unit: MJ/Sm3}
+        - {quantity: flow_hours, from: flow_hours, unit: h}
+  checks:
+  - {kind: range, column: flow_hours, params: {min: 0, max: 25}, blocking: false}
+exception_types:
+- name: short_gas_day
+  label: Short gas day
+  role: role:production_engineer
+  description: A meter flowed less than the full gas day (a trip or a shut-in); the lost volume is deferment to explain.
+- name: estimated_volume
+  label: Estimated meter volume
+  role: role:engineer
+  description: The measurement system estimated a day's volume (status E); confirm or correct it before allocation closes.
+exception_rules:
+- name: short_day
+  dataset: daily_volumes
+  type: short_gas_day
+  when: {flow_hours: {lt: 23}}
+  clear_when: {flow_hours: {ge: 23.5}}
+  key: '{meter_id}:{gas_day}'
+  refs: [{from: meter, as: tag_or_well}]
+  title: 'Short gas day on {meter}: {flow_hours} h on {gas_day}'
+  priority: 0.6
+- name: estimated
+  dataset: daily_volumes
+  type: estimated_volume
+  when: {status: E}
+  key: '{meter_id}:{gas_day}'
+  refs: [{from: meter, as: tag_or_well}]
+  title: 'Estimated volume on {meter} for {gas_day}: {volume_ksm3} kSm3'
+  priority: 0.3

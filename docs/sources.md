@@ -37,7 +37,44 @@ import-pack planning.yaml --config export.path=/data/lake` (or `POST /sources/pa
 a connection's config changed on the way in. It is safe to repeat: what is already the same is left alone. A new
 dataset's mapping is approved, since the pack is the reviewed setup. A mapping that differs from one a person
 approved here becomes a draft for review. `tests/api/test_source_packs.py` exports a source added from the UI
-alone, imports it into a fresh copy of the project, and checks the records and links come out the same.
+alone, imports it into a fresh copy of the project, and checks the records and links come out the same. On the
+Sources page, each system has **Download source pack**, and **Import a source pack…** takes a file or pasted YAML,
+asks where each folder connection's folder is here, and refuses a folder that isn't there before writing anything
+(#458). A folder of documents whose files (by content, whatever the folder is called) already load through a
+manifest or another folder isn't offered again, and a document saved twice in one folder is read once.
+
+**The work a system brings** (#465, `sources/workflows.py`). A pack can also declare the exception types its
+system raises and the rules that turn its loaded records into exceptions, so onboarding a SCADA, LIMS or
+measurement system also puts its work in the right Inbox queue, without code:
+
+```yaml
+exception_types:
+  - {name: short_gas_day, label: Short gas day, role: role:operator, description: ...}
+exception_rules:
+  - name: short_day
+    dataset: daily_volumes
+    type: short_gas_day
+    when: {flow_hours: {lt: 23.5}}          # every condition holds: eq ne in not_in gt ge lt le present absent contains
+    clear_when: {flow_hours: {ge: 23.5}}    # optional; default: clears when the record no longer meets `when`
+    key: "{meter_id}:{gas_day}"             # default: the record's key
+    refs: [{from: meter, as: tag_or_well}]  # or templates such as "tag:{tag}" or "sap/{equipment}"
+    title: "Short gas day on {meter}: {flow_hours} h"
+    priority: 0.6                           # 0 to 1
+    value_usd: "{lost_usd}"                 # a number or a column
+```
+
+Types are defined through the exception contract as data, marked with the system that brought them. Rules run
+after every load over the dataset's current records: a record that meets a rule raises (or refreshes) its
+exception, which routes as its type says; an open one the rule raised clears when its record meets `clear_when` (or
+no longer meets `when`) or is gone. A failing rule never fails a load. `PUT /sources/systems/{name}/rules/{rule}`
+adds or changes one and runs it at once.
+
+A system's **webhook**, `POST /hooks/{system}` with header `X-Fuzer-Secret`, takes the `POST /exceptions` payload
+(or `{"type", "key", "clear": true}`) for the types the system brought, so another system sends work without a
+Fuzer client or a sign-in. The system holds only a reference to the shared secret (`webhook_secret: env:NAME`); a
+missing or wrong secret is refused before the body is read. The Sources page shows, per system, the types it
+brings with how many are open, its rules, and whether its webhook secret resolves.
+`fakeplant/bundles/kestrel/packs/measurement.yaml` is Kestrel's gas measurement system as such a pack.
 
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:

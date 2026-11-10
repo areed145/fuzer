@@ -570,9 +570,10 @@ def field_jobs(conn, person: str) -> list[dict]:
 
 def define(conn, name: str, by: str, label: str, role: str | None = None, process: str | None = None,
            case_type: str | None = None, audience=("ioc",), close_case_on_clear: bool = True,
-           description: str | None = None, joins: bool = True) -> dict:
+           description: str | None = None, joins: bool = True, source_system: str | None = None) -> dict:
     """Define (or change) an exception type as data, so another system (SAP notifications, SCADA alarms, a
-    reporting app) can raise it over the API. Types modules declare in code can't be redefined here."""
+    reporting app) can raise it over the API. Types modules declare in code can't be redefined here.
+    `source_system` is the system whose source pack brought it (#465): that system's webhook may raise it."""
     from ..core.exceptions import AUDIENCES
 
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", name or ""):
@@ -592,15 +593,16 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
     return conn.execute(
         """
         insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,
-                                    updated_by, joins)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    updated_by, joins, source_system)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         on conflict (name) do update set label = excluded.label, role = excluded.role, process = excluded.process,
             case_type = excluded.case_type, audience = excluded.audience,
             close_case_on_clear = excluded.close_case_on_clear, description = excluded.description, joins = excluded.joins,
+            source_system = coalesce(excluded.source_system, exception_kind.source_system),
             updated_by = excluded.updated_by, updated_at = now()
         returning *
         """, (name, label.strip(), role or None, process or None, case_type or None, list(audience), close_case_on_clear,
-              description, by, joins)).fetchone()
+              description, by, joins, source_system or None)).fetchone()
 
 
 def undefine(conn, name: str) -> bool:
@@ -610,15 +612,35 @@ def undefine(conn, name: str) -> bool:
     return conn.execute("delete from exception_kind where name = %s", (name,)).rowcount > 0
 
 
-def type_listing(conn) -> list[dict]:
-    """Every type, where it is defined (code or data), and how many of it are open."""
-    open_n = {r["type"]: r["n"] for r in conn.execute(
+def _open_counts(conn) -> dict[str, int]:
+    return {r["type"]: r["n"] for r in conn.execute(
         "select type, count(*) as n from exception_record where state = 'open' group by type")}
+
+
+def type_listing(conn) -> list[dict]:
+    """Every type, where it is defined (code or data), the system that brought it, and how many of it are open."""
+    open_n = _open_counts(conn)
+    brought = {r["name"]: r["source_system"] for r in conn.execute("select name, source_system from exception_kind")}
     return [{"name": n, "label": t.label, "role": t.role, "process": t.process, "case_type": t.case_type,
              "audience": list(t.audience), "close_case_on_clear": t.close_case_on_clear, "description": t.description,
-             "joins": t.joins,
+             "joins": t.joins, "source_system": None if n in TYPES else brought.get(n),
              "defined_in": "code" if n in TYPES else "data", "open": open_n.get(n, 0)}
             for n, t in sorted(types(conn).items())]
+
+
+def defined_types(conn, source_system: str | None = None) -> list[dict]:
+    """Types defined as data (all, or the ones a system's pack brought), with how many of each are open."""
+    open_n = _open_counts(conn)
+    return [{**dict(r), "audience": list(r["audience"]), "open": open_n.get(r["name"], 0)} for r in conn.execute(
+        "select * from exception_kind where %(s)s::text is null or source_system = %(s)s order by name",
+        {"s": source_system})]
+
+
+def open_keys(conn, type: str, rule: str | None = None) -> set[str]:
+    """Keys of a type's open exceptions; with `rule`, only the ones that source rule raised (evidence.rule)."""
+    return {r["key"] for r in conn.execute(
+        "select key from exception_record where type = %(t)s and state = 'open' "
+        "and (%(r)s::text is null or evidence->>'rule' = %(r)s)", {"t": type, "r": rule})}
 
 
 @events.subscriber("exception.dispatched")

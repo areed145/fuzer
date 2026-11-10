@@ -56,11 +56,20 @@ def audit(conn, obj: str | None = None, object_id: int | None = None, limit: int
         {"o": obj, "i": object_id, "l": limit})]
 
 
+def _secret_ref(values: dict) -> None:
+    from .workflows import check_secret_ref
+
+    if "webhook_secret" in values:
+        check_secret_ref(values["webhook_secret"])
+        values["webhook_secret"] = values["webhook_secret"] or None
+
+
 def add_system(conn, name: str, by: str, reason: str | None = None, files: bool = True, **values) -> dict:
     """A system of record; `files` also gives it a connection to the project's data folder (the seed's way)."""
     if system(conn, name):
         raise CatalogError(f"system {name!r} already exists")
     _changes({}, values, SYSTEM_FIELDS)
+    _secret_ref(values)
     cols = ["name", *values]
     row = conn.execute(f"insert into source_system ({', '.join(cols)}) values ({', '.join(['%s'] * len(cols))}) "
                        "returning *", [name, *values.values()]).fetchone()
@@ -75,6 +84,7 @@ def update_system(conn, name: str, by: str, reason: str | None = None, **values)
     if not old:
         raise CatalogError(f"no system {name!r}")
     before, after = _changes(old, values, SYSTEM_FIELDS)
+    _secret_ref(after)
     if not after:
         return old
     sets = ", ".join(f"{k} = %s" for k in after)

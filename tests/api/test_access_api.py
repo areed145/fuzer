@@ -57,7 +57,8 @@ def test_every_data_and_execution_route_is_protected_before_validation(runtime):
                  if not route.path.startswith("/auth") and route.path not in ("/", "/health")]
     assert len(protected) > 100
     for route in protected:
-        assert isinstance(route, security.AuthenticatedRoute), route.path
+        # webhooks are authenticated by each system's shared secret instead of a session (#465), still 401 without
+        assert isinstance(route, security.AuthenticatedRoute) or route.path.startswith("/hooks/"), route.path
         url = re.sub(r"\{[^}]+\}", "1", route.path)
         for method in route.methods:
             response = client.request(method, url)

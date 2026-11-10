@@ -16,6 +16,7 @@ from . import (
     entities,
     graph,
     home,
+    hooks,
     investigation,
     jobs,
     knowledge,
@@ -54,6 +55,7 @@ app = FastAPI(title="fuzer", version="0.1.0", lifespan=lifespan,
 app.add_middleware(ProjectScope)
 app.add_middleware(RequestBounds)
 app.include_router(auth.router)
+app.include_router(hooks.router)  # authenticated by each system's shared secret, not a session
 
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
