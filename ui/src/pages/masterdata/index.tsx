@@ -10,9 +10,10 @@ import { caseHref, useAct } from "../workflows/shared";
 import { usePermission } from "../../Auth";
 import { MatchRef } from "./MatchRef";
 import { Gaps } from "./Gaps";
+import { ProposalsTab } from "./Proposals";
 
 const TABS = [["unmatched", "Unmatched on open work"], ["unresolved", "Unresolved values"], ["gaps", "Gaps"],
-  ["decisions", "Decisions"]] as const;
+  ["proposals", "Claude's proposals"], ["decisions", "Decisions"]] as const;
 
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const [tab, setTab] = useState<string>(query.get("tab") ?? "unmatched");
@@ -24,7 +25,8 @@ export function MasterDataPage({ query }: { query: URLSearchParams }) {
         {TABS.map(([k, label]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "primary" : "secondary"}
           onClick={() => setTab(k)}>{label}</Button>)}
       </div>
-      {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps /> : <Decisions />}
+      {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps />
+        : tab === "proposals" ? <ProposalsTab /> : <Decisions />}
     </section>
   );
 }

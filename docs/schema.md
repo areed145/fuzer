@@ -905,6 +905,26 @@ Values a steward set across many entities at once (#476: one spelling for a manu
 | `undone_at` | timestamptz |  |
 | `undone_by` | text |  |
 
+### `steward_proposal`
+
+Claude's proposals for the steward (#476): a question built from the register (which entity an unresolved value means, whether two records are one item, which of the sources' values is right, whether two spellings are one value), Claude's pick from its numbered options with a confidence, reason and evidence, and what a person did with it. Cached by the question's hash and the prompt version; nothing is applied until someone accepts it.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text |  |
+| `subject` | text |  |
+| `question` | jsonb |  |
+| `input_hash` | text |  |
+| `answer` | jsonb |  |
+| `model` | text |  |
+| `prompt_version` | text |  |
+| `status` | text |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `result` | jsonb |  |
+| `created_at` | timestamptz |  |
+
 ## Analyses
 
 [`src/fuzer/analysis/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/schema.sql)

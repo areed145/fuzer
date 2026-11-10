@@ -103,6 +103,28 @@ rebuild and is undone from the decision log. It shows fields that most entities 
 which are fixed in the source. And it shows open conflicts between sources, which are decided on the Review page.
 Derived values (classes, models) aren't listed, because they follow the records they come from.
 
+**Claude's proposals** (`graph/proposals.py`, the Master data page's proposals tab). Claude is asked four kinds of
+question built from the register:
+
+- which entity an unresolved value or an unmatched exception ref means;
+- whether two records the matcher was unsure of are one item;
+- which of the sources' disagreeing values is right;
+- whether two near spellings in a field are one value.
+
+Each question carries numbered options, so Claude can say "none" but can't invent an asset or a value. Each answer
+has a confidence, a one-line reason and the evidence it relied on, and is cached by the question's hash and the
+prompt version (`POST /stewardship/proposals/run`). Rebuilds never call the model. Nothing changes until a person
+accepts a proposal, or picks another of its options. Accepting does what a steward would do by hand: it records an
+alias (which also resolves the open exceptions that carried the ref), pins the match, chooses the value, or fixes
+the spelling. Each of these is reversible from the decision log. Bulk accept is offered only for proposals at or
+above `stewardship.bulk_accept_at`. That setting is 0 (off) until a project sets it.
+
+`fuzer.evals.steward_eval` measures how far the proposals can be trusted. It plants problems with known answers:
+tags written other systems' ways (separators dropped, a hyphen before the suffix, a zero-padded loop), a near tag
+that doesn't exist, and a manufacturer with a letter dropped. It then scores precision and recall at each
+confidence threshold. Run it as `uv run python -m fuzer.evals.steward_eval` against a copy of a project. CI runs it
+with a scripted client.
+
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is

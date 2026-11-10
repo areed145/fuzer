@@ -284,3 +284,24 @@ create table if not exists steward_fix (
     undone_by   text
 );
 create index if not exists steward_fix_batch on steward_fix (batch);
+
+-- Claude's proposals for the steward (#476): a question built from the register (which entity an unresolved value
+-- means, whether two records are one item, which of the sources' values is right, whether two spellings are one
+-- value), Claude's pick from its numbered options with a confidence, reason and evidence, and what a person did with
+-- it. Cached by the question's hash and the prompt version; nothing is applied until someone accepts it.
+create table if not exists steward_proposal (
+    id             bigserial primary key,
+    kind           text not null,
+    subject        text not null,
+    question       jsonb not null,
+    input_hash     text not null,
+    answer         jsonb,
+    model          text,
+    prompt_version text,
+    status         text not null default 'open' check (status in ('open', 'accepted', 'rejected', 'stale')),
+    decided_by     text,
+    decided_at     timestamptz,
+    result         jsonb,
+    created_at     timestamptz not null default now(),
+    unique (kind, subject)
+);

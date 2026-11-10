@@ -39,6 +39,14 @@ export interface ConflictGap {
   values: { source: string; source_key: string; value: unknown }[];
 }
 
+export interface Proposal {
+  id: number; kind: "unresolved" | "match" | "conflict" | "spelling"; subject: string; context: Record<string, unknown>;
+  options: { id: string; text: string; fuzer_id?: string }[];
+  answer: { choice: string; confidence: number; reason: string; evidence: string[] } | null;
+  pick: string | null; status: string; model: string | null; decided_by: string | null; decided_at: string | null;
+}
+export interface Proposals { proposals: Proposal[]; bulk_accept_at: number; configured: boolean }
+
 export const stewardshipApi = {
   unmatchedRefs: () => request<UnmatchedRef[]>("GET", "/stewardship/unmatched"),
   unresolvedValues: () => request<UnresolvedValue[]>("GET", "/stewardship/unresolved"),
@@ -59,6 +67,15 @@ export const stewardshipApi = {
     request<{ batch: string; changed: number }>("POST", "/stewardship/fixes", undefined, { field, value, fuzer_ids, by, reason: reason ?? null }),
   undoFix: (batch: string, by: string, reason?: string) =>
     request<Record<string, unknown>>("POST", `/stewardship/fixes/${encodeURIComponent(batch)}/undo`, undefined, { by, reason: reason ?? null }),
+  proposals: (status = "open") => request<Proposals>("GET", "/stewardship/proposals", { status }),
+  runProposals: (limit = 60) =>
+    request<Record<string, unknown>>("POST", "/stewardship/proposals/run", undefined, { limit }),
+  acceptProposal: (id: number, by: string, choice?: string) =>
+    request<Record<string, unknown>>("POST", `/stewardship/proposals/${id}/accept`, undefined, { by, choice: choice ?? null }),
+  rejectProposal: (id: number, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", `/stewardship/proposals/${id}/reject`, undefined, { by, reason: reason ?? null }),
+  acceptConfident: (by: string) =>
+    request<{ accepted: number }>("POST", "/stewardship/proposals/accept-confident", undefined, { by }),
   mergePreview: (a: string, b: string) => request<MergePreview>("GET", "/stewardship/merge/preview", { a, b }),
   mergeEntities: (a: string, b: string, by: string, reason?: string) =>
     request<CurationDone>("POST", "/stewardship/merge", undefined, { a, b, by, reason: reason ?? null }),
