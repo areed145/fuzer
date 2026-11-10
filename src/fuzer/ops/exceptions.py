@@ -455,6 +455,9 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
                 work.hand_back(conn, row["item_id"], by, by, reason=back)
     row = _row(conn, exception_id)
+    from . import closeout
+
+    closeout.on_field_report(conn, row, by, status, note)  # the system that raised it hears what the field did (#466)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
 

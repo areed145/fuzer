@@ -288,3 +288,8 @@ create table if not exists source_exception_rule (
     updated_at  timestamptz not null default now(),
     unique (system, name)
 );
+
+-- How the work a system raised closes out upstream when the field finishes it (#466, ops/closeout.py): none, draft
+-- (a case on closeout_role's Inbox to approve first) or send. Unset: none, except SAP, which drafts to the planners.
+alter table source_system add column if not exists closeout text check (closeout in ('none', 'draft', 'send'));
+alter table source_system add column if not exists closeout_role text;

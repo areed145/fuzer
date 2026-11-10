@@ -404,6 +404,14 @@ export interface BoardFilter {
 }
 
 /** An exception as the IOC sees it (fuzer.core.exceptions): one open condition from any source, matched to assets. */
+/** An update drafted for the system that raised work the field finished (#466). */
+export interface Closeout {
+  id: number; exception_id: number; system: string; record: string; action: "complete" | "follow_up";
+  draft: { text: string; status?: string | null; short_text?: string; [k: string]: unknown };
+  state: "draft" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
+  decided_by: string | null; decided_at: string | null; applied_at: string | null;
+}
+
 export interface ExceptionRow {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
@@ -494,6 +502,11 @@ export const workApi = {
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
+  closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
+  approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
+    request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),
+  discardCloseout: (id: number, by: string, reason?: string) =>
+    request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),

@@ -169,6 +169,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         {!closed && <Due at={it.due} />}
       </div>
       <ScenarioClock />
+      {typeof payload.closeout_id === "number" && <CloseoutPanel id={payload.closeout_id} person={person} readOnly={demo}
+        reload={item.reload} />}
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">
@@ -195,6 +197,48 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       )}
       <Timeline it={it} person={person} readOnly={demo} />
     </section>
+  );
+}
+
+/** The update for the system that raised the work (#466): what the field did, as a completion or a follow-up, to
+ * edit and send, or not send. */
+function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: string; readOnly: boolean; reload: () => void }) {
+  const c = useAsync(() => api.closeout(id), [id]);
+  const [text, setText] = useState<string | null>(null);
+  const [short, setShort] = useState<string | null>(null);
+  const a = useAct();
+  if (!c.data) return <Status loading={c.loading} error={c.error} />;
+  const d = c.data;
+  const system = d.system.toUpperCase();
+  const done = () => { c.reload(); reload(); };
+  return (
+    <UICard className="">
+      <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
+      <p className="small muted">{d.action === "complete"
+        ? `The field reported it done. Sending this closes it in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}, so its record agrees and the IOC stops holding it.`
+        : `The field could not do it. Sending this raises a new ${system} record for the work that is still needed.`}</p>
+      {d.state !== "draft" ? (
+        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state}</UIBadge>{" "}
+          by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
+          {d.applied_at && <span className="muted"> · applied to the demo's {system} data</span>}</p>
+      ) : null}
+      {d.action === "follow_up" && (
+        <p><span className="small">Short text</span>{" "}
+          <Input width="lg" disabled={d.state !== "draft" || readOnly} value={short ?? d.draft.short_text ?? ""}
+            onChange={(e) => setShort(e.target.value)} /></p>
+      )}
+      <textarea rows={4} style={{ width: "100%" }} disabled={d.state !== "draft" || readOnly} aria-label="Update text"
+        value={text ?? d.draft.text} onChange={(e) => setText(e.target.value)} />
+      {d.state === "draft" && !readOnly && (
+        <div className="row">
+          <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("send", () =>
+            api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve and send to {system}</Button>
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("discard", () =>
+            api.discardCloseout(id, person, "not sent: updated by hand"), done)}>Don't send</Button>
+        </div>
+      )}
+      {a.error && <p className="error small">{a.error}</p>}
+    </UICard>
   );
 }
 

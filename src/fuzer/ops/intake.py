@@ -4,7 +4,9 @@ An SAP notification is someone saying "this asset needs attention". While it is 
 raised for it, nobody is working it: it becomes a `sap_notification` exception, matched to the equipment it
 concerns, waiting on the Exceptions page for the IOC to dispatch it to the field, plan it, or leave it for SAP's
 planners. When an order is raised for it, or SAP completes it, the exception clears. One the field reports done
-closes with its case and is held (not raised again) until SAP's status for it changes, since SAP never hears of it.
+closes with its case and is held (not raised again) until SAP's status for it changes. The field's report drafts the
+SAP update on the maintenance planner's Inbox (ops/closeout.py, #466); once it is sent and SAP applies it, the next
+intake sees the new status and the hold ends.
 
     sync_notifications(conn)   run on each register refresh, after the SAP records are rebuilt
 

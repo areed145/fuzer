@@ -53,7 +53,8 @@ export interface CatalogDatasetRow {
 export interface CatalogSystem {
   id: number; name: string; kind: string | null; description: string | null; owner: string | null; steward: string | null;
   timezone: string | null; encoding: string | null; decimal: string | null; date_format: string | null; rank: number | null;
-  enabled: boolean; notes: string | null; webhook_secret?: string | null; connections: CatalogConnection[];
+  enabled: boolean; notes: string | null; webhook_secret?: string | null; closeout?: string | null;
+  closeout_role?: string | null; connections: CatalogConnection[];
   datasets: CatalogDatasetRow[];
 }
 
