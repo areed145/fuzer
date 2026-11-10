@@ -1,6 +1,6 @@
 ---
 name: reliability
-description: Reliability, maintenance and inspection - bad actors, MTBF by unit and ISO 14224 class, failure modes and repeat failures, PM and inspection compliance, overdue statutory inspections, and root-cause leads.
+description: Reliability, maintenance and inspection - rotating equipment health (vibration zones, BEP, curves, failure fits), bad actors, MTBF by unit and ISO 14224 class, failure modes and repeat failures, PM and inspection compliance, overdue statutory inspections, and root-cause leads.
 ---
 
 # Reliability, maintenance and inspection
@@ -49,7 +49,33 @@ A repeat failure is the same failure mode on the same unit more than once in the
    limit; `calc("peers", ref)` the class's units side by side, an outlier being a bad unit and
    `class_wide_failures` a problem with the model or its service. Charts: `plot_compressor_performance`,
    `plot_cooler_fouling`, `plot_peers`.
-7. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
+7. **Rotating equipment health (start here for "how is this pump / compressor").**
+   `calc("rotating_health", ref)` runs every check that applies and returns a status (`act`, `watch`, `ok`),
+   each finding with its basis, data dates and confidence, what couldn't be checked and why, and
+   recommendations. Then read the findings in this order, because it is the order an experienced machinery
+   engineer trusts them:
+   - **Vibration** (`calc("vibration", ref)`): overall mm/s RMS against ISO 10816-3 zones for the machine's
+     group (group 1: compressors, turbines and large machines; group 2: most pumps). Zone D means damage is
+     likely: recommend stopping to inspect. Zone C is not for long-term running: plan the repair. A steady
+     rise (`rising`, `trend_mm_s_per_week`, `reaches_zone_d`) matters even in zone B. Quote the zone, the
+     value, the trend and the date it reaches zone D. Overall vibration cannot tell a bearing from
+     misalignment: spectra need a condition-monitoring source Fuzer doesn't have, so say so rather than
+     naming a defect frequency.
+   - **Where it runs** (pumps, `calc("pump_bep", ref)`): flow against the best efficiency point. Time below the
+     minimum stable flow (`low_flow`) causes recirculation, which kills seals and bearings: it explains
+     repeat seal failures better than the seal does. Time outside 70-120 % of BEP (`off_bep`) shortens life.
+   - **Performance**: `pump_curve` (head below the curve at the same flow means internal wear) or
+     `compressor_performance` (an efficiency drop means fouling, wear or recycle).
+   - **Failure history**: Weibull beta (`wear_out` suits a PM interval, `early_life` points at repair
+     quality, random failures mean PM won't help) and Crow-AMSAA (`failures_accelerating` marks a bad actor).
+     Fewer than about six failures make a fit indicative only: say "low confidence".
+   - **Peers**: an outlier is the unit; `class_wide_failures` is the model or its service.
+   **When not to trust a result:** a curve from a datasheet waiting for review; vibration with few readings; a
+   pump that hardly ran in the window; a synthetic or demo source (say it is demo data). Escalate to the IOC
+   when vibration is in zone D or rising into it within two weeks, or when head loss or low-flow running
+   coincides with a repeat failure mode. A good answer names the machine, the status, the two or three
+   findings that drive it with their numbers and dates, what is unknown, and the recommendation.
+8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
 
 Report: the top bad actors with failures, MTBF, downtime and repeat modes; the likely root cause per
