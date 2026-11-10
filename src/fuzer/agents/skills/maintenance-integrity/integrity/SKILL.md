@@ -10,7 +10,10 @@ Each finding gives the item, the survey or plan date and the source. Say what wa
 1. **Wall loss.** `plot_wall_thickness()` ranks the items losing wall fastest; `plot_wall_thickness(ref)` shows each
    CML over time. `measurements(ref, "wall_thickness")` gives the readings (mm) and the fitted `per_year`.
    `calc("wall_loss", ref, min_required_mm=...)` gives remaining life. Without a stated minimum thickness there is no
-   retirement date: say so rather than assume one.
+   retirement date: say so rather than assume one. With one, `next_inspection_years` is the API 570 / 510 interval
+   from the rate (half the remaining life, at most 10 years): give it as the interval the rate supports, not a
+   decision. Fewer than three readings on a CML is not a rate; a single fast CML (`localised`) points at local
+   corrosion (dead legs, injection points, under deposits), so name the CML.
 2. **Inspection compliance.** `maintenance_compliance(as_of)` gives on-time share, overdue and due-soon plans by kind
    (PM / INSP) and marks tasks that need a shutdown. `plot_compliance(as_of)` charts it. Overdue means past the plan's
    next due date in SAP; it does not state the equipment's condition. Never infer an inspection result from a date.

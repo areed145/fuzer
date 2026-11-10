@@ -539,7 +539,8 @@ def wall_loss(conn, fid: str, min_required_mm: float | None = None, warn_years: 
     """An item's fastest wall loss across its CMLs (mm/year, least squares per CML) against the median
     of its CMLs, with remaining life per CML when the minimum required thickness is given. Flags
     `retire_soon` when a CML reaches it within `warn_years`, else `localised` when the fastest CML loses
-    more than twice the median."""
+    more than twice the median. With a remaining life, `next_inspection_years` is the API 570 / 510
+    interval from the rate: half the remaining life, capped at 10 years."""
     from ..graph import measurements as m
 
     series = m.for_entity(conn, fid, "wall_thickness", until=until)["series"]
@@ -557,11 +558,13 @@ def wall_loss(conn, fid: str, min_required_mm: float | None = None, warn_years: 
     shortest = min((c["remaining_years"] for c in cmls if "remaining_years" in c), default=None)
     flag = ("retire_soon" if shortest is not None and shortest < warn_years else
             "localised" if len(cmls) >= 3 and cmls[0]["loss_mm_per_year"] > 2 * max(median, 0.01) else None)
+    interval = _r(min(shortest / 2, 10.0), 1) if shortest is not None else None
     return result(cmls[0]["loss_mm_per_year"], median, flag,
                   f"least-squares wall loss per CML over {len(cmls)} CMLs; expected is their median"
-                  + (f"; remaining life to {min_required_mm} mm" if min_required_mm else ""),
+                  + (f"; remaining life to {min_required_mm} mm; next inspection at half the remaining life, "
+                     "at most 10 years (API 570 / 510)" if min_required_mm else ""),
                   [fid, *[c["record"] for c in cmls[:3]]], unit="mm/year", fastest_cml=cmls[0]["cml"],
-                  shortest_remaining_years=shortest, cmls=cmls[:10])
+                  shortest_remaining_years=shortest, next_inspection_years=interval, cmls=cmls[:10])
 
 
 # Every check, the function behind it, and who uses it: a chart for people, the `calc` MCP tool for

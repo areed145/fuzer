@@ -100,6 +100,7 @@ def test_checks_flag_the_okan_stories_as_of_then(conn):
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
     wall = calcs.wall_loss(conn, line["fuzer_id"], min_required_mm=6.0)
     assert wall["flag"] == "retire_soon" and wall["shortest_remaining_years"] < 5 and wall["unit"] == "mm/year"
+    assert wall["next_inspection_years"] == round(min(wall["shortest_remaining_years"] / 2, 10), 1)
     assert calcs.wall_loss(conn, line["fuzer_id"])["shortest_remaining_years"] is None  # no minimum, no life
 
 
