@@ -4,6 +4,7 @@ import "../styles/trends.css";
 import { useEffect, useState } from "react";
 import {
   type HeldLoadPayload,
+  type PidConnectionPayload,
   api,
   type ConflictPayload,
   type CurvePayload,
@@ -23,7 +24,7 @@ import { usePerson } from "../work";
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
-    asked === "check" ? asked : "match";
+    asked === "check" || asked === "pid_connection" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -51,6 +52,10 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             : `Saved #${item.id}. ${item.payload.dataset} stays on hold.`
           : item.kind === "check"
             ? `Saved #${item.id}. Load ${item.payload.dataset} again once it's fixed.`
+          : item.kind === "pid_connection"
+            ? d.decision === "accept"
+              ? `Saved #${item.id}. ${item.payload.from} pipes to ${item.payload.to} from the next rebuild (running now).`
+              : `Saved #${item.id}. The line stays unlinked.`
           : `Saved #${item.id}. The chosen value is live.`,
     );
     notifyChanged();
@@ -86,6 +91,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "check" ? "on" : ""} href={href("/review", { kind: "check" })}>
             Held loads <span className="muted">{stats?.open_reviews.check ?? 0}</span>
           </a>
+          <a className={kind === "pid_connection" ? "on" : ""} href={href("/review", { kind: "pid_connection" })}>
+            Drawing connections <span className="muted">{stats?.open_reviews.pid_connection ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -102,6 +110,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? "Curves Claude read off OEM datasheets. Compare its reading with the sheet; accept, correct, or reject. Only accepted curves are used in charts."
           : kind === "schema"
             ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
+          : kind === "pid_connection"
+            ? "Lines that leave one P&ID for another, where the other drawing doesn't show them. Check both sheets: accept links the two items, reject leaves them unlinked."
           : kind === "check"
             ? "A dataset's last load was held: it repeated keys or failed a check that holds the load, so its records stay as they were. Fix it at the source (or the check), then load it again from its page."
             : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
@@ -129,6 +139,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <SchemaCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "check" ? (
           <HeldLoadCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "pid_connection" ? (
+          <PidConnectionCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
           <ConflictCard
             key={item.id}
@@ -484,6 +496,25 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
 
 
 /** A load held by its checks (#225): why, and the dataset to fix it on. */
+function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPayload; onDecide: OnDecide }) {
+  const { busy, feedback, run } = useBusy(onDecide, "Accept adds a piping link between the two items on the next rebuild.");
+  return (
+    <UICard className="review">
+      <h3>Connected across drawings? <span className="muted small">#{id}</span></h3>
+      <p>{p.question}</p>
+      <p className="muted small">Line {p.line}: {p.sheet} shows it {p.direction === "to" ? "leaving for" : "arriving from"}{" "}
+        {p.other_sheet}.</p>
+      <div className="row">
+        <ButtonLink href={href("/", { q: p.sheet })}>Find {p.sheet}</ButtonLink>
+        <ButtonLink href={href("/", { q: p.other_sheet })}>Find {p.other_sheet}</ButtonLink>
+        <Button variant="primary" disabled={busy || !p.from || !p.to} onClick={() => run({ decision: "accept" })}>Accept</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "reject" })}>Reject</Button>
+      </div>
+      {feedback}
+    </UICard>
+  );
+}
+
 function HeldLoadCard({ id, p, onDecide }: { id: number; p: HeldLoadPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide,
     "Seen acknowledges this notice only. It does not fix the source, change the checks or retry ingestion.");

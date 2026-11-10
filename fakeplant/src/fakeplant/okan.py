@@ -858,6 +858,8 @@ def generate(out, seed: int = 11) -> dict:
         if fmt == "smart":
             sheet["tags"] = [t.canonical for t in tags]
             sheet["connections"] = conns
+            if offpage.get(key):  # a smart P&ID carries its off-page connectors too
+                sheet["offpage"] = offpage[key]
         elif fmt == "pdf_text":
             sheet["text"] = sheet["title"] + "\n" + "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
         truth = pid.draw(out / sheet["image"], sheet, tags, titles, drng3, conns,

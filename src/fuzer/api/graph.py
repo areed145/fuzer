@@ -94,6 +94,9 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
     elif item["kind"] == "check":  # a held load (#225): fixed at the source, then loaded again from its dataset
         if d.decision == "choose":
             raise HTTPException(400, "held-load items take accept (seen) or reject")
+    elif item["kind"] == "pid_connection":  # an off-page line one drawing shows: accept links it, reject leaves it
+        if d.decision == "choose":
+            raise HTTPException(400, "drawing connections take accept (link them) or reject")
     elif item["kind"] == "match":
         if d.decision == "choose":
             raise HTTPException(400, "match items take accept or reject")
@@ -136,7 +139,7 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         (Jsonb(d.model_dump()), d.by, item_id),
     )
     conn.commit()
-    if item["kind"] == "match" or (item["kind"] == "curve" and d.decision != "reject"):
+    if item["kind"] == "match" or (item["kind"] in ("curve", "pid_connection") and d.decision != "reject"):
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
