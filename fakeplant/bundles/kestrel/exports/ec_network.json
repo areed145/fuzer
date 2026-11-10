@@ -28,21 +28,62 @@
    "name": "Sales Gas Compressor"
   },
   {
+   "code": "KRGP-AMINE",
+   "type": "separator",
+   "tag": "D1V4001",
+   "name": "Amine Contactor"
+  },
+  {
    "code": "KRGP-DEHY",
    "type": "separator",
    "tag": "C1V3001",
    "name": "Glycol Contactor"
   },
   {
-   "code": "KRGP-SALESMTR",
+   "code": "KRGP-DRYMTR",
    "type": "meter",
    "tag": "C1FT3005",
-   "name": "Dry Gas Sales Meter"
+   "name": "Dry gas check meter"
+  },
+  {
+   "code": "KRGP-HCDP",
+   "type": "separator",
+   "tag": "E1V5003",
+   "name": "Low Temperature Separator"
+  },
+  {
+   "code": "KRGP-SALESMTR",
+   "type": "meter",
+   "tag": "H1FT8010",
+   "name": "Sales gas custody meter"
   },
   {
    "code": "SALES-TIE",
    "type": "sales_point",
    "name": "Interstate pipeline tie-in"
+  },
+  {
+   "code": "KRGP-STAB",
+   "type": "separator",
+   "tag": "F1V6002",
+   "name": "Condensate Stabilizer"
+  },
+  {
+   "code": "KRGP-CONDTK",
+   "type": "tank",
+   "tag": "F1T6005A",
+   "name": "Condensate Storage Tank A"
+  },
+  {
+   "code": "COND-TRUCK",
+   "type": "sales_point",
+   "name": "Condensate truck loading"
+  },
+  {
+   "code": "KRGP-FLARE",
+   "type": "flare",
+   "tag": "H1V8001",
+   "name": "Flare Knockout Drum"
   }
  ],
  "edges": [
@@ -72,12 +113,30 @@
   },
   {
    "from": "KRGP-COMP",
+   "to": "KRGP-AMINE",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-AMINE",
    "to": "KRGP-DEHY",
    "valid_from": "",
    "valid_to": ""
   },
   {
    "from": "KRGP-DEHY",
+   "to": "KRGP-DRYMTR",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-DRYMTR",
+   "to": "KRGP-HCDP",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-HCDP",
    "to": "KRGP-SALESMTR",
    "valid_from": "",
    "valid_to": ""
@@ -85,6 +144,36 @@
   {
    "from": "KRGP-SALESMTR",
    "to": "SALES-TIE",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-INLET",
+   "to": "KRGP-STAB",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-HCDP",
+   "to": "KRGP-STAB",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-STAB",
+   "to": "KRGP-CONDTK",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-CONDTK",
+   "to": "COND-TRUCK",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "KRGP-INLET",
+   "to": "KRGP-FLARE",
    "valid_from": "",
    "valid_to": ""
   }

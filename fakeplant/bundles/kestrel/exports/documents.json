@@ -1,18 +1,22 @@
 [
  {
   "doc_number": "KR-TG-B1-001",
-  "revision": "A",
+  "revision": "B",
   "doc_type": "troubleshooting_guide",
   "title": "Sales gas compressor trip response",
   "status": "current",
-  "effective_date": "2023-05-01",
+  "effective_date": "2024-06-01",
   "file": "documents/KR-TG-B1-001.md",
   "tags": [
    "B1-K-2001",
    "B1-VT-2003",
    "B1-TT-2002",
    "B1-E-2010",
-   "A1-PT-1001"
+   "A1-PT-1001",
+   "A1-PV-1001",
+   "H1-FT-8003",
+   "D1-V-4001",
+   "E1-K-5004"
   ]
  },
  {
@@ -66,5 +70,39 @@
   "manufacturer": "Kimray",
   "model": "PV-45",
   "equipment_class": "PU"
+ },
+ {
+  "doc_number": "KR-PR-C1-002",
+  "revision": "A",
+  "doc_type": "procedure",
+  "title": "TEG reboiler temperature and lean glycol purity",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/KR-PR-C1-002.md",
+  "tags": [
+   "C1-H-3008",
+   "C1-TT-3008",
+   "C1-AT-3011",
+   "C1-V-3001",
+   "E1-E-5001",
+   "G1-P-7008A"
+  ]
+ },
+ {
+  "doc_number": "KR-PR-D1-001",
+  "revision": "A",
+  "doc_type": "procedure",
+  "title": "Amine unit restart and foaming response",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/KR-PR-D1-001.md",
+  "tags": [
+   "D1-V-4001",
+   "D1-PDT-4001",
+   "D1-AT-4002",
+   "D1-F-4010",
+   "D1-P-4008A",
+   "D1-E-4006"
+  ]
  }
 ]

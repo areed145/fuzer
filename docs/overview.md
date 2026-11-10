@@ -7,7 +7,7 @@ from many systems, works out which records describe the same real thing, links
 them into one graph, and serves that graph to apps, AI agents and engineers.
 
 The current reference project is the Okan field demo. Asset-specific behavior is
-isolated in an **asset pack**. Okan is the main demo; Kestrel Ridge, a small second facility, boots from
+isolated in an **asset pack**. Okan is the main demo; Kestrel Ridge, a second facility (a gas plant), boots from
 its own seed bundle to show nothing is tied to Okan.
 
 ## Decisions

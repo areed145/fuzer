@@ -6,3 +6,13 @@ PM-50000005,PM,50000005,KRGP-C1-P3002A,"Quarterly service, glycol circulation pu
 PM-50000006,PM,50000006,KRGP-C1-P3002B,"Quarterly service, glycol circulation pump B",91,today-97d,today-6d,
 INSP-50000001,INSP,50000001,KRGP-A1-V1001,"Statutory internal inspection, inlet separator",1826,today-1666d,today+160d,X
 INSP-50000004,INSP,50000004,KRGP-C1-V3001,"Statutory internal inspection, glycol contactor",1826,today-1661d,today+165d,X
+PM-50000007,PM,50000007,KRGP-A1-V1004,"Element change, inlet filter coalescer",90,today-85d,today+5d,
+PM-50000015,PM,50000015,KRGP-C1-H3008,"Annual burner and fire tube inspection, TEG reboiler",365,today-371d,today-6d,
+PM-50000024,PM,50000024,KRGP-D1-F4010,"Carbon element change, amine carbon filter",60,today-51d,today+9d,
+PM-50000028,PM,50000028,KRGP-E1-K5004,"Oil and filter service, propane refrigeration compressor",180,today-41d,today+139d,
+PM-50000045,PM,50000045,KRGP-G1-G7006,"Monthly load test, standby generator",30,today-33d,today-3d,
+PM-50000042,PM,50000042,KRGP-G1-K7004A,"Quarterly service, instrument air compressor A",91,today-44d,today+47d,
+PM-50000043,PM,50000043,KRGP-G1-K7004B,"Quarterly service, instrument air compressor B",91,today-30d,today+61d,
+INSP-50000016,INSP,50000016,KRGP-D1-V4001,"Statutory internal inspection, amine contactor",1826,today-1661d,today+165d,X
+INSP-50000050,INSP,50000050,KRGP-H1-V8001,"Statutory internal inspection, flare knockout drum",1826,today-1661d,today+165d,X
+INSP-50000051,INSP,50000051,KRGP-H1-FT8010,"Custody meter verification, sales gas",182,today-120d,today+62d,

@@ -9,3 +9,23 @@ KRGP:C1.FT3005.PV,Dry Gas Flow,ksm3/d,OPC
 KR12-03H.THP,Well KR 12-03H Tubing Head Pressure,barg,OPC
 KR12-04H.THP,Well KR 12-04H Tubing Head Pressure,barg,OPC
 KRGP:B1.TT2011.PV,Aftercooler Outlet Temperature,degC,OPC
+KRGP:A1.PDT1004.PV,Inlet Filter Coalescer Differential Pressure,bar,OPC
+KRGP:A1.FT1008.PV,Inlet Condensate Flow,m3/d,OPC
+KRGP:B1.PT2006.PV,Compressor Suction Pressure,barg,OPC
+KRGP:B1.LT2005.PV,Suction Scrubber Liquid Level,%,OPC
+KRGP:C1.TT3008.PV,TEG Reboiler Temperature,degC,OPC
+KRGP:C1.AT3011.PV,Dry Gas Water Content,mg/Sm3,OPC
+KRGP:D1.PDT4001.PV,Amine Contactor Differential Pressure,bar,OPC
+KRGP:D1.AT4002.PV,Sweet Gas CO2,mol%,OPC
+KRGP:D1.TT4006.PV,Amine Reboiler Temperature,degC,OPC
+KRGP:D1.TT4007.PV,Lean Amine Temperature,degC,OPC
+KRGP:D1.FT4009.PV,Lean Amine Circulation,m3/h,OPC
+KRGP:E1.TT5003.PV,Low Temperature Separator Temperature,degC,OPC
+KRGP:E1.PT5004.PV,Refrigeration Compressor Suction Pressure,barg,OPC
+KRGP:E1.TT5005.PV,Propane Condenser Outlet Temperature,degC,OPC
+KRGP:F1.TT6003.PV,Stabilizer Reboiler Temperature,degC,OPC
+KRGP:F1.LT6005A.PV,Condensate Tank A Level,%,OPC
+KRGP:G1.TT7001.PV,Hot Oil Supply Temperature,degC,OPC
+KRGP:G1.PT7005.PV,Instrument Air Header Pressure,barg,OPC
+KRGP:H1.FT8003.PV,Flare Gas Flow,ksm3/d,OPC
+KRGP:H1.FT8010.PV,Sales Gas Flow,ksm3/d,OPC

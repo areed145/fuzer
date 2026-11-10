@@ -29,3 +29,17 @@ KRS-1204-Q3,h2s,,KR 12-04H,Wellhead sample point,today-92d 11:00,5.7,ppm,GPA 237
 KRS-1204-Q3,co2,,KR 12-04H,Wellhead sample point,today-92d 11:00,2.16,mol%,GPA 2261
 KRS-1204-Q4,h2s,,KR 12-04H,Wellhead sample point,today-3d 11:00,5.9,ppm,GPA 2377
 KRS-1204-Q4,co2,,KR 12-04H,Wellhead sample point,today-3d 11:00,2.19,mol%,GPA 2261
+KRS-A07,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-44d 10:00,45.2,wt%,Titration
+KRS-C07,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-44d 10:30,71,kPa,ASTM D6377
+KRS-A06,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-37d 10:00,45.0,wt%,Titration
+KRS-C06,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-37d 10:30,70,kPa,ASTM D6377
+KRS-A05,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-30d 10:00,44.8,wt%,Titration
+KRS-C05,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-30d 10:30,72,kPa,ASTM D6377
+KRS-A04,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-23d 10:00,44.9,wt%,Titration
+KRS-C04,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-23d 10:30,70,kPa,ASTM D6377
+KRS-A03,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-16d 10:00,44.6,wt%,Titration
+KRS-C03,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-16d 10:30,73,kPa,ASTM D6377
+KRS-A02,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-9d 10:00,44.5,wt%,Titration
+KRS-C02,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-9d 10:30,72,kPa,ASTM D6377
+KRS-A01,mdea_strength,D1-P-4008A,,Lean amine at D1-P-4008A discharge,today-2d 10:00,44.1,wt%,Titration
+KRS-C01,rvp,F1-T-6005A,,Stabilized condensate at F1-T-6005A,today-2d 10:30,74,kPa,ASTM D6377

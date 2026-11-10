@@ -22,7 +22,7 @@ KESTREL_DATASETS = {
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 141
+KESTREL_ENTITIES = 335
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 
@@ -103,6 +103,28 @@ def test_a_missing_bundle_fails(tmp_path):
         bundles.read(tmp_path)
 
 
+def test_kestrels_sources_name_only_tags_its_register_holds():
+    """Every tag a Kestrel drawing, document, work record, IOW, lab or inspection reading names has a SAP functional
+    location, so the sources agree on one plant and nothing the IOC is sent to is missing from the register."""
+    import csv
+    import json
+
+    x = KESTREL / "exports"
+    pack = bundles.read(KESTREL)["pack"]
+    flocs = {pack.tags.parse(r["floc"]) for r in csv.DictReader((x / "sap_floc.csv").open())} - {None}
+    named = set()
+    for s in json.loads((x / "pid_sheets.json").read_text()):
+        named |= set(s["tags"]) | {c[e] for c in s["connections"] for e in ("from", "to")}
+    named |= {t for d in json.loads((x / "documents.json").read_text()) for t in d.get("tags", [])}
+    for name, col in [("sap_notifications", "floc"), ("sap_work_orders", "floc"), ("sap_maintenance_plans", "floc"),
+                      ("sap_equipment", "floc"), ("iow_register", "tag"), ("lims_results", "tag"),
+                      ("inspection_readings", "tag")]:
+        named |= {r[col] for r in csv.DictReader((x / f"{name}.csv").open()) if r[col]}
+    assert {pack.tags.parse(t) for t in named} <= flocs
+    on_drawings = {pack.tags.parse(t) for s in json.loads((x / "pid_sheets.json").read_text()) for t in s["tags"]}
+    assert flocs <= on_drawings  # and every tag in the register is on a P&ID
+
+
 # ---- acceptance: Kestrel boots from its bundle in a fresh database ----------------------------------
 
 def _fresh(name: str) -> str:
@@ -170,19 +192,20 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
 
         kinds = {r["kind"]: r["n"] for r in conn.execute(
             "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind")}
-        assert kinds["facility"] == 1 and kinds["area"] == 3 and kinds["tag"] == 14 and kinds["well"] == 2
-        assert kinds["equipment"] == 6  # Maximo's four assets merged into SAP's by serial, despite its formats
+        assert kinds["facility"] == 1 and kinds["area"] == 8 and kinds["tag"] == 82 and kinds["well"] == 2
+        assert kinds["equipment"] == 51  # Maximo's eight assets merged into SAP's by serial, despite its formats
         # Its own work, drawings, map and documents: what the IOC triages and the field operator is sent with.
-        assert kinds["notification"] == 7 and kinds["work_order"] == 12 and kinds["log_entry"] == 16
-        assert kinds["pipeline"] == 2 and kinds["document"] >= 8 and kinds["well_test"] == 24
+        assert kinds["notification"] == 12 and kinds["work_order"] == 21 and kinds["log_entry"] == 24
+        assert kinds["pipeline"] == 2 and kinds["document"] >= 17 and kinds["well_test"] == 24
         keys = {r["kind"]: set() for r in conn.execute("select distinct kind from entity")}
         for r in conn.execute("select e.kind, k.key from entity e join entity_key k using (fuzer_id) "
                               "where e.merged_into is null"):
             keys[r["kind"]].add(r["key"])
         assert keys["facility"] == {"KRGP"}
-        assert keys["area"] == {"KRGP-A1", "KRGP-B1", "KRGP-C1"}
-        assert {k for k in keys["tag"] if re.fullmatch(r"[A-C]\d-[A-Z]+-\d{4}[A-Z]?", k)} >= {
-            "A1-V-1001", "B1-K-2001", "C1-P-3002A", "C1-FT-3005"}
+        assert keys["area"] == {f"KRGP-{a}1" for a in "ABCDEFGH"}
+        assert {k for k in keys["tag"] if re.fullmatch(r"[A-H]\d-[A-Z]+-\d{4}[A-Z]?", k)} >= {
+            "A1-V-1001", "B1-K-2001", "C1-P-3002A", "C1-FT-3005", "C1-H-3008", "D1-V-4001", "E1-K-5004",
+            "F1-V-6002", "G1-G-7006", "H1-FT-8010"}
         assert keys["well"] == {"KR 12-03H", "KR 12-04H"}
         assert not any("OK" in k for ks in keys.values() for k in ks)
         wells_with_series = conn.execute(
@@ -195,13 +218,13 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         trip = conn.execute("select g.value #>> '{}' as v from golden g join entity_key k using (fuzer_id) "
                             "where k.kind = 'notification' and k.key = '10004001' and g.field = 'created'").fetchone()
         assert trip["v"] == yesterday
-        assert pipeline.follow_register(conn, pack)["notifications"]["raised"] == 3
+        assert pipeline.follow_register(conn, pack)["notifications"]["raised"] == 4
         assert conn.execute("select count(*) as n from exception_record where type = 'sap_notification' "
                             "and key = '10004001' and state = 'open'").fetchone()["n"] == 1
 
         # The trip reaches the IOC three ways, and is one case (#464): the IOW check on the compressor's suction
         # pressure opens a case that the waiting notification joins, and the SRE's upset joins it too. The other
-        # two notifications (the glycol pump, the contactor) are other events.
+        # three notifications (the glycol pump, the glycol contactor, the amine contactor's foaming) are other events.
         from fuzer.core.exceptions import raise_exception
         from fuzer.ops import exceptions as ex
         from fuzer.ops import sre_handoff  # noqa: F401  (declares the upset type)
@@ -225,7 +248,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
                                                                           ("upset", "upset:test")]
         assert upset["item_id"] == iow["item_id"]
         others = {r["key"] for r in rows if r["type"] == "sap_notification"}
-        assert others == {"10004002", "10004007"}  # still waiting on their own rows
+        assert others == {"10004002", "10004007", "10004008"}  # still waiting on their own rows
 
 
     # The API resolves the pack from the database it serves, at request time.
@@ -235,7 +258,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
     client = TestClient(app)
     stats = client.get("/stats").json()
     assert (stats["pack"], stats["facility"]) == ("kestrel", "KRGP")
-    assert stats["entities"]["tag"] == 14
+    assert stats["entities"]["tag"] == 82
     assert client.get("/demo/okan/investigation").status_code >= 400  # the Okan journey isn't Kestrel's
 
 
@@ -321,6 +344,8 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
     from fuzer.ops import pipeline
     from fuzer.sources import ingest
 
+    deps.rebuilder.wait()  # an earlier test's rebuild on the default queue finishes first, so it can't land here
+    okan_before = deps.rebuilder.status()["last"]
     url = _fresh("two_projects")
     serving(url)
     monkeypatch.setenv("FUZER_TIMESERIES", "synthetic")  # as on Render: process-wide, meant for the first project
@@ -368,7 +393,7 @@ def test_two_projects_share_one_database_without_seeing_each_other(serving, monk
                 deps.rebuilder.request()
                 deps.rebuilder.wait()
                 assert deps.rebuilder.last["stats"]["entities"] == KESTREL_ENTITIES, deps.rebuilder.last
-            assert deps.rebuilder.status()["last"] is None  # Okan's queue never ran
+            assert deps.rebuilder.status()["last"] == okan_before  # Okan's queue didn't run
             assert projects.field("data") == "/srv/okan" and projects.field("timeseries") == "synthetic"
 
             # Back in the first project: none of Kestrel's records or entities, and Okan's pack.

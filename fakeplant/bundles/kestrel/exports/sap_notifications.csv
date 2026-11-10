@@ -6,3 +6,8 @@ qmnum,notif_type,created,equnr,floc,priority,short_text,damage_code,cause_code,s
 10004004,M2,today-35d,50000002,KRGP-B1-K2001,2,High discharge temperature on sales gas compressor,DM-OHT,CA-FOUL,NOCO
 10004005,M1,today-60d,50000003,KRGP-B1-E2010,3,Aftercooler fan belt worn and noisy,DM-NOI,CA-WEAR,NOCO
 10004006,M1,today-120d,50000006,KRGP-C1-P3002B,4,Glycol pump B failed to start on changeover,DM-FTS,CA-ADJ,NOCO
+10004008,M1,today-1d,50000016,KRGP-D1-V4001,2,Amine foaming in contactor after compressor restart; carbon filter due,DM-PDE,CA-CONT,OSNO
+10004009,M1,today-5d,50000015,KRGP-C1-H3008,2,TEG reboiler not holding 204 degC at full fire; burner and fire tube check,DM-LOO,CA-FOUL,NOPR
+10004010,M1,today-12d,50000007,KRGP-A1-V1004,3,Inlet filter coalescer differential pressure rising; change elements,DM-PLU,CA-FOUL,NOPR
+10004011,M1,today-31d,50000043,KRGP-G1-K7004B,3,Instrument air compressor B tripped on high discharge temperature,DM-OHT,CA-FOUL,NOCO
+10004012,M2,today-96d,50000045,KRGP-G1-G7006,2,Standby generator failed to pick up load on utility power dip,DM-FTS,CA-WEAR,NOCO

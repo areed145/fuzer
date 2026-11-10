@@ -55,7 +55,7 @@ def test_gas_measurement_is_onboarded_from_the_ui(monkeypatch):
                 assert form["warnings"] == [], form["warnings"]
                 out = ok(client.post(f"/sources/connections/{c['id']}/tables/daily_volumes",
                                      json={"yaml": p["suggested"]["yaml"], "values": {}, "by": "ana"}))
-                assert out["load"]["loaded"] == ["daily_volumes"] and out["load"]["inserted"] == 240
+                assert out["load"]["loaded"] == ["daily_volumes"] and out["load"]["inserted"] == 300
 
             pipeline.rebuild(conn, pack)
             got = {(r["key"], r["quantity"]): r["n"] for r in conn.execute(
@@ -64,13 +64,13 @@ def test_gas_measurement_is_onboarded_from_the_ui(monkeypatch):
                 join entity_key k on k.fuzer_id = m.fuzer_id and k.kind in ('tag', 'well')
                 where m.quantity in ('volume', 'energy', 'hhv', 'flow_hours') group by 1, 2
                 """)}
-            for thing in ("A1-FT-1002", "C1-FT-3005", "KR 12-03H", "KR 12-04H"):
+            for thing in ("A1-FT-1002", "C1-FT-3005", "H1-FT-8010", "KR 12-03H", "KR 12-04H"):
                 assert got[(thing, "volume")] == 60 and got[(thing, "hhv")] == 60
             yesterday, before = (date.today() - timedelta(days=d) for d in (1, 2))
             sales = {r["at"].date(): r["value"] for r in conn.execute(
                 """
                 select m.at, m.value from measurement m join entity_key k on k.fuzer_id = m.fuzer_id
-                where k.key = 'C1-FT-3005' and m.quantity = 'volume' and m.at::date >= %s
+                where k.key = 'H1-FT-8010' and m.quantity = 'volume' and m.at::date >= %s
                 """, (before,))}
             assert sales[yesterday] < 0.9 * sales[before]  # the trip's lost sales gas, in the measurement system too
     finally:
