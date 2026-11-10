@@ -124,9 +124,16 @@ def _place(v: str, pack: Pack):
         return "area", f"{pack.facility}-{u}"
     if tag := pack.tags.parse(v) or pack.tags.parse(re.sub(r"\s+", "-", v)):
         return "tag", tag
-    if well := pack.wells.parse(v):
+    if well := pack.wells.parse(v) or _bare_well(u, pack):
         return "well", well
     return None
+
+
+def _bare_well(u: str, pack: Pack) -> str | None:
+    """A well written without the field's prefix (J12-04 for OK-J12-04), as planners do in a location column. Only
+    here: in free text a bare J12 04 is too often something else."""
+    prefix = getattr(pack.wells, "prefix", "")
+    return pack.wells.parse(prefix + u) if prefix and not u.startswith(prefix) else None
 
 
 def _document_part(row, pack: Pack):

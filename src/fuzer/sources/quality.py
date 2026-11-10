@@ -293,10 +293,18 @@ def clear_check_hold(conn, name: str) -> None:
 
 # ---- after a rebuild: coverage and matching ------------------------------------------------------
 
-def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]]) -> dict:
-    """Per source: link coverage (resolved / total by link type, from the graph build), how its records matched,
-    how many share an entity with another source, golden fields won and open reviews. Kept per rebuild for 90
-    days (source_match_stat); coverage checks are judged here."""
+UNRESOLVED_SHOWN = 20  # the values per link type that named nothing, most frequent first
+
+
+def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]], misses: dict[str, dict] | None = None) -> dict:
+    """Per source: link coverage (resolved / total by link type, from the graph build, counting the values a
+    resolver found nothing for, `misses`: source -> link type -> Counter of values), the values that named
+    nothing (for review), how its records matched, how many share an entity with another source, golden fields
+    won and open reviews. Kept per rebuild for 90 days (source_match_stat); coverage checks are judged here."""
+    coverage = {s: {rel: list(v) for rel, v in rels.items()} for s, rels in coverage.items()}
+    for source, rels in (misses or {}).items():
+        for rel, values in rels.items():
+            coverage.setdefault(source, {}).setdefault(rel, [0, 0])[1] += sum(values.values())
     per: dict[str, dict] = {}
     for r in conn.execute(
         """
@@ -327,6 +335,11 @@ def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]]) -> dict:
         res, tot = sum(v[0] for v in rels.values()), sum(v[1] for v in rels.values())
         per.setdefault(source, {})["coverage"] = {"pct": round(100 * res / tot, 1) if tot else None, "resolved": res,
                                                   "total": tot, "by_rel": rels}
+        if found := (misses or {}).get(source):
+            per[source]["coverage"]["unresolved"] = {
+                rel: {"rows": sum(values.values()), "values": [{"value": v, "rows": n} for v, n in
+                                                                values.most_common(UNRESOLVED_SHOWN)]}
+                for rel, values in found.items()}
     conn.execute("delete from source_match_stat where built_at < now() - interval '90 days'")
     with conn.cursor() as cur:
         cur.executemany("insert into source_match_stat (source, stats) values (%s, %s)",

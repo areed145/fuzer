@@ -2,6 +2,7 @@
 
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -67,6 +68,8 @@ def rebuild(conn, pack: Pack) -> dict:
     text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
     texts: dict[str, dict[str, dict]] = {name: {} for name in llm_links.TEXT_SOURCES}
     maps = mappings.load(conn)
+    for m in maps.values():
+        m.unresolved.clear()  # counted again by this rebuild's extraction
     references = {}
     reference_maps = {key: m for key, m in maps.items() if m.shape == "reference"}
     if reference_maps:
@@ -147,7 +150,11 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["incidents"] = len(i_cands)
     retire_unused(conn, set(assigned.values()) | set(d_assigned.values()) | set(i_assigned.values()))
     lap("incidents")
-    stats["sources"] = len(quality.after_rebuild(conn, coverage))  # coverage and match statistics per source
+    misses: dict[str, dict] = {}  # link values that named nothing the register knows, per source and link type
+    for m in maps.values():
+        for rel, values in m.unresolved.items():
+            misses.setdefault(m.source, {}).setdefault(rel, Counter()).update(values)
+    stats["sources"] = len(quality.after_rebuild(conn, coverage, misses))  # coverage and match statistics per source
     stats |= lessons.suggest(conn, pack.classification.get("taxonomy", "iso14224"))
     stats["knowledge_changes"] = {k: v for k, v in knowledge.build(conn).items() if k != "rows"}
     conn.execute(

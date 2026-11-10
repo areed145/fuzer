@@ -526,6 +526,20 @@ function Matching({ d }: { d: DatasetDetail }) {
           </tbody>
         </Table>
       )}
+      {cov.unresolved && (
+        <>
+          <h3 className="small">Values that name nothing Fuzer knows</h3>
+          <p className="muted">No link is guessed for these. Fix them in the export, or add the name to the asset pack's aliases.</p>
+          <Table variant="list" density="compact">
+            <thead><tr><th>Link</th><th>Value</th><th>Rows</th></tr></thead>
+            <tbody>
+              {Object.entries(cov.unresolved as Record<string, { rows: number; values: { value: string; rows: number }[] }>)
+                .flatMap(([rel, u]) => u.values.map((x) => (
+                  <tr key={`${rel}:${x.value}`}><td>{rel}</td><td><code>{x.value}</code></td><td>{x.rows}</td></tr>)))}
+            </tbody>
+          </Table>
+        </>
+      )}
       <p className="muted">Which source wins a field: <a href={href("/sources", { view: "rules" })}>Rules</a>.</p>
     </div>
   );

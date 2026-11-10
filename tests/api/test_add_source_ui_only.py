@@ -111,6 +111,16 @@ def test_project_schedules_from_the_ui_alone(ui):
     flare = conn.execute("""select count(*) as n from edge e join crosswalk x on x.fuzer_id = e.src
                             where x.source = 'planning' and x.source_key = 'OK-MOC-0233' and e.rel = 'located_at'""").fetchone()
     assert flare["n"] == 0  # FLARE-TIP-9 names nothing Fuzer knows: no link is guessed
+    # J12 (the jacket, area 72) and J12-04 (a well without the field's prefix) resolve (#459); what names nothing is
+    # listed on the dataset's Matching tab for review
+    located = {r["source_key"]: r["label"] for r in conn.execute(
+        """select x.source_key, l.label from edge e join crosswalk x on x.fuzer_id = e.src
+           join entity_label l on l.fuzer_id = e.dst
+           where x.source = 'planning' and x.source_key in ('OK-CAP-0142', 'OK-CAP-0142-002') and e.rel = 'located_at'""")}
+    assert located["OK-CAP-0142"] == "OKAN-72" and located["OK-CAP-0142-002"].startswith("OK-J12-"), located
+    cov = ok(client.get("/sources/datasets/project_schedules"))["matching"][0]["stats"]["coverage"]
+    missed = {v["value"] for v in cov["unresolved"]["located_at"]["values"]}
+    assert "FLARE-TIP-9" in missed and "J12" not in missed and cov["by_rel"]["located_at"][1] > cov["by_rel"]["located_at"][0]
 
     # a fortnight later: progress moves, a finish slips, the cancelled flare tip job is gone
     schedules.write(data, lake, update=True, fixed=True)
