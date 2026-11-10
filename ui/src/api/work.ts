@@ -521,6 +521,8 @@ export const workApi = {
     request<Handover>("POST", `/handovers/${id}/notes`, undefined, { by, notes }),
   acknowledgeHandover: (id: number, by: string, note?: string) =>
     request<Handover>("POST", `/handovers/${id}/acknowledge`, undefined, { by, note: note ?? null }),
+  resolveRef: (id: number, by: string, ref: string, fuzer_id: string, remember: boolean, reason?: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/resolve`, undefined, { by, ref, fuzer_id, remember, reason: reason ?? null }),
   closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
   approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),

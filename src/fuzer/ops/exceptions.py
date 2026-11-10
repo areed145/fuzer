@@ -59,11 +59,51 @@ def match(conn, refs) -> tuple[list[str], list[str]]:
             union select fuzer_id from entity_key where kind || ':' || key = %(r)s
             union select fuzer_id from crosswalk where source || '/' || source_key = %(r)s
             """, {"r": ref})]
+        if not found:  # a name a steward recorded for an entity (#476)
+            from ..sources import aliases
+
+            found = aliases.lookup(conn, ref)
         if found:
             ids += [f for f in sorted(found) if f not in ids]
         else:
             unmatched.append(ref)
     return ids, unmatched
+
+
+def resolve_ref(conn, exception_id: int, ref: str, fuzer_id: str, by: str, remember: bool = True,
+                reason: str | None = None) -> dict:
+    """A person says which asset an unmatched ref meant (#476): it becomes a subject of the exception (and of its
+    case), and with `remember` the ref's value is recorded as an alias, so the next one matches on its own. An
+    exception no case works yet joins the open case about that asset, as one raised matched would have."""
+    from ..sources import aliases
+
+    row = _row(conn, exception_id, lock=True)
+    if ref not in (row["unmatched"] or []):
+        raise ExceptionError(f"{ref} is not an unmatched ref of exception {exception_id}")
+    if not conn.execute("select 1 from entity where fuzer_id = %s and retired_at is null", (fuzer_id,)).fetchone():
+        raise ExceptionError(f"no entity {fuzer_id}")
+    subjects = list(dict.fromkeys([*row["subjects"], fuzer_id]))
+    unmatched = [u for u in row["unmatched"] if u != ref]
+    resolved = {"ref": ref, "fuzer_id": fuzer_id, "by": by, "remembered": remember,
+                "at": conn.execute("select now() as t").fetchone()["t"].isoformat()}
+    conn.execute("update exception_record set subjects = %s, unmatched = %s, evidence = jsonb_set(evidence, "
+                 "'{resolved}', coalesce(evidence->'resolved', '[]') || %s), updated_at = now() where id = %s",
+                 (subjects, unmatched, Jsonb([resolved]), exception_id))
+    if remember:
+        aliases.add(conn, ref, fuzer_id, by, source=row["source"], reason=reason or f"resolved on exception {exception_id}")
+    if row["item_id"]:
+        conn.execute("update work_item set subjects = (select array_agg(distinct s) from unnest(subjects || %s) s), "
+                     "updated_at = now() where id = %s", ([fuzer_id], row["item_id"]))
+        work.comment(conn, row["item_id"], by, f"Matched {ref} to {fuzer_id}" + (" (remembered)" if remember else ""))
+    elif not row["joined_to"]:
+        t = types(conn).get(row["type"])
+        if t and (host := _host(conn, t, row["type"], row["key"], subjects)):
+            conn.execute("update exception_record set joined_to = %s, item_id = %s where id = %s",
+                         (host["id"], host["item_id"], exception_id))
+            _joined(conn, t, _row(conn, exception_id), host, by, unmatched)
+    row = _row(conn, exception_id)
+    events.publish(conn, "exception.updated", f"exception:{row['id']}", {**_payload(row), "resolved": resolved})
+    return row
 
 
 def ref_forms(conn, per_kind: int = 1) -> list[dict]:

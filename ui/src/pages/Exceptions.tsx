@@ -8,6 +8,7 @@ import { holder, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
+import { MatchRef } from "./masterdata/MatchRef";
 
 export function ExceptionsPage({ query }: { query?: URLSearchParams }) {
   const [person] = usePerson();
@@ -160,7 +161,9 @@ function Row({ r, person, people, queues, onChange }: {
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}</td>
       <td className="small">{r.subjects.map((s) => <div key={s}><a href={entityHref(s)}
         title={names?.[s]?.at ? names[s].label ?? undefined : undefined}>{assetName(s, names?.[s])}</a></div>)}
-        {r.unmatched.length > 0 && <div className="muted">unmatched: {r.unmatched.join(", ")}</div>}</td>
+        {r.unmatched.map((u) => <div key={u} className="muted">unmatched: {u}{" "}
+          {r.state === "open" && person && <MatchRef value={u} busy={!!busy} onPick={(fid, remember) =>
+            run("Matching", () => api.resolveRef(r.id, person, u, fid, remember), onChange)} />}</div>)}</td>
       <td className="small">{r.raised_count}× · last {when(r.last_seen)}</td>
       <td className="small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={href("/plan")}>planned {new Date(r.planned.start_at).toLocaleDateString(undefined,

@@ -22,6 +22,7 @@ import { InboxPage } from "./pages/workflows/Inbox";
 import { FieldPage } from "./pages/Field";
 import { ExceptionsPage } from "./pages/Exceptions";
 import { HandoverPage } from "./pages/Handover";
+import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
 import { TurnaroundPage } from "./pages/Turnaround";
 import { TaskPage } from "./pages/workflows/Task";
@@ -158,6 +159,8 @@ function App() {
             <FieldPage />
           ) : section === "exceptions" ? (
             <ExceptionsPage query={query} />
+          ) : section === "masterdata" ? (
+            <MasterDataPage query={query} />
           ) : section === "handover" ? (
             <HandoverPage query={query} />
           ) : section === "plan" ? (

@@ -293,3 +293,22 @@ create table if not exists source_exception_rule (
 -- (a case on closeout_role's Inbox to approve first) or send. Unset: none, except SAP, which drafts to the planners.
 alter table source_system add column if not exists closeout text check (closeout in ('none', 'draft', 'send'));
 alter table source_system add column if not exists closeout_role text;
+
+-- Aliases a steward recorded (#476, sources/aliases.py): a value a system writes, as another name for an entity
+-- (by one of its keys, so it survives re-numbering). Laid over the pack's aliases on each rebuild; matched by
+-- exceptions as they are raised. Retired, not deleted, so the decision log keeps them.
+create table if not exists entity_alias (
+    id          bigserial primary key,
+    value       text not null,
+    norm        text not null,                  -- lower case, single spaces: what is matched
+    kind        text not null,                  -- the entity key it names: tag, well, equipment, ...
+    key         text not null,
+    fuzer_id    text,                           -- the entity when it was recorded
+    source      text,                           -- the system whose value it was, when known
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    reason      text,
+    retired_at  timestamptz,
+    retired_by  text
+);
+create unique index if not exists entity_alias_current on entity_alias (norm) where retired_at is null;

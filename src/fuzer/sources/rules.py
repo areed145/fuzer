@@ -72,7 +72,9 @@ def apply(conn, pack: Pack) -> Pack:
     for (scope, name), cfg in rules.items():
         if scope == "match":
             matching[name] = {**matching.get(name, {}), **cfg}
-    return dataclasses.replace(pack, survivorship=surv, matching=matching)
+    from . import aliases
+
+    return aliases.apply(conn, dataclasses.replace(pack, survivorship=surv, matching=matching))
 
 
 def listing(conn) -> dict:
