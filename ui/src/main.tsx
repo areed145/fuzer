@@ -140,7 +140,7 @@ function App() {
           ) : section === "ontology" ? (
             <Ontology query={query} />
           ) : section === "network" ? (
-            <Network />
+            <Network query={query} />
           ) : section === "map" ? (
             <MapPage />
           ) : section === "downtime" ? (

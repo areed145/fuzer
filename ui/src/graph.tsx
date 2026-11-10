@@ -5,7 +5,7 @@ import { THEME_CHANGED } from "./theme";
 import cytoscape, { type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
 import dagre from "cytoscape-dagre";
 import fcose from "cytoscape-fcose";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import type { Subgraph } from "./api";
 import { Button } from "./ui";
 
@@ -36,7 +36,12 @@ function themeColors() {
   return { text: v("--text"), muted: v("--muted"), line: v("--line"), panel: v("--panel"), accent: v("--accent") };
 }
 
-function stylesheet() {
+/** Labels are drawn in graph units, so a big graph fitted on a phone shrinks them past reading. When zoomed out,
+ * labels grow (up to a limit) to keep roughly this size on screen; in steps, so zooming restyles rarely. */
+const MIN_LABEL_PX = 8;
+const labelScale = (zoom: number) => Math.min(2.5, Math.max(1, Math.round((MIN_LABEL_PX / (10 * zoom)) * 4) / 4));
+
+function stylesheet(scale = 1) {
   const t = themeColors();
   return [
     {
@@ -47,12 +52,12 @@ function stylesheet() {
         height: "data(size)",
         label: "data(label)",
         color: t.text,
-        "font-size": 10,
+        "font-size": 10 * scale,
         "font-family": "ui-monospace, Menlo, Consolas, monospace",
         "text-valign": "bottom",
         "text-margin-y": 4,
         "text-wrap": "wrap",
-        "text-max-width": "140px",
+        "text-max-width": `${140 * scale}px`,
         "text-background-color": t.panel,
         "text-background-opacity": 0.85,
         "text-background-padding": "1px",
@@ -70,7 +75,7 @@ function stylesheet() {
         "arrow-scale": 0.8,
         "curve-style": "bezier",
         opacity: 0.7,
-        "font-size": 9,
+        "font-size": 9 * scale,
         color: t.muted,
         "text-rotation": "autorotate",
         "text-background-color": t.panel,
@@ -78,6 +83,7 @@ function stylesheet() {
         "text-background-padding": "2px",
       },
     },
+    { selector: "edge[color]", style: { "line-color": "data(color)", "target-arrow-color": "data(color)", opacity: 0.85 } },
     { selector: "edge.labeled, edge:selected, edge.hover, edge.near", style: { label: "data(label)" } },
     { selector: "edge[?ended]", style: { "line-style": "dashed" } },
     {
@@ -87,12 +93,22 @@ function stylesheet() {
   ];
 }
 
+/** Fit the whole graph in view. Small graphs would otherwise be fitted at a huge zoom. */
+function fitGraph(cy: Core) {
+  cy.fit(undefined, 24);
+  if (cy.zoom() > 1.2) {
+    cy.zoom(1.2);
+    cy.center();
+  }
+}
+
 /** Turn an API subgraph into Cytoscape elements. */
 export function subgraphElements(
   g: Subgraph,
   rootId?: string,
   labelEdges = g.edges.length <= 80, // otherwise labels show on hover / select
   markEnded = true, // dash links that have ended; off when viewing "as of" a date
+  relColor?: (rel: string) => string | undefined, // colour links by type when several are drawn together
 ): ElementDefinition[] {
   return [
     ...g.nodes.map((n) => ({
@@ -112,6 +128,7 @@ export function subgraphElements(
         source: e.src,
         target: e.dst,
         rel: e.rel,
+        ...(relColor?.(e.rel) ? { color: relColor(e.rel) } : {}),
         ended: markEnded && !!e.valid_to,
         label: e.valid_from || e.valid_to ? `${e.rel} ${e.valid_from ?? "…"} → ${e.valid_to ?? "now"}` : e.rel,
       },
@@ -147,10 +164,26 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     // A hovered or selected node names its own links, so unlabelled graphs stay readable (#399).
     cy.on("mouseover", "node", (e) => e.target.connectedEdges().addClass("near"));
     cy.on("mouseout", "node", (e) => { if (!e.target.selected()) e.target.connectedEdges().removeClass("near"); });
-    const restyle = () => cy.style(stylesheet() as cytoscape.StylesheetJson);
+    let scale = 1;
+    const restyle = () => cy.style(stylesheet(scale) as cytoscape.StylesheetJson);
+    cy.on("zoom", () => {
+      const next = labelScale(cy.zoom());
+      if (next !== scale) { scale = next; restyle(); }
+    });
     window.addEventListener(THEME_CHANGED, restyle);
+    // The canvas changes size when a phone turns or the side panel moves below the graph: redraw at the new
+    // size, and refit when the width changed so the graph isn't left cut off or lost in a corner.
+    let width = container.current?.clientWidth ?? 0;
+    const resized = new ResizeObserver(() => {
+      cy.resize();
+      const now = container.current?.clientWidth ?? 0;
+      if (now && Math.abs(now - width) > 40 && cy.elements().length) fitGraph(cy);
+      width = now;
+    });
+    if (container.current) resized.observe(container.current);
     cyRef.current = cy;
     return () => {
+      resized.disconnect();
       window.removeEventListener(THEME_CHANGED, restyle);
       cy.destroy();
       cyRef.current = null;
@@ -165,13 +198,7 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
       cy.add(elements);
     });
     const run = cy.layout(LAYOUTS[layout]);
-    // Small graphs would otherwise be fitted at a huge zoom.
-    run.one("layoutstop", () => {
-      if (cy.zoom() > 1.2) {
-        cy.zoom(1.2);
-        cy.center();
-      }
-    });
+    run.one("layoutstop", () => fitGraph(cy));
     run.run();
   }, [elements, layout]);
 
@@ -186,12 +213,13 @@ export function GraphCanvas({ elements, layout, selectedId, onSelect, onExpand, 
     }
   }, [selectedId, elements]);
 
-  const fit = () => cyRef.current?.fit(undefined, 24);
+  const fit = () => cyRef.current && fitGraph(cyRef.current);
 
   return (
     // Cytoscape caches where its container sits on the page; refresh that before each press so
     // content changing above the graph (text, banners) can't make clicks land in the wrong place.
-    <div className="graph-canvas" style={{ height }} onPointerDownCapture={() => cyRef.current?.resize()}>
+    <div className="graph-canvas" style={{ "--graph-height": `${height}px` } as CSSProperties}
+      onPointerDownCapture={() => cyRef.current?.resize()}>
       <div ref={container} className="graph-surface" />
       <Button variant="secondary" size="sm" className="graph-fit" onClick={fit} title="Fit to view">
         Fit
