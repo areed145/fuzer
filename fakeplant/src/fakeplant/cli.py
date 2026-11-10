@@ -1,4 +1,4 @@
-"""Command line: fakeplant generate | demo | historian."""
+"""Command line: fakeplant generate | demo | drawings | historian."""
 
 import argparse
 import json
@@ -25,6 +25,8 @@ def main(argv=None):
     sc.add_argument("--okan", default="fakeplant/data/okan", help="the Okan exports it is built from")
     sc.add_argument("--update", action="store_true", help="write version 1: progress moves, a finish slips, a row goes")
     sc.add_argument("--fixed", action="store_true", help="without the copied row (the planner's fix for the held load)")
+    dw = sub.add_parser("drawings", help="draw a hand-written bundle's smart P&IDs and record where each tag sits")
+    dw.add_argument("bundle", help="the bundle folder, e.g. fakeplant/bundles/kestrel")
     h = sub.add_parser("historian", help="serve a fake PI Web API and ADX over the fake plant's points")
     h.add_argument("--data", dest="out", default=None, help="exports folder (default: fakeplant/data/okan)")
     h.add_argument("--host", default="127.0.0.1")
@@ -33,10 +35,14 @@ def main(argv=None):
         x.add_argument("--format", choices=["csv", "parquet"], default="csv",
                        help="parquet writes each table as a lake-style folder of Parquet part files")
     args = p.parse_args(argv)
-    args.out = args.out or str(DATA / "okan")
+    args.out = getattr(args, "out", None) or str(DATA / "okan")
 
     if args.cmd == "generate":
         _print(generate(args))
+    elif args.cmd == "drawings":
+        from . import drawings
+
+        _print(drawings.render(Path(args.bundle)))
     elif args.cmd == "schedules":
         from . import schedules
 

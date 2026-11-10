@@ -125,6 +125,24 @@ def test_kestrels_sources_name_only_tags_its_register_holds():
     assert flocs <= on_drawings  # and every tag in the register is on a P&ID
 
 
+def test_kestrels_drawings_match_its_p_and_id_sheets(tmp_path):
+    """The committed drawings are what `fakeplant drawings` draws from pid_sheets.json today: one per sheet, with
+    every tag placed. Edit a sheet without redrawing and this fails."""
+    import json
+    import shutil
+
+    from fakeplant import drawings
+
+    committed = json.loads((KESTREL / "exports" / "pid_sheets.json").read_text())
+    for s in committed:
+        assert (KESTREL / "exports" / s["image"]).is_file()
+        assert set(s["positions"]) == set(s["tags"])
+    copy = tmp_path / "kestrel"
+    shutil.copytree(KESTREL, copy, ignore=shutil.ignore_patterns("*.png"))
+    drawings.render(copy)
+    assert json.loads((copy / "exports" / "pid_sheets.json").read_text()) == committed
+
+
 # ---- acceptance: Kestrel boots from its bundle in a fresh database ----------------------------------
 
 def _fresh(name: str) -> str:
@@ -207,6 +225,16 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
             "A1-V-1001", "B1-K-2001", "C1-P-3002A", "C1-FT-3005", "C1-H-3008", "D1-V-4001", "E1-K-5004",
             "F1-V-6002", "G1-G-7006", "H1-FT-8010"}
         assert keys["well"] == {"KR 12-03H", "KR 12-04H"}
+        # Every P&ID shows as a drawing with each of its tags marked and linked (smart sheets: no model call).
+        from fuzer.graph.queries.documents import drawing
+
+        sheets = [r["fuzer_id"] for r in conn.execute(
+            "select fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")]
+        assert len(sheets) == 10
+        for sheet in sheets:
+            g = drawing(conn, sheet)
+            assert g and g["read_by"] == "smart file" and g["marks"]
+            assert all(m.get("id") for m in g["marks"]), [m["key"] for m in g["marks"] if not m.get("id")]
         assert not any("OK" in k for ks in keys.values() for k in ks)
         wells_with_series = conn.execute(
             "select count(distinct src) as n from edge where rel = 'has_timeseries' and src in "
