@@ -308,6 +308,8 @@ create table if not exists source_closeout (
     applied_at    timestamptz                      -- the demo applied it to the system's export
 );
 create index if not exists source_closeout_exception on source_closeout (exception_id);
+-- Why a sent close-out wasn't applied to the demo's export file (setting off, no export holds the record, ...).
+alter table source_closeout add column if not exists applied_note text;
 
 -- Shift handovers (#467, ops/handover.py): drafted from live work at each shift change, the outgoing lead's notes,
 -- and the incoming lead's acknowledgement (also on its case's history).
