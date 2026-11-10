@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson } from "../../work";
+import { useAuth } from "../../Auth";
+import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
 
 export function InboxPage() {
@@ -69,7 +71,34 @@ export function InboxPage() {
       <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
+      <OtherFields person={person} />
     </section>
+  );
+}
+
+/** The same person's work in the other fields they hold a role in (#497): an overarching specialist or monitoring
+ * desk sees every field from one Inbox. Fields they may not open aren't listed (the server checks); opening one
+ * switches this tab to that field. */
+function OtherFields({ person }: { person: string }) {
+  const session = useAuth();
+  const fields = useAsync(() => api.inboxFields(person), [person]);
+  const here = session?.project ?? "";
+  const others = (fields.data ?? []).filter((f) => f.project !== here && f.mine.length + f.queue.length > 0);
+  if (!others.length) return null;
+  return (
+    <UICard className="">
+      <h2>In your other fields <span className="muted small">{others.length} · you hold roles there too</span></h2>
+      {others.map((f) => <div key={f.project}>
+        <h3 className="small">{f.project} <span className="muted">· {f.mine.length} assigned to you · {f.queue.length} unclaimed
+          in {f.roles.join(", ").replace(/_/g, " ")}</span>{" "}
+          <Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button></h3>
+        <Table variant="results"><tbody>{[...f.mine, ...f.queue].sort(byUrgency).slice(0, 5).map((r) =>
+          <tr key={`${f.project}-${r.task_id ?? "i"}-${r.item_id}`}>
+            <td><span className="work-title">{r.title}</span><div className="small muted"><strong>{r.name ?? "open"}</strong> · {r.type.replace(/_/g, " ")} · with {holder(r.assignee, r.role, r.kind)}</div></td>
+            <td className="nowrap"><Due at={r.due_at} /></td>
+          </tr>)}</tbody></Table>
+      </div>)}
+    </UICard>
   );
 }
 

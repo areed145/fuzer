@@ -2471,3 +2471,23 @@ test("a P&ID drawing in another project loads its image from that project", asyn
   await page.waitForFunction(() => document.querySelector("img[alt^='P&ID']")?.complete);
   assert.equal(imageQuery, "kestrel");  // an <img> can't send the project header, so the URL names it
 });
+
+test("an overarching person's Inbox lists their work in other fields and opens a field by switching to it (#497)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "vera"));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "local", configured: true, user: null,
+    project: "okan", projects: ["okan", "kestrel"] } }));
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "vera", roles: ["engineer"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  const row = { task_id: 9, item_id: 3, title: "Sales gas compressor vibration", name: "Triage", type: "upset", assignee: null,
+    role: "engineer", kind: "user", due_at: null, priority: null, bulk: [] };
+  await page.route("**/work/inbox/fields?*", (route) => route.fulfill({ json: [
+    { project: "okan", roles: ["engineer"], mine: [], queue: [] },
+    { project: "kestrel", roles: ["engineer"], mine: [], queue: [row] },
+  ] }));
+  await page.goto(`${url}/#/inbox`);
+  await page.getByText("In your other fields", { exact: false }).waitFor();
+  await page.getByText("Sales gas compressor vibration", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Work in okan" }).count(), 0);  // the field this tab is in
+  await page.getByRole("button", { name: "Work in kestrel" }).click();
+  assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
+});

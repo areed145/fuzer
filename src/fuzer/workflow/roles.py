@@ -165,7 +165,9 @@ def delete_role(conn, name: str, by: str) -> dict:
                                                      "where state = 'published'")
              if any(name in (n.role, n.agent, n.attrs.get("escalateTo"))
                     for n in engine._definition(conn, x["id"]).nodes.values())]
-    held = [p["name"] for p in conn.execute("select name from work_person where %s = any(roles)", (name,))]
+    held = [p["name"] for p in conn.execute("select name from work_person where %s = any(roles) union "
+                                            "select name from fuzer.work_person_cover where %s = any(roles)",
+                                            (name, name))]
     waiting = conn.execute("select count(*) as n from work_token where state = 'waiting' and role = %s", (name,)).fetchone()["n"]
     esc = [x["name"] for x in conn.execute("select name from work_role where escalate_to = %s", (name,))]
     if users or held or waiting or esc:
@@ -180,17 +182,30 @@ def delete_role(conn, name: str, by: str) -> dict:
 
 # ---- people: away and delegates ------------------------------------------------------------------
 
+def _on_roster(conn, person: str) -> bool:
+    """Whether `person` works this project: on its roster, or overarching and covering it (#497). An overarching
+    person gets a roster row with no roles of its own, so being away here is recorded here."""
+    from .definitions import _covers
+
+    if conn.execute("select 1 from work_person where name = %s", (person,)).fetchone():
+        return True
+    if _covers(conn, person):
+        conn.execute("insert into work_person (name, roles) values (%s, '{}') on conflict do nothing", (person,))
+        return True
+    return False
+
+
 def set_away(conn, person: str, by: str, until: datetime | None, delegate: str | None = None,
              note: str | None = None) -> dict:
     """Mark a person away until a time (None: back), with who covers for them."""
     from . import engine
 
-    if not conn.execute("select 1 from work_person where name = %s", (person,)).fetchone():
+    if not _on_roster(conn, person):
         raise RoleError(f"no person {person!r}")
     if delegate:
         if delegate == person:
             raise RoleError("a person can't cover for themselves")
-        if not conn.execute("select 1 from work_person where name = %s", (delegate,)).fetchone():
+        if not _on_roster(conn, delegate):
             raise RoleError(f"no person {delegate!r} to cover")
     conn.execute("update work_person set away_until = %s, delegate = %s, note = %s where name = %s",
                  (until, delegate if until else None, note if until else None, person))
@@ -296,7 +311,8 @@ def workload(conn, now: datetime) -> dict:
                        "display_name": p["display_name"], "account_enabled": p["account_enabled"],
                        "assigned": w.get("waiting", 0),
                        "overdue": w.get("overdue", 0), "away": bool(p["away_until"] and p["away_until"] > now),
-                       "away_until": p["away_until"], "delegate": p["delegate"], "note": p["note"]})
+                       "away_until": p["away_until"], "delegate": p["delegate"], "note": p["note"],
+                       "covers": p.get("covers"), "cover_roles": p.get("cover_roles", [])})
     agents = [{"role": r["role"], "waiting": r["waiting"], "failing": r["failing"]} for r in conn.execute(
         "select role, count(*) as waiting, count(*) filter (where attempts > 0) as failing from work_token "
         "where state = 'waiting' and kind = 'agent' group by 1 order by 1")]

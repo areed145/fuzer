@@ -125,6 +125,12 @@ class WorkPerson(BaseModel):
     by: str = work.SYSTEM
 
 
+class WorkCover(BaseModel):
+    roles: list[str]
+    projects: list[str] = []  # empty: every project
+    by: str = work.SYSTEM
+
+
 @router.get("/work/items")
 def work_items(state: str | None = "open", type: str | None = None, assignee: str | None = None,
                role: list[str] | None = Query(None), subject: str | None = None, overdue: bool | None = None,
@@ -184,6 +190,37 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
     """A person's tasks ('mine') and their roles' unclaimed queue, with overdue and due-soon counts.
     Roles default to the ones the person holds."""
     return work.my_work(conn, person, role)
+
+
+@router.get("/work/inbox/fields")
+def work_inbox_fields(person: str):
+    """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for
+    specialists and monitoring staff whose work cuts across fields."""
+    from ..core import access, db
+    from .security import current
+
+    allowed = None
+    if (who := current.get()) is not None:
+        with db.connect() as conn:
+            allowed = access.projects_for(conn, who)
+    return work.work_across(person, allowed)
+
+
+@router.get("/work/covers")
+def work_covers(conn=Depends(get_conn)):
+    """The overarching people in this instance, with the fields they cover ([] is every field)."""
+    return work.covers(conn)
+
+
+@router.put("/work/people/{name}/cover")
+def work_person_cover(name: str, c: WorkCover, conn=Depends(get_conn)):
+    """Make someone overarching (#497): their roles count in every field they cover, on top of each field's roster."""
+    return work.set_cover(conn, name, c.roles, c.projects, c.by)
+
+
+@router.delete("/work/people/{name}/cover")
+def work_person_cover_remove(name: str, by: str = work.SYSTEM, conn=Depends(get_conn)):
+    return work.remove_cover(conn, name, by)
 
 
 @router.get("/work/agents/{role}")

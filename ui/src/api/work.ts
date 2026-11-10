@@ -210,7 +210,12 @@ export interface WorkloadPerson {
   display_name?: string | null; account_enabled?: boolean | null;
   name: string; roles: string[]; assigned: number; overdue: number; away: boolean; away_until: string | null;
   delegate: string | null; note: string | null;
+  /** Overarching (#497): the fields they cover ([] is every field) and the roles they hold there; null: this field's roster only. */
+  covers?: string[] | null; cover_roles?: string[];
 }
+
+/** A person's Inbox in one field (project), for the cross-field view (#497). */
+export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
   people: WorkloadPerson[];
@@ -597,6 +602,11 @@ export const workApi = {
   setAway: (name: string, by: string, until: string | null, delegate?: string | null, note?: string | null) =>
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
+  inboxFields: (person: string) => request<FieldInbox[]>("GET", "/work/inbox/fields", { person }),
+  setCover: (name: string, roles: string[], projects: string[], by: string) =>
+    request("PUT", `/work/people/${encodeURIComponent(name)}/cover`, undefined, { roles, projects, by }),
+  removeCover: (name: string, by: string) =>
+    request("DELETE", `/work/people/${encodeURIComponent(name)}/cover`, { by }),
   workRouting: (definitionId: number) => request<StepRouting[]>("GET", `/work/definitions/${definitionId}/routing`),
   workStats: (days = 30) => request<ProcessStats[]>("GET", "/work/stats", { days }),
   workInstances: (processKey: string, state = "running") =>
