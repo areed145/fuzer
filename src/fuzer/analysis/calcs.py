@@ -615,6 +615,24 @@ CHECKS |= {
 }
 
 
+def _rotating(name):
+    def fn(conn, fid, **kw):
+        from . import rotating
+
+        return getattr(rotating, name)(conn, fid, **kw)
+    return fn
+
+
+CHECKS |= {
+    "vibration": {"fn": lambda conn, fid, days=90, until=None: _rotating("vibration")(conn, fid, days=days, until=until),
+                  "ref": "machine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "pump_bep": {"fn": lambda conn, fid, days=90, until=None: _rotating("pump_bep")(conn, fid, days=days, until=until),
+                 "ref": "pump tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "rotating_health": {"fn": lambda conn, fid, until=None: _rotating("health")(conn, fid, until=until),
+                        "ref": "machine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+}
+
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes."""
     import inspect
