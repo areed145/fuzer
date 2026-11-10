@@ -9,10 +9,10 @@ import { useEntityNames } from "../useEntityNames";
 import { SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 
-export function ExceptionsPage() {
+export function ExceptionsPage({ query }: { query?: URLSearchParams }) {
   const [person] = usePerson();
   const [state, setState] = useState("open");
-  const [type, setType] = useState("");
+  const [type, setType] = useState(query?.get("type") ?? "");
   const back = state === "back";  // open, and the field's last word was done or could not do: the IOC decides next
   const rows = useAsync(() => api.exceptions({ state: back ? "open" : state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);

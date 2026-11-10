@@ -2,7 +2,7 @@ import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState } from "react";
-import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json } from "../../api";
+import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json, type PackReport } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { TestSteps, reviewer, useAction } from "./common";
 
@@ -12,7 +12,16 @@ const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
   ["decimal", "Decimal mark", ", for a decimal comma"], ["timezone", "Timezone", "e.g. Europe/London"],
   ["encoding", "Encoding", "CSV text, e.g. latin-1"], ["rank", "Survivorship rank", "lower wins a field"],
   ["notes", "Notes", "reliability, known issues"],
+  ["webhook_secret", "Webhook secret", "env:NAME holding the shared secret its webhook checks"],
 ];
+
+const download = (name: string, text: string, type: string) => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 
 export function Systems() {
   const cat = useAsync(() => api.catalog(), []);
@@ -25,6 +34,7 @@ export function Systems() {
         {" "}A deliberate test contacts the service, may read sample rows and saves its result; it does not load data or call AI.
       </p>
       <NewSystem onDone={cat.reload} />
+      <ImportPack onDone={cat.reload} />
       <Status loading={cat.loading && !cat.data} error={cat.error} />
       {cat.data?.systems.map((s) => <SystemCard key={s.id} s={s} cat={cat.data!} reload={cat.reload} />)}
     </>
@@ -49,6 +59,96 @@ export function NewSystem({ onDone }: { onDone: (name: string) => void }) {
   );
 }
 
+/** Bring in a source pack (#227, #458, #465): a system with its connections, datasets, mappings, checks, and the
+ * exception types and rules it brings. A folder elsewhere in this environment is given before anything is written. */
+export function ImportPack({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [folders, setFolders] = useState<Record<string, string>>({});
+  const [report, setReport] = useState<PackReport | null>(null);
+  const a = useAction();
+  const conns = [...text.matchAll(/- name: (\S+)\n\s+type: folder/g)].map((m) => m[1]);
+  if (!open) return <p className="small"><Button variant="link" onClick={() => setOpen(true)}>Import a source pack…</Button></p>;
+  return (
+    <UICard title="Import a source pack">
+      <p className="muted small">A pack is one system as a YAML file (download one from a system below). Importing is safe to
+        repeat: what is already here and the same is left alone, and a mapping that differs from one a person approved here
+        becomes a draft for review. Its exception types and rules come with it.</p>
+      <input type="file" accept=".yaml,.yml" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
+      <textarea className="mono" rows={8} style={{ width: "100%" }} placeholder="fuzer_source_pack: 1 …" value={text}
+        onChange={(e) => setText(e.target.value)} />
+      {conns.map((c) => (
+        <div key={c} className="row small">
+          <span>Folder for connection <code>{c}</code> here</span>
+          <Input placeholder="as in the pack" value={folders[c] ?? ""} onChange={(e) => setFolders({ ...folders, [c]: e.target.value })} />
+        </div>
+      ))}
+      <div className="row">
+        <Button variant="primary" disabled={!text.trim() || !!a.busy}
+          onClick={() => a.run("import", () => api.importPack(text, Object.fromEntries(Object.entries(folders)
+            .filter(([, v]) => v.trim()).map(([k, v]) => [k, { path: v.trim() }])), reviewer()), (r) => { setReport(r); onDone(); })}>
+          {a.busy ? "Importing…" : "Import"}</Button>
+        <Button variant="link" onClick={() => { setOpen(false); setReport(null); }}>Close</Button>
+      </div>
+      {a.error && <p className="error small">{a.error}</p>}
+      {report && (
+        <Table variant="list" density="compact">
+          <tbody>{Object.entries(report).map(([k, v]) => <tr key={k}><th>{k.replace(/_/g, " ")}</th><td>{v.join(", ")}</td></tr>)}</tbody>
+        </Table>
+      )}
+    </UICard>
+  );
+}
+
+/** The work a system brings (#465): its exception types with how many are open, the rules that raise them from its
+ * loaded records, and its webhook. */
+function SystemWork({ system }: { system: string }) {
+  const w = useAsync(() => api.systemWorkflows(system), [system]);
+  const a = useAction();
+  if (!w.data) return <Status loading={w.loading} error={w.error} />;
+  const { types, rules, webhook } = w.data;
+  return (
+    <>
+      <h3>Work it brings</h3>
+      {!types.length && !rules.length && <p className="muted small">No exception types or rules yet: a source pack brings
+        them (<code>exception_types</code>, <code>exception_rules</code>).</p>}
+      {types.length > 0 && (
+        <Table density="compact">
+          <thead><tr><th>Exception type</th><th>Goes to</th><th>Seen by</th><th>Open</th></tr></thead>
+          <tbody>{types.map((t) => (
+            <tr key={t.name}><td title={t.description ?? ""}>{t.label} <code className="muted">{t.name}</code></td>
+              <td>{t.process ? `process ${t.process}` : t.role?.replace("role:", "") ?? "the board"}</td>
+              <td>{t.audience.join(", ")}</td>
+              <td>{t.open ? <a href={href(`/exceptions?type=${encodeURIComponent(t.name)}`)}>{t.open}</a> : 0}</td></tr>
+          ))}</tbody>
+        </Table>
+      )}
+      {rules.length > 0 && (
+        <Table density="compact">
+          <thead><tr><th>Rule</th><th>Over</th><th>Raises when</th><th>Type</th><th /></tr></thead>
+          <tbody>{rules.map((r) => (
+            <tr key={r.name}><td><code>{r.name}</code>{r.enabled === false && <span className="muted"> (off)</span>}</td>
+              <td>{r.dataset}</td>
+              <td className="mono small">{whenText(r.when)}{r.clear_when ? ` · clears when ${whenText(r.clear_when)}` : ""}</td>
+              <td>{r.type}</td>
+              <td><Button variant="link" disabled={!!a.busy} onClick={() => confirm(`Remove rule ${r.name}? Exceptions it raised stay until cleared.`)
+                && a.run(`del-${r.name}`, () => api.deleteExceptionRule(system, r.name, reviewer()), w.reload)}>remove</Button></td></tr>
+          ))}</tbody>
+        </Table>
+      )}
+      <p className="small">Webhook <code>POST {webhook.path}</code> with header <code>X-Fuzer-Secret</code>:{" "}
+        {webhook.secret ? <UIBadge tone={webhook.ready ? "ok" : "warn"} title={webhook.secret}>
+          {webhook.ready ? "secret resolves" : `${webhook.secret} is not set`}</UIBadge>
+          : <span className="muted">off (set a webhook secret above)</span>}</p>
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
+  );
+}
+
+const whenText = (when: Json) => Object.entries(when).map(([col, cond]) =>
+  Object.entries(cond as Json).map(([op, v]) => `${col} ${OP_TEXT[op] ?? op} ${Array.isArray(v) ? v.join("|") : String(v)}`).join(", ")).join(" and ");
+const OP_TEXT: Record<string, string> = { eq: "=", ne: "≠", lt: "<", le: "≤", gt: ">", ge: "≥", in: "in", not_in: "not in" };
+
 function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload: () => void }) {
   const [vals, setVals] = useState<Record<string, string>>(() =>
     Object.fromEntries(SYSTEM_FIELDS.map(([k]) => [k, s[k] == null ? "" : String(s[k])])));
@@ -71,7 +171,10 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
       <Button variant="primary" disabled={!changed.length || !!a.busy}
         onClick={() => a.run("save", () => api.editSystem(s.name, Object.fromEntries(changed.map(([k]) =>
           [k, vals[k] === "" ? null : k === "rank" ? Number(vals[k]) : vals[k]])), reviewer()), reload)}>Save</Button>
+      <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("pack", () => api.exportPack(s.name),
+        (r) => download(`${s.name}.source-pack.yaml`, r.yaml, "application/yaml"))}>Download source pack</Button>
       {a.error && <p className="error small">{a.error}</p>}
+      <SystemWork system={s.name} />
       <h3>Connections</h3>
       {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
       {adding ? (

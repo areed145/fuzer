@@ -156,7 +156,7 @@ function App() {
           ) : section === "field" ? (
             <FieldPage />
           ) : section === "exceptions" ? (
-            <ExceptionsPage />
+            <ExceptionsPage query={query} />
           ) : section === "plan" ? (
             <PlanPage />
           ) : section === "turnaround" ? (

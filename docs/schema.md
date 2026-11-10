@@ -623,6 +623,20 @@ Curves Claude read off datasheets, accepted in the review queue; the rebuild lan
 | `accepted_by` | text |  |
 | `accepted_at` | timestamptz |  |
 
+### `source_exception_rule`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `system` | text |  |
+| `name` | text |  |
+| `dataset` | text |  |
+| `type` | text | the exception type raised (usually one the system's pack brought) |
+| `config` | jsonb | when, clear_when, key, refs, title, priority, value_usd |
+| `enabled` | boolean |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Graph and golden records
 
 [`src/fuzer/graph/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/schema.sql)

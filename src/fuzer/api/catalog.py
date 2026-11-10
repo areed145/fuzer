@@ -23,12 +23,13 @@ def _data_dir() -> str:
 
 def _do(conn, fn, *args, **kwargs):
     """Run a catalog change: commit it, or turn a validation error into a 400."""
+    from ..core.exceptions import ExceptionError
     from ..core.jsonsafe import plain
     from ..sources import catalog, impact, quality, rules
 
     try:
         out = fn(*args, **kwargs)
-    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError) as e:
+    except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError, ExceptionError) as e:
         conn.rollback()
         raise HTTPException(400, str(e)) from e
     conn.commit()
@@ -212,7 +213,84 @@ def import_pack(body: PackImport, conn=Depends(get_conn)):
     """Add or update a source pack's system, connections, datasets, mappings and checks (safe to repeat)."""
     from ..sources import catalog
 
-    return _do(conn, catalog.import_pack, conn, body.yaml, body.by, body.reason, body.config)
+    return _do(conn, catalog.import_pack, conn, body.yaml, body.by, body.reason, body.config, data_dir=_data_dir())
+
+
+# ---- the work a system brings (#465) -----------------------------------------------------------
+
+@router.get("/systems/{name}/workflows")
+def system_workflows(name: str, conn=Depends(get_conn)):
+    """The exception types a system brought (with how many are open), its rules over its datasets, and its webhook."""
+    from ..sources import catalog, connections, workflows
+
+    s = catalog.system(conn, name)
+    if not s:
+        raise HTTPException(404, f"no system {name!r}")
+    ref = s.get("webhook_secret")
+    try:
+        ready = bool(connections.resolve(ref)) if ref else False
+    except connections.ConnectionError_:
+        ready = False
+    return {"types": workflows.types_of(conn, name),
+            "rules": [{**workflows.as_pack(r), "updated_by": r["updated_by"], "updated_at": r["updated_at"]}
+                      for r in workflows.rules(conn, name)],
+            "webhook": {"path": f"/hooks/{name}", "secret": ref, "ready": ready}}
+
+
+class ExceptionTypeIn(BaseModel):
+    label: str
+    role: str | None = None
+    process: str | None = None
+    case_type: str | None = None
+    audience: list[str] = Field(default_factory=lambda: ["ioc"])
+    close_case_on_clear: bool = True
+    description: str | None = None
+    joins: bool = True
+    by: str = "anonymous"
+
+
+@router.put("/systems/{name}/exception-types/{type_name}")
+def system_exception_type(name: str, type_name: str, body: ExceptionTypeIn, conn=Depends(get_conn)):
+    """Define (or change) an exception type the system brings."""
+    from ..sources import workflows
+
+    values = body.model_dump(exclude={"by"})
+    _do(conn, workflows.define_types, conn, name, [{"name": type_name, **values}], body.by)
+    return next(t for t in workflows.types_of(conn, name) if t["name"] == type_name)
+
+
+class RuleIn(BaseModel):
+    dataset: str
+    type: str
+    when: dict[str, Any]
+    clear_when: dict[str, Any] | None = None
+    key: str | None = None
+    refs: list[Any] = Field(default_factory=list)
+    title: str | None = None
+    priority: float | None = None
+    value_usd: float | str | None = None
+    enabled: bool = True
+    by: str = "anonymous"
+
+
+@router.put("/systems/{name}/rules/{rule}")
+def system_rule(name: str, rule: str, body: RuleIn, conn=Depends(get_conn)):
+    """Add or change a rule that raises exceptions from the system's loaded records; it runs now and after each load."""
+    from ..sources import workflows
+
+    row = _do(conn, workflows.set_rule, conn, name, rule, body.by, **body.model_dump(exclude={"by"}))
+    ran = _do(conn, workflows.evaluate, conn, [row["dataset"]])
+    return {**workflows.as_pack(row), "ran": ran.get(f"{name}/{rule}")}
+
+
+@router.delete("/systems/{name}/rules/{rule}")
+def system_rule_remove(name: str, rule: str, conn=Depends(get_conn)):
+    """Remove a rule (the exceptions it raised stay until cleared or their case is done)."""
+    from ..sources import workflows
+
+    if not _do(conn, workflows.remove_rule, conn, name, rule):
+        raise HTTPException(404, f"{name} has no rule {rule!r}")
+    return {"removed": rule}
 
 
 # ---- systems and connections -------------------------------------------------------------------

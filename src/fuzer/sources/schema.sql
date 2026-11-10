@@ -272,3 +272,19 @@ create table if not exists curve_digitised (
     accepted_by  text not null,
     accepted_at  timestamptz not null default now()
 );
+
+-- The work a system brings (#465, sources/workflows.py): its webhook's shared secret (a reference, env:NAME, never
+-- the value), and the rules that turn its loaded records into exceptions. Rules run after every load.
+alter table source_system add column if not exists webhook_secret text;
+create table if not exists source_exception_rule (
+    id          bigserial primary key,
+    system      text not null,
+    name        text not null,
+    dataset     text not null,
+    type        text not null,                  -- the exception type raised (usually one the system's pack brought)
+    config      jsonb not null default '{}',    -- when, clear_when, key, refs, title, priority, value_usd
+    enabled     boolean not null default true,
+    updated_by  text not null,
+    updated_at  timestamptz not null default now(),
+    unique (system, name)
+);

@@ -16,7 +16,7 @@ SYSTEM_KINDS = {"sap": "erp", "jde": "erp", "maximo": "erp", "pi": "historian", 
 WHERE = ("location", "connector", "key", "watermark")
 CATALOG = ("load_mode", "drift_policy", "duplicates", "status", "schedule", "expected_hours", "owner", "notes")
 SYSTEM_FIELDS = ("kind", "description", "owner", "steward", "timezone", "encoding", "decimal", "date_format", "rank",
-                 "enabled", "notes")
+                 "enabled", "notes", "webhook_secret")
 CONNECTION_FIELDS = ("name", "type", "config", "secrets", "enabled")
 DATASET_FIELDS = ("connection_id", "record_type", "reader", *WHERE, *CATALOG)
 

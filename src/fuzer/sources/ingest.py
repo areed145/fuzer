@@ -298,6 +298,10 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
             quality.clear_check_hold(conn, r["d"]["name"])
     conn.commit()
     _alert(conn, [r["d"]["name"] for r in [*runs, *counts.values()]])
+    from . import workflows
+
+    if raised := workflows.after_load(conn, report["loaded"]):
+        report["exceptions"] = raised
     return {"records": n, **totals, **report}
 
 

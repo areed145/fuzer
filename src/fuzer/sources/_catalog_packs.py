@@ -15,6 +15,10 @@ values), and each of its datasets with how it loads, the mapping in use and its 
         ...
         mappings: [{source: planning, record_type: project_schedule, yaml: "..."}]
         checks: [{kind: range, column: percent_complete, params: {min: 0, max: 100}, blocking: false}]
+    exception_types:                  the work the system brings (#465, workflows.py)
+      - {name: schedule_slip, label: Schedule slip, role: role:planner}
+    exception_rules:
+      - {name: late, dataset: project_schedules, type: schedule_slip, when: {percent_complete: {lt: 50}}, ...}
 
 Importing is safe to repeat: what is already there and the same is left alone. A new dataset's mapping is approved
 (the pack is the reviewed setup); a mapping that differs from one a person approved here becomes a draft for review,
@@ -67,10 +71,20 @@ def export_pack(conn, system: str) -> str:
         if checks:
             item["checks"] = checks
         datasets.append(item)
+    from . import workflows
+
     pack = {"fuzer_source_pack": VERSION,
-            "system": {"name": s["name"], **{k: s[k] for k in SYSTEM_FIELDS if s[k] is not None}},
+            "system": {"name": s["name"], **{k: s[k] for k in SYSTEM_FIELDS if s.get(k) is not None}},
             "connections": [{k: c[k] for k in CONNECTION_FIELDS} for c in conns.values()],
             "datasets": datasets}
+    if types := workflows.types_of(conn, system):
+        pack["exception_types"] = [{"name": t["name"], "label": t["label"],
+                                    **{k: t[k] for k in workflows.TYPE_FIELDS[1:]
+                                       if t.get(k) is not None and t[k] != workflows._DEFAULTS.get(k)
+                                       and not (k == "audience" and tuple(t[k]) == ("ioc",))}}
+                                   for t in types]
+    if rules := workflows.rules(conn, system):
+        pack["exception_rules"] = [workflows.as_pack(r) for r in rules]
     return _dump(plain(pack))
 
 
@@ -92,10 +106,11 @@ def _dump(pack: dict) -> str:
 
 
 def import_pack(conn, text: str, by: str, reason: str | None = None,
-                config: dict[str, dict] | None = None) -> dict:
-    """Add or bring up to date the pack's system, connections, datasets, mappings and checks. `config` changes a
-    connection's config on the way in ({connection name: {key: value}}), e.g. where its folder is here."""
-    from . import quality
+                config: dict[str, dict] | None = None, data_dir=None) -> dict:
+    """Add or bring up to date the pack's system, connections, datasets, mappings, checks, exception types and
+    rules. `config` changes a connection's config on the way in ({connection name: {key: value}}), e.g. where its
+    folder is here. With `data_dir`, a folder connection's folder must be there before anything is written."""
+    from . import quality, workflows
 
     try:
         pack = yaml.safe_load(text or "")
@@ -116,8 +131,10 @@ def import_pack(conn, text: str, by: str, reason: str | None = None,
             versions._parse(m["yaml"])  # every mapping valid before anything is written
             if m["source"] != name and not d.get("reader"):
                 raise CatalogError(f"dataset {d['name']!r}: its mapping's source is {m['source']!r}, not {name!r}")
+    if data_dir is not None:
+        _check_folders(pack, config or {}, data_dir)
     report: dict[str, list] = {"system": [], "connections": [], "datasets": [], "mappings": [], "drafts": [],
-                               "checks": [], "unchanged": []}
+                               "checks": [], "exception_types": [], "exception_rules": [], "unchanged": []}
 
     vals = {k: sys_[k] for k in SYSTEM_FIELDS if k in sys_}
     if entities.system(conn, name):
@@ -190,4 +207,31 @@ def import_pack(conn, text: str, by: str, reason: str | None = None,
             except quality.CheckError as e:
                 raise CatalogError(f"dataset {d['name']!r}: {e}") from e
             report["checks"].append(f"{d['name']}: {c['kind']}" + (f" {c['column']}" if c.get("column") else ""))
+    report["exception_types"] = workflows.define_types(conn, name, pack.get("exception_types") or [], by)
+    held = {r["name"]: workflows.as_pack(r) for r in workflows.rules(conn, name)}
+    for r in pack.get("exception_rules") or []:
+        if not isinstance(r, dict) or not r.get("name"):
+            raise CatalogError("each exception rule needs a name")
+        values = {k: v for k, v in r.items() if k != "name"}
+        new = workflows.set_rule(conn, name, r["name"], by, **values)
+        if held.get(r["name"]) == workflows.as_pack(new):
+            report["unchanged"].append(f"rule {r['name']}")
+        else:
+            report["exception_rules"].append(r["name"])
     return {k: v for k, v in report.items() if v}
+
+
+def _check_folders(pack: dict, config: dict, data_dir) -> None:
+    """Every folder connection's folder is there (a wrong path otherwise only shows up when it is tested)."""
+    from pathlib import Path
+
+    from .connections import ConnectionError_, Folder
+
+    for c in pack.get("connections") or []:
+        if c.get("type") != "folder" or c.get("enabled") is False:
+            continue
+        cfg = {**(c.get("config") or {}), **(config.get(c.get("name")) or {})}
+        try:
+            Folder(cfg, {}).check_path(Path(data_dir))
+        except ConnectionError_ as e:
+            raise CatalogError(f"connection {c.get('name')!r}: {e}; give its folder here in config") from e
