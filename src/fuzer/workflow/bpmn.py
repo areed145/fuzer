@@ -28,7 +28,7 @@ import ast
 import operator
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from xml.etree import ElementTree as ET
 
 BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -436,7 +436,7 @@ def _eval(node, data, expr):
                 return {"True": True, "False": False, "None": None}[node.id]
             raise ExpressionError(f"'{expr}': name '{node.id}' is not defined")
         case ast.BoolOp():
-            vals = (lambda: _eval(v, data, expr) for v in node.values)
+            vals = (lambda: _eval(v, data, expr) for v in node.values)  # noqa: B023
             if isinstance(node.op, ast.And):
                 out = True
                 for v in vals:
@@ -489,7 +489,7 @@ def _guard(expr, fn, *args):
 # --- timers -------------------------------------------------------------------------------------
 
 _DURATION = re.compile(r"^P(?!$)(?:(\d+(?:\.\d+)?)Y)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)W)?(?:(\d+(?:\.\d+)?)D)?"
-                       r"(?:T(?=\d)(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$", re.I)
+                       r"(?:T(?=\d)(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$", re.IGNORECASE)
 
 
 def parse_duration(text: str) -> timedelta | None:
@@ -506,7 +506,7 @@ def _literal_timer(text: str) -> bool:
     t = text.strip()
     if not t:
         return False
-    if t[0] in "'\"" or parse_duration(t) or re.match(r"^R\d*/", t, re.I):
+    if t[0] in "'\"" or parse_duration(t) or re.match(r"^R\d*/", t, re.IGNORECASE):
         return True
     try:
         datetime.fromisoformat(t)
@@ -517,12 +517,12 @@ def _literal_timer(text: str) -> bool:
 
 def _parse_date(text: str) -> datetime:
     dt = datetime.fromisoformat(text)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def timer_error(kind: str, text: str) -> str | None:
     try:
-        due(kind, text, {}, datetime.now(timezone.utc))
+        due(kind, text, {}, datetime.now(UTC))
     except (ExpressionError, ValueError) as e:
         return str(e)
     return None

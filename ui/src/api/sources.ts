@@ -106,7 +106,7 @@ export interface AuditRow {
 }
 
 export interface DatasetDetail {
-  dataset: Json & { name: string; source: string; status: string; load_mode: string; drift_policy: string;
+  dataset: Json & { name: string; source: string; status: string; load_mode: string; drift_policy: string; duplicates: string;
                     schedule: string | null; expected_hours: number | null; owner: string | null; key: string[] | null;
                     location: string | null; connector: string | null; watermark: string | null; reader: string | null;
                     notes: string | null; record_type: string | null; connection_id: number | null };

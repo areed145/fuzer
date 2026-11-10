@@ -324,7 +324,9 @@ def cost_report(model_name: str, totals: dict, scope: str = "llm") -> dict:
 def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors: list, poll_seconds: int = 30):
     """Use Anthropic's batch API when available; otherwise make bounded concurrent calls."""
     if hasattr(client, "messages") and hasattr(client.messages, "batches"):
-        from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+        from anthropic.types.message_create_params import (
+            MessageCreateParamsNonStreaming,
+        )
         from anthropic.types.messages.batch_create_params import Request
 
         created = client.messages.batches.create(requests=[

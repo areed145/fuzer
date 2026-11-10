@@ -14,6 +14,7 @@
   multivariate anomalies, with the points contributing most. This is the SRE's `multivariate` detector.
 """
 
+import itertools
 from datetime import datetime
 
 import numpy as np
@@ -94,7 +95,7 @@ def modes(conn, scope, since: str, until: str, k: int | None = None, step: int =
                      "most_different": sorted(((p["point"], round(float((rows.mean(0)[j] - mu[j]) / sd[j]), 2))
                                                for j, p in enumerate(pts)), key=lambda x: -abs(x[1]))[:5]})
     trans = np.zeros((len(names), len(names)), int)
-    for x, y in zip(lab, lab[1:]):
+    for x, y in itertools.pairwise(lab):
         if x != y:
             trans[x, y] += 1
     before = {}
@@ -143,7 +144,7 @@ def entities(conn, kind: str = "wells", scope=None, since: str | None = None, un
     if len(rows) < 6:
         raise CalcError("fewer than six wells with tests")
     keys = ["decline_pct_per_year", "water_cut", "water_cut_rise", "lift_response", "oil_sm3d"]
-    Z, mu, sd = _scale(np.array([[r[x] for x in keys] for r in rows], float))
+    Z, _mu, _sd = _scale(np.array([[r[x] for x in keys] for r in rows], float))
     k = k or 4
     lab = KMeans(k, n_init=10, random_state=0).fit_predict(Z)
     groups = []
@@ -245,7 +246,7 @@ def spe(conn, scope, train: tuple[str, str], test: tuple[str, str], step: int = 
     Za, mu, sd = _scale(Ca)
     Zb = (Cb - mu) / sd
     pca = PCA(n_components=variance, svd_solver="full").fit(Za)
-    resid = lambda Z: Z - pca.inverse_transform(pca.transform(Z))  # noqa: E731
+    resid = lambda Z: Z - pca.inverse_transform(pca.transform(Z))
     limit = float(np.percentile((resid(Za) ** 2).sum(1), quantile))
     rb = resid(Zb)
     s = (rb ** 2).sum(1)

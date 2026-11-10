@@ -17,7 +17,7 @@ with history, and nothing about a source is read from repository files at runtim
 | `source_run` | One row per load that changed something: trigger, status (`done`, `held`, `failed`), rows read / new / changed / unchanged / removed, the mapping versions used |
 | `source_profile` | A profile of each load: per column type, fill %, distinct values, top values, samples; key duplicates; what changed since the profile before |
 | `source_check`, `source_check_result` | Expectations per dataset (`key_unique`, `not_null`, `range`, `accepted`, `row_count`, `freshness`, `coverage`) and their results |
-| `source_match_stat` | Per source after each rebuild: link coverage, how its records matched, entities shared with other sources, golden fields won, open reviews |
+| `source_match_stat` | Per source after each rebuild: link coverage (with the values that named nothing the register knows, for review), how its records matched, entities shared with other sources, golden fields won, open reviews |
 | `source_rule` | Field survivorship rules and match thresholds per entity kind (the default priority is the systems' rank) |
 | `source_audit` | Every change above: who, when, old and new, why |
 
@@ -43,7 +43,8 @@ alone, imports it into a fresh copy of the project, and checks the records and l
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is
 `held`, a `check` review item says why); a schema change holds it as its drift policy says (a `schema` review
-item). Each system's number and date formats are read before mapping (`formats.py`: a decimal comma, a date
+item). A dataset set to `duplicates: keep_latest` loads the latest row of each repeated key instead (the highest
+watermark, else the row read last) and lists the rows it left out on the run; the held banner offers that switch. Each system's number and date formats are read before mapping (`formats.py`: a decimal comma, a date
 format, a timezone moved to the project's), and CSVs in its encoding.
 
 **Connections** (`connections.py`) share one contract: `connector` (the dataset's reader), `test` (reach,

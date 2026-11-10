@@ -7,8 +7,7 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from fuzer.api import app
-from fuzer.api import security
+from fuzer.api import app, security
 from fuzer.core import access, db, settings
 from fuzer.workflow import engine as work
 from fuzer.workflow import roles as workflow_roles
@@ -362,7 +361,7 @@ def test_a_reader_can_see_their_draft_but_not_create_it(runtime):
 
 
 def test_entity_names_are_read_access_and_bounded(runtime):
-    person, _ = signed_in(runtime, roles=("reader",))
+    _person, _ = signed_in(runtime, roles=("reader",))
     with db.connect() as conn:
         id, label = conn.execute("select fuzer_id, label from entity_label limit 1").fetchone().values()
     known = runtime.get("/entities/names", params={"id": [id, "fz-tag-000000000000"]})
@@ -429,7 +428,7 @@ def test_project_grants_over_http_are_owner_only(runtime, second_project):
     person, _ = signed_in(client, roles=("administrator",))
     r = client.put(f"/auth/accounts/{person.id}/projects/{second_project}", json={"roles": ["reader"]})
     assert r.status_code == 403  # configure access is not owner access
-    owner, _ = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=7)))
+    _owner, _ = signed_in(client, owner=True, roles=(), subject=str(uuid.UUID(int=7)))
     r = client.put(f"/auth/accounts/{person.id}/projects/{second_project}", json={"roles": ["reader"]})
     assert r.status_code == 200, r.text
     me = client.get("/auth/me").json()["user"]

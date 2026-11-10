@@ -258,7 +258,7 @@ def plot_state_timeline(since: str, until: str, scope: str | None = None) -> dic
     """Chart each unit's state (running, startup, stopped, transition) as swimlanes over a window: an upset
     spreading through a train or the plant. scope: a unit or area (default: everything with a run signal)."""
     from ...plots import troubleshooting
-    build = lambda conn, **kw: troubleshooting.state_timeline(conn, pack=mcp_server.PACK, **kw)  # noqa: E731
+    build = lambda conn, **kw: troubleshooting.state_timeline(conn, pack=mcp_server.PACK, **kw)
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 
@@ -267,7 +267,7 @@ def plot_alarms(since: str, until: str, scope: str | None = None) -> dict[str, A
     """Chart alarms per 10 minutes over a window against the flood line, with floods, chattering, standing
     alarms and the bad actors in the summary."""
     from ...plots import troubleshooting
-    build = lambda conn, **kw: troubleshooting.alarms_chart(conn, pack=mcp_server.PACK, **kw)  # noqa: E731
+    build = lambda conn, **kw: troubleshooting.alarms_chart(conn, pack=mcp_server.PACK, **kw)
     return _chart(build, {"since": since, "until": until}, {"scope": scope} if scope else {"scope": None})
 
 

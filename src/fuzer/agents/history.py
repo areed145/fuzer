@@ -17,7 +17,7 @@ import base64
 import hashlib
 import json
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from agent_framework import HistoryProvider, Message
@@ -164,7 +164,7 @@ def purge(conn, days: int, now: datetime | None = None) -> int:
     0 keeps everything). Returns how many went."""
     if days <= 0:
         return 0
-    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days)
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
     old = [r["id"] for r in conn.execute("select id from assistant_conversation where updated_at < %s", (cutoff,))]
     conn.execute("delete from assistant_answer where conversation_id = any(%s) or "
                  "(created_at < %s and conversation_id not in (select id from assistant_conversation))", (old, cutoff))

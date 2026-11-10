@@ -35,7 +35,6 @@ from ..graph import llm_links
 from ..sources import ingest, llm_pids
 from . import pipeline
 
-
 PROJECT_TAG = "fuzer/project"
 
 
@@ -164,7 +163,7 @@ def catalog_names() -> list[str]:
             catalog.ensure(conn)
             conn.commit()
             return list(catalog.datasets(conn, ("active", "paused", "draft")))
-    except Exception:  # noqa: BLE001  (no database yet: the built-in datasets)
+    except Exception:
         return ingest.export_names()
 
 

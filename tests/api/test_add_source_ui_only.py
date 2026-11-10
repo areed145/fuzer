@@ -6,6 +6,9 @@ but the fake plant's export and this test.
   mapping (activities part of their parent, located at their plant location in whatever style it's written,
   executing their SAP work order), a first load held on the duplicate key, the planner's fix, a load, the graph,
   then an update that moves progress and drops a cancelled activity.
+- The same schedules on their own cron (a scheduled Dagster run of the dataset the UI added), asked about the way an
+  assistant would ("what's late in the 2026 turnaround?"), and a mapping change rolled back, both in the audit log
+  (#227 steps 8 to 10, #460).
 - A historian's point list: suggested as time series owned by the tag or well each point name contains.
 - A folder of documents: suggested as searchable sections that mention tags.
 """
@@ -108,6 +111,16 @@ def test_project_schedules_from_the_ui_alone(ui):
     flare = conn.execute("""select count(*) as n from edge e join crosswalk x on x.fuzer_id = e.src
                             where x.source = 'planning' and x.source_key = 'OK-MOC-0233' and e.rel = 'located_at'""").fetchone()
     assert flare["n"] == 0  # FLARE-TIP-9 names nothing Fuzer knows: no link is guessed
+    # J12 (the jacket, area 72) and J12-04 (a well without the field's prefix) resolve (#459); what names nothing is
+    # listed on the dataset's Matching tab for review
+    located = {r["source_key"]: r["label"] for r in conn.execute(
+        """select x.source_key, l.label from edge e join crosswalk x on x.fuzer_id = e.src
+           join entity_label l on l.fuzer_id = e.dst
+           where x.source = 'planning' and x.source_key in ('OK-CAP-0142', 'OK-CAP-0142-002') and e.rel = 'located_at'""")}
+    assert located["OK-CAP-0142"] == "OKAN-72" and located["OK-CAP-0142-002"].startswith("OK-J12-"), located
+    cov = ok(client.get("/sources/datasets/project_schedules"))["matching"][0]["stats"]["coverage"]
+    missed = {v["value"] for v in cov["unresolved"]["located_at"]["values"]}
+    assert "FLARE-TIP-9" in missed and "J12" not in missed and cov["by_rel"]["located_at"][1] > cov["by_rel"]["located_at"][0]
 
     # a fortnight later: progress moves, a finish slips, the cancelled flare tip job is gone
     schedules.write(data, lake, update=True, fixed=True)
@@ -115,6 +128,74 @@ def test_project_schedules_from_the_ui_alone(ui):
     assert upd["loaded"] == ["project_schedules"] and upd["updated"] >= 3 and upd["removed"] == 1
     left = conn.execute("select 1 from source_record where source = 'planning' and source_key = 'OK-MOC-0233'").fetchone()
     assert left is None
+    conn.commit()
+
+
+def test_project_schedules_run_on_their_schedule_answer_and_roll_back(ui, okan_db, monkeypatch):
+    """#227 steps 8 to 10 (#460), on the dataset the test above added from the UI alone."""
+    import time
+
+    import dagster as dg
+    import yaml
+
+    from fuzer.agents.capabilities import maintenance
+    from fuzer.core import db
+    from fuzer.ops import jobs
+
+    conn, client, data = ui
+
+    # 8. Schedule: the planner gives the dataset a cron; the definitions, reloaded, carry it; the sensor asks for it
+    # when its tick falls due, and the scheduled run loads it
+    ok(client.patch("/sources/datasets/project_schedules",
+                    json={"values": {"schedule": "0 6 * * *"}, "by": "ana", "reason": "the planners export at 05:30"}))
+    monkeypatch.setattr(jobs, "DATASETS", jobs.catalog_names())  # what reloading the definitions reads
+    assert "project_schedules" in jobs.DATASETS
+    fuzer = jobs.Fuzer(data_dir=str(data), database_url=okan_db.url)
+    sensed = jobs.dataset_schedules(dg.build_sensor_context(cursor=str(time.time() - 86400 - 60),
+                                                            resources={"fuzer": fuzer}))
+    [req] = [r for r in sensed.run_requests if "project_schedules" in r.tags["fuzer/dataset_schedule"].split(",")]
+    assert dg.AssetKey("project_schedules") in req.asset_selection
+    lake = conn.execute("select c.config->>'path' as path from source_dataset d join source_connection c "
+                        "on c.id = d.connection_id where d.name = 'project_schedules'").fetchone()["path"]
+    conn.commit()
+    schedules.write(data, Path(lake), update=True, fixed=True)  # the planners' 05:30 export: a new table version
+    monkeypatch.setattr(db, "_default", db._default)  # a run makes its project the process's
+    run = dg.materialize([jobs._source_asset("project_schedules"), jobs.register], resources={"fuzer": fuzer},
+                         tags=req.tags)  # the dataset, then the register
+    assert run.success
+    last = ok(client.get("/sources/datasets/project_schedules"))["runs"][0]
+    assert last["trigger"] == "schedule" and last["status"] == "done"
+
+    # 9. Use it: what the assistant reads for "what's late in the 2026 turnaround?": the schedule's activities beside
+    # the SAP orders under the revision, each activity with the order it executes
+    tar = maintenance.turnaround_scope("OK-TAR-2026")
+    plan = tar["schedule"]
+    assert plan and plan["activities"][0]["activity"] == "OK-TAR-2026" and plan["activities"][0]["project"]
+    acts = {a["activity"]: a for a in plan["activities"]}
+    orders = {w["order"] for w in tar["scoped_work"]}
+    executes = {a["work_order"] for a in acts.values() if a["work_order"]}
+    assert len(executes) >= 3 and executes <= orders  # every order the schedule names is one SAP has in the revision
+    assert plan["late"] == []  # on the data's last day nothing has passed its finish
+    feb = maintenance.turnaround_scope("OK-TAR-2026", as_of="2026-02-05")["schedule"]
+    assert feb["late"] == ["OK-TAR-2026-A0010"]  # scope freeze, due 31 January, still at 85%
+    assert next(a for a in feb["activities"] if a["activity"] == "OK-TAR-2026-A0010")["percent_complete"] == 85
+
+    # 10. History: change the mapping, roll it back; both are in the audit log
+    current = next(m for m in ok(client.get("/sources/datasets/project_schedules"))["mappings"] if m["current"])
+    raw = yaml.safe_load(current["yaml"])
+    raw["entity"]["fields"] = [f for f in raw["entity"]["fields"] if f != "owner"]  # drop the owner column
+    draft = ok(client.post("/sources/mappings", json={"yaml": yaml.safe_dump(raw, sort_keys=False), "by": "ana",
+                                                      "note": "owner comes from the work order"}))
+    ok(client.post(f"/sources/mappings/{draft['id']}/approve", json={"by": "ben", "reason": "fewer free-text fields"}))
+    back = ok(client.post(f"/sources/mappings/{current['id']}/rollback",
+                          json={"by": "ana", "reason": "the turnaround team reports by owner"}))
+    now = next(m for m in ok(client.get("/sources/datasets/project_schedules"))["mappings"] if m["current"])
+    assert now["id"] == back["id"] and now["yaml"] == current["yaml"] and now["parent_id"] == current["id"]
+    log = [(a["action"], a["object_id"], a["by"], a.get("reason")) for a in
+           ok(client.get("/sources/audit", params={"object": "mapping"}))
+           if a["object_id"] in (draft["id"], back["id"])]
+    assert ("rollback", back["id"], "ana", "the turnaround team reports by owner") in log
+    assert ("approve", draft["id"], "ben", "fewer free-text fields") in log
     conn.commit()
 
 

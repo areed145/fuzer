@@ -5,6 +5,7 @@ the machine."""
 
 import asyncio
 import json
+from datetime import UTC
 
 import pytest
 
@@ -346,9 +347,9 @@ def test_history_keeps_images_by_reference(conn):
     back = history.load(conn, "conv-images")
     assert [m.to_dict() for m in back] == [m.to_dict() for m in asked]
 
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     assert history.purge(conn, 0) == 0  # 0 keeps everything
-    assert history.purge(conn, 30, now=datetime.now(timezone.utc) + timedelta(days=31)) >= 1
+    assert history.purge(conn, 30, now=datetime.now(UTC) + timedelta(days=31)) >= 1
     assert not history.exists(conn, "conv-images")
     assert conn.execute("select count(*) as n from assistant_image where conversation_id = 'conv-images'"
                         ).fetchone()["n"] == 0

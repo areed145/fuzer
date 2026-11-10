@@ -177,7 +177,7 @@ def _mode_patterns(taxonomy: str, extra: tuple) -> list[tuple[str, "re.Pattern"]
     words = {**load_standard(taxonomy).get("failure_mode_keywords", {})}
     for code, pats in extra:
         words[code] = [*words.get(code, []), *pats]
-    return [(code, re.compile("|".join(f"(?:{p})" for p in pats), re.I)) for code, pats in words.items()]
+    return [(code, re.compile("|".join(f"(?:{p})" for p in pats), re.IGNORECASE)) for code, pats in words.items()]
 
 
 def failure_modes_in(text: str, pack: Pack) -> list[str]:

@@ -322,7 +322,7 @@ def _read(src, p: dict, start: datetime, end: datetime, step: int) -> np.ndarray
 def _twins(points: list[dict]) -> list[tuple[dict, dict]]:
     """Redundant transmitters on one unit: the same measurement told apart only by a trailing number or
     A / B / C ("Pressure", "Pressure 2"; 20-PT-2001A / 20-PT-2001B)."""
-    key = lambda p: (re.sub(r"\s+(\d+|[A-C])$", "", (p["description"] or "").strip()),  # noqa: E731
+    key = lambda p: (re.sub(r"\s+(\d+|[A-C])$", "", (p["description"] or "").strip()),
                      re.sub(r"[A-C]?(\.PV)?$", "", p["point"]), p["uom"])
     groups: dict[tuple, list[dict]] = {}
     for p in points:

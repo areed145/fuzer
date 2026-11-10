@@ -40,7 +40,7 @@ def test_changed_schema_is_applied_once_by_parallel_callers(url):
             with db.connect(url=url) as c:
                 c.execute("select count(*) from golden").fetchone()
                 db.init_schema(c)
-        except BaseException as e:  # noqa: BLE001 - collected and asserted below
+        except BaseException as e:
             errors.append(e)
 
     threads = [threading.Thread(target=connect_and_init) for _ in range(6)]

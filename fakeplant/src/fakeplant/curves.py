@@ -6,6 +6,7 @@ written as answer keys so curves Claude reads off datasheets can be scored."""
 
 import hashlib
 import io
+import itertools
 import random
 from pathlib import Path
 
@@ -62,7 +63,7 @@ def choke(maker: str, model: str, cv_max: float, trim: str = "equal_percentage",
 def cv_at(c: dict, opening: float) -> float:
     """Cv at an opening, interpolated on the characteristic."""
     pts = c["series"]["cv"]
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+    for (x0, y0), (x1, y1) in itertools.pairwise(pts):
         if x0 <= opening <= x1:
             return y0 + (y1 - y0) * (opening - x0) / (x1 - x0)
     return pts[-1][1]

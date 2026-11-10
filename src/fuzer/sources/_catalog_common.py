@@ -7,13 +7,14 @@ from ..core.jsonsafe import plain
 SEED = "seed"
 LOAD_MODES = ("snapshot", "incremental", "append")
 DRIFT_POLICIES = ("hold_any", "hold_breaking", "ignore")
+DUPLICATES = ("hold", "keep_latest")  # a repeated key holds the load, or the latest row per key loads (#459)
 STATUSES = ("draft", "active", "paused", "retired")
 SYSTEM_KINDS = {"sap": "erp", "jde": "erp", "maximo": "erp", "pi": "historian", "pi_af": "historian",
                 "adx": "historian", "dcs": "historian", "ec": "allocation", "edms": "documents", "pid": "documents",
                 "oem": "documents", "gis": "gis", "lims": "lab", "inspection": "integrity", "iow": "integrity",
                 "oplog": "logs"}
 WHERE = ("location", "connector", "key", "watermark")
-CATALOG = ("load_mode", "drift_policy", "status", "schedule", "expected_hours", "owner", "notes")
+CATALOG = ("load_mode", "drift_policy", "duplicates", "status", "schedule", "expected_hours", "owner", "notes")
 SYSTEM_FIELDS = ("kind", "description", "owner", "steward", "timezone", "encoding", "decimal", "date_format", "rank",
                  "enabled", "notes")
 CONNECTION_FIELDS = ("name", "type", "config", "secrets", "enabled")
@@ -41,7 +42,8 @@ def _changes(old: dict, values: dict, fields: tuple[str, ...]) -> tuple[dict, di
 
 
 def _check_dataset(values: dict) -> None:
-    for field, allowed in (("load_mode", LOAD_MODES), ("drift_policy", DRIFT_POLICIES), ("status", STATUSES)):
+    for field, allowed in (("load_mode", LOAD_MODES), ("drift_policy", DRIFT_POLICIES), ("duplicates", DUPLICATES),
+                           ("status", STATUSES)):
         if field in values and values[field] not in allowed:
             raise CatalogError(f"{field} must be one of {list(allowed)}")
     if "key" in values and isinstance(values["key"], str):
@@ -51,6 +53,6 @@ def _check_dataset(values: dict) -> None:
 
         if values["connector"] not in CONNECTORS:
             raise CatalogError(f"unknown connector {values['connector']!r}; one of {list(CONNECTORS)}")
-    if "schedule" in values and values["schedule"]:
+    if values.get("schedule"):
         if len(str(values["schedule"]).split()) != 5:
             raise CatalogError("schedule is a cron expression with five fields, e.g. '0 * * * *'")

@@ -61,7 +61,7 @@ def refresh(conn) -> None:
     global _seen
     try:
         rows = conn.execute("select name, kind, default_sla from work_role").fetchall()
-    except Exception:  # noqa: BLE001  (a database from before roles were data)
+    except Exception:
         conn.rollback()
         return
     if not rows:

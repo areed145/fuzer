@@ -3,8 +3,16 @@
 from psycopg.types.json import Jsonb
 
 from ..core.jsonsafe import plain
-from ._catalog_common import (CONNECTION_FIELDS, DATASET_FIELDS, SYSTEM_FIELDS, SYSTEM_KINDS, CatalogError, _audit,
-                              _changes, _check_dataset)
+from ._catalog_common import (
+    CONNECTION_FIELDS,
+    DATASET_FIELDS,
+    SYSTEM_FIELDS,
+    SYSTEM_KINDS,
+    CatalogError,
+    _audit,
+    _changes,
+    _check_dataset,
+)
 
 
 def systems(conn) -> list[dict]:

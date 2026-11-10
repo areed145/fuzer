@@ -10,7 +10,10 @@ is tagged with a revision (e.g. OK-TAR-2026).
 
 1. `turnaround_scope(revision)` returns: the scoped work orders and planned start; shutdown-only plans
    (statutory internal inspections etc.) overdue or due before the next window, split into in scope and
-   **not** in scope; the worst bad actors not in scope; and out-of-stock spares for scoped units.
+   **not** in scope; the worst bad actors not in scope; and out-of-stock spares for scoped units. When a
+   planning system's schedule is loaded, `schedule` lists the revision's activities with planned and
+   baseline finish, percent complete and the work order each executes; `late` and `slipped` name the
+   ones behind. "What's late in the turnaround?" is answered from these, citing the activity and its order.
 2. **Scope gaps** are the main finding: shutdown-only inspections that would otherwise wait another
    cycle, and bad actors whose permanent fix needs the unit down (check `maintenance_history` for
    repeated temporary fixes such as cleaning a fouled exchanger every year).

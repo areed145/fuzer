@@ -242,6 +242,9 @@ create table if not exists source_audit (
     new       jsonb,
     reason    text
 );
+-- #459: a repeated key holds the load (hold), or the load keeps the latest row per key and lists the others
+alter table source_dataset add column if not exists duplicates text not null default 'hold'
+    check (duplicates in ('hold', 'keep_latest'));
 create index if not exists source_audit_of on source_audit (object, object_id, id desc);
 
 -- Reference curves per equipment model (OEM pump curves, choke characteristics): from vendor CSV

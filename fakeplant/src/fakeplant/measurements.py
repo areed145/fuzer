@@ -65,7 +65,7 @@ def thickness_readings(rng: random.Random, assets: list[dict], surveys: list[int
 
             def faster(on: date) -> float:  # extra metal lost by `on` once the faster rate applies
                 return (a["faster"][1] - rate) * (on - a["faster"][0]).days / 365.25 \
-                    if a.get("faster") and on > a["faster"][0] else 0.0
+                    if a.get("faster") and on > a["faster"][0] else 0.0  # noqa: B023
 
             for year in surveys:
                 t = start - rate * (year - surveys[0]) + rng.gauss(0, 0.05)

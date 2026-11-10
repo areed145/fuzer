@@ -12,7 +12,14 @@ from ..core.jsonsafe import plain
 from ..resources import MAPPINGS as DEFAULT_DIR
 from . import _catalog_entities as entities
 from . import _catalog_versions as versions
-from ._catalog_common import (CATALOG, CONNECTION_FIELDS, SEED, SYSTEM_FIELDS, SYSTEM_KINDS, WHERE)
+from ._catalog_common import (
+    CATALOG,
+    CONNECTION_FIELDS,
+    SEED,
+    SYSTEM_FIELDS,
+    SYSTEM_KINDS,
+    WHERE,
+)
 
 _WARNED: set[str] = set()
 

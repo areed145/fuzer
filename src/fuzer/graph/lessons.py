@@ -56,7 +56,7 @@ def suggest(conn, taxonomy: str = "iso14224") -> dict:
     for r in rows:
         by_unit[r["unit"]].append(r)
     groups: dict[tuple, list[dict]] = defaultdict(list)
-    for unit, incs in by_unit.items():
+    for incs in by_unit.values():
         incs.sort(key=lambda r: r["f"]["start"])
         for i, r in enumerate(incs):
             nxt = incs[i + 1]["f"]["start"] if i + 1 < len(incs) else None

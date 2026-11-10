@@ -89,6 +89,8 @@ class WellMatch:
 class WellGrammar:
     """Platform letter + slot number, with optional sidetrack (A-07 ST1 or A07A)."""
 
+    prefix = ""  # names start with the platform letter: nothing to leave off
+
     def __init__(self, platforms):
         plats = "|".join(map(re.escape, platforms))
         self._re = re.compile(
@@ -125,6 +127,7 @@ class PatternWellGrammar:
     def __init__(self, pattern: str, key: str):
         self._re = re.compile(rf"(?<![A-Z0-9])(?:{pattern})(?![A-Z0-9])")
         self._key = key
+        self.prefix = key.split("{")[0]  # the canonical name's fixed start (OK- in OK-{site}-{num})
 
     def find_all(self, text: str) -> list[PatternWellMatch]:
         return [PatternWellMatch(self._key.format(**{k: v or "" for k, v in m.groupdict().items()}), m.start(), m.end())

@@ -29,6 +29,12 @@ export const LOAD_HELP: Record<string, string> = {
   incremental: "deliveries add and change records; nothing is removed",
   append: "only rows at or after the last watermark value are read (lake tables)",
 };
+/** What a load does when the export repeats a key (#459). */
+export const DUPLICATES_HELP: Record<string, string> = {
+  hold: "hold the load until the export is fixed (recommended)",
+  keep_latest: "load the latest row of each repeated key and list the rows left out on the run",
+};
+
 export const DRIFT_HELP: Record<string, string> = {
   hold_breaking: "hold the load when a column is removed or changes type (recommended)",
   hold_any: "hold the load on any change, new columns too",

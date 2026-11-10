@@ -203,7 +203,7 @@ def _work(fn, *args, **kwargs) -> dict[str, Any]:
 
 def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve refs, build and store a chart; the result is what the agent sees (never the arrays)."""
-    from .. import plots
+    from .. import plots as charts
     with db.connect() as conn:
         args = dict(params)
         for k, ref in (refs or {}).items():
@@ -219,9 +219,9 @@ def _chart(build, params: dict, refs: dict[str, Any] | None = None) -> dict[str,
             args[k] = ids if isinstance(ref, list) else ids[0]
         try:
             fig = build(conn, **args)
-        except plots.ChartError as e:
+        except charts.ChartError as e:
             return {"error": str(e)}
-        return _plain(plots.store(conn, fig, _plain({"chart": fig.kind, **params, **(refs or {})})))
+        return _plain(charts.store(conn, fig, _plain({"chart": fig.kind, **params, **(refs or {})})))
 
 
 def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
@@ -240,7 +240,7 @@ def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
 
 # The tools live with the agents that use them (agents/capabilities/<group>.py, #133). Importing them
 # declares them on the server; mcp_server.<tool> still finds each one.
-from .capabilities import (  # noqa: E402, F401
+from .capabilities import (  # noqa: F401
     graph,
     maintenance,
     operations,
@@ -250,7 +250,7 @@ from .capabilities import (  # noqa: E402, F401
     studies,
     troubleshooting,
 )
-from .capabilities import work as work_tools  # noqa: E402, F401
+from .capabilities import work as work_tools  # noqa: F401
 
 
 def __getattr__(name: str):

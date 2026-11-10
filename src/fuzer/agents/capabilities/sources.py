@@ -1,6 +1,7 @@
 """Sources capabilities, declared with `capability` (#133)."""
 
 from typing import Any, Literal
+
 from ...core import db
 from .. import mcp_server
 from ..mcp_server import _plain, _resolve, capability

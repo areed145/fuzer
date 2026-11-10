@@ -77,7 +77,7 @@ def _has(module, name: str) -> bool:
     the database) still means the name exists."""
     try:
         return hasattr(module, name)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return True
 
 

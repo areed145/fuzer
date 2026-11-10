@@ -79,7 +79,7 @@ def test_vibration_leads_temperature_before_the_trip(model):
     def corr(lag):
         return float(np.corrcoef(vib[:len(vib) - lag] if lag else vib, temp[lag:])[0, 1])
 
-    best = max(range(0, 18), key=corr)  # 5-minute steps
+    best = max(range(18), key=corr)  # 5-minute steps
     assert best * 5 >= 15  # temperature follows vibration by tens of minutes
 
 

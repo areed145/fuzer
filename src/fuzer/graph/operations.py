@@ -366,11 +366,57 @@ def maintenance_compliance(conn, as_of_date: str | None = None, horizon_days: in
                                key=lambda i: i["next_due"])[:limit]}
 
 
-def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18) -> dict:
+DONE = {"complete", "completed", "finished", "closed", "cancelled", "canceled"}
+
+
+def schedule_progress(conn, project: str, today: str) -> dict | None:
+    """A project's schedule as a planning system holds it (#460): the activity named `project` (a turnaround's
+    revision, OK-TAR-2026) and every activity under it, each with its planned and baseline finish, percent
+    complete, the work order it executes, and whether it is late (its finish has passed and it isn't done) or has
+    slipped (its finish moved past its baseline). None when no schedule names the project."""
+    rows = conn.execute(
+        """
+        with recursive tree as (
+            select e.fuzer_id, 0 as depth from entity e join entity_label l using (fuzer_id)
+            where e.kind = 'activity' and e.retired_at is null and e.merged_into is null and l.label = %s
+            union
+            select c.src, t.depth + 1 from edge c join tree t on c.dst = t.fuzer_id
+            join entity e on e.fuzer_id = c.src
+            where c.rel = 'part_of' and e.kind = 'activity' and e.retired_at is null and t.depth < 5
+        )
+        select t.fuzer_id as id, min(t.depth) as depth, l.label,
+               (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = t.fuzer_id) as f,
+               (select string_agg(wl.label, ', ' order by wl.label) from edge x join entity_label wl on wl.fuzer_id = x.dst
+                where x.src = t.fuzer_id and x.rel = 'executes') as work_order
+        from tree t left join entity_label l using (fuzer_id)
+        group by t.fuzer_id, l.label
+        order by min(t.depth), l.label
+        """, (project,)).fetchall()
+    if not rows:
+        return None
+    out = []
+    for r in rows:
+        f = r["f"] or {}
+        finish, baseline = str(f.get("finish") or "")[:10] or None, str(f.get("baseline_finish") or "")[:10] or None
+        pct = _num(f.get("percent_complete"))
+        done = pct >= 100 or str(f.get("status") or "").lower() in DONE or bool(f.get("actual_finish"))
+        slipped = (date.fromisoformat(finish) - date.fromisoformat(baseline)).days if finish and baseline else 0
+        out.append({"id": r["id"], "activity": r["label"], "description": f.get("description") or f.get("name"),
+                    "start": str(f.get("start") or "")[:10] or None, "finish": finish, "baseline_finish": baseline,
+                    "percent_complete": pct, "status": f.get("status"), "owner": f.get("owner"),
+                    "work_order": r["work_order"], "late": bool(finish and finish < today and not done),
+                    "slipped_days": max(slipped, 0), "project": r["depth"] == 0})
+    return {"project": project, "as_of": today, "source": "the planning system's schedule (activities)",
+            "activities": out, "late": [a["activity"] for a in out if a["late"]],
+            "slipped": [a["activity"] for a in out if a["slipped_days"] > 0]}
+
+
+def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18, as_of_date: str | None = None) -> dict:
     """Turnaround (shutdown) scope: work orders planned for a revision; overdue or upcoming plans that need
-    the unit down; the worst bad actors not yet in scope; and spares for the scoped units that are out of
-    stock (long lead items to order now)."""
-    today = as_of(conn)
+    the unit down; the worst bad actors not yet in scope; spares for the scoped units that are out of
+    stock (long lead items to order now); and, when a planning system's schedule names the revision, its
+    activities with what is late or has slipped."""
+    today = as_of_date or as_of(conn)
     orders = _rows(conn, "work_order", "coalesce(f->>'revision', '') <> ''")
     revisions = sorted({o["f"]["revision"] for o in orders})
     revision = revision or (revisions[0] if revisions else None)
@@ -400,7 +446,8 @@ def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18) 
             "scoped_work": work,
             "shutdown_plans_not_in_scope": [p for p in shutdown_plans if p["tag_id"] not in in_scope],
             "shutdown_plans_in_scope": [p for p in shutdown_plans if p["tag_id"] in in_scope],
-            "bad_actors_not_in_scope": actors, "spares_out_of_stock": spares}
+            "bad_actors_not_in_scope": actors, "spares_out_of_stock": spares,
+            "schedule": schedule_progress(conn, revision, today) if revision else None}
 
 
 # --- gas lift --------------------------------------------------------------------------------------

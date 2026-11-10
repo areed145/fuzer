@@ -7,7 +7,13 @@ import tempfile
 import pytest
 
 from fuzer.core import db, events
-from fuzer.core.exceptions import TYPES, ExceptionError, ExceptionType, clear_exception, raise_exception
+from fuzer.core.exceptions import (
+    TYPES,
+    ExceptionError,
+    ExceptionType,
+    clear_exception,
+    raise_exception,
+)
 from fuzer.ops import board
 from fuzer.ops import exceptions as impl
 from fuzer.resources import PACKAGE
@@ -112,7 +118,7 @@ def test_the_outbox_delivers_and_retries_failed_handlers(conn, monkeypatch):
 def test_every_subscriber_module_is_loaded_by_deliver():
     declared = set()
     for f in PACKAGE.rglob("*.py"):
-        if re.search(r"^@events\.subscriber\(", f.read_text(), re.M):
+        if re.search(r"^@events\.subscriber\(", f.read_text(), re.MULTILINE):
             declared.add("fuzer." + ".".join(f.relative_to(PACKAGE).with_suffix("").parts))
     assert declared == set(events.SUBSCRIBERS)
 
@@ -212,7 +218,7 @@ def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types)
     types("pressure_low", process="field_proc", audience=("ioc", "field"))
     e = raise_exception(conn, "pressure_low", "WHP-3", "Low wellhead pressure", "agent:sre", refs=["fz-well-a12"],
                         evidence={"start": "2025-12-30T00:00", "ongoing": True, "upset_id": 3})
-    step = lambda: conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' "  # noqa: E731
+    step = lambda: conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' "
                                 "and state = 'waiting'", (e["item_id"],)).fetchone()
     assert step() == {"assignee": None, "role": "engineer"}
     ex.dispatch(conn, e["id"], "olga", "fred", reason="check the gauge at the wellhead")
@@ -337,7 +343,7 @@ def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     types("upset_t", process="upset", audience=("ioc", "field"))
     e = raise_exception(conn, "upset_t", "UP-1", "Low wellhead pressure across 3 assets", "agent:sre",
                         refs=["fz-well-a12"], evidence={"incident_id": "UP-1", "start": "2025-12-30T00:00"})
-    steps = lambda: conn.execute("select element, assignee, role from work_token where item_id = %s and kind = 'user' "  # noqa: E731
+    steps = lambda: conn.execute("select element, assignee, role from work_token where item_id = %s and kind = 'user' "
                                  "and state = 'waiting' order by id", (e["item_id"],)).fetchall()
     assert [s["element"] for s in steps()] == ["triage"]
     ex.dispatch(conn, e["id"], "erin", "otto", reason="read the wellhead gauge")
@@ -373,9 +379,10 @@ def test_an_operator_handed_another_roles_step_is_not_offered_it(conn, types):
 
 def test_equipment_reads_as_the_tag_it_is_installed_at(conn, types):
     """An operator finds "20-K-2100B 1st stage compressor" on site, not "S/N 81710"."""
+    from psycopg.types.json import Jsonb
+
     from fuzer.graph.queries.records import names
     from fuzer.ops import exceptions as ex
-    from psycopg.types.json import Jsonb
 
     conn.execute("insert into entity (fuzer_id, kind) values ('fz-equipment-81710', 'equipment'), ('fz-tag-k2100b', 'tag')")
     conn.execute("insert into entity_label (fuzer_id, label) values ('fz-equipment-81710', 'S/N 81710'), "

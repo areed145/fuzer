@@ -54,11 +54,11 @@ class _Rows:
 
 @pytest.mark.unit
 def test_matches_scoring():
-    owner = lambda source, key, fid: {"source": source, "source_key": key, "fuzer_id": fid}  # noqa: E731
+    owner = lambda source, key, fid: {"source": source, "source_key": key, "fuzer_id": fid}
     conn = _Rows([owner("sap", "1", "a"), owner("jde", "J1", "a"),  # merged with its twin
                   owner("sap", "2", "b"), owner("jde", "J2", "c"),  # still apart (in review)
                   owner("sap", "3", "d"), owner("jde", "J3", "e"), owner("jde", "J9", "d")])  # merged with the wrong one
-    pair = lambda k, j: {"source": "sap", "key": k, "same_as": {"source": "jde", "key": j}}  # noqa: E731
+    pair = lambda k, j: {"source": "sap", "key": k, "same_as": {"source": "jde", "key": j}}
     m = evaluate.matches(conn, PACK, [pair("1", "J1"), pair("2", "J2"), pair("3", "J3")])
     assert (m["pairs"], m["wrong_merges"], m["not_merged"]) == (3, 1, 1)
     assert m["precision"] == 0.5 and m["recall"] == round(1 / 3, 3)

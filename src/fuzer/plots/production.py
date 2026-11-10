@@ -17,7 +17,7 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
     tests, cuts, start, seg, t0, fit = d["tests"], d["cuts"], d["start"], d["seg"], d["t0"], d["fit"]
     qs = [t["oil_rate"] for t in tests]
     last = seg[-1]["at"]
-    horizon = [last + timedelta(days=30.4 * m) for m in range(0, forecast_months + 1)]
+    horizon = [last + timedelta(days=30.4 * m) for m in range(forecast_months + 1)]
     fit_x = [t0 + timedelta(days=d) for d in range(0, (horizon[-1] - t0).days + 1, 15)]
     q_fit = [rate(fit, (x - t0).days / YEAR) for x in fit_x]
     cum = sum(rate(fit, (last - t0).days / YEAR + d / YEAR) for d in range(int(forecast_months * 30.4)))
@@ -293,7 +293,7 @@ def dp_drift(conn, well: str, days: int = 60, until: str | None = None) -> Figur
     from ..analysis import hydraulics
 
     d = hydraulics.dp_drift(conn, well, days, until)
-    pts, times, whp, back = _pressure_series(conn, well, days, until)
+    _pts, times, whp, back = _pressure_series(conn, well, days, until)
     dp = [w - b for w, b in zip(whp, back)]
     base = sorted(dp[: max(24, len(dp) // 10)])
     lo, hi = base[len(base) // 10], base[-max(1, len(base) // 10)]

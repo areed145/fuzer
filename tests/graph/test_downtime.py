@@ -69,7 +69,6 @@ def test_since_filter(conn):
 def test_daily_reports(conn):
     e = queries.entity(conn, fid(conn, "2024-03-14"), pack=PACK)
     assert e["kind"] == "production_day" and e["golden"]["oil_sm3"]["value"] > 0
-    linked = {x["other_label"] for x in e["edges"] if x["rel"] == "mentions"}
     assert any(x["rel"] == "reports_on" and x["other_label"] == "OKAN" for x in e["edges"])
 
 

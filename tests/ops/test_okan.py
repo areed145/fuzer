@@ -23,7 +23,7 @@ def fid(conn, kind, key):
 
 
 def test_every_source_loads(setup):
-    conn, data, stats, loaded, _ = setup
+    conn, _data, _stats, loaded, _ = setup
     assert loaded["unmapped"] == [] and loaded["held"] == []
     assert {"sap_floc", "sap_equipment", "pi_points", "oplogs", "ec_downtime", "ec_day001", "gis_pipelines",
             "gis_facilities", "pi_af", "ec_network", "pid_sheets", "documents"} <= set(loaded["loaded"])

@@ -228,6 +228,8 @@ def checks(conn, dataset: str | None = None) -> list[dict]:
 def _stage_check(conn, c: dict, d: dict, rows_read: int, key: dict) -> tuple[bool, float | None, dict]:
     col, p, name = c["column_name"], c["params"] or {}, d["name"]
     if c["kind"] == "key_unique":
+        if key.get("kept_latest"):  # the dataset loads the latest row per key (#459): unique once the rest dropped
+            return True, float(key["duplicates"]), {"examples": key["examples"], "kept_latest": True}
         return key["duplicates"] == 0, float(key["duplicates"]), {"examples": key["examples"]}
     if c["kind"] == "row_count":
         last = d.get("rows")
@@ -291,10 +293,18 @@ def clear_check_hold(conn, name: str) -> None:
 
 # ---- after a rebuild: coverage and matching ------------------------------------------------------
 
-def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]]) -> dict:
-    """Per source: link coverage (resolved / total by link type, from the graph build), how its records matched,
-    how many share an entity with another source, golden fields won and open reviews. Kept per rebuild for 90
-    days (source_match_stat); coverage checks are judged here."""
+UNRESOLVED_SHOWN = 20  # the values per link type that named nothing, most frequent first
+
+
+def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]], misses: dict[str, dict] | None = None) -> dict:
+    """Per source: link coverage (resolved / total by link type, from the graph build, counting the values a
+    resolver found nothing for, `misses`: source -> link type -> Counter of values), the values that named
+    nothing (for review), how its records matched, how many share an entity with another source, golden fields
+    won and open reviews. Kept per rebuild for 90 days (source_match_stat); coverage checks are judged here."""
+    coverage = {s: {rel: list(v) for rel, v in rels.items()} for s, rels in coverage.items()}
+    for source, rels in (misses or {}).items():
+        for rel, values in rels.items():
+            coverage.setdefault(source, {}).setdefault(rel, [0, 0])[1] += sum(values.values())
     per: dict[str, dict] = {}
     for r in conn.execute(
         """
@@ -325,6 +335,11 @@ def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]]) -> dict:
         res, tot = sum(v[0] for v in rels.values()), sum(v[1] for v in rels.values())
         per.setdefault(source, {})["coverage"] = {"pct": round(100 * res / tot, 1) if tot else None, "resolved": res,
                                                   "total": tot, "by_rel": rels}
+        if found := (misses or {}).get(source):
+            per[source]["coverage"]["unresolved"] = {
+                rel: {"rows": sum(values.values()), "values": [{"value": v, "rows": n} for v, n in
+                                                                values.most_common(UNRESOLVED_SHOWN)]}
+                for rel, values in found.items()}
     conn.execute("delete from source_match_stat where built_at < now() - interval '90 days'")
     with conn.cursor() as cur:
         cur.executemany("insert into source_match_stat (source, stats) values (%s, %s)",
@@ -363,7 +378,7 @@ def health(conn, name: str | None = None) -> list[dict]:
     know before an answer rests on this data."""
     from . import catalog
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     out = []
     stats = {r["source"]: r["stats"] for r in conn.execute(
         "select distinct on (source) source, stats from source_match_stat order by source, id desc")}
@@ -463,7 +478,7 @@ def next_load(cron: str | None, tz: str | None = None) -> str | None:
 
         return next(cron_string_iterator(time.time(), cron, tz or os.environ.get("FUZER_TIMEZONE") or "UTC")).isoformat(
             timespec="minutes")
-    except Exception:  # noqa: BLE001  (a cron Dagster can't read: shown as not scheduled)
+    except Exception:
         return None
 
 

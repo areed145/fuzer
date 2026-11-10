@@ -1,6 +1,7 @@
 """Graph capabilities, declared with `capability` (#133)."""
 
 from typing import Any, Literal
+
 from ...core import db
 from ...graph import edges, ontology, queries
 from .. import mcp_server

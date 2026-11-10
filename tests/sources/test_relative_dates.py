@@ -36,7 +36,7 @@ def test_a_csv_with_relative_dates_reads_real_ones_and_changes_its_fingerprint_d
     today = date.today()
     assert rows[0]["created"] == (today - timedelta(days=1)).isoformat() and rows[0]["text"] == "Tripped today"
     assert rows[1]["created"] == f"{today} 07:00"
-    assert list(real.rows())[0]["created"] == "2026-11-08"  # real dates untouched
+    assert next(iter(real.rows()))["created"] == "2026-11-08"  # real dates untouched
 
     before_rel, before_real = rel.fingerprint(), real.fingerprint()
 
@@ -153,5 +153,7 @@ def test_a_meter_export_is_suggested_as_measurements_on_its_tags_and_wells():
     assert "entity" not in m and m["measurements"]["of"] == {"from": "meter", "as": "tag_or_well"}
     assert {v["quantity"]: v.get("unit") for v in m["measurements"]["values"]} == {
         "volume": "kSm3", "energy": "GJ", "hhv": "MJ/Sm3", "flow_hours": "h"}
+    volume = next(x for x in suggest.profile(c, pack)["columns"] if x["name"] == "volume_ksm3")
+    assert volume["place"] == 0  # 1426.9 is a volume, not well KR 14-26 written without its prefix (#459)
     rows = list(c.rows())
     assert {r["gas_day"] for r in rows} >= {(date.today() - timedelta(days=1)).isoformat()}  # relative dates too

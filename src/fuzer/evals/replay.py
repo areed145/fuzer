@@ -161,7 +161,7 @@ def sre_detector(conn, pack, since: datetime, until: datetime, src, only: list[s
 
 
 def _only(*names):
-    fn = lambda conn, pack, since, until, src: sre_detector(conn, pack, since, until, src, list(names))  # noqa: E731
+    fn = lambda conn, pack, since, until, src: sre_detector(conn, pack, since, until, src, list(names))
     fn.__name__ = "sre:" + "+".join(names)
     return fn
 

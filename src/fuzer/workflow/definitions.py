@@ -1,7 +1,7 @@
 """Process definitions, forms, and workflow people management."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -48,7 +48,7 @@ def is_agent(actor: str) -> bool:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _op(fn):

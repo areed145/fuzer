@@ -25,7 +25,11 @@ from . import (
     sources,
     workflow,
 )
-from .deps import UI_DIST, get_conn, rebuilder  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
+from .deps import (  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
+    UI_DIST,
+    get_conn,
+    rebuilder,
+)
 from .security import ProjectScope, RequestBounds, query_timeout
 
 

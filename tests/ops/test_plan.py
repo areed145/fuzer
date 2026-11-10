@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from datetime import UTC
 
 import pytest
 from psycopg.types.json import Jsonb
@@ -81,9 +82,9 @@ def test_sap_work_orders_become_plan_items_and_clashes_and_bundles_show(conn):
 
 
 def test_a_field_operator_sees_what_they_are_planned_onto(conn):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     soon = propose(conn, "maintenance", "Grease P-101", "ann", now + timedelta(days=2), now + timedelta(days=2, hours=2),
                    refs=["fz-pump-1"], crew="gina", status="scheduled")
     propose(conn, "maintenance", "Maybe later", "ann", now + timedelta(days=3), now + timedelta(days=3, hours=1),
@@ -157,9 +158,9 @@ def test_maintenance_plans_put_their_next_due_task_on_the_plan_and_roll_forward(
 
 
 def test_work_starting_soon_shows_spare_parts_with_no_stock(conn):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     conn.execute("insert into entity (fuzer_id, kind) values ('fz-mat-seal', 'material'), ('fz-mat-brg', 'material'), "
                  "('fz-mat-oring', 'material') on conflict do nothing")
     conn.execute("insert into entity_label (fuzer_id, label) values ('fz-mat-seal', '10001 seal kit') "

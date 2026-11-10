@@ -11,10 +11,10 @@ is a source_run row, and the dataset keeps its state (fingerprint, schema, water
 
 import hashlib
 import json
-from pathlib import Path
-
 import time
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from pathlib import Path
+from typing import NamedTuple
 
 from psycopg.types.json import Jsonb
 
@@ -271,7 +271,8 @@ def ingest(conn, data_dir, exports: list[str] | None = None, snapshot: bool = Tr
     try:
         conn.execute("drop table if exists source_record_stage")
         conn.execute("create temp table source_record_stage (dataset text, source text, record_type text, "
-                     "source_key text, payload jsonb, snap boolean) on commit drop")
+                     "source_key text, payload jsonb, snap boolean, seq bigint generated always as identity) "
+                     "on commit drop")
         n = db.copy_rows(conn, "source_record_stage", ["dataset", "source", "record_type", "source_key", "payload", "snap"],
                          rows())
         conn.execute("analyze source_record_stage")
@@ -312,7 +313,7 @@ def _alert(conn, names: list[str]) -> None:
     try:
         alerts.check(conn, names)
         conn.commit()
-    except Exception:  # noqa: BLE001
+    except Exception:
         conn.rollback()
         logging.getLogger(__name__).exception("source alerts failed")
 
@@ -323,16 +324,41 @@ def _check(conn, counts: dict[str, dict], report: dict) -> None:
     keys = quality.key_stats(conn, list(counts))
     for name, r in counts.items():
         r["key"] = keys.get(name)
+        if r["key"]["duplicates"] and r["d"].get("duplicates") == "keep_latest":
+            r["detail"] = {"duplicates_dropped": _keep_latest(conn, r["d"])}
+            r["key"] = {**r["key"], "kept_latest": True}
         r["checks"] = quality.run_load_checks(conn, r["d"], r["rows_read"], r["key"])
         failed = [x for x in r["checks"] if not x["ok"] and x["blocking"]]
-        if r["key"]["duplicates"]:
+        if r["key"]["duplicates"] and not r["key"].get("kept_latest"):
             failed.insert(0, {"kind": "duplicate keys", "value": r["key"]["duplicates"],
                               "detail": {"examples": r["key"]["examples"]}})
         if failed:
             conn.execute("delete from source_record_stage where dataset = %s", (name,))
             quality.hold_for_checks(conn, name, failed)
-            r |= {"status": "held", "detail": {"checks": failed}}
+            r |= {"status": "held", "detail": {**(r.get("detail") or {}), "checks": failed}}
             report["held"].append(name)
+
+
+DROPPED_SHOWN = 50  # the dropped rows kept on the run, for the owner to see what the load left out
+
+
+def _keep_latest(conn, d: dict) -> dict:
+    """A dataset set to keep the latest row per key (#459): drop its other staged rows. The latest is the one with
+    the highest watermark when the dataset has one, else the one read last. Returns what was dropped: how many
+    rows, how many keys, and the first rows themselves (key and payload)."""
+    wm = d.get("watermark")
+    order = "s.payload->>%(wm)s desc nulls last, s.seq desc" if wm else "s.seq desc"
+    dropped = conn.execute(f"""
+        with ranked as (
+            select s.seq, row_number() over (partition by s.source, s.record_type, s.source_key order by {order}) as n
+            from source_record_stage s where s.dataset = %(name)s
+        )
+        delete from source_record_stage s using ranked r where s.seq = r.seq and r.n > 1
+        returning s.source_key, s.payload
+    """, {"name": d["name"], "wm": wm}).fetchall()
+    keys = sorted({r["source_key"] for r in dropped})
+    return {"rows": len(dropped), "keys": len(keys), "examples": keys[:3],
+            "shown": [{"key": r["source_key"], "row": r["payload"]} for r in dropped[:DROPPED_SHOWN]]}
 
 
 def _merge(conn, snapshot: bool, counts: dict[str, dict]) -> dict:

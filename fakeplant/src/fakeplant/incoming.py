@@ -4,6 +4,7 @@ Written to <out>/incoming/ from the same fake plant, plus answer_keys/schema.jso
 and each column's meaning for these tables and for the built-in ones (as if they were unmapped).
 """
 
+import itertools
 import json
 import random
 import re
@@ -69,7 +70,7 @@ def generate(out: Path, equipment: list[dict], floc: list[dict], wells: list[str
         {"Line Number": f"LN-{20000 + i:06d}", "From": _tag(a["floc"]), "To": _tag(b["floc"]),
          "Size (in)": str(rng.choice([2, 3, 4, 6, 8, 10, 12])),
          "Service": f"{a['description']} to {b['description'].lower()}", "Pipe Spec": rng.choice(["A1", "B2", "C3"])}
-        for i, (a, b) in enumerate(zip(eq, eq[1:]))]
+        for i, (a, b) in enumerate(itertools.pairwise(eq))]
 
     tables["well_tests"] = [
         {"TEST_ID": f"WT{i:05d}", "WELL": w, "TEST_DT": f"2024-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}",

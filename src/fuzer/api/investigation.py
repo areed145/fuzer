@@ -3,10 +3,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..core import settings
-from ..graph.investigation import Investigation, InvestigationUnavailable, okan_investigation
+from ..graph.investigation import (
+    Investigation,
+    InvestigationUnavailable,
+    okan_investigation,
+)
 from . import deps
 from .deps import get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)

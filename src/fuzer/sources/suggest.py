@@ -140,7 +140,7 @@ def profile(c, pack: Pack, sample_rows: int = SAMPLE_ROWS, makers: set[str] = fr
         vals = [str(r.get(name)).strip() for r in rows if r.get(name) not in (None, "")]
         n = len(vals) or 1
         counts = Counter(vals)
-        frac = lambda test: sum(1 for v in vals if test(v)) / n  # noqa: E731
+        frac = lambda test: sum(1 for v in vals if test(v)) / n  # noqa: B023
         nums = [x for v in vals if (x := _num(v)) is not None]
         cols.append({
             "name": name, "rows": len(rows), "filled": round(len(vals) / (len(rows) or 1), 3),
@@ -219,7 +219,7 @@ def pick_key(prof: dict) -> str | list[str] | None:
     if nearly:
         return max(nearly, key=lambda c: c["distinct"])["name"]
     col = {c["name"]: c for c in prof["columns"]}
-    asset = lambda c: max(col[c]["tag_or_well"], col[c]["location"]) >= 0.8  # noqa: E731
+    asset = lambda c: max(col[c]["tag_or_well"], col[c]["location"]) >= 0.8
     found = []
     for a, b in prof.get("pairs", []):
         dated = [x for x in (a, b) if col[x]["date"] >= 0.9]
@@ -314,7 +314,7 @@ def rules(name: str, prof: dict, refs: dict | None = None, values: dict | None =
 
 def _shape(cols: dict, key) -> dict:
     meanings = {c: v["meaning"] for c, v in cols.items()}
-    has = lambda m: m in meanings.values()  # noqa: E731
+    has = lambda m: m in meanings.values()
     key_m = meanings.get(key) if isinstance(key, str) else None
     if isinstance(key, list) and has("number") and not has("text") and \
             {meanings.get(k) for k in key} & {"tag", "well", "tag_or_well", "location"} and \
@@ -370,7 +370,7 @@ def draft(dataset: str, sug: dict, source: str | None = None, record_type: str |
         return {**m, "measurements": _measured(cols, key)}
     one = key if isinstance(key, str) else None
     as_of = {"tag": {"as": "tag"}, "well": {"as": "well"}, "location": {"as": "floc"}}
-    by = lambda meaning: [c for c, v in cols.items() if v["meaning"] == meaning]  # noqa: E731
+    by = lambda meaning: [c for c, v in cols.items() if v["meaning"] == meaning]
     entity = None
     if kind == "timeseries":
         entity = {"kind": "timeseries", "key": {"from": key, "as": "upper"}}

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from fuzer.analysis.capacity_bounds import as_oil, standing, stage_bound, water_cut
+from fuzer.analysis.capacity_bounds import as_oil, stage_bound, standing, water_cut
 from fuzer.analysis.flow_capacity import flow_capacity
 from fuzer.analysis.production_efficiency import production_efficiency
 
@@ -47,7 +47,7 @@ def rated(*rows):
     return {(id, "oil_capacity"): {"value": value, "method": method} for id, value, method in rows}
 
 
-oil = lambda quantity, value: value  # noqa: E731
+oil = lambda quantity, value: value
 
 
 def test_parallel_members_add_and_partial_stages_scale_to_the_facility():

@@ -2,7 +2,7 @@
 from Okan, and the pack follows the database a process connects to, not an import-time global."""
 
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from pathlib import Path
 
 import pytest
@@ -427,9 +427,9 @@ def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path
         assert fuzer.targets() == [("kestrel", added["data"]), ("okan", str(tmp_path))]
 
         schedule = next(s for s in jobs.schedules if s.job_name == "refresh_all")
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        at = datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
+        at = datetime(2026, 1, 1, 2, tzinfo=UTC)
         with dg.build_schedule_context(resources={"fuzer": fuzer}, scheduled_execution_time=at) as ctx:
             runs = schedule.evaluate_tick(ctx).run_requests
         assert sorted(r.tags[jobs.PROJECT_TAG] for r in runs) == ["kestrel", "okan"]

@@ -124,9 +124,20 @@ def _place(v: str, pack: Pack):
         return "area", f"{pack.facility}-{u}"
     if tag := pack.tags.parse(v) or pack.tags.parse(re.sub(r"\s+", "-", v)):
         return "tag", tag
-    if well := pack.wells.parse(v):
+    if well := pack.wells.parse(v) or _bare_well(u, pack):
         return "well", well
     return None
+
+
+def _bare_well(u: str, pack: Pack) -> str | None:
+    """A well written without the field's prefix (J12-04 for OK-J12-04), as planners do in a location column. Only
+    here: in free text a bare J12 04 is too often something else."""
+    prefix = getattr(pack.wells, "prefix", "")
+    if not prefix or u.startswith(prefix) or not u[:1].isalpha():  # a number (1426.9) is never a bare well
+        return None
+    whole = prefix + u
+    found = [m for m in pack.wells.find_all(whole) if m.start == 0 and m.end == len(whole)]
+    return found[0].key if found else None
 
 
 def _document_part(row, pack: Pack):
@@ -292,4 +303,6 @@ def extract(record: dict, pack: Pack, maps: dict | None = None) -> tuple[list[Ca
     return m.extract(record["source_key"], record["payload"], pack)
 
 
-from . import mappings  # noqa: E402  (mappings uses the transforms, resolvers and hooks above)
+from . import (
+    mappings,
+)

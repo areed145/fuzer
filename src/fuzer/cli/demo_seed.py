@@ -38,7 +38,7 @@ def refresh(conn, folder: Path, pack=None) -> None:
                   f"{notified.get('raised', 0)} notifications raised.", flush=True)
         else:
             print("Data unchanged.", flush=True)
-    except Exception as e:  # noqa: BLE001 - startup reports it and the application still starts
+    except Exception as e:
         conn.rollback()
         print(f"Data refresh failed; running on the loaded register. Inspect Sources before retrying: {e}", flush=True)
 
@@ -116,7 +116,7 @@ def register_projects(conn, folder: Path = BUNDLES, by: str = "deploy") -> list[
             with projects.use(conn, out["project"]), db.connect() as c:
                 refresh(c, Path(out["data"]), current_pack(c))
             added.append(out["project"])
-        except Exception as e:  # noqa: BLE001 - one bundle doesn't take the deployment down
+        except Exception as e:
             conn.rollback()
             print(f"Project {path.name} isn't registered: {e}", flush=True)
     return added

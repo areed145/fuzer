@@ -11,7 +11,15 @@ import argparse
 import re
 from pathlib import Path
 
-from .components import COMPONENTS, GITHUB, PKG, _imports, _source, _tables, owned_tables
+from .components import (
+    COMPONENTS,
+    GITHUB,
+    PKG,
+    _imports,
+    _source,
+    _tables,
+    owned_tables,
+)
 from .resources import ROOT, SCHEMA_MODULES, SCHEMAS
 
 HEADER = "Generated from {what}; don't edit by hand (`uv run python -m fuzer.reference`)."

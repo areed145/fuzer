@@ -18,6 +18,7 @@ around them. Excursions are counted only while the unit runs, so a stopped pump'
 work item for an engineer, one per IOW while it is open.
 """
 
+import itertools
 import re
 from collections import Counter
 from datetime import datetime, timedelta
@@ -245,7 +246,7 @@ def issues(conn, pack, point_ids: list[str] | None = None) -> list[dict]:
             by_source.setdefault(r["source"], {})[r["limit_type"]] = r
         for src, lim in by_source.items():
             ordered = [(t, lim[t]["value"]) for t in TYPES if t in lim]
-            for (ta, a), (tb, b) in zip(ordered, ordered[1:]):
+            for (ta, a), (tb, b) in itertools.pairwise(ordered):
                 if a >= b:
                     add(lim[ta], "order", f"{src} {ta} {a:g} is not below {tb} {b:g}", source=src, type=ta)
         n = normal.get(pid)
@@ -344,7 +345,7 @@ def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
         "where e.rel in ('part_of', 'located_at') and e.valid_to is null")}
     keys = {r["fuzer_id"]: r["label"] for r in conn.execute("select fuzer_id, label from entity_label where fuzer_id = any(%s)",
                                                            (list(set(of_unit) | unit_ids),))}
-    train = lambda u: (keys.get(u) or "")[-1:] if re.search(r"\d[A-Z]$", keys.get(u) or "") else ""  # noqa: E731
+    train = lambda u: (keys.get(u) or "")[-1:] if re.search(r"\d[A-Z]$", keys.get(u) or "") else ""
     out = {}
     for u in unit_ids:
         if u in own:

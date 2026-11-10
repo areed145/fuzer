@@ -43,7 +43,7 @@ def topology(conn) -> dict[str, set[str]]:
     for r in conn.execute("select e.src, e.dst from edge e join entity n on n.fuzer_id = e.src and n.kind = 'allocation_node' "
                           "where e.rel = 'located_at'"):
         nodes.setdefault(r["dst"], set()).add(r["src"])
-    family = lambda label: (label.split("-")[0], label.split("-")[-1][:2]) if label and label.count("-") >= 2 else None  # noqa: E731
+    family = lambda label: (label.split("-")[0], label.split("-")[-1][:2]) if label and label.count("-") >= 2 else None
     linked = {}
     for r in tags:
         if not r["instrument"] and r["fuzer_id"] in adj:

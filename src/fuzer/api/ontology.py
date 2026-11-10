@@ -8,7 +8,6 @@ from ..core import ontology
 from ..core.ontology import OntologyError
 from ..graph import ontology as model
 from .deps import get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)

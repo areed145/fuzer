@@ -12,6 +12,7 @@
   spans, for the swimlane chart of an upset spreading through a unit.
 """
 
+import itertools
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -69,7 +70,7 @@ def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=No
     chatter = []
     for p, xs in by_point.items():
         xs.sort(key=lambda x: x["start"])
-        quick = sum(1 for u, v in zip(xs, xs[1:]) if u["end"] and v["start"] - u["end"] <= timedelta(minutes=1))
+        quick = sum(1 for u, v in itertools.pairwise(xs) if u["end"] and v["start"] - u["end"] <= timedelta(minutes=1))
         if quick + 1 >= chatter_n:
             chatter.append({"point": p, "alarms": len(xs), "repeats_within_a_minute": quick})
     standing = [{"point": x["point"], "limit": f"{x['limit_type']} {x['limit_value']:g}", "since": x["start"],
@@ -136,7 +137,7 @@ def trip_analysis(conn, pack, scope: str | None, since: str, until: str, src=Non
         sp = u["spans"]
 
         def before(i):  # the state before span i, looking past transitions
-            return next((sp[j]["state"] for j in range(i - 1, -1, -1) if sp[j]["state"] != "transition"), None)
+            return next((sp[j]["state"] for j in range(i - 1, -1, -1) if sp[j]["state"] != "transition"), None)  # noqa: B023
 
         stops = [x for i, x in enumerate(sp) if x["state"] == "stopped" and before(i) in ("running", "startup")]
         starts = [x for i, x in enumerate(sp) if x["state"] in ("startup", "running") and before(i) == "stopped"]
@@ -147,7 +148,7 @@ def trip_analysis(conn, pack, scope: str | None, since: str, until: str, src=Non
             if after and after["state"] == "stopped" and (end - datetime.fromisoformat(x["start"])) <= timedelta(minutes=failed_min):
                 failed.append(x["start"])
         gaps = [(datetime.fromisoformat(b_["start"]) - datetime.fromisoformat(a_["start"])).total_seconds() / 86400
-                for a_, b_ in zip(stops, stops[1:])]
+                for a_, b_ in itertools.pairwise(stops)]
         rows.append({"unit": name, "id": u["id"], "stops": len(stops), "starts": len(starts), "failed_starts": len(failed),
                      "days_between_stops": round(float(np.median(gaps)), 1) if gaps else None,
                      "running_share": u["running_share"], "stop_times": [x["start"] for x in stops][:10]})

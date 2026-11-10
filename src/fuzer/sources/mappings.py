@@ -76,6 +76,7 @@ units.yaml.
 """
 
 import os
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -150,12 +151,22 @@ LIMIT_TYPES = ("hihi", "hi", "lo", "lolo")
 DISABLED = {"n", "no", "false", "0", "disabled", "off"}
 
 
+class Miss:
+    """A resolver's endpoint for a value it found nothing for: no link, but the value is counted (#459)."""
+    __slots__ = ("value",)
+
+    def __init__(self, value: str):
+        self.value = value
+
+
 class Mapping:
     """One mapping file, checked and compiled once into small functions run per row."""
 
     def __init__(self, raw: dict, path: Path | None = None):
         self.raw, self.path = raw, path
         self.version: int | None = None  # its mapping_version id, when it came from the catalog
+        # link values a resolver found nothing for (rel -> value -> rows), since the last rebuild cleared it (#459)
+        self.unresolved: dict[str, Counter] = {}
         self._where = f" in {path.name}" if path else ""
         for k in ("source", "record_type", "shape"):
             if not raw.get(k):
@@ -196,7 +207,7 @@ class Mapping:
                 kind, ckey = e.get("kind"), self._value(e.get("key", "_key"))
                 if not kind:
                     raise MappingError(f"entity needs a kind or a node resolver{self._where}")
-                kind_key = lambda k, r, p: (kind, ckey(k, r, p))  # noqa: E731
+                kind_key = lambda k, r, p: (kind, ckey(k, r, p))
             spec = e.get("fields") or []
             fields = []
             for f in spec if isinstance(spec, list) else spec.items():
@@ -233,11 +244,11 @@ class Mapping:
             return lambda k, r, p: c
         if "template" in expr and not expr.get("as"):
             tmpl = expr["template"]
-            f = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
+            f = lambda k, r, p: tmpl.format(_key=k, **r)
         else:
             if "template" in expr:  # a template, then a transform (e.g. "{manufacturer}|{model}" as model_key)
                 tmpl = expr["template"]
-                base = lambda k, r, p: tmpl.format(_key=k, **r)  # noqa: E731
+                base = lambda k, r, p: tmpl.format(_key=k, **r)
             else:
                 base = self._value(expr.get("from", "_key"))
             t = expr.get("as")
@@ -252,20 +263,21 @@ class Mapping:
             elif t in ex.TRANSFORMS:
                 tr, area_col = ex.TRANSFORMS[t], expr.get("area_from")
                 if area_col:
-                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col), p))  # noqa: E731
+                    f = lambda k, r, p: tr(base(k, r, p), p, ex.area_in(r.get(area_col), p))
                 else:
-                    f = lambda k, r, p: tr(base(k, r, p), p, None)  # noqa: E731
+                    f = lambda k, r, p: tr(base(k, r, p), p, None)
             else:
                 raise MappingError(f"unknown transform {t!r}{self._where}")
         if "default" in expr:
             d = expr["default"]
             dflt = self._value(d) if isinstance(d, dict) else (lambda k, r, p: d)
             inner = f
-            f = lambda k, r, p: v if (v := inner(k, r, p)) not in (None, "") else dflt(k, r, p)  # noqa: E731
+            f = lambda k, r, p: v if (v := inner(k, r, p)) not in (None, "") else dflt(k, r, p)
         return f
 
-    def _endpoint(self, spec):
-        """An endpoint spec as f(key, row, pack) -> (kind, key) or None; SELF for the record itself."""
+    def _endpoint(self, spec, misses: bool = False):
+        """An endpoint spec as f(key, row, pack) -> (kind, key) or None; SELF for the record itself. With `misses`
+        (a link's ends), a resolver that finds nothing for a value gives Miss(value) instead of None."""
         if spec is None or spec == "self":
             return SELF
         if "ref" in spec:
@@ -276,7 +288,12 @@ class Mapping:
             return lambda k, r, p: ("ref", tmpl.format(_key=k, **r))
         if (t := spec.get("as")) in ex.RESOLVERS:
             res, base = ex.RESOLVERS[t], self._value(spec.get("from", "_key"))
-            return lambda k, r, p: res(base(k, r, p), p)
+
+            def resolve(k, r, p):
+                v = base(k, r, p)
+                found = res(v, p)
+                return found if found is not None or not misses or v in (None, "") else Miss(str(v))
+            return resolve
         if not spec.get("kind"):
             raise MappingError(f"endpoint needs a kind, a ref or a resolver{self._where}")
         kind, val = spec["kind"], self._value({x: v for x, v in spec.items() if x != "kind"})
@@ -297,15 +314,15 @@ class Mapping:
                 return False
             return not (unless and all(row.get(k) == v for k, v in unless.items()))
 
-        return (link["rel"], applies, link.get("each"), self._endpoint(link.get("from")),
-                self._endpoint(link.get("to")), link.get("confidence", 1.0),
+        return (link["rel"], applies, link.get("each"), self._endpoint(link.get("from"), misses=True),
+                self._endpoint(link.get("to"), misses=True), link.get("confidence", 1.0),
                 self._value(link["valid_from"]) if link.get("valid_from") else None,
                 self._value(link["valid_to"]) if link.get("valid_to") else None, props)
 
     def _measurements(self, spec):
         if not (spec.get("of") and spec.get("at") and spec.get("values")):
             raise MappingError(f"measurements need of, at and values{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
         of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
         if any(o == "self" for o in of) and not self._entity:
             raise MappingError(f"measurements of self need an entity{self._where}")
@@ -320,8 +337,8 @@ class Mapping:
     def _limits(self, spec):
         if not (spec.get("of") and spec.get("values")):
             raise MappingError(f"limits need of and values{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
-        col = lambda c: self._value(c) if c else (lambda k, r, p: None)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
+        col = lambda c: self._value(c) if c else (lambda k, r, p: None)
         of = spec["of"] if isinstance(spec["of"], list) else [spec["of"]]
         values = []
         for v in spec["values"]:
@@ -336,7 +353,7 @@ class Mapping:
     def _curves(self, spec):
         if not (spec.get("of") and spec.get("series") and "x" in spec):
             raise MappingError(f"curves need of, series and x{self._where}")
-        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)  # noqa: E731
+        text = lambda v: self._value(v) if isinstance(v, dict) else (lambda k, r, p: v)
         return (self._endpoint(spec["of"]), text(spec.get("curve")), text(spec["series"]), self._value(spec["x"]),
                 self._value(spec["y"]) if spec.get("y") else (lambda k, r, p: None),
                 text(spec.get("x_unit", {"from": "x_unit"})), text(spec.get("y_unit", {"from": "y_unit"})))
@@ -447,6 +464,9 @@ class Mapping:
             for item in (row.get(each) or []) if each else (row,):
                 src = me if src_f is SELF else src_f(key, item, pack)
                 dst = me if dst_f is SELF else dst_f(key, item, pack)
+                if isinstance(src, Miss) or isinstance(dst, Miss):  # names something the register doesn't know
+                    self.unresolved.setdefault(rel, Counter())[(src if isinstance(src, Miss) else dst).value] += 1
+                    continue
                 if src is None or dst is None:
                     continue
                 edges.append(Edge(src, rel, dst, self.source, confidence=conf,

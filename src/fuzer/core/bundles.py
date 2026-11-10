@@ -66,7 +66,7 @@ def read(path: Path) -> dict:
     try:
         raw_pack = yaml.safe_load(pack_file.read_text())
         pack = pack_from_config(raw_pack)
-    except Exception as e:  # noqa: BLE001 - any malformed pack is reported the same way
+    except Exception as e:
         raise BundleError(f"{pack_file}: not a valid asset pack ({type(e).__name__}: {e})") from None
     project = dict(m.get("project") or {})
     if not isinstance(m.get("project", {}), dict):

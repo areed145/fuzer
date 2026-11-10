@@ -341,7 +341,7 @@ def _remembered(question: str) -> dict | None:
     """The facts learned in earlier conversations about the entities this question names (memory.context)."""
     from ..core import db
     from ..graph import queries
-    from . import memory, mcp_server
+    from . import mcp_server, memory
 
     try:
         with db.connect() as conn:

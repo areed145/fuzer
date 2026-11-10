@@ -126,7 +126,7 @@ def test_read_link_and_score(setup, read):
 
 
 def test_drawing_endpoint_places_readings(setup, read):
-    conn, truth = setup
+    conn, _truth = setup
     from fuzer.api import app
     client = TestClient(app)
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]

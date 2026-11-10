@@ -5,7 +5,7 @@ along the role chain (with a hop limit), case actions, and the statistics and in
 import os
 import re
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,7 @@ from fuzer.workflow import bpmn, engine, roles
 
 pytestmark = pytest.mark.sequence
 
-T0 = datetime(2026, 1, 5, 8, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 5, 8, tzinfo=UTC)
 
 
 def proc(key: str, role: str, sla: str | None = None) -> str:
@@ -70,7 +70,7 @@ def test_existing_databases_gain_the_domain_agents(conn):
     """Roles are seeded once, so a database from before the domain agents gets them from the work engine's schema.sql, without
     resurrecting anything else; an empty table stays empty so the first seed still runs."""
     statement = re.search(r"insert into work_role .*?on conflict do nothing;",
-                          (Path(db.__file__).parents[1] / "workflow" / "schema.sql").read_text(), re.S).group(0)
+                          (Path(db.__file__).parents[1] / "workflow" / "schema.sql").read_text(), re.DOTALL).group(0)
     domains = ("production-surveillance", "hse-incident-management")
     conn.execute("delete from work_role where name = any(%s)", (list(domains),))
     conn.execute(statement)
@@ -159,10 +159,10 @@ def test_away_moves_what_they_hold(conn):
     item = engine.start(conn, "held", {}, "olga", now=T0)["item_id"]
     t = task_of(conn, item)
     engine.claim(conn, t["id"], "alice", now=T0)
-    roles.set_away(conn, "alice", "alice", datetime.now(timezone.utc) + timedelta(days=3), delegate="bob")
+    roles.set_away(conn, "alice", "alice", datetime.now(UTC) + timedelta(days=3), delegate="bob")
     conn.commit()
     assert task_of(conn, item)["assignee"] == "bob"
-    roles.set_away(conn, "bob", "bob", datetime.now(timezone.utc) + timedelta(days=3))  # bob away too, no one covers
+    roles.set_away(conn, "bob", "bob", datetime.now(UTC) + timedelta(days=3))  # bob away too, no one covers
     conn.commit()
     assert task_of(conn, item)["assignee"] is None  # back in the engineer queue
     roles.set_away(conn, "alice", "alice", None)

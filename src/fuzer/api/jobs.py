@@ -9,7 +9,7 @@ of failing.
 import os
 import time
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -17,7 +17,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..resources import ROOT
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)
@@ -95,7 +94,7 @@ def _metadata(md) -> dict:
 
 
 def _iso(ts: float | None) -> str | None:
-    return datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None
+    return datetime.fromtimestamp(ts, UTC).isoformat() if ts else None
 
 
 def _enum(v) -> str | None:
@@ -214,7 +213,7 @@ def health(instance, defs, check_rows: list | None = None) -> dict:
                 "scheduler_running": False, "summary": "Dagster hasn't run here yet"}
     from dagster import DagsterRunStatus
 
-    since = datetime.fromtimestamp(time.time() - DAY, timezone.utc)
+    since = datetime.fromtimestamp(time.time() - DAY, UTC)
     failed = len(_runs(instance, limit=100, statuses=[DagsterRunStatus.FAILURE], updated_after=since))
     rows = checks(instance, defs) if check_rows is None else check_rows
     failing = sum(1 for c in rows if c["level"] in ("warn", "fail"))

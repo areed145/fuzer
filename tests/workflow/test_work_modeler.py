@@ -122,7 +122,7 @@ def test_roles(client):
 
 
 def test_agent_proposal_is_unsaved_then_uses_existing_lifecycle(conn, client, monkeypatch):
-    from fuzer.agents import workflow, worker
+    from fuzer.agents import worker, workflow
     from fuzer.workflow.canvas import Draft
 
     proposal = Draft.model_validate({

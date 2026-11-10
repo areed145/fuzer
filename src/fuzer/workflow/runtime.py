@@ -1,14 +1,25 @@
 """BPMN process execution and runtime operations."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
 from . import bpmn
 from .definitions import (
-    DEFAULT_OWNER, DEFAULT_SLA, SYSTEM, TASK_KINDS, Conflict, NotFound, WorkError,
-    _definition, _event, _op, _published, is_agent, utcnow,
+    DEFAULT_OWNER,
+    DEFAULT_SLA,
+    SYSTEM,
+    TASK_KINDS,
+    Conflict,
+    NotFound,
+    WorkError,
+    _definition,
+    _event,
+    _op,
+    _published,
+    utcnow,
 )
+
 
 class _Run:
     """One operation: the clock, who is acting, and the processes it has locked (data written at the end)."""

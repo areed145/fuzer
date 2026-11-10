@@ -10,7 +10,6 @@ from fastapi.responses import (
 from ..graph import operations, queries
 from . import deps
 from .deps import UI_DIST, get_conn
-
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)
@@ -28,7 +27,7 @@ def root():
 def health():
     try:
         pack = deps.pack().name
-    except Exception:  # noqa: BLE001 - liveness doesn't depend on the database answering; /stats reports that
+    except Exception:
         pack = None
     return {"ok": True, "pack": pack}
 

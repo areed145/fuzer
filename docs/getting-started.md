@@ -93,11 +93,12 @@ The planted stories to find are listed in the [README](https://github.com/areed1
 uv run pytest -m unit                     # a few seconds, no database
 uv run pytest -n auto --dist loadfile     # unit and integration; whole files stay on one worker
 uv run pytest -m e2e                      # week-long replays and evals: slow
+uv run ruff check                         # lint, as CI runs it; `--fix` for the safe fixes
 ```
 
 The tests never call Claude: agents and readers run on recorded answers.
 
-CI runs the UI, Python unit/import checks and two integration shards independently.
+CI runs the UI, Python lint/unit/import checks and two integration shards independently.
 The integration shards split `tests/analysis` plus `tests/sources` from everything else,
 including any new test directories. Both use `-n auto --dist loadfile` to preserve
 module-scoped database fixtures and file-ordered stories. The existing `test` check

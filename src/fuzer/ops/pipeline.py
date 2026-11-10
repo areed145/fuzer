@@ -1,10 +1,11 @@
 """Extract -> resolve -> golden -> graph. Safe to rerun at any time."""
 
 import threading
-from collections.abc import Callable
 import time
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -67,6 +68,8 @@ def rebuild(conn, pack: Pack) -> dict:
     text_kinds = {(rsrc, rtype): name for name, (rsrc, rtype, _, _) in llm_links.TEXT_SOURCES.items()}
     texts: dict[str, dict[str, dict]] = {name: {} for name in llm_links.TEXT_SOURCES}
     maps = mappings.load(conn)
+    for m in maps.values():
+        m.unresolved.clear()  # counted again by this rebuild's extraction
     references = {}
     reference_maps = {key: m for key, m in maps.items() if m.shape == "reference"}
     if reference_maps:
@@ -147,7 +150,11 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["incidents"] = len(i_cands)
     retire_unused(conn, set(assigned.values()) | set(d_assigned.values()) | set(i_assigned.values()))
     lap("incidents")
-    stats["sources"] = len(quality.after_rebuild(conn, coverage))  # coverage and match statistics per source
+    misses: dict[str, dict] = {}  # link values that named nothing the register knows, per source and link type
+    for m in maps.values():
+        for rel, values in m.unresolved.items():
+            misses.setdefault(m.source, {}).setdefault(rel, Counter()).update(values)
+    stats["sources"] = len(quality.after_rebuild(conn, coverage, misses))  # coverage and match statistics per source
     stats |= lessons.suggest(conn, pack.classification.get("taxonomy", "iso14224"))
     stats["knowledge_changes"] = {k: v for k, v in knowledge.build(conn).items() if k != "rows"}
     conn.execute(
@@ -191,7 +198,7 @@ class _RebuildQueue:
                     self._running = False
                     return
                 self._pending = False
-            started = datetime.now(timezone.utc)
+            started = datetime.now(UTC)
             try:
                 with db.use(self.scope), db.connect() as conn:  # the requesting project's register, on this thread
                     p = self.owner.pack
@@ -199,7 +206,7 @@ class _RebuildQueue:
                     self.last = {"started": started.isoformat(), "stats": rebuild(conn, pack)}
             except Exception as e:  # keep the worker alive; report the failure in status
                 self.last = {"started": started.isoformat(), "error": f"{type(e).__name__}: {e}"}
-            self.last["finished"] = datetime.now(timezone.utc).isoformat()
+            self.last["finished"] = datetime.now(UTC).isoformat()
 
     def status(self) -> dict:
         return {"running": self._running, "pending": self._pending, "last": self.last}
