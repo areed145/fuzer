@@ -123,6 +123,27 @@ type Person = { name: string; roles: string[]; away_until?: string | null };
 const assetName = (id: string, n?: { label: string | null; description: string | null; at?: string }) =>
   n?.at ? `${n.at}${n.description ? ` ${n.description}` : ""}` : n?.label ?? id;
 
+/** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
+ * when it turns out to be a different event. */
+function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | null; onChange: () => void }) {
+  const { busy, error, run } = useAct();
+  const operate = usePermission("operate");
+  const all = r.joined ?? [];
+  return (
+    <div className="small">
+      <Badge tone="ok">{all.length + 1} sources</Badge>{" "}
+      <span className="muted">{[r.type.replace(/_/g, " "), ...all.map((j) => j.label)].join(", ")}</span>
+      <ul className="plain">{all.map((j) => <li key={j.id}>
+        {j.label}: {j.title} <span className="muted">· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</span>
+        {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
+          title="A different event: give it a case of its own"
+          onClick={() => run("Splitting", () => api.splitException(j.id, person), onChange)}>Split out</Button></>}
+      </li>)}</ul>
+      {error && <p role="alert" className="error">{error}</p>}
+    </div>
+  );
+}
+
 function Row({ r, person, people, queues, onChange }: {
   r: ExceptionRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
 }) {
@@ -135,7 +156,8 @@ function Row({ r, person, people, queues, onChange }: {
   return (
     <tr>
       <td><strong>{r.title}</strong><br /><span className="muted small">{r.type.replace(/_/g, " ")} · {r.source ?? ""}
-        {r.value_usd != null ? ` · $${Math.round(r.value_usd).toLocaleString()}` : ""}</span></td>
+        {r.value_usd != null ? ` · $${Math.round(r.value_usd).toLocaleString()}` : ""}</span>
+        {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}</td>
       <td className="small">{r.subjects.map((s) => <div key={s}><a href={entityHref(s)}
         title={names?.[s]?.at ? names[s].label ?? undefined : undefined}>{assetName(s, names?.[s])}</a></div>)}
         {r.unmatched.length > 0 && <div className="muted">unmatched: {r.unmatched.join(", ")}</div>}</td>

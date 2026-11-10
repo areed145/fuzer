@@ -14,7 +14,7 @@ from ..core.exceptions import clear_exception, exception_type, raise_exception
 TYPE = "source_issue"
 ROLE = "role:data_steward"
 exception_type(TYPE, "Source problem", role=ROLE, description="A dataset failed, is held, fails its checks, "
-               "changed shape or is stale.")
+               "changed shape or is stale.", joins=False)  # a data problem, never part of an asset's event
 SAY = {"failed": "failed to load", "held": "is held (its schema or a blocking check needs a look)",
        "checks failing": "has failing checks", "profile drift": "changed shape (profile drift)",
        "stale": "is stale (no new delivery within its expected hours)"}

@@ -99,6 +99,18 @@ work order are raised on each register refresh (`intake.sap_notifications`, on b
 last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
 page. A type with a process starts it; one with a queue opens a case in that role's queue; the rest wait for the IOC.
 
+- **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
+  about the same asset as an open one from another source joins that one's case instead of opening another. "The
+  same asset" means the same entity, or one sharing the tag or unit it stands for: a historian point counts as its
+  transmitter, equipment as the tag it is installed at, and a transmitter as the compressor it is part of (up to
+  three links). Areas and the facility don't count, or a whole area would be one event. The open one must have been
+  seen within `exceptions.join_hours` (48 by default; 0 turns joining off). An exception waiting to be dispatched
+  joins the case the next source opens, or the one the IOC opens by dispatching a match. Exceptions shows one row
+  with every source under it ("3 sources: SAP notification, IOW breach, Process upset"). The task page lists what
+  each source saw, and My jobs says which systems reported it. Dispatch and field reports on any source go to the
+  shared case, and finishing the case closes every source. A source that clears drops off and the case stays open
+  while another holds. **Split out** gives a source that turns out to be a different event a case of its own
+  (`POST /exceptions/{id}/split`). A type declared with `joins=False`, such as source problems, never joins.
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
 - **My jobs** (`#/field`) is the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues

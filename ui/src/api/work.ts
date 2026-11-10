@@ -351,6 +351,8 @@ export interface WorkTaskView {
     comments: WorkEvent[];
     subjects: { fuzer_id: string; kind: string | null; label: string | null }[];
   };
+  /** Every exception the case works: more than one when several systems reported the same event (#464). */
+  sources?: CaseSource[];
 }
 
 export interface BoardCard {
@@ -410,6 +412,21 @@ export interface ExceptionRow {
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
   /** What the source sent with it, and what the field has reported back (`field`). */
   evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };
+  /** Other systems' exceptions about the same event, which joined this one's case (#464). */
+  joined?: JoinedException[];
+}
+
+/** An exception that joined another's case: the same event reported by another source. */
+export interface JoinedException {
+  id: number; type: string; key: string; title: string; source: string | null; state: string;
+  value_usd: number | null; subjects: string[]; first_seen: string; label: string;
+}
+
+/** One exception a case works, with what its source saw: a task page's sources. */
+export interface CaseSource {
+  id: number; type: string; key: string; title: string; source: string | null; state: string;
+  value_usd: number | null; first_seen: string; last_seen: string; joined_to: number | null; subjects: string[];
+  label: string; seen: [string, string][];
 }
 
 /** An exception type: declared by a module in code, or defined as data for another system's exceptions. */
@@ -455,6 +472,8 @@ export interface FieldJob extends ExceptionRow {
   own_step: boolean;
   /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
   queued: boolean;
+  /** Each system's report of this event, when more than one reported it (#464). */
+  sources: CaseSource[];
 }
 
 export const workApi = {
@@ -493,6 +512,8 @@ export const workApi = {
   defineExceptionKind: (name: string, k: { by: string; label: string; role?: string | null; process?: string | null;
     audience: string[]; description?: string | null }) => request<unknown>("PUT", `/exceptions/types/${encodeURIComponent(name)}`, undefined, k),
   removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),
+  splitException: (id: number, by: string, reason?: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/split`, undefined, { by, reason: reason ?? null }),
   dispatch: (id: number, by: string, to: string, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),

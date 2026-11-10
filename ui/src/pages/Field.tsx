@@ -89,6 +89,11 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         </li>)}</ul>
       </div>}
       {job.unmatched.length > 0 && <p className="small muted">Also named: {job.unmatched.join(", ")}</p>}
+      {job.sources?.length > 1 && <div>
+        <h3 className="small">Reported by {job.sources.length} systems</h3>
+        <ul className="plain small">{job.sources.map((x) => <li key={x.id}>
+          <strong>{x.label}</strong>: {x.title} <span className="muted">· {x.source ?? ""}</span></li>)}</ul>
+      </div>}
       {job.seen.length > 0 && <div>
         <h3 className="small">What was seen</h3>
         <dl className="kv small">{job.seen.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
