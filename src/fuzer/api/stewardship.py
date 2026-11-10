@@ -5,12 +5,15 @@
     GET  /stewardship/decisions     every alias and pinned match, with who, when and why (searchable)
     POST /stewardship/aliases       record a value as another name for an entity
     POST /stewardship/aliases/{id}/retire, POST /stewardship/pins/undo   reverse a decision
+    GET  /stewardship/merge/preview, POST /stewardship/merge    "Same as…" from the entity page
+    GET  /stewardship/split/preview, POST /stewardship/split    "Not this record" from the entity page
     POST /exceptions/{id}/resolve   (api/ops.py) pick the asset an exception's unmatched ref meant
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from . import deps
 from .deps import get_conn
 from .security import AuthenticatedRoute
 
@@ -73,15 +76,31 @@ def decisions(q: str | None = None, current: bool = True, limit: int = Query(200
              "source": a["source"], "by": a["created_by"], "at": a["created_at"], "reason": a["reason"],
              "reversed": bool(a["retired_at"]), "reversed_by": a["retired_by"], "reversed_at": a["retired_at"]}
             for a in aliases.listing(conn, current=current, q=q, limit=limit)]
-    rows += [{"kind": f"{p['rule']}_link", "id": f"{p['left_ref']}|{p['right_ref']}",
-              "what": f"{p['left_ref']} {'is' if p['rule'] == 'must' else 'is not'} {p['right_ref']}",
-              "fuzer_id": None, "source": None, "by": p["decided_by"], "at": p["decided_at"], "reason": None,
-              "reversed": False}
-             for p in conn.execute(
-                 """
-                 select * from pinned_link where %(q)s::text is null or left_ref ilike '%%' || %(q)s || '%%'
-                    or right_ref ilike '%%' || %(q)s || '%%' order by decided_at desc limit %(n)s
-                 """, {"q": q or None, "n": limit})]
+    pins = conn.execute(
+        """
+        select * from pinned_link where %(q)s::text is null or left_ref ilike '%%' || %(q)s || '%%'
+           or right_ref ilike '%%' || %(q)s || '%%' order by decided_at desc limit %(n)s
+        """, {"q": q or None, "n": limit}).fetchall()
+    batches: dict[str, list] = {}
+    for p in pins:
+        if p["batch"]:
+            batches.setdefault(p["batch"], []).append(p)
+            continue
+        rows.append({"kind": f"{p['rule']}_link", "id": f"{p['left_ref']}|{p['right_ref']}",
+                     "what": f"{p['left_ref']} {'is' if p['rule'] == 'must' else 'is not'} {p['right_ref']}",
+                     "fuzer_id": None, "source": None, "by": p["decided_by"], "at": p["decided_at"],
+                     "reason": p["reason"], "reversed": False})
+    for batch, ps in batches.items():  # a steward's merge or split (#476): one decision, one undo
+        p = ps[0]
+        if batch.startswith("split-"):
+            common = set.intersection(*({x["left_ref"], x["right_ref"]} for x in ps))
+            what = (f"{p['left_ref']} is not {p['right_ref']}" if len(ps) == 1 else
+                    f"{min(common)} is not the same as its {len(ps)} other records")
+        else:
+            what = f"{p['left_ref']} is the same as {p['right_ref']}"
+        rows.append({"kind": "split" if batch.startswith("split-") else "merge", "id": batch, "what": what,
+                     "fuzer_id": None, "source": None, "by": p["decided_by"], "at": p["decided_at"],
+                     "reason": p["reason"], "reversed": False})
     return sorted(rows, key=lambda r: r["at"], reverse=True)[:limit]
 
 
@@ -99,8 +118,19 @@ class Reason(BaseModel):
 
 
 class PinUndo(Reason):
-    left_ref: str
-    right_ref: str
+    left_ref: str = ""
+    right_ref: str = ""
+    batch: str | None = None
+
+
+class MergeIn(Reason):
+    a: str
+    b: str
+
+
+class SplitIn(Reason):
+    fuzer_id: str
+    ref: str
 
 
 @router.post("/aliases")
@@ -122,9 +152,14 @@ def retire_alias(alias_id: int, body: Reason, conn=Depends(get_conn)):
 
 @router.post("/pins/undo")
 def undo_pin(body: PinUndo, conn=Depends(get_conn)):
-    """Reverse a pinned match decision (same, or not the same); the next rebuild matches those records afresh."""
+    """Reverse a pinned match decision (same, or not the same, or a whole merge or split by its batch); the next
+    rebuild matches those records afresh."""
+    from ..graph import curation
     from ..sources.catalog import _audit
 
+    if body.batch:
+        return {**_do(conn, curation.undo, conn, body.batch, body.by, reason=body.reason),
+                "rebuild": deps.rebuilder.request()}
     row = conn.execute("delete from pinned_link where left_ref = %s and right_ref = %s returning *",
                        (body.left_ref, body.right_ref)).fetchone()
     if row is None:
@@ -133,3 +168,38 @@ def undo_pin(body: PinUndo, conn=Depends(get_conn)):
            old={"rule": row["rule"], "decided_by": row["decided_by"]}, reason=body.reason)
     conn.commit()
     return {"undone": f"{row['left_ref']}|{row['right_ref']}", "rule": row["rule"]}
+
+
+@router.get("/merge/preview")
+def merge_preview(a: str, b: str, conn=Depends(get_conn)):
+    """What "a is the same as b" would do, before it is done."""
+    from ..graph import curation
+
+    return _do(conn, curation.preview_merge, conn, a, b)
+
+
+@router.post("/merge")
+def merge(body: MergeIn, conn=Depends(get_conn)):
+    """Two entities are one thing: pinned, and applied by a rebuild queued now. Undo it from the decision log."""
+    from ..graph import curation
+
+    return {**_do(conn, curation.merge, conn, body.a, body.b, body.by, reason=body.reason),
+            "rebuild": deps.rebuilder.request()}
+
+
+@router.get("/split/preview")
+def split_preview(fuzer_id: str, ref: str, conn=Depends(get_conn)):
+    """What "this record is not this entity" would do, before it is done."""
+    from ..graph import curation
+
+    return _do(conn, curation.preview_split, conn, fuzer_id, ref)
+
+
+@router.post("/split")
+def split(body: SplitIn, conn=Depends(get_conn)):
+    """A record is not this entity: pinned apart, and applied by a rebuild queued now. Undo it from the decision
+    log."""
+    from ..graph import curation
+
+    return {**_do(conn, curation.split, conn, body.fuzer_id, body.ref, body.by, reason=body.reason),
+            "rebuild": deps.rebuilder.request()}

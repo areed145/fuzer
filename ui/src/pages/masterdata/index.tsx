@@ -108,6 +108,7 @@ function Decisions() {
                 : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={() => {
                   if (!confirm(`Reverse “${d.what}”? It stops applying on the next rebuild.`)) return;
                   const undo = d.kind === "alias" ? () => api.retireAlias(Number(d.id), person, "reversed from the decision log")
+                    : d.kind === "merge" || d.kind === "split" ? () => api.undoDecision(String(d.id), person, "reversed from the decision log")
                     : () => { const [l, r] = String(d.id).split("|"); return api.undoPin(l, r, person, "reversed from the decision log"); };
                   void a.run("undo", undo, rows.reload);
                 }}>Reverse</Button>}</td>

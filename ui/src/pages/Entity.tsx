@@ -4,6 +4,7 @@ import { Bar, Button, ButtonLink, PageHeader, Table, Input, Select , Card as UIC
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
+import { NotThisRecord, SameAs } from "./masterdata/Curation";
 
 const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
 
@@ -310,10 +311,14 @@ function Records({ e }: { e: EntityDetail }) {
                 {r.method === "singleton" ? "only record" : r.method}
                 {r.method === "score" && ` ${r.confidence.toFixed(2)}`}
               </td>
+              {e.records.length > 1 && <td>
+                <NotThisRecord fuzerId={e.fuzer_id} refId={`${r.source}:${r.record_type}:${r.source_key}`} />
+              </td>}
             </tr>
           ))}
         </tbody>
       </Table>
+      {e.records.length > 0 && <SameAs fuzerId={e.fuzer_id} kind={e.kind} />}
       <div className="keys">
         {e.keys.map((k) => (
           <UIBadge key={`${k.kind}:${k.key}`} className="badge key mono" title={k.kind}>

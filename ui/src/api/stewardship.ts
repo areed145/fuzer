@@ -7,10 +7,25 @@ export interface UnmatchedRef {
 }
 export interface UnresolvedValue { source: string; rel: string; value: string; rows: number; aliased: boolean; built_at: string }
 export interface StewardDecision {
-  kind: "alias" | "must_link" | "cannot_link"; id: number | string; what: string; fuzer_id: string | null;
+  kind: "alias" | "must_link" | "cannot_link" | "merge" | "split"; id: number | string; what: string; fuzer_id: string | null;
   source: string | null; by: string | null; at: string; reason: string | null; reversed: boolean;
   reversed_by?: string | null; reversed_at?: string | null;
 }
+
+interface CurationEntity {
+  fuzer_id: string; kind: string; label: string | null;
+  records: { source: string; record_type: string; source_key: string; method: string; ref: string }[];
+  keys: { kind: string; key: string }[];
+}
+export interface MergePreview {
+  a: CurationEntity; b: CurationEntity; differ: { field: string; a: unknown; b: unknown }[];
+  keys: { kind: string; key: string }[]; records: number; replaces: string[]; note: string;
+}
+export interface SplitPreview {
+  entity: CurationEntity; ref: string; record: { source: string; record_type: string; source_key: string };
+  stays: string[]; brings: { field: string; value: unknown }[]; note: string;
+}
+export interface CurationDone { batch: string; decision: "merge" | "split"; rebuild: unknown }
 
 export const stewardshipApi = {
   unmatchedRefs: () => request<UnmatchedRef[]>("GET", "/stewardship/unmatched"),
@@ -23,4 +38,12 @@ export const stewardshipApi = {
     request<Record<string, unknown>>("POST", `/stewardship/aliases/${id}/retire`, undefined, { by, reason: reason ?? null }),
   undoPin: (left_ref: string, right_ref: string, by: string, reason?: string) =>
     request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { left_ref, right_ref, by, reason: reason ?? null }),
+  undoDecision: (batch: string, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { batch, by, reason: reason ?? null }),
+  mergePreview: (a: string, b: string) => request<MergePreview>("GET", "/stewardship/merge/preview", { a, b }),
+  mergeEntities: (a: string, b: string, by: string, reason?: string) =>
+    request<CurationDone>("POST", "/stewardship/merge", undefined, { a, b, by, reason: reason ?? null }),
+  splitPreview: (fuzer_id: string, ref: string) => request<SplitPreview>("GET", "/stewardship/split/preview", { fuzer_id, ref }),
+  splitRecord: (fuzer_id: string, ref: string, by: string, reason?: string) =>
+    request<CurationDone>("POST", "/stewardship/split", undefined, { fuzer_id, ref, by, reason: reason ?? null }),
 };
