@@ -314,7 +314,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
     <>
       <UICard  as="section">
         <h2>Kinds</h2>
-        <Table variant="results">
+        <Table variant="results" className="model-table">
           <thead><tr><th>Kind</th><th>Description</th><th>Entities</th><th>Status</th><th /></tr></thead>
           {groups.map((g) => (
             <tbody key={g || "none"}>
@@ -323,8 +323,8 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
                 <tr key={k.name}>
                   <td><span className="row"><i className="dot" style={{ background: kindColor(k.name) }} />
                     <span>{k.label}<br /><span className="mono muted small">{k.name}</span></span></span></td>
-                  <td className="small">{k.description || <span className="muted">no description</span>}</td>
-                  <td className="small">{(k.count ?? 0).toLocaleString()}</td>
+                  <td className="small wide">{k.description || <span className="muted">no description</span>}</td>
+                  <td className="small" data-label="Entities">{(k.count ?? 0).toLocaleString()}</td>
                   <td><StatusBadge status={k.status} /></td>
                   <td><Button onClick={() => edit({ what: "kind", def: k })}>Edit</Button></td>
                 </tr>
@@ -335,7 +335,7 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
       </UICard>
       <UICard  as="section">
         <h2>Link types</h2>
-        <Table variant="results">
+        <Table variant="results" className="model-table">
           <thead><tr><th>Link type</th><th>From → to</th><th>Description</th><th>Links</th><th>Status</th><th /></tr></thead>
           {views.map((v) => (
             <tbody key={v || "none"}>
@@ -343,9 +343,9 @@ function ModelTables({ o, edit }: { o: OntologyData; edit: (e: Editing) => void 
               {o.model.relations.filter((r) => (r.view ?? "") === v).map((r) => (
                 <tr key={r.name}>
                   <td><span className="mono">{r.name}</span>{r.dated && <span className="muted small"> dated</span>}</td>
-                  <td className="small">{r.from_kinds.map(words).join(", ") || "any"} → {r.to_kinds.map(words).join(", ") || "any"}</td>
-                  <td className="small">{r.description || <span className="muted">no description</span>}</td>
-                  <td className="small">{(r.count ?? 0).toLocaleString()}</td>
+                  <td className="small wide">{r.from_kinds.map(words).join(", ") || "any"} → {r.to_kinds.map(words).join(", ") || "any"}</td>
+                  <td className="small wide">{r.description || <span className="muted">no description</span>}</td>
+                  <td className="small" data-label="Links">{(r.count ?? 0).toLocaleString()}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td><Button onClick={() => edit({ what: "relation", def: r })}>Edit</Button></td>
                 </tr>
@@ -410,7 +410,7 @@ function KindForm({ o, def, draft, onDone, onCancel }: {
   return (
     <UICard  as="section">
       <h2>{def ? `Edit kind: ${def.label}` : "Add a kind"}</h2>
-      <Table variant="keyValue" density="compact">
+      <Table variant="keyValue" density="compact" className="model-form">
         <tbody>
           <tr><th>Name</th><td>
             <Input className="mono" value={k.name ?? ""} disabled={core} placeholder="activity"
@@ -478,7 +478,7 @@ function RelationForm({ o, def, draft, onDone, onCancel }: {
   return (
     <UICard  as="section">
       <h2>{def ? `Edit link type: ${def.name}` : "Add a link type"}</h2>
-      <Table variant="keyValue" density="compact">
+      <Table variant="keyValue" density="compact" className="model-form">
         <tbody>
           <tr><th>Name</th><td>
             <Input className="mono" value={r.name ?? ""} disabled={!!def} placeholder="executes"
