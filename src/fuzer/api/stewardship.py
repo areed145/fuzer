@@ -23,12 +23,13 @@ router = APIRouter(prefix="/stewardship", route_class=AuthenticatedRoute)
 
 
 def _do(conn, fn, *args, **kwargs):
+    from ..core.exceptions import ExceptionError
     from ..core.jsonsafe import plain
     from ..sources.catalog import CatalogError
 
     try:
         out = fn(*args, **kwargs)
-    except CatalogError as e:
+    except (CatalogError, ExceptionError) as e:
         conn.rollback()
         raise HTTPException(400, str(e)) from e
     conn.commit()
@@ -262,3 +263,87 @@ def undo_fix(batch: str, body: Reason, conn=Depends(get_conn)):
     from ..graph import gaps
 
     return _do(conn, gaps.undo, conn, batch, body.by, reason=body.reason)
+
+
+class ProposeIn(BaseModel):
+    kinds: list[str] | None = None
+    limit: int = 60
+    force: bool = False
+
+
+class AcceptIn(Reason):
+    choice: str | None = None
+
+
+def _proposal_errors():
+    from ..core import llm
+
+    return llm.provider_errors() + (RuntimeError,)
+
+
+@router.get("/proposals")
+def proposals(status: str = "open", kind: str | None = None, conn=Depends(get_conn)):
+    """Claude's proposals (most confident first), and the confidence at which a bulk accept is offered (0: none)."""
+    from ..core import llm
+    from ..core.jsonsafe import plain
+    from ..graph import proposals as props
+
+    return plain({"proposals": props.listing(conn, status=status, kind=kind),
+                  "bulk_accept_at": props.bulk_threshold(conn), "configured": llm.configured()})
+
+
+@router.post("/proposals/run")
+def run_proposals(body: ProposeIn, conn=Depends(get_conn)):
+    """Build the questions and ask Claude about the ones without a current answer (cached; never applies anything)."""
+    from ..core.jsonsafe import plain
+    from ..graph import proposals as props
+
+    kinds = tuple(k for k in (body.kinds or props.KINDS) if k in props.KINDS)
+    try:
+        return plain(props.propose(conn, kinds=kinds, limit=body.limit, force=body.force))
+    except _proposal_errors() as e:
+        conn.rollback()
+        raise HTTPException(502, f"Claude could not be asked: {e}") from e
+
+
+def _after_accept(conn, out: dict, by: str) -> dict:
+    """What accepting needs beyond the register: the exceptions an alias now matches, and a rebuild for a pin."""
+    from ..ops import exceptions
+    from ..sources import aliases
+
+    for eid in out.get("exceptions") or []:
+        row = conn.execute("select unmatched from exception_record where id = %s", (eid,)).fetchone()
+        for ref in (row["unmatched"] if row else None) or []:
+            if out["fuzer_id"] in aliases.lookup(conn, ref):
+                exceptions.resolve_ref(conn, eid, ref, out["fuzer_id"], by, remember=False,
+                                       reason=f"Claude proposal {out['id']}")
+    return out
+
+
+@router.post("/proposals/{proposal_id}/accept")
+def accept_proposal(proposal_id: int, body: AcceptIn, conn=Depends(get_conn)):
+    """Apply a proposal (or another of its options, with `choice`) the way a steward would by hand."""
+    from ..graph import proposals as props
+
+    out = _do(conn, lambda: _after_accept(conn, props.accept(conn, proposal_id, body.by, body.choice), body.by))
+    if out.get("rebuild"):
+        out["rebuild"] = deps.rebuilder.request()
+    return out
+
+
+@router.post("/proposals/{proposal_id}/reject")
+def reject_proposal(proposal_id: int, body: Reason, conn=Depends(get_conn)):
+    from ..graph import proposals as props
+
+    return _do(conn, props.reject, conn, proposal_id, body.by, reason=body.reason)
+
+
+@router.post("/proposals/accept-confident")
+def accept_confident(body: Reason, kind: str | None = None, conn=Depends(get_conn)):
+    """Accept every open proposal at or above `stewardship.bulk_accept_at` (refused while it is 0)."""
+    from ..graph import proposals as props
+
+    done = _do(conn, lambda: [_after_accept(conn, o, body.by) for o in props.accept_confident(conn, body.by, kind)])
+    if any(o.get("rebuild") for o in done):
+        deps.rebuilder.request()
+    return {"accepted": len(done), "proposals": done}

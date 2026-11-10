@@ -132,6 +132,9 @@ register(
     Setting("closeout.apply_to_exports", "bool", False, "Demo: apply a close-out sent back to a source system (an "
             "SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it",
             "Work"),
+    Setting("stewardship.bulk_accept_at", "float", 0.0, "Offer to accept, in one step, Claude's master data proposals "
+            "at or above this confidence (0: never; set it once the proposal evals show they hold at that level)",
+            "Work", min=0, max=1),
     Setting("handover.shift_times", "str", "06:00,18:00", "Shift changes, as local times in the project's timezone "
             "(comma separated). At each one a shift handover is drafted for the ops lead queue (empty: off)", "Work"),
     Setting("exceptions.join_hours", "int", 48, "An exception about an asset (or the unit it is part of) whose open "
