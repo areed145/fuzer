@@ -832,6 +832,20 @@ def generate(out, seed: int = 11) -> dict:
                   "20-1": ("pdf_text", "OK_GGCP INLET SEPARATION AND LIFT GAS"), "20-A": ("image", "OK_GGCP TRAIN A"),
                   "20-B": ("image", "OK_GGCP TRAIN B"), "20-C": ("pdf_text", "OK_GGCP TRAIN C"),
                   "30-1": ("smart", "OKA_ST1"), "40-1": ("image", "OKA_ST2"), "50-1": ("pdf_text", "OKA_NWP")}
+    # How damaged each scan is (#475): image sheets range from a fair scan to a poor one; text and smart sheets are clean.
+    levels = {"20-A": "scan", "20-B": "old", "40-1": "poor"}
+    sheet_no = {key: f"{FIELD}-{key.split('-')[0]}-PID-{i + 1:03d}" for i, key in enumerate(sheet_tags)}
+    # Lines that run between sheets, drawn as off-page connectors at both ends (no rng: the rest stays as it was).
+    offpage: dict[str, list[dict]] = {}
+
+    runs = [("10-1", "10-V-2004", "10-2", "10-P-1001A", 16), ("20-1", "20-V-2001", "20-A", "20-V-2101A", 12),
+            ("20-1", "20-V-2001", "20-B", "20-V-2101B", 12), ("20-1", "20-V-2001", "20-C", "20-V-2101C", 12)]
+    for k, (a_key, a, b_key, b, size) in enumerate(runs):
+        line = f'{size}"-P-{a_key[:2]}{950 + k}-A1A'
+        offpage.setdefault(a_key, []).append({"tag": a, "direction": "to", "sheet": sheet_no[b_key], "other": b,
+                                              "line": line})
+        offpage.setdefault(b_key, []).append({"tag": b, "direction": "from", "sheet": sheet_no[a_key], "other": a,
+                                              "line": line})
     drng3 = random.Random(seed + 2)
     for i, (key, tags) in enumerate(sheet_tags.items()):
         fmt, label = sheet_info[key]
@@ -846,7 +860,8 @@ def generate(out, seed: int = 11) -> dict:
             sheet["connections"] = conns
         elif fmt == "pdf_text":
             sheet["text"] = sheet["title"] + "\n" + "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
-        truth = pid.draw(out / sheet["image"], sheet, tags, titles, drng3, conns, scan=fmt == "image")
+        truth = pid.draw(out / sheet["image"], sheet, tags, titles, drng3, conns,
+                         level=levels.get(key, "scan") if fmt == "image" else "clean", offpage=offpage.get(key, []))
         if fmt == "smart":
             sheet["positions"] = {x["key"]: [x["x"], x["y"]] for x in truth["tags"]}
         pid_truth[sheet["sheet"]] = truth

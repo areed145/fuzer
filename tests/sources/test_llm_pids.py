@@ -26,10 +26,10 @@ class FakeVision:
     def create(self, **kw):
         self.requests.append(kw)
         content = kw["messages"][0]["content"]
-        assert sum(1 for b in content if b["type"] == "image") == 4  # 2200 x 1500 -> 2 x 2 tiles
         sheet = next(b["text"] for b in content if b["type"] == "text").split()[1].rstrip(".")
         truth = self.truth[sheet]
         width, height = truth["size"]
+        assert sum(1 for b in content if b["type"] == "image") == len(llm_pids.tile_boxes(width, height))
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
             tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
                     for x in truth["tags"]]
@@ -85,14 +85,14 @@ def test_image_is_ingested_with_fingerprint(setup):
 
 
 def test_tiles_stay_within_size_limit(setup):
-    conn, _ = setup
+    conn, truth = setup
     p = conn.execute("select payload from source_record where source_key = %s", (SHEET,)).fetchone()["payload"]
     import io
 
     from PIL import Image
     t = llm_pids.tiles(p["image_path"])
-    assert len(t) == 4 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
-    assert [box for _, _, box in t] == llm_pids.tile_boxes(2200, 1880)
+    assert len(t) == 6 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
+    assert [box for _, _, box in t] == llm_pids.tile_boxes(*truth[SHEET]["size"])  # a two-band train sheet: 3 x 2
 
 
 def test_every_drawn_sheet_but_smart_is_read(setup):
@@ -126,12 +126,12 @@ def test_read_link_and_score(setup, read):
 
 
 def test_drawing_endpoint_places_readings(setup, read):
-    conn, _truth = setup
+    conn, truth = setup
     from fuzer.api import app
     client = TestClient(app)
     fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()["fuzer_id"]
     d = client.get(f"/documents/{fid}/drawing").json()
-    assert (d["width"], d["height"], d["format"]) == (2200, 1880, "image") and d["read_by"]
+    assert [d["width"], d["height"]] == truth[SHEET]["size"] and d["format"] == "image" and d["read_by"]
     status = {m["status"] for m in d["marks"]}
     assert status == {"linked", "not_a_tag", "not_in_register", "line"}
     linked = [m for m in d["marks"] if m["status"] == "linked"]
