@@ -438,6 +438,23 @@ def _row(conn, exception_id: int, lock: bool = False) -> dict:
     return row
 
 
+def _due(conn, row: dict):
+    """When a dispatched SAP notification is due, from its SAP priority (`intake.sap_notifications.due_hours`), on
+    today's clock from when Fuzer raised it (#494). None for other types, an unmapped priority or the setting off."""
+    from datetime import timedelta
+
+    from ..core import settings
+
+    if row["type"] != "sap_notification" or not (p := str((row["evidence"] or {}).get("priority") or "").strip()[:1]):
+        return None
+    hours = dict(x.split(":", 1) for x in str(settings.get(conn, "intake.sap_notifications.due_hours") or "").split(",")
+                 if ":" in x)
+    try:
+        return row["first_seen"] + timedelta(hours=float(hours[p])) if p in hours else None
+    except ValueError:
+        return None
+
+
 def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = None) -> dict:
     """Send an exception to someone (a person, `role:<role>`): open its case for them if it has none, else hand
     its case (or the case's open person step) to them. Publishes exception.dispatched."""
@@ -451,7 +468,7 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         work.dispatch(conn, row["item_id"], by, to, reason)
     else:
         item_id = work.open_case(conn, t.case_type or t.name, row["title"], by, subjects=row["subjects"],
-                                 priority=row["priority"], assignee=None if to.startswith("role:") else to,
+                                 priority=row["priority"], due=_due(conn, row), assignee=None if to.startswith("role:") else to,
                                  role=to.removeprefix("role:") if to.startswith("role:") else None, source=row["source"],
                                  payload={**row["evidence"], "exception_id": row["id"]}, reason=reason)["id"]
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))

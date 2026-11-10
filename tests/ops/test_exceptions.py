@@ -592,3 +592,25 @@ def test_an_sap_notification_reads_as_words_in_the_field():
     assert seen == {"notification type": "maintenance request (M1)", "status": "outstanding (OSNO)",
                     "failure mode": "Vibration (VIB)", "failure mechanism": "Vibration (1.2)"}
     assert dict(impl._seen({"status": "ZZZZ", "damage_code": "DM-LEAK"})) == {"status": "ZZZZ", "damage code": "DM-LEAK"}
+
+
+def test_a_dispatched_sap_notification_is_due_by_its_priority(conn):
+    """SAP priority 1 is due in a day, from when Fuzer raised it (#494); the setting can turn it off."""
+    from fuzer.core import settings
+    from fuzer.ops import exceptions as ex
+    from fuzer.ops import intake  # noqa: F401  (declares sap_notification)
+
+    e = raise_exception(conn, "sap_notification", "N-DUE-1", "Seal leak (notification N-DUE-1)", "sap",
+                        refs=["tag:NO-SUCH-TAG"], evidence={"priority": "1", "status": "OSNO"})  # matches nothing: joins no case
+    row = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the seal")
+    due = conn.execute("select due from work_item where id = %s", (row["item_id"],)).fetchone()["due"]
+    assert round((due - row["first_seen"]).total_seconds() / 3600) == 24
+    settings.set(conn, "intake.sap_notifications.due_hours", "", by="test")
+    try:
+        assert ex._due(conn, row) is None
+    finally:
+        settings.reset(conn, "intake.sap_notifications.due_hours", by="test")
+        # over: close it
+        conn.execute("update work_item set state = 'done' where id = %s", (row["item_id"],))
+        conn.execute("update exception_record set state = 'closed' where id = %s", (e["id"],))
+    conn.commit()

@@ -142,6 +142,9 @@ register(
             "several systems is one case (0: never join)", "Work", min=0, max=720),
     Setting("intake.sap_notifications.max_age_days", "int", 60, "Only raise notifications created this many days "
             "before the latest data (an older backlog is a planning question)", "Work", min=1, max=3650),
+    Setting("intake.sap_notifications.due_hours", "str", "1:24,2:72,3:336,4:720", "When a dispatched SAP "
+            "notification is due, by its SAP priority: priority:hours, comma separated, counted from when Fuzer raised "
+            "it (empty: no due date)", "Work"),
     Setting("sre.handoff.min_detections", "int", 3, "Detections an upset needs before it is handed off (a lone "
             "detection is evidence, not an upset worth a person's time)", "SRE", min=1),
     Setting("sre.handoff.max_diagnoses", "int", 10, "Upsets the assistant diagnoses per hand-off run", "SRE",
