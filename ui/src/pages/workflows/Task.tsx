@@ -4,7 +4,7 @@ import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input 
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
 import { Status, entityHref, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, holder, usePerson, when } from "../../work";
+import { Actor, DataView, Due, holder, reportedBy, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
@@ -187,7 +187,7 @@ function Sources({ v }: { v: WorkTaskView }) {
   const all = v.sources ?? [];
   if (all.length < 2) return null;
   return (
-    <UICard className="sources" title={`Reported by ${all.length} sources`}>
+    <UICard className="sources" title={reportedBy(all)}>
       {all.map((x) => <details key={x.id} open className="evidence-item">
         <summary><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
           <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></summary>

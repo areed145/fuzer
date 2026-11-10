@@ -11,7 +11,7 @@
      "values": [{"label": "Real upset: diagnose it", "value": "real"}, {"label": "Not sure: send someone to look", "value": "field_check"}, {"label": "False alarm: close it", "value": "false_alarm"}],
      "validate": {"required": true}},
     {"type": "textarea", "id": "field_ask", "key": "field_ask", "label": "What should they check?",
-     "description": "The operator sees this first on their job.",
+     "description": "The operator sees this first on their job.", "validate": {"required": true},
      "conditional": {"hide": "=triage != \"field_check\""}},
     {"type": "textarea", "id": "triage_note", "key": "triage_note", "label": "Note",
      "description": "What you saw, for the diagnosis or for the record."}

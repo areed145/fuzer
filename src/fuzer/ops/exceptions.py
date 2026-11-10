@@ -523,14 +523,23 @@ def _seen(evidence: dict) -> list[tuple[str, str]]:
 
 def _sent(conn, item_id: int, person: str) -> dict | None:
     """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them, else the case
-    being opened for them."""
+    being opened for them or for the queue they took it from (taking it isn't being sent it)."""
     return conn.execute(
         """
         select actor as by, at, data->>'reason' as reason from work_event
-        where item_id = %(i)s and ((kind = 'handed_off' and data->>'to' = %(p)s)
-                                   or (kind = 'created' and data->>'assignee' = %(p)s))
+        where item_id = %(i)s and ((kind = 'handed_off' and data->>'to' = %(p)s and actor <> %(p)s)
+                                   or (kind = 'created' and (data->>'assignee' = %(p)s
+                                       or (actor <> %(p)s and actor not like 'agent:%%'))))
         order by id desc limit 1
-        """, {"i": item_id, "p": person}).fetchone()
+        """, {"i": item_id, "p": person}).fetchone()  # taking a job from the queue isn't being sent it
+
+
+def _asked(conn, item_id: int) -> dict | None:
+    """Who sent a process to the field and when: whoever last completed a step with a field ask (an engineer's
+    Triage choosing a field check), not the operator who then took it from the queue."""
+    return conn.execute(
+        "select actor as by, at from work_event where item_id = %s and kind = 'completed' "
+        "and coalesce(data->'data'->>'field_ask', '') <> '' order by id desc limit 1", (item_id,)).fetchone()
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
@@ -592,7 +601,8 @@ def field_jobs(conn, person: str) -> list[dict]:
         r["own_step"] = bool(r["task_id"]) and r["task_role"] in roles
         sent = _sent(conn, r["item_id"], person)
         if r["ask"] and r["task_role"] == "operator":  # what the IOC asked when it sent the process to the field
-            sent = {**(sent or {"by": None, "at": None}), "reason": r["ask"]}
+            sent = _asked(conn, r["item_id"]) or {"by": None, "at": None}
+            sent = {**sent, "reason": r["ask"]}
         history = conn.execute(
             "select id, title, state, first_seen from exception_record where id <> %s and subjects && %s "
             "and item_id is distinct from %s and first_seen > now() - interval '90 days' "

@@ -11,6 +11,8 @@ export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   const stats = useAsync(() => api.stats(), []);
+  // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
+  const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -30,6 +32,8 @@ export function InboxPage() {
   const mine = d.mine.filter((r) => !r.escalated_at && keep(r)).sort(byUrgency);
   const queue = d.queue.filter((r) => !r.escalated_at && keep(r)).sort(byUrgency);
   const overdue = all.filter((r) => r.overdue).length;
+  const undispatched = d.roles.includes("ops_lead")
+    ? (exceptions.data ?? []).filter((r) => !r.item_id && !r.planned && r.state === "open").length : 0;
   const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
@@ -45,6 +49,7 @@ export function InboxPage() {
         <UIBadge className="badge">{d.queue.length} unclaimed in your roles ({d.roles.join(", ") || "none"})</UIBadge>
         {overdue > 0 && <UIBadge className="badge late">{overdue} overdue</UIBadge>}
         {escalated.length > 0 && <UIBadge className="badge late">{escalated.length} escalated</UIBadge>}
+        {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
         {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
@@ -57,7 +62,7 @@ export function InboxPage() {
         </Select>
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
-      {!all.length && <p className="muted">Nothing waiting for you. <a href={href("/cases")}>All cases</a></p>}
+      {!all.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/cases")}>All cases</a></p>}
       {!all.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
