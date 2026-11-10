@@ -141,7 +141,18 @@ page. A type with a process starts it; one with a queue opens a case in that rol
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.
 - **SAP notifications done in the field** close with their case and are held, not raised again, while SAP shows the
-  status they had when the field closed them; SAP never hears of a field close, so a planner still closes it there.
+  status they had when the field closed them.
+- **Close-out goes back to the source** (#466, `ops/closeout.py`). When the field reports *done* or *could not do*
+  on work another system raised (an SAP notification, or a type a source pack brought), the update for that system
+  is drafted: a completion with the field's note and the closed status, or a follow-up record saying what still
+  needs doing and why. Each system's `closeout` setting on Sources says how it goes back: `none`, `draft` (a
+  `source_closeout` case on its `closeout_role` queue; SAP drafts to `maintenance_planner` unless set otherwise) or
+  `send`. The planner edits the text on the case and approves (`POST /closeouts/{id}/approve`) or doesn't send it
+  (`/discard`). A sent update is published on the outbox as `source.update` for the system's adapter. The demo has
+  no SAP, so with `closeout.apply_to_exports` on, the update is written to the system's export file (the
+  notification's status, or a new notification for a follow-up): the next load and intake see SAP move, the hold
+  ends, and a follow-up comes back to the IOC as a new notification. `tests/api/test_closeout_to_source.py` walks it
+  on Kestrel.
 
 ## The work board
 

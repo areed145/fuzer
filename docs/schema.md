@@ -1218,6 +1218,26 @@ The integrated plan (ops/plan.py): every planned activity from every source on o
 | `created_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `source_closeout`
+
+Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's Inbox (or sent directly) and published as source.update for the system's adapter.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `exception_id` | bigint |  |
+| `system` | text |  |
+| `record` | text | the system's own key (an SAP notification number) |
+| `action` | text | complete \| follow_up |
+| `draft` | jsonb | text, status, short_text, ... as sent |
+| `state` | text | draft \| sent \| discarded |
+| `item_id` | bigint, | the planner's case, when it was drafted for approval |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `applied_at` | timestamptz | the demo applied it to the system's export |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

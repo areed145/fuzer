@@ -373,6 +373,47 @@ def exception_type_remove(name: str, conn=Depends(get_conn)):
     return {"removed": name}
 
 
+# ---- close-outs back to the source system (#466) -------------------------------------------------------------------
+
+class CloseoutDecision(BaseModel):
+    by: str
+    text: str | None = None
+    short_text: str | None = None
+    reason: str | None = None
+
+
+@router.get("/closeouts")
+def closeout_list(state: str | None = "draft", item_id: int | None = None, exception_id: int | None = None,
+                  conn=Depends(get_conn)):
+    """Updates drafted for the systems that raised work the field finished (state draft, sent, discarded or any)."""
+    from ..ops import closeout
+    return closeout.listing(conn, None if state in (None, "", "any") else state, item_id, exception_id)
+
+
+@router.get("/closeouts/{closeout_id}")
+def closeout_get(closeout_id: int, conn=Depends(get_conn)):
+    from ..core.exceptions import ExceptionError
+    from ..ops import closeout
+    try:
+        return closeout.get(conn, closeout_id)
+    except ExceptionError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/closeouts/{closeout_id}/approve")
+def closeout_approve(closeout_id: int, d: CloseoutDecision, conn=Depends(get_conn)):
+    """Send the drafted update (with any edits to its text) to the source system, and finish its case."""
+    from ..ops import closeout
+    return _exception_call(conn, closeout.approve, closeout_id, d.by, d.text, d.short_text)
+
+
+@router.post("/closeouts/{closeout_id}/discard")
+def closeout_discard(closeout_id: int, d: CloseoutDecision, conn=Depends(get_conn)):
+    """Don't send it; its case is cancelled with the reason."""
+    from ..ops import closeout
+    return _exception_call(conn, closeout.discard, closeout_id, d.by, d.reason)
+
+
 # ---- the integrated plan -----------------------------------------------------------------------------------------
 
 class PlanPropose(BaseModel):

@@ -13,6 +13,8 @@ const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
   ["encoding", "Encoding", "CSV text, e.g. latin-1"], ["rank", "Survivorship rank", "lower wins a field"],
   ["notes", "Notes", "reliability, known issues"],
   ["webhook_secret", "Webhook secret", "env:NAME holding the shared secret its webhook checks"],
+  ["closeout", "Close-out", "none, draft or send: how work the field finishes goes back to it (SAP: draft)"],
+  ["closeout_role", "Close-out queue", "who approves drafted close-outs (SAP: maintenance_planner)"],
 ];
 
 const download = (name: string, text: string, type: string) => {

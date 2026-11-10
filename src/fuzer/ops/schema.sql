@@ -288,3 +288,23 @@ alter table plan_item add column if not exists moved_by text;
 create unique index if not exists plan_item_source on plan_item (source, source_key) where source_key is not null;
 create index if not exists plan_item_window on plan_item (start_at, end_at);
 create index if not exists plan_item_subjects on plan_item using gin (subjects);
+
+-- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
+-- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's
+-- Inbox (or sent directly) and published as source.update for the system's adapter.
+create table if not exists source_closeout (
+    id            bigserial primary key,
+    exception_id  bigint not null,
+    system        text not null,
+    record        text not null,                   -- the system's own key (an SAP notification number)
+    action        text not null,                   -- complete | follow_up
+    draft         jsonb not null,                  -- text, status, short_text, ... as sent
+    state         text not null default 'draft',   -- draft | sent | discarded
+    item_id       bigint,                          -- the planner's case, when it was drafted for approval
+    created_by    text not null,
+    created_at    timestamptz not null default now(),
+    decided_by    text,
+    decided_at    timestamptz,
+    applied_at    timestamptz                      -- the demo applied it to the system's export
+);
+create index if not exists source_closeout_exception on source_closeout (exception_id);

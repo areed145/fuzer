@@ -59,6 +59,8 @@ def audit(conn, obj: str | None = None, object_id: int | None = None, limit: int
 def _secret_ref(values: dict) -> None:
     from .workflows import check_secret_ref
 
+    if values.get("closeout") not in (None, "none", "draft", "send"):
+        raise CatalogError("closeout is none, draft (a planner approves it first) or send")
     if "webhook_secret" in values:
         check_secret_ref(values["webhook_secret"])
         values["webhook_secret"] = values["webhook_secret"] or None
