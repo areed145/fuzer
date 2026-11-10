@@ -8,6 +8,8 @@
 /* Header buttons stay on one line each; on wide screens the long subtitle gives way, not the buttons (#399). */
 .ui-page-actions > * { white-space: nowrap; }
 @media (min-width: 700px) { .ui-page-actions { flex: none; max-width: 50%; justify-content: flex-end; } }
+/* Phones: the actions go under the title, so a long subtitle isn't squeezed into a narrow column beside them. */
+@media (max-width: 699px) { .ui-page-header { flex-direction: column; gap: 10px; } }
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-weight: 500; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; text-decoration: none; }
 .ui-button-md { padding: 6px 10px; }
 .ui-button-sm { padding: 3px 8px; font-size: 12px; }

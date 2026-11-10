@@ -2367,6 +2367,33 @@ test("a big flow network opens on its largest manifold, and can show the whole n
   assert.equal(await show.inputValue(), "MAN-B");
 });
 
+test("on a phone the ontology graph takes the full width, its panel sits below, and the model reads as cards", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  const kinds = ["tag", "equipment", "well", "manifold"].map((kind, i) => ({ kind, label: kind, count: 10 + i, sources: [], fields: [] }));
+  await page.route("**/ontology", (route) => route.fulfill({ json: {
+    kinds, relations: [{ src_kind: "tag", rel: "measures", dst_kind: "well", n: 30, sources: [] }],
+    groups: [], views: [],
+    model: { kinds: kinds.map((k) => ({ name: k.kind, label: k.label, description: "A long description of what one of these is", status: "core", count: k.count })),
+      relations: [{ name: "measures", label: "measures", from_kinds: ["tag"], to_kinds: ["well"], status: "core", count: 30 }] },
+    needs_definition: { kinds: [], relations: [], not_allowed: [] },
+  } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/ontology`);
+  const canvas = page.locator(".graph-canvas");
+  await canvas.waitFor();
+  const graph = await canvas.boundingBox(), panel = await page.locator(".graph-panel").boundingBox();
+  assert.ok(graph.width > 300, `graph is squeezed to ${graph.width}px`);
+  assert.ok(graph.height < 844 * 0.7, `graph (${graph.height}px) leaves no room to scroll the page past it`);
+  assert.ok(panel.y >= graph.y + graph.height, "panel sits below the graph");
+  await page.getByText("Kinds & link types", { exact: true }).click();
+  const row = page.locator(".model-table tr").filter({ hasText: "A long description" }).first();
+  const rowBox = await row.boundingBox();
+  assert.ok(rowBox.width <= 390, `kind row is ${rowBox.width}px wide`);
+  const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
+  assert.ok(scroll <= 390, `page scrolls sideways (${scroll}px)`);
+});
+
 test("one network draws several link types together, filtered by link type and kind of thing", async () => {
   const nodes = [
     { id: "W1", kind: "well", label: "W1" }, { id: "MAN", kind: "allocation_node", label: "MAN" },

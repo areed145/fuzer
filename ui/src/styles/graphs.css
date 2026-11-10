@@ -1,7 +1,8 @@
 /* graphs */
-.graph-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+.graph-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 .graph-canvas {
   position: relative;
+  height: var(--graph-height, 600px);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -10,6 +11,14 @@
 .graph-surface { position: absolute; inset: 0; }
 .graph-fit { position: absolute; top: 10px; right: 10px; font-size: 12px; padding: 3px 10px; }
 .graph-panel { margin-bottom: 0; max-height: 640px; overflow: auto; }
+/* Phones: the graph takes the full width with its panel below, and stays shorter than the screen so the page
+   can still be scrolled past it (a touch on the graph pans the graph, not the page). This sheet loads after
+   shared.css, so it must collapse the columns itself. */
+@media (max-width: 800px) {
+  .graph-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .graph-canvas { height: min(var(--graph-height, 600px), 62vh); height: min(var(--graph-height, 600px), 62svh); }
+  .graph-panel { max-height: none; }
+}
 .graph-panel h3 { margin: 14px 0 6px; font-size: 13px; }
 .graph-panel p { margin: 6px 0; }
 .graph-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -22,6 +31,26 @@ ul.coverage li { display: grid; grid-template-columns: 1fr 90px 36px; align-item
 ul.coverage .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 ul.coverage .bar span { display: block; height: 100%; background: var(--accent); }
 ul.plain li { padding: 2px 0; }
+/* Ontology on phones: each kind or link type is a stacked card (name and Edit on top, description below, then
+   count and status) instead of a six-column table to scroll sideways; form labels sit above their fields. */
+.model-form textarea { width: 100%; }
+@media (max-width: 700px) {
+  table.model-table { border: 0; background: none; }
+  .model-table thead { display: none; }
+  .model-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .model-table td, .model-table th { display: block; padding: 0; border: 0; }
+  .model-table th { flex-basis: 100%; }
+  .model-table td:first-child { flex: 1 1 0; min-width: 0; }
+  .model-table td:last-child { order: 1; }
+  .model-table td:not(:first-child):not(:last-child) { order: 2; }
+  .model-table td.wide { flex-basis: 100%; }
+  .model-table td[data-label]::before { content: attr(data-label) " "; color: var(--muted); }
+  .model-form tr { display: grid; }
+  .model-form th, .model-form td { display: block; border: 0; }
+  .model-form th { padding-bottom: 0; }
+  .model-form tr { border-bottom: 1px solid var(--line); }
+  .model-form .ui-input:not([type="checkbox"]):not([type="color"]) { width: 100%; }
+}
 .page-tabs { margin-bottom: 16px; }
 .network-filters .chips { align-items: center; margin: 8px 0; }
 .network-filters .chip .dot { width: 8px; height: 8px; margin-right: 2px; box-shadow: 0 0 0 1.5px var(--panel); }
