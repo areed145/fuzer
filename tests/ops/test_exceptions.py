@@ -490,6 +490,8 @@ def test_one_event_reported_by_three_systems_is_one_case(conn, compressor, three
     assert ("minutes outside", "95") in sources[1]["seen"]
     again = raise_exception(conn, "iow_hi", "IOW-1", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
     assert not again["raised"] and again["item_id"] == sap["item_id"]  # a repeat stays on the shared case
+    [row] = [r for r in impl.listing(conn) if r["id"] == sap["id"]]
+    assert row["reports"] == 4  # seen N× counts every source on the case and its repeats (#496)
     conn.commit()
 
 
@@ -579,3 +581,14 @@ def test_a_waiting_exception_joins_the_case_another_source_opens(conn, compresso
     row = conn.execute("select joined_to, item_id from exception_record where id = %s", (waiting["id"],)).fetchone()
     assert row["joined_to"] == other["id"] and row["item_id"] == sent["item_id"]
     conn.commit()
+
+
+@pytest.mark.unit
+def test_an_sap_notification_reads_as_words_in_the_field():
+    """SAP status and type, and the ISO 14224 failure mode and mechanism, read as words with the code after them;
+    the site's damage and cause codes they map from aren't repeated (#494)."""
+    seen = dict(impl._seen({"notif_type": "M1", "status": "OSNO", "failure_mode": "VIB", "failure_mechanism": "1.2",
+                            "damage_code": "D01", "cause_code": "C02", "priority": "2"}))
+    assert seen == {"notification type": "maintenance request (M1)", "status": "outstanding (OSNO)",
+                    "failure mode": "Vibration (VIB)", "failure mechanism": "Vibration (1.2)"}
+    assert dict(impl._seen({"status": "ZZZZ", "damage_code": "DM-LEAK"})) == {"status": "ZZZZ", "damage code": "DM-LEAK"}

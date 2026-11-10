@@ -3,8 +3,8 @@ import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input 
  * the case's history. */
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
-import { Status, entityHref, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, holder, reportedBy, usePerson, when } from "../../work";
+import { Status, href, useAsync } from "../../lib";
+import { Actor, DataView, Due, EntityLinks, holder, reportedBy, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
@@ -207,8 +207,7 @@ function Evidence({ v }: { v: WorkTaskView }) {
     <UICard className="evidence">
       <h3>Evidence</h3>
       {e.subjects.length > 0 && (
-        <p className="small">About {e.subjects.map((s, i) => (
-          <span key={s.fuzer_id}>{i > 0 && ", "}<a href={entityHref(s.fuzer_id)}>{s.label ?? s.fuzer_id}</a></span>))}</p>
+        <p className="small">About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></p>
       )}
       {latest.map(({ a, old }) => (
         <details key={a.id} open={!old} className="evidence-item">
@@ -223,7 +222,7 @@ function Evidence({ v }: { v: WorkTaskView }) {
         </details>
       ))}
       {!e.agents.length && !e.messages.length && <p className="small muted">What started the process:</p>}
-      {!e.agents.length && <DataView data={v.data} />}
+      {!e.agents.length && <DataView data={startedWith(v.data)} />}
     </UICard>
   );
 }

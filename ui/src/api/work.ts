@@ -435,7 +435,7 @@ export interface ExceptionRow {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
   priority: number | null; value_usd: number | null; subjects: string[]; unmatched: string[];
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
-  raised_count: number; first_seen: string; last_seen: string;
+  raised_count: number; reports?: number; first_seen: string; last_seen: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
   /** What the source sent with it, and what the field has reported back (`field`). */
   evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };

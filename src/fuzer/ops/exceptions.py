@@ -17,6 +17,7 @@ one's case instead of opening another. The first is the host (`joined_to` null);
 case, so the IOC triages, dispatches and closes once. Exceptions lists the host with every source under it.
 """
 
+import functools
 import re
 
 from psycopg.types.json import Jsonb
@@ -388,6 +389,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role,
+               e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
                (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
                 from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
                 order by p.start_at limit 1) as planned,
@@ -502,11 +504,34 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     return row
 
 
+# SAP's own status and notification type codes, as words (#494); the code stays beside them.
+SAP_WORDS = {"status": {"OSNO": "outstanding", "NOPR": "in process", "NOCO": "completed", "ORAS": "order assigned"},
+             "notif_type": {"M1": "maintenance request", "M2": "malfunction report", "M3": "activity report"}}
+
+
+@functools.cache
+def _iso14224() -> dict:
+    from ..core.taxonomy import load_standard
+
+    std = load_standard("iso14224")
+    return {"failure_mode": std.get("failure_modes", {}), "failure_mechanism": std.get("failure_mechanisms", {})}
+
+
+def _worded(k: str, text: str) -> str:
+    """A code a field operator can't read as the words it stands for, with the code after it: `VIB` reads
+    "Vibration (VIB)", SAP status `OSNO` reads "outstanding (OSNO)". Unknown codes stay as they are."""
+    words = SAP_WORDS.get(k, {}).get(text.upper()) or _iso14224().get(k, {}).get(text)
+    return f"{words} ({text})" if words else text
+
+
 def _seen(evidence: dict) -> list[tuple[str, str]]:
-    """The evidence a person reads at a glance: short scalar values, not the nested detail."""
+    """The evidence a person reads at a glance: short scalar values, not the nested detail. A site's damage and
+    cause codes are left out where the ISO 14224 failure mode and mechanism they map to are there to read."""
     out = []
     for k, v in evidence.items():
         if k in SEEN_SKIP or isinstance(v, (dict, list)) or v is None or v == "":
+            continue
+        if (k == "damage_code" and evidence.get("failure_mode")) or (k == "cause_code" and evidence.get("failure_mechanism")):
             continue
         if isinstance(v, bool):
             text = "yes" if v else "no"
@@ -516,6 +541,7 @@ def _seen(evidence: dict) -> list[tuple[str, str]]:
             text = str(v)[:120]
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?", text):
                 text = text.replace("T", " ")[:16]
+            text = _worded(k, text)
         label = "assets affected" if k == "units" and isinstance(v, int) else SEEN_LABELS.get(k, k.replace("_", " "))
         out.append((label, text))  # an upset's `units` counts assets; another source's names a unit of measure
     return out[:12]
@@ -579,6 +605,7 @@ def field_jobs(conn, person: str) -> list[dict]:
     rows = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
+               e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
                t.id as task_id, t.name as task_name, t.role as task_role, p.data->>'field_ask' as ask,
                not (coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)))
                  as queued

@@ -4,8 +4,9 @@ import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Table } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
-import { holder, usePerson, when } from "../work";
+import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
+import { display } from "../entityRefs";
 import { SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
@@ -120,10 +121,6 @@ const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "F
 
 type Person = { name: string; roles: string[]; away_until?: string | null };
 
-/** Equipment by the tag it is installed at and what it is ("20-K-2100B 1st stage compressor"), not its serial. */
-const assetName = (id: string, n?: { label: string | null; description: string | null; at?: string }) =>
-  n?.at ? `${n.at}${n.description ? ` ${n.description}` : ""}` : n?.label ?? id;
-
 /** The same event as other systems reported it, worked on this one case (#464): each source, and a way to split one out
  * when it turns out to be a different event. */
 function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | null; onChange: () => void }) {
@@ -132,8 +129,7 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
   const all = r.joined ?? [];
   return (
     <div className="small">
-      <Badge tone="ok">{all.length + 1} sources</Badge>{" "}
-      <span className="muted">{[r.type.replace(/_/g, " "), ...all.map((j) => j.label)].join(", ")}</span>
+      <Badge tone="ok">{reportedBy([r, ...all])}</Badge>
       <ul className="plain">{all.map((j) => <li key={j.id}>
         {j.label}: {j.title} <span className="muted">· {j.source ?? ""} · {when(j.first_seen)}{j.state !== "open" ? ` · ${j.state}` : ""}</span>
         {j.state === "open" && person && operate && <> <Button size="sm" disabled={!!busy}
@@ -160,11 +156,11 @@ function Row({ r, person, people, queues, onChange }: {
         {r.value_usd != null ? ` · $${Math.round(r.value_usd).toLocaleString()}` : ""}</span>
         {!!r.joined?.length && <Joined r={r} person={person} onChange={onChange} />}</td>
       <td className="small">{r.subjects.map((s) => <div key={s}><a href={entityHref(s)}
-        title={names?.[s]?.at ? names[s].label ?? undefined : undefined}>{assetName(s, names?.[s])}</a></div>)}
+        title={names?.[s]?.at ? names[s].label ?? undefined : undefined}>{display(s, names)}</a></div>)}
         {r.unmatched.map((u) => <div key={u} className="muted">unmatched: {u}{" "}
           {r.state === "open" && person && <MatchRef value={u} busy={!!busy} onPick={(fid, remember) =>
             run("Matching", () => api.resolveRef(r.id, person, u, fid, remember), onChange)} />}</div>)}</td>
-      <td className="small">{r.raised_count}× · last {when(r.last_seen)}</td>
+      <td className="small">{r.reports ?? r.raised_count}× · last {when(r.last_seen)}</td>
       <td className="small">{r.item_id ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={href("/plan")}>planned {new Date(r.planned.start_at).toLocaleDateString(undefined,
           { day: "numeric", month: "short" })}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>

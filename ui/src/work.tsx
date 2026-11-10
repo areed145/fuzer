@@ -156,11 +156,23 @@ function Value({ v }: { v: unknown }) {
       </details>
     );
   }
+  if (typeof v === "boolean") return <>{v ? "yes" : "no"}</>;
   return <span className="mono">{fmt(v)}</span>;
+}
+
+/** The process data a case started with, as a person reads it (#496): without the keys and ids that only link
+ * records (`key`, `upset_id`, `exception_id`, ...) and without fields left empty. */
+export function startedWith(data: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!data) return null;
+  return Object.fromEntries(Object.entries(data).filter(([k, v]) =>
+    k !== "key" && !k.endsWith("_id") && v !== "" && v !== null && v !== undefined));
 }
 
 /** Entities by name, from one lookup. The id stays in the tooltip. */
 export function EntityLinks({ ids }: { ids: string[] }) {
   const names = useEntityNames(ids);
-  return <>{ids.map((id, i) => <span key={id}>{i > 0 && ", "}<a href={entityHref(id)} title={id}>{display(id, names)}</a></span>)}</>;
+  // Equipment reads as the tag it is installed at, so that tag beside it would say the same thing twice.
+  const shownAt = new Set(ids.map((id) => names?.[id]?.at).filter(Boolean));
+  const shown = ids.filter((id) => names?.[id]?.at || !shownAt.has(names?.[id]?.label ?? ""));
+  return <>{shown.map((id, i) => <span key={id}>{i > 0 && ", "}<a href={entityHref(id)} title={id}>{display(id, names)}</a></span>)}</>;
 }
