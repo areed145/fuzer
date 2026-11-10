@@ -14,7 +14,12 @@ export const TOKENS = `${OPEN}[^${CLOSE}]*${CLOSE}`;
 export const isId = (text: string) => new RegExp(`^${ID}$`).test(text);
 
 const token = (id: string, text: string) => `${OPEN}${id}${MID}${text}${CLOSE}`;
-export const display = (id: string, names?: EntityNames) => names?.[id]?.label || id;
+/** What to call an entity: its label, except equipment (labelled by serial number), which reads as the tag it is
+ * installed at and its description ("20-K-2100B 1st Stage Compressor"), as people in the field know it (#495). */
+export const display = (id: string, names?: EntityNames) => {
+  const n = names?.[id];
+  return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || id;
+};
 
 export function idsIn(text: string): string[] {
   return [...new Set(text.match(new RegExp(ID, "g")) ?? [])];

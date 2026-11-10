@@ -75,7 +75,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
       <p className="row small">
         <Due at={job.due} />
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
-        <span className="muted">seen {job.raised_count}× since {when(job.first_seen)}</span>
+        <span className="muted">seen {job.reports ?? job.raised_count}× since {when(job.first_seen)}</span>
       </p>
       {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
