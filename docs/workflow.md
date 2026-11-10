@@ -86,6 +86,12 @@ the published version, and running cases stay on their original version.
   them while away, goes to the delegate (or back to the role's queue when no one covers); auto-assignment skips
   them; the delegate's inbox shows what was theirs.
 - A role nobody available holds, but a published process uses, is flagged: its steps would wait.
+- **Field or overarching** (#497): most people are on one field's roster (`work_person`, per project). Specialists
+  and monitoring desks whose work cuts across fields are **overarching** (`fuzer.work_person_cover`, shared by the
+  instance): their roles count in every field they cover (all fields, or the ones named), on top of any roles a
+  field's own roster gives them. Their Inbox lists their work in the other fields too (`/work/inbox/fields`), only
+  for fields the viewer may open: covering a field is routing, never an access grant. Set on Users, workflow
+  assignments (`PUT /work/people/{name}/cover`).
 
 API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|transition`, `/work/tasks/{id}/...`,
 `/work/stats`, `/work/instances`, `/work/definitions/{id}/routing`, `/work/roles/catalog`, `/work/roles/{name}`,

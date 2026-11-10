@@ -347,3 +347,23 @@ def bulk_complete(conn, token_ids: list[int], by: str, action: str, reason: str 
             conn.rollback()
             refused.append({"task_id": tid, "error": str(e)})
     return {"done": done, "refused": refused}
+
+
+def work_across(person: str, allowed: list[str] | None = None) -> list[dict]:
+    """A person's Inbox in every project they hold a role in (#497): one entry per project with their roles there,
+    their steps and their roles' unclaimed queue. `allowed` limits it to the projects they may open (None: any);
+    holding a routing role somewhere never opens a project they aren't granted."""
+    from ..core import db, projects
+
+    with db.connect() as conn:
+        names = [n for n in projects.stored(conn) if allowed is None or n in allowed]
+    out = []
+    for name in names:
+        with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
+            roles = roles_of(scoped, person)
+            if not roles:
+                continue
+            w = my_work(scoped, person, roles)
+            out.append({"project": name, "roles": roles, "mine": w["mine"], "queue": w["queue"],
+                        "counts": w["counts"]})
+    return out

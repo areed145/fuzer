@@ -37,6 +37,17 @@ alter table work_person add column if not exists away_until timestamptz;
 alter table work_person add column if not exists delegate text;
 alter table work_person add column if not exists note text;
 
+-- Overarching people (#497): specialists and monitoring staff whose work cuts across fields. Shared by every project
+-- in the instance; their roles count in each project they cover (`projects` empty: every project), on top of any
+-- roles that project's own roster gives them. Routing roles only: whether they may open a project is access's call.
+create table if not exists fuzer.work_person_cover (
+    name       text primary key,
+    roles      text[] not null default '{}',
+    projects   text[] not null default '{}',
+    updated_by text,
+    updated_at timestamptz not null default now()
+);
+
 -- Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's
 -- default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else
 -- the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims

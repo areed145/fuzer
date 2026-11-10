@@ -5,7 +5,13 @@ import { api, type WorkRoleRow, type WorkloadPerson } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { usePerson, when } from "../../work";
 import { caseHref, processHref, useAct } from "./shared";
-import { usePermission } from "../../Auth";
+import { useAuth, usePermission } from "../../Auth";
+
+/** Where a person works (#497): this field's roster only, or overarching across every field or the ones named. */
+export function scopeText(p: Pick<WorkloadPerson, "covers">): string {
+  if (p.covers == null) return "this field";
+  return p.covers.length ? `overarching: ${p.covers.join(", ")}` : "overarching: every field";
+}
 
 const ASSIGN: Record<string, string> = {
   queue: "wait in the queue for someone to claim", round_robin: "go to members in turn", least_loaded: "go to the least loaded member",
@@ -171,15 +177,21 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
         key={`${p.name}:${p.roles.join(",")}:${p.assigned_roles?.join(",")}:${p.away_until}:${p.delegate}:${p.account_enabled}:${p.owner}`}
         p={p} roles={roles} people={people} person={person} reload={reload} inspect={inspect} />)
         : <Table variant="list" density="compact">
-          <thead><tr><th>Person</th><th>Effective roles</th><th>Assigned work</th><th>Overdue</th><th>Availability</th></tr></thead>
+          <thead><tr><th>Person</th><th>Works in</th><th>Effective roles</th><th>Assigned work</th><th>Overdue</th><th>Availability</th></tr></thead>
           <tbody>{people.filter(p => !focus || p.name === focus).map(p => <tr key={p.name}>
-            <td>{p.display_name || p.name}</td><td>{p.account_enabled === false ? "None (account disabled)"
+            <td>{p.display_name || p.name}</td><td>{scopeText(p)}</td><td>{p.account_enabled === false ? "None (account disabled)"
               : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</td>
             <td><a href={href("/cases", { who: p.name })}>{p.assigned}</a></td><td>{p.overdue}</td>
             <td>{p.account_enabled === false ? "Account disabled" : p.away ? <>Away until {p.away_until ? when(p.away_until) : "unknown"}{p.delegate && `, ${p.delegate} covers`}</> : "Available"}</td>
           </tr>)}</tbody>
         </Table>}
       {!people.filter(p => !focus || p.name === focus).length && <p>No matching roster entries. Assign a signed-in account in Accounts &amp; access or add an explicit legacy identity below.</p>}
+      {editable && <details><summary>Add an overarching person (works across fields)</summary>
+        <p>For specialists and monitoring desks whose work cuts across fields and assets. Their roles count in every field
+          they cover, on top of each field's own roster, and their Inbox can show every field at once. This is routing only:
+          which fields they may open is still set per account in Accounts &amp; access.</p>
+        <CoverEditor name="" roles={roles} reload={reload} />
+      </details>}
       {editable && <details><summary>Advanced: preserve or add a legacy roster identity</summary>
       <p>Use an existing stable account identity for Microsoft users. A roster entry is not a sign-in account or access grant.</p>
       <div className="row">
@@ -206,6 +218,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
         ? "Account disabled: saved assignments remain, but effective workflow access is empty."
         : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</p>
       <p><a href={href("/cases", { who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
+      <p>Works in: {scopeText(p)}{p.covers != null && p.cover_roles?.length ? ` (${p.cover_roles.join(", ")})` : ""}</p>
       <p>Saved workflow assignments: {(p.assigned_roles ?? p.roles).join(", ") || "None"}</p>
       <p>Effective workflow roles: {p.account_enabled === false ? "None (account disabled)"
         : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</p>
@@ -215,6 +228,9 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
         : <WorkflowAssignments key={(p.assigned_roles ?? p.roles).join(",")} name={p.name} roles={roles}
             assigned={p.assigned_roles ?? p.roles} reload={reload} onInspect={inspect} />
       }
+      {!p.owner && <details><summary>{p.covers == null ? "Make overarching (work across fields)" : "Fields covered"}</summary>
+        <CoverEditor name={p.name} roles={roles} covers={p.covers} coverRoles={p.cover_roles} reload={reload} />
+      </details>}
       <details><summary>Availability and coverage</summary>
         {p.away ? <>until {when(p.away_until!)}{p.delegate && `, ${p.delegate} covers`}{" "}
           <ConfirmAction label="Mark available" busy={!!a.busy}
@@ -261,5 +277,44 @@ export function WorkflowAssignments({ name, roles, assigned, reload, onInspect }
       onConfirm={() => { setInspected(false); a.run("roles", () => api.setWorkPerson(name, selected, person), reload); }} />
     <ActionStatus busy={a.busy ? "Saving workflow assignments..." : null} error={inspected ? null : a.error} />
     {a.error && !inspected && <Button onClick={() => { setSelected(assigned); setInspected(true); onInspect(); }}>Reload saved assignments</Button>}
+  </div>;
+}
+
+
+/** Make someone overarching (#497), change the fields and roles they cover, or stop it. The fields offered are the
+ * ones this session can open; the server checks the names again. */
+function CoverEditor({ name, roles, covers, coverRoles, reload }: {
+  name: string; roles: WorkRoleRow[]; covers?: string[] | null; coverRoles?: string[]; reload: () => void;
+}) {
+  const session = useAuth();
+  const fields = (session?.mode === "microsoft" ? session.user?.projects : session?.projects) ?? [];
+  const [who, setWho] = useState(name);
+  const [picked, setPicked] = useState<string[]>(coverRoles ?? []);
+  const [every, setEvery] = useState(!covers?.length);
+  const [chosen, setChosen] = useState<string[]>(covers ?? []);
+  const [person] = usePerson();
+  const a = useAct();
+  const target = who.trim();
+  const where = every ? "every field" : chosen.join(", ");
+  return <div>
+    {!name && <Input aria-label="Overarching person" placeholder="name or account identity" value={who}
+      onChange={(e) => setWho(e.target.value)} />}
+    <fieldset disabled={!!a.busy}><legend>Roles in the fields they cover</legend>
+      {roles.map(r => <label key={r.name} className="small choice-inline"><Input type="checkbox" checked={picked.includes(r.name)}
+        onChange={e => setPicked(e.target.checked ? [...picked, r.name] : picked.filter(v => v !== r.name))} /> {r.name} </label>)}
+    </fieldset>
+    <fieldset disabled={!!a.busy}><legend>Fields</legend>
+      <label className="small choice-inline"><Input type="checkbox" checked={every} onChange={e => setEvery(e.target.checked)} /> every field, including ones added later </label>
+      {!every && fields.map(f => <label key={f} className="small choice-inline"><Input type="checkbox" checked={chosen.includes(f)}
+        onChange={e => setChosen(e.target.checked ? [...chosen, f] : chosen.filter(v => v !== f))} /> {f} </label>)}
+    </fieldset>
+    <ConfirmAction label={covers == null ? "Make overarching" : "Save fields covered"} busy={!!a.busy}
+      disabled={!target || !picked.length || (!every && !chosen.length)}
+      consequence={`${target} will hold ${picked.join(", ")} in ${where}, on top of each field's roster. Application access does not change.`}
+      onConfirm={() => a.run("cover", () => api.setCover(target, picked, every ? [] : chosen, person), () => { if (!name) setWho(""); reload(); })} />
+    {covers != null && <> <ConfirmAction label="Stop working across fields" busy={!!a.busy}
+      consequence={`${target} keeps only the roles this field's roster gives them. What they hold stays with them.`}
+      onConfirm={() => a.run("uncover", () => api.removeCover(target, person), reload)} /></>}
+    <ActionStatus busy={a.busy ? "Saving fields covered..." : null} error={a.error} />
   </div>;
 }

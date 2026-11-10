@@ -224,6 +224,18 @@ People by name and the roles they hold (everyone sees everything; Entra groups l
 | `name` | text |  |
 | `roles` | text[] |  |
 
+### `work_person_cover`
+
+Overarching people (#497): specialists and monitoring staff whose work cuts across fields. Shared by every project in the instance; their roles count in each project they cover (`projects` empty: every project), on top of any roles that project's own roster gives them. Routing roles only: whether they may open a project is access's call.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `roles` | text[] |  |
+| `projects` | text[] |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ### `work_role`
 
 Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims it), round_robin or least_loaded among the role's members who aren't away.

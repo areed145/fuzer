@@ -347,6 +347,55 @@ def set_person(conn, name: str, roles: list[str], by: str = SYSTEM) -> dict:
     _event(conn, "roles_set", by, data={"person": name, "roles": roles})
     return {"name": name, "roles": roles}
 
+def _project(conn) -> str | None:
+    from ..core import projects
+
+    return projects.current(conn)
+
+
+def _covers(conn, name: str | None = None) -> list[dict]:
+    """The overarching people (#497) who cover the project this connection serves (or one of them, by name)."""
+    return conn.execute(
+        "select name, roles, projects from fuzer.work_person_cover where (cardinality(projects) = 0 or %s = any(projects)) "
+        "and (%s::text is null or name = %s) order by name", (_project(conn), name, name)).fetchall()
+
+
+def covers(conn) -> list[dict]:
+    """Every overarching person in the instance, with the projects they cover ([] is every project)."""
+    return conn.execute("select name, roles, projects, updated_by, updated_at from fuzer.work_person_cover "
+                        "order by name").fetchall()
+
+
+@_op
+def set_cover(conn, name: str, roles: list[str], projects: list[str], by: str = SYSTEM) -> dict:
+    """Make `name` an overarching person (#497): `roles` in every project in `projects`, or in every project when it
+    is empty (a reliability specialist, a remote monitoring desk). A project's own roster can add more roles there."""
+    from ..core import projects as registry
+
+    if not name.strip() or is_agent(name):
+        raise WorkError("a person needs a name (agents aren't people)")
+    if not roles:
+        raise WorkError("an overarching person needs at least one role")
+    if unknown := set(roles) - bpmn.PERSON_ROLES:
+        raise WorkError(f"unknown roles: {', '.join(sorted(unknown))}")
+    if unknown := set(projects) - set(registry.stored(conn)):
+        raise WorkError(f"no project {', '.join(sorted(unknown))} in this instance")
+    conn.execute("insert into fuzer.work_person_cover (name, roles, projects, updated_by) values (%s, %s, %s, %s) "
+                 "on conflict (name) do update set roles = excluded.roles, projects = excluded.projects, "
+                 "updated_by = excluded.updated_by, updated_at = now()", (name, roles, sorted(set(projects)), by))
+    _event(conn, "cover_set", by, data={"person": name, "roles": roles, "projects": sorted(set(projects))})
+    return {"name": name, "roles": roles, "projects": sorted(set(projects))}
+
+
+@_op
+def remove_cover(conn, name: str, by: str = SYSTEM) -> dict:
+    """Stop `name` being overarching. What they hold stays with them; a project roster entry, if any, stays too."""
+    if conn.execute("delete from fuzer.work_person_cover where name = %s", (name,)).rowcount == 0:
+        raise WorkError(f"{name} isn't an overarching person")
+    _event(conn, "cover_removed", by, data={"person": name})
+    return {"name": name, "removed": True}
+
+
 def roles_of(conn, name: str) -> list[str]:
     # Owners span all present and future human routing roles, never autonomous-agent identities.
     if name.startswith("user:"):
@@ -356,17 +405,32 @@ def roles_of(conn, name: str) -> list[str]:
         if account and account["owner"]:
             return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
     row = conn.execute("select roles from work_person where name = %s", (name,)).fetchone()
-    return row["roles"] if row else []
+    own = list(row["roles"]) if row else []
+    for c in _covers(conn, name):  # an overarching person's roles count here too (#497)
+        own += [r for r in c["roles"] if r not in own]
+    return own
 
 def people(conn) -> list[dict]:
+    """This project's roster, and the overarching people who cover it (`covers`: the projects they cover, [] for
+    every one; None for someone only on this project's roster). A person on both has both sets of roles."""
     rows = conn.execute("select p.name, p.roles, p.away_until, p.delegate, p.note, coalesce(a.owner, false) as owner, "
                         "a.display_name, a.enabled as account_enabled "
                         "from work_person p left join access_account a on p.name = 'user:' || a.id order by p.name").fetchall()
+    cover = {c["name"]: c for c in _covers(conn)}
     for row in rows:
         row["assigned_roles"] = list(row["roles"])
-        if row["name"].startswith("user:"):
-            row["roles"] = roles_of(conn, row["name"])
-    return rows
+        c = cover.pop(row["name"], None)
+        row["covers"], row["cover_roles"] = (c["projects"], c["roles"]) if c else (None, [])
+        row["roles"] = roles_of(conn, row["name"]) if row["name"].startswith("user:") or c else row["roles"]
+    for name, c in cover.items():
+        account = conn.execute("select owner, display_name, enabled from access_account where 'user:' || id = %s",
+                               (name,)).fetchone()
+        rows.append({"name": name, "roles": roles_of(conn, name), "assigned_roles": [], "away_until": None,
+                     "delegate": None, "note": None, "owner": bool(account and account["owner"]),
+                     "display_name": account and account["display_name"],
+                     "account_enabled": account and account["enabled"], "covers": c["projects"],
+                     "cover_roles": c["roles"]})
+    return sorted(rows, key=lambda r: r["name"])
 
 def role_summary(conn) -> list[dict]:
     """Each person role (#202): the published processes with steps for it, who holds it and how many

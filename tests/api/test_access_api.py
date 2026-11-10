@@ -467,3 +467,37 @@ def test_requests_run_for_the_project_the_ui_picked(runtime, second_project):
     assert list(client.get("/entities/names", params=names).json()) == [id]  # the first project is unchanged
     # A link the browser opens itself (a document) names the project in the query; only reads accept it.
     assert client.get("/entities/names", params={**names, "fuzer_project": second_project}).json() == {}
+
+
+def test_overarching_people_work_every_field_they_cover_but_open_only_granted_ones(runtime, second_project):
+    """A person can be on one field's roster, or overarching across fields (#497): their roles count in each field
+    they cover, the cross-field Inbox gathers their work, and it only lists fields the viewer may open."""
+    from fuzer.core import projects
+
+    with db.connect() as conn:
+        work.set_cover(conn, "vera", ["engineer"], [], by="test")  # every field
+        assert "engineer" in work.roles_of(conn, "vera")
+        assert next(p for p in work.people(conn) if p["name"] == "vera")["covers"] == []
+        with projects.use(conn, second_project), db.connect() as ridge:
+            assert work.roles_of(ridge, "vera") == ["engineer"]
+            item = work.create_item(ridge, "check", "Ridge compressor check", "test", role="engineer")
+            ridge.commit()
+        work.set_cover(conn, "vera", ["engineer"], [second_project], by="test")  # only ridge now
+        assert "engineer" not in work.roles_of(conn, "vera")
+        with pytest.raises(work.WorkError, match="no project"):
+            work.set_cover(conn, "vera", ["engineer"], ["nowhere"], by="test")
+        work.set_person(conn, "vera", ["operator"], by="test")  # and on this field's own roster
+        assert work.roles_of(conn, "vera") == ["operator"]
+
+    fields = {f["project"]: f for f in work.work_across("vera")}
+    assert fields[second_project]["roles"] == ["engineer"]
+    assert any(r["item_id"] == item["id"] for r in fields[second_project]["queue"])
+    assert len(fields) == 2
+
+    signed_in(runtime, roles=("operator",))  # granted this field only
+    shown = runtime.get("/work/inbox/fields", params={"person": "vera"}).json()
+    assert [f["project"] for f in shown] != [] and second_project not in [f["project"] for f in shown]
+    assert runtime.put("/work/people/vera/cover", json={"roles": ["engineer"]}).status_code == 403  # configure only
+    with db.connect() as conn:
+        work.remove_cover(conn, "vera", by="test")
+        work.remove_person(conn, "vera", by="test")
