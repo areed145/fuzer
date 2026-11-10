@@ -7,6 +7,8 @@
     POST /stewardship/aliases/{id}/retire, POST /stewardship/pins/undo   reverse a decision
     GET  /stewardship/merge/preview, POST /stewardship/merge    "Same as…" from the entity page
     GET  /stewardship/split/preview, POST /stewardship/split    "Not this record" from the entity page
+    GET  /stewardship/completeness, /consistency, /conflicts     gaps in the register, each with where to fix it
+    POST /stewardship/fixes, POST /stewardship/fixes/{batch}/undo   one value for many entities, and back
     POST /exceptions/{id}/resolve   (api/ops.py) pick the asset an exception's unmatched ref meant
 """
 
@@ -101,6 +103,14 @@ def decisions(q: str | None = None, current: bool = True, limit: int = Query(200
         rows.append({"kind": "split" if batch.startswith("split-") else "merge", "id": batch, "what": what,
                      "fuzer_id": None, "source": None, "by": p["decided_by"], "at": p["decided_at"],
                      "reason": p["reason"], "reversed": False})
+    from ..graph import gaps
+
+    rows += [{"kind": "fix", "id": f["batch"], "what": f"{f['field']} set to {f['value']!r} on {f['entities']} "
+              f"entit{'y' if f['entities'] == 1 else 'ies'}", "fuzer_id": None, "source": None, "by": f["by"],
+              "at": f["at"], "reason": f["reason"], "reversed": bool(f["undone_at"]), "reversed_by": f["undone_by"],
+              "reversed_at": f["undone_at"]}
+             for f in gaps.listing(conn, current=current, limit=limit)
+             if q is None or q.lower() in f"{f['field']} {f['value']}".lower()]
     return sorted(rows, key=lambda r: r["at"], reverse=True)[:limit]
 
 
@@ -121,6 +131,12 @@ class PinUndo(Reason):
     left_ref: str = ""
     right_ref: str = ""
     batch: str | None = None
+
+
+class FixIn(Reason):
+    field: str
+    value: str | float | int | bool
+    fuzer_ids: list[str]
 
 
 class MergeIn(Reason):
@@ -203,3 +219,46 @@ def split(body: SplitIn, conn=Depends(get_conn)):
 
     return {**_do(conn, curation.split, conn, body.fuzer_id, body.ref, body.by, reason=body.reason),
             "rebuild": deps.rebuilder.request()}
+
+
+@router.get("/completeness")
+def completeness(min_share: float = Query(0.8, ge=0.5, le=0.99), conn=Depends(get_conn)):
+    """Fields most entities of a kind have, and the entities that lack them."""
+    from ..core.jsonsafe import plain
+    from ..graph import gaps
+
+    return plain(gaps.completeness(conn, min_share=min_share))
+
+
+@router.get("/consistency")
+def consistency(conn=Depends(get_conn)):
+    """Values written more than one way within a field, the usual spelling first."""
+    from ..core.jsonsafe import plain
+    from ..graph import gaps
+
+    return plain(gaps.consistency(conn))
+
+
+@router.get("/conflicts")
+def conflicts(conn=Depends(get_conn)):
+    """Open conflict reviews: sources disagree and the field rule asks a person (decided on the Review page)."""
+    from ..core.jsonsafe import plain
+    from ..graph import gaps
+
+    return plain(gaps.conflicts(conn))
+
+
+@router.post("/fixes")
+def fix(body: FixIn, conn=Depends(get_conn)):
+    """One value for a field on many entities (a reviewer's choice: it wins on every rebuild). Applied now."""
+    from ..graph import gaps
+
+    return _do(conn, gaps.set_values, conn, body.field, body.value, body.fuzer_ids, body.by, reason=body.reason)
+
+
+@router.post("/fixes/{batch}/undo")
+def undo_fix(batch: str, body: Reason, conn=Depends(get_conn)):
+    """Put the values a fix changed back."""
+    from ..graph import gaps
+
+    return _do(conn, gaps.undo, conn, batch, body.by, reason=body.reason)

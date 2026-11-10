@@ -96,6 +96,13 @@ to each other record) sharing a batch, so it holds on every rebuild, shows in th
 one undo reverses it. A rebuild is queued when it is made (`POST /stewardship/merge`, `/stewardship/split`, each
 with a `GET …/preview`).
 
+The **Gaps** tab (`graph/gaps.py`) lists what the register itself says is off. It shows a value written several
+ways within a field (case, spacing, punctuation or a company suffix apart, the usual spelling first): pick the one
+to keep and it is set on the others as a reviewer's choice (`POST /stewardship/fixes`), which holds on every
+rebuild and is undone from the decision log. It shows fields that most entities of a kind carry and a few lack,
+which are fixed in the source. And it shows open conflicts between sources, which are decided on the Review page.
+Derived values (classes, models) aren't listed, because they follow the records they come from.
+
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is

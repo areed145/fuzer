@@ -9,8 +9,10 @@ import { usePerson, when } from "../../work";
 import { caseHref, useAct } from "../workflows/shared";
 import { usePermission } from "../../Auth";
 import { MatchRef } from "./MatchRef";
+import { Gaps } from "./Gaps";
 
-const TABS = [["unmatched", "Unmatched on open work"], ["unresolved", "Unresolved values"], ["decisions", "Decisions"]] as const;
+const TABS = [["unmatched", "Unmatched on open work"], ["unresolved", "Unresolved values"], ["gaps", "Gaps"],
+  ["decisions", "Decisions"]] as const;
 
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const [tab, setTab] = useState<string>(query.get("tab") ?? "unmatched");
@@ -22,7 +24,7 @@ export function MasterDataPage({ query }: { query: URLSearchParams }) {
         {TABS.map(([k, label]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "primary" : "secondary"}
           onClick={() => setTab(k)}>{label}</Button>)}
       </div>
-      {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : <Decisions />}
+      {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps /> : <Decisions />}
     </section>
   );
 }
@@ -106,8 +108,9 @@ function Decisions() {
               <td>{d.by}</td><td>{when(d.at)}</td><td>{d.reason ?? ""}</td>
               <td>{d.reversed ? <span className="muted">reversed by {d.reversed_by} {d.reversed_at && when(d.reversed_at)}</span>
                 : operate && person && <Button size="sm" variant="link" disabled={!!a.busy} onClick={() => {
-                  if (!confirm(`Reverse “${d.what}”? It stops applying on the next rebuild.`)) return;
+                  if (!confirm(d.kind === "fix" ? `Reverse “${d.what}”? The values go back now.` : `Reverse “${d.what}”? It stops applying on the next rebuild.`)) return;
                   const undo = d.kind === "alias" ? () => api.retireAlias(Number(d.id), person, "reversed from the decision log")
+                    : d.kind === "fix" ? () => api.undoFix(String(d.id), person, "reversed from the decision log")
                     : d.kind === "merge" || d.kind === "split" ? () => api.undoDecision(String(d.id), person, "reversed from the decision log")
                     : () => { const [l, r] = String(d.id).split("|"); return api.undoPin(l, r, person, "reversed from the decision log"); };
                   void a.run("undo", undo, rows.reload);

@@ -7,7 +7,7 @@ export interface UnmatchedRef {
 }
 export interface UnresolvedValue { source: string; rel: string; value: string; rows: number; aliased: boolean; built_at: string }
 export interface StewardDecision {
-  kind: "alias" | "must_link" | "cannot_link" | "merge" | "split"; id: number | string; what: string; fuzer_id: string | null;
+  kind: "alias" | "must_link" | "cannot_link" | "merge" | "split" | "fix"; id: number | string; what: string; fuzer_id: string | null;
   source: string | null; by: string | null; at: string; reason: string | null; reversed: boolean;
   reversed_by?: string | null; reversed_at?: string | null;
 }
@@ -27,6 +27,18 @@ export interface SplitPreview {
 }
 export interface CurationDone { batch: string; decision: "merge" | "split"; rebuild: unknown }
 
+export interface CompletenessGap {
+  kind: string; field: string; have: number; total: number; missing: number; share: number;
+  examples?: { fuzer_id: string; label: string | null }[];
+}
+export interface SpellingGroup {
+  field: string; usual: string; entities: number; spellings: { value: string; entities: number; fuzer_ids: string[] }[];
+}
+export interface ConflictGap {
+  id: number; fuzer_id: string; field: string; chosen: unknown; label: string | null; created_at: string;
+  values: { source: string; source_key: string; value: unknown }[];
+}
+
 export const stewardshipApi = {
   unmatchedRefs: () => request<UnmatchedRef[]>("GET", "/stewardship/unmatched"),
   unresolvedValues: () => request<UnresolvedValue[]>("GET", "/stewardship/unresolved"),
@@ -40,6 +52,13 @@ export const stewardshipApi = {
     request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { left_ref, right_ref, by, reason: reason ?? null }),
   undoDecision: (batch: string, by: string, reason?: string) =>
     request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { batch, by, reason: reason ?? null }),
+  completenessGaps: () => request<CompletenessGap[]>("GET", "/stewardship/completeness"),
+  spellingGroups: () => request<SpellingGroup[]>("GET", "/stewardship/consistency"),
+  conflictGaps: () => request<ConflictGap[]>("GET", "/stewardship/conflicts"),
+  setValues: (field: string, value: string, fuzer_ids: string[], by: string, reason?: string) =>
+    request<{ batch: string; changed: number }>("POST", "/stewardship/fixes", undefined, { field, value, fuzer_ids, by, reason: reason ?? null }),
+  undoFix: (batch: string, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", `/stewardship/fixes/${encodeURIComponent(batch)}/undo`, undefined, { by, reason: reason ?? null }),
   mergePreview: (a: string, b: string) => request<MergePreview>("GET", "/stewardship/merge/preview", { a, b }),
   mergeEntities: (a: string, b: string, by: string, reason?: string) =>
     request<CurationDone>("POST", "/stewardship/merge", undefined, { a, b, by, reason: reason ?? null }),
