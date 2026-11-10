@@ -61,8 +61,9 @@ def drawing(conn, fuzer_id: str) -> dict | None:
                            (rec["source_key"],)).fetchone()
     if reading and reading["text_hash"] != p.get("image_sha256"):
         reading = None  # the drawing changed since it was read
-    marks, connections, findings, read_by = [], [], [], None
+    marks, connections, findings, read_by, offpage, loops = [], [], [], None, [], []
     if p.get("format") == "smart":
+        offpage = [dict(o) for o in p.get("offpage", [])]
         read_by = "smart file"
         for key, (x, y) in (p.get("positions") or {}).items():
             marks.append({"text": key, "key": key, "status": "linked", "x": x, "y": y})
@@ -79,6 +80,8 @@ def drawing(conn, fuzer_id: str) -> dict | None:
                    **({"x": ln["x"], "y": ln["y"]} if isinstance(ln, dict) and "x" in ln else {})} for ln in r["lines"]]
         connections = r.get("connections", [])
         findings = [f for f in r["findings"] if f["kind"] in ("connection", "title_block")]
+        offpage = [dict(o) for o in r.get("offpage", [])]
+        loops = r.get("loops", [])
     keys = {m["key"] for m in marks if m.get("key")} | {c[e] for c in connections for e in ("from", "to")}
     ids = {r["key"]: r["fuzer_id"] for r in conn.execute(
         "select key, fuzer_id from entity_key where kind = 'tag' and key = any(%s)", (list(keys),))}
@@ -87,6 +90,21 @@ def drawing(conn, fuzer_id: str) -> dict | None:
             m["id"] = ids.get(m["key"])
     for c in connections:
         c["from_id"], c["to_id"] = ids.get(c["from"]), ids.get(c["to"])
+    if offpage:  # each off-page end: whether the other sheet shows it too, and that sheet's document to open
+        from ...sources import llm_pids
+
+        sheets = {r["source_key"]: r["payload"] for r in conn.execute(
+            "select source_key, payload from source_record where source = 'pid' and record_type = 'sheet'")}
+        joined = llm_pids.join(conn, sheets)
+        confirmed = {(c["from"], c["to"]) for c in joined["connections"]}
+        disputed = {(d["sheet"], d["direction"], d.get("line")) for d in joined["disputed"]}
+        docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
+            "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
+        for o in offpage:
+            pair = (o.get("tag"), o.get("other")) if o["direction"] == "to" else (o.get("other"), o.get("tag"))
+            o["status"] = ("confirmed" if pair in confirmed else
+                           "one_sided" if (rec["source_key"], o["direction"], o.get("line")) in disputed else "unread")
+            o["sheet_id"] = docs.get((o.get("sheet") or "").replace(" ", "").upper())
     return {"sheet": rec["source_key"], "format": p.get("format"), "title": p.get("title"), "read_by": read_by,
             "image": f"/documents/{fuzer_id}/image", "width": width, "height": height, "marks": marks,
-            "connections": connections, "findings": findings}
+            "connections": connections, "findings": findings, "offpage": offpage, "loops": loops}
