@@ -208,6 +208,10 @@ create table if not exists exception_record (
     updated_at   timestamptz not null default now()
 );
 create unique index if not exists exception_record_open on exception_record (type, key) where state = 'open';
+-- One event reported by several systems is one case (#464): a later exception about the same asset joins the open
+-- one already worked (its host), sharing its case, instead of opening another.
+alter table exception_record add column if not exists joined_to bigint;
+create index if not exists exception_record_joined on exception_record (joined_to) where joined_to is not null;
 create index if not exists exception_record_subjects on exception_record using gin (subjects);
 -- Source problems opened as work items before the exception contract become its open exceptions, so the next
 -- health check updates them instead of opening a second case.
@@ -249,6 +253,8 @@ create table if not exists exception_kind (
     updated_by          text not null,
     updated_at          timestamptz not null default now()
 );
+
+alter table exception_kind add column if not exists joins boolean not null default true;  -- may join another's case
 
 -- The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders,
 -- exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches,

@@ -297,6 +297,12 @@ class ExceptionKind(BaseModel):
     audience: list[Literal["ioc", "field"]] = ["ioc"]
     close_case_on_clear: bool = True
     description: str | None = None
+    joins: bool = True
+
+
+class ExceptionSplit(BaseModel):
+    by: str
+    reason: str | None = None
 
 
 def _exception_call(conn, fn, *args, **kwargs):
@@ -310,6 +316,13 @@ def _exception_call(conn, fn, *args, **kwargs):
         raise HTTPException(404 if re.match(r"no exception \d", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
+
+
+@router.post("/exceptions/{exception_id}/split")
+def exception_split(exception_id: int, d: ExceptionSplit, conn=Depends(get_conn)):
+    """Take an exception that joined another's case back out to a case of its own (a different event)."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.split, exception_id, d.by, d.reason)
 
 
 @router.post("/exceptions")
@@ -349,7 +362,7 @@ def exception_type_define(name: str, k: ExceptionKind, conn=Depends(get_conn)):
     from ..ops import exceptions
     return _exception_call(conn, exceptions.define, name, k.by, k.label, role=k.role, process=k.process,
                            case_type=k.case_type, audience=tuple(k.audience),
-                           close_case_on_clear=k.close_case_on_clear, description=k.description)
+                           close_case_on_clear=k.close_case_on_clear, description=k.description, joins=k.joins)
 
 
 @router.delete("/exceptions/types/{name}")

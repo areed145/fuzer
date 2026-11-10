@@ -2,10 +2,11 @@
 command in another shell serves the project `fuzer up` serves without FUZER_PROJECT."""
 
 import json
+import os
 
 from fuzer import cli
 from fuzer.cli import up
-from fuzer.core import projects
+from fuzer.core import db, projects
 from fuzer.core.pack import load_pack
 from fuzer.ops import pipeline
 
@@ -64,6 +65,15 @@ def test_up_stores_the_demo_project_so_other_commands_serve_it(okan_db, monkeypa
     assert projects.active(conn) == "okan" and projects.config(conn, "okan")["source"] == "database"
 
     monkeypatch.delenv("FUZER_PROJECT")  # another shell, with nothing set
+    # the command makes okan this process's project (its scope and variables): put them back after, or later tests
+    # in this worker serve okan whatever database they open
+    monkeypatch.setattr(db, "_default", db._default)
+    for var in projects.FIELDS.values():
+        if var in os.environ:
+            monkeypatch.setenv(var, os.environ[var])
+        else:
+            monkeypatch.setenv(var, "")
+            monkeypatch.delenv(var)
     cli.main(["projects", "show"])
     shown = json.loads(capsys.readouterr().out)
     assert shown["name"] == "okan" and shown["pack"] == "okan"

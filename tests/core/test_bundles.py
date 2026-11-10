@@ -199,6 +199,34 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         assert conn.execute("select count(*) as n from exception_record where type = 'sap_notification' "
                             "and key = '10004001' and state = 'open'").fetchone()["n"] == 1
 
+        # The trip reaches the IOC three ways, and is one case (#464): the IOW check on the compressor's suction
+        # pressure opens a case that the waiting notification joins, and the SRE's upset joins it too. The other
+        # two notifications (the glycol pump, the contactor) are other events.
+        from fuzer.core.exceptions import raise_exception
+        from fuzer.ops import exceptions as ex
+        from fuzer.ops import sre_handoff  # noqa: F401  (declares the upset type)
+        from fuzer.workflow import engine
+
+        engine.load_defaults(conn)
+        ids = {r["key"]: r["fuzer_id"] for r in conn.execute(
+            "select key, fuzer_id from entity_key where kind = 'tag' and key in ('B1-K-2001', 'B1-PT-2001')")}
+        point = conn.execute("select dst from edge where rel = 'has_timeseries' and src = %s",
+                             (ids["B1-PT-2001"],)).fetchone()["dst"]
+        iow = raise_exception(conn, "iow_breach", "iow:B1-PT-2001", "Suction pressure IOW breach", "agent:sre",
+                              source="limits", refs=[point, ids["B1-PT-2001"]], value_usd=25000,
+                              evidence={"iow": "IOW-B1-01", "point": "KRGP:B1.PT2001.PV", "level": "critical",
+                                        "side": "lo", "limit": 18.0, "breaches": 1, "hours_outside": 2.5})
+        upset = raise_exception(conn, "upset", "upset:test", "Step change on B1-PT-2001 across 6 assets", "agent:sre",
+                                source="sre", refs=[ids["B1-K-2001"], point])
+        conn.commit()
+        rows = ex.listing(conn)
+        [trip] = [r for r in rows if r["id"] == iow["id"]]
+        assert sorted((j["type"], j["key"]) for j in trip["joined"]) == [("sap_notification", "10004001"),
+                                                                          ("upset", "upset:test")]
+        assert upset["item_id"] == iow["item_id"]
+        others = {r["key"] for r in rows if r["type"] == "sap_notification"}
+        assert others == {"10004002", "10004007"}  # still waiting on their own rows
+
 
     # The API resolves the pack from the database it serves, at request time.
     app = FastAPI()

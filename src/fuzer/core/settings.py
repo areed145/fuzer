@@ -129,6 +129,9 @@ register(
             env="FUZER_WORK_MEM"),
     Setting("intake.sap_notifications", "bool", True, "Raise open SAP notifications with no work order as "
             "exceptions for the IOC to dispatch, on each register refresh", "Work"),
+    Setting("exceptions.join_hours", "int", 48, "An exception about an asset (or the unit it is part of) whose open "
+            "case another source's exception raised within this many hours joins that case, so one event reported by "
+            "several systems is one case (0: never join)", "Work", min=0, max=720),
     Setting("intake.sap_notifications.max_age_days", "int", 60, "Only raise notifications created this many days "
             "before the latest data (an older backlog is a planning question)", "Work", min=1, max=3650),
     Setting("sre.handoff.min_detections", "int", 3, "Detections an upset needs before it is handed off (a lone "
