@@ -238,7 +238,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
 - **Settings:** `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 34, field-operations-facilities 77, hse-incident-management 35, maintenance-integrity 62, orchestrator 21, production-surveillance 61, wells-subsurface 52, work-management-supply-chain 30 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 34, field-operations-facilities 78, hse-incident-management 35, maintenance-integrity 63, orchestrator 21, production-surveillance 61, wells-subsurface 52, work-management-supply-chain 30 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

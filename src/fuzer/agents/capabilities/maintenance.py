@@ -39,6 +39,17 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
 
+@capability("maintenance-integrity", "field-operations-facilities", kind="query")
+def rotating_screen(at: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at
+    one date, worst first: `act` (a severe flag: vibration zone D, head loss, accelerating failures, low-flow
+    running), then `watch`. Use it for "which machines need attention?" before `calc("rotating_health", ref)`
+    on the ones it names. Class-wide failure patterns are listed once under `class_wide_failures`."""
+    from ...analysis import rotating
+    with db.connect() as conn:
+        return _plain(rotating.screen(conn, at, min(limit, 100)))
+
+
 @capability("work-management-supply-chain", "maintenance-integrity", kind="query")
 def backlog_health(as_of: str | None = None, limit: int = 10) -> dict[str, Any]:
     """Backlog health: ageing of open corrective (PM01) orders (flag when over 25 % are older than 90 days),

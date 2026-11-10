@@ -11,6 +11,10 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   efficiency, failure history and its trend, peers), each finding with its basis, the dates of its data and a
   confidence, then a status (`act`, `watch`, `ok`) and recommendations. A check that cannot run says why (no OEM
   curve, no vibration point), so the summary shows what is unknown rather than leaving it out.
+- `screen(at)`: every rotating machine (ISO 14224 compressors, pumps, gas turbines, motors, expanders, blowers) run
+  through `health` at one date, `act` first, then by how many checks flag it. It finds the faulty machine without
+  being told which one to look at; a flag every unit of a class shares (`class_wide_failures`) is reported once
+  for the class rather than as a reason to look at each machine.
 
 Spectra (bearing defect frequencies, 1x and 2x running speed) need a condition-monitoring source; `spectrum()` is the
 interface it plugs into and says so until one is connected.
@@ -227,3 +231,41 @@ def health(conn, fid: str, until: str | None = None) -> dict:
             "recommendations": recs or ["Nothing to act on in the data Fuzer has."]}
 
 
+
+
+ROTATING_CLASSES = r"^ISO14224:(CO|PU|GT|EM|TE|BL|ST)([.]|$)"
+_RANK = {"act": 0, "watch": 1, "ok": 2}
+
+
+def screen(conn, until: str | None = None, limit: int = 20) -> dict:
+    """Every rotating machine's health at `until`, worst first: the fleet screen behind "which machines need
+    attention?". Class-wide flags are lifted out to `class_wide`, so a machine is `watch` for its own reasons."""
+    tags = conn.execute(
+        """
+        select distinct i.dst as tag, cl.label as cls from edge i
+        join edge c on c.src = i.src and c.rel = 'classified_as'
+        join entity_label cl on cl.fuzer_id = c.dst
+        where i.rel = 'installed_at' and i.valid_to is null and cl.label ~ %s
+        """, (ROTATING_CLASSES,)).fetchall()
+    machines, unchecked, class_wide = [], [], set()
+    for t in tags:
+        try:
+            h = health(conn, t["tag"], until=until)
+        except CalcError as e:
+            unchecked.append({"machine": _label(conn, t["tag"]), "why": str(e)})
+            continue
+        own = [f for f in h["findings"] if f["flag"] and f["flag"] != "class_wide_failures"]
+        if any(f["flag"] == "class_wide_failures" for f in h["findings"]):
+            class_wide.add(t["cls"])
+        status = "act" if any(f["flag"] in SEVERE for f in own) else "watch" if own else "ok"
+        machines.append({"id": t["tag"], "machine": h["machine"], "status": status,
+                         "flags": [f["flag"] for f in own], "unknown": [u["check"] for u in h["unknown"]],
+                         "recommendations": [ACTIONS[f["flag"]] for f in own if f["flag"] in ACTIONS]})
+    machines.sort(key=lambda m: (_RANK[m["status"]], -len(m["flags"]), m["machine"]))
+    counts = {k: sum(1 for m in machines if m["status"] == k) for k in _RANK}
+    return {"at": until, "machines_checked": len(machines), "by_status": counts,
+            "machines": machines[:limit], "unchecked": unchecked,
+            "class_wide_failures": sorted(class_wide),
+            "basis": "rotating equipment health (curve, operating region, vibration zone and trend, efficiency, "
+                     "Weibull and Crow-AMSAA on the failure history, peers) for every ISO 14224 rotating class; "
+                     "act = a severe flag (" + ", ".join(sorted(SEVERE)) + ")"}
