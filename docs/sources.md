@@ -88,6 +88,14 @@ open exception that carries it), the link values each source wrote that named no
 an alias), and the decision log: every alias and pinned match with who, when and why, searchable, each reversible
 (an alias is retired, a pin removed; audited in `source_audit`).
 
+On an entity page a steward corrects the matching itself (`graph/curation.py`). **Same as…** finds another entity
+of the same kind and previews the merge (the records and keys it would have, the fields where the two disagree, any
+earlier "not the same" it reverses); **Not this record** beside a source record previews the split (what stays, the
+values the record takes with it). Either is written as pinned links (a merge one must-link, a split a cannot-link
+to each other record) sharing a batch, so it holds on every rebuild, shows in the decision log as one decision, and
+one undo reverses it. A rebuild is queued when it is made (`POST /stewardship/merge`, `/stewardship/split`, each
+with a `GET …/preview`).
+
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is

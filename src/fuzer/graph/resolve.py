@@ -109,8 +109,10 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
         if c.key:
             by_key[(c.kind, c.key)].append(c.ref)
     for refs in by_key.values():
-        for r in refs[1:]:
-            cl.union(refs[0], r)
+        for i, r in enumerate(refs[1:], 1):
+            # A record a steward split off (#476) is cannot-linked to the rest: join each to the first record it
+            # may join, so the others still come together when the split one happens to be first.
+            any(cl.union(anchor, r) for anchor in refs[:i])
         if len(refs) > 1:
             for r in refs:
                 methods.setdefault(r, ("key", 1.0))

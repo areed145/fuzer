@@ -119,6 +119,9 @@ create table if not exists pinned_link (
     decided_at timestamptz not null default now(),
     primary key (left_ref, right_ref)
 );
+-- A steward's merge or split (#476) writes several pins at once; they share a batch so one undo reverses it.
+alter table pinned_link add column if not exists batch text;
+alter table pinned_link add column if not exists reason text;
 
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
