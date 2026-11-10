@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
+from ..core import ontology
 from ..graph import queries
 from . import deps
 from .deps import get_conn
@@ -25,11 +26,16 @@ def neighborhood(fuzer_id: str, depth: int = 1, rels: str | None = None, as_of: 
 
 
 @router.get("/network")
-def network(rel: Literal["flows_to", "lift_gas_to", "pipes_to"] = "flows_to", as_of: date | None = None,
-            conn=Depends(get_conn)):
-    """flows_to: production / allocation flow (Energy Components); lift_gas_to: the gas lift network
-    (Energy Components); pipes_to: piping from P&IDs."""
-    return queries.network(conn, rel, as_of)
+def network(rels: str | None = None, rel: str | None = None, as_of: date | None = None, conn=Depends(get_conn)):
+    """One network of any link types: `rels` is a comma-separated list of relations from the ontology (default:
+    its flow view, e.g. flows_to production/allocation, lift_gas_to gas lift and pipes_to P&ID piping). `rel`
+    names a single one, for older links."""
+    wanted = [r for r in (rels or "").split(",") if r] + ([rel] if rel else [])
+    known = {r["name"] for r in ontology.relations(conn)}
+    unknown = sorted(set(wanted) - known)
+    if unknown:
+        raise HTTPException(422, f"unknown link type: {', '.join(unknown)}")
+    return queries.network(conn, wanted or None, as_of)
 
 
 @router.get("/network/compare")

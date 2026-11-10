@@ -261,6 +261,7 @@ export const exploreApi = {
     request<RelationDef>("DELETE", `/ontology/relations/${encodeURIComponent(name)}`, { by, reason }),
   neighborhood: (id: string, depth: number, rels?: string[], asOf?: string) =>
     request<Subgraph>("GET", `/graph/${encodeURIComponent(id)}`, { depth, rels: rels?.join(","), as_of: asOf }),
-  network: (asOf?: string, rel: "flows_to" | "lift_gas_to" | "pipes_to" = "flows_to") =>
-    request<Subgraph>("GET", "/network", { as_of: asOf, rel }),
+  /** Every link of the given types (default: the ontology's flow view); the answer says which types it drew. */
+  network: (asOf?: string, rels?: string[]) =>
+    request<Subgraph & { rels: string[] }>("GET", "/network", { as_of: asOf, rels: rels?.join(",") }),
 };
