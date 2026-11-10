@@ -224,7 +224,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
 
         # The trip reaches the IOC three ways, and is one case (#464): the IOW check on the compressor's suction
         # pressure opens a case that the waiting notification joins, and the SRE's upset joins it too. The other
-        # two notifications (the glycol pump, the contactor) are other events.
+        # three notifications (the glycol pump, the glycol contactor, the amine contactor's foaming) are other events.
         from fuzer.core.exceptions import raise_exception
         from fuzer.ops import exceptions as ex
         from fuzer.ops import sre_handoff  # noqa: F401  (declares the upset type)
@@ -248,7 +248,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
                                                                           ("upset", "upset:test")]
         assert upset["item_id"] == iow["item_id"]
         others = {r["key"] for r in rows if r["type"] == "sap_notification"}
-        assert others == {"10004002", "10004007"}  # still waiting on their own rows
+        assert others == {"10004002", "10004007", "10004008"}  # still waiting on their own rows
 
 
     # The API resolves the pack from the database it serves, at request time.
