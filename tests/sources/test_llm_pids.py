@@ -146,6 +146,10 @@ def test_drawing_endpoint_places_readings(setup, read):
     linked = [m for m in d["marks"] if m["status"] == "linked"]
     assert all(m["id"] and "x" in m for m in linked)
     assert d["connections"] and all(c["from_id"] and c["to_id"] for c in d["connections"])
+    # train B's line from the inlet separator: both sheets show it, and the viewer can open the other sheet
+    [end] = d["offpage"]
+    assert end["status"] == "confirmed" and end["sheet"] == "OKAN-20-PID-003" and end["sheet_id"]
+    assert d["loops"] and all(len(lp["members"]) >= 2 for lp in d["loops"])
 
     smart = conn.execute("select c.fuzer_id from crosswalk c join source_record r using (source, record_type, source_key) "
                          "where c.source = 'pid' and r.payload->>'format' = 'smart' limit 1").fetchone()["fuzer_id"]

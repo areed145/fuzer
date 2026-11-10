@@ -98,8 +98,14 @@ export interface Drawing {
   width: number;
   height: number;
   marks: DrawingMark[];
-  connections: { from: string; to: string; line: string | null; from_id: string | null; to_id: string | null }[];
+  connections: { from: string; to: string; line: string | null; from_id: string | null; to_id: string | null;
+    via?: string[] }[];
   findings: { text: string; kind: string; issue: string }[];
+  /** Lines leaving or entering the sheet (#475): confirmed when the other sheet shows them too. */
+  offpage?: { direction: "to" | "from"; sheet: string; tag: string | null; other: string | null; line: string;
+    status: "confirmed" | "one_sided" | "unread"; sheet_id: string | null }[];
+  /** Instrument loops read from bubbles and signal lines: transmitter, controller, final element. */
+  loops?: { members: string[] }[];
 }
 
 export interface GraphNode {

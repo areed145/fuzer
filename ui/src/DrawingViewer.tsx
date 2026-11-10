@@ -135,9 +135,38 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               <li key={i}>
                 <End id={c.from_id} text={c.from} /> → <End id={c.to_id} text={c.to} />
                 {c.line && <span className="muted small mono">{c.line}</span>}
+                {c.via && c.via.length > 0 && <span className="muted small"> via {c.via.join(", ")}</span>}
               </li>
             ))}
           </ul>
+          {(g.offpage ?? []).length > 0 && (
+            <>
+              <h3>Off-page</h3>
+              <ul>
+                {g.offpage!.map((o, i) => (
+                  <li key={i}>
+                    <span className="mono">{o.tag ?? "?"}</span> {o.direction === "to" ? "→" : "←"}{" "}
+                    <span className="mono">{o.other ?? "?"}</span> on{" "}
+                    {o.sheet_id ? <a className="mono" href={entityHref(o.sheet_id)}>{o.sheet}</a>
+                      : <span className="mono">{o.sheet}</span>}
+                    <span className="muted small mono"> {o.line}</span>{" "}
+                    <span className="muted small">{o.status === "confirmed" ? "both sheets agree"
+                      : o.status === "one_sided" ? "only this sheet shows it: in review" : "other sheet not read yet"}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {(g.loops ?? []).length > 0 && (
+            <>
+              <h3>Instrument loops</h3>
+              <ul>
+                {g.loops!.map((lp, i) => (
+                  <li key={i} className="mono">{lp.members.join(" → ")}</li>
+                ))}
+              </ul>
+            </>
+          )}
           {g.findings.length > 0 && (
             <>
               <h3>Findings</h3>
