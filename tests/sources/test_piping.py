@@ -52,4 +52,10 @@ def test_api_network_rel(conn):
     client = TestClient(app)
     assert client.get("/network", params={"rel": "pipes_to"}).json()["edges"]
     assert client.get("/network", params={"rel": "nonsense"}).status_code == 422
+    assert client.get("/network", params={"rels": "flows_to,nonsense"}).status_code == 422
+    # One network of several link types, defaulting to the ontology's flow view.
+    mixed = client.get("/network", params={"rels": "flows_to,pipes_to"}).json()
+    assert mixed["rels"] == ["flows_to", "pipes_to"] and {e["rel"] for e in mixed["edges"]} == {"flows_to", "pipes_to"}
+    default = client.get("/network").json()
+    assert {"flows_to", "lift_gas_to", "pipes_to"} <= set(default["rels"])
     assert set(client.get("/network/compare").json()) == {"in_ec_not_on_pids", "on_pids_not_in_ec"}

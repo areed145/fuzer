@@ -23,3 +23,8 @@ ul.coverage .bar { height: 6px; background: var(--line); border-radius: 3px; ove
 ul.coverage .bar span { display: block; height: 100%; background: var(--accent); }
 ul.plain li { padding: 2px 0; }
 .page-tabs { margin-bottom: 16px; }
+.network-filters .chips { align-items: center; margin: 8px 0; }
+.network-filters .chip .dot { width: 8px; height: 8px; margin-right: 2px; box-shadow: 0 0 0 1.5px var(--panel); }
+.more-rels { flex-basis: 100%; }
+.more-rels summary { cursor: pointer; color: var(--muted); }
+.more-rels .chips { margin: 6px 0 0; }

@@ -58,21 +58,32 @@ def neighborhood(conn, fuzer_id: str, depth: int = 1, rels: list[str] | None = N
             "truncated": truncated}
 
 
-def network(conn, rel: str = "flows_to", as_of: date | None = None, max_edges: int = 5000) -> dict:
-    """Every link of one type (e.g. the whole flow / allocation network)."""
+def network_rels(conn) -> list[str]:
+    """The link types drawn as the network when none are asked for: every relation the ontology puts in its
+    flow view (production/allocation, gas lift, piping, and any a pack or a person adds there)."""
+    return [r["name"] for r in conn.execute(
+        "select name from ontology_relation where view = 'flow' order by name").fetchall()]
+
+
+def network(conn, rels: str | list[str] | None = None, as_of: date | None = None, max_edges: int = 5000) -> dict:
+    """Every link of the given types, whatever entities they join: one network for flow, gas lift, piping or any
+    other relation. `rels` defaults to the ontology's flow view."""
+    if isinstance(rels, str):
+        rels = [rels]
+    rels = list(dict.fromkeys(rels or network_rels(conn)))
     rows = conn.execute(
         f"""
         select e.id, e.src, e.rel, e.dst, e.valid_from, e.valid_to, e.sources
         from edge e
-        where e.rel = %(rel)s and {_EDGE_DATES}
+        where e.rel = any(%(rels)s) and {_EDGE_DATES}
         order by e.id
         limit %(limit)s
         """,
-        {"rel": rel, "as_of": as_of, "limit": max_edges + 1},
+        {"rels": rels, "as_of": as_of, "limit": max_edges + 1},
     ).fetchall()
     truncated = len(rows) > max_edges
     rows = rows[:max_edges]
-    return {"nodes": _subgraph(conn, rows), "edges": rows, "truncated": truncated}
+    return {"rels": rels, "nodes": _subgraph(conn, rows), "edges": rows, "truncated": truncated}
 
 
 def members(conn, fuzer_id: str, kind: str | None = None, limit: int = 100, offset: int = 0) -> dict:

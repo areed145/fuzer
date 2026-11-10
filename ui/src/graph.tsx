@@ -78,6 +78,7 @@ function stylesheet() {
         "text-background-padding": "2px",
       },
     },
+    { selector: "edge[color]", style: { "line-color": "data(color)", "target-arrow-color": "data(color)", opacity: 0.85 } },
     { selector: "edge.labeled, edge:selected, edge.hover, edge.near", style: { label: "data(label)" } },
     { selector: "edge[?ended]", style: { "line-style": "dashed" } },
     {
@@ -93,6 +94,7 @@ export function subgraphElements(
   rootId?: string,
   labelEdges = g.edges.length <= 80, // otherwise labels show on hover / select
   markEnded = true, // dash links that have ended; off when viewing "as of" a date
+  relColor?: (rel: string) => string | undefined, // colour links by type when several are drawn together
 ): ElementDefinition[] {
   return [
     ...g.nodes.map((n) => ({
@@ -112,6 +114,7 @@ export function subgraphElements(
         source: e.src,
         target: e.dst,
         rel: e.rel,
+        ...(relColor?.(e.rel) ? { color: relColor(e.rel) } : {}),
         ended: markEnded && !!e.valid_to,
         label: e.valid_from || e.valid_to ? `${e.rel} ${e.valid_from ?? "…"} → ${e.valid_to ?? "now"}` : e.rel,
       },
