@@ -1,6 +1,7 @@
 import "./styles/drawing.css";
 import { useState, type ReactNode } from "react";
 import { api, type DrawingMark, type MarkStatus } from "./api";
+import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
 import { Button , Card as UICard} from "./ui";
 
@@ -82,7 +83,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
       )}
       <div className="viewer">
         <div className="sheet" style={{ width: zoom ? `${g.width * zoom}px` : "100%" }}>
-          <img src={g.image} alt={`P&ID ${g.sheet}`} />
+          <img src={projectUrl(g.image)} alt={`P&ID ${g.sheet}`} />
           <svg viewBox={`0 0 ${g.width} ${g.height}`} preserveAspectRatio="none">
             {shown
               .filter(({ m }) => m.x !== undefined && m.y !== undefined)

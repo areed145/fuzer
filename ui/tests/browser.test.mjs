@@ -2448,3 +2448,26 @@ test("one network draws several link types together, filtered by link type and k
   for (const r of ["flows to", "part of"]) await links.getByRole("button", { name: new RegExp(r) }).click();
   await page.getByText("Pick at least one link type to draw.").waitFor();
 });
+
+test("a P&ID drawing in another project loads its image from that project", async () => {
+  const id = "fz-document-0123456789ab";
+  await page.addInitScript(() => localStorage.setItem("fuzer.project", "kestrel"));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "local", configured: true, user: null,
+    project: "okan", projects: ["okan", "kestrel"] } }));
+  let imageQuery = null;
+  await page.route(`**/documents/${id}/image*`, (route) => {
+    imageQuery = new URL(route.request().url()).searchParams.get("fuzer_project");
+    return route.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) });
+  });
+  await page.route(`**/documents/${id}/drawing`, (route) => route.fulfill({ json: { sheet: "KRGP-E1-PID-001",
+    format: "smart", title: "TRAIN E1", read_by: "smart file", image: `/documents/${id}/image`, width: 2200, height: 1500,
+    marks: [], connections: [], findings: [] } }));
+  await page.route(`**/entities/${id}/map`, (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route(`**/entities/${id}`, (route) => route.fulfill({ json: { fuzer_id: id, kind: "document",
+    label: "KRGP-E1-PID-001", golden: {}, values: {}, keys: [], edges: [], edge_counts: {},
+    records: [{ source: "pid", record_type: "sheet", source_key: "KRGP-E1-PID-001", method: "singleton", confidence: 1 }] } }));
+  await page.goto(`${url}/#/e/${id}`);
+  await page.getByAltText("P&ID KRGP-E1-PID-001").waitFor();
+  await page.waitForFunction(() => document.querySelector("img[alt^='P&ID']")?.complete);
+  assert.equal(imageQuery, "kestrel");  // an <img> can't send the project header, so the URL names it
+});
