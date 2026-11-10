@@ -404,6 +404,18 @@ export interface BoardFilter {
 }
 
 /** An exception as the IOC sees it (fuzer.core.exceptions): one open condition from any source, matched to assets. */
+/** A shift handover (#467). */
+export interface Handover {
+  id: number; shift_start: string; shift_end: string; state: "draft" | "handed_over" | "acknowledged";
+  facts: { sections: Record<string, { text: string; cites: string[] }[]>; more?: Record<string, number> };
+  item_id: number | null; drafted_at: string; notes: string | null; notes_by: string | null; notes_at: string | null;
+  acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null;
+}
+export interface HandoverRow {
+  id: number; shift_start: string; shift_end: string; state: string; notes_by: string | null;
+  acknowledged_by: string | null; acknowledged_at: string | null; item_id: number | null; lines: number | null;
+}
+
 /** An update drafted for the system that raised work the field finished (#466). */
 export interface Closeout {
   id: number; exception_id: number; system: string; record: string; action: "complete" | "follow_up";
@@ -502,6 +514,13 @@ export const workApi = {
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
+  handovers: () => request<HandoverRow[]>("GET", "/handovers"),
+  handover: (id: number) => request<Handover>("GET", `/handovers/${id}`),
+  draftHandover: (by: string) => request<Handover | null>("POST", "/handovers/draft", undefined, { by, refresh: true }),
+  handoverNotes: (id: number, by: string, notes: string) =>
+    request<Handover>("POST", `/handovers/${id}/notes`, undefined, { by, notes }),
+  acknowledgeHandover: (id: number, by: string, note?: string) =>
+    request<Handover>("POST", `/handovers/${id}/acknowledge`, undefined, { by, note: note ?? null }),
   closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
   approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),

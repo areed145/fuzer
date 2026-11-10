@@ -900,7 +900,8 @@ test("optional Demo preserves existing primary destinations and specialist route
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/plan", "#/turnaround", "#/cases", "#/review", "#/processes"]);
+    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/handover", "#/plan", "#/turnaround", "#/cases", "#/review",
+     "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();

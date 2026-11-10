@@ -132,6 +132,8 @@ register(
     Setting("closeout.apply_to_exports", "bool", False, "Demo: apply a close-out sent back to a source system (an "
             "SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it",
             "Work"),
+    Setting("handover.shift_times", "str", "06:00,18:00", "Shift changes, as local times in the project's timezone "
+            "(comma separated). At each one a shift handover is drafted for the ops lead queue (empty: off)", "Work"),
     Setting("exceptions.join_hours", "int", 48, "An exception about an asset (or the unit it is part of) whose open "
             "case another source's exception raised within this many hours joins that case, so one event reported by "
             "several systems is one case (0: never join)", "Work", min=0, max=720),

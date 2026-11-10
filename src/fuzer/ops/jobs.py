@@ -334,6 +334,10 @@ def work_tick_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         context.log.info(f"work tick: {engine.tick(conn)}")
         closed = exceptions.reconcile(conn)
         conn.commit()
+        from . import handover
+        if drafted := handover.at_shift_change(conn):  # once per shift change (#467)
+            context.log.info(f"shift handover {drafted['id']} drafted")
+        conn.commit()
         context.log.info(f"exceptions: {closed}, events: {events.deliver(conn)}")
 
 

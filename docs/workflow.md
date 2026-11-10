@@ -153,6 +153,14 @@ page. A type with a process starts it; one with a queue opens a case in that rol
   notification's status, or a new notification for a follow-up): the next load and intake see SAP move, the hold
   ends, and a follow-up comes back to the IOC as a new notification. `tests/api/test_closeout_to_source.py` walks it
   on Kestrel.
+- **Shift handover** (#467, `ops/handover.py`, Work > Handover). At each shift change (`handover.shift_times`,
+  local times in the project's timezone, default `06:00,18:00`; empty turns it off) the work tick drafts a handover
+  from live work over the shift that just ended: open work by priority, what came back from the field and waits on
+  the IOC, steps escalated or overdue, what was dispatched and to whom, and new exceptions. Every line cites its
+  case or exception (`case:<id>`, `exception:<id>`), as the daily report cites its records. It opens a
+  `shift_handover` case on the `ops_lead` queue; the outgoing lead adds notes, and the incoming lead acknowledges it
+  (`POST /handovers/{id}/acknowledge`), which goes on the case history with who and when and closes the case. Past
+  handovers are listed (`GET /handovers`) and readable. **Draft now** refreshes an unacknowledged one from live work.
 
 ## The work board
 
