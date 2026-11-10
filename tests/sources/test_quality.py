@@ -93,6 +93,29 @@ def test_duplicate_keys_hold_a_load(conn, data):
     assert run["status"] == "held" and run["detail"]["checks"][0]["kind"] == "duplicate keys"
 
 
+def test_a_dataset_can_load_the_latest_row_of_a_repeated_key(conn, data):
+    """#459: instead of holding, the load keeps the last row read for each repeated key, and the run lists the rows
+    it left out."""
+    ingest.ingest(conn, data)
+    path = data / "sap_floc.csv"
+    rows = list(csv.DictReader(path.open()))
+    newer = {**rows[0], "description": rows[0]["description"] + " (renamed)"}
+    with path.open("a", newline="") as f:
+        csv.DictWriter(f, fieldnames=rows[0].keys()).writerow(newer)
+    catalog.update_dataset(conn, "sap_floc", "ana", reason="SAP re-exports a renamed location", duplicates="keep_latest")
+    out = ingest.ingest(conn, data, ["sap_floc"])
+    assert out["loaded"] == ["sap_floc"] and not out["held"] and out["updated"] == 1
+    run = catalog.runs(conn, "sap_floc")[0]
+    dropped = run["detail"]["duplicates_dropped"]
+    assert run["status"] == "done" and dropped["rows"] == 1 and dropped["keys"] == 1
+    assert dropped["shown"][0]["row"]["description"] == rows[0]["description"]  # the older row is the one dropped
+    with pytest.raises(catalog.CatalogError, match="duplicates must be one of"):
+        catalog.update_dataset(conn, "sap_floc", "ana", duplicates="keep_first")
+    conn.rollback()
+    catalog.update_dataset(conn, "sap_floc", "ana", duplicates="hold")  # the module's other tests expect a hold
+    conn.commit()
+
+
 def test_system_formats_and_encoding_apply_on_load(conn, data):
     catalog.seed(conn)
     catalog.update_system(conn, "jde", "ana", decimal=",", encoding="latin-1")

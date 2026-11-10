@@ -228,6 +228,8 @@ def checks(conn, dataset: str | None = None) -> list[dict]:
 def _stage_check(conn, c: dict, d: dict, rows_read: int, key: dict) -> tuple[bool, float | None, dict]:
     col, p, name = c["column_name"], c["params"] or {}, d["name"]
     if c["kind"] == "key_unique":
+        if key.get("kept_latest"):  # the dataset loads the latest row per key (#459): unique once the rest dropped
+            return True, float(key["duplicates"]), {"examples": key["examples"], "kept_latest": True}
         return key["duplicates"] == 0, float(key["duplicates"]), {"examples": key["examples"]}
     if c["kind"] == "row_count":
         last = d.get("rows")

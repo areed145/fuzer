@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api, type DatasetDetail, type ImpactResult, type Json, type MappingVersion, type SourceLoad } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import {
-  DRIFT_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, useAction, when,
+  DRIFT_HELP, DUPLICATES_HELP, Diff, HealthBadge, LOAD_HELP, Loaded, SCHEDULES, TestSteps, cell, reviewer, scheduleText, useAction, when,
 } from "./common";
 import { MappingEditor } from "./MappingEditor";
 
@@ -59,6 +59,7 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const ready = canLoad(d);
   if (!stuck && !done) return null;
   const checks = (last?.detail as { checks?: { kind: string; value: number; detail?: { examples?: string[] } }[] } | null)?.checks;
+  const dupes = !!checks?.some((c) => c.kind === "duplicate keys");
   return (
     <div className="notice small">
       {stuck && last.status === "failed" && <p>The last load failed: {last.error}</p>}
@@ -71,6 +72,16 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             : <>its columns changed (answer it on <a href={href("/review", { kind: "schema" })}>Review</a>)</>}.
           {" "}Fix it (the export, the key under Settings, or the check under Quality), then load again.
         </p>
+      )}
+      {stuck && dupes && d.dataset.duplicates !== "keep_latest" && (
+        <div className="row">
+          <ConfirmAction label="Load, keeping the latest row" busy={!!a.busy} disabled={!ready}
+            consequence={`Load ${d.dataset.name} with the latest row of each repeated key? The other rows are left out and listed on the run, and later loads do the same (change it back under Settings).`}
+            onConfirm={() => a.run("latest", async () => {
+              await api.editDataset(d.dataset.name, { duplicates: "keep_latest" }, reviewer(), "load the latest row of a repeated key");
+              return api.runDataset(d.dataset.name, true);
+            }, (r) => { setDone(r); reload(); })} />
+        </div>
       )}
       <div className="row">
         <ConfirmAction label="Load again" busy={!!a.busy} disabled={!ready}
@@ -157,7 +168,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const ds = d.dataset;
   const cat = useAsync(() => api.catalog(), []);
   const init = {
-    load_mode: ds.load_mode, drift_policy: ds.drift_policy, schedule: ds.schedule ?? "", expected_hours: ds.expected_hours?.toString() ?? "",
+    load_mode: ds.load_mode, drift_policy: ds.drift_policy, duplicates: ds.duplicates ?? "hold", schedule: ds.schedule ?? "", expected_hours: ds.expected_hours?.toString() ?? "",
     owner: ds.owner ?? "", notes: ds.notes ?? "", key: (ds.key ?? []).join(", "), location: ds.location ?? "",
     connector: ds.connector ?? "", watermark: ds.watermark ?? "", connection_id: ds.connection_id?.toString() ?? "",
   };
@@ -192,6 +203,11 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             {Object.keys(DRIFT_HELP).map((m) => (
               <label key={m} className="small choice"><Input type="radio" checked={v.drift_policy === m} onChange={() => setV({ ...v, drift_policy: m })} />
                 {" "}{DRIFT_HELP[m]}</label>))}
+          </td></tr>
+          <tr><th>If a key repeats</th><td>
+            {Object.keys(DUPLICATES_HELP).map((m) => (
+              <label key={m} className="small choice"><Input type="radio" checked={v.duplicates === m} onChange={() => setV({ ...v, duplicates: m })} />
+                {" "}{DUPLICATES_HELP[m]}</label>))}
           </td></tr>
           <tr><th>Schedule</th><td>
             <Select value={custom ? "custom" : v.schedule} onChange={(e) => setV({ ...v, schedule: e.target.value === "custom" ? "0 0 * * *" : e.target.value })}>
@@ -372,13 +388,29 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
               <td>{r.id}</td><td className="muted">{when(r.finished_at ?? r.started_at)}</td><td>{r.trigger}</td>
               <td><UIBadge className={`badge ${r.status === "done" ? "ok" : ""}`}>{r.status}</UIBadge></td>
               <td>{r.rows_read?.toLocaleString()}</td><td>{r.inserted}</td><td>{r.updated}</td><td>{r.unchanged}</td><td>{r.removed}</td>
-              <td className="muted">{r.seconds}</td><td className="muted">{r.error ?? (r.detail ? cell(r.detail) : "")}</td>
+              <td className="muted">{r.seconds}</td><td className="muted">{r.error ?? (r.detail ? <RunDetail detail={r.detail} /> : "")}</td>
             </tr>
           ))}
         </tbody>
       </Table>
       {d.runs.length === 0 && <p className="muted small">Not loaded yet.</p>}
     </>
+  );
+}
+
+type Dropped = { rows: number; keys: number; shown: { key: string; row: Json }[] };
+
+/** A run's detail; the rows a keep-the-latest load left out are listed, so the owner sees what didn't load (#459). */
+function RunDetail({ detail }: { detail: Json }) {
+  const { duplicates_dropped: dropped, ...rest } = detail as Json & { duplicates_dropped?: Dropped };
+  if (!dropped) return <>{cell(detail)}</>;
+  return (
+    <details>
+      <summary>kept the latest row of {dropped.keys} repeated key{dropped.keys === 1 ? "" : "s"}; left out {dropped.rows}</summary>
+      <ul className="plain">{dropped.shown.map((x, i) => <li key={i}><code>{x.key}</code> {cell(x.row)}</li>)}</ul>
+      {dropped.rows > dropped.shown.length && <p>and {dropped.rows - dropped.shown.length} more</p>}
+      {Object.keys(rest).length > 0 && cell(rest as Json)}
+    </details>
   );
 }
 
@@ -417,7 +449,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           </ul>
         </UICard>
       )}
-      <h3>Checks <span className="muted small">duplicate keys always hold a load</span></h3>
+      <h3>Checks <span className="muted small">duplicate keys hold a load unless Settings says to keep the latest row</span></h3>
       {d.checks.length > 0 ? (
         <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Column</th><th>Params</th><th>Holds the load</th><th>Last</th><th>Value</th><th /></tr></thead>

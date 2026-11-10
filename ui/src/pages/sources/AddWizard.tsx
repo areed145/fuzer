@@ -280,7 +280,8 @@ function AddResult({ r }: { r: AddTableResult }) {
               <li key={i}>
                 {c.kind === "duplicate keys"
                   ? <>the export repeats {c.value} key{c.value === 1 ? "" : "s"} ({(c.detail?.examples ?? []).join(", ")}). Fix the
-                    export (or pick another key under the dataset's Settings), then load again.</>
+                    export (or pick another key under the dataset's Settings), then load again; or open the dataset and load the
+                    latest row of each repeated key.</>
                   : <>the {c.kind} check failed ({c.value}). See the dataset's Quality tab.</>}
               </li>
             ))}
