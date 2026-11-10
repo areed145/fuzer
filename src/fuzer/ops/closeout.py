@@ -50,10 +50,10 @@ def _draft(row: dict, by: str, status: str, note: str | None) -> dict:
     ev = row["evidence"] or {}
     record = str(ev.get("notification") or ev.get("record") or row["key"])
     system = row["source"]
-    note = (note or "").strip()
+    note = (note or "").strip().rstrip(".")
     if status == "done":
         return {"action": "complete", "record": record, "status": CLOSED_STATUS.get(system),
-                "text": f"Completed in the field by {by}" + (f": {note}" if note else ".")}
+                "text": f"Completed in the field by {by}" + (f": {note}." if note else ".")}
     return {"action": "follow_up", "record": record, "status": OPEN_STATUS.get(system),
             "notif_type": ev.get("notif_type"), "priority": ev.get("priority"),
             "short_text": f"Follow-up to {record}: {note}"[:120],
@@ -79,7 +79,7 @@ def on_field_report(conn, row: dict, by: str, status: str, note: str | None) -> 
     if m == "send":
         return _send(conn, out, by)
     what = "completion" if draft["action"] == "complete" else "follow-up"
-    item = work.open_case(conn, CASE_TYPE, f"{row['source'].upper()} {what} to approve: {draft['record']}", by,
+    item = work.open_case(conn, CASE_TYPE, f"{row['source'].upper()} {what} to approve: {row['title'] or draft['record']}", by,
                           subjects=row["subjects"], priority=row["priority"], role=role, source=row["source"],
                           payload={"closeout_id": out["id"], "exception_id": row["id"], **draft})
     return dict(conn.execute("update source_closeout set item_id = %s where id = %s returning *",

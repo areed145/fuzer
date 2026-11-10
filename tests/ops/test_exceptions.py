@@ -276,6 +276,26 @@ def test_a_job_routed_to_the_operators_queue_reaches_the_field(conn, types):
     conn.commit()
 
 
+def test_a_job_taken_from_the_queue_keeps_what_the_ioc_asked_and_goes_back_to_it(conn, types):
+    """The IOC dispatches to the operators' queue with what to check; an operator takes it. Their job still says what
+    was asked and by whom, and Could not do hands it back to the dispatcher, not to the queue it was taken from."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("packing_leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "packing_leak", "P-101-PK", "Packing leak on P-101", "sap", refs=["tag:P-101"])
+    ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the leak rate and tighten the gland if safe")
+    ex.dispatch(conn, e["id"], "olly", "olly", reason="taken from the queue")
+    [job] = [j for j in ex.field_jobs(conn, "olly") if j["id"] == e["id"]]
+    assert job["sent"]["by"] == "ivy" and job["sent"]["reason"].startswith("Check the leak rate")
+    ex.report(conn, e["id"], "olly", "could_not_do", "Gland at end of travel; needs repacking")
+    item = conn.execute("select assignee, role from work_item where id = %s", (job["item_id"],)).fetchone()
+    assert item["assignee"] == "ivy"
+    conn.commit()
+
+
 def test_another_system_raises_and_clears_a_type_defined_as_data(conn, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

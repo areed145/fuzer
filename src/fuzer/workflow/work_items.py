@@ -281,10 +281,13 @@ def hand_back_item(conn, item_id: int, person: str, by: str, reason: str | None 
     item = _item(conn, item_id)
     if item["assignee"] != person or item["state"] in ("done", "cancelled") or _has_process(conn, item_id):
         return None
-    prior = conn.execute(  # handed to them, else opened for them: back to whoever opened it (the dispatcher)
+    # Handed to them, else opened for them or for a queue they took it from: back to whoever opened it (the
+    # dispatcher). Taking it from the queue themselves isn't being sent it, so it doesn't send it back to the queue.
+    prior = conn.execute(
         "select f from (select id, data->>'from' as f from work_event where item_id = %(i)s and token_id is null "
-        "and kind = 'handed_off' and data->>'to' = %(p)s union all select id, actor from work_event "
-        "where item_id = %(i)s and kind = 'created' and data->>'assignee' = %(p)s) x order by id desc limit 1",
+        "and kind = 'handed_off' and data->>'to' = %(p)s and actor <> %(p)s union all select id, actor from work_event "
+        "where item_id = %(i)s and kind = 'created' and (data->>'assignee' = %(p)s "
+        "or (actor <> %(p)s and actor not like 'agent:%%'))) x order by id desc limit 1",
         {"i": item_id, "p": person}).fetchone()
     to = _back_to(prior and prior["f"], person, item["role"])
     return assign_item(conn, item_id, by, to, reason) if to else None

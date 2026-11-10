@@ -181,7 +181,8 @@ function Row({ r, person, people, queues, onChange }: {
             {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
           <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
         </Select>
-        <Button size="sm" disabled={!to.trim() || !!busy}
+        <Button size="sm" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim())}
+          title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
           onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined),
             () => { setTo(""); setAsk(""); onChange(); })}>
           {r.item_id ? "Hand to" : "Dispatch"}</Button>

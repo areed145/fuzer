@@ -41,6 +41,15 @@ export function ScenarioClock() {
   </p>;
 }
 
+/** How many reports a case's sources are, and from how many systems: four upsets from one detector are one
+ * system reporting four times, not four systems. */
+export function reportedBy(sources: { source?: string | null }[]): string {
+  const systems = new Set(sources.map((x) => x.source ?? "unknown"));
+  if (systems.size === 1) return `Reported ${sources.length} times by ${[...systems][0]}`;
+  return systems.size === sources.length ? `Reported by ${systems.size} systems`
+    : `Reported ${sources.length} times by ${systems.size} systems`;
+}
+
 export function when(at: string): string {
   return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }

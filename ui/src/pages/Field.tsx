@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api, type FieldJob, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
-import { Due, usePerson, when } from "../work";
+import { Due, reportedBy, usePerson, when } from "../work";
 import { SampleTeam, taskHref, useAct } from "./workflows/shared";
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
@@ -77,7 +77,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
         <span className="muted">seen {job.raised_count}× since {when(job.first_seen)}</span>
       </p>
-      {job.sent && !job.queued && <p className="field-sent">
+      {job.sent && (job.sent.reason || !job.queued) && <p className="field-sent">
         <strong>{job.sent.reason ? job.sent.reason : "No instructions given"}</strong>
         {job.sent.by && <span className="muted small"> · sent by {job.sent.by.replace(/^agent:/, "")}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</span>}</p>}
       {job.assets.length > 0 && <div>
@@ -90,7 +90,7 @@ function Job({ job, person, onChange }: { job: FieldJob; person: string; onChang
       </div>}
       {job.unmatched.length > 0 && <p className="small muted">Also named: {job.unmatched.join(", ")}</p>}
       {job.sources?.length > 1 && <div>
-        <h3 className="small">Reported by {job.sources.length} systems</h3>
+        <h3 className="small">{reportedBy(job.sources)}</h3>
         <ul className="plain small">{job.sources.map((x) => <li key={x.id}>
           <strong>{x.label}</strong>: {x.title} <span className="muted">· {x.source ?? ""}</span></li>)}</ul>
       </div>}
