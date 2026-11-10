@@ -102,6 +102,10 @@ def test_unknown_types_and_missing_keys_are_refused(conn, types):
 
 def test_the_outbox_delivers_and_retries_failed_handlers(conn, monkeypatch):
     seen = []
+    # Load the real subscribers first: deliver() imports them, and a first import while HANDLERS is swapped out
+    # would register them into the throwaway dict, leaving the real one without them for the rest of the run
+    # (that is what made the close-out test flake: its event was delivered to nobody).
+    events.load_subscribers()
     monkeypatch.setattr(events, "HANDLERS", {})
     events.subscriber("t.ok")(lambda c, e: seen.append(e["payload"]["n"]))
     events.subscriber("t.bad")(lambda c, e: 1 / 0)
