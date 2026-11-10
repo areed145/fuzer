@@ -637,6 +637,25 @@ Curves Claude read off datasheets, accepted in the review queue; the rebuild lan
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `entity_alias`
+
+Aliases a steward recorded (#476, sources/aliases.py): a value a system writes, as another name for an entity (by one of its keys, so it survives re-numbering). Laid over the pack's aliases on each rebuild; matched by exceptions as they are raised. Retired, not deleted, so the decision log keeps them.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `value` | text |  |
+| `norm` | text | lower case, single spaces: what is matched |
+| `kind` | text | the entity key it names: tag, well, equipment, ... |
+| `key` | text |  |
+| `fuzer_id` | text, | the entity when it was recorded |
+| `source` | text, | the system whose value it was, when known |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `reason` | text |  |
+| `retired_at` | timestamptz |  |
+| `retired_by` | text |  |
+
 ## Graph and golden records
 
 [`src/fuzer/graph/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/schema.sql)

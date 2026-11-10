@@ -317,6 +317,26 @@ def _exception_call(conn, fn, *args, **kwargs):
     return out
 
 
+class RefResolve(BaseModel):
+    by: str
+    ref: str
+    fuzer_id: str
+    remember: bool = True
+    reason: str | None = None
+
+
+@router.post("/exceptions/{exception_id}/resolve")
+def exception_resolve(exception_id: int, d: RefResolve, conn=Depends(get_conn)):
+    """Pick the asset an unmatched ref meant (#476); `remember` records it as an alias so the next one matches."""
+    from ..ops import exceptions
+    from ..sources.catalog import CatalogError
+    try:
+        return _exception_call(conn, exceptions.resolve_ref, exception_id, d.ref, d.fuzer_id, d.by, d.remember, d.reason)
+    except CatalogError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+
+
 @router.post("/exceptions/{exception_id}/split")
 def exception_split(exception_id: int, d: ExceptionSplit, conn=Depends(get_conn)):
     """Take an exception that joined another's case back out to a case of its own (a different event)."""

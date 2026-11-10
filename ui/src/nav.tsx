@@ -72,6 +72,7 @@ export const NAV: NavGroup[] = [
       { label: "Turnaround", section: "turnaround" },
       { label: "Cases", section: "cases" },
       { label: "Data review", section: "review", badge: "review" },
+      { label: "Master data", section: "masterdata" },
       { label: "Processes", section: "processes" },
     ],
   },

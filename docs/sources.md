@@ -76,6 +76,18 @@ missing or wrong secret is refused before the body is read. The Sources page sho
 brings with how many are open, its rules, and whether its webhook secret resolves.
 `fakeplant/bundles/kestrel/packs/measurement.yaml` is Kestrel's gas measurement system as such a pack.
 
+**Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
+register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
+search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the
+exception and its case (`POST /exceptions/{id}/resolve`); one no case works yet joins the open case about that
+asset; and remembering records an **alias** (`sources/aliases.py`, table `entity_alias`): the value as another
+name for the entity, by one of its keys. Exceptions match aliases as they are raised (`tag:FLARE-TIP-9` and
+`FLARE-TIP-9` alike), and each rebuild lays them over the pack's aliases, so resolvers link records that wrote the
+value. The Master data page lists refs on open exceptions that matched nothing (matching one there matches every
+open exception that carries it), the link values each source wrote that named nothing on the last rebuild (make one
+an alias), and the decision log: every alias and pinned match with who, when and why, searchable, each reversible
+(an alias is retired, a pin removed; audited in `source_audit`).
+
 **Loading.** `ingest` loads each active dataset through its connection as its load mode says. An unchanged
 dataset is skipped without reading a row. Before a load is applied, the staged rows are profiled and checked:
 duplicate keys, or a failing *blocking* check, hold the dataset (its records stay as they were, its run is

@@ -24,6 +24,7 @@ from . import (
     ops,
     settings,
     sources,
+    stewardship,
     workflow,
 )
 from .deps import (  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
@@ -60,7 +61,7 @@ app.include_router(hooks.router)  # authenticated by each system's shared secret
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
 
-for module in (home, investigation, entities, knowledge, ops, assistant, ontology, graph, workflow, settings, catalog, sources, jobs):  # in this order: FastAPI matches routes in the order they were added
+for module in (home, investigation, entities, knowledge, ops, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)
 app.add_exception_handler(QueryCanceled, query_timeout)
