@@ -80,6 +80,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Application settings", section: "settings" },
       { label: "Users", section: "users", also: ["access"], permission: "configure" },
+      { label: "Routing", section: "routing" },
       { label: "Docs", section: "docs", external: "https://areed145.github.io/fuzer/" },
     ],
   },

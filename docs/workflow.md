@@ -118,6 +118,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   `GET /routing/{type}/explain?refs=…&key=…` dry-runs an intake without writing anything: the entities its refs
   match, the open exception it would add to or the event's case it would join, the process with each step's lane and
   who holds it (or the queue and its holders), and with `to=` and `priority=`, a dispatch and when it would be due.
+  **Settings > Routing** (#507) is the page on top: the table, and for a type, its process drawn with who holds
+  each lane, lanes nobody holds flagged, and a form that dry-runs an intake (refs, key, priority, dispatch to).
+  Processes are edited on Processes and role SLAs and escalation under Users, as before; anyone who can read work
+  can read the page.
 - **Queue item.** `queue_item.bpmn` is the standard process for a type that names a queue and no process: its lane's
   role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each
   case still shows as its own kind of work. Its one step has the role's default SLA (Users, workflow assignments)
@@ -127,7 +131,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   hold it, else their first role), the dispatcher hands it to them with the reason, so Could not do comes back to
   the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
   the queue and hands it back returns it to whoever sent it to the queue. A queue no person role backs and a case
-  raised for a named person still open a plain case; the Routing page follows in #509's later phases.
+  raised for a named person still open a plain case.
 - **Task.** `task.bpmn` is the same one step for work no exception raised: an opportunity the scan finds (the
   engineer's queue), a draft the assistant proposed and a person confirmed, and `POST /work/items` asked of a role.
   Its start data names the role, the case type and a `task_key` (one open task per key). Both standard processes are

@@ -243,6 +243,31 @@ export interface StepRouting {
   assignment: string | null; form: string | null; requires_human: boolean; fallback_role: string | null;
 }
 
+/** One row of the routing table (#509): a type of work, where it is declared, how it joins and what it starts. */
+export interface Route {
+  type: string; label: string; description: string; declared_in: "code" | "data" | "source pack";
+  source_system: string | null; joins: boolean; join_hours: number | null; starts: "process" | "queue" | "dispatch";
+  process: string | null; role: string | null; case_type: string; audience: string[]; close_case_on_clear: boolean;
+  due: { by: "priority"; hours: Record<string, number>; setting: string | null; from: string; applies: string } | null;
+}
+
+export interface RouteStep extends StepRouting { holders?: string[] }
+
+/** A dry run of an intake: what it would match, join or start, and who would hold it. Writes nothing. */
+export interface RouteExplanation {
+  type: string; route: Route; summary: string;
+  outcome: "updates" | "joins" | "dispatched" | "process" | "queue" | "dispatch";
+  matched: { id: string; label: string; kind: string }[]; unmatched: string[]; unmatched_note: string | null;
+  updates: RouteCase | null; joins: RouteCase | null; due: string | null;
+  process: { key: string; published: boolean; lane?: string; steps: RouteStep[] } | null;
+  queue: { role: string | null; assignee: string | null; holders: string[] } | null;
+}
+
+export interface RouteCase {
+  exception_id: number; type: string; title: string; source: string | null;
+  case: { id: number; title: string; state: string; assignee: string | null; role: string | null } | null;
+}
+
 export interface ProcessInstance {
   id: number; item_id: number; title: string; priority: number | null; state: string; outcome: string | null;
   started_at: string; ended_at: string | null; started_by: string; version: number; age_h: number;
@@ -616,6 +641,13 @@ export const workApi = {
   removeCover: (name: string, by: string) =>
     request("DELETE", `/work/people/${encodeURIComponent(name)}/cover`, { by }),
   workRouting: (definitionId: number) => request<StepRouting[]>("GET", `/work/definitions/${definitionId}/routing`),
+  routes: () => request<Route[]>("GET", "/routing"),
+  explainRoute: (type: string, o: { refs?: string[]; key?: string; priority?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    for (const r of o.refs ?? []) if (r.trim()) qs.append("refs", r.trim());
+    for (const k of ["key", "priority", "to"] as const) if (o[k]?.trim()) qs.set(k, o[k]!.trim());
+    return request<RouteExplanation>("GET", `/routing/${encodeURIComponent(type)}/explain${qs.size ? `?${qs}` : ""}`);
+  },
   workStats: (days = 30) => request<ProcessStats[]>("GET", "/work/stats", { days }),
   workInstances: (processKey: string, state = "running") =>
     request<ProcessInstance[]>("GET", "/work/instances", { process_key: processKey, state }),
