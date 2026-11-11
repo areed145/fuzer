@@ -310,6 +310,35 @@ restricted by about 35% in August until the bean change.
 They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
 degradation is the existing `calc("pump_curve")`.
 
+## Specialist checks beyond rotating equipment
+
+The lighter checks for the other specialists (#515), each `{value, expected, flag, basis, sources}` in `calc`, and
+each resting only on evidence Fuzer holds.
+
+- **`test_check(well)`** (`surveillance.py`): the latest well test against what the well's choke passes at that day's
+  wellhead and header pressures (its effective Cv against the previous three tests), its inflow (liquid per bar of
+  wellhead drawdown) and, on a gas lifted well, its lift curve fitted to the earlier tests. `test_suspect` at 25 %
+  or more off the choke check (40 % off the inflow when there is no choke check); `off_lift_curve` when the
+  pressures agree but oil is 25 % or more below the lift curve. On Okan, OK-J08-04's October 2025 test reads 45 %
+  high (a test separator over-read) and is suspect; OK-J07-05's June 2025 test is off its lift curve (the leaking
+  valve).
+- **`deferment_attribution(scope)`** (`surveillance.py`): each oil well's latest test against the decline through
+  its earlier tests, with one cause per well in the order an engineer rules them out (recorded deferment, suspect
+  test, water, flowline restriction, back-pressure, lift, choke, nothing on record), summed by cause. Shortfalls
+  within the tests' scatter don't count. `unexplained_shortfall` when 30 % or more has nothing on record. On Okan,
+  OK-J07-05 is recorded deferment in May 2025 and OK-J03-02 is water in July.
+- **`vessel_loading(vessel)`** (`facilities.py`): what the wells upstream offer at their tested rates, in the units
+  of the vessel's standing rating (design basis, capacity statement or MOC, as `capacity_bounds` reads them),
+  against that rating, now and 90 days before. `flow_capacity` says which stage binds the facility; this says how
+  hard one vessel works as the fluids change. On Okan, the PP HP separator runs above its MOC-derated liquid
+  rating, and climbs as the water cut does.
+- **`corrosion_circuit(pipeline)`** (`integrity.py`): the in-service lines in the pipeline's service, each with
+  the API 570 rate per CML (the greater of the long-term and short-term rates), remaining life to the Barlow
+  pressure design thickness at its MOP (on an assumed API 5L X52 grade, named in the result, unless
+  `min_required_mm` is given) and the next inspection at half the remaining life, at most 10 years. Flags
+  `retire_soon`, `inspection_overdue` and `localised`. On Okan, J03's flowline corrodes at 1.7 mm/year after the
+  breakthrough and has under two years left.
+
 ## Alarms, trips and states
 
 `alarms.py` adds three analyses:

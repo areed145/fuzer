@@ -11,7 +11,8 @@ Separate what the records show from what they only suggest. Each finding carries
    belong to before you trend them; `record_history(ref)` shows whether its source records changed.
 2. **Tests and trends.** `well_performance(ref=well)` gives the test history and `measurements(ref)` adds wellhead
    lab samples. `detect_changes(ref)` dates steps and drifts on the well's PI points. Say when the latest test was;
-   a stale test is a finding, not a current rate.
+   a stale test is a finding, not a current rate. `calc("test_check", well)` says whether the latest test is
+   believable: `test_suspect` (its choke and pressures don't support it) means retest before trending it.
 3. **Decline and water.** `calc("decline", well)` with `plot_decline(well)`, and `plot_water_diagnostic(well)` for
    water cut. State the fit window and how many tests it rests on.
 4. **Lift.** On a gas lifted well, `calc("gas_lift", well)` and `plot_gas_lift_curve(well)`.

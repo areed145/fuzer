@@ -58,6 +58,9 @@ def parser() -> argparse.ArgumentParser:
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
     ps.add_argument("--truth", default=None, help="answer key (default: pid_truth.json in the exports folder)")
+    ps.add_argument("--record", action="store_true", help="save the scores to evals/runs/ as the new baseline")
+    ps.add_argument("--gate", action="store_true",
+                    help="fail under an element's floor, or on a drop since the last recorded run of the same model")
     lk.add_argument("--workers", type=int, default=4, help="parallel requests")
     lk.add_argument("--batch", action="store_true", help="use the Batches API: half price, results within ~1 hour")
     lk.add_argument("--force", action="store_true", help="re-read entries that already have a result")
@@ -278,7 +281,17 @@ def main(argv=None):
                 if not truth.is_file():
                     raise SystemExit(f"No P&ID answer key at {truth}. It comes with fake data "
                                      "(uv run fakeplant generate); set FUZER_DATA_DIR or pass --truth.")
-                _print(llm_pids.score(conn, _json.loads(truth.read_text())))
+                res = llm_pids.score(conn, _json.loads(truth.read_text()))
+                _print(res)
+                from ..evals import runs
+
+                model = conn.execute("select max(model) as m from llm_extraction where source = 'pid'").fetchone()["m"]
+                last = next((r for r in reversed(runs.load()) if r["kind"] == "pids" and r.get("model") == model), None)
+                bad = llm_pids.gate(res, last) if args.gate else []
+                if args.record and not bad:
+                    _say(f"recorded {runs.save(runs.pids(res, model))}")
+                if bad:
+                    raise SystemExit("P&ID benchmark failed: " + "; ".join(bad))
             elif args.cmd == "eval" and args.ops:
                 _ops_eval(conn, pack, args, data)
             elif args.cmd == "eval":

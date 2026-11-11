@@ -45,6 +45,16 @@ it fails when a score is under its floor (`GATES`, `CEILINGS`) or recall fell si
 GitHub workflow (`.github/workflows/ci.yml`) runs the tests and this eval on the fake Okan plant for
 4–10 November 2024.
 
+## Reading drawings
+
+`fuzer pid-score` scores what Claude read off the fake plant's P&IDs and PFDs against their answer key
+(`pid_truth.json`): precision and recall for tags, piping, off-page lines, loops, line numbers, alarm and
+trip settings, design ratings, notes and PFD streams, overall and per degradation level. `--gate` fails a
+run under an element's floor (`llm_pids.FLOORS`) or more than 0.05 below the last recorded run of the same
+model; `--record` keeps the run in `evals/runs/`. Model calls are cached per image, so a prompt change
+re-reads once and a pipeline change re-scores for free. `tests/sources/test_llm_pids.py` gates the
+pipeline behind a scripted reader in CI.
+
 ## The assistant
 
 Questions with answer keys, and the latest results: [assistant eval](assistant-eval.md).

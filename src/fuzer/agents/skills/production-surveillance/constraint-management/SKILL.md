@@ -21,7 +21,12 @@ their effects: deferment by reason, the units causing it, and the operator log.
 4. **Debottleneck options** follow from the cause: reliability work on a tripping unit
    (hand to maintenance), spare capacity or redistribution (lift gas priority to the best responders,
    from `well_performance`), operating envelope (process values near limits via `process_values`).
-   The data has no nameplate capacities; say so when an answer depends on one.
+   For one vessel's loading against its own rating, `calc("vessel_loading", tag)` gives what the wells
+   upstream offer at their tested rates in the rating's own units (liquid, oil or gas) against its standing
+   rating (design basis, capacity statement or MOC, newest grade first), now and 90 days before. Over 100 %
+   (`overloaded`) the vessel holds production back or runs above its rating; rising with water cut at flat oil
+   means water is eating the capacity. `flow_capacity` and the system bound say which stage binds the whole
+   facility; use those for "what limits the asset" and `vessel_loading` for "how hard is this vessel working".
 5. **Back-pressure** holds wells back without a deferment record. When an answer depends on hydraulics
    ("what's holding back jacket X?", "what would lowering the separator give?"), load the
    `back-pressure` skill. `debottleneck_options` ranks the options with their gain and next constraint.

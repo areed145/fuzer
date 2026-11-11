@@ -15,6 +15,11 @@ ranks above another. `opportunities` lists scanned gains for a trade-off summary
 For charts, use `plot_loss_waterfall(since, until)` for potential against actual, `plot_bad_actors` for reliability,
 `plot_backlog` and `plot_compliance` for work, and `compare_periods` for before and after a change.
 
+Lead with what changed and what needs a decision; a KPI without its driver is not a summary. Take the driver from
+the owning specialist's finding rather than reading it off a chart (Production & Surveillance for unrecorded
+losses, Maintenance & Integrity for machines on "act" and lines near retirement). Escalate anything a specialist flagged as act or
+overdue; don't average it into a trend.
+
 Keep dates, time windows, units, evidence IDs, and missing-data caveats with every numeric claim. A daily report is
 historical to its recorded report date, not necessarily live. Do not derive commercial or production-accounting
 reconciliation, cost, or financial value without authoritative accounting and cost sources; do not turn an

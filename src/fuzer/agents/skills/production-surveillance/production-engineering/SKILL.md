@@ -5,6 +5,14 @@ description: Production engineering for wells - well test trends (rate, water cu
 
 # Production engineering (wells)
 
+**Believe the test first.** Before reading a trend into a well's latest test, run `calc("test_check", well)`:
+the test against what its choke passes at that day's wellhead and header pressures (`choke_deviation_pct`), its
+inflow per bar of drawdown, and, on a gas lifted well, its lift curve. `test_suspect` (25 % or more off what the
+choke and pressures support) means the test separator, not the well: recommend a retest before anyone acts on it,
+and don't put it in a decline or a lift optimisation. `off_lift_curve` (pressures agree, oil 25 % or more below
+the lift curve at that lift gas) is a real lift problem: a valve failed open or the gas supply. A test with no choke
+check (no choke curve, no header transmitter) rests on the inflow alone, which is noisier: say so.
+
 1. **Asset view:** `well_performance()` ranks wells by oil rate change between the first and latest
    test in the window, lists water cut risers, and adds each well's deferment.
 2. **One well:** `well_performance(ref="OK-J07-03")` gives its test history; `measurements(ref)` has the

@@ -5,6 +5,11 @@ description: Organize recorded incident, event and corrective-work evidence for 
 
 # Incident evidence for HSE review
 
+Start from the incident record and build outward, in time order. Escalate at once anything that reads as ongoing
+(a release, a fire, a person hurt): that is the orchestrator's emergency path, not an evidence review. Don't trust
+a timeline built from observation timestamps alone, or a corrective action whose order is closed but whose readings
+never changed.
+
 Use only recorded evidence:
 1. `get_incidents` for the incident set in scope, then `incident_detail` for the linked timeline and source records.
 2. `get_events` for dated operator-log entries and `get_upsets` / `upset_detail` for recorded process detections.

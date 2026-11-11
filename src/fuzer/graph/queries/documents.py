@@ -76,7 +76,8 @@ def drawing(conn, fuzer_id: str) -> dict | None:
         r = reading["result"]
         read_by = reading["model"]
         marks += [{"text": m["text"], "key": m["key"], "status": "linked", "confidence": m.get("confidence"),
-                   **({"x": m["x"], "y": m["y"]} if "x" in m else {})} for m in r["mentions"]]
+                   **({"x": m["x"], "y": m["y"]} if "x" in m else {}), **({"on": m["on"]} if m.get("on") else {})}
+                  for m in r["mentions"]]
         marks += [{"text": f["text"], "key": f.get("key"), "status": f["issue"].replace(" ", "_"),
                    **({"x": f["x"], "y": f["y"]} if "x" in f else {})}
                   for f in r["findings"] if f["kind"] not in ("connection", "title_block")]
@@ -113,5 +114,31 @@ def drawing(conn, fuzer_id: str) -> dict | None:
     return {"sheet": rec["source_key"], "format": p.get("format"), "title": p.get("title"), "read_by": read_by,
             "image": f"/documents/{fuzer_id}/image", "width": width, "height": height, "marks": marks,
             "connections": connections, "findings": findings, "offpage": offpage, "loops": loops,
-            "tables": tables, "notes": notes}
+            "tables": tables, "notes": notes, "checks": _placements(conn, marks)}
+
+
+def _placements(conn, marks: list[dict]) -> list[dict]:
+    """Instruments the drawing shows on one item while the register has them part of another (#475): a field
+    change the maintenance system never caught, or a drawing that's wrong. Either way, work raised on the
+    instrument goes to the item the register names."""
+    on = {m["key"]: m["on"] for m in marks if m.get("on") and m.get("key")}
+    if not on:
+        return []
+    rows = conn.execute(
+        """
+        select ls.label as tag, e.src as id, ld.label as parent, e.sources from edge e
+        join entity_label ls on ls.fuzer_id = e.src join entity_label ld on ld.fuzer_id = e.dst
+        where e.rel = 'part_of' and e.valid_to is null and ls.label = any(%s)
+        """, (list(on),)).fetchall()
+    parents: dict[str, list] = {}
+    for r in rows:
+        parents.setdefault(r["tag"], []).append(r)
+    out = []
+    for tag, where in sorted(on.items()):
+        ps = parents.get(tag, [])
+        if ps and where not in {p["parent"] for p in ps}:
+            out.append({"tag": tag, "point": None, "point_id": ps[0]["id"], "type": "placement",
+                        "detail": f"the drawing shows it on {where}; " + ", ".join(
+                            f"{'/'.join(p['sources'])} has it under {p['parent']}" for p in ps)})
+    return out
 
