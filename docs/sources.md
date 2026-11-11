@@ -343,6 +343,15 @@ drawing reader returns connections read off scans; both become directional
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 
+## Data tables and notes on P&IDs
+A sheet's foot carries an equipment data table (design pressure, temperature, capacity), an alarm and trip
+table (LL / L / H / HH per instrument) and numbered notes. Claude reads them off scans; smart sheets export
+them. Design ratings land as measurements (`design_pressure`, `design_temperature`, method `pid_table`,
+dated by the title block). Alarm and trip settings land in `point_limit` as basis `design`, source `pid`:
+they never become the limit that counts, but the `drawing` check lists every point whose configured alarm
+differs from its drawing, or that the drawing rates and no source configures. Notes keep the registered
+tags they name. Rows naming a tag not in the register are findings.
+
 ## Entity linking in text
 Operator logs and P&ID text are scanned for:
 - tags (tag grammar; area taken from context when missing),

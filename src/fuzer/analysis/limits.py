@@ -47,9 +47,16 @@ def config(pack=None) -> dict:
 
 # ---- landing --------------------------------------------------------------------------------------
 
-def build(conn, pack, maps: dict, endpoint) -> dict:
-    """Every limits dataset into point_limit (`endpoint` resolves points and tags, as graph.resolver)."""
+def build(conn, pack, maps: dict, endpoint, extra=()) -> dict:
+    """Every limits dataset into point_limit (`endpoint` resolves points and tags, as graph.resolver). `extra`:
+    (source, Limit) pairs read elsewhere, such as the P&IDs' alarm and trip tables (basis `design`)."""
     found, unresolved = [], Counter()
+    for source, x in extra:
+        fid = next((f for f, _ in map(endpoint, x.of) if f), None)
+        if fid is None:
+            unresolved[f"{source}: {endpoint(x.of[-1])[1]}"] += 1
+        else:
+            found.append((source, x, fid))
     for m in maps.values():
         if not m.limit_spec:
             continue
@@ -212,7 +219,9 @@ def issues(conn, pack, point_ids: list[str] | None = None) -> list[dict]:
     - disabled: an alarm switched off in its source
     - standing: an alarm limit inside the learned normal range (in alarm most of the time it runs)
     - implausible: a high limit many times the normal value (often typed in another unit)
-    - missing: no alarm limits, where most points measuring the same thing have them."""
+    - missing: no alarm limits, where most points measuring the same thing have them
+    - drawing: the alarm and trip table on a P&ID (basis design) differs from the alarm that is configured, or
+      shows a limit no alarm source has (#475)."""
     where = "where l.point_id = any(%(ids)s)" if point_ids is not None else ""
     rows = conn.execute(f"select l.*, e.label from point_limit l left join entity_label e on e.fuzer_id = l.point_id "
                         f"{where} order by l.point_id, l.record", {"ids": point_ids}).fetchall()
@@ -241,6 +250,7 @@ def issues(conn, pack, point_ids: list[str] | None = None) -> list[dict]:
             vals = {r["source"]: r["value"] for r in same}
             if len(vals) > 1 and max(vals.values()) - min(vals.values()) > max(0.02 * max(abs(v) for v in vals.values()), 1e-6):
                 add(same[0], "disagree", ", ".join(f"{s} {v:g}" for s, v in sorted(vals.items())), type=t)
+        out += _drawing(rs, by_type, config(pack)["priority"])
         by_source: dict[str, dict] = {}
         for r in alarms:
             by_source.setdefault(r["source"], {})[r["limit_type"]] = r
@@ -263,6 +273,47 @@ def issues(conn, pack, point_ids: list[str] | None = None) -> list[dict]:
                 add(r, "implausible", f"{r['source']} {r['limit_type']} {v:g} is {abs(v / n['p50']) if n['p50'] else 0:.0f}x the "
                     f"normal value {n['p50']:.3g}: another unit?", source=r["source"], type=r["limit_type"])
     out += _missing(conn, point_ids)
+    return out
+
+
+def drawing_checks(conn, sheet: str, pack=None) -> list[dict]:
+    """Where one P&ID's alarm and trip table disagrees with the alarms configured in the DCS and AF (#475): the
+    `drawing` issues on the points its table rates, by the tag the table names."""
+    prefix = f"pid:sheet:{sheet}#"
+    like = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    ids = [r["point_id"] for r in conn.execute(
+        "select distinct point_id from point_limit where basis = 'design' and record like %s", (like,))]
+    if not ids:
+        return []
+    return [{"tag": i["record"][len(prefix):], "point": i["point"], "point_id": i["point_id"], "type": i["type"],
+             "detail": i["detail"]}
+            for i in issues(conn, pack, ids) if i["fault"] == "drawing" and i["record"].startswith(prefix)]
+
+
+def _drawing(rs: list[dict], by_type: dict[str, list], priority: list[str]) -> list[dict]:
+    """One point's design limits (a P&ID's alarm and trip table) against its alarms: one issue for the settings that
+    differ from the alarm that counts (the first source in priority), one for settings no source configures."""
+    design = sorted((r for r in rs if r["basis"] == "design"), key=lambda r: TYPES.index(r["limit_type"]))
+    if not design:
+        return []
+    rank = {s: i for i, s in enumerate(priority)}
+    differ, unset = [], []
+    for r in design:
+        t, v = r["limit_type"], r["value"]
+        others = sorted(by_type.get(t, []), key=lambda o: (rank.get(o["source"], len(rank)), o["source"]))
+        if not others:
+            unset.append(f"{t} {v:g}")
+        elif abs(others[0]["value"] - v) > max(0.02 * max(abs(others[0]["value"]), abs(v)), 1e-6):
+            rest = "".join(f", {o['source']} {o['value']:g}" for o in others[1:])
+            differ.append((t, f"{t} {v:g} where {others[0]['source']} has {others[0]['value']:g}{rest}"))
+    r0, out = design[0], []
+    base = {"point_id": r0["point_id"], "point": r0["label"], "fault": "drawing", "source": r0["source"],
+            "record": r0["record"]}
+    if differ:
+        out.append({**base, "type": differ[0][0], "detail": "the P&ID shows " + "; ".join(d for _, d in differ)})
+    if unset:
+        out.append({**base, "type": design[0]["limit_type"],
+                    "detail": f"the P&ID shows {', '.join(unset)}, but no alarm source has them"})
     return out
 
 

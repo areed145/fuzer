@@ -246,6 +246,45 @@ def _km(a: list[float], b: list[float]) -> float:
     return math.hypot(dx, dy)
 
 
+# Equipment data on the P&IDs (#475): design pressure (barg) and temperature (deg C) by kind and area, as the 1998
+# datasheets set them; the capacity column carries the design basis rating where there is one.
+DESIGN_PT = {"V": (110, 120), "K": (125, 180), "E": (125, 200), "P": (60, 90)}
+DESIGN_PT_BY_AREA = {"10": {"V": (25, 110), "P": (75, 90), "E": (25, 150)}}
+
+
+def _sheet_data(tags: list[Tag], titles: dict[str, str], designed: dict[str, dict], point_tag: dict[str, str]) -> dict:
+    """What a sheet's foot shows: equipment data, the alarm and trip settings of its instruments as designed (the
+    first point of each), and notes that name its items: each vessel's relief valve set at the vessel's design
+    pressure, and a level instrument's type. Design pressure and temperature sit a margin above the item's own
+    pressure and temperature trips where it has them, else they come from the kind's typical rating."""
+    by_tag: dict[str, dict] = {}
+    for p, tag in point_tag.items():
+        if p in designed and tag not in by_tag:
+            by_tag[tag] = designed[p]
+    sp = {t.canonical: by_tag[t.canonical] for t in tags if t.canonical in by_tag}
+
+    def rated(t: Tag, func: str, step: int, floor: int):
+        lim = sp.get(f"{t.area}-{func}-{t.loop}{t.suffix}") or {}
+        top = lim.get("hihi") or lim.get("hi")
+        return max(floor, math.ceil(top * 1.15 / step) * step) if top else None
+
+    eq, notes = {}, []
+    cap = {t: f"{v:g} {u}" for t, q, v, u, _ in capacity.DESIGN}
+    for t in tags:
+        pt = DESIGN_PT_BY_AREA.get(t.area, {}).get(t.func) or DESIGN_PT.get(t.func)
+        if not pt:
+            continue
+        p, temp = rated(t, "PT", 5, 10) or pt[0], (rated(t, "TT", 10, 60) if t.func != "E" else None) or pt[1]
+        eq[t.canonical] = {"service": titles.get(t.canonical, ""), "design_pressure": p, "design_temperature": temp,
+                           "capacity": cap.get(t.canonical)}
+        if t.func == "V" and len(notes) < 2:
+            notes.append({"text": f"PSV-{t.loop}{t.suffix} ON {t.canonical} SET AT {p} barg.", "tags": [t.canonical]})
+    lt = next((t for t in tags if t.func == "LT"), None)
+    if lt:
+        notes.append({"text": f"{lt.fmt('{f}-{l}{s}')} IS GUIDED WAVE RADAR; SEE DATASHEET.", "tags": [lt.canonical]})
+    return {"equipment": eq, "setpoints": sp, "notes": notes, "date": "2019-05-14"}
+
+
 def generate(out, seed: int = 11) -> dict:
     rng = random.Random(seed)
     out = Path(out)
@@ -257,11 +296,13 @@ def generate(out, seed: int = 11) -> dict:
     af = [{"path": FIELD, "template": "Field", "description": "Okan field, NMA business unit, South Offshore area",
            "attributes": []}]
     equipment, points, titles = [], [], {}
+    point_tag: dict[str, str] = {}  # PI point -> its instrument's tag
     sheet_tags: dict[str, list[Tag]] = {}
     serial = 70000
 
     def add_points(area: str, inst: Tag, desc: str, uom: str, style: str) -> dict:
         point = inst.fmt(style)
+        point_tag[point] = inst.canonical
         points.append({"tag": point, "descriptor": desc, "engunits": uom, "pointsource": "OPC"})
         return {"name": desc, "pi_point": point, "uom": uom}
 
@@ -837,7 +878,7 @@ def generate(out, seed: int = 11) -> dict:
         spatial_truth.append({"src": w["name"], "rel": "located_at", "dst": f"{FIELD}-{w['area']}"})
 
     # ---- P&ID drawings --------------------------------------------------------------------------------
-    sheets, pid_truth = [], {}
+    sheets, pid_truth, to_draw = [], {}, []
     sheet_info = {"10-1": ("smart", "OKA_PP SEPARATION"), "10-2": ("pdf_text", "OKA_PP OIL EXPORT"),
                   "20-1": ("pdf_text", "OK_GGCP INLET SEPARATION AND LIFT GAS"), "20-A": ("image", "OK_GGCP TRAIN A"),
                   "20-B": ("image", "OK_GGCP TRAIN B"), "20-C": ("pdf_text", "OK_GGCP TRAIN C"),
@@ -872,11 +913,9 @@ def generate(out, seed: int = 11) -> dict:
                 sheet["offpage"] = offpage[key]
         elif fmt == "pdf_text":
             sheet["text"] = sheet["title"] + "\n" + "\n".join(t.fmt("{f}\n{l}{s}") for t in tags)
-        truth = pid.draw(out / sheet["image"], sheet, tags, titles, drng3, conns,
-                         level=levels.get(key, "scan") if fmt == "image" else "clean", offpage=offpage.get(key, []))
-        if fmt == "smart":
-            sheet["positions"] = {x["key"]: [x["x"], x["y"]] for x in truth["tags"]}
-        pid_truth[sheet["sheet"]] = truth
+        # drawn once the limits are set (below): each sheet's alarm table shows them as designed
+        to_draw.append((sheet, (tags, titles, drng3, conns, False, pid.EQUIPMENT_FUNCS,
+                                levels.get(key, "scan") if fmt == "image" else "clean", offpage.get(key, []))))
         sheets.append(sheet)
 
     # ---- documents ------------------------------------------------------------------------------------
@@ -991,7 +1030,14 @@ def generate(out, seed: int = 11) -> dict:
     for name, rows in capacity.registers(seed).items():
         _write_csv(out / f"{name}.csv", rows)
     (out / "answer_keys" / "capacity.json").write_text(json.dumps(capacity_truth, indent=1))
-    alarms, iows, limit_truth = limits.okan_limits(model, points, af, seed)
+    alarms, iows, limit_truth, designed = limits.okan_limits(model, points, af, seed)
+    for sheet, args in to_draw:  # the drawings show the alarm and trip settings as designed (#475)
+        truth = pid.draw(out / sheet["image"], sheet, *args, data=_sheet_data(args[0], titles, designed, point_tag))
+        if sheet["format"] == "smart":
+            sheet["positions"] = {x["key"]: [x["x"], x["y"]] for x in truth["tags"]}
+            sheet["tables"], sheet["notes"] = truth["tables"], truth["notes"][4:]  # a smart sheet exports its data
+            sheet["date"] = truth["date"]
+        pid_truth[sheet["sheet"]] = truth
     _write_csv(out / "dcs_alarms.csv", alarms)
     _write_csv(out / "iow_register.csv", iows)
     (out / "answer_keys" / "limits.json").write_text(json.dumps(limit_truth, indent=1))

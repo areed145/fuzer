@@ -79,9 +79,11 @@ def design(var: str, v: np.ndarray, well: bool) -> dict[str, float]:
     return {k: _round(x) for k, x in out.items() if x > 0}
 
 
-def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tuple[list[dict], list[dict], list[dict]]:
-    """Adds AF limit traits to `af` in place; returns the DCS alarm export, the IOW register and the
-    answer key of planted faults."""
+def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tuple[list[dict], list[dict], list[dict],
+                                                                                   dict[str, dict]]:
+    """Adds AF limit traits to `af` in place; returns the DCS alarm export, the IOW register, the
+    answer key of planted faults, and the limits as designed before any fault ({point: {type: value, unit}}): the
+    values the P&IDs' alarm and trip tables show (#475), so a DCS alarm moved later disagrees with its drawing."""
     rng = random.Random(seed + 21)
     healthy = _healthy(spec)
     uom = {p["tag"]: p["engunits"] for p in points}
@@ -92,6 +94,7 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
         if p not in healthy or var in SKIP or (well and var not in WELL_LIMITS):
             continue
         limits[p] = design(var, healthy[p], well)
+    designed = {p: {**v, "unit": uom.get(p)} for p, v in limits.items()}
 
     # Points added later (#474) get limits of their own but aren't where the planted faults
     # go, so the faults stay on the points they were planted on.
@@ -170,7 +173,7 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
     iows = _iows(spec, healthy)
     truth.append({"point": None, "tag": "20-TT-2310B", "fault": "unresolved", "source": "iow",
                   "detail": "IOW-010 names a tag that doesn't exist (20-TT-2300B meant)"})
-    return rows, iows, truth
+    return rows, iows, truth, designed
 
 
 def _iows(spec: dict, healthy: dict) -> list[dict]:

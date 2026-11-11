@@ -131,9 +131,11 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["maintenance_event_links"] = edges.link_maintenance_to_events(conn)
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
-    stats |= measurements.build(conn, pack, maps, endpoint, capacity_bounds.derive)
+    # the drawings' equipment data and alarm and trip tables (#475), from the cached readings
+    stats |= measurements.build(conn, pack, maps, endpoint, capacity_bounds.derive,
+                                extra=llm_pids.design_measurements(conn, pid_sheets, pack))
     stats |= curves.build(conn, pack, maps, endpoint)
-    stats |= limits.build(conn, pack, maps, endpoint)
+    stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
     lap("measurements")
 
     stats["located"] = spatial.index(conn)

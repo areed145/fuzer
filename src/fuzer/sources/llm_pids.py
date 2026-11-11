@@ -14,6 +14,11 @@ final element). Off-page ends are joined across sheets: a line both sheets agree
 link; one only one side shows becomes a review item, not a link. Loops whose transmitter and final element
 are both registered become `controls` links.
 
+Claude also reads the sheet's data tables and numbered notes (#475): an equipment data table becomes design
+pressure and temperature measurements, an alarm and trip table becomes `design` limits on each instrument's point
+(checked against the DCS and AF by the limits checks, never the limits that count), and each note keeps the
+registered tags it names.
+
 Dense regions get smaller tiles (a tile with a lot of ink is split in four), and readings Claude is unsure
 of get a second look: each is cropped at full resolution, enlarged, and read again on its own.
 
@@ -33,12 +38,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from psycopg.types.json import Jsonb
 
-from ..core import llm
+from ..core import llm, nel
 from ..core.llm import call, run_batch, usage
-from ..core.model import Edge
+from ..core.model import Edge, Limit, Measurement
 from ..core.pack import Pack
 
-PROMPT_VERSION = "2026-11-10.1"
+PROMPT_VERSION = "2026-11-11.1"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
@@ -73,20 +78,36 @@ Write each tag exactly as drawn and don't add an area or prefix that isn't writt
 even if it appears on several tiles, giving the tile number where it is clearest and the centre of
 the label within that tile as x and y in that tile's pixels (each tile's size is given; 0, 0 is its
 top-left corner). If a character is
-unclear, give your best reading and a lower confidence (0 to 1). Also read the title block."""
+unclear, give your best reading and a lower confidence (0 to 1). Also read the title block, with its date
+if one is written.
+
+Read the sheet's data tables and notes too:
+- tables: each ruled table (equipment data, alarm and trip settings, line lists, ...): its title, its column
+  headings as written, and every row's cells as written, one string per column ("-" where a cell is blank or
+  a dash). Copy numbers exactly; don't convert units.
+- notes: each numbered note, with its number and its text as written."""
 
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["title_block", "tags", "connections", "offpage", "loops"],
+    "required": ["title_block", "tags", "connections", "offpage", "loops", "tables", "notes"],
     "properties": {
         "title_block": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["drawing_number", "title", "revision"],
+            "required": ["drawing_number", "title", "revision", "date"],
             "properties": {"drawing_number": {"type": "string"}, "title": {"type": "string"},
-                           "revision": {"type": "string"}},
+                           "revision": {"type": "string"}, "date": {"type": "string"}},
         },
+        "tables": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["title", "columns", "rows"],
+            "properties": {"title": {"type": "string"}, "columns": {"type": "array", "items": {"type": "string"}},
+                           "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}},
+        }},
+        "notes": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["number", "text"],
+            "properties": {"number": {"type": "integer"}, "text": {"type": "string"}},
+        }},
         "connections": {"type": "array", "items": {
             "type": "object", "additionalProperties": False, "required": ["from", "to", "line", "via"],
             "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "line": {"type": "string"},
@@ -270,6 +291,86 @@ def reread(client, model: str, effort: str, path: str, data: dict, boxes) -> tup
     return data, message
 
 
+# Data tables and notes (#475): an alarm and trip table has two or more of these columns; an equipment data
+# table has a design pressure column.
+LIMIT_COLS = {"LL": "lolo", "LOLO": "lolo", "LALL": "lolo", "L": "lo", "LO": "lo", "LAL": "lo", "H": "hi", "HI": "hi",
+              "LAH": "hi", "HH": "hihi", "HIHI": "hihi", "LAHH": "hihi"}
+NUMBER = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)")
+
+
+def _number(cell) -> float | None:
+    m = NUMBER.match(str(cell or "").replace(",", ""))
+    return float(m[1]) if m else None
+
+
+UNIT_WORDS = {"DEGC": "degC", "°C": "degC", "DEGF": "degF", "°F": "degF"}
+
+
+def _unit_in(heading: str) -> str | None:
+    m = re.search(r"\(([^)]+)\)", heading)
+    if not m:
+        return None
+    unit = m[1].strip()
+    return UNIT_WORDS.get(unit.upper().replace(" ", ""), unit)
+
+
+def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pack, known: set[str]) -> dict:
+    """A sheet's data tables and notes, read: alarm and trip settings per instrument (`setpoints`), design ratings
+    per item (`equipment_data`) and notes with the registered tags they name. Table rows are lists of cells, or
+    {cells} as a smart sheet exports them. Rows whose tag isn't in the register become findings."""
+    setpoints, equipment, findings = [], [], []
+    for t in tables:
+        raw = [re.sub(r"\s+", " ", str(c)).strip() for c in t.get("columns", [])]
+        cols = [c.upper() for c in raw]
+        heads = [re.sub(r"\(.*?\)", "", c).replace(".", "").replace(" ", "") for c in cols]
+        kinds = [LIMIT_COLS.get(h) for h in heads]
+        rows = [r["cells"] if isinstance(r, dict) else r for r in t.get("rows", [])]
+
+        def col(pred, cols=cols):
+            return next((i for i, c in enumerate(cols) if pred(c)), None)
+
+        def tag_of(r, t=t):
+            key = pack.tags.parse(str(r[0]), default_area=area) if r else None
+            if key in known:
+                return key
+            if r and any(_number(c) is not None for c in r[1:]):
+                findings.append({"text": str(r[0]), "kind": "table_row", "table": t.get("title"),
+                                 **({"key": key} if key else {}), "issue": "not in register" if key else "not a tag"})
+            return None
+
+        if sum(1 for k in kinds if k) >= 2:
+            iu = col(lambda c: c.startswith("UNIT"))
+            for r in rows:
+                if not (key := tag_of(r)):
+                    continue
+                lim = {kinds[i]: v for i in range(1, min(len(r), len(kinds)))
+                       if kinds[i] and (v := _number(r[i])) is not None}
+                if lim:
+                    unit = str(r[iu]).strip() if iu is not None and iu < len(r) else ""
+                    setpoints.append({"tag": key, "text": str(r[0]), "limits": lim, "unit": unit or None})
+        elif (ip := col(lambda c: "PRESS" in c or re.search(r"\bP\b", re.sub(r"\(.*?\)", "", c)))) is not None:
+            it = col(lambda c: "TEMP" in c or re.search(r"\bT\b", re.sub(r"\(.*?\)", "", c)))
+            ic, isv = col(lambda c: c.startswith("CAPAC")), col(lambda c: c.startswith("SERV"))
+            for r in rows:
+                if not (key := tag_of(r)):
+                    continue
+
+                def cell(row, i):
+                    return str(row[i]).strip() if i is not None and i < len(row) else ""
+
+                row = {"tag": key, "text": str(r[0]), "service": cell(r, isv) or None,
+                       "design_pressure": _number(cell(r, ip)), "pressure_unit": _unit_in(raw[ip]) or "barg",
+                       "design_temperature": _number(cell(r, it)) if it is not None else None,
+                       "temperature_unit": (_unit_in(raw[it]) if it is not None else None) or "degC",
+                       "capacity": cell(r, ic) if cell(r, ic) not in ("", "-") else None}
+                equipment.append(row)
+    read_notes = []
+    for n in notes:
+        keys = sorted({m.key for m in nel.find_mentions(n["text"], pack, default_area=area) if m.key in known})
+        read_notes.append({"n": n["n"], "text": n["text"], "tags": keys})
+    return {"setpoints": setpoints, "equipment_data": equipment, "notes": read_notes, "findings": findings}
+
+
 def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
               boxes: list[tuple[int, int, int, int]] | None = None) -> dict:
     """Claude's readings -> links to known tags, plus findings for everything else. With the tile
@@ -321,8 +422,11 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
     for ln in lines:
         if lp := parse_line(ln["text"]):
             ln["parts"] = lp
+    foot = read_foot(data.get("tables", []), [{"n": n["number"], "text": n["text"]} for n in data.get("notes", [])],
+                     area, pack, known_tags)
+    findings += foot.pop("findings")
     out = {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines, "connections": connections,
-           "offpage": offpage, "loops": loops}
+           "offpage": offpage, "loops": loops, "tables": data.get("tables", []), **foot}
     if boxes:
         out["size"] = [max(b[2] for b in boxes), max(b[3] for b in boxes)]
     return out
@@ -452,6 +556,59 @@ def join(conn, sheets: dict[str, dict], readings: dict[str, dict] | None = None)
     return {"connections": connections, "disputed": disputed}
 
 
+def feet(conn, sheets: dict[str, dict], pack: Pack, readings: dict[str, dict] | None = None) -> dict[str, dict]:
+    """Each sheet's data tables and notes as read (read_foot's shape, plus the sheet's `date`): from Claude's
+    current reading, or from the file for a smart sheet, which exports its tables and notes."""
+    readings = _readings(conn, sheets) if readings is None else readings
+    known = None
+    out = {}
+    for sk, p in sheets.items():
+        if p.get("format") == "smart" and (p.get("tables") or p.get("notes")):
+            if known is None:
+                known = {r["key"] for r in conn.execute("select key from entity_key where kind = 'tag'")}
+            f = read_foot(p.get("tables", []), p.get("notes", []), _area(p, pack), pack, known)
+            out[sk] = {**f, "date": p.get("date")}
+        elif sk in readings and ("setpoints" in readings[sk] or "notes" in readings[sk]):
+            r = readings[sk]
+            out[sk] = {k: r.get(k, []) for k in ("setpoints", "equipment_data", "notes")} | {
+                "date": (r.get("title_block") or {}).get("date") or None}
+    return out
+
+
+def _date(text: str | None) -> str | None:
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", text or "")
+    return m[0] if m else None
+
+
+def design_limits(conn, sheets: dict[str, dict], pack: Pack) -> list[tuple[str, Limit]]:
+    """The alarm and trip settings the drawings show, as `design` limits on each instrument's point (#475): never
+    the limits that count (those come from the DCS and AF), but checked against them, so an alarm moved without
+    the drawing following, or never configured, is found."""
+    out = []
+    for sk, f in feet(conn, sheets, pack).items():
+        for sp in f["setpoints"]:
+            for t, v in sp["limits"].items():
+                out.append(("pid", Limit(f"pid:sheet:{sk}#{sp['tag']}", [("tag", sp["tag"])], t, "design", v,
+                                         sp.get("unit"), valid_from=_date(f.get("date")),
+                                         note=f"alarm and trip table on {sk}")))
+    return out
+
+
+def design_measurements(conn, sheets: dict[str, dict], pack: Pack) -> list[Measurement]:
+    """Design pressure and temperature from the drawings' equipment data tables, dated by the sheet (#475)."""
+    out = []
+    for sk, f in feet(conn, sheets, pack).items():
+        at = _date(f.get("date"))
+        if not at:
+            continue
+        for e in f["equipment_data"]:
+            for q, unit in (("design_pressure", "pressure_unit"), ("design_temperature", "temperature_unit")):
+                if e.get(q) is not None:
+                    out.append(Measurement(f"pid:sheet:{sk}#{e['tag']}", [("tag", e["tag"])], q, at, e[q],
+                                           e.get(unit), method="pid_table"))
+    return out
+
+
 def reviews(conn, sheets: dict[str, dict]) -> list[tuple[str, dict]]:
     """Review questions (kind pid_connection) for off-page lines only one side shows."""
     return [(f"{d['sheet']}:{_norm_line(d['line'])}:{d['direction']}",
@@ -543,6 +700,10 @@ def score(conn, truth: dict) -> dict:
     }
 
 
+def _norm_note(text: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", (text or "").upper())
+
+
 def _pr(tp: int, fp: int, fn: int) -> dict:
     return {"recall": round(tp / (tp + fn), 3) if tp + fn else None,
             "precision": round(tp / (tp + fp), 3) if tp + fp else None, "expected": tp + fn}
@@ -550,7 +711,7 @@ def _pr(tp: int, fp: int, fn: int) -> dict:
 
 def _elements(conn, truth: dict) -> tuple[dict, dict]:
     """Precision and recall per element type (tags, in-sheet connections, connections across sheets, loops,
-    line numbers) overall and by degradation level, from the answer keys' new fields. Sheets whose key predates
+    line numbers, alarm and trip settings, design ratings, notes) overall and by degradation level, from the answer keys' new fields. Sheets whose key predates
     them (no `level`) only count for tags."""
     results = {r["source_key"]: r["result"] for r in conn.execute(
         "select source_key, result from llm_extraction where source = 'pid'")}
@@ -581,6 +742,23 @@ def _elements(conn, truth: dict) -> tuple[dict, dict]:
             {tuple(lp["members"]) for lp in r.get("loops", [])})
         add(level, "line_numbers", {_norm_line(c["line"]) for c in key["connections"]},
             {_norm_line(ln["text"]) for ln in r.get("lines", [])})
+        if "tables" in key:  # data tables and notes (#475): each setting, each design rating, each note
+            want_sp, want_eq = set(), set()
+            for t in key["tables"]:
+                for row in t["rows"]:
+                    if row.get("hidden"):
+                        continue
+                    if t["kind"] == "setpoints":
+                        want_sp |= {(row["key"], typ, v) for typ, c in zip(("lolo", "lo", "hi", "hihi"), row["cells"][1:5],
+                                                                          strict=True) if (v := _number(c)) is not None}
+                    else:
+                        want_eq.add((row["key"], _number(row["cells"][2]), _number(row["cells"][3])))
+            add(level, "setpoints", want_sp, {(sp["tag"], typ, v) for sp in r.get("setpoints", [])
+                                              for typ, v in sp["limits"].items()})
+            add(level, "equipment_data", want_eq, {(e["tag"], e["design_pressure"], e["design_temperature"])
+                                                   for e in r.get("equipment_data", [])})
+            add(level, "notes", {_norm_note(n["text"]) for n in key["notes"] if not n.get("hidden")},
+                {_norm_note(n["text"]) for n in r.get("notes", [])})
     elements = {e: _pr(*c) for (lv, e), c in counts.items() if lv == "all"}
     by_level: dict[str, dict] = {}
     for (lv, e), c in counts.items():

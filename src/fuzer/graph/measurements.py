@@ -12,11 +12,19 @@ from ..core import db
 COLS = ["record", "quantity", "fuzer_id", "at", "value", "unit", "qualifier", "reported", "method", "location"]
 
 
-def build(conn, pack, maps: dict, endpoint, derive=None) -> dict:
+def build(conn, pack, maps: dict, endpoint, derive=None, extra=()) -> dict:
     """Read every measurement dataset into the measurement table (`endpoint` resolves what each was
     taken on, as graph.resolver). `derive(conn, pack, rows)` adds rows computed from them, landing in
-    the same sync so a rebuild doesn't remove and rewrite them."""
+    the same sync so a rebuild doesn't remove and rewrite them. `extra`: Measurements read elsewhere (the P&IDs'
+    equipment data tables)."""
     rows, unresolved = {}, Counter()
+    for x in extra:
+        fid = next((f for f, _ in map(endpoint, x.of) if f), None)
+        if fid is None:
+            unresolved[f"{x.record.split(':')[0]}: {endpoint(x.of[0])[1]}"] += 1
+            continue
+        rows[(x.record, x.quantity)] = (x.record, x.quantity, fid, x.at, x.value, x.unit, x.qualifier, x.reported,
+                                        x.method, x.location)
     for m in maps.values():
         if not m.measures:
             continue
