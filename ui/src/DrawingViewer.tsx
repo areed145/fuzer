@@ -170,7 +170,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
           )}
           {(g.checks ?? []).length > 0 && (
             <>
-              <h3>Alarm settings that differ from the drawing</h3>
+              <h3>Where other systems disagree with the drawing</h3>
               <ul>
                 {g.checks!.map((c, i) => (
                   <li key={i}>

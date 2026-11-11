@@ -352,6 +352,13 @@ they never become the limit that counts, but the `drawing` check lists every poi
 differs from its drawing, or that the drawing rates and no source configures. Notes keep the registered
 tags they name. Rows naming a tag not in the register are findings.
 
+## Where an instrument sits
+Claude also says which item each instrument's process connection runs to. When the register has the instrument
+part of a different item (SAP's functional locations), the drawing view lists it: a field change the maintenance
+system never caught, or a wrong drawing, and either way work raised on the instrument goes to the item the
+register names. Okan plants one: train B's 2nd stage suction pressure transmitter, clouded "RELOCATED" on its
+sheet at the compressor, still under the scrubber in SAP.
+
 ## Process flow diagrams
 PFDs come in the same sheet list as P&IDs (`drawing: pfd`) and go through the same reader. A PFD shows the main
 equipment and numbered process streams, and trains built alike are drawn once with a tag like `20-K-2100A/B/C`,

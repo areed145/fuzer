@@ -120,6 +120,8 @@ score image reading against the fake data's answer key
 | Argument | What it does |
 |---|---|
 | `--truth` | answer key (default: pid_truth.json in the exports folder) |
+| `--record` | save the scores to evals/runs/ as the new baseline |
+| `--gate` | fail under an element's floor, or on a drop since the last recorded run of the same model |
 
 ## `fuzer mcp`
 

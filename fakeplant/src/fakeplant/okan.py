@@ -286,7 +286,10 @@ def _sheet_data(tags: list[Tag], titles: dict[str, str], designed: dict[str, dic
     lt = next((t for t in tags if t.func == "LT"), None)
     if lt:
         notes.append({"text": f"{lt.fmt('{f}-{l}{s}')} IS GUIDED WAVE RADAR; SEE DATASHEET.", "tags": [lt.canonical]})
-    return {"equipment": eq, "setpoints": sp, "notes": notes, "date": "2019-05-14"}
+    # a field change the register never caught (#475): train B's 2nd stage suction pressure transmitter was moved
+    # from the scrubber to the compressor's suction nozzle; the drawing shows it there, SAP still has the scrubber
+    moved = {"20-PT-2201B": "20-K-2200B"} if any(t.canonical == "20-K-2200B" for t in tags) else {}
+    return {"equipment": eq, "setpoints": sp, "notes": notes, "date": "2019-05-14", "moved": moved}
 
 
 # Process flow diagrams (#475): the oil plant drawn clean, the gas plant an old scan with its three trains drawn once.

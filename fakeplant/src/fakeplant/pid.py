@@ -5,7 +5,8 @@ A sheet is laid out by process flow, not in rows: equipment left to right in the
 vessels high and pumps low, wrapping into a second band when a unit has many items. Process lines route
 orthogonally from outlet nozzles (a vessel's liquid leaves at the bottom, its gas at the top) to inlets, with
 bends, crossings (some with jumps, some plain: a reader must not join lines that only cross) and inline valves
-of each type (gate, globe, ball, check, butterfly), reducers and spectacle blinds. Line numbers carry size,
+of each type (gate, globe, ball, check, butterfly), reducers, spectacle blinds, Y-strainers and orifice flow
+elements, with drains, vents and sample points branching off (not part of what a line runs through). Line numbers carry size,
 service, number, spec and insulation (`6"-P-20012-A1A-IH`), written along the line, rotated on vertical runs.
 
 Instruments are drawn the way real sheets draw them: field bubbles (plain circle), panel bubbles (circle with a
@@ -47,6 +48,7 @@ EQUIPMENT_FUNCS = ("P", "K", "V", "E", "GT")
 PLANT_EQUIPMENT_FUNCS = EQUIPMENT_FUNCS + ("T", "F", "H", "G")
 LEVELS = ("clean", "scan", "old", "poor")
 HAND_VALVES = ("gate", "globe", "ball", "check", "butterfly")
+BRANCHES = ("sample_point", "drain", "vent")  # drawn off a line, not on it: not part of what a line runs through
 INSULATION = ("", "", "-IH", "-PP", "-IC", "-ET")  # none, heat conservation, personnel protection, cold, traced
 TALL = ("V", "T", "F", "H")
 ROW = 28  # data table row height
@@ -256,6 +258,9 @@ class _Sheet:
             items.append(("reducer", None))
         if self.rng.random() < 0.15:
             items.append(("blind", None))
+        for what, p in (("strainer", 0.2), ("orifice", 0.15), ("sample_point", 0.15), ("drain", 0.25), ("vent", 0.2)):
+            if self.rng.random() < p:
+                items.append((what, None))
         out = []
         for k, (what, kind) in enumerate(items):
             x = lo + (hi - lo) * (k + 1) / (len(items) + 1)
@@ -272,6 +277,28 @@ class _Sheet:
                 self.d.ellipse([x - 7, y + 8, x + 7, y + 22], outline=0, fill=255 if closed else 0, width=2)
                 self.d.line([(x, y - 8), (x, y + 8)], fill=0, width=3)
                 out.append({"type": "spectacle_blind", "closed": closed, "x": round(x), "y": round(y)})
+            elif what == "strainer":  # Y-strainer: a slanted leg with its screen
+                self.d.rectangle([x - 14, y - 3, x + 14, y + 3], fill=255)
+                self.d.line([(x - 14, y), (x + 14, y)], fill=0, width=3)
+                self.d.line([(x - 6, y), (x + 10, y + 22)], fill=0, width=3)
+                self.d.line([(x + 2, y), (x + 18, y + 22)], fill=0, width=3)
+                self.d.line([(x + 10, y + 22), (x + 18, y + 22)], fill=0, width=2)
+                out.append({"type": "strainer", "x": round(x), "y": round(y)})
+            elif what == "orifice":  # a flow element: two plates across the line
+                self.d.line([(x - 5, y - 14), (x - 5, y + 14)], fill=0, width=3)
+                self.d.line([(x + 5, y - 14), (x + 5, y + 14)], fill=0, width=3)
+                self.d.text((x, y + 26), "FE", font=self.f_small, fill=0, anchor="mm")
+                out.append({"type": "orifice", "x": round(x), "y": round(y)})
+            elif what in ("sample_point", "drain", "vent"):  # a branch off the line with its own small valve
+                up = what == "vent"
+                end = y - 46 if up else y + 46
+                self.d.line([(x, y), (x, end)], fill=0, width=2)
+                vy = (y + end) / 2
+                self.d.polygon([(x - 7, vy - 9), (x + 7, vy - 9), (x, vy)], outline=0, fill=255, width=2)
+                self.d.polygon([(x - 7, vy + 9), (x + 7, vy + 9), (x, vy)], outline=0, fill=255, width=2)
+                label = {"sample_point": "SP", "drain": "D", "vent": "V"}[what]
+                self.d.text((x + 16, end), label, font=self.f_small, fill=0, anchor="lm")
+                out.append({"type": what, "x": round(x), "y": round(y)})
             else:  # ("control", {...}): a control or ESD valve with its actuator
                 out.append(self.control_valve(x, y, **kind))
         return out
@@ -411,8 +438,13 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     order += [t for t in equipment if t not in order]
     per_band = min(PER_BAND, max(1, len(order)))
     bands = max(1, math.ceil(len(order) / per_band))
+    moved = data.get("moved", {})
+
     def owner(t):
-        """The equipment an instrument belongs to: same loop and suffix, or a pump's suction transmitter (loop + 10)."""
+        """The equipment an instrument belongs to: same loop and suffix, or a pump's suction transmitter (loop + 10);
+        or where the sheet shows it moved to (`data["moved"]`, a field change the register may not have)."""
+        if t.canonical in moved and moved[t.canonical] in by_key:
+            return by_key[moved[t.canonical]]
         return next((e for e in equipment if t.loop == e.loop and t.suffix == e.suffix), None) or next(
             (e for e in equipment if e.func == "P" and t.loop == e.loop + 10 and t.suffix == e.suffix), None)
 
@@ -594,7 +626,12 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
                 continue
             s.bubble(bx, by, inst.func, f"{inst.loop}{inst.suffix}", rng.choice(styles))
             _dashed(d, (bx, by + 44), (bx if abs(bx - cx) < 40 else cx + (bx - cx) * 0.3, boxes[eq.canonical][1]))
-            drawn.append({"key": inst.canonical, "kind": "instrument", "x": round(bx), "y": round(by)})
+            drawn.append({"key": inst.canonical, "kind": "instrument", "x": round(bx), "y": round(by),
+                          "on": eq.canonical})
+            if inst.canonical in moved:  # the field change, clouded in red on the sheet
+                pts = [(bx + 70 * math.cos(a / 8 * math.pi), by + 60 * math.sin(a / 8 * math.pi)) for a in range(17)]
+                d.line(pts, fill=40, width=3)
+                d.text((bx + 80, by - 70), "RELOCATED (FIELD CHANGE)", font=s.f_small, fill=40)
         if eq.func == "V":  # a relief valve on top of every vessel, tagged on the sheet, rarely in the register
             x0, y0 = cx + 30, boxes[eq.canonical][1]
             d.line([(x0, y0), (x0, y0 - 40)], fill=0, width=2)
@@ -618,7 +655,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
             if lp["members"][-1] in {t for t, _, _, _ in ctl} - placed:
                 lp["members"].pop()
         s.valves += vs
-        c["via"] = [v.get("tag") or v["type"] for v in sorted(vs, key=lambda v: v["x"])]
+        c["via"] = [v.get("tag") or v["type"] for v in sorted(vs, key=lambda v: v["x"]) if v["type"] not in BRANCHES]
 
     for rest in pending.values():  # loops whose line wasn't drawn
         for t, _, _, _ in rest:
