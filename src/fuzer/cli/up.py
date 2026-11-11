@@ -169,33 +169,7 @@ def read_with_claude(conn, pack) -> None:
     (tags and piping), document sections (failure modes) and OEM datasheets (curves, for review); then
     rebuild once with what it found.
     Readings are cached by the text they read, so only new or changed records cost anything."""
-    from ..core import llm
-    from ..core.pricing import cost
-    from ..graph import llm_links
-    from ..sources import llm_curves, llm_docs, llm_pids
-
-    readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),
-               ("document sections", "sections", llm_docs.run), ("datasheets", "datasheets", llm_curves.run)]
-    todo = [(label, key, run, n) for label, key, run in readers if (n := run(conn, pack, dry_run=True)[key])]
-    if not todo:
-        return
-    what = ", ".join(f"{n:,} {label}" for label, _, _, n in todo)
-    if not llm.configured():
-        say(f"Not read by {llm.provider()}: {what}. Configure the provider API key and run fuzer up again.")
-        return
-    say(f"{llm.provider()} ({llm.model()}) is reading {what}. This can take a few minutes ...")
-    stored, spent = 0, 0.0
-    for label, _, run, _ in todo:
-        out = run(conn, pack)
-        stored += out.get("stored", 0)
-        spent += cost(out.get("model", llm_links.DEFAULT_MODEL), out.get("input_tokens", 0),
-                      out.get("output_tokens", 0), out.get("cache_read_tokens", 0), 0, llm.provider())[0]
-        for err in out.get("errors", [])[:3]:
-            say(f"Could not read some {label}: {err}")
-    say(f"{llm.provider()} read {stored:,} item(s) for about ${spent:.2f}")
-    if pipeline.readings_newer(conn):
-        say(f"Rebuilding the register with what {llm.provider()} found ...")
-        pipeline.rebuild(conn, pack)
+    pipeline.read_pending(conn, pack, say)
 
 
 def build_ui() -> None:

@@ -76,8 +76,7 @@ before the API starts, so a deploy that changes data takes longer to come up. A
 failure here is logged as `Data refresh failed` and the service starts on the
 register it has; it isn't retried, so inspect Sources, then redeploy or run
 `fuzer ingest` deliberately. A new image can change document text, and with a key
-the scheduled readers then pay to read those sections, so review the caps below
-first. Other
+the startup readers then pay to read those sections. Other
 assets or unidentified pre-existing source data cause a clear startup failure:
 there is **no automatic reset**, on first boot or on subsequent redeploys.
 Zero-record ingestion is an error, not a successful bootstrap.
@@ -128,9 +127,15 @@ PI or ADX credentials.
 Dagster starts the repository's default schedules and sensors, and the worker
 runs workflow agent steps against the same Postgres. With a key, scheduled
 Claude reading/diagnosis/reporting can incur charges. Review caps/models in
-Settings and schedules in Jobs before leaving it running. Initial ingestion
-does not block on Claude reads; the scheduled readers enrich cached readings
-later. This is fictional test data, not a live facility.
+Settings and schedules in Jobs before leaving it running. After loading, startup
+reads uncached logs, drawings, document sections and datasheets for each project
+in the background, then rebuilds with the results. This can incur charges on the
+first start with a configured provider; unchanged cached inputs are not read
+again on redeploy. Without a configured provider, startup reports what remains
+unread and makes no model calls. Cached readings left unapplied by an interrupted
+start are rebuilt without reading them again. Reader failures are logged, not
+retried automatically; inspect recorded readings before a deliberate retry.
+The API does not wait for these reads. This is fictional test data, not a live facility.
 
 ### Microsoft sign-in and first owner
 
