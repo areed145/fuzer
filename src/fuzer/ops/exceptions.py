@@ -4,6 +4,7 @@ matched to entities, routed to a case through the Work port, and published on th
     raise_(conn, type, key, title, by, refs=..., priority=..., value_usd=..., evidence=..., source=..., assignee=...)
     clear(conn, type, key, by, reason)
     split(conn, exception_id, by)   take one that joined another's case back out to a case of its own
+    join(conn, exception_id, into, by)  the reverse: bring one with its own case into another's, cancelling its own
     reconcile(conn)          close the ones whose case finished (the work tick runs it)
     match(conn, refs)        -> (fuzer ids, refs that matched nothing)
     listing(conn, ...)       what the IOC (or the field) sees
@@ -270,6 +271,42 @@ def split(conn, exception_id: int, by: str, reason: str | None = None) -> dict:
                                     + (f" ({reason})" if reason else "") + (f", now case {item_id}" if item_id else ""))
     events.publish(conn, "exception.split", f"exception:{row['id']}", {**_payload(row, t), "by": by, "reason": reason,
                                                                        "from_case": old})
+    return row
+
+
+def join(conn, exception_id: int, into: int, by: str, reason: str | None = None) -> dict:
+    """The reverse of `split`: the IOC says an exception with a case of its own is part of the same event as `into`
+    (a cascade the automatic join missed). It and everything on its case join `into`'s case, the case it had is
+    cancelled, and both histories say so: one case to triage, one dispatch, one close-out."""
+    row = _row(conn, exception_id, lock=True)
+    host = _row(conn, into, lock=True)
+    if host["joined_to"]:
+        host = _row(conn, host["joined_to"], lock=True)
+    if row["state"] != OPEN:
+        raise ExceptionError(f"exception {exception_id} is {row['state']}, not open")
+    if host["state"] != OPEN or not host["item_id"]:
+        raise ExceptionError(f"exception {host['id']} has no open case to join")
+    item = conn.execute("select state from work_item where id = %s", (host["item_id"],)).fetchone()
+    if not item or item["state"] in ("done", "cancelled"):
+        raise ExceptionError(f"case {host['item_id']} is closed")
+    old = row["item_id"]
+    if old == host["item_id"] or row["id"] == host["id"]:
+        raise ExceptionError(f"exception {exception_id} is already on case {host['item_id']}")
+    moved = conn.execute(
+        "update exception_record set joined_to = %s, item_id = %s, updated_at = now() "
+        "where id <> %s and (id = %s or joined_to = %s or (%s::bigint is not null and item_id = %s)) returning id",
+        (host["id"], host["item_id"], host["id"], row["id"], row["id"], old, old)).fetchall()
+    conn.execute("update exception_record set value_usd = greatest(value_usd, %s), priority = greatest(priority, %s), "
+                 "updated_at = now() where id = %s", (row["value_usd"], row["priority"], host["id"]))
+    row = _row(conn, exception_id)
+    t = types(conn).get(row["type"])
+    note = (f"Merged in: {_label(conn, row['type'])} from {row['source']}: {row['title']}"
+            + (f" ({reason})" if reason else "") + (f", was case {old}" if old else ""))
+    work.comment(conn, host["item_id"], by, note)
+    if old:
+        work.cancel_case(conn, old, by, reason=f"Merged into case {host['item_id']}" + (f": {reason}" if reason else ""))
+    events.publish(conn, "exception.joined", f"exception:{row['id']}", {**_payload(row, t), "by": by, "reason": reason,
+                                                                        "from_case": old, "moved": len(moved)})
     return row
 
 

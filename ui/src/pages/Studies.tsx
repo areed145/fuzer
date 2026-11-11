@@ -8,7 +8,7 @@ import { loadPerson } from "../work";
 const KINDS: [string, string][] = [
   ["correlate", "What moved with a point, and first"], ["correlation_matrix", "What moves together"],
   ["modes", "Operating modes"], ["spe", "Multivariate anomaly"], ["entities", "Well peer groups"],
-  ["events", "Recurring upset types"]];
+  ["events", "Recurring upset types"], ["cascades", "Recurring cascades"]];
 
 export function StudiesPage({ query }: { query: URLSearchParams }) {
   const list = useAsync(() => api.studies(), []);
@@ -70,7 +70,7 @@ function NewStudy({ onDone }: { onDone: () => void }) {
         {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </Select>
       {kind === "correlate" && <Input placeholder="target PI point" value={target} onChange={(e) => setTarget(e.target.value)} />}
-      {kind !== "events" && kind !== "entities" && (
+      {kind !== "events" && kind !== "entities" && kind !== "cascades" && (
         <Input placeholder="scope: unit, area or facility" value={scope} onChange={(e) => setScope(e.target.value)} />
       )}
       <Input placeholder="since (YYYY-MM-DDTHH:MM)" value={since} onChange={(e) => setSince(e.target.value)} />
@@ -94,9 +94,33 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
           <pre className="small">{JSON.stringify(d.params, null, 1)}</pre>
           <Button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</Button>
           {d.figure_id && <FigureView id={d.figure_id} />}
+          {d.kind === "cascades" && d.result && <CascadeTable result={d.result as unknown as CascadeResult} />}
           {d.result && <details><summary>Results</summary><pre className="small">{JSON.stringify(d.result, null, 1).slice(0, 20000)}</pre></details>}
         </>
       )}
     </UICard>
   );
+}
+
+interface CascadeResult {
+  patterns: { first: string; then: string; support: number; first_seen: number; confidence: number;
+    median_lag_minutes: number; lag_range_minutes: [number, number]; hops: number | null }[];
+  method: string;
+}
+
+/** Recurring cascades as the IOC reads them: this, then that, how often and how long after. */
+function CascadeTable({ result }: { result: CascadeResult }) {
+  if (!result.patterns?.length) return <p className="small muted">No cascade repeated in this window.</p>;
+  return <>
+    <Table density="compact">
+      <thead><tr><th>First</th><th>Then</th><th>Times</th><th>Share followed</th><th>Typical lag</th><th>Links</th></tr></thead>
+      <tbody>{result.patterns.map((p) => (
+        <tr key={`${p.first}|${p.then}`}><td>{p.first}</td><td>{p.then}</td><td>{p.support} of {p.first_seen}</td>
+          <td>{Math.round(p.confidence * 100)}%</td>
+          <td>{p.median_lag_minutes} min <span className="muted small">({p.lag_range_minutes[0]}–{p.lag_range_minutes[1]})</span></td>
+          <td>{p.hops ?? "—"}</td></tr>
+      ))}</tbody>
+    </Table>
+    <p className="small muted">{result.method}</p>
+  </>;
 }

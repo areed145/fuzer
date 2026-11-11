@@ -15,7 +15,7 @@ from .definitions import (
     _op,
     utcnow,
 )
-from .runtime import _Run, _update
+from .runtime import _cancel_process, _Run, _update
 
 
 @_op
@@ -51,6 +51,27 @@ def transition(conn, item_id: int, state: str, by: str, reason: str | None = Non
                  "where id = %s", (state, closed, item_id))
     _event(conn, "state_changed", by, item_id=item_id, data={"from": item["state"], "state": state, "reason": reason})
     return {"item_id": item_id, "state": state}
+
+@_op
+def cancel_item(conn, item_id: int, by: str, reason: str | None = None) -> dict:
+    """Cancel a case whatever moves it: its running processes are cancelled (their open steps with them), else the
+    item itself moves to cancelled. The reason goes on its history."""
+    run = _Run(conn, by)
+    item = _item(conn, item_id, lock=True)
+    if item["state"] in ("done", "cancelled"):
+        raise Conflict(f"case {item_id} is {item['state']}")
+    procs = [r["id"] for r in conn.execute("select id from work_process where item_id = %s and state = 'running' "
+                                           "and parent_token is null", (item_id,))]
+    for pid in procs:
+        proc = run.proc(pid)
+        _cancel_process(run, proc, reason or f"cancelled by {by}")
+        run.event("cancelled", proc, reason=reason)
+    conn.execute("update work_item set state = 'cancelled', closed_at = %s, updated_at = %s where id = %s",
+                 (run.now, run.now, item_id))
+    _event(conn, "state_changed", by, item_id=item_id, data={"from": item["state"], "state": "cancelled",
+                                                             "reason": reason})
+    run.flush()
+    return {"item_id": item_id, "state": "cancelled", "processes": len(procs)}
 
 @_op
 def set_item(conn, item_id: int, by: str, reason: str | None = None, priority: float | None = None,

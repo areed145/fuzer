@@ -7,6 +7,7 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     open_case(conn, type, title, by, ...)                 a work item with no process behind it
     start_or_correlate(conn, process_key, data, by, ...)  start a process, or add evidence to its open one
     close_case(conn, item_id, state, by, reason)          finish or cancel a case
+    cancel_case(conn, item_id, by, reason)                cancel a case and any process running it
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
     report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
@@ -59,6 +60,11 @@ def close_case(conn, item_id: int, state: str, by: str, reason: str | None = Non
     """Move a case to `done` or `cancelled` (or another state the engine allows), with the reason on its history. A
     case with a process has its open steps ended with it."""
     return _engine().close_item(conn, item_id, state, by, reason=reason)
+
+
+def cancel_case(conn, item_id: int, by: str, reason: str | None = None) -> dict:
+    """Cancel a case even while a process runs it (a case merged into another's, say): the process stops with it."""
+    return _engine().cancel_item(conn, item_id, by, reason)
 
 
 def agent_steps(conn, role: str, limit: int = 100) -> list[dict]:

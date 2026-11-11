@@ -136,6 +136,27 @@ export interface Upset {
   units: (string | null)[];
 }
 
+export interface RelatedUpset {
+  id: number; signature: string; start: string; end: string | null; lag_minutes: number; hops: number | null;
+  seen_together: number; role: "likely_cause" | "likely_knock_on" | "same_time" | "seen_together" | "coincident";
+  why: string; score: number; status: string; detections: number; units: number; work_item_id: number | null;
+  case_title: string | null; case_state: string | null; merged_into: number | null; same_case: boolean;
+}
+
+export interface UpsetView {
+  upset: Upset & { first_unit: string | null };
+  signature: string;
+  timeline: { id: number; start: string; end: string | null; unit: string | null; point: string | null;
+    detector: string; key: string; magnitude: number | null; finding: string }[];
+  detections_shown: number;
+  by_unit: Record<string, number>;
+  spread: { spec: FigureData["spec"] | null; title: string | null; note?: string;
+    summary: { first_cause: string; first_detection: string; units: number;
+      order: { unit: string; minutes_after_first: number }[] } | null };
+  related: { related: RelatedUpset[]; considered: number; window_hours: number; basis: string };
+  merged: { id: number; signature: string; start: string }[];
+}
+
 export interface TimelineItem {
   id: string;
   kind: string;
@@ -399,6 +420,10 @@ export const investigateApi = {
       "GET", id ? `/entities/${encodeURIComponent(id)}/incidents` : "/incidents", { limit: 100 }),
   upsets: (status?: string, kind?: string, limit = 50) =>
     request<Upset[]>("GET", "/upsets", { status, kind, limit }),
+  upsetView: (id: number) => request<UpsetView>("GET", `/upsets/${id}/view`),
+  mergeUpset: (id: number, into: number, by: string, reason?: string) =>
+    request<{ upset: number; into: number; item_id: number; cancelled_case: number | null; reason: string }>(
+      "POST", `/upsets/${id}/merge`, undefined, { into, by, reason: reason ?? null }),
   incidentTimeline: (id: string) => request<TimelineItem[]>("GET", `/incidents/${encodeURIComponent(id)}/timeline`),
   similarIncidents: (id: string) =>
     request<(Incident & { score: number; same_unit: boolean })[]>("GET", `/incidents/${encodeURIComponent(id)}/similar`),

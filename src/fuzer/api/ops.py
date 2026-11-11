@@ -169,7 +169,7 @@ def opportunity_decide(key: str, d: OpportunityDecision, conn=Depends(get_conn))
 
 
 class StudyIn(BaseModel):
-    kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"]
+    kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe", "cascades"]
     params: dict[str, Any]
     by: str = "anonymous"
     now: bool | None = None
@@ -342,6 +342,43 @@ def exception_split(exception_id: int, d: ExceptionSplit, conn=Depends(get_conn)
     """Take an exception that joined another's case back out to a case of its own (a different event)."""
     from ..ops import exceptions
     return _exception_call(conn, exceptions.split, exception_id, d.by, d.reason)
+
+
+class UpsetMerge(BaseModel):
+    into: int
+    by: str
+    reason: str | None = None
+
+
+def _cascade_call(conn, fn, *args, **kwargs):
+    from ..ops.cascades import CascadeError
+    try:
+        return _exception_call(conn, fn, *args, **kwargs)
+    except CascadeError as e:
+        conn.rollback()
+        raise HTTPException(404 if str(e).startswith("no upset") else 400, str(e)) from e
+
+
+@router.get("/upsets/{upset_id}/view")
+def upset_view(upset_id: int, conn=Depends(get_conn)):
+    """What the triage page shows for an upset: detections in time order, how it spread on the plant model, related
+    upsets (likely cause, likely knock-on, seen together before, coincident) and the ones merged into it."""
+    from ..ops import cascades
+    return _cascade_call(conn, cascades.view, upset_id)
+
+
+@router.get("/upsets/{upset_id}/related")
+def upset_related(upset_id: int, hours: float = Query(12, gt=0, le=72), conn=Depends(get_conn)):
+    """Other upsets within `hours` of this one, most likely related first."""
+    from ..ops import cascades
+    return _cascade_call(conn, cascades.related, upset_id, hours)
+
+
+@router.post("/upsets/{upset_id}/merge")
+def upset_merge(upset_id: int, m: UpsetMerge, conn=Depends(get_conn)):
+    """The IOC says this upset is part of the same event as `into`: its case joins that one's, its own is cancelled."""
+    from ..ops import cascades
+    return _cascade_call(conn, cascades.merge, upset_id, m.into, m.by, m.reason)
 
 
 @router.post("/exceptions")
