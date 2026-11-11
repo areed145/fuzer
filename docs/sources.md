@@ -352,6 +352,16 @@ they never become the limit that counts, but the `drawing` check lists every poi
 differs from its drawing, or that the drawing rates and no source configures. Notes keep the registered
 tags they name. Rows naming a tag not in the register are findings.
 
+## Process flow diagrams
+PFDs come in the same sheet list as P&IDs (`drawing: pfd`) and go through the same reader. A PFD shows the main
+equipment and numbered process streams, and trains built alike are drawn once with a tag like `20-K-2100A/B/C`,
+which Fuzer expands to one tag per train: a stream between trains becomes one connection per train, a header into
+them one per train, and ends that don't line up are not linked. Streams become `pipes_to` links marked with the
+stream number and the PFD (a P&ID's line and off-page details win on the same pair). The heat and material
+balance (one column per stream) lands as each stream's design case on the item it leaves: measurements
+`design_case_pressure`, `design_case_temperature` and `design_case_flow`, method `pfd_design`, location
+`stream N`. Okan has two: the oil plant (clean) and the gas plant (an old scan, three trains drawn once).
+
 ## Entity linking in text
 Operator logs and P&ID text are scanned for:
 - tags (tag grammar; area taken from context when missing),

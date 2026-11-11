@@ -49,6 +49,8 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
             row = merged[key]
             row["sources"].add(e.source)
             row["confidence"] = max(row["confidence"], e.confidence)
+            if e.props:  # the first source's details stand; later ones add what it didn't say
+                row["props"] = {**e.props, **(row["props"] or {})}
         else:
             merged[key] = {"valid_to": _date(e.valid_to), "sources": {e.source}, "confidence": e.confidence,
                            "props": e.props}

@@ -29,7 +29,7 @@ class FakeVision:
         the inlet separator's line to train C is shown by one sheet only."""
         offpage = [{k: o[k] for k in ("direction", "sheet", "tag", "other", "line")} for o in truth["offpage"]
                    if sheet != "OKAN-20-PID-006"]
-        return {"connections": [{"from": c["from"], "to": c["to"], "line": c["line"], "via": c["via"]}
+        return {"connections": [{"from": c["from"], "to": c["to"], "line": c["line"], "via": c["via"], "stream": ""}
                                 for c in truth["connections"] if c.get("to") and not c.get("offpage")],
                 "offpage": offpage, "loops": [{"members": lp["members"]} for lp in truth["loops"]],
                 "tables": [{"title": t["title"], "columns": t["columns"],
@@ -43,6 +43,17 @@ class FakeVision:
         truth = self.truth[sheet]
         width, height = truth["size"]
         assert sum(1 for b in content if b["type"] == "image") == len(llm_pids.tile_boxes(width, height))
+        if truth.get("kind") == "pfd":  # a PFD: typical tags as drawn, streams by number
+            drawn = list(dict.fromkeys(x.get("as_drawn", x["key"]) for x in truth["tags"]))
+            data = {"title_block": {"drawing_number": sheet, "title": "", "revision": "", "date": truth["date"]},
+                    "tags": [{"text": t, "kind": "equipment", "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
+                             for t in drawn],
+                    "connections": [{"from": st["from"], "to": st["to"], "line": "", "via": [], "stream": str(st["n"])}
+                                    for st in truth["streams"]],
+                    "offpage": [], "loops": [], **{k: v for k, v in self.topology(sheet, truth).items()
+                                                   if k in ("tables", "notes")}}
+            return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
+                                   usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
             tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
                     for x in truth["tags"]]
@@ -119,7 +130,7 @@ def test_every_drawn_sheet_but_smart_is_read(setup):
 def test_read_link_and_score(setup, read):
     conn, truth = setup
     out, fake = read
-    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 7
+    assert out["failed_requests"] == 0 and out["stored"] == len(fake.requests) == 9  # 7 P&IDs and 2 PFDs
 
     result = conn.execute("select result from llm_extraction where source = 'pid' and source_key = %s",
                           (SHEET,)).fetchone()["result"]
@@ -275,3 +286,26 @@ def test_tables_and_notes_are_read_and_checked(setup, read, okan_db):
     assert isinstance(d["checks"], list)
     s = llm_pids.score(conn, truth)
     assert s["elements"]["setpoints"]["recall"] == 1.0 and s["elements"]["notes"]["recall"] == 1.0
+
+
+def test_pfds_are_read_with_their_trains_and_streams(setup, read):
+    """A PFD's typical-of-3 items expand to each train's tag, its streams become piping marked with the stream
+    number, and the heat and material balance lands as each stream's design case on the item it leaves (#475)."""
+    conn, truth = setup
+    r = conn.execute("select result from llm_extraction where source_key = 'OKAN-20-PFD-002'").fetchone()["result"]
+    assert {"20-K-2100A", "20-K-2100B", "20-K-2100C"} <= {m["key"] for m in r["mentions"]}
+    assert {("20-V-2001", "20-V-2101C"), ("20-K-2100B", "20-E-2150B")} <= {(c["from"], c["to"]) for c in r["connections"]}
+    assert not {("20-K-2100A", "20-E-2150B")} & {(c["from"], c["to"]) for c in r["connections"]}  # trains stay apart
+    assert not [f for f in r["findings"] if f["kind"] == "connection"]  # battery limits aren't findings
+    pfd_pipes = conn.execute("select count(*) as n from edge where rel = 'pipes_to' and props ? 'stream'").fetchone()
+    assert pfd_pipes["n"] >= 27
+    rows = conn.execute(
+        """select m.quantity, m.value, m.unit, m.location from measurement m join entity_label l using (fuzer_id)
+           where l.label = '20-K-2100B' and m.method = 'pfd_design' order by quantity""").fetchall()
+    st4 = next(s for s in truth["OKAN-20-PFD-002"]["streams"] if s["from"] == "20-K-2100A/B/C")
+    assert {r["quantity"] for r in rows} == {"design_case_pressure", "design_case_temperature", "design_case_flow"}
+    assert all(r["location"] == f"stream {st4['n']}" for r in rows)
+    flow = next(r for r in rows if r["quantity"] == "design_case_flow")
+    assert f"{flow['value']:g} {flow['unit']}" == st4["flow"]
+    s = llm_pids.score(conn, truth)
+    assert s["elements"]["streams"]["recall"] == 1.0

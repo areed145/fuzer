@@ -99,7 +99,7 @@ export interface Drawing {
   height: number;
   marks: DrawingMark[];
   connections: { from: string; to: string; line: string | null; from_id: string | null; to_id: string | null;
-    via?: string[] }[];
+    via?: string[]; stream?: string }[];
   findings: { text: string; kind: string; issue: string }[];
   /** Lines leaving or entering the sheet (#475): confirmed when the other sheet shows them too. */
   offpage?: { direction: "to" | "from"; sheet: string; tag: string | null; other: string | null; line: string;
