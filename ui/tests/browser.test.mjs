@@ -788,6 +788,24 @@ test("review lifecycle confirms shared decisions and exposes failures without ma
   assert.equal(attempts, 2);
 });
 
+test("a drawing disagreement records which side needs changing and says neither was changed (#475)", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [{ id: 11, kind: "pid_mismatch", label: "20-PT-2201B", payload: {
+    check: "placement", sheet: "OKAN-20-PID-005", document: "fz-document-1", tag: "20-PT-2201B", fuzer_id: "fz-instrument-1",
+    point: null, drawn_on: "20-K-2200B", register: [{ parent: "20-V-2201B", sources: ["sap"] }],
+    detail: "the drawing shows it on 20-K-2200B; sap has it under 20-V-2201B",
+    question: "OKAN-20-PID-005 shows 20-PT-2201B on 20-K-2200B, but sap has it under 20-V-2201B. Which is right, the drawing or the register?" } }] }));
+  let sent;
+  await page.route("**/review/11", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { decided: 11 } }); });
+  await page.goto(`${url}/#/review?kind=pid_mismatch`);
+  await page.getByRole("heading", { name: /Instrument drawn on another item/ }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Open OKAN-20-PID-005" }).count(), 1);
+  await page.getByRole("button", { name: "Drawing is right, change SAP" }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Nothing was changed in either system" }).waitFor();
+  assert.equal(sent.decision, "choose");
+  assert.equal(sent.value, "drawing");
+});
+
 test("a match review spells out its reasons and where its score sits against the thresholds (#410)", async () => {
   const side = (ref, source, m) => ({ ref, source, key: null, block: "76-HCV-1003", fields: { description: "Control valve", ...(m ? { manufacturer: m } : {}) } });
   await page.route("**/review?*", (route) => route.fulfill({ json: [{ id: 9, kind: "match", payload: {

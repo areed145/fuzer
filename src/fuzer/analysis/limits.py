@@ -276,6 +276,14 @@ def issues(conn, pack, point_ids: list[str] | None = None) -> list[dict]:
     return out
 
 
+def drawing_issues(conn, pack=None) -> list[dict]:
+    """Every `drawing` issue: each point a P&ID's alarm and trip table rates whose configured alarms differ from it,
+    or that no alarm source configures (#475)."""
+    ids = [r["point_id"] for r in conn.execute(
+        "select distinct point_id from point_limit where basis = 'design' and valid_to is null and record like 'pid:sheet:%'")]
+    return [i for i in issues(conn, pack, ids) if i["fault"] == "drawing"] if ids else []
+
+
 def drawing_checks(conn, sheet: str, pack=None) -> list[dict]:
     """Where one P&ID's alarm and trip table disagrees with the alarms configured in the DCS and AF (#475): the
     `drawing` issues on the points its table rates, by the tag the table names."""
