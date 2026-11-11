@@ -97,6 +97,10 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
     elif item["kind"] == "pid_connection":  # an off-page line one drawing shows: accept links it, reject leaves it
         if d.decision == "choose":
             raise HTTPException(400, "drawing connections take accept (link them) or reject")
+    elif item["kind"] == "pid_mismatch":  # a drawing and the DCS, AF or SAP disagree (#475): which needs changing
+        if d.decision == "accept" or (d.decision == "choose" and d.value not in ("drawing", "system")):
+            raise HTTPException(400, "drawing disagreements take choose with drawing (the system needs changing) or "
+                                     "system (the drawing needs a redline), or reject (not a real disagreement)")
     elif item["kind"] == "match":
         if d.decision == "choose":
             raise HTTPException(400, "match items take accept or reject")

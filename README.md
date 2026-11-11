@@ -298,7 +298,9 @@ On a P&ID's page the UI shows the drawing with every reading marked where it
 sits (linked to the register, not in the register, not a tag, line number;
 click a linked tag to open it), the piping, the notes, the data tables, the
 places where other systems disagree with the drawing (alarm settings that
-differ from its table, instruments SAP puts under another item), and the findings. Manuals and
+differ from its table, instruments SAP puts under another item), and the findings.
+Each of those disagreements is also a **Drawing disagreements** item in Data review, where a
+person records whether the drawing or the other system needs changing. Manuals and
 procedures show their file inline on their page.
 
 Model defaults to `claude-opus-5-5` (`--model` or the `llm.model` setting to change),

@@ -29,6 +29,7 @@ applied during rebuilds without calling the model.
 """
 
 import base64
+import hashlib
 import io
 import json
 import math
@@ -679,6 +680,69 @@ def reviews(conn, sheets: dict[str, dict]) -> list[tuple[str, dict]]:
                                f"({d['other'] or 'no tag'}), but {d['other_sheet']} doesn't show it. Is "
                                f"{d['from']} piped to {d['to']}?"})
             for d in join(conn, sheets)["disputed"]]
+
+
+def placements(conn, on: dict[str, str]) -> list[dict]:
+    """Instruments a drawing shows on one item ({tag: item it's drawn on}) while the register has them part of
+    another (#475): a field change the maintenance system never caught, or a drawing that's wrong. Either way, work
+    raised on the instrument goes to the item the register names."""
+    if not on:
+        return []
+    rows = conn.execute(
+        """
+        select ls.label as tag, e.src as id, ld.label as parent, e.sources from edge e
+        join entity_label ls on ls.fuzer_id = e.src join entity_label ld on ld.fuzer_id = e.dst
+        where e.rel = 'part_of' and e.valid_to is null and ls.label = any(%s)
+        """, (list(on),)).fetchall()
+    parents: dict[str, list] = {}
+    for r in rows:
+        parents.setdefault(r["tag"], []).append(r)
+    out = []
+    for tag, where in sorted(on.items()):
+        ps = parents.get(tag, [])
+        if ps and where not in {p["parent"] for p in ps}:
+            out.append({"tag": tag, "point": None, "point_id": ps[0]["id"], "type": "placement", "drawn_on": where,
+                        "register": [{"parent": p["parent"], "sources": list(p["sources"])} for p in ps],
+                        "detail": f"the drawing shows it on {where}; " + ", ".join(
+                            f"{'/'.join(p['sources'])} has it under {p['parent']}" for p in ps)})
+    return out
+
+
+def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict]) -> list[tuple[str, dict]]:
+    """Review questions (kind pid_mismatch) where a drawing and another system disagree (#475): an alarm and trip
+    table that differs from the alarms configured in the DCS and AF, or shows a setting no alarm source has, and an
+    instrument the drawing shows on one item while SAP has it under another. Neither side is assumed right: the
+    reviewer says which one needs changing. The subject carries the disagreement itself, so a decided question
+    comes back as a new one when the values on either side change. `drawing_issues` are the limits checks'
+    `drawing` issues (analysis.limits.drawing_issues)."""
+    docs = {r["source_key"]: r["fuzer_id"] for r in conn.execute(
+        "select source_key, fuzer_id from crosswalk where source = 'pid' and record_type = 'sheet'")}
+    out: list[tuple[str, dict]] = []
+
+    def add(sk: str, tag: str, check: str, issue: dict, question: str, **kw):
+        digest = hashlib.sha1(issue["detail"].encode()).hexdigest()[:12]
+        out.append((f"{sk}:{tag}:{check}:{digest}", {
+            "check": check, "sheet": sk, "document": docs.get(sk), "tag": tag, "fuzer_id": issue["point_id"],
+            "point": issue.get("point"), "detail": issue["detail"], "question": question, **kw}))
+
+    prefix = "pid:sheet:"
+    for i in drawing_issues:
+        if not (i.get("record") or "").startswith(prefix) or "#" not in i["record"]:
+            continue
+        sk, tag = i["record"][len(prefix):].split("#", 1)
+        if i["detail"].endswith("but no alarm source has them"):
+            add(sk, tag, "alarm_unset", i, f"On {sk}, {tag}: {i['detail']}. Should the alarm be configured, or is "
+                f"the drawing out of date?", type=i["type"])
+        else:
+            add(sk, tag, "alarm", i, f"On {sk}, {tag}: {i['detail']}. Which is right, the drawing or the configured "
+                f"alarm?", type=i["type"])
+    for sk, r in sorted(_readings(conn, sheets).items()):
+        on = {m["key"]: m["on"] for m in r.get("mentions", []) if m.get("on") and m.get("key")}
+        for p in placements(conn, on):
+            where = ", ".join(f"{'/'.join(x['sources'])} has it under {x['parent']}" for x in p["register"])
+            add(sk, p["tag"], "placement", p, f"{sk} shows {p['tag']} on {p['drawn_on']}, but {where}. Which is "
+                f"right, the drawing or the register?", drawn_on=p["drawn_on"], register=p["register"])
+    return out
 
 
 def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:

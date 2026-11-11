@@ -58,7 +58,7 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -84,6 +84,13 @@ export interface PidConnectionPayload {
   line: string; from: string | null; to: string | null; question: string;
 }
 
+/** Where a drawing and the DCS, AF or SAP disagree (#475): an alarm and trip setting, or where an instrument sits. */
+export interface PidMismatchPayload {
+  check: "alarm" | "alarm_unset" | "placement"; sheet: string; document: string | null; tag: string;
+  fuzer_id: string; point: string | null; detail: string; question: string; type?: string;
+  drawn_on?: string; register?: { parent: string; sources: string[] }[];
+}
+
 export interface HeldLoadPayload {
   dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
 }
@@ -95,6 +102,7 @@ export type ReviewItem =
   | { id: number; kind: "curve"; subject: string; status: string; label: null; payload: CurvePayload }
   | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
   | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
+  | { id: number; kind: "pid_mismatch"; subject: string; status: string; label: string | null; payload: PidMismatchPayload }
   | {
       id: number;
       kind: "conflict";
