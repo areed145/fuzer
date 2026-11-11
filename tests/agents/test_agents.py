@@ -417,7 +417,7 @@ def test_skills_are_valid():
     assert found == ["alarms-and-instruments", "analysis", "answering", "back-pressure", "charts",
                      "constraint-management", "gas-lift", "incident-evidence", "integrity", "job-readiness",
                      "operations-summary", "production-efficiency", "production-engineering",
-                     "production-surveillance", "reliability", "shift-handover", "troubleshooting", "turnarounds",
+                     "production-surveillance", "reliability", "shift-handover", "troubleshooting", "turnarounds", "upset-correlation",
                      "well-review", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
