@@ -505,6 +505,30 @@ def migrate(conn, process_id: int, definition_id: int, by: str, mapping: dict[st
     return {"process_id": process_id, "definition_id": definition_id, "version": new["version"]}
 
 @_op
+def attach_process(conn, item_id: int, process_key: str, data: dict, by: str = SYSTEM,
+                   now: datetime | None = None) -> dict | None:
+    """Put an open case that has no process onto a published one (#509: the cases opened before routing ran every
+    kind of work as a process). Whoever held it still holds its step, and a due date it had stays the step's; a case
+    with no due date is due by the step's SLA counted from now, so moving it doesn't make it overdue at once. None
+    when the case is closed or already has a process."""
+    run = _Run(conn, by, now)
+    item = conn.execute("select * from work_item where id = %s for update", (item_id,)).fetchone()
+    if item is None or item["state"] in ("done", "cancelled") or conn.execute(
+            "select 1 from work_process where item_id = %s limit 1", (item_id,)).fetchone():
+        return None
+    d = _published(conn, process_key)
+    proc = _start(run, d, dict(data), item_id, correlation_key=_correlation(_definition(conn, d["id"]), data))
+    for t in conn.execute("select * from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                          (item_id,)).fetchall():
+        keep = {k: v for k, v in (("assignee", item["assignee"]), ("due_at", item["due"])) if v is not None}
+        if keep:
+            _update(run, t, **keep)
+    run.event("adopted", proc, process_key=process_key, assignee=item["assignee"], role=item["role"])
+    run.flush()
+    return {"item_id": item_id, "process_id": proc["id"], "process_key": process_key}
+
+
+@_op
 def close_item(conn, item_id: int, state: str, by: str, reason: str | None = None, now: datetime | None = None) -> dict:
     """Finish or cancel a case from outside its process (its condition cleared, the field did it): a case without a
     process moves to `state`; one with a process has its open steps ended with the reason and the case moves to

@@ -1,5 +1,6 @@
 """REST API: search, entity detail, lookup, flow tracing, the review queue and the work engine."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -45,6 +46,10 @@ async def lifespan(app):
     with db.connect() as conn:
         db.init_schema(conn)
         work.load_defaults(conn)
+        from ..ops import routing
+        moved = routing.adopt_open_cases(conn)  # cases opened plain before #509 run as their process now
+        if moved["moved"] or moved["failed"]:
+            logging.getLogger(__name__).info("open cases moved onto processes: %s", moved)
         access.seed(conn)
         source_catalog.ensure(conn)
         conn.commit()

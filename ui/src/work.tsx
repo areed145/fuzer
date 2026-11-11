@@ -95,6 +95,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
     case "cancelled": return { text: <>cancelled the process</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "migrated": return { text: <>moved the process to v{d.version}</> };
+    case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step ?? e.element}</strong> went to {d.to} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{e.element ?? "a step"}</strong> went to {d.to} instead of {d["for"]}, who is away</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <p className="small">{d.reason}</p> };
