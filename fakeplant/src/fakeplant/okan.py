@@ -238,6 +238,10 @@ ASSISTANT_QUESTIONS = [
     {"domain": "incident evidence", "question": "Give me the recorded timeline and corrective work for the March 2024 "
      "trips on 20-K-2200B.", "must_mention": ["20-K-2200B", "bearing", ["2024-03", "March 2024"]],
      "specialists": ["hse-incident-management"]},
+    # The planted records mismatch (#344): downtime booked with no log or notification, and a logged stop with none.
+    {"domain": "shift handover", "question": "Before handover at the end of December 2025: is any downtime in the last "
+     "week missing from the log or notifications, or logged with no downtime record?",
+     "must_mention": ["40-V-2002", "OK-J09-02", ["tolerance", "within", "12 h"]], "specialists": ["field-operations-facilities"]},
     {"domain": "reporting", "question": "Summarize 2025 production, losses and the work backlog for the asset manager, "
      "with dates and gaps.", "must_mention": ["Sm3", "%", "overdue"], "specialists": ["asset-performance-reporting"]},
     {"domain": "missing data: regulatory", "question": "Are we compliant with our flaring permit?",
@@ -711,6 +715,13 @@ def generate(out, seed: int = 11) -> dict:
         when = f"{day.isoformat()}T{lrng.choice(['06', '12', '18'])}:00:00"
         text, about = lrng.choice(templates)(w, sat)
         log(when, text, about=about)
+
+    # Records that don't agree (#344), in the last week of data: the ST2 production separator trips and the deferment
+    # is booked, but nobody logs it or raises a notification; a well is logged shut in and no downtime is booked for it.
+    lost(FIELD, "2025-12-27T02:40", 6, "PROC-TRIP", "ST2 production separator 40-V-2002 tripped on high level, "
+         "satellite shut in; restarted after 6h", 1200)
+    log("2025-12-29T19:00:00", "OK-J09-02 shut in on high casing pressure, opened up again after 3 hours.", "PP CRO",
+        (["OK-J09-02"], ["shut_in"]))
 
     # DAY001: field figures and the day's events.
     by_day: dict[str, list[dict]] = {}

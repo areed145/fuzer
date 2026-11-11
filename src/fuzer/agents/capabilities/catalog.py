@@ -277,7 +277,8 @@ SKILL_CATALOG = (
         f"{_FIELD}/shift-handover", (_FIELD,),
         (FIELD_OPERATOR, FACILITIES_ENGINEER),
         "Operator log events, notifications, downtime, the daily report and excursions for a stated window.",
-        "A dated handover of what changed, what is unresolved and what to verify in the field.",
+        "A dated handover of what changed, what is unresolved, which records don't agree and what to verify in the "
+        "field.",
         "Summarises records; the accountable shift supervisor owns the handover."),
     SkillDefinition(
         f"{_FIELD}/alarms-and-instruments", (_FIELD,),

@@ -331,6 +331,8 @@ def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:
     out["trips"] = {"trips": tripped["trips"], "raised": len(tripped["raised"])}
     watched = rotating.watch(conn)
     out["machine_health"] = {"raised": len(watched["raised"]), "checked": watched["checked"]}
+    from ..analysis import records  # downtime with no log or notification, and logged stops with no downtime (#344)
+    out["records_gaps"] = {"raised": len(records.watch(conn)["raised"])}
     board.refresh(conn, pack)
     conn.commit()
     return out

@@ -68,6 +68,17 @@ def what_changed(since: str, until: str | None = None, limit: int = 20) -> dict[
         return _plain(operations.what_changed(conn, since, until, min(limit, 100)))
 
 
+@capability("field-operations-facilities", "asset-performance-reporting", kind="calc")
+def records_mismatch(since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """Records that don't agree: downtime records with no operator log entry (or, for equipment reasons, no
+    notification) about the same plant within the tolerances, and log entries that say something stopped with no
+    downtime record. States the tolerances, the window and the time the logs run to. Each mismatch is a question for
+    the shift, not proof of a missing event. since / until ISO times (default: the 30 days up to the latest log)."""
+    from ...analysis import records
+    with db.connect() as conn:
+        return _plain(records.mismatch(conn, since, until))
+
+
 @capability(
     "production-surveillance", "wells-subsurface", "maintenance-integrity", "work-management-supply-chain",
     "asset-performance-reporting", kind="query"

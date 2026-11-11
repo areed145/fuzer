@@ -391,6 +391,8 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         context.log.info(f"opportunity scan: {opportunities.scan(conn, pack)}")
         from ..analysis import rotating
         context.log.info(f"machine health: {rotating.watch(conn)}")
+        from ..analysis import records
+        context.log.info(f"records gaps: {records.watch(conn)}")
         board.refresh(conn, pack)
 
 

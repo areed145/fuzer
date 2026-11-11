@@ -52,6 +52,10 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `stewardship.bulk_accept_at` | float | `0.0` | 0 to 1 | Offer to accept, in one step, Claude's master data proposals at or above this confidence (0: never; set it once the proposal evals show they hold at that level). |
 | `handover.shift_times` | str | `06:00,18:00` |  | Shift changes, as local times in the project's timezone (comma separated). At each one a shift handover is drafted for the ops lead queue (empty: off). |
 | `exceptions.join_hours` | int | `48` | 0 to 720 | An exception about an asset (or the unit it is part of) whose open case another source's exception raised within this many hours joins that case, so one event reported by several systems is one case (0: never join). |
+| `records.log_tolerance_hours` | int | `12` | 0 to 168 | Records mismatch: hours either side of a downtime record (and during it) an operator log entry about the same plant counts as its log. |
+| `records.notification_tolerance_days` | int | `3` | 0 to 60 | Records mismatch: days either side of a downtime record a notification about the same plant counts as its notification. |
+| `records.notification_categories` | str | `equipment` |  | Records mismatch: downtime reason categories that call for a maintenance notification (comma separated; the pack's downtime_reasons give each reason its category). |
+| `records.lookback_days` | int | `7` | 1 to 90 | Records mismatch: days before the latest log entry whose mismatches are raised for the shift (older ones stay in the calc). |
 | `intake.sap_notifications.max_age_days` | int | `60` | 1 to 3650 | Only raise notifications created this many days before the latest data (an older backlog is a planning question). |
 | `intake.sap_notifications.due_hours` | str | `1:24,2:72,3:336,4:720` |  | When a dispatched SAP notification is due, by its SAP priority: priority:hours, comma separated, counted from when Fuzer raised it (empty: no due date). |
 
