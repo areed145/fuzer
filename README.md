@@ -497,7 +497,8 @@ Screens:
   reviewed and published on its page.
 - **Ask**: the operations assistant. **Lessons**: lessons learned. **Studies**:
   correlation and clustering studies.
-- **Work board** (Operations): open work ranked by value and risk.
+- **All work** (Work): the IOC's one list of everything that came in, with views for to dispatch, with the field,
+  back from the field, in progress, closed and ranked by value and risk.
 - **Admin**: **Ontology** is the data model: a diagram of the register (kinds
   sized by count, link types with counts) and the kinds and link types
   themselves, defined and described there, with what a new dataset brings that
@@ -507,7 +508,7 @@ Screens:
 - **Workflows**: **Inbox** is everything waiting for you, most urgent first
   (escalated to you, assigned to you or to someone you cover for, unclaimed in
   your roles), with inline claim and bulk actions; a task opens as a page with its
-  form, evidence, hand-off and where it sits in its process. **Cases** lists every
+  form, evidence, hand-off and where it sits in its process. All work's **In progress** and **Closed** views list every
   piece of work (filter by kind, state, person or role, overdue; bulk reassign);
   a case page has its process diagram, open steps, details, history and actions
   (reassign, priority, due date, close, cancel). **Processes** lists each process

@@ -42,9 +42,8 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader subtitle={<>The workflow steps waiting on you: assigned to you, or unclaimed in your roles' queues. Every
-        case is under <a href={href("/cases")}>Cases</a>; all outstanding work ranked by value is
-        the <a href={href("/board")}>Work board</a>; register data waiting for a decision is
+      <PageHeader subtitle={<>The workflow steps waiting on you: assigned to you, or unclaimed in your roles' queues. Everything
+        that came in, who holds it and what it is worth is under <a href={href("/exceptions")}>All work</a>; register data waiting for a decision is
         in <a href={href("/review")}>Data review</a>.</>}>Inbox</PageHeader>
       <p className="row small">
         <UIBadge className="badge">{d.mine.length} assigned to you</UIBadge>
@@ -64,7 +63,7 @@ export function InboxPage() {
         </Select>
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
-      {!all.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/cases")}>All cases</a></p>}
+      {!all.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/exceptions", { list: "progress" })}>All cases</a></p>}
       {!all.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />

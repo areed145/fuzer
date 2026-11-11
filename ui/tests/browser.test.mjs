@@ -200,8 +200,8 @@ test("Wave 1 disabled owners retain status but have no effective workflow roles 
 
 test("Wave 1 account search updates the URL without adding per-character Back steps", async () => {
   await usersFixture();
-  await page.goto(`${url}/#/board`);
-  await page.getByRole("heading", { name: "Work board", exact: true }).waitFor();
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
   await page.evaluate(() => { location.hash = "#/users"; });
   const search = page.getByRole("searchbox", { name: "Find accounts", exact: true });
   await search.waitFor();
@@ -211,7 +211,7 @@ test("Wave 1 account search updates the URL without adding per-character Back st
   await page.reload();
   assert.equal(await search.inputValue(), "participant");
   await page.goBack();
-  await page.getByRole("heading", { name: "Work board", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
 });
 
 test("Home guides empty-register setup and routes recover instead of silently showing Browse", async () => {
@@ -875,7 +875,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Demo", exact: true }).waitFor();
-  const expected = ["#/", "#/demo", "#/browse", "#/downtime", "#/board", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/demo", "#/browse", "#/downtime", "#/exceptions", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
@@ -896,12 +896,12 @@ test("optional Demo preserves existing primary destinations and specialist route
     ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
-  await nav.locator('a[href="#/board"][aria-current="page"]').waitFor();
+  await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/board", "#/inbox", "#/field", "#/exceptions", "#/handover", "#/plan", "#/turnaround", "#/cases", "#/review",
-     "#/masterdata", "#/processes"]);
+    ["#/exceptions", "#/inbox", "#/field", "#/handover", "#/plan", "#/turnaround", "#/review", "#/masterdata",
+     "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -929,7 +929,7 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Demo", href: "#/demo", heading: "Demo", area: "Demo pages", current: "Demo tour" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
-    { label: "Work", href: "#/board", heading: "Work board", area: "Work pages", current: "Work board" },
+    { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
     { label: "Settings", href: "#/settings", heading: "Settings", area: "Settings pages", current: "Application settings" },
@@ -1526,8 +1526,8 @@ test("Inbox says which clock due dates use when the loaded data ends well before
 test("the page heading takes focus on load without drawing a focus ring (#391)", async () => {
   await page.goto(`${url}/#/`);
   await page.locator("#main-content h1").first().waitFor();
-  await page.evaluate(() => { location.hash = "#/cases"; });  // as a pasted link or Back does
-  const heading = page.getByRole("heading", { level: 1, name: "Cases" });
+  await page.evaluate(() => { location.hash = "#/exceptions"; });  // as a pasted link or Back does
+  const heading = page.getByRole("heading", { level: 1, name: "All work" });
   await heading.waitFor();
   await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   assert.equal(await heading.evaluate((h) => getComputedStyle(h).outlineStyle), "none");
@@ -1937,7 +1937,7 @@ test("Home leads with reader destinations, labels times and links each item to i
     await page.getByRole("link", { name: "schema mapping field · 3", exact: true }).waitFor();
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
-    assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/board?view=kind");
+    assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
     await page.getByText("Detected from 2025-12-21 03:00 UTC", { exact: false }).waitFor();
     await page.getByText("Detected from 2025-12-22T03:00 (timezone not supplied)", { exact: false }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -2099,7 +2099,10 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.route("**/exceptions/7/dispatch", (route) => { dispatched.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
-  await page.getByText("1 waiting to be dispatched").waitFor();
+  const views = page.getByRole("navigation", { name: "All work views", exact: true });
+  await views.getByRole("link", { name: "To dispatch 1", exact: true }).waitFor();  // the count shows before the view opens
+  assert.equal(await views.getByRole("link", { name: "To dispatch 1", exact: true }).getAttribute("aria-current"), "page");
+  await page.getByText("Exception types: what raises work and where it goes").click();
   await page.getByText("tag:20-K-2100B").waitFor();  // what another system's refs should look like
   const queue = page.getByLabel("Queue");  // a new type routes to a known queue, picked, not typed
   await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
@@ -2151,9 +2154,51 @@ test("the field's report sits above the IOC's decision, and operators are only o
   await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/exceptions`);
-  await page.getByRole("button", { name: "1 back from the field" }).click();
+  await page.getByRole("navigation", { name: "All work views", exact: true }).getByRole("link", { name: "Back from the field 1" }).click();
   await page.getByText("Seal weeping on P-101").waitFor();
   assert.equal(await page.getByText("Compressor trip").count(), 0);
+});
+
+test("All work holds the Work board and Cases as views, and their old links land on the same view (#502)", async () => {
+  const exc = (id, extra) => ({ id, type: "upset", key: `k${id}`, source: "sre", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z",
+    last_seen: "2026-11-08T07:00:00Z", item_id: null, assignee: null, evidence: {}, ...extra });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [
+    exc(1, { title: "Compressor trip" }),
+    exc(2, { title: "Packing leak", item_id: 21, role: "operator" }),
+    exc(3, { title: "Seal weeping", item_id: 22, assignee: "erin",
+      evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } }),
+  ] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "otto", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
+  await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/exceptions`);
+  const views = page.getByRole("navigation", { name: "All work views", exact: true });
+  await views.getByRole("link", { name: "All open 3", exact: true }).waitFor();
+  await page.getByText("Compressor trip").waitFor();
+  assert.deepEqual((await views.locator("a").allTextContents()).map((t) => t.trim()),
+    ["To dispatch 1", "With the field 1", "Back from the field 1", "All open 3", "In progress", "Ranked by value", "Closed"]);
+  await page.getByText("Compressor trip").waitFor();
+  assert.equal(await page.getByText("Packing leak").count(), 0);
+  await views.getByRole("link", { name: "With the field 1" }).click();
+  await page.getByText("Packing leak").waitFor();
+  assert.equal(await page.getByText("Compressor trip").count(), 0);
+
+  await page.goto(`${url}/#/board?view=kind`);
+  await page.waitForURL(/#\/exceptions\?list=ranked&view=kind$/);
+  assert.equal(await views.getByRole("link", { name: "Ranked by value" }).getAttribute("aria-current"), "page");
+  await page.getByRole("heading", { level: 1, name: "All work", exact: true }).waitFor();
+  assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
+  await page.goto(`${url}/#/cases?state=closed&type=upset`);
+  await page.waitForURL(/#\/exceptions\?list=closed&type=upset$/);
+  await page.goto(`${url}/#/cases`);
+  await page.waitForURL(/#\/exceptions\?list=progress$/);
+  await page.getByText("No cases match.").waitFor();
+  const work = page.getByRole("navigation", { name: "Work pages", exact: true });
+  assert.equal(await work.getByRole("link", { name: "All work", exact: true }).getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
 test("a fresh demo offers a sample IOC team, an agent step with no worker can be taken over, evidence reads as words", async () => {

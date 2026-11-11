@@ -14,7 +14,7 @@ in local mode, **You are** records who makes decisions (attribution, not sign-in
 flowchart LR
   home["Home"] --> explore["Explore<br><small>Browse, Map, Network, Ontology</small>"]
   home --> investigate["Investigate<br><small>Downtime, Ask, Incidents,<br>Daily reports, Lessons, Studies</small>"]
-  home --> work["Work<br><small>Work board, Inbox, Cases,<br>Data review, Processes</small>"]
+  home --> work["Work<br><small>All work, Inbox, My jobs,<br>Data review, Processes</small>"]
   home --> sources["Sources<br><small>Datasets, Systems & connections, Rules</small>"]
   home --> jobs["Jobs"]
   home --> settings["Settings<br><small>Application settings, Users</small>"]
@@ -81,7 +81,8 @@ agent rewrites the draft when the agent worker runs; here it is still the templa
 
 ## Work
 
-**Work board** ranks every outstanding piece of work by value: SAP backlog, PM and inspection plans,
+**All work** is the IOC's one list, one row per event, with views for what needs dispatching, what is with
+the field, what came back, what is in progress, what is closed, and everything ranked by value. **Ranked by value** ranks every outstanding piece of work: SAP backlog, PM and inspection plans,
 incidents and upsets, workflow items, opportunities, reviews and projects. **Why** opens the value
 breakdown, its records and rank history, and lets a person pin a rank with a reason.
 
@@ -94,7 +95,7 @@ page with its form, its evidence, where it sits in its process and the case hist
 
 ![A triage task on an SRE-detected upset](assets/screens/task.png){ loading=lazy }
 
-**Cases** lists every work item, open or closed; a case page shows its process diagram with the path taken
+All work's **In progress** and **Closed** views list every work item; a case page shows its process diagram with the path taken
 and the step it waits on, and takes reassign, priority, due date, close and cancel.
 
 ![An upset case and its process](assets/screens/case.png){ loading=lazy }

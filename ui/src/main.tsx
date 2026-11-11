@@ -7,7 +7,6 @@ import { StrictMode, Suspense, lazy, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { href, useRoute } from "./lib";
 import { AskPage } from "./pages/Ask";
-import { BoardPage } from "./pages/Board";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
 import { SourcesPage } from "./pages/sources";
@@ -20,13 +19,13 @@ import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
 import { FieldPage } from "./pages/Field";
-import { ExceptionsPage } from "./pages/Exceptions";
+import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
 import { TurnaroundPage } from "./pages/Turnaround";
 import { TaskPage } from "./pages/workflows/Task";
-import { CasePage, CasesPage } from "./pages/workflows/Cases";
+import { CasePage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
 import { Identity } from "./Identity";
 import { AreaNavigation, Breadcrumbs, Sidebar } from "./nav";
@@ -78,6 +77,11 @@ function App() {
     }
     if (section === "settings" && query.get("view") === "people") {
       location.replace(href("/users", { view: "workflow" }));
+      return;
+    }
+    // The Work board and the Cases list are views of All work now (#502); their links land on the same view.
+    if (section === "board" || (section === "cases" && !path[1])) {
+      location.replace(legacyWorkHref(section, query));
       return;
     }
     if (section !== "work") return;
@@ -158,7 +162,7 @@ function App() {
           ) : section === "field" ? (
             <FieldPage />
           ) : section === "exceptions" ? (
-            <ExceptionsPage query={query} />
+            <AllWorkPage query={query} />
           ) : section === "masterdata" ? (
             <MasterDataPage query={query} />
           ) : section === "handover" ? (
@@ -169,8 +173,6 @@ function App() {
             <TurnaroundPage />
           ) : section === "cases" && path[1] ? (
             <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
-          ) : section === "cases" ? (
-            <CasesPage query={query} />
           ) : section === "processes" && path[1] === "forms" && path[2] ? (
             <FormPage key={path[2]} formKey={path[2]} query={query} />
           ) : section === "processes" && path[1] ? (
@@ -193,8 +195,8 @@ function App() {
             <SettingsPage query={query} />
           ) : section === "users" || section === "access" ? (
             <UsersPage query={query} />
-          ) : section === "board" ? (
-            <BoardPage query={query} />
+          ) : section === "board" || section === "cases" ? (
+            null  /* redirecting to All work */
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (

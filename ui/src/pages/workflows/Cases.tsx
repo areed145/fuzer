@@ -47,8 +47,11 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
   </details>;
 }
 
-export function CasesPage({ query }: { query: URLSearchParams }) {
-  const [state, setState] = useState(query.get("state") ?? "open");
+/** The In progress and Closed views of All work (#502), formerly the Cases list. With `fixedState` the view sets the
+ * state and the page's own header and state tabs are left out. */
+export function CasesPage({ query, fixedState }: { query: URLSearchParams; fixedState?: "open" | "closed" }) {
+  const [chosen, setState] = useState(query.get("state") ?? "open");
+  const state = fixedState ?? chosen;
   const [type, setType] = useState(query.get("type") ?? "");
   const [who, setWho] = useState(query.get("who") ?? "");
   const [overdue, setOverdue] = useState(query.get("overdue") === "1");
@@ -63,17 +66,19 @@ export function CasesPage({ query }: { query: URLSearchParams }) {
   const rows = [...(list.data?.items ?? [])].sort(state === "open" ? byUrgency : () => 0);
   return (
     <section>
+      {fixedState ? <p className="muted">{fixedState === "open"
+        ? "Every case still open, with who holds its open steps. Open one for where its process is and its history."
+        : "Finished and cancelled cases, newest first."}</p> : <>
       <PageHeader>Cases</PageHeader>
       <p className="muted">Every piece of work: an upset, a daily report, a source issue, an IOW breach. Each moves through its
         process; open one for where it is, who has it and its history. The steps waiting on you are in
-        your <a href={href("/inbox")}>Inbox</a>; all outstanding work ranked by value, workflow or not, is
-        the <a href={href("/board")}>Work board</a>.</p>
+        your <a href={href("/inbox")}>Inbox</a>.</p></>}
       <ScenarioClock />
-      <NewWorkItem onCreated={list.reload} />
+      {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <div className="row wrap">
-        <div className="tabs">
+        {!fixedState && <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
-        </div>
+        </div>}
         <label className="small row">Kind
           <Select value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">every kind</option>
@@ -142,7 +147,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   if (!it || item.error) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
     <Status loading={item.loading} error={item.error} onRetry={item.reload} />
-    <a href={href("/cases")}>Return to Cases</a></section>;
+    <a href={href("/exceptions", { list: "progress" })}>Return to All work</a></section>;
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};

@@ -15,7 +15,8 @@ The Workflows section is where people do it and manage it:
   someone away you cover for), unclaimed in your roles' queues. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
   history. Who you are is set once, in the sidebar.
-- **Cases** (`#/cases`): every work item, open or closed, with filters and bulk reassign; a case page shows its
+- **Cases** (All work's In progress and Closed views, `#/exceptions?list=progress`; `#/cases` redirects there): every
+  work item, open or closed, with filters and bulk reassign; a case page (`#/cases/:id`) shows its
   process diagram, open steps, details and history, and takes reassign, priority, due date (on a running process,
   its open steps' SLA clock), close and cancel.
 - **Processes** (`#/processes`): each process with its health (running, steps waiting and overdue, median and p90
@@ -99,7 +100,7 @@ API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|tra
 
 ## Exceptions, dispatch and the field
 
-Work from every source arrives as an **exception** (`#/exceptions`): one per open condition, matched to the assets
+Work from every source arrives as an **exception** on **All work** (`#/exceptions`, #502): one per open condition, matched to the assets
 it concerns. Fuzer's detectors raise them (SRE upsets, IOW breaches, source problems), open SAP notifications with no
 work order are raised on each register refresh (`intake.sap_notifications`, on by default, for notifications from the
 last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
@@ -191,7 +192,8 @@ indexes on rank, area and unit.
 
 ![The work board, ranked by value](assets/screens/board.png){ loading=lazy }
 
-**Board page.** `#/board` in the UI has five views: ranked (the default), by owner (the person or
+**All work, Ranked by value.** The board is a view of All work (`#/exceptions?list=ranked`; old `#/board` links
+redirect there, filters kept). It has five groupings: ranked (the default), by owner (the person or
 role its work item is with), by area, by type, and new since the viewer's last visit. The views come from
 facet counts under the same filters. A viewer can save named filters and filter by words in the title.
 Each card shows its rank, why it moved, its value and owner, and any pin with its reason. "Why" opens:
