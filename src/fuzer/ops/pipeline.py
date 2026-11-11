@@ -70,6 +70,7 @@ def read_pending(conn, pack: Pack, report: Callable[[str], None]) -> None:
                 for err in out.get("errors", [])[:3]:
                     report(f"Could not read some {label}: {err}. Inspect recorded readings before a deliberate retry.")
             report(f"{llm.provider()} read {stored:,} item(s) for about ${spent:.2f}")
+    llm_curves.queue_reviews(conn, pack)
     if readings_newer(conn):
         report("Rebuilding the register with cached LLM readings ...")
         rebuild(conn, pack)

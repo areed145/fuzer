@@ -12,6 +12,7 @@ so it can say "not sure" but cannot invent an entity.
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from dataclasses import dataclass, field
 
 from psycopg.types.json import Jsonb
@@ -322,7 +323,8 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                   lambda cid, message: handle(by_id[cid], message), totals, errors, poll_seconds)
     else:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(call, client, _request(model, effort, chunk)): chunk for chunk in chunks}
+            futures = {pool.submit(copy_context().run, call, client, _request(model, effort, chunk)): chunk
+                       for chunk in chunks}
             for fut in as_completed(futures):
                 try:
                     handle(futures[fut], fut.result())
