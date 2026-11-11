@@ -15,6 +15,17 @@ description: Production surveillance and optimisation - how production is trendi
    curtailment - recoverable) and **decline** (potential itself falling: reservoir, water cut - managed
    by wells work). The daily report's potential vs actual shows deferment; well tests show decline.
 4. Confirm with the operator logs: `get_events` on the units or wells involved around the dates.
+5. **Where is the oil going that nobody recorded?** `calc("deferment_attribution", scope)` (a jacket, area or the
+   facility; `until` for a date) puts each oil well's latest test against the decline through its earlier tests and
+   gives one cause per well: recorded deferment, suspect test, water, flowline restriction, back-pressure, lift,
+   choke, or nothing on record, summed by cause. `unexplained_shortfall` (30 % or more with nothing on record) is
+   the finding: losses the deferment Pareto never sees. Shortfalls within the tests' own scatter don't count, so a
+   small "nothing on record" total is noise, not a cause.
+
+**Escalate** a suspect test before it reaches a decline, an allocation or a lift change; a cause that cascades
+(a compressor trip showing as lift losses on several jackets); and any shortfall growing month on month with
+nothing on record. **Don't trust** a single test as a trend, a test older than a quarter as today's rate, or a
+cause the attribution gives where its evidence line is empty.
 
 **Optimisation levers to look for:** lift gas allocation (`gas_lift_network`: move gas from wells
 with little response to wells with a lot, same header; load `gas-lift`), wells with lift gas but

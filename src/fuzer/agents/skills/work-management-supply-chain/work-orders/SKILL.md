@@ -21,5 +21,9 @@ basic finish date; overdue means past it at `as_of`. Priority 1 is most urgent.
 4. **Unplanned notifications** are risk without a plan; name them and their units.
 5. For one unit: `maintenance_history(ref)` shows its notifications and orders over time.
 
+**Escalate** priority 1-2 orders past basic finish on a unit that is running, statutory inspection work past due,
+and a notification on a bad actor with no order. **Don't trust** an order's status as the job's state (TECO says it
+was closed, not that it worked) or a due date as a condition finding.
+
 Report: backlog size and shape (by priority, type, age), what is overdue and why it matters, the
 notifications that need an order, and a short ranked list of what to do first.

@@ -48,7 +48,8 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 )
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",
-                       "surge", "heat_rate", "motor_load", "rotating_health"], ref: str,
+                       "surge", "heat_rate", "motor_load", "rotating_health", "test_check",
+                       "deferment_attribution", "vessel_loading", "corrosion_circuit"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -75,7 +76,15 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     nameplate rating and service factor on its SAP equipment record, hours above each (motor_overload,
     motor_high). rotating_health (pump, compressor or other machine): every check that applies with basis, data
     dates and confidence, a status (act, watch, ok), what couldn't be checked and why, and recommendations: start
-    here for "how is this machine". The plot_* chart of the same name shows the fit."""
+    here for "how is this machine". test_check (oil well): the latest test against what its choke passes at the
+    day's pressures, its inflow and its gas lift curve (test_suspect: retest before acting; off_lift_curve).
+    deferment_attribution (jacket, area or facility): each well's latest test below its decline with one cause
+    (recorded deferment, suspect test, water, flowline restriction, back-pressure, lift, choke, nothing on record)
+    summed by cause (unexplained_shortfall). vessel_loading (separator, scrubber or meter): what the wells upstream
+    offer at their tested rates against its standing rating in its own units, now and 90 days before (overloaded,
+    near_capacity). corrosion_circuit (pipeline): the lines in its service, each with its API 570 rate, remaining
+    life and next inspection date (retire_soon, inspection_overdue, localised); min_required_mm replaces the
+    assumed retirement thickness. The plot_* chart of the same name shows the fit."""
     from ...analysis import calcs
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)

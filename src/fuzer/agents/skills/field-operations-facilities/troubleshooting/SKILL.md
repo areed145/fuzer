@@ -42,6 +42,10 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    **How it spread.** `plot_state_timeline(since, until, scope)` shows each unit's state as swimlanes: which
    stopped first and what followed. `alarm_analysis` gives the alarm load (floods, chattering, standing
    alarms, bad actors); `trip_analysis` the stops, starts and failed starts per unit.
+   **Is the vessel overloaded?** Carryover and level upsets follow load: `calc("vessel_loading", tag)` gives a
+   separator's or scrubber's loading against its standing rating and how it moved over 90 days. A vessel near or
+   over its rating (`near_capacity`, `overloaded`) makes carryover a load problem first and an instrument problem
+   second.
 4. **History repeats.** Similar incidents with the same failure mode on the same unit mean the earlier
    fix didn't hold; say how long it held. `maintenance_history` shows what was done each time.
 5. **Upstream and downstream.** A trip often starts elsewhere: `trace_flow(ref, "up")` finds what feeds
@@ -56,6 +60,10 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
 6. **Checks.** Recommend checks in order of likelihood and cost, each tied to the evidence and to a
    lesson or manual section where one exists (cite the section id and page). Include spares: say if
    the parts for the likely fix are in stock (`spare_parts`).
+
+**Escalate** a unit still running on the condition that tripped it, a repeat of a failure mode whose fix didn't
+hold, or a safety-related instrument that can't be trusted. **Don't trust** synthetic process values as plant
+evidence, one transmitter without `instrument_health`, or a cause whose first change came after the trip.
 
 Report: what happened (timeline with times), the most likely cause and the evidence for it, other
 causes not yet ruled out, checks to make, and anything that recurs.
