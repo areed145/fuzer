@@ -167,6 +167,45 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               </ul>
             </>
           )}
+          {(g.checks ?? []).length > 0 && (
+            <>
+              <h3>Alarm settings that differ from the drawing</h3>
+              <ul>
+                {g.checks!.map((c, i) => (
+                  <li key={i}>
+                    <a className="mono" href={entityHref(c.point_id)}>{c.tag}</a>{" "}
+                    <span className="muted small">{c.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {(g.notes ?? []).length > 0 && (
+            <>
+              <h3>Notes</h3>
+              <ol className="drawing-notes">
+                {g.notes!.map((n, i) => (
+                  <li key={i} value={n.n}>
+                    {n.text}
+                    {n.tags.length > 0 && <span className="muted small mono"> {n.tags.join(", ")}</span>}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+          {(g.tables ?? []).map((t, i) => (
+            <details key={i} className="drawing-table">
+              <summary>{t.title || "Table"} <span className="muted small">{t.rows.length} rows</span></summary>
+              <div className="table-scroll">
+                <table className="small">
+                  <thead><tr>{t.columns.map((c, j) => <th key={j}>{c}</th>)}</tr></thead>
+                  <tbody>
+                    {t.rows.map((r, j) => <tr key={j}>{r.map((c, k) => <td key={k} className="mono">{c}</td>)}</tr>)}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ))}
           {g.findings.length > 0 && (
             <>
               <h3>Findings</h3>

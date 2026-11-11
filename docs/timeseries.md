@@ -65,7 +65,9 @@ running, so a stopped pump's low flow, or a standby pump, raises nothing.
 **Checks** (`limits.issues`, `fuzer limits issues`, `/limits/issues`): sources disagreeing (AF not
 updated after an MOC), out of order (Hi above HiHi), disabled, standing (inside the learned normal
 range), implausible (many times the normal value: often psi typed against barg), and missing (no
-alarm limits where most points measuring the same thing have some). Limits flagged standing,
+alarm limits where most points measuring the same thing have some), and drawing: a P&ID's alarm and
+trip table (landed as `design` limits, source `pid`, that never count themselves) differs from the alarm
+that counts, or shows settings no source configures. Limits flagged standing,
 implausible or out of order aren't used for excursions.
 
 **Excursions** (`limits.scan`, `fuzer limits scan`, the `excursion` table): stretches outside a
@@ -85,4 +87,6 @@ stories cross them: train A's fouled 3rd stage after-cooler breaches IOW-001 (cr
 on hot afternoons in summer 2025 and IOW-004 (standard) for weeks; the inlet separator's high level in
 November 2024. Planted faults (answer key `limits.json`): AF Hi typed in psi, DCS limits moved without
 AF, alarms disabled, Hi above HiHi, a Lo inside the normal range, points with no limits, and an IOW on
-a tag that doesn't exist. The checks find all of them and nothing else (learning on a quiet quarter).
+a tag that doesn't exist. The P&IDs' alarm and trip tables show the limits as designed in 2019, so
+every alarm moved since, or never configured, also disagrees with its drawing. The checks find all of
+them and nothing else (learning on a quiet quarter).

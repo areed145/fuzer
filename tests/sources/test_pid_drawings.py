@@ -56,3 +56,33 @@ def test_in_sheet_lines_stay_scorable(truth):
     for k in truth.values():
         pairs = {(c["from"], c["to"]) for c in k["connections"] if c["to"] and not c.get("offpage")}
         assert {(ln["from"], ln["to"]) for ln in k["lines"]} == pairs
+
+
+def test_tables_and_notes_in_the_answer_key(tmp_path):
+    """The foot carries an equipment data table, an alarm and trip table and numbered notes (#475), each in the key
+    with where it sits; a poor scan's torn corner hides the table rows under it."""
+    import random
+
+    from fakeplant.common import Tag
+
+    from fakeplant import pid
+
+    tags = [Tag("20", "V", 2001, ""), Tag("20", "PT", 2001, ""), Tag("20", "LT", 2001, ""), Tag("20", "P", 2001, "A")]
+    data = {"equipment": {"20-V-2001": {"service": "Inlet separator", "design_pressure": 110, "design_temperature": 120,
+                                        "capacity": "170 MMscf/d"}},
+            "setpoints": {"20-PT-2001": {"lolo": 40, "lo": 45, "hi": 90, "hihi": 95, "unit": "barg"},
+                          "20-LT-2001": {"lo": 10, "hi": 62, "unit": "%"}},
+            "notes": [{"text": "PSV-2001 ON 20-V-2001 SET AT 110 barg.", "tags": ["20-V-2001"]}], "date": "2019-05-14"}
+    for level in ("clean", "poor"):
+        key = pid.draw(tmp_path / f"{level}.png", {"sheet": "X-20-PID-001", "title": "AREA 20 - TEST", "revision": "B"},
+                       tags, {}, random.Random(1), [{"from": "20-V-2001", "to": "20-P-2001A", "line": '6"-P-20001-A1'}],
+                       level=level, data=data)
+        kinds = {t["kind"]: t for t in key["tables"]}
+        assert set(kinds) == {"equipment", "setpoints"} and key["date"] == "2019-05-14"
+        eq = kinds["equipment"]["rows"][0]
+        assert eq["key"] == "20-V-2001" and eq["cells"][2:] == ["110", "120", "170 MMscf/d"]
+        sp = {r["key"]: r["cells"] for r in kinds["setpoints"]["rows"]}
+        assert sp["20-PT-2001"] == ["PT-2001", "40", "45", "90", "95", "barg"] and sp["20-LT-2001"][1] == "-"
+        assert key["notes"][-1] == {**key["notes"][-1], "n": 5, "tags": ["20-V-2001"]}
+        if level == "poor":
+            assert any(r.get("hidden") for t in key["tables"] for r in t["rows"])

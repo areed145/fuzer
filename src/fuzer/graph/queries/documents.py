@@ -62,7 +62,11 @@ def drawing(conn, fuzer_id: str) -> dict | None:
     if reading and reading["text_hash"] != p.get("image_sha256"):
         reading = None  # the drawing changed since it was read
     marks, connections, findings, read_by, offpage, loops = [], [], [], None, [], []
+    tables, notes = [], []
     if p.get("format") == "smart":
+        tables = [{"title": t.get("title"), "columns": t.get("columns", []),
+                   "rows": [r["cells"] if isinstance(r, dict) else r for r in t.get("rows", [])]} for t in p.get("tables", [])]
+        notes = [{"n": n.get("n"), "text": n.get("text"), "tags": n.get("tags", [])} for n in p.get("notes", [])]
         offpage = [dict(o) for o in p.get("offpage", [])]
         read_by = "smart file"
         for key, (x, y) in (p.get("positions") or {}).items():
@@ -82,6 +86,7 @@ def drawing(conn, fuzer_id: str) -> dict | None:
         findings = [f for f in r["findings"] if f["kind"] in ("connection", "title_block")]
         offpage = [dict(o) for o in r.get("offpage", [])]
         loops = r.get("loops", [])
+        tables, notes = r.get("tables", []), r.get("notes", [])
     keys = {m["key"] for m in marks if m.get("key")} | {c[e] for c in connections for e in ("from", "to")}
     ids = {r["key"]: r["fuzer_id"] for r in conn.execute(
         "select key, fuzer_id from entity_key where kind = 'tag' and key = any(%s)", (list(keys),))}
@@ -107,4 +112,6 @@ def drawing(conn, fuzer_id: str) -> dict | None:
             o["sheet_id"] = docs.get((o.get("sheet") or "").replace(" ", "").upper())
     return {"sheet": rec["source_key"], "format": p.get("format"), "title": p.get("title"), "read_by": read_by,
             "image": f"/documents/{fuzer_id}/image", "width": width, "height": height, "marks": marks,
-            "connections": connections, "findings": findings, "offpage": offpage, "loops": loops}
+            "connections": connections, "findings": findings, "offpage": offpage, "loops": loops,
+            "tables": tables, "notes": notes}
+
