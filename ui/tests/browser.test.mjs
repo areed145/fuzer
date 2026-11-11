@@ -332,7 +332,7 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   // Under All work the shared filter bar labels them (#502).
   await page.getByRole("combobox", { name: "Held by", exact: true }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Kind of work", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("option", { name: "held by anyone", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("option", { name: "Anyone", exact: true }).count(), 1);
 });
 
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
@@ -461,8 +461,7 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   } }));
   const mutations = [];
   page.on("request", (request) => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
-  await page.goto(url);
-  await page.getByRole("link", { name: "Source readiness", exact: false }).click();
+  await page.goto(`${url}/#/sources`);
   await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
   await page.getByText("Catalog unavailable. Try again.", { exact: false }).waitFor();
   catalogFails = false;
@@ -1312,7 +1311,7 @@ test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambig
   await page.getByRole("button", { name: "task completion", exact: true }).click();
   await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: "Task response uncertain" }).waitFor();
-  await page.getByText("Check the current recorded result before trying again", { exact: false }).waitFor();
+  await page.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, "/work/tasks/42/complete");
   await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
@@ -1615,7 +1614,7 @@ test("A failed draft confirmation is not replayed and shows the recorded state",
   await card.getByRole("button", { name: "Create work item" }).click();
   await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
   await card.getByRole("alert").filter({ hasText: "Connection lost" }).waitFor();
-  await card.getByText("Check the current recorded result", { exact: false }).waitFor();
+  await card.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(calls.count(), 1, "A failure is never retried automatically");
 });
 
@@ -1926,15 +1925,14 @@ async function homeFixture(fixtures, { fail = false } = {}) {
   });
 }
 
-test("Home leads with reader destinations, labels times and links each item to its owner", async () => {
+test("Home leads with the facility search, labels times and links each item to its owner", async () => {
   await homeFixture(homePopulated);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
-    const guide = page.locator(".home-guide-links a");
-    await guide.first().waitFor();
-    assert.equal(await guide.first().locator("strong").textContent(), "Explore the facility");
-    assert.equal(await guide.last().locator("strong").textContent(), "Application settings");
+    await page.getByRole("search").getByRole("textbox", { name: "Search the facility" }).waitFor();
+    // Home is not a second menu: destinations live in the navigation, not a grid of link cards (docs/ui-style.md).
+    assert.equal(await page.locator(".home-guide-links").count(), 0);
     await page.getByRole("link", { name: "schema mapping field · 3", exact: true }).waitFor();
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");

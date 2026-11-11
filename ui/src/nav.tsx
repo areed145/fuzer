@@ -218,7 +218,6 @@ export function Sidebar({ section, badges, status, demoEnabled }: {
           </section>
         </nav>
         <div className="sidebar-status">{status}</div>
-        <a className="small" href={href("/settings")}>Appearance & settings</a>
       </aside>
     </>
   );

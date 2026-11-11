@@ -58,7 +58,6 @@ function LocalIdentity() {
         <datalist id="people">{(people.data ?? []).map((p) => <option key={p.name} value={p.name} />)}</datalist>
         <Button type="submit" size="sm" disabled={!draft.trim()}>Use this name</Button>
         {person && <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>}
-        <p className="muted small">Used to record decisions, not a sign-in.</p>
       </form>
     );
   }

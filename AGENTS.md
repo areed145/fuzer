@@ -1,7 +1,8 @@
 # Product changes
 
 Read [adapter boundaries](docs/adapter-boundaries.md) and the [UI style guide](docs/ui-style.md)
-before changing user journeys. Reuse domain operations, the settings/capability registries, and the
+before changing user journeys. Follow its Clean style rules: one-line subtitles, no standing disclaimers
+or help behind carets, one component per job; `ui/tests/style-lint.test.cjs` enforces them. Reuse domain operations, the settings/capability registries, and the
 local UI kit; do not add a parallel service, component kit, or source of configuration.
 Read [page ownership](docs/page-ownership.md) before adding routes or controls: one owning surface
 per action, reusable contextual entry links, compatible URLs, and no duplicated entity/source/job

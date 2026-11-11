@@ -56,8 +56,6 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
           <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
             people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</tbody>
         </Table>}
-        {people.data && !people.data.length && <p className="small muted">Nobody is on the roster yet, so dispatch can
-          only go to a role's queue. Add the IOC team and field operators on <a href={href("/teams")}>Teams &amp; routing</a>.</p>}
         <SampleTeam onAdded={people.reload} />
       </Card>
       <details className="exception-types">

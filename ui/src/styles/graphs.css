@@ -26,11 +26,10 @@
 .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i, i.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-ul.coverage, ul.plain { list-style: none; padding: 0; margin: 0 0 12px; }
+ul.coverage { list-style: none; padding: 0; margin: 0 0 12px; }
 ul.coverage li { display: grid; grid-template-columns: 1fr 90px 36px; align-items: center; gap: 8px; padding: 2px 0; font-size: 13px; text-transform: capitalize; }
 ul.coverage .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 ul.coverage .bar span { display: block; height: 100%; background: var(--accent); }
-ul.plain li { padding: 2px 0; }
 /* Ontology on phones: each kind or link type is a stacked card (name and Edit on top, description below, then
    count and status) instead of a six-column table to scroll sideways; form labels sit above their fields. */
 .model-form textarea { width: 100%; }

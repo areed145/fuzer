@@ -8,6 +8,47 @@ Page and action ownership is defined in [page ownership](page-ownership.md). Nav
 is a separate user decision, not implied by that map. Preserve compatible routes and use contextual links rather than copying
 another owner's viewer, editor or action.
 
+## Clean style
+
+Fuzer is used by two people: IOC staff at a desk for a whole shift, and field operators on a phone
+outdoors. Both know the plant. Neither needs the app explained on every screen. Every page should
+look like a calm operations tool: a title, the work, and the one or two actions that move it on.
+These rules come first; the sections below say how the components carry them out.
+
+1. **Say it once, where it's needed.** A page has a title and at most one subtitle line (90 characters,
+   no links). How a page works belongs in the docs: pass `help="workflow"` to `PageHeader` for a Help
+   link, rather than writing paragraphs on the page. Cross-links to related pages go in the navigation,
+   not in sentences.
+2. **No standing disclaimers.** State a limit where the user acts on it: the confirm step, a disabled
+   button's reason, an empty state. Data provenance (synthetic, historical) is one `Badge` in the page
+   header or chart title, not a sentence per card. Error text says what failed and what to do next in
+   one sentence.
+3. **No help behind carets.** Don't use `<details>` for guidance or "how this works" text. A long list
+   shows its first rows and a "Show all (24)" button. Optional settings belong on Settings.
+4. **One component per job.**
+    - Pages within an area: Area navigation: underline tabs, one line, scrolls sideways on a phone.
+    - Views of one page: `Tabs` (segmented control), at most about six views.
+    - Facets with counts: Chips (Browse kinds, map layers).
+    - A choice: `Select` or `Input` inside `Field`, with a visible label ("Kind", not "every kind").
+    - The main action: One `primary` `Button` per page or card; everything else `secondary` or `ghost`.
+    - Something the user must act on: `Notice` (`warn` or `danger` only when that is the state).
+    - Status: `Badge` with a text label.
+
+    Don't use primary buttons as tabs, link-card grids as a second menu, carousels for content that
+    should be read together, or "How to read this" side panels.
+5. **Labels are nouns, values carry units.** "Oil lost (Sm³)", not "Oil lost (Sm³); the last row is loss
+   whose records name no equipment". Show display names, never raw keys or ids.
+6. **Colour means state.** Accent marks the current place and the main action. `ok`, `warn` and `danger`
+   always come with words. Tinted callout boxes are for things to act on, not for introductions.
+7. **Empty means one line and at most one action.** "No incidents in this window." plus a link to widen it.
+8. **Phones get the work, not a shrunken desk.** Tap targets at least 44 px, the area tabs on one line,
+   and work lists as rows of title, asset and state rather than wide tables.
+
+`npm --prefix ui test` runs `ui/tests/style-lint.test.cjs`, which counts help disclosures, grey
+paragraphs, long subtitles, standing disclaimers, literal colours, inline styles and raw buttons and
+tables in `ui/src`. Counts may only go down: when you remove clutter, lower the number in
+`ui/tests/style-baseline.json`; when the test fails, follow its hint rather than raising the number.
+
 ## API client
 
 `ui/src/api.ts` remains the compatible facade for calls and exported types.
@@ -19,11 +60,12 @@ Paid previews and mutations remain deliberate, unreplayed calls.
 
 ## Components
 
-- `PageHeader` is the page title and optional subtitle/actions. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
+- `PageHeader` is the page title, an optional one-line subtitle, actions and an optional `help` docs link. Each page has one `PageHeader` and one `h1`; use `h2` for page sections and `h3` inside a section.
 - `Button` uses `primary` for the main action, `secondary` for ordinary actions, `ghost` for low emphasis, `link` for inline actions, and `danger` for destructive actions. Use `sm` for compact table actions and `md` elsewhere. Use `ButtonLink` for navigation styled as a button and `ButtonLabel` for labels that open hidden file inputs.
 - `Card` (also exported as `Section`) groups related content. Supply `title` and `actions` when the group needs a heading or controls.
 - `Table` provides the shared scroll container and table base. Use it for data tables and choose a compact density for dense lists; use specialized classes only for domain-specific layout.
 - `Field`, `Input`, and `Select` keep form controls aligned. Widths are `xs`, `sm`, `md`, `lg`, and `full`; prefer `full` for long text and `sm` or `xs` for short values.
+- `Tabs` switches between views of one page; `Notice` holds something the user must act on; `HelpLink` links a docs page.
 - `Badge` shows a compact status with `ok`, `warn`, `danger`, or `muted` tone.
 - `Stat` presents a summary number; `EmptyState` explains an empty result; `Bar` displays a percentage or other bounded value from 0 to 100.
 - `ChartShow` (`ui/src/ChartShow.tsx`) carries several charts in one card, moved by swipe, arrows, dots or arrow keys. Each slide mounts when first reached. Slides take any content; `LiveFigure` shows a server-built figure with all its wording, so a chart needs no page code. `PlotlyChart` leaves touch drags to the show. Never set colours or chart text in the UI: series follow the theme colorway by trace position.
@@ -55,8 +97,8 @@ account and legacy-roster contexts. Always explain saved assignments versus effe
 Work context is presentation focus, not a workflow role or permission. No context selector is
 shown until supported presentation behavior exists; do not persist a cosmetic persona choice.
 
-Users account search and enabled/owner filters live in the URL. Explanatory guidance above the account
-list stays in a labelled disclosure so account search starts in the first viewport on a phone. Counts and owner
+Users account search and enabled/owner filters live in the URL. Account search starts in the first
+viewport on a phone; guidance about accounts lives in the docs, reached from the page's Help link. Counts and owner
 recovery guidance come from the loaded account catalog, never filtered results.
 Typing replaces the current search URL so Back does not walk through each character.
 Account edits remain unsaved until confirmation; displayed effective access

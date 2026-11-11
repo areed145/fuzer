@@ -25,13 +25,11 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
   statsLoading: boolean;
   statsError?: string;
 }) {
-  const configure = usePermission("configure"), ai = usePermission("ai");
+  const configure = usePermission("configure");
   const noRecords = stats?.records === 0;
   return (
     <section className="home">
-      <PageHeader subtitle="Explore connected facility data, understand what needs attention, and follow work through to completion.">
-        Home
-      </PageHeader>
+      <PageHeader>Home</PageHeader>
       <HomeSearch query={query} />
       {noRecords && (
         <UICard title="Connect data before exploring">
@@ -40,17 +38,6 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
             : <p>Ask an administrator to load the demonstration records.</p>}
         </UICard>
       )}
-      <UICard className="home-guide" aria-labelledby="home-guide-title">
-        <h2 id="home-guide-title">Where would you like to start?</h2>
-        <div className="home-guide-links">
-          <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
-          <a href={href("/exceptions", { list: "ranked" })}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
-          {ai && <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate with the assistant when a provider is configured by the owner.</span></a>}
-          <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
-          {configure && <a href={href("/sources")}><strong>Source readiness</strong><span>Connect and test sources, monitor freshness and recover failed loads.</span></a>}
-          {configure && <a href={href("/settings")}><strong>Application settings</strong><span>Review shared defaults, AI limits and restart requirements.</span></a>}
-        </div>
-      </UICard>
       {stats && stats.records > 0 && <ChartShow label="Production charts" slides={HOME_FIGURES.map(({ kind, title }) => ({ id: kind, title, render: () => <LiveFigure kind={kind} /> }))} />}
       {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}
       <div className="home-grid">
