@@ -14,10 +14,15 @@ from fuzer.core.exceptions import (
     clear_exception,
     raise_exception,
 )
-from fuzer.core.findings import external
+from fuzer.core.findings import external, text
 from fuzer.ops import board
 from fuzer.ops import exceptions as impl
 from fuzer.resources import PACKAGE
+
+
+def pairs(row: dict) -> list[tuple[str, str]]:
+    """A row's finding as a person reads it: each item's label and its value as text."""
+    return [(i["label"], text(i)) for i in row["finding"]["items"]]
 
 
 @pytest.fixture(scope="module")
@@ -203,7 +208,7 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     said = {i["label"]: i for i in job["finding"]["items"]}
     assert said["Drips per min"] == {"label": "Drips per min", "value": 12.0, "kind": "number"} and "Detail" not in said
     assert job["finding"]["origin"] == "external" and job["finding"]["subjects"] == ["fz-pump-1"]
-    assert ("Drips per min", "12") in job["seen"]
+    assert ("Drips per min", "12") in pairs(job)
     assert job["sent"]["by"] == "ioc-ann" and job["sent"]["reason"] == "nearest operator"  # what the IOC asked for
     ex.report(conn, e["id"], "fred", "on_site")
     with pytest.raises(ExceptionError, match="say why"):
@@ -236,9 +241,9 @@ def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types)
     assert step()["assignee"] == "fred"
     [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
     assert job["sent"]["reason"] == "check the gauge at the wellhead" and job["task_name"] == "Look"
-    assert ("Start", "2025-12-30 00:00") in job["seen"] and ("Ongoing", "yes") in job["seen"]
+    assert ("Start", "2025-12-30 00:00") in pairs(job) and ("Ongoing", "yes") in pairs(job)
     assert {"label": "Start", "value": "2025-12-30T00:00", "kind": "time"} in job["finding"]["items"]
-    assert not any(k == "Upset id" for k, _ in job["seen"])  # internal ids aren't something to look for on site
+    assert not any(k == "Upset id" for k, _ in pairs(job))  # internal ids aren't something to look for on site
     ex.report(conn, e["id"], "fred", "on_site")
     assert step()["assignee"] == "fred"  # on site: still theirs
     ex.report(conn, e["id"], "fred", "done", note="gauge reads 13 barg; wing valve was part closed, reopened")
@@ -495,7 +500,7 @@ def test_one_event_reported_by_three_systems_is_one_case(conn, compressor, three
                      "Also reported: upset_x from sre: Step change across six assets"]
     sources = impl.on_case(conn, sap["item_id"])
     assert [s["id"] for s in sources] == [sap["id"], iow["id"], sre["id"]]
-    assert ("Minutes outside", "95") in sources[1]["seen"]
+    assert ("Minutes outside", "95") in pairs(sources[1])
     assert sources[1]["finding"]["value_usd"] == 20000 and sources[0]["finding"]["detector"] == "test"
     again = raise_exception(conn, "iow_hi", "IOW-1", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
     assert not again["raised"] and again["item_id"] == sap["item_id"]  # a repeat stays on the shared case
@@ -600,7 +605,7 @@ def test_an_sap_notification_reads_as_words_in_the_field():
     from fuzer.ops.intake import finding
 
     def read(f):
-        return dict(impl._seen(shown(finding("10004711", f).evidence())))
+        return dict(pairs({"finding": shown(finding("10004711", f).evidence())}))
 
     assert read({"notif_type": "M1", "status": "OSNO", "failure_mode": "VIB", "failure_mechanism": "1.2",
                  "damage_code": "D01", "cause_code": "C02", "priority": "2"}) == {

@@ -791,11 +791,15 @@ test("a drawing disagreement records which side needs changing and says neither 
     check: "placement", sheet: "OKAN-20-PID-005", document: "fz-document-1", tag: "20-PT-2201B", fuzer_id: "fz-instrument-1",
     point: null, drawn_on: "20-K-2200B", register: [{ parent: "20-V-2201B", sources: ["sap"] }],
     detail: "the drawing shows it on 20-K-2200B; sap has it under 20-V-2201B",
-    question: "OKAN-20-PID-005 shows 20-PT-2201B on 20-K-2200B, but sap has it under 20-V-2201B. Which is right, the drawing or the register?" } }] }));
+    question: "OKAN-20-PID-005 shows 20-PT-2201B on 20-K-2200B, but sap has it under 20-V-2201B. Which is right, the drawing or the register?",
+    finding: finding("agentic", "A drawing read by a model, compared with the register", [
+      { label: "Drawing", value: "OKAN-20-PID-005", kind: "text" }, { label: "Tag", value: "20-PT-2201B", kind: "text" },
+      { label: "Drawn on", value: "20-K-2200B", kind: "text" }, { label: "Register", value: "sap has it under 20-V-2201B", kind: "text" }]) } }] }));
   let sent;
   await page.route("**/review/11", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { decided: 11 } }); });
   await page.goto(`${url}/#/review?kind=pid_mismatch`);
   await page.getByRole("heading", { name: /Instrument drawn on another item/ }).waitFor();
+  assert.match(await page.locator(".review .finding").innerText(), /Found by\s+Agent: A drawing read by a model[\s\S]*Drawn on\s+20-K-2200B/);
   assert.equal(await page.getByRole("link", { name: "Open OKAN-20-PID-005" }).count(), 1);
   await page.getByRole("button", { name: "Drawing is right, change SAP" }).click();
   await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
@@ -2016,10 +2020,10 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     assignee: "fred", role: null, raised_count: 2, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z",
     label: "Leak", due: null, task_id: null, task_name: null,
     assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump", kind: "equipment", lat: 52.1, lon: 4.1 }],
-    seen: [["drips per min", "12"]], history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null, confidence: null, items: [{ label: "Drips per min", value: 12, kind: "number" }], checks: [], subjects: [], value_usd: null }, history: [{ id: 3, title: "P-101 vibration high", state: "cleared", first_seen: "2026-11-01T06:00:00Z" }],
     field: [], queued: false, sent: { by: "ann", at: "2026-11-08T07:05:00Z", reason: "isolate and check the gland" } };
   const waiting = { ...job, id: 8, key: "scada-1", title: "Compressor trip on high discharge pressure", item_id: 32, assignee: null,
-    role: "operator", queued: true, sent: null, seen: [], history: [] };
+    role: "operator", queued: true, sent: null, history: [] };
   const reports = [];
   // Relative to now: the Coming up card offers Done for anything starting within a day, so a fixed date
   // stops being "later" once the clock reaches it.
@@ -2041,7 +2045,7 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.waitForURL(/#\/inbox/);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
   await page.getByRole("link", { name: "directions" }).first().waitFor();
-  await page.getByText("drips per min").waitFor();
+  await page.getByText("Drips per min").first().waitFor();
   await page.getByText("isolate and check the gland").waitFor();  // what the IOC asked for, on the job
   const queued = page.locator(".field-job", { hasText: "Compressor trip" });
   assert.equal(await queued.getByRole("button", { name: "Done" }).count(), 0);  // not theirs until taken
@@ -2113,7 +2117,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
 
   const base = { type: "upset", source: "sre", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
     case_state: "open", role: null, raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z",
-    label: "Upset", due: null, assets: [], seen: [], history: [], field: [], queued: false, evidence: {} };
+    label: "Upset", due: null, assets: [], finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false, evidence: {} };
   const theirs = { ...base, id: 1, key: "a", title: "Low pressure across 3 assets", item_id: 31, assignee: null, task_id: 51,
     task_name: "Field check", own_step: true, sent: { by: "erin", at: "2026-11-09T07:00:00Z", reason: "read the gauge" } };
   const handed = { ...base, id: 2, key: "b", title: "Gauge reads odd", item_id: 32, assignee: null, task_id: 52,
@@ -2617,3 +2621,78 @@ test("Routing lists each type of work, flags an empty lane and dry-runs a dispat
   await page.getByText("Matches Meter 7.").waitFor();
   assert.deepEqual(asked.at(-1), { refs: ["tag:FT-7"], to: "riley" });
 });
+
+// ---- P1.1: one finding contract, one evidence component --------------------------------------------------------
+
+function finding(origin, method, items, more = {}) {
+  return { detector: "test", origin, origin_label: "", method, standard: null, start: null, end: null, confidence: null,
+    items, checks: [], subjects: [], value_usd: null, ...more };
+}
+const text = (label, value) => ({ label, value, kind: "text" });
+const number = (label, value, unit) => ({ label, value, kind: "number", ...(unit ? { unit } : {}) });
+const named = (label, text) => ({ label, value: "fz-equipment-0123456789ab", kind: "asset", text });
+
+// One finding per work type, in the shape the API returns (core.findings.shown).
+const FINDINGS = {
+  upset: finding("deterministic", "Detections grouped into one upset by time and plant topology", [
+    named("First seen on", "30-PT-2002 inlet pressure"), { label: "Started", value: "2025-12-24T00:00", kind: "time" },
+    { label: "Still going", value: true, kind: "flag" }, number("Peak", 90, "barg"), number("Assets affected", 3),
+    number("Detections", 6)], { start: "2025-12-24T00:00", value_usd: 42000 }),
+  iow_breach: finding("deterministic", "Time outside an integrity operating window, past its allowed time", [
+    text("Window", "IOW-7"), named("Measured on", "30-PT-2002 inlet pressure"), text("Level", "critical"),
+    number("Limit", 85, "barg"), number("Peak", 91.2, "barg"), number("Time outside", 3.5, "h")],
+    { standard: "API RP 584", start: "2025-12-30T04:00", end: "2025-12-30T07:30" }),
+  machine_trip: finding("deterministic", "The first point to move before the trip names the cause family", [
+    { label: "Tripped", value: "2024-03-14T03:20", kind: "time" }, named("Likely source", "20-K-2200B 2nd stage compressor"),
+    text("Likely cause", "high vibration"), number("First out led the trip by", 42, "min")],
+    { standard: "ISO 13379-1 symptom-to-cause", checks: ["Check the bearing temperatures", "Confirm lube oil pressure"] }),
+  machine_health: finding("deterministic", "Rotating equipment fleet screen", [
+    text("Status", "needs action"), text("Flagged for", "vibration in zone D"),
+    text("Recommended first", "Plan a bearing inspection before the next start")],
+    { standard: "ISO 20816-3 vibration zones; API 670 protection channels; ISO 14224 rotating classes" }),
+  records_gap: finding("deterministic", "Downtime records compared with the operator log and notifications", [
+    { label: "When", value: "2025-12-27T02:40", kind: "time" }, text("Missing", "log entry, notification"),
+    number("Lost oil", 120, "Sm³")]),
+  sap_notification: finding("external", "An open notification with no work order", [
+    text("Notification", "10004711"), text("Notification type", "malfunction report (M2)"),
+    text("Status", "outstanding (OSNO)"), text("Failure mode", "Vibration (VIB)")]),
+  source_issue: finding("deterministic", "Source health checks", [
+    text("Dataset", "orders"), text("System", "sap"), text("Problem", "failed to load")]),
+  scada_alarm: finding("external", null, [text("Alarm priority", "high"), number("Drips per min", 12)]),
+  agent_watch: finding("agentic", "Agentic watch", [text("Seen", "Suction pressure sagging while speed holds")],
+    { confidence: 0.62 }),
+};
+
+for (const [type, found] of Object.entries(FINDINGS)) {
+  test(`a ${type.replace(/_/g, " ")} finding reads the same on the phone, the task and the case, with no raw ids or keys (P1.1)`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    const source = { id: 7, type, key: "k-1", title: `A ${type} title`, source: "test", state: "open", value_usd: found.value_usd,
+      first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", joined_to: null, subjects: [], label: type, finding: found };
+    const job = { ...source, priority: null, unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null,
+      raised_count: 1, due: null, task_id: null, task_name: null, assets: [], checklist: found.checks, sources: [],
+      history: [], field: [], queued: false, sent: null };
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+    await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, sources: [source] } }));
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [], sources: [source] } }));
+    const read = async (path, width) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${url}/#${path}`);
+      const box = page.locator(".finding dl").first();
+      await box.waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits ${width}px`);
+      return (await box.innerText()).replace(/\s+/g, " ").trim();
+    };
+    const phone = await read("/inbox", 390);
+    const task = await read("/inbox/task/42", 1280);
+    const taskOnPhone = await read("/inbox/task/42", 390);
+    const onCase = await read("/cases/7", 1280);
+    assert.equal(task, phone);
+    assert.equal(taskOnPhone, phone);
+    assert.equal(onCase, phone);
+    assert.match(phone, new RegExp(`^Found by ${{ deterministic: "Rule", agentic: "Agent", external: "Another system" }[found.origin]}`));
+    for (const item of found.items) assert.ok(phone.includes(item.label), `${item.label} is shown`);
+    assert.doesNotMatch(phone, /fz-[a-z_]+-[0-9a-f]{6,}|\b[a-z]+_[a-z_]+\b|\d{4}-\d{2}-\d{2}T\d{2}/);  // no ids, keys or raw timestamps
+    if (found.standard) assert.ok(phone.includes(found.standard));
+    if (found.checks.length) await page.getByText(found.checks[0]).waitFor();  // the checks before the work, on the case
+  });
+}

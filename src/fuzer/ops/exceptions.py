@@ -332,7 +332,7 @@ def on_case(conn, item_id: int) -> list[dict]:
                         (item_id,)).fetchall()
     return [{**{k: r[k] for k in ("id", "type", "key", "title", "source", "state", "value_usd", "first_seen",
                                   "last_seen", "joined_to", "subjects")},
-             "label": _label(conn, r["type"]), "finding": f, "seen": _seen(f)}
+             "label": _label(conn, r["type"]), "finding": f}
             for r, f in zip(rows, _findings(conn, rows), strict=True)]
 
 
@@ -548,11 +548,6 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
 
 
 # SAP's own status and notification type codes, as words (#494); the code stays beside them.
-def _seen(finding: dict) -> list[tuple[str, str]]:
-    """A finding's items as label and text pairs, for readers not yet on the finding itself."""
-    return [(i["label"], findings.text(i)) for i in finding["items"]]
-
-
 def _sent(conn, item_id: int, person: str) -> dict | None:
     """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them or to a queue they
     took it from, else the case being opened for them or that queue (taking it isn't being sent it)."""
@@ -654,7 +649,7 @@ def field_jobs(conn, person: str) -> list[dict]:
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, subjects),
                     "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
-                    "finding": mine, "seen": _seen(mine), "history": history, "field": r["evidence"].get("field", []),
+                    "finding": mine, "history": history, "field": r["evidence"].get("field", []),
                     "sent": sent})
     return out
 

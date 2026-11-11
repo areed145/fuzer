@@ -7,6 +7,7 @@ import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, usePerson, when } from "../../work";
 import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
+import { CaseFindings } from "../../Finding";
 import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
@@ -185,6 +186,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
+      <CaseFindings sources={it.sources} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">

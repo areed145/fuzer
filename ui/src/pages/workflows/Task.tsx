@@ -3,8 +3,9 @@ import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input,
  * the case's history. */
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
+import { CaseFindings } from "../../Finding";
 import { Status, href, useAsync } from "../../lib";
-import { Actor, DataView, Due, EntityLinks, holder, reportedBy, startedWith, usePerson, when } from "../../work";
+import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
@@ -53,7 +54,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       <div className="task-layout">
         <div>
           <FromField v={v} />
-          <Sources v={v} />
+          <CaseFindings sources={v.sources} />
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
@@ -183,20 +184,6 @@ function FromField({ v }: { v: WorkTaskView }) {
   );
 }
 
-/** Every system that reported the event this case works, each with what it saw, so the decision weighs them together
- * (#464). Shown only when more than one source reported it. */
-function Sources({ v }: { v: WorkTaskView }) {
-  const all = v.sources ?? [];
-  if (all.length < 2) return null;
-  return (
-    <UICard className="sources" title={reportedBy(all)}>
-      {all.map((x) => <Disclosure key={x.id} open className="evidence-item" label={<><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
-          <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></>}>
-        {x.seen.length > 0 && <dl className="kv small">{x.seen.map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>}
-      </Disclosure>)}
-    </UICard>
-  );
-}
 
 function Evidence({ v }: { v: WorkTaskView }) {
   const e = v.evidence;

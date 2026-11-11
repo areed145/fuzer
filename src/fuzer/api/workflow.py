@@ -168,11 +168,14 @@ def work_draft_confirm(draft_id: str, m: DraftConfirm, conn=Depends(get_conn)):
 
 @router.get("/work/items/{item_id}")
 def work_item(item_id: int, conn=Depends(get_conn)):
-    """An item with its processes (path taken, open steps) and every event in its history, and whether an agents
+    """An item with its processes (path taken, open steps), every event in its history, the finding of every
+    exception it works (`sources`, P1.1), and whether an agents
     provider is configured: without one no agent worker runs, so an agent step will wait until a person takes it."""
     from ..core import llm
+    from ..ops import exceptions
 
-    return {**work.item(conn, item_id), "agents_configured": llm.configured("agents")}
+    return {**work.item(conn, item_id), "agents_configured": llm.configured("agents"),
+            "sources": exceptions.on_case(conn, item_id)}
 
 
 @router.post("/work/items/{item_id}/comment")

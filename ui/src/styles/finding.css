@@ -1,0 +1,5 @@
+/* The one evidence component (P1.1): label and value rows that read the same at desk and phone widths. */
+.finding dl.kv { margin: 0; }
+.finding dl.kv > div { display: flex; gap: 0.5rem; }
+.finding dl.kv dt { color: var(--muted); flex: 0 0 8rem; }
+.finding dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }

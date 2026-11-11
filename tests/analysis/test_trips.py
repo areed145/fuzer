@@ -81,9 +81,9 @@ def test_trips_reach_the_ioc_with_the_restart_checklist(conn):
     conn.commit()
     job = next(j for j in exceptions.field_jobs(conn, "fred") if j["id"] == row["id"])
     assert job["checklist"] == found["checks"] == job["finding"]["checks"]
-    assert dict(job["seen"])["Likely cause"] == "high vibration"
-    named = {i["label"]: i for i in job["finding"]["items"]}["Likely source"]  # the asset by its name, not its id
-    assert named["kind"] == "asset" and named["text"] and not named["text"].startswith("fz-")
+    read = {i["label"]: i for i in job["finding"]["items"]}
+    named = read["Likely source"]  # the asset by its name, not its id
+    assert named["kind"] == "asset" and named["text"] and not named["text"].startswith("fz-") and read["Likely cause"]["value"] == "high vibration"
 
 
 def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn):
