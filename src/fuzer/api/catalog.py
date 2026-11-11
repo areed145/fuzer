@@ -443,7 +443,8 @@ def dataset_detail(name: str, conn=Depends(get_conn)):
         "suggested_checks": quality.suggest_checks(conn, name),
         "work_items": [dict(r) for r in conn.execute(
             "select id, title, state, assignee, role, created_at from work_item where type = 'source_issue' "
-            "and payload->>'dataset' = %s and state not in ('done', 'cancelled') order by id desc", (name,))],
+            "and coalesce(payload->>'dataset', payload->'start'->>'dataset') = %s and state not in ('done', 'cancelled') "
+            "order by id desc", (name,))],
         "reviews": [dict(r) for r in conn.execute(
             "select id, kind, created_at from review_item where subject = %s and kind in ('schema', 'check') "
             "and status = 'open'", (name,))],

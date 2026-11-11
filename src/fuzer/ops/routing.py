@@ -60,6 +60,7 @@ def routes(conn) -> list[dict]:
 
     brought = {r["name"]: r["source_system"] for r in conn.execute("select name, source_system from exception_kind")}
     join_hours = settings.get(conn, "exceptions.join_hours")
+    standard = queue_process(conn)
     out = []
     for name, t in sorted(exceptions.types(conn).items()):
         declared = "code" if name in TYPES else ("source pack" if brought.get(name) else "data")
@@ -67,7 +68,7 @@ def routes(conn) -> list[dict]:
             "type": name, "label": t.label, "description": t.description,
             "declared_in": declared, "source_system": None if name in TYPES else brought.get(name),
             "joins": t.joins, "join_hours": join_hours if t.joins else None,
-            "starts": _starts(t), "process": t.process, "role": t.role.removeprefix("role:") if t.role else None,
+            "starts": _starts(t), "process": t.process or (QUEUE_PROCESS if t.role and standard else None), "role": t.role.removeprefix("role:") if t.role else None,
             "case_type": t.case_type or name, "audience": list(t.audience),
             "close_case_on_clear": t.close_case_on_clear, "due": _due_policy(conn, name),
         })
@@ -92,6 +93,27 @@ def due(conn, intake: dict) -> datetime | None:
     return intake["first_seen"] + timedelta(hours=hours[p]) if p in hours else None
 
 
+QUEUE_PROCESS = "queue_item"
+
+
+def queue_process(conn) -> bool:
+    """Whether the standard queue_item process is published here (loading the starting processes publishes it)."""
+    return bool(conn.execute("select 1 from work_definition where process_key = %s and state = 'published' limit 1",
+                             (QUEUE_PROCESS,)).fetchone())
+
+
+def queue_data(t, intake: dict, queue: str) -> dict:
+    """What queue_item starts with: its lane's role (`=role`) and its case's type (`=case_type`) come from the type."""
+    return {"exception_id": intake.get("id"), "type": t.name, "key": intake.get("key"),
+            "role": queue.removeprefix("role:"), "case_type": t.case_type or t.name, "source": intake.get("source")}
+
+
+def queue_case(conn, item_id: int | None) -> bool:
+    """A case worked by the standard queue_item process: it closes and reports back as a plain queue case does."""
+    return bool(item_id) and bool(conn.execute(
+        "select 1 from work_process where item_id = %s and process_key = %s limit 1", (item_id, QUEUE_PROCESS)).fetchone())
+
+
 def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | None = None,
           to: str | None = None, reason: str | None = None) -> int | None:
     """Open the case that works an intake and return its work item id, or None when it waits for the IOC.
@@ -99,7 +121,9 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
     The intake is what arrived: `id` (its exception), `type`, `key`, `title`, `source`, `subjects`, `priority`,
     `evidence` and `first_seen`. With `to` (a person or `role:<name>`) the IOC is dispatching it: the case opens for
     them, due by the type's policy, with the reason on its history. Otherwise the type decides: its process is started
-    or fed the evidence, or a case opens in its queue (or for `assignee` / `role` when the caller names one)."""
+    or fed the evidence, or the standard queue_item process starts in its queue (or `role`'s when the caller names
+    one), so the case has the queue's SLA and escalation. A case for a named `assignee`, and every case where
+    queue_item isn't published yet, opens as a plain work item."""
     from . import exceptions
 
     t = exceptions.types(conn).get(intake["type"]) or exceptions.ExceptionType(intake["type"], intake["type"])
@@ -118,6 +142,10 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
     if not (assignee or role or t.role):
         return None
     queue = None if assignee else (role or t.role)
+    if queue and queue_process(conn) and queue.removeprefix("role:") in work.person_roles(conn):  # the standard process: the queue's SLA, escalation and monitor (#509)
+        data = {**(intake.get("evidence") or {}), **queue_data(t, intake, queue)}
+        return work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
+                                       subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     return work.open_case(conn, t.case_type or t.name, intake["title"], by, assignee=assignee,
                           role=queue.removeprefix("role:") if queue else None, **common)["id"]
 
@@ -176,7 +204,7 @@ def explain(conn, type: str, refs=(), key: str | None = None, evidence: dict | N
                 f", due {when:%Y-%m-%d %H:%M}." if when else ".")
             return out
         if t.process:
-            steps = work.process_routing(conn, t.process)
+            steps = work.process_routing(conn, t.process, {"type": type, "key": key, **(evidence or {})})
             for s in steps or []:
                 s["holders"] = _holders(conn, s["role"]) if s["kind"] == "person" else []
             out["process"] = {"key": t.process, "published": steps is not None, "steps": steps or []}
@@ -195,9 +223,16 @@ def explain(conn, type: str, refs=(), key: str | None = None, evidence: dict | N
             role = t.role.removeprefix("role:")
             holders = _holders(conn, role)
             out["queue"] = {"role": role, "assignee": None, "holders": holders}
+            if queue_process(conn):
+                steps = work.process_routing(conn, QUEUE_PROCESS, queue_data(t, {"key": key}, role)) or []
+                for step in steps:
+                    step["holders"] = _holders(conn, step["role"]) if step["kind"] == "person" else []
+                out["process"] = {"key": QUEUE_PROCESS, "published": True, "steps": steps}
             out["outcome"] = "queue"
+            sla = next((step["sla"] for step in (out["process"] or {}).get("steps", []) if step["sla"]), None)
             out["summary"] = (f"Opens a {r['case_type'].replace('_', ' ')} case in the {role} queue"
-                              + (f" ({', '.join(holders)})." if holders else ", which nobody holds."))
+                              + (f" ({', '.join(holders)})" if holders else ", which nobody holds")
+                              + (f", due within its SLA ({sla})." if sla else "."))
             return out
         out["outcome"] = "dispatch"
         out["summary"] = "Waits under All work for the IOC to dispatch it: nothing routes this type on its own."

@@ -481,7 +481,11 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     if row["item_id"]:
         said = {"on_site": "On site", "done": "Done", "could_not_do": "Could not do", "note": "Note"}[status]
         work.comment(conn, row["item_id"], by, f"Field: {said}" + (f": {note}" if note else ""))
-        has_process = conn.execute("select 1 from work_process where item_id = %s", (row["item_id"],)).fetchone()
+        from . import routing
+
+        # a queue_item case (#509) is a plain queue case run as a process: Done closes it as before
+        has_process = conn.execute("select 1 from work_process where item_id = %s and process_key <> %s",
+                                   (row["item_id"], routing.QUEUE_PROCESS)).fetchone()
         state = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()["state"]
         if status == "done" and not has_process and state not in ("done", "cancelled"):
             work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")

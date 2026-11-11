@@ -206,12 +206,17 @@ def test_rules_health_alerts_and_lineage(client):
         out = alerts.check(conn, ["sap_equipment"])
         conn.commit()
         assert out["opened"] == ["sap_equipment: stale"]
-        item = conn.execute("select * from work_item where type = 'source_issue' and state = 'open' "
-                            "and payload->>'dataset' = 'sap_equipment'").fetchone()
+        # a source problem's case runs as queue_item (#509), which keeps what was raised under payload.start
+        item = conn.execute("select *, coalesce(payload->'start', payload) as raised from work_item "
+                            "where type = 'source_issue' and state = 'open' "
+                            "and coalesce(payload->>'dataset', payload->'start'->>'dataset') = 'sap_equipment'").fetchone()
         held = conn.execute("select assignee from work_item where type = 'source_issue' and payload->>'dataset' = "
                             "'vendor_pumps'").fetchone()
         assert held["assignee"] == "ana"  # the held load in the test before went to the dataset's owner
-        assert item["role"] == "data_steward" and item["payload"]["dataset"] == "sap_equipment"
+        assert item["role"] == "data_steward" and item["raised"]["dataset"] == "sap_equipment"
+        assert conn.execute("select process_key from work_process where item_id = %s",
+                            (item["id"],)).fetchone()["process_key"] == "queue_item"  # with the role's SLA
+        assert ok(client.get("/sources/datasets/sap_equipment"))["work_items"][0]["id"] == item["id"]
         assert alerts.check(conn, ["sap_equipment"])["opened"] == []  # once per problem
     ok(client.patch("/sources/datasets/sap_equipment", json={"values": {"expected_hours": None}, "by": "ana"}))
     with db.connect() as conn:

@@ -157,7 +157,9 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
   const open = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
-  const dataset = typeof payload.dataset === "string" ? payload.dataset : null;
+  // a process case (queue_item, #509) keeps what was raised under payload.start
+  const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
+  const dataset = typeof raised.dataset === "string" ? raised.dataset : null;
   return (
     <section>
       {demo && <DemoContext step="workflow" />}

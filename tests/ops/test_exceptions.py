@@ -25,6 +25,9 @@ def conn():
     os.environ.setdefault("FUZER_PGDATA", tempfile.mkdtemp(prefix="fzpg"))
     with db.connect() as c:
         db.reset(c)
+        from fuzer.workflow import engine
+
+        engine.load_defaults(c)  # the standard processes: queue cases run as queue_item (#509)
         c.execute("insert into entity (fuzer_id, kind) values ('fz-pump-1', 'equipment'), ('fz-well-a12', 'well')")
         c.execute("insert into entity_key (kind, key, fuzer_id) values ('tag', 'P-101', 'fz-pump-1')")
         c.execute("insert into crosswalk (source, record_type, source_key, fuzer_id, method, confidence) "
@@ -708,3 +711,44 @@ def test_exceptions_open_cases_only_through_the_front_door():
     only to dispatch, feed or comment on a case that exists."""
     src = (PACKAGE / "ops" / "exceptions.py").read_text()
     assert not re.search(r"work\.(open_case|start_or_correlate)\(", src)
+
+
+def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
+    """A type that names a queue and no process starts the standard queue_item process (#509): one step in that
+    queue with the role's SLA and escalation, the case typed as the type's case. Clearing the condition or the
+    field's Done still closes it, as it did a plain queue case; Could not do hands the step back."""
+    from fuzer.core.exceptions import clear_exception
+    from fuzer.ops import exceptions as ex
+    from fuzer.ops import routing
+
+    types("gas_day_short", role="role:operator", case_type="measurement")
+    e = raise_exception(conn, "gas_day_short", "GD-1", "Gas day short", "kestrel", refs=["tag:NOPE-1"])
+    proc = conn.execute("select process_key, state from work_process where item_id = %s", (e["item_id"],)).fetchone()
+    assert proc["process_key"] == "queue_item" and proc["state"] == "running"
+    case = conn.execute("select type, role, due, payload from work_item where id = %s", (e["item_id"],)).fetchone()
+    assert case["type"] == "measurement" and case["role"] == "operator" and case["due"] is not None  # the role's SLA
+    step = conn.execute("select role, name from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                        (e["item_id"],)).fetchone()
+    assert (step["role"], step["name"]) == ("operator", "Work the case")
+    assert routing.queue_case(conn, e["item_id"])
+    cleared = clear_exception(conn, "gas_day_short", "GD-1", "kestrel", reason="the day was corrected")
+    assert cleared["state"] == "cleared"
+    assert conn.execute("select state from work_item where id = %s", (e["item_id"],)).fetchone()["state"] == "done"
+    assert conn.execute("select state from work_process where item_id = %s", (e["item_id"],)).fetchone()["state"] == "completed"
+
+    f = raise_exception(conn, "gas_day_short", "GD-2", "Gas day short again", "kestrel", refs=["tag:NOPE-2"])
+    ex.dispatch(conn, f["id"], "ioc-ann", "fred", reason="check the meter")
+    back = ex.report(conn, f["id"], "fred", "could_not_do", note="meter room locked")
+    step = conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                        (f["item_id"],)).fetchone()
+    assert back["state"] == "open" and step["assignee"] != "fred"  # back with the IOC, not left with the operator
+    ex.dispatch(conn, f["id"], "ioc-ann", "fred", reason="key is at the gate")
+    done = ex.report(conn, f["id"], "fred", "done", note="meter reset")
+    assert done["state"] == "closed"
+    assert conn.execute("select state from work_item where id = %s", (f["item_id"],)).fetchone()["state"] == "done"
+
+    types("odd_queue", role="role:not_a_person_role")  # a queue no person role backs stays a plain case
+    g = raise_exception(conn, "odd_queue", "OQ-1", "Odd", "kestrel", refs=["tag:NOPE-3"])
+    assert not routing.queue_case(conn, g["item_id"])
+    assert routing.explain(conn, "gas_day_short", key="GD-3")["process"]["key"] == "queue_item"
+    conn.commit()
