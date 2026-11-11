@@ -341,6 +341,9 @@ def test_drawing_disagreements_are_review_items(setup, read):
     placed = [p for p in items.values() if p["check"] == "placement"]
     assert [(p["sheet"], p["tag"], p["drawn_on"]) for p in placed] == [(SHEET, "20-PT-2201B", "20-K-2200B")]
     assert placed[0]["document"] and placed[0]["fuzer_id"] and "SAP" in placed[0]["question"].upper()
+    found = placed[0]["finding"]  # the same record shape as anything else detected (P1.1)
+    assert found["origin"] == "agentic" and found["subjects"] == [placed[0]["fuzer_id"]]
+    assert {"label": "Drawn on", "value": "20-K-2200B", "kind": "text"} in found["items"]
     alarms = [p for p in items.values() if p["check"] in ("alarm", "alarm_unset")]
     from fuzer.analysis import limits
     drawn = {i["point_id"] for i in limits.issues(conn, None) if i["fault"] == "drawing"}

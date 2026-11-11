@@ -89,6 +89,8 @@ export interface PidMismatchPayload {
   check: "alarm" | "alarm_unset" | "placement"; sheet: string; document: string | null; tag: string;
   fuzer_id: string; point: string | null; detail: string; question: string; type?: string;
   drawn_on?: string; register?: { parent: string; sources: string[] }[];
+  /** The disagreement in the one finding shape (P1.1); absent on questions raised before it. */
+  finding?: Finding;
 }
 
 export interface HeldLoadPayload {
@@ -349,6 +351,8 @@ export interface WorkProcess {
 export interface WorkItem {
   /** False when no agents provider is configured: no agent worker runs, so agent steps wait for a person. */
   agents_configured?: boolean;
+  /** Every exception the case works, each with its finding. */
+  sources?: CaseSource[];
   id: number;
   type: string;
   title: string;
@@ -487,11 +491,26 @@ export interface JoinedException {
   value_usd: number | null; subjects: string[]; first_seen: string; label: string;
 }
 
-/** One exception a case works, with what its source saw: a task page's sources. */
+/** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
+export interface FindingItem {
+  label: string; value: string | number | boolean; unit?: string;
+  kind: "text" | "number" | "flag" | "time" | "asset";
+  /** An asset's tag and description. */
+  text?: string | null;
+}
+
+/** The one record shape for anything detected (P1.1), as every reader gets it. */
+export interface Finding {
+  detector: string; origin: "deterministic" | "agentic" | "external"; origin_label: string;
+  method: string | null; standard: string | null; start: string | null; end: string | null;
+  confidence: number | null; items: FindingItem[]; checks: string[]; subjects: string[]; value_usd: number | null;
+}
+
+/** One exception a case works, with its finding: a case's and a task page's sources. */
 export interface CaseSource {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
   value_usd: number | null; first_seen: string; last_seen: string; joined_to: number | null; subjects: string[];
-  label: string; seen: [string, string][];
+  label: string; finding: Finding;
 }
 
 /** An exception type: declared by a module in code, or defined as data for another system's exceptions. */
@@ -527,7 +546,7 @@ export interface TurnaroundScope {
 export interface FieldJob extends ExceptionRow {
   label: string; due: string | null; task_id: number | null; task_name: string | null;
   assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
-  seen: [string, string][];
+  finding: Finding;
   history: { id: number; title: string; state: string; first_seen: string }[];
   field: { at: string; by: string; status: string; note: string | null }[];
   /** Who sent it to them, when, and what they asked for. */

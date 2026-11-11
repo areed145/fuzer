@@ -8,6 +8,7 @@ import { api, type FieldJob, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card } from "../ui";
 import { entityHref, href } from "../lib";
 import { Due, reportedBy, when } from "../work";
+import { FindingEvidence } from "../Finding";
 import { taskHref, useAct } from "./workflows/shared";
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
@@ -80,10 +81,10 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <h3 className="small">Checks before restart</h3>
         <ol className="small">{job.checklist!.map((c) => <li key={c}>{c}</li>)}</ol>
       </div>}
-      {job.seen.length > 0 && <div>
-        <h3 className="small">What was seen</h3>
-        <dl className="kv small">{job.seen.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-      </div>}
+      <div>
+        <h3 className="small">What was found</h3>
+        <FindingEvidence finding={job.finding} checks={false} />
+      </div>
       {job.history.length > 0 && <div>
         <h3 className="small">Lately at this asset</h3>
         <ul className="plain small">{job.history.map((h) => <li key={h.id}>

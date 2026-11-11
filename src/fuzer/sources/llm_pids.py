@@ -41,6 +41,7 @@ from PIL import Image
 from psycopg.types.json import Jsonb
 
 from ..core import llm, nel
+from ..core.findings import AGENTIC, Finding, fact, shown
 from ..core.llm import call, run_batch, usage
 from ..core.model import Edge, Limit, Measurement
 from ..core.pack import Pack
@@ -721,9 +722,18 @@ def mismatches(conn, sheets: dict[str, dict], drawing_issues: list[dict]) -> lis
 
     def add(sk: str, tag: str, check: str, issue: dict, question: str, **kw):
         digest = hashlib.sha1(issue["detail"].encode()).hexdigest()[:12]
+        # The same record shape as anything else detected (P1.1): a model read the drawing, a rule compared it
+        found = Finding("drawings.compare", AGENTIC, method="A drawing read by a model, compared with "
+                        + ("the register" if check == "placement" else "the configured alarms"),
+                        items=(fact("Drawing", sk), fact("Tag", tag), fact("Measured on", issue.get("point")),
+                               fact("Drawn on", kw.get("drawn_on")),
+                               fact("Register", "; ".join(f"{'/'.join(x['sources'])} has it under {x['parent']}"
+                                                          for x in kw.get("register") or [])),
+                               None if check == "placement" else fact("Disagreement", issue["detail"])))
         out.append((f"{sk}:{tag}:{check}:{digest}", {
             "check": check, "sheet": sk, "document": docs.get(sk), "tag": tag, "fuzer_id": issue["point_id"],
-            "point": issue.get("point"), "detail": issue["detail"], "question": question, **kw}))
+            "point": issue.get("point"), "detail": issue["detail"], "question": question, **kw,
+            "finding": shown(found.evidence(), "pid", [issue["point_id"]] if issue.get("point_id") else [])}))
 
     prefix = "pid:sheet:"
     for i in drawing_issues:

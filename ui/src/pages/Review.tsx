@@ -21,6 +21,7 @@ import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } f
 import { ActionStatus, Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
+import { FindingEvidence } from "../Finding";
 
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
@@ -539,12 +540,8 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <span className="muted small">{p.sheet}</span>
       </div>
       <p>{p.question}</p>
-      <p className="muted small">
-        <a className="mono" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
-        {p.check === "placement" && p.register
-          ? <> · drawn on <span className="mono">{p.drawn_on}</span>; {p.register.map((r) => `${r.sources.join("/")} has it under ${r.parent}`).join(", ")}</>
-          : <> · {p.detail}</>}
-      </p>
+      <a className="mono small" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
+      {p.finding ? <FindingEvidence finding={p.finding} /> : <div className="small">{p.detail}</div>}
       <div className="row">
         {p.document
           ? <ButtonLink href={entityHref(p.document)}>Open {p.sheet}</ButtonLink>
