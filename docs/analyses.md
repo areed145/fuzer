@@ -359,6 +359,32 @@ The swimlane chart `plot_state_timeline` shows an upset spreading through a trai
 alarms per 10 minutes against the flood line. MCP: `alarm_analysis`, `trip_analysis`. The troubleshooting
 skill uses them for "how did it spread".
 
+## Records that don't agree
+
+`records.py` (#344) compares three records of the same event: EC downtime, the operator log and SAP notifications.
+
+- **`records_mismatch`** (MCP, calc): every downtime record starting in the window with no log entry about the same
+  plant within `records.log_tolerance_hours` (default 12 h, either side and during it), and, for reason categories in
+  `records.notification_categories` (default `equipment`, from the pack's `downtime_reasons`), no notification within
+  `records.notification_tolerance_days` (default 3 days; SAP notifications carry a date). The reverse too: log
+  entries that read as a stop (tripped, shut in, died, curtailed ...) with no downtime record. The output states the
+  tolerances, the window and when the logs run to; records newer than the tolerance before the latest log entry are
+  `too_recent` to judge.
+- **"The same plant"** is read through the register, for any asset type: a subject of the downtime (what caused it,
+  what it affects), anything directly part of or installed at one, or what one is directly part of. A logged stop
+  also matches downtime on anything it sits under, so a compressor trip in the log matches deferment booked against
+  its facility.
+- **`watch()`** raises the mismatches in the last `records.lookback_days` (default 7) as `records_gap` exceptions on
+  the `ops_lead` queue, one per record, with the evidence and tolerance; each clears (closing its case) when a
+  matching record turns up. It runs with the first scan and the day close. Open ones are the shift handover's
+  **Records to check** section.
+
+On Okan it finds the planted pair in the last week of 2025: the ST2 production separator 40-V-2002 trip booked as
+downtime with no log entry or notification, and OK-J09-02 logged shut in with no downtime record. Over two years it
+also lists the well interventions the background log never mentions, the planned shutdowns, and the train A trips
+whose notification came only after the third. A mismatch is a question for the shift, not proof that an event is
+missing.
+
 ## SRE detection
 
 `sre.py` finds upsets in the process data itself, every 6 hours (`sre_scan` in Dagster, `fuzer sre`).

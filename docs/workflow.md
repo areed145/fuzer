@@ -139,6 +139,12 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`/work/items/{id}/hand-off` and `/transition` act on the step). Work for a named person, and any case raised
   before the starting processes are loaded, is a plain work item. Outside the work engine only `fuzer.ops.routing`
   opens a case (`tests/ops/test_front_door.py`).
+- **Cases opened before.** When the server starts, after it loads the starting processes, every open case that
+  has no process is moved onto the one `route()` starts today (`routing.adopt_open_cases`): a queue case onto
+  queue_item, a handover and a close-out onto theirs, an opportunity, an assistant's task or a task asked of a role
+  onto task. Whoever held it still holds its step and a due date it had stays; one with none is due by the role's
+  SLA counted from the move, so nothing turns overdue at once. Cases for a named person, and ones whose type has its
+  own process (which would begin again from the start), stay as they are. The history says when a case moved.
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The
@@ -198,7 +204,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **Shift handover** (#467, `ops/handover.py`, Work > Handover). At each shift change (`handover.shift_times`,
   local times in the project's timezone, default `06:00,18:00`; empty turns it off) the work tick drafts a handover
   from live work over the shift that just ended: open work by priority, what came back from the field and waits on
-  the IOC, steps escalated or overdue, what was dispatched and to whom, and new exceptions. Every line cites its
+  the IOC, steps escalated or overdue, what was dispatched and to whom, new exceptions, and records to check (downtime with no log entry or
+  notification and logged stops with no downtime, #344, see [analyses](analyses.md)). Every line cites its
   case or exception (`case:<id>`, `exception:<id>`), as the daily report cites its records. It opens a
   `shift_handover` case on the `ops_lead` queue, run as the `shift_handover` process so reading it has the ops
   lead's SLA and escalates if nobody does; the outgoing lead adds notes, and the incoming lead acknowledges it

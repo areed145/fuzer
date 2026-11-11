@@ -140,6 +140,17 @@ register(
     Setting("exceptions.join_hours", "int", 48, "An exception about an asset (or the unit it is part of) whose open "
             "case another source's exception raised within this many hours joins that case, so one event reported by "
             "several systems is one case (0: never join)", "Work", min=0, max=720),
+    Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
+            "record (and during it) an operator log entry about the same plant counts as its log",
+            "Work", min=0, max=168),
+    Setting("records.notification_tolerance_days", "int", 3, "Records mismatch: days either side of a "
+            "downtime record a notification about the same plant counts as its notification",
+            "Work", min=0, max=60),
+    Setting("records.notification_categories", "str", "equipment", "Records mismatch: downtime reason "
+            "categories that call for a maintenance notification (comma separated; the pack's "
+            "downtime_reasons give each reason its category)", "Work"),
+    Setting("records.lookback_days", "int", 7, "Records mismatch: days before the latest log entry whose "
+            "mismatches are raised for the shift (older ones stay in the calc)", "Work", min=1, max=90),
     Setting("intake.sap_notifications.max_age_days", "int", 60, "Only raise notifications created this many days "
             "before the latest data (an older backlog is a planning question)", "Work", min=1, max=3650),
     Setting("intake.sap_notifications.due_hours", "str", "1:24,2:72,3:336,4:720", "When a dispatched SAP "
