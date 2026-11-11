@@ -34,7 +34,8 @@ const money = (v: number | null) =>
   v === null ? "not valued" : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}k` : `$${Math.round(v)}`;
 
 /** The Ranked by value view of All work (#502), formerly the Work board page. */
-export function BoardPage({ query, embedded = false }: { query: URLSearchParams; embedded?: boolean }) {
+export function BoardPage({ query, filters }: { query: URLSearchParams; filters?: { type?: string; who?: string; q?: string } }) {
+  const embedded = !!filters;
   const view = (query.get("view") as View) || "ranked";
   const [text, setText] = useState("");
   const [filter, setFilter] = useState<BoardFilter>({});
@@ -47,7 +48,10 @@ export function BoardPage({ query, embedded = false }: { query: URLSearchParams;
     store.set(LAST_VISIT, new Date().toISOString().slice(0, 19));
   }, []);
 
-  const f: BoardFilter = { ...filter, text: words || undefined, since: view === "new" ? lastVisit ?? undefined : undefined };
+  // Under All work the shared bar sets kind, holder (a queue is its bare role name on the board) and words.
+  const shared: BoardFilter = filters ? { kind: filters.type, owner: filters.who?.replace(/^role:/, ""), text: filters.q } : {};
+  const f: BoardFilter = { ...filter, text: words || undefined, ...Object.fromEntries(Object.entries(shared).filter(([, v]) => v)),
+    since: view === "new" ? lastVisit ?? undefined : undefined };
   const board = useAsync(() => api.board(f, page), [JSON.stringify(f), page]);
   const facets = board.data?.facets;
 
@@ -75,12 +79,12 @@ export function BoardPage({ query, embedded = false }: { query: URLSearchParams;
       <div className="row">
         <div className="tabs">
           {VIEWS.map(([v, label]) => (
-            <a key={v} className={view === v ? "on" : ""} href={href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v })}>
+            <a key={v} className={view === v ? "on" : ""} href={href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v, ...filters })}>
               {label}
             </a>
           ))}
         </div>
-        <Input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />
+        {!embedded && <Input placeholder="Search titles and descriptions" value={text} onChange={(e) => setText(e.target.value)} />}
         {Object.keys(saved).length > 0 && (
           <Select value="" onChange={(e) => {
             const s = saved[e.target.value];

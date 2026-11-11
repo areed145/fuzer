@@ -49,18 +49,24 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
 
 /** The In progress and Closed views of All work (#502), formerly the Cases list. With `fixedState` the view sets the
  * state and the page's own header and state tabs are left out. */
-export function CasesPage({ query, fixedState }: { query: URLSearchParams; fixedState?: "open" | "closed" }) {
+export function CasesPage({ query, fixedState, filters }: {
+  query: URLSearchParams; fixedState?: "open" | "closed"; filters?: { type?: string; who?: string; q?: string };
+}) {
   const [chosen, setState] = useState(query.get("state") ?? "open");
   const state = fixedState ?? chosen;
-  const [type, setType] = useState(query.get("type") ?? "");
-  const [who, setWho] = useState(query.get("who") ?? "");
+  const [ownType, setType] = useState(query.get("type") ?? "");
+  const [ownWho, setWho] = useState(query.get("who") ?? "");
   const [overdue, setOverdue] = useState(query.get("overdue") === "1");
-  const [q, setQ] = useState("");
+  const [ownQ, setQ] = useState("");
+  // Under All work the shared filter bar decides kind, holder and words; on its own the page keeps its controls.
+  const type = filters ? filters.type ?? "" : ownType;
+  const who = filters ? filters.who ?? "" : ownWho;
+  const q = filters ? filters.q ?? "" : ownQ;
   const [person] = usePerson();
-  const filters = { state, type: type || undefined, q: q || undefined, overdue: overdue ? true : undefined,
+  const asked = { state, type: type || undefined, q: q || undefined, overdue: overdue ? true : undefined,
                     assignee: who && !who.startsWith("role:") ? who : undefined, role: who.startsWith("role:") ? who.slice(5) : undefined };
-  const list = useAsync(() => api.cases(filters), [JSON.stringify(filters)]);
-  const all = useAsync(() => api.cases({ state: "all", limit: 1000 }), []);
+  const list = useAsync(() => api.cases(asked), [JSON.stringify(asked)]);
+  const all = useAsync(() => filters ? Promise.resolve(null) : api.cases({ state: "all", limit: 1000 }), [!!filters]);
   const types = [...new Set((all.data?.items ?? []).map((r) => r.type))].sort();
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const rows = [...(list.data?.items ?? [])].sort(state === "open" ? byUrgency : () => 0);
@@ -79,7 +85,7 @@ export function CasesPage({ query, fixedState }: { query: URLSearchParams; fixed
         {!fixedState && <div className="tabs">
           {["open", "closed", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
         </div>}
-        <label className="small row">Kind
+        {!filters && <><label className="small row">Kind
           <Select value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">every kind</option>
             {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
@@ -87,9 +93,9 @@ export function CasesPage({ query, fixedState }: { query: URLSearchParams; fixed
         </label>
         <label className="small row">With {/* #409: who holds the case's open steps, a person or a role's queue */}
           <AssignPicker value={who} onChange={setWho} placeholder="anyone" />
-        </label>
+        </label></>}
         <label className="small"><Input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> overdue</label>
-        <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />
+        {!filters && <Input aria-label="Search case titles" placeholder="search titles" value={q} onChange={(e) => setQ(e.target.value)} />}
         {list.data && <span className="small muted">{list.data.total} cases · {list.data.overdue} overdue · {list.data.due_soon} due soon</span>}
       </div>
       {picked.size > 0 && <BulkReassign ids={[...picked]} person={person} onDone={() => setPicked(new Set())} />}

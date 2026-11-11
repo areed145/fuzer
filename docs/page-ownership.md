@@ -42,7 +42,8 @@ Lessons and Studies. Work contains All work, Inbox, My jobs, Handover, Plan, Tur
 All work (#502) is the IOC's one list: its views are To dispatch, With the field, Back from the field, All open
 (exceptions), In progress and Closed (the former Cases list) and Ranked by value (the former Work board).
 `#/board?view=…` redirects to `#/exceptions?list=ranked&view=…`, and `#/cases?state=…` to the In progress or
-Closed view with its filters; case and task pages keep their URLs. The rest of the consolidation is planned in #501.
+Closed view with its filters; case and task pages keep their URLs. One filter bar (kind of work, held by, words in
+the title) is shared by every view and kept in the URL, so switching views keeps it. The rest of the consolidation is planned in #501.
 Settings contains Application settings, configure-visible Users and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
 a Settings subdestination, not an eighth primary destination.

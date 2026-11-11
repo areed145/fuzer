@@ -2,10 +2,11 @@
  * three pages showing the same work at different grains; they are views of this page now. Old links land here:
  * `#/board?view=…` opens Ranked by value, `#/cases?state=…` opens In progress or Closed. Case and task pages are
  * unchanged. */
-import { useEffect, useRef } from "react";
-import { PageHeader } from "../ui";
+import { useEffect, useRef, useState } from "react";
+import { Input, PageHeader, Select } from "../ui";
 import { api } from "../api";
-import { href, useAsync } from "../lib";
+import { href, useAsync, useDebounced } from "../lib";
+import { AssignPicker } from "./workflows/shared";
 import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
 import { BoardPage } from "./Board";
 import { CasesPage } from "./workflows/Cases";
@@ -36,7 +37,14 @@ export function legacyWorkHref(section: "board" | "cases", query: URLSearchParam
   return workHref(state === "closed" ? "closed" : "progress", others);
 }
 
+/** The filters every view of All work shares, kept in the URL so a link or Back keeps them: the kind of work, who
+ * holds it (a person, or `role:<name>` for a queue) and words in its title. */
+export interface WorkFilters { type?: string; who?: string; q?: string }
+
+const FILTER_KEYS = ["type", "who", "q"] as const;
+
 export function AllWorkPage({ query }: { query: URLSearchParams }) {
+  const filters: WorkFilters = Object.fromEntries(FILTER_KEYS.map((k) => [k, query.get(k) || undefined]));
   const asked = query.get("list") as WorkList | null;
   // An old Exceptions link with a state (#/exceptions?state=closed) opens All open with that state.
   const list: WorkList = asked && KEYS.has(asked) ? asked : query.get("state") ? "open" : "dispatch";
@@ -60,17 +68,44 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
         dispatching, what is with the field, what came back, who holds the rest, everything ranked by value, and what
         is finished. The steps waiting on you personally are in your <a href={href("/inbox")}>Inbox</a>.</>}>
         All work</PageHeader>
+      <FilterBar list={list} query={query} filters={filters} />
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">
         {WORK_LISTS.map((l) => (
-          <a key={l.key} href={workHref(l.key)} className={l.key === list ? "on" : ""}
+          <a key={l.key} href={workHref(l.key, { ...filters })} className={l.key === list ? "on" : ""}
             aria-current={l.key === list ? "page" : undefined}>
             {l.label}{counts[l.key] ? <span className="muted"> {counts[l.key]}</span> : null}</a>
         ))}
       </nav>
-      {list === "ranked" ? <BoardPage query={query} embedded />
-        : list === "progress" ? <CasesPage key="progress" query={query} fixedState="open" />
-        : list === "closed" ? <CasesPage key="closed" query={query} fixedState="closed" />
-        : <ExceptionsPage key={list} query={query} view={list} />}
+      {list === "ranked" ? <BoardPage query={query} filters={filters} />
+        : list === "progress" ? <CasesPage key="progress" query={query} fixedState="open" filters={filters} />
+        : list === "closed" ? <CasesPage key="closed" query={query} fixedState="closed" filters={filters} />
+        : <ExceptionsPage key={list} query={query} view={list} filters={filters} />}
     </section>
+  );
+}
+
+/** One filter bar for every view (#502): changing it rewrites the URL in place, so switching views keeps it. */
+function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchParams; filters: WorkFilters }) {
+  const kinds = useAsync(() => api.exceptionKinds(), []);
+  const [text, setText] = useState(filters.q ?? "");
+  const words = useDebounced(text);
+  const set = (next: WorkFilters) => {
+    const keep = Object.fromEntries([...query.entries()].filter(([k]) => k !== "list" && !FILTER_KEYS.includes(k as never)));
+    location.replace(workHref(list, { ...keep, ...filters, ...next }));
+  };
+  useEffect(() => { if ((words || undefined) !== filters.q) set({ q: words || undefined }); }, [words]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const types = (kinds.data ?? []).map((k) => [k.name, k.label] as const);
+  if (filters.type && !types.some(([n]) => n === filters.type)) types.push([filters.type, filters.type.replace(/_/g, " ")]);
+  return (
+    <div className="row wrap work-filters" role="search" aria-label="Filter all work">
+      <Select aria-label="Kind of work" value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || undefined })}>
+        <option value="">every kind</option>
+        {types.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
+      </Select>
+      <AssignPicker label="Held by" value={filters.who ?? ""} placeholder="held by anyone"
+        onChange={(v) => set({ who: v || undefined })} />
+      <Input type="search" aria-label="Search titles" placeholder="search titles" value={text}
+        onChange={(e) => setText(e.target.value)} />
+    </div>
   );
 }

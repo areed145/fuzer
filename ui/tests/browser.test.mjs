@@ -329,9 +329,10 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   await page.waitForFunction(() => document.querySelector("nav[aria-label=Main] .count")?.getAttribute("title")
     === "1 workflow step waiting on you, 14 data reviews");
   assert.equal(await badge.locator("[aria-hidden=true]").innerText(), "15");
-  await page.getByLabel("With", { exact: false }).first().waitFor();
-  assert.equal(await page.getByLabel("Kind", { exact: false }).count() > 0, true);
-  assert.equal(await page.getByRole("option", { name: "anyone", exact: true }).count(), 1);
+  // Under All work the shared filter bar labels them (#502).
+  await page.getByRole("combobox", { name: "Held by", exact: true }).waitFor();
+  assert.equal(await page.getByRole("combobox", { name: "Kind of work", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("option", { name: "held by anyone", exact: true }).count(), 1);
 });
 
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
@@ -2184,6 +2185,18 @@ test("All work holds the Work board and Cases as views, and their old links land
   await views.getByRole("link", { name: "With the field 1" }).click();
   await page.getByText("Packing leak").waitFor();
   assert.equal(await page.getByText("Compressor trip").count(), 0);
+
+  // One filter bar for every view, kept in the URL across views (#502 part 2).
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.getByText("Seal weeping").waitFor();
+  await page.getByRole("searchbox", { name: "Search titles" }).fill("seal");
+  await page.waitForURL(/list=open&q=seal$/);
+  await page.getByText("Seal weeping").waitFor();
+  assert.equal(await page.getByText("Compressor trip").count(), 0);
+  await page.getByRole("combobox", { name: "Held by" }).selectOption("otto");
+  await page.waitForURL(/who=otto/);
+  await page.getByText("Nothing here.").waitFor();  // erin holds the seal case, not otto
+  assert.match(await views.getByRole("link", { name: /In progress/ }).getAttribute("href"), /list=progress&who=otto&q=seal/);
 
   await page.goto(`${url}/#/board?view=kind`);
   await page.waitForURL(/#\/exceptions\?list=ranked&view=kind$/);
