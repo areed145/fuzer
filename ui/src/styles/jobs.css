@@ -8,16 +8,16 @@
 .health-red { color: var(--danger); }
 .banner { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; margin: 12px 0 4px;
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.banner.health-amber { background: var(--warn-soft); }
+.banner.health-amber { border-color: var(--warn); }
 .banner.health-red { border-color: var(--danger); }
 .banner.health-green { background: var(--ok-soft); }
 .banner .dot { width: 10px; height: 10px; }
 .jobs h2 { margin-top: 22px; margin-bottom: 8px; }
-.badge.run-ok { background: var(--ok-soft); color: var(--ok); }
-.badge.run-warn { background: var(--warn-soft); color: var(--warn); }
-.badge.run-fail { background: var(--danger); color: var(--accent-text); }
-.badge.run-updating { background: var(--warn-soft); color: var(--text); }
-.badge.run-key { background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+.badge.run-ok { color: var(--ok); }
+.badge.run-warn { color: var(--warn); }
+.badge.run-fail { color: var(--danger); }
+.badge.run-updating { color: var(--warn); }
+.badge.run-key { color: var(--muted); font-family: var(--mono); }
 .trigger { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
 .trigger + .trigger { margin-top: 4px; }
 table.ui-table--results tr.static { cursor: default; }

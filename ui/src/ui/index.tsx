@@ -1,6 +1,6 @@
 import "../styles/ui-kit.css";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export function ActionStatus({ busy, error, children }: { busy?: string | null; error?: string | null; children?: ReactNode }) {
   return <>{busy && <p role="status">{busy}</p>}
@@ -115,4 +115,17 @@ export function Bar({ value, label, className = "" }: { value: number; label?: s
   return <span className={`ui-bar ${className}`.trim()} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
     <span style={{ width: `${pct}%` }} />
   </span>;
+}
+
+/** Content shown on request: a plain text button, no caret. Use it for long data (a table, a stack trace, a history),
+ * never for guidance, which belongs in the docs. `open` sets the first state only. */
+export function Disclosure({ label, open = false, className = "", children }: {
+  label: ReactNode; open?: boolean; className?: string; children?: ReactNode;
+}) {
+  const [shown, setShown] = useState(open);
+  const id = useId();
+  return <div className={`ui-disclosure ${className}`.trim()}>
+    <button type="button" className="ui-disclosure-toggle" aria-expanded={shown} aria-controls={id} onClick={() => setShown(!shown)}>{label}</button>
+    {shown && <div id={id} className="ui-disclosure-body">{children}</div>}
+  </div>;
 }

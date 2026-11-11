@@ -9,18 +9,20 @@ const path = require("node:path");
 const src = path.join(__dirname, "..", "src");
 const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, "style-baseline.json"), "utf8"));
 
-function files(dir) {
+function files(dir, ext) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    return entry.isDirectory() ? files(full) : /\.tsx$/.test(entry.name) ? [full] : [];
+    return entry.isDirectory() ? files(full, ext) : ext.test(entry.name) ? [full] : [];
   });
 }
-const sources = files(src).map((file) => ({ file: path.relative(src, file), text: fs.readFileSync(file, "utf8") }));
+const read = (ext) => files(src, ext).map((file) => ({ file: path.relative(src, file), text: fs.readFileSync(file, "utf8") }));
+const sources = read(/\.tsx$/);
+const styles = read(/\.css$/);
 
 const RULES = {
   "help-disclosure": {
-    pattern: /<details\b/g,
-    hint: "Don't hide guidance behind a caret. Link the docs with PageHeader help=, or show the content. For a long list use a 'Show all (n)' button.",
+    pattern: /<(?:details|summary)\b/g,
+    hint: "No carets. Guidance goes in the docs (PageHeader help=); long data goes in Disclosure; everything else is shown.",
   },
   "muted-paragraph": {
     pattern: /<p className="muted[^"]*"/g,
@@ -42,15 +44,25 @@ const RULES = {
     pattern: /style=\{\{/g,
     hint: "Use a class from the UI kit or the page's stylesheet. Inline styles are only for computed sizes and positions.",
   },
+  "status-pill": {
+    css: true,
+    pattern: /\.(?:ui-)?badge[^{]*\{[^}]*(?:background:(?!\s*none)[^;]+|border-radius:(?!\s*0)[^;]+)/g,
+    hint: "Status is a word in the state's colour (Badge tone). Don't give badges a fill or a pill shape.",
+  },
+  "summary-marker": {
+    css: true,
+    pattern: /(?<![-\w.])summary\b[^{]*\{/g,
+    hint: "There are no <summary> elements to style. Use Disclosure for long data.",
+  },
   "raw-control": {
     pattern: /<(?:button|table)\b/g,
     hint: "Use Button and Table from ui/src/ui so controls and tables look the same everywhere.",
   },
 };
 
-for (const [rule, { pattern, hint }] of Object.entries(RULES)) {
+for (const [rule, { pattern, hint, css }] of Object.entries(RULES)) {
   test(`style: ${rule}`, () => {
-    const hits = sources.map(({ file, text }) => ({ file, n: (text.match(pattern) ?? []).length })).filter(({ n }) => n);
+    const hits = (css ? styles : sources).map(({ file, text }) => ({ file, n: (text.match(pattern) ?? []).length })).filter(({ n }) => n);
     const total = hits.reduce((sum, { n }) => sum + n, 0);
     const allowed = baseline[rule];
     assert.equal(typeof allowed, "number", `style-baseline.json needs a number for "${rule}"`);

@@ -6,7 +6,7 @@ import {
   api, type KindDef, type KindIn, type Ontology as OntologyData, type OntologyKind, type RelationDef, type RelationIn,
 } from "../api";
 import { GraphCanvas, Legend, REL_VIEWS, kindColor } from "../graph";
-import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
+import { Bar, Button, PageHeader, Table, Input, Select , Card as UICard, Badge as UIBadge, Disclosure } from "../ui";
 import { SourceBadge, Status, href, useAsync } from "../lib";
 import { reviewer, useAction, when } from "./sources/common";
 import type { ElementDefinition } from "cytoscape";
@@ -38,10 +38,7 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
   return (
     <section>
       <PageHeader
-        subtitle={<>The data model: each kind of thing Fuzer holds and each kind of link between them, what they mean and
-          what may link to what. The graph is the register as it is now (circles sized by how many there are);
-          Kinds &amp; link types is the model itself, where you define them. A new dataset's kinds and links show
-          under Needs definition until someone describes them.</>}
+        subtitle="Kinds of things and the links between them." help="data-model"
         actions={<>
           <Button onClick={() => edit({ what: "kind" })}>Add kind</Button>
           <Button onClick={() => edit({ what: "relation" })}>Add link type</Button>
@@ -377,8 +374,7 @@ function History({ object, name }: { object: "kind" | "relation"; name: string }
   const h = useAsync(() => api.ontologyHistory(object, name), [object, name]);
   if (!h.data?.length) return null;
   return (
-    <details className="small">
-      <summary>History ({h.data.length})</summary>
+    <Disclosure className="small" label={<>History ({h.data.length})</>}>
       <ul className="plain">
         {h.data.map((c) => (
           <li key={c.id}>
@@ -388,7 +384,7 @@ function History({ object, name }: { object: "kind" | "relation"; name: string }
           </li>
         ))}
       </ul>
-    </details>
+    </Disclosure>
   );
 }
 

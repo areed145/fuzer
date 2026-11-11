@@ -80,34 +80,7 @@ function Datasets() {
       <h2>Source readiness</h2>
       <Button disabled={cat.loading} onClick={cat.reload}>Refresh source readiness</Button>
       {cat.data && <p>{connections.length} connections · {rows.filter(({ d }) => d.loaded_at).length} datasets
-        with a recorded load. A passed connection test is not a load or a freshness guarantee.</p>}
-      {/* Once there are datasets the steps fold away so the table is on the first screen (#415). */}
-      <details className="source-steps" open={!cat.data || rows.length === 0}>
-      <summary>How to connect, ingest, monitor and recover</summary>
-      <p>Connect, test, ingest, monitor and recover here. Viewing Sources reads recorded state only;
-        it does not test services, load data or call AI.</p>
-      <ol>
-        <li><a href={href("/sources", { view: "systems" })}>Connect &amp; test</a>: manage endpoints and
-          deployment-secret references. Deliberate tests contact the service, may read sample rows and save results.
-          <details><summary>Recorded connection results</summary>
-            {!connections.length && <p>No connections yet. Add a source to begin.</p>}
-            <ul>{connections.map((c) => <li key={c.id}><strong>{c.system} / {c.name}</strong>: {
-              !c.enabled || !c.systemEnabled ? "disabled" : Object.values(c.secrets).some((s) => !s.resolves)
-                ? "missing secret reference" : !c.last_test ? "not tested" : c.last_test.ok ? "last test passed" : "last test failed"}
-              {c.last_tested_at && <> · recorded {when(c.last_tested_at)}</>}</li>)}</ul>
-          </details>
-        </li>
-        <li><a href={href("/sources", { view: "add" })}>Add and ingest a source</a>: follow connection,
-          mapping and load steps. No data loads until the final explicit action.</li>
-        <li>Monitor freshness and recover below: open a dataset for problems, checks, run history and retry/load actions.
-          Source edits affect the next test/load; mappings require the indicated load/rebuild.</li>
-        <li><a href={href("/jobs")}>Inspect scheduled loads &amp; recovery</a> if a load did not run.
-          Jobs owns scheduler diagnostics and run failures; a deployment operator repairs missing infrastructure.</li>
-      </ol>
-      <p className="muted small">Application-wide defaults, AI limits and restart requirements belong in{" "}
-        <a href={href("/settings")}>Settings</a>. Secret values stay in hosting.
-        {" "}Human decisions on held data are in <a href={href("/review")}>Data review</a>; Sources remains the place to retry loads.</p>
-      </details>
+        with a recorded load.</p>}
       <Status loading={cat.loading && !cat.data} error={cat.error} empty={!!cat.data && rows.length === 0}>
         No datasets yet: <a href={href("/sources", { view: "add" })}>add a source</a>.
       </Status>

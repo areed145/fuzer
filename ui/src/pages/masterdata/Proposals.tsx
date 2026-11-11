@@ -4,7 +4,7 @@
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
 import { api, type Proposal } from "../../api";
-import { Badge, Button, Card, Select, Table } from "../../ui";
+import { Badge, Button, Card, Select, Table, Disclosure } from "../../ui";
 import { Status, entityHref, useAsync } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -74,8 +74,8 @@ function Row({ p, done }: { p: Proposal; done: () => void }) {
           : picked?.fuzer_id ? <a href={entityHref(picked.fuzer_id)}>{picked.text}</a> : picked?.text}
         {" "}<span className="muted small">{Math.round(p.answer.confidence * 100)}%</span></> : <span className="muted">not asked yet</span>}</td>
       <td className="small">{p.answer?.reason}
-        {(p.answer?.evidence ?? []).length > 0 && <details><summary className="muted">evidence</summary>
-          <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></details>}</td>
+        {(p.answer?.evidence ?? []).length > 0 && <Disclosure label={<>evidence</>}>
+          <ul className="plain">{p.answer!.evidence.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul></Disclosure>}</td>
       <td>{p.status !== "open" ? <span className="muted small">{p.status} by {p.decided_by}</span>
         : operate && person && <div className="row">
           <Select aria-label="Option to accept" value={choice} onChange={(e) => setChoice(e.target.value)}>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table } from "../../ui";
+import { ActionStatus, Badge, Card as UICard, ConfirmAction, Table, Disclosure } from "../../ui";
 import { api, type RelatedUpset, type UpsetView } from "../../api";
 import { Status, useAsync } from "../../lib";
 import { PlotlyChart } from "../../analytics/PlotlyChart";
@@ -49,9 +49,8 @@ function Spread({ v }: { v: UpsetView }) {
 function Detections({ v }: { v: UpsetView }) {
   const shown = v.timeline.slice(0, 25);
   return (
-    <details className="evidence-item" open={v.timeline.length <= 8}>
-      <summary><strong>Detections in time order</strong> <span className="muted small">· {v.upset.detections} in all,
-        the first is the likely first cause</span></summary>
+    <Disclosure className="evidence-item" open={v.timeline.length <= 8} label={<><strong>Detections in time order</strong> <span className="muted small">· {v.upset.detections} in all,
+        the first is the likely first cause</span></>}>
       <Table density="compact">
         <thead><tr><th>Started</th><th>Unit</th><th>Point</th><th>Finding</th></tr></thead>
         <tbody>{shown.map((d, i) => (
@@ -60,7 +59,7 @@ function Detections({ v }: { v: UpsetView }) {
         ))}</tbody>
       </Table>
       {v.timeline.length > shown.length && <p className="small muted">The first {shown.length} of {v.detections_shown} shown.</p>}
-    </details>
+    </Disclosure>
   );
 }
 

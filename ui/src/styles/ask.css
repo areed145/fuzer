@@ -15,8 +15,6 @@
 .ask-box { position: sticky; bottom: 12px; }
 .ask-box textarea { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
   border-radius: 6px; padding: 8px; resize: vertical; margin-bottom: 8px; }
-.recent summary { cursor: pointer; }
-.ask-specialists summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .specialist-list, .specialist-gaps { margin: 8px 0 0; padding-left: 18px; }
 .specialist-list li { padding: 4px 0; overflow-wrap: anywhere; }
 .specialist-gaps li { padding: 2px 0; overflow-wrap: anywhere; }
@@ -29,7 +27,6 @@
 .md pre code { padding: 0; border: 0; background: none; }
 .md-diagram { margin: 0 0 10px; overflow-x: auto; }
 .md-diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
-.md-diagram summary { cursor: pointer; }
 
 /* Charts in assistant answers (Figure.tsx) */
 .figure { margin: 12px 0; padding: 8px 12px; }

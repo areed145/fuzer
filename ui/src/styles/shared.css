@@ -16,48 +16,22 @@ img.drawing { width: 100%; height: auto; border: 1px solid var(--line); border-r
 .tabs > a:hover { text-decoration: none; color: var(--text); }
 .tabs > a { cursor: pointer; }
 .tabs.small > * { padding: 3px 10px; font-size: 13px; }
-.badge {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  background: var(--accent-soft);
-  color: var(--text);
-}
-.badge.source { background: transparent; border: 1px solid var(--line); color: var(--muted); font-family: var(--mono); }
-.badge.updating { background: var(--warn-soft); color: var(--text); animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse { 50% { opacity: 0.55; } }
-.badge.ok { background: var(--ok-soft); color: var(--ok); }
-.badge.key { background: var(--bg); border: 1px solid var(--line); }
-.badge.warn { background: var(--warn-soft); color: var(--text); }
-.badge.on { outline: 2px solid var(--accent); outline-offset: 1px; }
-.kind-tag { background: #e6f0fb; color: #0b4f99; }
-.kind-equipment { background: #fdeee0; color: #8a4a0b; }
-.kind-timeseries { background: #e9f6ef; color: #1a6b41; }
-.kind-well { background: #f1e9fb; color: #5b2f99; }
-.kind-document, .kind-log_entry { background: #eef0f3; color: #3c4653; }
-.kind-event { background: #fbe7ea; color: #9b1c31; }
-.kind-equipment_model { background: #f6ead9; color: #7a4310; }
-.kind-equipment_class { background: #e1ecf3; color: #24506b; }
-:root[data-theme="dark"] {
-  .kind-tag { background: #15304f; color: #9cc8ff; }
-  .kind-equipment { background: #3b2612; color: #f3bf8a; }
-  .kind-timeseries { background: #12301f; color: #8fdcb2; }
-  .kind-well { background: #2b1c45; color: #cbb0f5; }
-  .kind-document, .kind-log_entry { background: #232932; color: #b5bfcc; }
-  .kind-event { background: #3d1820; color: #f3a3b0; }
-  .kind-equipment_model { background: #3a2a17; color: #e8b98a; }
-  .kind-equipment_class { background: #182a36; color: #9cc5e0; }
-}
+/* Status text: a small word in the state's colour. No pills, no fills (docs/ui-style.md, Clean style). */
+.badge { display: inline; padding: 0; border-radius: 0; font-size: 12px; font-weight: 500; white-space: nowrap; background: none; color: var(--muted); }
+.badge.source { font-family: var(--mono); }
+.badge.updating { color: var(--warn); }
+.badge.ok { color: var(--ok); }
+.badge.warn { color: var(--warn); }
+.badge.on { color: var(--accent); }
+.badge.kind { color: var(--muted); font-weight: 400; }
 
 /* search */
 .search { width: 100%; padding: 12px 14px; font-size: 16px; border-radius: var(--radius); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 16px; }
-.chip { border-radius: 14px; padding: 3px 10px; font-size: 12px; }
-.chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.chip.on .muted { color: inherit; opacity: 0.75; }
+/* Facets: plain text filters with their counts. The chosen one is bold with an underline, like a tab. */
+.chips { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 16px; }
+.chip { padding: 2px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; font-size: 13px; color: var(--text); }
+.chip:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+.chip.on, .chip[aria-pressed="true"] { border-bottom-color: var(--accent); font-weight: 600; background: none; color: var(--text); }
 
 table.ui-table--results { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 
@@ -102,3 +76,6 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
   .home-today { grid-column: auto; }
   .home-search { align-items: stretch; }
 }
+/* Home's charts sit side by side on a desk screen and stack on a phone; no carousel. */
+.home-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1000px) { .home-charts { grid-template-columns: 1fr; } }

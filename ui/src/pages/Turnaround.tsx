@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { api, type PlanItem } from "../api";
 import { Badge, Button, Card, PageHeader, Select, Table } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
+import { Status, entityHref, useAsync } from "../lib";
 import { usePerson } from "../work";
 import { useAct } from "./workflows/shared";
 
@@ -25,8 +25,7 @@ export function TurnaroundPage() {
   </li>)}</ul>;
   return (
     <section>
-      <PageHeader subtitle={<>A turnaround's scope read against the <a href={href("/plan")}>integrated plan</a>: what is in,
-        what should be, and what is missing.</>}>Turnaround {t.revision ?? ""}</PageHeader>
+      <PageHeader subtitle="Turnaround scope against the plan.">Turnaround {t.revision ?? ""}</PageHeader>
       <div className="row">
         {t.revisions.length > 1 && <Select aria-label="Revision" value={t.revision ?? ""} onChange={(e) => setRevision(e.target.value)}>
           {t.revisions.map((r) => <option key={r} value={r}>{r}</option>)}</Select>}

@@ -3,7 +3,7 @@
 .card.step.current { border-color: var(--accent); }
 .card.step:not(.current) { padding-top: 10px; padding-bottom: 10px; }
 .card.inset { background: var(--bg); box-shadow: none; }
-.card.warn { border-color: var(--warn); background: var(--warn-soft); }
+.card.warn { border-color: var(--warn); }
 .row.wrap { flex-wrap: wrap; }
 .conn { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .card.danger { border-color: var(--line); background: var(--bg); box-shadow: none; }

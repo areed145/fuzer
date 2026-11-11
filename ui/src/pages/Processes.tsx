@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -85,14 +85,7 @@ export function ProcessesPage() {
 
   return (
     <section>
-      <PageHeader>Processes</PageHeader>
-      <p className="muted">
-        How work moves between agents and people, and how each process is doing. Build workflows on the drag-and-drop canvas;
-        BPMN is maintained under the hood. Edit a draft,
-        check it, compare it with the published version, and publish (needs the workflow admin role). Running cases stay on the
-        version they started with. Who does each step, its SLA and where it escalates are on each process's SLAs &amp; routing
-        tab; role administration is under <a href={href("/users", { view: "workflow" })}>Users</a>.
-      </p>
+      <PageHeader subtitle="How work moves between people and agents." help="workflow">Processes</PageHeader>
       <NeedName person={person} />
       <Status loading={defs.loading} error={defs.error} />
       {groups.length > 0 && (
@@ -649,14 +642,13 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
           <FormEditor schema={schema} onReady={onReady} onDirty={onDirty} />
         </Suspense>
       )}
-      <details className="card small">
-        <summary>Bulk actions {bulk.trim() ? "(set)" : ""}</summary>
+      <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
         <p className="muted">
           Low-risk ways to complete many tasks at once from the inbox, e.g. <code>[{`{"label": "Close as false alarm", "data": {"triage": "false_alarm"}, "reason_key": "triage_note"}`}]</code>.
           Never offered on a step that needs a person.
         </p>
         <textarea className="mono" rows={5} value={bulk} onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
-      </details>
+      </Disclosure>
     </section>
   );
 }

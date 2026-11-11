@@ -36,8 +36,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
         Okan investigation
       </PageHeader>
       <div className="investigation-context">
-        <Badge>Synthetic demo data</Badge><Badge>Read-only investigation</Badge><Badge>No AI key needed</Badge>
-        <p>Historical scenario: March 2024, with April maintenance follow-up. Not live plant conditions.</p>
+        <Badge>Synthetic demo data</Badge> <span className="small">March 2024, with April follow-up</span>
       </div>
       <Status loading={result.loading && !result.data} error={result.error} />
       {result.error && (
@@ -156,20 +155,20 @@ function EvidenceList({ data, selected }: { data: Investigation; selected: strin
 function EvidenceCard({ evidence: e, number, selected }: {
   evidence: Investigation["evidence"][number]; number: number; selected: boolean;
 }) {
-  const summary = useRef<HTMLElement>(null);
+  const summary = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (selected) summary.current?.focus(); }, [selected]);
   return (
-    <details className="investigation-evidence" open={selected || undefined}>
-      <summary ref={summary}>
+    <article className="investigation-evidence" aria-current={selected || undefined}>
+      <h3 ref={summary} tabIndex={-1}>
         <span><strong>Evidence {number}</strong> · {kindLabel(e.kind)} · <time>{e.at ?? "Date unknown"}</time></span>
         <span>{e.text ?? e.label}</span>
-      </summary>
+      </h3>
       {!e.text && <p className="section-text">No record text is available.</p>}
       {e.lost_oil_sm3 !== null && <p><strong>{e.lost_oil_sm3.toLocaleString()} Sm³ recorded lost oil</strong>
         {" "}(standard cubic metres, not Sm³/day)</p>}
       <Provenance records={e.records} />
       <p className="muted small">Register record: <code>{e.label}</code></p>
-    </details>
+    </article>
   );
 }
 

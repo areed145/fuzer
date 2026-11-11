@@ -60,7 +60,7 @@ export function Appearance() {
           <option value="dark">Dark</option>
         </Select>
       </Field>
-      <p className="muted small">Currently using {theme} mode. This does not change facility settings.</p>
+      <p className="muted small">Currently using {theme} mode.</p>
       {persistenceError && <p role="status" className="error small">{persistenceError}</p>}
     </Card>
   );

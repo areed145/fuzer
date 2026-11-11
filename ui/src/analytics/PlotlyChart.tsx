@@ -37,7 +37,7 @@ export function PlotlyChart({ spec, label }: { spec: Spec; label: string }) {
       purge = () => Plotly.purge(node);
       const draw = (available: number) => {
         const shaped = forWidth(spec, available);
-        // A touch drag has to reach a Chart Show; zooming stays a mouse gesture.
+        // On touch screens a drag scrolls the page; zooming stays a mouse gesture.
         const layout = themed({ ...shaped.layout, ...(matchMedia("(pointer: coarse)").matches ? { dragmode: false } : {}) });
         return Plotly.react(node, shaped.data, layout, CONFIG);
       };

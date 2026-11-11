@@ -1,6 +1,6 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
-import { Badge as UIBadge } from "./ui";
+import { Badge as UIBadge, Disclosure } from "./ui";
 import { type ReactNode } from "react";
 import { api, type WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
@@ -150,10 +150,9 @@ function Value({ v }: { v: unknown }) {
     const n = Object.keys(o).length;
     if (n <= 3 && !Object.values(o).some((x) => x && typeof x === "object")) return <DataView data={v} />;
     return (
-      <details className="data-fold">
-        <summary>{typeof o.reason === "string" ? o.reason : `${n} fields`}</summary>
+      <Disclosure className="data-fold" label={<>{typeof o.reason === "string" ? o.reason : `${n} fields`}</>}>
         <DataView data={Object.fromEntries(Object.entries(o).filter(([k]) => k !== "reason"))} />
-      </details>
+      </Disclosure>
     );
   }
   if (typeof v === "boolean") return <>{v ? "yes" : "no"}</>;

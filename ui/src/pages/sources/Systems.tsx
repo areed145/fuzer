@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
+import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState } from "react";
@@ -158,11 +158,8 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
   const a = useAction();
   const changed = SYSTEM_FIELDS.filter(([k]) => vals[k] !== (s[k] == null ? "" : String(s[k])));
   return (
-    <details className="card">
-      <summary>
-        <code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
-          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span>
-      </summary>
+    <Disclosure className="card" label={<><code>{s.name}</code> <span className="muted small">{s.kind ?? ""} · {s.datasets.length} datasets ·{" "}
+          {s.connections.length} connection{s.connections.length === 1 ? "" : "s"}{s.owner ? ` · owner ${s.owner}` : ""}</span></>}>
       <Table variant="list" density="compact">
         <tbody>
           {SYSTEM_FIELDS.map(([k, label, hint]) => (
@@ -189,7 +186,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
           <span className="muted"> (it has no datasets)</span>
         </p>
       )}
-    </details>
+    </Disclosure>
   );
 }
 

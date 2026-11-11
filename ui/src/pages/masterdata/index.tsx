@@ -19,11 +19,11 @@ export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const [tab, setTab] = useState<string>(query.get("tab") ?? "unmatched");
   return (
     <section>
-      <PageHeader subtitle="Work only routes when it matches the register. Match what didn't, remember the names systems use, and reverse a decision that was wrong.">
+      <PageHeader subtitle="Records that did not match the register.">
         Master data</PageHeader>
-      <div className="row" role="tablist">
-        {TABS.map(([k, label]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "primary" : "secondary"}
-          onClick={() => setTab(k)}>{label}</Button>)}
+      <div className="tabs" role="tablist">
+        {TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
+          onClick={() => setTab(k)}>{label}</button>)}
       </div>
       {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps />
         : tab === "proposals" ? <ProposalsTab /> : <Decisions />}

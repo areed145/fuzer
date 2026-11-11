@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, type AccessAccount, type AccessAdministration, type AccessRole, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, notifyChanged, Status, useAsync } from "../lib";
-import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select } from "../ui";
+import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure } from "../ui";
 import { TeamsPage, WorkflowAssignments } from "./workflows/Teams";
 
 export function UsersPage({ query }: { query: URLSearchParams }) {
@@ -14,17 +14,7 @@ export function UsersPage({ query }: { query: URLSearchParams }) {
     <a href={href("/")}>Return home</a></section>;
   const workflow = query.get("view") === "workflow" || !owner;
   return <section>
-    <PageHeader subtitle="Accounts, application access and human workflow assignments, with distinct responsibilities.">Users</PageHeader>
-    <details className="card"><summary>How Users works: identity, permissions, routing and work context</summary>
-      <p><strong>Account</strong> identifies who signed in with Microsoft and whether they are enabled.
-        <strong> Application roles</strong> grant server-enforced capabilities.
-        <strong> Workflow roles and teams</strong> route and assign work; they do not grant application access.</p>
-      <p><strong>Work context</strong> means presentation focus, not permissions or assignments. A person may hold several
-        workflow roles and switch focus without impersonating anyone or losing administrative access.
-        Context-driven presentation and its selector are deferred until there is useful behavior to select.</p>
-      <p>Owners retain every application capability and all current or future human workflow roles, never agent identities.
-        Keep at least one enabled owner; a second owner provides recovery if a Microsoft account becomes unavailable.</p>
-    </details>
+    <PageHeader subtitle="Accounts, application access and workflow assignments." help="identity">Users</PageHeader>
     <nav className="tabs users-tabs" aria-label="Users views">
       {owner && <a href={href("/users")} className={!workflow ? "on" : ""} aria-current={!workflow ? "page" : undefined}>Accounts &amp; access</a>}
       <a href={href("/users", { view: "workflow" })} className={workflow ? "on" : ""} aria-current={workflow ? "page" : undefined}>Workflow assignments &amp; routing</a>
@@ -63,14 +53,6 @@ function Administration({ query }: { query: URLSearchParams }) {
   const enabledOwners = data.data?.accounts.filter(account => account.enabled && account.owner).length ?? 0;
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
-    <details className="card"><summary>Shared synthetic facility: approving accounts and what access changes</summary>
-      <p>This is a shared operational demonstration, not a private sandbox. Approved users see the same synthetic facility;
-        operational changes affect that shared facility. Assistant conversations and uploads stay with the account that created them.
-        Facts deliberately learned into shared facility memory are shared knowledge.</p>
-      <p>Approve a signed-in account, choose the least application access it needs, then assign human workflow roles.
-        Assignments alone never enable sign-in or permissions. Disabling an account revokes its active sessions;
-        existing workflow assignments are retained for deliberate handoff in Workflow assignments &amp; routing.</p>
-    </details>
     <Status loading={data.loading} error={data.error} />
     {data.error && <Button onClick={data.reload}>Try again</Button>}
     {data.data && <>
@@ -97,12 +79,12 @@ function Administration({ query }: { query: URLSearchParams }) {
         account={account} data={data.data!} workflow={workflow.data?.roles}
         assigned={workflow.data?.people.find(p => p.name === account.actor)?.assigned_roles ?? []}
         reload={changed} />)}
-      <details><summary>Advanced: application role definitions (affects every assigned account)</summary>
+      <Disclosure label={<>Application role definitions</>}>
       <h2>Application roles</h2>
       {data.data.roles.map((role) => <RoleCard key={role.name + role.permissions.join(",") + role.description}
         role={role} data={data.data!} reload={changed} />)}
       <RoleCard data={data.data} reload={changed} />
-      </details>
+      </Disclosure>
     </>}
     <Status loading={workflow.loading} error={workflow.error} />
     {workflow.error && <Button onClick={workflow.reload}>Retry workflow assignments</Button>}
@@ -132,11 +114,11 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
     <p>Effective access: <strong>{!account.enabled ? "None: account not enabled" : permissions.map(p => data.permissions[p] ?? p).join(", ") || "No permissions assigned"}</strong>.
       {" "}{account.owner ? "From owner status." : `From saved application roles: ${account.roles.join(", ") || "none"}.`}
       {account.enabled && !permissions.includes("read") && " Read permission is required to enter the application."}</p>
-    <details><summary>Microsoft sign-in identity</summary>
+    <Disclosure label={<>Microsoft sign-in identity</>}>
       <p>Stable account identity: <code>{account.actor}</code>. Display names are not unique and do not link or merge accounts.</p>
       <p>Tenant: <code>{account.tenant_id ?? "Unavailable"}</code>; object: <code>{account.object_id ?? "Unavailable"}</code>.</p>
-    </details>
-    <details open={!account.enabled}><summary>{account.enabled ? "Change account access" : "Approve or keep disabled"}</summary>
+    </Disclosure>
+    <Disclosure open={!account.enabled} label={<>{account.enabled ? "Change account access" : "Approve or keep disabled"}</>}>
       <fieldset disabled={busy}><legend>Account status</legend>
         <label><Input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />Enabled</label>
         <label><Input type="checkbox" checked={owner} onChange={(event) => setOwner(event.target.checked)} />Owner (all capabilities)</label>
@@ -153,7 +135,7 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
       <ConfirmAction label="Save account access" busy={busy} disabled={!dirty}
         consequence={`Apply access to ${account.display_name} (${account.actor})? ${!enabled ? "Disabling revokes active sessions; workflow assignments remain for handoff." : owner ? "Owner grants every application capability and all human workflow roles." : `Application roles: ${roles.join(", ") || "none"}. Changes affect existing sessions.`}`}
         onConfirm={save} />
-    </details>
+    </Disclosure>
     <ActionStatus busy={busy ? "Saving account access..." : null} error={error}>{saved && <p>Account access saved.</p>}</ActionStatus>
     {workflow && <AccountAssignments key={assigned.join(",")}
       account={account} roles={workflow.filter(r => r.kind === "person")} assigned={assigned} reload={reload} />}
@@ -167,14 +149,14 @@ function AccountAssignments({ account, roles, assigned, reload }: {
     ? "Workflow access: all human roles from owner status, including roles added later."
     : "Workflow access: none while this account is disabled. Owner status is retained, but human workflow roles become effective only when the account is enabled."}
     {" "}Explicit roster assignments are preserved; changing them cannot remove owner status.</p>;
-  return <details><summary>Human workflow assignments ({assigned.length})</summary>
+  return <Disclosure label={<>Human workflow assignments ({assigned.length})</>}>
     {!account.enabled && <p>Assignments are retained, but this disabled account has no effective workflow-role access.</p>}
     <p>Saved assignments use this account's stable identity, never its display name. Changing these does not enable the account,
       grant application permissions or move already claimed work. Use <a href={href("/users", { view: "workflow", person: account.actor })}>routing and workload</a> for coverage/handoff.</p>
     <WorkflowAssignments name={account.actor} roles={roles} assigned={assigned}
       onInspect={() => reload()}
       reload={() => reload(`Workflow assignments saved for ${account.display_name}. Application access unchanged.`)} />
-  </details>;
+  </Disclosure>;
 }
 
 function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdministration; reload: (message?: string) => void }) {

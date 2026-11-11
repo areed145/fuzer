@@ -4,7 +4,7 @@ import { api, type Stats } from "../api";
 import { href, Status, timestamp, useAsync } from "../lib";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader } from "../ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Disclosure } from "../ui";
 
 const STEPS = [
   { key: "start", label: "Get oriented" },
@@ -24,11 +24,9 @@ export function DemoPage({ query, stats }: {
   const catalog = useAsync(() => step.key === "agents" ? api.assistantCatalog() : Promise.resolve(undefined), [step.key]);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [step.key]);
   return <section className="investigation">
-    <PageHeader subtitle="A guided introduction to connected evidence, specialist agents and human-owned workflows.">Demo</PageHeader>
+    <PageHeader subtitle="A guided tour of the Okan scenario.">Demo</PageHeader>
     <div className="investigation-context">
-      <Badge>Synthetic Okan scenario</Badge>{" "}<Badge>Optional paid AI</Badge>{" "}<Badge>Shared workflow state</Badge>
-      <p>The Okan investigation uses March 2024 records with April follow-up, not live plant conditions.
-        The tour never generates data, calls AI or changes work on page load.</p>
+      <Badge>Synthetic data</Badge>
     </div>
     <nav aria-label="Demo steps"><ol className="investigation-steps demo-steps">
       {STEPS.map((s, i) => <li key={s.key}><a href={href("/demo", { step: s.key })}
@@ -44,8 +42,7 @@ export function DemoPage({ query, stats }: {
           <li>Choose a specialist or a cross-domain question; review and explicitly confirm any paid call in Ask.</li>
           <li>Inspect loaded cases, process history and your task queue. Deliberate task actions affect shared work.</li>
           <li>Leave with evidence you can check and a clear next destination.</li></ol>
-        <p>No AI access or provider? The evidence journey and workflow inspection still work.
-          Demo visibility does not grant application permissions or workflow assignments.</p>
+        <p>The evidence journey and workflow inspection work without an AI provider.</p>
       </>}
       {step.key === "evidence" && <>
         <h3>New to Fuzer? Investigate an Okan issue</h3>
@@ -70,15 +67,14 @@ export function DemoPage({ query, stats }: {
           Prepare a cross-domain question
         </ButtonLink>}
         <Status loading={catalog.loading && !catalog.data} error={catalog.error} onRetry={catalog.reload} />
-        {catalog.data && !catalog.error && (catalog.data.agents.length ? catalog.data.agents.map((agent) => <details className="investigation-evidence" key={agent.id}>
-          <summary><strong>{agent.label}</strong> · {agent.description}</summary>
+        {catalog.data && !catalog.error && (catalog.data.agents.length ? catalog.data.agents.map((agent) => <Disclosure className="investigation-evidence" key={agent.id} label={<><strong>{agent.label}</strong> · {agent.description}</>}>
           <h3>Registered skills</h3><ul>{agent.skills.map((s) => <li key={s}>{s}</li>)}</ul>
           <h3>Limitations and human decisions</h3>
           <ul>{[...agent.limits, ...agent.human_decisions].map((s) => <li key={s}>{s}</li>)}</ul>
           {ai && <ButtonLink href={href("/ask", { demo: "agents", q: `Review the loaded historical Okan evidence from the perspective of ${agent.label}. ${agent.description} Cite supporting records, dates and units; state missing prerequisites and leave decisions to accountable people.` })}>
             Prepare a question for {agent.label}
           </ButtonLink>}
-        </details>) : <EmptyState title="Agent catalog unavailable">
+        </Disclosure>) : <EmptyState title="Agent catalog unavailable">
           <p>Refresh the catalog or ask an administrator to check the server.</p>
           <Button onClick={catalog.reload}>Refresh catalog</Button>
         </EmptyState>)}

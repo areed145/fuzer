@@ -42,7 +42,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
   const configuration = query.get("view") === "configuration" || query.has("filter");
   return (
     <section>
-      <PageHeader subtitle="Your browser preferences and the facility's operational configuration.">Settings</PageHeader>
+      <PageHeader subtitle="Preferences and configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
         <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Readiness</a>

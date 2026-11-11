@@ -24,9 +24,8 @@ export function InboxPage() {
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
-  if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Choose an identity to see your work">
-    <p>Use “You are” in the navigation to select the name used by your team. On a small screen, open the menu first.</p>
-    <p className="muted">This records who makes decisions; it is not a sign-in. Team roles determine which queues appear.</p>
+  if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
+    <p>Choose your name under “You are” in the menu.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
     <SampleTeam />
   </UICard></section>;
@@ -53,10 +52,7 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader subtitle={<>Everything waiting on you: jobs the IOC sent you, steps assigned to you, what is unclaimed in
-        your roles' queues and what you're planned onto. Tell the IOC from a job's card when you're on site, when it's
-        done or why it couldn't be. Everything that came in, who holds it and what it is worth is
-        under <a href={href("/exceptions")}>All work</a>.</>}
+      <PageHeader subtitle="Everything waiting on you." help="workflow"
         actions={d.roles.includes("ops_lead") ? <ButtonLink href={href("/teams")}>Team workload</ButtonLink> : undefined}>
         My work</PageHeader>
       <p className="row small">

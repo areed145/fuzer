@@ -1,5 +1,5 @@
 import "../styles/ask.css";
-import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge} from "../ui";
+import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge, Disclosure } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
@@ -233,8 +233,7 @@ function Specialists({ catalog }: { catalog: Catalog }) {
   if (specialists.length === 0) return null;
   const labels = Object.fromEntries(catalog.data!.agents.map((a) => [a.id, a.label]));
   return (
-    <details className="card recent ask-specialists">
-      <summary>Who answers: {specialists.length} {specialists.length === 1 ? "specialist" : "specialists"}, and what they can't do</summary>
+    <Disclosure className="card recent ask-specialists" label={<>Who answers: {specialists.length} {specialists.length === 1 ? "specialist" : "specialists"}, and what they can't do</>}>
       <ul className="specialist-list">
         {specialists.map((a) => (
           <li key={a.id}>
@@ -252,7 +251,7 @@ function Specialists({ catalog }: { catalog: Catalog }) {
           <li key={u.capability}>{u.capability} <span className="muted small">({agentLabel(labels, u.agent)}: {u.needed})</span></li>
         ))}
       </ul>
-    </details>
+    </Disclosure>
   );
 }
 
@@ -398,8 +397,7 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
   const items = (r.data ?? []).filter((c) => c.turns > 0 && !gone.includes(c.id));
   if (items.length === 0) return null;
   return (
-    <details className="card recent" open>
-      <summary>Your conversations <span className="muted small">{items.length}</span></summary>
+    <Disclosure className="card recent" open label={<>Your conversations <span className="muted small">{items.length}</span></>}>
       <ul className="plain small">
         {items.map((c) => (
           <li key={c.id}>
@@ -415,6 +413,6 @@ function Conversations({ current, reload, busy, onOpen, onDeleted, readOnly = fa
           </li>
         ))}
       </ul>
-    </details>
+    </Disclosure>
   );
 }

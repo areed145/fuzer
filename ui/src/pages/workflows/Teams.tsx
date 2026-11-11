@@ -1,4 +1,4 @@
-import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, Button, Card, ConfirmAction, Input, PageHeader, Table, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Shared workflow administration in Users and contextual read-only team workload in Work. */
 import { useState } from "react";
 import { api, type WorkRoleRow, type WorkloadPerson } from "../../api";
@@ -57,7 +57,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
       <h2 id="workflow-roles" tabIndex={-1}>Roles</h2>
       {persons.map((r) => <RoleCard key={`${r.name}:${r.description}:${r.default_sla}:${r.assignment}:${r.escalate_to}`}
         r={r} roles={persons} person={person} open={focus === r.name} reload={reload} editable={administration && configure} />)}
-      {administration && configure && <details><summary>Advanced: add a workflow role</summary><NewRole person={person} reload={reload} /></details>}
+      {administration && configure && <Disclosure label={<>Add a workflow role</>}><NewRole person={person} reload={reload} /></Disclosure>}
       <h2 id="workflow-people" tabIndex={-1}>People</h2>
       <People people={work.data.people} roles={persons} person={person} reload={reload}
         inspect={inspect} editable={administration && configure} focus={query.get("person")} />
@@ -76,12 +76,11 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
         </tbody>
       </Table>
       {work.data.agent_failures.length > 0 && (
-        <details className="small">
-          <summary>Recent agent failures ({work.data.agent_failures.length})</summary>
+        <Disclosure className="small" label={<>Recent agent failures ({work.data.agent_failures.length})</>}>
           <ul>{work.data.agent_failures.map((f, i) => (
             <li key={i}>{when(f.at)} <code>{f.actor}</code> {f.item_id && <a href={caseHref(f.item_id)}>{f.title ?? `case ${f.item_id}`}</a>}:{" "}
               <span className="muted">{String(f.data.error ?? "")}</span></li>))}</ul>
-        </details>
+        </Disclosure>
       )}
     </section>
   );
@@ -95,14 +94,11 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
   const changed = v.description !== (r.description ?? "") || v.default_sla !== (r.default_sla ?? "") ||
     v.escalate_to !== (r.escalate_to ?? "") || v.assignment !== r.assignment;
   return (
-    <details className="card" open={open}>
-      <summary>
-        <strong>{r.name}</strong> <span className="muted small">{r.description}</span>{" "}
+    <Disclosure className="card" open={open} label={<><strong>{r.name}</strong> <span className="muted small">{r.description}</span>{" "}
         <span className="small">· {r.members.filter((m) => !m.away).length} available{r.members.some((m) => m.away) && `, ${r.members.filter((m) => m.away).length} away`}
           {" "}· {r.waiting} waiting{r.overdue ? <>, <UIBadge className="badge late">{r.overdue} overdue</UIBadge></> : null}
           {" "}· SLA {r.default_sla ?? "set per step"}{r.escalate_to && ` → ${r.escalate_to}`}</span>
-        {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}
-      </summary>
+        {r.uncovered && <UIBadge className="badge late"> no one available</UIBadge>}</>}>
       <fieldset className="workflow-routing-fields" disabled={!editable || !!a.busy} aria-label={`${r.name} routing configuration`}>
       <Table variant="keyValue" density="compact">
         <tbody>
@@ -141,7 +137,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
       </div>
       <ActionStatus busy={a.busy ? "Updating workflow routing..." : null} error={a.error} />
       </>}
-    </details>
+    </Disclosure>
   );
 }
 
@@ -186,13 +182,13 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
           </tr>)}</tbody>
         </Table>}
       {!people.filter(p => !focus || p.name === focus).length && <p>No matching roster entries. Assign a signed-in account in Accounts &amp; access or add an explicit legacy identity below.</p>}
-      {editable && <details><summary>Add an overarching person (works across fields)</summary>
+      {editable && <Disclosure label={<>Add an overarching person (works across fields)</>}>
         <p>For specialists and monitoring desks whose work cuts across fields and assets. Their roles count in every field
           they cover, on top of each field's own roster, and their Inbox can show every field at once. This is routing only:
           which fields they may open is still set per account in Accounts &amp; access.</p>
         <CoverEditor name="" roles={roles} reload={reload} />
-      </details>}
-      {editable && <details><summary>Advanced: preserve or add a legacy roster identity</summary>
+      </Disclosure>}
+      {editable && <Disclosure label={<>Add a legacy roster identity</>}>
       <p>Use an existing stable account identity for Microsoft users. A roster entry is not a sign-in account or access grant.</p>
       <div className="row">
         <Input aria-label="Roster identity" placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
@@ -201,7 +197,7 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
           onConfirm={() => a.run("add", () => api.setWorkPerson(name.trim(), [], person), () => { setName(""); reload(); })} />
         <ActionStatus busy={a.busy ? "Adding roster identity..." : null} error={a.error} />
       </div>
-      </details>}
+      </Disclosure>}
     </>
   );
 }
@@ -228,10 +224,10 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
         : <WorkflowAssignments key={(p.assigned_roles ?? p.roles).join(",")} name={p.name} roles={roles}
             assigned={p.assigned_roles ?? p.roles} reload={reload} onInspect={inspect} />
       }
-      {!p.owner && <details><summary>{p.covers == null ? "Make overarching (work across fields)" : "Fields covered"}</summary>
+      {!p.owner && <Disclosure label={<>{p.covers == null ? "Make overarching (work across fields)" : "Fields covered"}</>}>
         <CoverEditor name={p.name} roles={roles} covers={p.covers} coverRoles={p.cover_roles} reload={reload} />
-      </details>}
-      <details><summary>Availability and coverage</summary>
+      </Disclosure>}
+      <Disclosure label={<>Availability and coverage</>}>
         {p.away ? <>until {when(p.away_until!)}{p.delegate && `, ${p.delegate} covers`}{" "}
           <ConfirmAction label="Mark available" busy={!!a.busy}
             consequence="Clear the away period and its delegation? Inspect current work for any handoff already made."
@@ -249,10 +245,10 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
               <Button disabled={!!a.busy} onClick={() => setAwayOpen(false)}>Cancel away change</Button>
             </span>
           ) : <Button variant="link" onClick={() => setAwayOpen(true)}>set away</Button>}
-      </details>
-      {!p.owner && <details><summary>Remove workflow roster entry</summary><ConfirmAction label="Remove from roster" busy={!!a.busy}
+      </Disclosure>
+      {!p.owner && <Disclosure label={<>Remove workflow roster entry</>}><ConfirmAction label="Remove from roster" busy={!!a.busy}
         consequence={`Remove ${p.name} from the workflow roster? Claimed work returns to its queues. This does not disable a sign-in account.`}
-        onConfirm={() => a.run("rm", () => api.removeWorkPerson(p.name, person), reload)} /></details>}
+        onConfirm={() => a.run("rm", () => api.removeWorkPerson(p.name, person), reload)} /></Disclosure>}
       <ActionStatus busy={a.busy ? "Updating workflow routing..." : null} error={a.error} />
     </Card>
   );

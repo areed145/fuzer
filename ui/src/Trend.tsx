@@ -6,7 +6,7 @@ import "./styles/trends.css";
 import { useState } from "react";
 import { api, type MeasurementSeries } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Button, Table, Input , Card as UICard} from "./ui";
+import { Button, Table, Input , Card as UICard, Disclosure } from "./ui";
 
 /** One operating limit on a point (#101): an alarm limit from its source, one side of an integrity
  * operating window, or the normal range learned from history when no source gives one. */
@@ -126,8 +126,7 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
         <span>{s.values[0]?.[0].replace("T", " ")}</span>
         <span>{s.values[n - 1]?.[0].replace("T", " ")}</span>
       </div>
-      <details className="small">
-        <summary>Table</summary>
+      <Disclosure className="small" label={<>Table</>}>
         <Table variant="list" density="compact">
           <tbody>
             {s.values.filter((_, i) => i % Math.ceil(n / 24) === 0).map(([t, v]) => (
@@ -135,7 +134,7 @@ function Trend({ s, upsets, wide = false }: { s: Series; upsets: string[]; wide?
             ))}
           </tbody>
         </Table>
-      </details>
+      </Disclosure>
     </figure>
   );
 }
