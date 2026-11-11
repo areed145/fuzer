@@ -11,8 +11,10 @@ processes, every step a row, every change an event. Its implementation is split 
 `workflow/work_items.py` (work-item operations and reads); `workflow/engine.py` remains the stable API facade.
 The Workflows section is where people do it and manage it:
 
-- **Inbox** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, assigned to you (or to
-  someone away you cover for), unclaimed in your roles' queues. A task opens as a page: its form and evidence,
+- **My work** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, jobs the IOC sent you,
+  assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting there and
+  what you're planned onto. It replaces the separate Inbox and My jobs pages (#503); `#/field` redirects here, and a
+  case with a field job shows once, as its job card. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
   history. Who you are is set once, in the sidebar.
 - **Cases** (All work's In progress and Closed views, `#/exceptions?list=progress`; `#/cases` redirects there): every
@@ -114,13 +116,13 @@ page. A type with a process starts it; one with a queue opens a case in that rol
   seen within `exceptions.join_hours` (48 by default; 0 turns joining off). An exception waiting to be dispatched
   joins the case the next source opens, or the one the IOC opens by dispatching a match. Exceptions shows one row
   with every source under it ("3 sources: SAP notification, IOW breach, Process upset"). The task page lists what
-  each source saw, and My jobs says which systems reported it. Dispatch and field reports on any source go to the
+  each source saw, and the field job card says which systems reported it. Dispatch and field reports on any source go to the
   shared case, and finishing the case closes every source. A source that clears drops off and the case stays open
   while another holds. **Split out** gives a source that turns out to be a different event a case of its own
   (`POST /exceptions/{id}/split`). A type declared with `joins=False`, such as source problems, never joins.
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
-- **My jobs** (`#/field`) is the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues
+- **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues
   (**Take it**), each with the IOC's instruction, where to go, what was seen and what happened there lately. They
   report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the exception and the
   case history.
@@ -136,14 +138,14 @@ page. A type with a process starts it; one with a queue opens a case in that rol
   modeler and `fuzer:dispatch` on the step that sends to it.
 - **Seeing it come back.** The task page shows a **From the field** box above the form, the Inbox says why a step
   came back ("Back from the field: done: gauge reads 13 barg"), and Exceptions filters to **back from the field**.
-  My jobs only offers to open a step in the operator's own roles.
+  A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles on Teams & routing, and the API refuses a queue that isn't one. Equipment
   reads as the tag it is installed at and its description ("20-K-2100B 1st stage compressor") rather than its serial
   number. The exception types card lists the ref forms this register matches (`GET /exceptions/refs`), each with an
   example, and a raised exception whose refs matched nothing comes back with an `unmatched_note` saying so.
 - **A fresh demo's team.** Where nobody is on the roster, the demo is on and names are attribution (local mode),
-  Inbox, My jobs and Exceptions offer a sample IOC team (riley the ops lead, sam the field operator, pat the planner)
+  My work and All work offer a sample IOC team (riley the ops lead, sam the field operator, pat the planner)
   to follow work from triage to the field. A real deployment's roster is never touched.
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.

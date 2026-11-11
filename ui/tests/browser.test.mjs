@@ -632,7 +632,7 @@ test("Users keeps last-owner failures actionable and legacy roster links compati
   await page.goto(`${url}/#/teams?role=engineer`);
   await page.getByRole("heading", { name: "Team workload", exact: true }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Work", exact: true }).getAttribute("aria-current"), "page");
-  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true }).getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true }).getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
   assert.equal(await page.getByRole("button", { name: "Save workflow assignments", exact: true }).count(), 0);
   assert.match(await page.getByRole("main").getByRole("link", { name: "Users", exact: true }).last().getAttribute("href"), /view=workflow.*role=engineer/);
 });
@@ -899,9 +899,9 @@ test("optional Demo preserves existing primary destinations and specialist route
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
-  assert.equal(await work.getByRole("link", { name: "Inbox", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await work.getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/exceptions", "#/inbox", "#/field", "#/handover", "#/plan", "#/turnaround", "#/review", "#/masterdata",
+    ["#/exceptions", "#/inbox", "#/handover", "#/plan", "#/turnaround", "#/review", "#/masterdata",
      "#/processes"]);
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
@@ -2062,7 +2062,8 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.route("**/exceptions/8/dispatch", (route) => { taken.push(route.request().postDataJSON()); return route.fulfill({ json: waiting }); });
   await page.route("**/exceptions/7/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto(`${url}/#/field`);
+  await page.goto(`${url}/#/field`);  // the old My jobs link lands on My work (#503)
+  await page.waitForURL(/#\/inbox/);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
   await page.getByRole("link", { name: "directions" }).first().waitFor();
   await page.getByText("drips per min").waitFor();
@@ -2141,7 +2142,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
   const handed = { ...base, id: 2, key: "b", title: "Gauge reads odd", item_id: 32, assignee: null, task_id: 52,
     task_name: "Triage", own_step: false, sent: { by: null, at: null, reason: "look at it" } };
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "otto", jobs: [theirs, handed], coming_up: [] } }));
-  await page.goto(`${url}/#/field`);
+  await page.goto(`${url}/#/inbox`);
   await page.locator(".field-job", { hasText: "Low pressure" }).getByRole("link", { name: "Open step: Field check" }).waitFor();
   const other = page.locator(".field-job", { hasText: "Gauge reads odd" });
   await other.getByText("look at it").waitFor();
@@ -2224,7 +2225,7 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
     return route.fulfill({ json: { name: added.at(-1).name, roles: added.at(-1).roles } });
   });
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "riley", jobs: [], coming_up: [] } }));
-  await page.goto(`${url}/#/field`);
+  await page.goto(`${url}/#/inbox`);
   await page.getByText("Nobody is on the team yet.").waitFor();
   await page.getByRole("button", { name: "Add the sample team" }).click();
   await page.getByRole("button", { name: "Confirm Add the sample team" }).click();

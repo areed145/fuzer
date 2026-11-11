@@ -64,8 +64,7 @@ export const NAV: NavGroup[] = [
     label: "Work",
     items: [
       { label: "All work", section: "exceptions", also: ["board", "cases"] },
-      { label: "Inbox", section: "inbox", also: ["work", "teams"], badge: "work" },
-      { label: "My jobs", section: "field" },
+      { label: "My work", section: "inbox", also: ["work", "teams", "field"], badge: "work" },
       { label: "Handover", section: "handover" },
       { label: "Plan", section: "plan" },
       { label: "Turnaround", section: "turnaround" },

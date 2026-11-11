@@ -18,7 +18,6 @@ import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
-import { FieldPage } from "./pages/Field";
 import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
@@ -82,6 +81,11 @@ function App() {
     // The Work board and the Cases list are views of All work now (#502); their links land on the same view.
     if (section === "board" || (section === "cases" && !path[1])) {
       location.replace(legacyWorkHref(section, query));
+      return;
+    }
+    // My jobs is part of My work now (#503).
+    if (section === "field") {
+      location.replace(href("/inbox"));
       return;
     }
     if (section !== "work") return;
@@ -159,8 +163,6 @@ function App() {
             <TaskPage key={`${path[2]}:${query.get("demo")}`} id={Number(path[2])} demo={query.get("demo") === "workflow"} />
           ) : section === "inbox" || section === "work" ? (
             <InboxPage />
-          ) : section === "field" ? (
-            <FieldPage />
           ) : section === "exceptions" ? (
             <AllWorkPage query={query} />
           ) : section === "masterdata" ? (
@@ -195,7 +197,7 @@ function App() {
             <SettingsPage query={query} />
           ) : section === "users" || section === "access" ? (
             <UsersPage query={query} />
-          ) : section === "board" || section === "cases" ? (
+          ) : section === "board" || section === "cases" || section === "field" ? (
             null  /* redirecting to All work */
           ) : section === "review" ? (
             <Review query={query} stats={s} />

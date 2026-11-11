@@ -1,6 +1,8 @@
 import { Button, ButtonLink, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
-/** Inbox: everything waiting for you, most urgent first: escalated to you, assigned to you (and to anyone you're
- * covering for), unclaimed in your roles' queues; plus the data review queue's count. */
+/** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
+ * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
+ * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
+ * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
@@ -8,10 +10,13 @@ import { Due, ScenarioClock, holder, usePerson } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
+import { ComingUp, FieldJobCard } from "../Field";
 
 export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
+  // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
+  const field = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
   const stats = useAsync(() => api.stats(), []);
   // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
@@ -19,7 +24,7 @@ export function InboxPage() {
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
-  if (!person) return <section><PageHeader>Inbox</PageHeader><UICard title="Choose an identity to see your work">
+  if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Choose an identity to see your work">
     <p>Use “You are” in the navigation to select the name used by your team. On a small screen, open the menu first.</p>
     <p className="muted">This records who makes decisions; it is not a sign-in. Team roles determine which queues appear.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
@@ -29,10 +34,16 @@ export function InboxPage() {
   const d = inbox.data;
   const keep = (r: WorkRow) => (!type || r.type === type) &&
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
-  const all = [...d.mine, ...d.queue];
+  const jobs = field.data?.jobs ?? [];
+  const coming = field.data?.coming_up ?? [];
+  const sent = jobs.filter((j) => !j.queued && keep(j as unknown as WorkRow));
+  const waitingJobs = jobs.filter((j) => j.queued && keep(j as unknown as WorkRow));
+  // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
+  const onCard = new Set(jobs.map((j) => j.item_id).filter((id): id is number => id != null));
+  const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   const escalated = all.filter((r) => r.escalated_at && keep(r)).sort(byUrgency);
-  const mine = d.mine.filter((r) => !r.escalated_at && keep(r)).sort(byUrgency);
-  const queue = d.queue.filter((r) => !r.escalated_at && keep(r)).sort(byUrgency);
+  const mine = d.mine.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
+  const queue = d.queue.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
   const overdue = all.filter((r) => r.overdue).length;
   const undispatched = d.roles.includes("ops_lead")
     ? (exceptions.data ?? []).filter((r) => !r.item_id && !r.planned && r.state === "open").length : 0;
@@ -42,10 +53,14 @@ export function InboxPage() {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
-      <PageHeader subtitle={<>The workflow steps waiting on you: assigned to you, or unclaimed in your roles' queues. Everything
-        that came in, who holds it and what it is worth is under <a href={href("/exceptions")}>All work</a>; register data waiting for a decision is
-        in <a href={href("/review")}>Data review</a>.</>}>Inbox</PageHeader>
+      <PageHeader subtitle={<>Everything waiting on you: jobs the IOC sent you, steps assigned to you, what is unclaimed in
+        your roles' queues and what you're planned onto. Tell the IOC from a job's card when you're on site, when it's
+        done or why it couldn't be. Everything that came in, who holds it and what it is worth is
+        under <a href={href("/exceptions")}>All work</a>.</>}
+        actions={d.roles.includes("ops_lead") ? <ButtonLink href={href("/teams")}>Team workload</ButtonLink> : undefined}>
+        My work</PageHeader>
       <p className="row small">
+        {sent.length > 0 && <UIBadge className="badge">{sent.length} sent to you</UIBadge>}
         <UIBadge className="badge">{d.mine.length} assigned to you</UIBadge>
         <UIBadge className="badge">{d.queue.length} unclaimed in your roles ({d.roles.join(", ") || "none"})</UIBadge>
         {overdue > 0 && <UIBadge className="badge late">{overdue} overdue</UIBadge>}
@@ -56,20 +71,29 @@ export function InboxPage() {
       </p>
       <ScenarioClock />
       <div className="row">
-        <Input aria-label="Filter inbox by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label="Filter inbox by case type" value={type} onChange={(e) => setType(e.target.value)}>
+        <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every kind of case</option>
           {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
-      {!all.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/exceptions", { list: "progress" })}>All cases</a></p>}
-      {!all.length && <SampleTeam onAdded={inbox.reload} />}
+      {!all.length && !jobs.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/exceptions", { list: "progress" })}>All cases</a></p>}
+      {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />
+      {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
+        <h2 id="sent-to-you">Sent to you <span className="muted small">{sent.length} · jobs the IOC dispatched, most urgent first</span></h2>
+        {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
+      </section>}
       <Group title="Assigned to you" rows={mine} person={person} picked={picked} toggle={toggle} />
       <Group title="Unclaimed in your roles" rows={queue} person={person} picked={picked} toggle={toggle}
         hint="claim one to make it yours" />
+      {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
+        <h2 id="waiting-jobs">Field jobs waiting in your queues <span className="muted small">{waitingJobs.length} · take one to make it yours</span></h2>
+        {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
+      </section>}
+      {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
     </section>
   );

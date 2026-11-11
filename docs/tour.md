@@ -14,7 +14,7 @@ in local mode, **You are** records who makes decisions (attribution, not sign-in
 flowchart LR
   home["Home"] --> explore["Explore<br><small>Browse, Map, Network, Ontology</small>"]
   home --> investigate["Investigate<br><small>Downtime, Ask, Incidents,<br>Daily reports, Lessons, Studies</small>"]
-  home --> work["Work<br><small>All work, Inbox, My jobs,<br>Data review, Processes</small>"]
+  home --> work["Work<br><small>All work, My work,<br>Data review, Processes</small>"]
   home --> sources["Sources<br><small>Datasets, Systems & connections, Rules</small>"]
   home --> jobs["Jobs"]
   home --> settings["Settings<br><small>Application settings, Users</small>"]
@@ -88,7 +88,8 @@ breakdown, its records and rank history, and lets a person pin a rank with a rea
 
 ![The work board, ranked by value](assets/screens/board.png){ loading=lazy }
 
-**Inbox** is what waits on you: assigned to you, or unclaimed in your roles' queues. A task opens as a
+**My work** is what waits on you: jobs the IOC sent you, steps assigned to you, and what is unclaimed in your
+roles' queues. A field operator reports On site, Done or Could not do from a job's card here. A task opens as a
 page with its form, its evidence, where it sits in its process and the case history.
 
 ![Inbox for Dana Ops (ops lead and engineer)](assets/screens/inbox.png){ loading=lazy }
