@@ -301,13 +301,13 @@ def person_roles(conn) -> list[str]:
     return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
 
 
-def published_routing(conn, process_key: str) -> list[dict] | None:
+def published_routing(conn, process_key: str, data: dict | None = None) -> list[dict] | None:
     """Each step of the published version of a process as it routes (roles.routing); None when none is published."""
     from . import roles
 
     row = conn.execute("select id from work_definition where process_key = %s and state = 'published' "
                        "order by version desc limit 1", (process_key,)).fetchone()
-    return roles.routing(conn, row["id"]) if row else None
+    return roles.routing(conn, row["id"], data) if row else None
 
 
 def role_holders(conn, role: str) -> list[str]:

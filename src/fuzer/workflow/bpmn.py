@@ -10,7 +10,9 @@ Fuzer properties are attributes in the `fuzer:` namespace:
 - process: `fuzer:workItemType`, `fuzer:correlationKey` (an expression over the start data, e.g.
   `incident_id`), `fuzer:ownerRole` (who gets a step that fails); thresholds (#100) as
   `<fuzer:threshold name=".." value=".."/>` in extensionElements, read in conditions as `thresholds["..."]`.
-- lane: `fuzer:role` (a person role) or `fuzer:agent` (an agent role); the lane name is used otherwise.
+- lane: `fuzer:role` (a person role) or `fuzer:agent` (an agent role); the lane name is used otherwise. A role
+  starting with `=` is an expression over the process data, read when the step starts (`=role`: the queue the
+  work's type names, as the standard queue_item process does, #509).
 - userTask: `fuzer:role`, `fuzer:assignee`, `fuzer:requiresHuman`, `fuzer:sla` (ISO 8601 duration),
   `fuzer:escalateTo` (the role that gets it once the SLA passes), `fuzer:form` (form-js form key),
   `fuzer:dispatch` (`triage=field_check`: the form data that completes it when the IOC dispatches the case to
@@ -249,7 +251,7 @@ def _check_process(p: Process, known: set[str], person_roles: set[str], agent_ro
             out.append(Problem(n.id, f"bpmn:{extra} on a {n.type} is outside the supported subset"))
         if not n.extra_events and n.event not in ALLOWED_EVENTS.get(n.type, {None}):
             out.append(Problem(n.id, f"a {n.event or 'plain'} {n.type} is outside the supported subset"))
-        if n.lane and n.lane.get("role") and n.lane["role"] not in person_roles:
+        if n.lane and n.lane.get("role") and not is_expression(n.lane["role"]) and n.lane["role"] not in person_roles:
             out.append(Problem(n.id, f"unknown role '{n.lane['role']}' on lane '{n.lane['name']}'"))
         if n.type == "userTask":
             out += _check_user_task(p, n, person_roles)
@@ -298,6 +300,8 @@ def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Proble
         out.append(Problem(n.id, f"{why} is in agent lane '{lane.get('name') or lane['agent']}'"))
     elif not n.role:
         out.append(Problem(n.id, "a user task needs a role (fuzer:role or a lane)"))
+    elif is_expression(n.role):
+        out += _syntax(n.id, n.role[1:])
     elif n.role not in person_roles:
         out.append(Problem(n.id, f"unknown role '{n.role}'"))
     if (via := n.attrs.get("dispatch")) is not None and not re.fullmatch(r"\s*\w+\s*=\s*[^,=]+(,\s*\w+\s*=\s*[^,=]+)*", via):
@@ -309,7 +313,7 @@ def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Proble
     if sla:
         if parse_duration(sla) is None:
             out.append(Problem(n.id, f"SLA '{sla}' isn't an ISO 8601 duration"))
-    elif not timers and not ROLE_SLA.get(n.role or ""):
+    elif not timers and not is_expression(n.role) and not ROLE_SLA.get(n.role or ""):
         out.append(Problem(n.id, "a person's task needs an SLA (fuzer:sla, a timer boundary event, or its role's default)"))
     return out
 
@@ -414,6 +418,19 @@ def _check_ast(tree):
         if isinstance(node, ast.Call) and not (isinstance(node.func, ast.Name) and node.func.id in _FUNCS
                                                and not node.keywords):
             raise ExpressionError("only len, min, max, abs, round, str, int, float, bool, any and all can be called")
+
+
+def is_expression(value: str | None) -> bool:
+    """A `=`-prefixed attribute (a role, an assignee, a work item type) is an expression over the process data."""
+    return bool(value) and value.startswith("=")
+
+
+def resolve(value: str | None, data: dict) -> str | None:
+    """An attribute's value for this process data: the expression's result for `=expr`, else the value itself."""
+    if not is_expression(value):
+        return value
+    out = evaluate(value[1:], data)
+    return None if out is None else str(out)
 
 
 def evaluate(expr: str, data: dict):

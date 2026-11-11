@@ -117,21 +117,24 @@ def _step(run: _Run, proc: dict, t: dict) -> None:
         case "userTask":
             from . import roles
 
-            sla = bpmn.parse_duration(n.attrs.get("sla", "")) or roles.sla_of(run.conn, n.role)
+            role = bpmn.resolve(n.role, _scope(run, proc))  # `=role`: the queue the data names (#509)
+            if role != n.role and role not in bpmn.PERSON_ROLES:
+                raise ValueError(f"'{n.role[1:]}' gives role '{role}', which is not a person role")
+            sla = bpmn.parse_duration(n.attrs.get("sla", "")) or roles.sla_of(run.conn, role)
             assignee = n.attrs.get("assignee")
             if assignee and assignee.startswith("="):
                 assignee = bpmn.evaluate(assignee[1:], _scope(run, proc))
             how = "named" if assignee else None
-            if not assignee and (assignee := roles.pick(run.conn, n.role, run.now)):
+            if not assignee and (assignee := roles.pick(run.conn, role, run.now)):
                 how = "auto"  # the role assigns round-robin or to the least loaded
             covering = roles.covering(run.conn, assignee, run.now) if assignee else None
-            t = _update(run, t, state="waiting", kind="user", role=n.role, assignee=covering or None,
+            t = _update(run, t, state="waiting", kind="user", role=role, assignee=covering or None,
                         requires_human=n.requires_human, due_at=run.now + sla if sla else None)
             _boundaries(run, proc, t, n)
-            run.event("step_started", proc, t, step=n.label, role=n.role, assignee=t["assignee"],
+            run.event("step_started", proc, t, step=n.label, role=role, assignee=t["assignee"],
                       due=t["due_at"].isoformat() if t["due_at"] else None)
             if how == "auto":
-                run.event("auto_assigned", proc, t, to=assignee, role=n.role)
+                run.event("auto_assigned", proc, t, to=assignee, role=role)
             if covering and covering != assignee:
                 run.event("delegated", proc, t, **{"for": assignee, "to": covering})
         case "serviceTask":
@@ -283,13 +286,17 @@ def _correlation(p: bpmn.Process, data: dict) -> str | None:
     return None
 
 def _new_item(run: _Run, p: bpmn.Process, data: dict, title, subjects, priority) -> int:
+    try:  # `=case_type`: the type the data names, so one standard process serves many kinds of work (#509)
+        item_type = bpmn.resolve(p.attrs.get("workItemType"), data) or p.key
+    except bpmn.ExpressionError as e:
+        raise WorkError(f"can't work out the work item type: {e}") from e
     item = run.conn.execute(
         "insert into work_item (type, title, subjects, priority, created_by, source, payload, created_at, updated_at) "
         "values (%s, %s, %s, %s, %s, %s, %s, %s, %s) returning id",
-        (p.attrs.get("workItemType") or p.key, title or data.get("title") or p.name or p.key,
+        (item_type, title or data.get("title") or p.name or p.key,
          list(subjects or data.get("subjects") or []), priority if priority is not None else data.get("priority"),
          run.actor, data.get("source") or run.actor, Jsonb({"start": data}), run.now, run.now)).fetchone()["id"]
-    run.event("created", item_id=item, type=p.attrs.get("workItemType") or p.key)
+    run.event("created", item_id=item, type=item_type)
     return item
 
 def _start_new(run: _Run, process_key: str, data: dict, title, subjects, priority, correlation_key) -> dict:

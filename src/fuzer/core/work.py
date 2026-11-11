@@ -98,10 +98,11 @@ def comment(conn, item_id: int, by: str, text: str) -> dict:
     return _engine().comment(conn, item_id, by, text)
 
 
-def process_routing(conn, process_key: str) -> list[dict] | None:
+def process_routing(conn, process_key: str, data: dict | None = None) -> list[dict] | None:
     """Each step of the published version of `process_key` as it will route (role or agent, SLA, escalation, form),
-    so routing can be explained without starting it. None when no version is published."""
-    return _engine().published_routing(conn, process_key)
+    so routing can be explained without starting it; `data` works out roles given as expressions (`=role`). None
+    when no version is published."""
+    return _engine().published_routing(conn, process_key, data)
 
 
 def role_holders(conn, role: str) -> list[str]:

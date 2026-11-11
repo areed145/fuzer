@@ -168,3 +168,28 @@ def test_away_moves_what_they_hold(conn):
     roles.set_away(conn, "alice", "alice", None)
     roles.set_away(conn, "bob", "bob", None)
     conn.commit()
+
+
+def test_a_step_whose_role_and_item_type_come_from_the_data(conn):
+    """One standard process serves many kinds of work (#509): `fuzer:role="=role"` puts the step in the queue the
+    data names, with that role's SLA and escalation, and `fuzer:workItemType="=case_type"` types the case."""
+    xml = proc("queue_any", "=role").replace('isExecutable="true"', 'isExecutable="true" fuzer:workItemType="=case_type"')
+    assert not bpmn.check(xml)
+    rows = engine.import_bpmn(conn, xml, "olga")
+    engine.publish(conn, rows[0]["id"], "olga")
+    roles.set_role(conn, "operator", "olga", default_sla="PT2H", escalate_to="engineer")
+    conn.commit()
+    item = engine.start(conn, "queue_any", {"role": "operator", "case_type": "short_gas_day"}, "olga", now=T0)["item_id"]
+    t = task_of(conn, item)
+    assert t["role"] == "operator" and t["due_at"] == T0 + timedelta(hours=2)
+    assert conn.execute("select type from work_item where id = %s", (item,)).fetchone()["type"] == "short_gas_day"
+    engine.tick(conn, now=T0 + timedelta(hours=3))
+    assert task_of(conn, item)["role"] == "engineer"  # the operator role's escalation, as for any operator step
+    steps = roles.routing(conn, rows[0]["id"], {"role": "operator"})
+    assert steps[0]["role"] == "operator" and steps[0]["sla"] == "PT2H" and steps[0]["escalation"][0] == "engineer"
+    assert roles.routing(conn, rows[0]["id"])[0]["role"] == "=role"  # without data it reads as written
+
+    wrong = engine.start(conn, "queue_any", {"role": "nobody", "case_type": "x"}, "olga", now=T0)["item_id"]
+    fix = conn.execute("select * from work_token where item_id = %s and kind = 'fix'", (wrong,)).fetchone()
+    assert fix and "not a person role" in fix["error"]  # the process owner fixes the data, nothing is lost
+    conn.commit()
