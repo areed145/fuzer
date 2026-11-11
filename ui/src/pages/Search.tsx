@@ -13,12 +13,12 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
 
   return (
     <section>
-      <PageHeader subtitle="Find facility records and follow their links back to the source evidence.">Browse</PageHeader>
+      <PageHeader subtitle="Find assets and records and follow their links.">Browse</PageHeader>
       <Input
         className="search"
         autoFocus
         aria-label="Search facility records"
-        placeholder="Search tags, wells, PI points, serials or descriptions"
+        placeholder="Search assets, tags and records"
         value={q}
         onChange={(e) => go({ q: e.target.value })}
       />

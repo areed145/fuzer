@@ -1,10 +1,10 @@
 import "../styles/ui-kit.css";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TableHTMLAttributes } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export function ActionStatus({ busy, error, children }: { busy?: string | null; error?: string | null; children?: ReactNode }) {
   return <>{busy && <p role="status">{busy}</p>}
-    {error && <p role="alert" className="error">{error} Check the current recorded result before trying again; failed requests are not replayed automatically.</p>}
+    {error && <p role="alert" className="error">{error} Check what was saved before trying again.</p>}
     {!busy && !error && children && <div role="status">{children}</div>}</>;
 }
 
@@ -27,8 +27,35 @@ export function ConfirmAction({ label, consequence, busy, disabled, onConfirm }:
 
 type Width = "xs" | "sm" | "md" | "lg" | "full";
 
-export function PageHeader({ children, subtitle, actions, className = "" }: { children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
-  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{actions && <div className="ui-page-actions">{actions}</div>}</header>;
+const DOCS = "https://areed145.github.io/fuzer/";
+
+/** The page title, an optional one-line subtitle and the page's actions. `help` names a docs page
+ * (for example "workflow") and adds a Help link, which is where explanations of the page belong. */
+export function PageHeader({ children, subtitle, actions, help, className = "" }: {
+  children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; help?: string; className?: string;
+}) {
+  const tools = (actions || help) && <div className="ui-page-actions">{actions}{help && <HelpLink doc={help} />}</div>;
+  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{tools}</header>;
+}
+
+/** A quiet link to the docs page that explains this screen. Use it instead of paragraphs of guidance on the page. */
+export function HelpLink({ doc, children = "Help" }: { doc: string; children?: ReactNode }) {
+  return <a className="ui-help" href={`${DOCS}${doc.replace(/^\//, "")}/`} target="_blank" rel="noreferrer">{children}</a>;
+}
+
+/** A message the user needs to act on. Not for explanations or disclaimers. */
+export function Notice({ tone = "info", className = "", ...props }: HTMLAttributes<HTMLDivElement> & { tone?: "info" | "warn" | "danger" }) {
+  return <div {...props} className={`notice ui-notice-${tone} ${className}`.trim()} />;
+}
+
+/** Links that switch between views of one page (a segmented control). The current view carries aria-current. */
+export function Tabs({ items, label, className = "" }: {
+  items: { key: string; label: ReactNode; href: string; current?: boolean }[]; label: string; className?: string;
+}) {
+  return <nav className={`tabs ${className}`.trim()} aria-label={label}>
+    {items.map((item) => <a key={item.key} href={item.href} className={item.current ? "on" : undefined}
+      aria-current={item.current ? "page" : undefined}>{item.label}</a>)}
+  </nav>;
 }
 
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement>;
@@ -88,4 +115,17 @@ export function Bar({ value, label, className = "" }: { value: number; label?: s
   return <span className={`ui-bar ${className}`.trim()} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
     <span style={{ width: `${pct}%` }} />
   </span>;
+}
+
+/** Content shown on request: a plain text button, no caret. Use it for long data (a table, a stack trace, a history),
+ * never for guidance, which belongs in the docs. `open` sets the first state only. */
+export function Disclosure({ label, open = false, className = "", children }: {
+  label: ReactNode; open?: boolean; className?: string; children?: ReactNode;
+}) {
+  const [shown, setShown] = useState(open);
+  const id = useId();
+  return <div className={`ui-disclosure ${className}`.trim()}>
+    <button type="button" className="ui-disclosure-toggle" aria-expanded={shown} aria-controls={id} onClick={() => setShown(!shown)}>{label}</button>
+    {shown && <div id={id} className="ui-disclosure-body">{children}</div>}
+  </div>;
 }

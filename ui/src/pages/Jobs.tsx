@@ -1,5 +1,5 @@
 import "../styles/jobs.css";
-import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge} from "../ui";
+import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge, Disclosure } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
 import { api, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, timestamp, useAsync } from "../lib";
@@ -36,21 +36,13 @@ export function JobsPage() {
   return (
     <section className="jobs">
       <div className="row spread">
-        <PageHeader>Jobs</PageHeader>
+        <PageHeader subtitle="Scheduled loads, rebuilds and scans.">Jobs</PageHeader>
         {o.data && <DagsterLink d={o.data.dagster} />}
       </div>
-      <p className="muted">
-        Fuzer's scheduled work: loading exports, rebuilding the register, Claude reading new text, upset detection,
-        the daily report and the work engine's timers. Each job's schedule or sensor, whether it's on, and how its
-        recent runs went, read from the Dagster scheduler.
-        {" "}For connection tests, dataset loading and freshness recovery, open <a href={href("/sources")}>Sources</a>.
-        {" "}Application defaults and restart requirements are in <a href={href("/settings")}>Settings</a>.
-      </p>
       <Status loading={o.loading && !o.data} error={o.error} onRetry={o.reload} />
       {o.data && !o.data.available && (
         <UICard className="">
-          <p>Scheduler history is unavailable in this deployment. This does not mean loaded facility records are unavailable
-            or that a plant outage occurred. A deployment operator can check the scheduler service and its storage.</p>
+          <p>Scheduler history is unavailable in this deployment. A deployment operator can check the scheduler service.</p>
           <p className="small">Running Fuzer yourself? Start the scheduler with <code>fuzer up</code> (without{" "}
             <code>--no-jobs</code>), or on its own with <code>fuzer jobs</code>.</p>
           <p><a href={href("/sources")}>Inspect recorded source loads</a> or <a href={href("/browse")}>Explore loaded records</a>.</p>
@@ -309,10 +301,9 @@ export function JobRunPage({ id }: { id: string }) {
               <div className="small muted">{e.step ? <>step <code>{e.step}</code></> : "run"}{e.error_class && <> · {e.error_class}</>}</div>
               <pre className="data">{e.message}</pre>
               {e.stack && (
-                <details>
-                  <summary className="small">Stack trace</summary>
+                <Disclosure label={<>Stack trace</>}>
                   <pre className="data">{e.stack}</pre>
-                </details>
+                </Disclosure>
               )}
             </UICard>
           ))}

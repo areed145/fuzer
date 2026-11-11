@@ -56,21 +56,15 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
           <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
             people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</tbody>
         </Table>}
-        {people.data && !people.data.length && <p className="small muted">Nobody is on the roster yet, so dispatch can
-          only go to a role's queue. Add the IOC team and field operators on <a href={href("/teams")}>Teams &amp; routing</a>.</p>}
         <SampleTeam onAdded={people.reload} />
       </Card>
-      <details className="exception-types">
-        <summary>Exception types: what raises work and where it goes</summary>
-        <Kinds person={person} queues={queues} />
-      </details>
     </>
   );
 }
 
 /** The exception types: what modules raise, and the ones defined here so other systems (SAP notifications, SCADA
  * alarms, a reporting app) can raise them through POST /exceptions without code. */
-function Kinds({ person, queues }: { person: string | null; queues: string[] }) {
+export function ExceptionTypes({ person, queues }: { person: string | null; queues: string[] }) {
   const kinds = useAsync(() => api.exceptionKinds(), []);
   const refs = useAsync(() => api.exceptionRefs(), []);
   const canConfigure = usePermission("configure");
@@ -82,9 +76,7 @@ function Kinds({ person, queues }: { person: string | null; queues: string[] }) 
   }), () => { setF({ name: "", label: "", role: "", field: true }); kinds.reload(); });
   return (
     <Card title="Exception types">
-      <p className="muted small">Modules declare the types they raise. Define one here for another system to raise
-        with <code>POST /exceptions</code> (type, key, title, refs); a repeat with the same key updates the open one,
-        and <code>POST /exceptions/clear</code> clears it.</p>
+      <p className="small">Another system raises a type with <code>POST /exceptions</code> and clears it with <code>POST /exceptions/clear</code>.</p>
       {refs.data && refs.data.length > 0 && <div className="small">
         <strong>Refs Fuzer matches</strong> <span className="muted">(an exception's <code>refs</code>; one that matches nothing
           is kept as unmatched and the sender is told)</span>

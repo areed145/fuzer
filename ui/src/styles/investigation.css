@@ -1,5 +1,5 @@
 .investigation { max-width: 960px; }
-.investigation-context { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--accent-soft); }
+.investigation-context { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .investigation-context .badge + .badge { margin-left: 8px; }
 .investigation-context p { margin: 8px 0 0; }
 .investigation-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 20px 0; }
@@ -19,12 +19,12 @@
 .investigation-provenance li > span { display: block; }
 .investigation-evidence { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin: 12px 0; overflow-wrap: anywhere; }
 .investigation-evidence[open] { background: var(--bg); }
-.investigation-evidence summary { cursor: pointer; scroll-margin-top: 80px; }
-.investigation-evidence summary > span { display: block; }
-.investigation-evidence summary > span:first-child { font-size: 12px; color: var(--muted); }
+.investigation-evidence h3 { scroll-margin-top: 80px; }
+.investigation-evidence h3 > span { display: block; }
+.investigation-evidence h3 > span:first-child { font-size: 12px; color: var(--muted); }
 .investigation-finding { padding: 0 0 16px 16px; margin: 16px 0; border-left: 3px solid var(--accent); }
 .investigation-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
-.investigation a:focus-visible, .investigation summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.investigation a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 800px) {
   .investigation-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .investigation-stats { grid-template-columns: minmax(0, 1fr); }

@@ -36,9 +36,6 @@ export function MermaidDiagram({ source }: { source: string }) {
         {!drawn && <p className="small muted" role="status">Drawing the diagram…</p>}
         <div ref={element} role="img" aria-label="Diagram from the assistant; its source is below" />
       </>}
-    <details open={failed}>
-      <summary className="small muted">Diagram source</summary>
-      <pre><code>{source}</code></pre>
-    </details>
+    {failed && <pre><code>{source}</code></pre>}
   </figure>;
 }

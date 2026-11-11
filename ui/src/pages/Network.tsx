@@ -1,4 +1,4 @@
-import { Button, ButtonLink, PageHeader, Input , Card as UICard} from "../ui";
+import { Button, ButtonLink, PageHeader, Input , Card as UICard, Disclosure } from "../ui";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, subgraphElements } from "../graph";
@@ -91,13 +91,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
     <section>
       <div className="row spread">
         <div>
-          <PageHeader>Network</PageHeader>
-          <p className="muted">
-            How assets in the register connect, whichever source the links came from. Pick the link types and kinds
-            of thing to draw; links are coloured by type.
-            {!asOf && " Dashed lines are links that have ended; pick a date to see the network as it was."} Hover a
-            line for its type and dates.
-          </p>
+          <PageHeader subtitle="How assets connect. Dashed lines have ended.">Network</PageHeader>
         </div>
         <label className="asof">
           As of
@@ -120,8 +114,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
             </Button>
           ))}
           {others.length > 0 && (
-            <details className="more-rels">
-              <summary className="small">More link types</summary>
+            <Disclosure className="more-rels" label={<>More link types</>}>
               {others.map((v) => (
                 <div key={v.id} className="chips">
                   <span className="muted small">{v.label}</span>
@@ -133,7 +126,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
                   ))}
                 </div>
               ))}
-            </details>
+            </Disclosure>
           )}
         </div>
         {kinds.length > 0 && (

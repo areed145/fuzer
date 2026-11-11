@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -223,8 +223,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <tr><th>Notes</th><td>{field("notes")}</td></tr>
         </tbody>
       </Table>
-      <details>
-        <summary className="small">Advanced: connection, key, location, reader, watermark</summary>
+      <Disclosure label={<>Connection, key, location, reader and watermark</>}>
         <Table variant="keyValue">
           <tbody>
             <tr><th>Connection</th><td>
@@ -237,7 +236,7 @@ function Settings({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             <tr><th>Watermark</th><td>{field("watermark", "a column that only grows (append loads)")}</td></tr>
           </tbody>
         </Table>
-      </details>
+      </Disclosure>
       <div className="row">
         <Input placeholder="why (kept in the history)" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button variant="primary" disabled={!changed || !!a.busy} onClick={save}>Save</Button>
@@ -405,12 +404,11 @@ function RunDetail({ detail }: { detail: Json }) {
   const { duplicates_dropped: dropped, ...rest } = detail as Json & { duplicates_dropped?: Dropped };
   if (!dropped) return <>{cell(detail)}</>;
   return (
-    <details>
-      <summary>kept the latest row of {dropped.keys} repeated key{dropped.keys === 1 ? "" : "s"}; left out {dropped.rows}</summary>
+    <Disclosure label={<>kept the latest row of {dropped.keys} repeated key{dropped.keys === 1 ? "" : "s"}; left out {dropped.rows}</>}>
       <ul className="plain">{dropped.shown.map((x, i) => <li key={i}><code>{x.key}</code> {cell(x.row)}</li>)}</ul>
       {dropped.rows > dropped.shown.length && <p>and {dropped.rows - dropped.shown.length} more</p>}
       {Object.keys(rest).length > 0 && cell(rest as Json)}
-    </details>
+    </Disclosure>
   );
 }
 
@@ -467,8 +465,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           </tbody>
         </Table>
       ) : <p className="muted small">None yet.</p>}
-      <details>
-        <summary className="small">Add a check by hand</summary>
+      <Disclosure label={<>Add a check by hand</>}>
         <div className="row">
           <Select value={kind} onChange={(e) => setKind(e.target.value)}>
             {["not_null", "range", "accepted", "row_count", "freshness", "coverage", "key_unique"].map((k) => <option key={k}>{k}</option>)}
@@ -478,7 +475,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           <label className="small"><Input type="checkbox" checked={blocking} onChange={(e) => setBlocking(e.target.checked)} /> holds the load</label>
           <Button variant="primary" disabled={!!a.busy} onClick={add}>Add</Button>
         </div>
-      </details>
+      </Disclosure>
       {a.error && <p className="error small">{a.error}</p>}
       <h3>Profile {p && <span className="muted small">{p.rows.toLocaleString()} rows{p.sampled ? " (sampled)" : ""}, {when(p.taken_at)}
         {p.key && ` · key: ${p.key.duplicates} repeated, ${p.key.empty} empty`}</span>}</h3>

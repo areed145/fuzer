@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
@@ -118,8 +118,7 @@ function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, d
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
   return (
-    <details className="card small">
-      <summary>Hand off to someone else</summary>
+    <Disclosure className="card small" label={<>Hand off to someone else</>}>
       <div className="actions">
         <AssignPicker value={to} onChange={setTo} agents={!requiresHuman} />
         <Input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -129,7 +128,7 @@ function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, d
           : <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>}
       </div>
       {requiresHuman && <p className="muted">This step needs a person: it can't go to an agent.</p>}
-    </details>
+    </Disclosure>
   );
 }
 
@@ -191,11 +190,10 @@ function Sources({ v }: { v: WorkTaskView }) {
   if (all.length < 2) return null;
   return (
     <UICard className="sources" title={reportedBy(all)}>
-      {all.map((x) => <details key={x.id} open className="evidence-item">
-        <summary><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
-          <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></summary>
+      {all.map((x) => <Disclosure key={x.id} open className="evidence-item" label={<><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
+          <span className="muted small">· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</span></>}>
         {x.seen.length > 0 && <dl className="kv small">{x.seen.map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>}
-      </details>)}
+      </Disclosure>)}
     </UICard>
   );
 }
@@ -213,16 +211,14 @@ function Evidence({ v }: { v: WorkTaskView }) {
         <p className="small">About <EntityLinks ids={e.subjects.map((s) => s.fuzer_id)} /></p>
       )}
       {latest.map(({ a, old }) => (
-        <details key={a.id} open={!old} className="evidence-item">
-          <summary><Actor who={a.actor} /> on {a.data.step ?? a.element} · <span className="muted">{when(a.at)}</span>{old && " (earlier try)"}</summary>
+        <Disclosure key={a.id} open={!old} className="evidence-item" label={<><Actor who={a.actor} /> on {a.data.step ?? a.element} · <span className="muted">{when(a.at)}</span>{old && " (earlier try)"}</>}>
           <DataView data={a.data.data} />
-        </details>
+        </Disclosure>
       ))}
       {e.messages.map((m) => (
-        <details key={m.id} open className="evidence-item">
-          <summary><Actor who={m.actor} /> sent {m.data.name} · <span className="muted">{when(m.at)}</span></summary>
+        <Disclosure key={m.id} open className="evidence-item" label={<><Actor who={m.actor} /> sent {m.data.name} · <span className="muted">{when(m.at)}</span></>}>
           <DataView data={m.data.payload} />
-        </details>
+        </Disclosure>
       ))}
       {!e.agents.length && !e.messages.length && <p className="small muted">What started the process:</p>}
       {!e.agents.length && <DataView data={startedWith(v.data)} />}

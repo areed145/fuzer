@@ -1,0 +1,6 @@
+/* All work: the views, then one filter row. On a phone the two pickers share a line and search takes the next. */
+.work-filters { margin: 12px 0 8px; }
+@media (max-width: 600px) {
+  .work-filters > select { flex: 1 1 0; min-width: 0; }
+  .work-filters > input { flex: 1 1 100%; }
+}

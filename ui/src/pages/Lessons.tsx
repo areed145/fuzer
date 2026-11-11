@@ -1,4 +1,4 @@
-import { Button, PageHeader, Card as UICard } from "../ui";
+import { Button, PageHeader, Card as UICard, Disclosure } from "../ui";
 import { useState } from "react";
 import { api, type Lesson } from "../api";
 import { Status, entityHref, href, notifyChanged, useAsync } from "../lib";
@@ -11,11 +11,7 @@ export function LessonsPage({ query }: { query: URLSearchParams }) {
     <section>
       <div className="row spread">
         <div>
-          <PageHeader>Lessons learned</PageHeader>
-          <p className="muted">
-            Drafted from incidents and the corrective work that closed them, per equipment model and failure mode.
-            Approved lessons show up in document search for every piece of equipment of that model.
-          </p>
+          <PageHeader subtitle="Lessons drafted from incidents and the work that closed them.">Lessons learned</PageHeader>
         </div>
         <div className="tabs">
           {["suggested", "approved", "rejected"].map((s) => (
@@ -50,8 +46,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
         </span>
       </div>
       <textarea className="lesson-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
-      <details className="small">
-        <summary>Evidence</summary>
+      <Disclosure className="small" label={<>Evidence</>}>
         <ul className="plain">
           {lesson.evidence.map((e) => (
             <li key={e.id}>
@@ -60,7 +55,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
             </li>
           ))}
         </ul>
-      </details>
+      </Disclosure>
       <div className="actions">
         {lesson.status !== "approved" && <Button variant="primary" disabled={busy} onClick={() => decide("approve")}>Approve</Button>}
         {text !== lesson.text && <Button disabled={busy} onClick={() => decide("edit")}>Save edits</Button>}

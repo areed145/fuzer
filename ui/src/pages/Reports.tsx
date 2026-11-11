@@ -32,12 +32,7 @@ export function ReportsPage({ query }: { query: URLSearchParams }) {
   const waiting = days.data?.filter((d) => d.status === "awaiting review").length ?? 0;
   return (
     <section>
-      <PageHeader>Daily reports</PageHeader>
-      <p className="muted">
-        What happened each production day and what it means, drafted by the reporter agent from the day's records with
-        every line cited, then reviewed and published by the ops lead here. For the day's losses by cause see{" "}
-        <a href={href("/downtime")}>Downtime</a>; for upsets grouped by unit, <a href={href("/incidents")}>Incidents</a>.
-      </p>
+      <PageHeader subtitle="What happened each production day.">Daily reports</PageHeader>
       <Status loading={days.loading && !days.data} error={days.error} empty={days.data?.length === 0}>
         No reports yet: `fuzer report` closes a day.
       </Status>

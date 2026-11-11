@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep } from "../api";
 import { href, Status, useAsync } from "../lib";
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Table } from "../ui";
+import { usePerson } from "../work";
+import { ExceptionTypes } from "./Exceptions";
 
 const BpmnView = lazy(() => import("../BpmnView"));
 
@@ -12,6 +14,9 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
   const type = query.get("type");
   const rows = routes.data ?? [];
   const chosen = rows.find((r) => r.type === type) ?? null;
+  const [person] = usePerson();
+  const roles = useAsync(() => api.rolesCatalog(), []);
+  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   return <section>
     <PageHeader subtitle="What happens to each type of work when it arrives.">Routing</PageHeader>
     {!routes.data ? <Status loading={routes.loading} error={routes.error} />
@@ -27,6 +32,7 @@ export function RoutingPage({ query }: { query: URLSearchParams }) {
         </tr>)}</tbody>
       </Table>}
     {chosen && <RouteDetail key={chosen.type} route={chosen} />}
+    <ExceptionTypes person={person} queues={queues} />
   </section>;
 }
 

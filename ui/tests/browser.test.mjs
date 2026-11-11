@@ -261,7 +261,7 @@ test("Core consistency Home separates historical reports, unavailable counts and
   failed = false;
   await report.getByRole("button", { name: "Try again", exact: true }).click();
   await report.getByText("Historical report fact", { exact: true }).waitFor();
-  await report.getByText("not a live operating update", { exact: false }).waitFor();
+  await report.getByText("Report date", { exact: false }).waitFor();
   assert.equal(attempts, 2);
   assert.equal(await page.getByRole("heading", { name: "Today", exact: true }).count(), 0);
 });
@@ -332,7 +332,7 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   // Under All work the shared filter bar labels them (#502).
   await page.getByRole("combobox", { name: "Held by", exact: true }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Kind of work", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("option", { name: "held by anyone", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("option", { name: "Anyone", exact: true }).count(), 1);
 });
 
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
@@ -354,8 +354,8 @@ test("Core consistency Sources uses keyboard links, UTC ingestion times and expl
   await table.getByText("Time unknown", { exact: true }).waitFor();
   await table.getByText("2026-11-06 12:00 UTC", { exact: true }).waitFor();
   await table.getByText("2024-03-14T03:20:00 (timezone not supplied)", { exact: true }).waitFor();
-  // with datasets the how-to steps fold away so the table is on the first screen (#415)
-  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), false);
+  // the how-to lives in the docs, so the table is on the first screen (#415)
+  assert.equal(await page.locator("details, summary").count(), 0);
   assert.equal(await table.getByText("failed", { exact: true }).first().getAttribute("class").then(c => c.includes("ui-badge-danger")), true);
   const dataset = table.getByRole("link", { name: "sap_equipment", exact: true });
   await dataset.focus();
@@ -461,20 +461,18 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   } }));
   const mutations = [];
   page.on("request", (request) => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
-  await page.goto(url);
-  await page.getByRole("link", { name: "Source readiness", exact: false }).click();
+  await page.goto(`${url}/#/sources`);
   await page.getByRole("heading", { name: "Source readiness", exact: true }).waitFor();
   await page.getByText("Catalog unavailable. Try again.", { exact: false }).waitFor();
   catalogFails = false;
   await page.getByRole("button", { name: "Refresh source readiness" }).click();
   await page.getByText("0 connections", { exact: false }).waitFor();
-  assert.match(await page.getByRole("link", { name: "Connect & test" }).getAttribute("href"), /view=systems/);
-  assert.equal(await page.locator("details.source-steps").evaluate((d) => d.open), true);
+  assert.match(await page.getByRole("link", { name: "Systems & connections" }).getAttribute("href"), /view=systems/);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (process.env.FUZER_REVIEW_DIR) await page.screenshot({ path: `${process.env.FUZER_REVIEW_DIR}/setup-readiness-mobile.png`, fullPage: true });
-  await page.getByRole("main").getByRole("link", { name: "Settings", exact: true }).click();
+  await page.goto(`${url}/#/settings`);
   await page.getByRole("heading", { name: "Application readiness", exact: true }).waitFor();
   await page.getByText("Attention: the owner bootstrap secret", { exact: false }).waitFor();
   assert.equal(await page.getByRole("heading", { name: "Source readiness", exact: true }).count(), 0);
@@ -596,7 +594,7 @@ test("Users unifies guided approval, effective access, stable workflow assignmen
   await page.getByRole("status").filter({ hasText: "Workflow assignments saved for New participant" }).waitFor();
   assert.equal(writes[1].path, "/work/people/user%3Aapplicant");
   assert.deepEqual(writes[1].body.roles, ["engineer", "operator"]);
-  await page.getByText("Advanced: application role definitions", { exact: false }).click();
+  await page.getByRole("button", { name: "Application role definitions" }).click();
   const role = page.locator(".access-role").filter({ has: page.getByRole("heading", { name: "operator", exact: true }) });
   await role.getByRole("checkbox", { name: "Operate shared work", exact: true }).uncheck();
   await role.getByRole("button", { name: "Save application role", exact: true }).click();
@@ -666,7 +664,7 @@ test("Users workflow routing and coverage reuse confirmed actions without granti
     return route.fulfill({ json: { ok: true } });
   });
   await page.goto(`${url}/#/users?view=workflow&role=engineer`);
-  const engineer = page.locator("details.card").filter({ has: page.locator("summary strong").filter({ hasText: /^engineer$/ }) });
+  const engineer = page.locator(".ui-disclosure.card").filter({ has: page.locator(".ui-disclosure-toggle strong").filter({ hasText: /^engineer$/ }) });
   await engineer.getByRole("textbox", { name: "engineer default SLA", exact: true }).fill("PT8H");
   await engineer.getByRole("button", { name: "Save routing for engineer", exact: true }).click();
   assert.equal(routing, undefined);
@@ -1053,9 +1051,8 @@ test("pending account can bootstrap only with a setup code and then reach owner-
   await page.getByRole("button", { name: "Set up owner access" }).click();
   await page.getByRole("link", { name: "Manage users" }).click();
   await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
-  await page.getByText("How Users works:", { exact: false }).click();
-  await page.getByText("Keep at least one enabled owner;", { exact: false }).waitFor();
-  await page.getByText("Advanced: application role definitions", { exact: false }).click();
+  await page.getByRole("link", { name: "Help" }).waitFor();  // how Users works is in the docs
+  await page.getByRole("button", { name: "Application role definitions" }).click();
   await page.getByRole("heading", { name: "Add an application role", exact: true }).waitFor();
 });
 
@@ -1178,13 +1175,12 @@ test("Okan journey connects Demo, asset, source evidence and a cited finding wit
   assert.equal(await page.evaluate(() => document.activeElement?.id), "investigation-step");
   await page.getByText("Train B second-stage compressor", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Next: Inspect the evidence", exact: true }).click();
-  await page.locator("summary").click();
   await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
   await page.getByText("Last observed during ingestion:", { exact: false }).waitFor();
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
   await page.getByText("What the loaded records establish", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Evidence 1", exact: true }).click();
-  assert.equal(await page.locator("details").getAttribute("open"), "");
+  assert.equal(await page.locator("article.investigation-evidence").getAttribute("aria-current"), "true");
   await page.reload();
   await page.getByText("423 Sm³ recorded lost oil", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
@@ -1199,13 +1195,9 @@ test("Okan deep links support mobile, keyboard, dark theme and history without o
   await page.emulateMedia({ colorScheme: "dark" });
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan?step=evidence&evidence=fz-downtime`);
-  const summary = page.locator("summary");
-  await summary.waitFor();
-  await page.waitForFunction(() => document.activeElement?.tagName === "SUMMARY");
-  await page.keyboard.press("Enter");
-  assert.equal(await page.locator("details").getAttribute("open"), null);
-  await page.keyboard.press("Enter");
-  assert.equal(await page.locator("details").getAttribute("open"), "");
+  // The linked evidence is shown, not folded, and its heading takes focus.
+  await page.locator("article.investigation-evidence h3").waitFor();
+  await page.waitForFunction(() => document.activeElement?.closest("article.investigation-evidence") && document.activeElement.tagName === "H3");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
   await page.getByRole("link", { name: "Next: Read the finding", exact: true }).click();
@@ -1270,7 +1262,7 @@ test("Demo prepares a registered specialist question and confirms paid execution
   });
   await page.goto(`${url}/#/demo?step=agents`);
   await page.getByText("No transport records loaded", { exact: false }).waitFor();
-  await page.locator("details").filter({ hasText: "Registered specialist" }).locator("summary").click();
+  await page.getByRole("button", { name: /Registered specialist/ }).click();
   await page.getByRole("link", { name: "Prepare a question for Registered specialist", exact: true }).click();
   await page.getByRole("heading", { name: "Ask", exact: true }).waitFor();
   assert.match(await page.getByRole("textbox", { name: "Question for the operations assistant" }).inputValue(), /Registered specialist/);
@@ -1330,7 +1322,7 @@ test("Demo workflow uses loaded shared tasks, confirms changes and exposes ambig
   await page.getByRole("button", { name: "task completion", exact: true }).click();
   await page.getByRole("button", { name: "Confirm task completion", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: "Task response uncertain" }).waitFor();
-  await page.getByText("Check the current recorded result before trying again", { exact: false }).waitFor();
+  await page.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, "/work/tasks/42/complete");
   await page.getByRole("link", { name: "Return to Demo", exact: true }).click();
@@ -1633,7 +1625,7 @@ test("A failed draft confirmation is not replayed and shows the recorded state",
   await card.getByRole("button", { name: "Create work item" }).click();
   await card.getByRole("group", { name: "Confirm Create work item" }).getByRole("button", { name: "Create work item" }).click();
   await card.getByRole("alert").filter({ hasText: "Connection lost" }).waitFor();
-  await card.getByText("Check the current recorded result", { exact: false }).waitFor();
+  await card.getByText("Check what was saved before trying again", { exact: false }).waitFor();
   assert.equal(calls.count(), 1, "A failure is never retried automatically");
 });
 
@@ -1669,7 +1661,7 @@ async function askFor(answer) {
   if (await confirmAsk.isVisible().catch(() => false)) await confirmAsk.click();
 }
 
-test("Ask draws Mermaid diagrams, keeps their source and shows fenced code as code", async () => {
+test("Ask draws Mermaid diagrams and shows fenced code as code", async () => {
   await askFor([
     "The route:", "", "```mermaid", "flowchart TD", '  W["OK-J09-04<br/>Oil well"] -->|current| HP["10-V-2001"]', "  HP --> KA & KB", "```", "",
     "After the diagram.", "```python", "print(\"**not bold** | fz-tag-0123456789ab\")", "```", "Done.",
@@ -1681,8 +1673,7 @@ test("Ask draws Mermaid diagrams, keeps their source and shows fenced code as co
   assert.equal(await page.locator(".md pre code").filter({ hasText: "print(" }).locator("strong, a").count(), 0, "Code stays literal");
   await page.locator(".md p", { hasText: "After the diagram." }).waitFor();
   await page.locator(".md p", { hasText: "Done." }).waitFor();
-  await diagram.getByText("Diagram source").click();
-  await diagram.locator("pre").getByText("flowchart TD", { exact: false }).waitFor();
+  assert.equal(await diagram.locator("pre").count(), 0, "A drawn diagram doesn't repeat its source");
 });
 
 test("A diagram Mermaid can't draw shows its source, and diagram text can't run script", async () => {
@@ -1817,46 +1808,36 @@ const capacity = panel("flow-capacity", "System capacity and bottleneck", {
     columns: ["Stage", "Entities"], rows: [["Crude terminal", "ESCRAVOS-TERM"]] }],
 }, [{ type: "bar", name: "Approved", x: ["Wells", "Separators"], y: [130, 110], offsetgroup: "stage" }, { type: "bar", name: "System limit", x: ["Wells", "Separators"], y: [100, 100], offsetgroup: "system" }]);
 
-test("Home's Chart Show moves between server-built figures and loads the second on arrival", async () => {
+test("Home shows each server-built figure in its own card, with its tables on request", async () => {
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   const calls = { efficiency: 0, capacity: 0 };
   await page.route("**/analytics/figures/production-efficiency*", (route) => { calls.efficiency++; return route.fulfill({ json: efficiency }); });
   await page.route("**/analytics/figures/flow-capacity*", (route) => { calls.capacity++; return route.fulfill({ json: capacity }); });
   await page.goto(`${url}/#/`);
-  const show = page.getByRole("group", { name: "Production charts", exact: true });
-  await show.getByRole("heading", { name: "Production efficiency", exact: true }).waitFor();
-  await page.waitForFunction(() => document.querySelector(".chart-show .js-plotly-plot")?._fullLayout?.xaxis);
-  assert.equal(calls.capacity, 0, "An unopened slide requests nothing");
-  assert.equal(await show.getByRole("button", { name: "Previous chart" }).isDisabled(), true);
-  await show.getByText("Fictional, historical data, not a live operating update.", { exact: false }).first().waitFor();
-  await show.getByText("Coverage is not verified.").waitFor();
-  await show.getByText("Unknown values are gaps, never zero.").waitFor();
-  await show.getByText("Daily data").click();
+  const charts = page.locator(".home-charts");
+  const first = charts.locator(".home-card").filter({ has: page.getByRole("heading", { name: "Production efficiency", exact: true }) });
+  await page.waitForFunction(() => document.querySelector(".home-charts .js-plotly-plot")?._fullLayout?.xaxis);
+  await first.getByText("Coverage is not verified.").waitFor();
+  await first.getByText("Unknown values are gaps, never zero.").waitFor();
+  // No carousel: no slide controls, and both charts are on the page together.
+  assert.equal(await page.getByRole("button", { name: /^(Previous|Next) chart$/ }).count(), 0);
+  await first.getByRole("button", { name: "Daily data" }).click();
   await page.getByRole("cell", { name: "Compressor [equipment] + Export [export] (tied)", exact: true }).waitFor();
 
-  await show.getByRole("button", { name: "Next chart" }).click();
-  await show.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
-  const slide = show.getByRole("group", { name: /^2 of 2/ });
-  await slide.getByText("Bottleneck not established", { exact: false }).waitFor();
-  await page.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.length === 2);
-  const colors = await slide.locator(".js-plotly-plot").evaluate((node) => node._fullData.map((t) => t.marker.color));
+  const second = charts.locator(".home-card").filter({ has: page.getByRole("heading", { name: "System capacity and bottleneck", exact: true }) });
+  await second.getByText("Bottleneck not established", { exact: false }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullData?.length === 2);
+  const colors = await second.locator(".js-plotly-plot").evaluate((node) => node._fullData.map((t) => t.marker.color));
   const theme = await page.evaluate(() => [1, 2].map((i) => getComputedStyle(document.documentElement).getPropertyValue(`--chart-${i}`).trim()));
   assert.deepEqual(colors, theme, "Series take the theme colorway by position");
+  await second.getByRole("button", { name: "Metadata needed to establish the bottleneck · 3 of 3 stages incomplete" }).click();
+  await second.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
   assert.equal(calls.capacity, 1);
-  await slide.getByText("Metadata needed to establish the bottleneck · 3 of 3 stages incomplete").click();
-  await slide.getByRole("cell", { name: "Crude terminal", exact: true }).waitFor();
-
-  await show.getByRole("button", { name: "Show Production efficiency" }).click();
-  await show.getByRole("heading", { name: "Production efficiency", exact: true }).waitFor();
-  await show.getByRole("button", { name: "Show System capacity and bottleneck" }).focus();
-  await page.keyboard.press("ArrowRight");
-  await show.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
-  assert.equal(calls.capacity, 1, "Coming back reuses the mounted slide");
   assert.equal(calls.efficiency, 1);
   assert.deepEqual(errors, []);
 });
 
-test("Chart Show recovers a failed figure by explicit retry and shows a figure with no plot", async () => {
+test("A failed home figure recovers by explicit retry and a figure with no plot still shows", async () => {
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: efficiency }));
   let fail = true;
@@ -1864,28 +1845,25 @@ test("Chart Show recovers a failed figure by explicit retry and shows a figure w
     ? route.fulfill({ status: 500, json: { detail: "Capacity unavailable" } })
     : route.fulfill({ json: panel("flow-capacity", "System capacity and bottleneck", { headline: "No flow network reaches this facility on its latest report day." }, []) }));
   await page.goto(`${url}/#/`);
-  const show = page.getByRole("group", { name: "Production charts", exact: true });
-  await show.getByRole("button", { name: "Next chart" }).click();
-  await show.getByText("Capacity unavailable").waitFor();
+  const card = page.locator(".home-charts .home-card").nth(1);
+  await card.getByText("Capacity unavailable").waitFor();
   fail = false;
-  await show.getByRole("button", { name: "Try again" }).click();
-  await show.getByText("No flow network reaches this facility on its latest report day.").waitFor();
-  assert.equal(await show.getByRole("group", { name: /^2 of 2/ }).locator(".js-plotly-plot").count(), 0);
+  await card.getByRole("button", { name: "Try again" }).click();
+  await card.getByText("No flow network reaches this facility on its latest report day.").waitFor();
+  assert.equal(await card.locator(".js-plotly-plot").count(), 0);
 });
 
-test("A malformed figure is contained to its slide", async () => {
+test("A malformed figure is contained to its card", async () => {
   await page.route("**/stats", (route) => route.fulfill({ json: homeStats }));
   await page.route("**/analytics/figures/production-efficiency*", (route) => route.fulfill({ json: { kind: "x", summary: {} } }));
   await page.route("**/analytics/figures/flow-capacity*", (route) => route.fulfill({ json: capacity }));
   await page.goto(`${url}/#/`);
-  const show = page.getByRole("group", { name: "Production charts", exact: true });
-  await show.getByText("This chart could not be drawn from the data returned.", { exact: false }).waitFor();
+  await page.locator(".home-charts .home-card").first().getByText("This chart could not be drawn from the data returned.", { exact: false }).waitFor();
   await page.getByRole("heading", { name: "Latest daily report", exact: true }).waitFor();
-  await show.getByRole("button", { name: "Next chart" }).click();
-  await show.getByText("Bottleneck not established", { exact: false }).waitFor();
+  await page.locator(".home-charts .home-card").nth(1).getByText("Bottleneck not established", { exact: false }).waitFor();
 });
 
-test("Home mounts, reaches its second chart and refreshes below default admission limits", async () => {
+test("Home mounts both charts and refreshes below default admission limits", async () => {
   const responses = { "/stats": homeStats, "/analytics/figures/production-efficiency": efficiency, "/analytics/figures/flow-capacity": capacity };
   let active = 0, maximum = 0;
   await page.route("**/*", async (route) => {
@@ -1897,9 +1875,7 @@ test("Home mounts, reaches its second chart and refreshes below default admissio
     return path in responses ? route.fulfill({ json: responses[path] }) : route.fallback();
   });
   await page.goto(`${url}/#/`);
-  const show = page.getByRole("group", { name: "Production charts", exact: true });
-  await show.getByRole("button", { name: "Next chart" }).click();
-  await show.getByText("Bottleneck not established", { exact: false }).waitFor();
+  await page.getByText("Bottleneck not established", { exact: false }).waitFor();
   await page.evaluate(() => window.dispatchEvent(new Event("fuzer:changed")));
   await page.waitForFunction(() => !document.querySelector('[role="status"][aria-live="polite"].status'));
   assert.ok(maximum <= 4, `Browser queue maximum ${maximum}; server default is four`);
@@ -1909,7 +1885,7 @@ test("Empty facilities show no charts, and old Analytics links land on Home", as
   await page.goto(`${url}/#/analytics?ref=plant&end=2026-10-10`);
   await page.waitForURL(`${url}/#/`);
   await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
-  assert.equal(await page.locator(".chart-show").count(), 0);
+  assert.equal(await page.locator(".home-charts").count(), 0);
 });
 
 const homeRow = (i) => ({ task_id: i, item_id: 100 + i, element: "e", name: null, kind: "task", role: "operator", assignee: null,
@@ -1944,15 +1920,14 @@ async function homeFixture(fixtures, { fail = false } = {}) {
   });
 }
 
-test("Home leads with reader destinations, labels times and links each item to its owner", async () => {
+test("Home leads with the facility search, labels times and links each item to its owner", async () => {
   await homeFixture(homePopulated);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/`);
-    const guide = page.locator(".home-guide-links a");
-    await guide.first().waitFor();
-    assert.equal(await guide.first().locator("strong").textContent(), "Explore the facility");
-    assert.equal(await guide.last().locator("strong").textContent(), "Application settings");
+    await page.getByRole("search").getByRole("textbox", { name: "Search the facility" }).waitFor();
+    // Home is not a second menu: destinations live in the navigation, not a grid of link cards (docs/ui-style.md).
+    assert.equal(await page.locator(".home-guide-links").count(), 0);
     await page.getByRole("link", { name: "schema mapping field · 3", exact: true }).waitFor();
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
@@ -2006,7 +1981,7 @@ test("Home shows a failed read with its own retry instead of an empty card", asy
   }
 });
 
-test("Chart Show swipes over the chart on touch and keeps its slide through rotation", async () => {
+test("Home charts stack on a phone and redraw for the wider screen on rotation", async () => {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mobile = await phone.newPage();
   for (const [path, json] of [["**/auth/me", { mode: "local", configured: true, user: null }], ["**/stats", homeStats], ["**/demo/config", { enabled: true }],
@@ -2014,31 +1989,11 @@ test("Chart Show swipes over the chart on touch and keeps its slide through rota
     await mobile.route(path, (route) => route.fulfill({ json }));
   }
   await mobile.goto(`${url}/#/`);
-  const plot = mobile.locator(".chart-show-slide").first().locator(".js-plotly-plot");
-  await plot.locator(".main-svg").first().waitFor();
-  const box = await plot.evaluate((node) => {
-    node.scrollIntoView({ block: "center" });
-    const r = node.getBoundingClientRect();
-    return { x: r.x, y: r.y, width: r.width, height: r.height };
-  });
-  const cdp = await phone.newCDPSession(mobile);
-  // Raw touches reach the browser's gesture recognizer; synthesizeScrollGesture sends no moves on headless Linux.
-  const start = { x: box.x + box.width * .75, y: box.y + box.height / 2 };
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
-  for (let step = 1; step <= 12; step++) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: start.x - step * 22, y: start.y }] });
-    await new Promise((resolve) => setTimeout(resolve, 16));
-  }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await mobile.getByRole("heading", { name: "System capacity and bottleneck", exact: true }).waitFor();
-  const second = mobile.locator(".chart-show-slide").nth(1).locator(".js-plotly-plot");
-  await mobile.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.[0]?.orientation === "h");
+  await mobile.waitForFunction(() => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullData?.[0]?.orientation === "h");
+  assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
   await mobile.setViewportSize({ width: 800, height: 844 });
-  await mobile.waitForFunction(() => document.querySelectorAll(".chart-show-slide")[1].querySelector(".js-plotly-plot")?._fullData?.[0]?.orientation === "v");
-  const track = mobile.locator(".chart-show-track");
-  await mobile.waitForFunction(() => { const n = document.querySelector(".chart-show-track"); return n.scrollLeft === n.clientWidth; });
-  assert.equal(await second.count(), 1);
-  assert.ok(await track.evaluate((node) => node.scrollLeft > 0));
+  await mobile.waitForFunction(() => document.querySelectorAll(".home-charts .js-plotly-plot")[1]?._fullData?.[0]?.orientation === "v");
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
   await phone.close();
 });
@@ -2124,11 +2079,13 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   const views = page.getByRole("navigation", { name: "All work views", exact: true });
   await views.getByRole("link", { name: "To dispatch 1", exact: true }).waitFor();  // the count shows before the view opens
   assert.equal(await views.getByRole("link", { name: "To dispatch 1", exact: true }).getAttribute("aria-current"), "page");
-  await page.getByText("Exception types: what raises work and where it goes").click();
+  // Exception types are configuration, so they live on Settings > Routing, not under All work.
+  await page.goto(`${url}/#/routing`);
   await page.getByText("tag:20-K-2100B").waitFor();  // what another system's refs should look like
   const queue = page.getByLabel("Queue");  // a new type routes to a known queue, picked, not typed
   await queue.getByRole("option", { name: "engineer queue" }).waitFor({ state: "attached" });
   assert.deepEqual(await queue.locator("option").allTextContents(), ["waits for the IOC to dispatch", "operator queue", "engineer queue"]);
+  await page.goto(`${url}/#/exceptions`);
   await page.getByLabel("Dispatch to").getByRole("option", { name: "fred (operator)" }).waitFor({ state: "attached" });
   await page.getByLabel("Dispatch to").selectOption("fred");
   await page.getByLabel("What to do").fill("isolate and check the gland");

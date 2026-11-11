@@ -2,6 +2,7 @@
  * three pages showing the same work at different grains; they are views of this page now. Old links land here:
  * `#/board?view=…` opens Ranked by value, `#/cases?state=…` opens In progress or Closed. Case and task pages are
  * unchanged. */
+import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
 import { Input, PageHeader, Select } from "../ui";
 import { api } from "../api";
@@ -64,11 +65,8 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   }, [list]);
   return (
     <section>
-      <PageHeader subtitle={<>Everything that came in, from every source, one row per event. Pick a view: what needs
-        dispatching, what is with the field, what came back, who holds the rest, everything ranked by value, and what
-        is finished. The steps waiting on you personally are in your <a href={href("/inbox")}>Inbox</a>.</>}>
+      <PageHeader subtitle="Everything that came in, from every source, one row per event." help="workflow">
         All work</PageHeader>
-      <FilterBar list={list} query={query} filters={filters} />
       <nav ref={tabs} className="tabs work-lists" aria-label="All work views">
         {WORK_LISTS.map((l) => (
           <a key={l.key} href={workHref(l.key, { ...filters })} className={l.key === list ? "on" : ""}
@@ -76,6 +74,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
             {l.label}{counts[l.key] ? <span className="muted"> {counts[l.key]}</span> : null}</a>
         ))}
       </nav>
+      <FilterBar list={list} query={query} filters={filters} />
       {list === "ranked" ? <BoardPage query={query} filters={filters} />
         : list === "progress" ? <CasesPage key="progress" query={query} fixedState="open" filters={filters} />
         : list === "closed" ? <CasesPage key="closed" query={query} fixedState="closed" filters={filters} />
@@ -99,12 +98,12 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
   return (
     <div className="row wrap work-filters" role="search" aria-label="Filter all work">
       <Select aria-label="Kind of work" value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || undefined })}>
-        <option value="">every kind</option>
+        <option value="">All kinds</option>
         {types.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
       </Select>
-      <AssignPicker label="Held by" value={filters.who ?? ""} placeholder="held by anyone"
+      <AssignPicker label="Held by" value={filters.who ?? ""} placeholder="Anyone"
         onChange={(v) => set({ who: v || undefined })} />
-      <Input type="search" aria-label="Search titles" placeholder="search titles" value={text}
+      <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text}
         onChange={(e) => setText(e.target.value)} />
     </div>
   );

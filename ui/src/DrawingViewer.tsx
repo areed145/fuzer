@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
-import { Button , Card as UICard} from "./ui";
+import { Button , Card as UICard, Disclosure } from "./ui";
 
 const STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
   { key: "linked", label: "Linked to the register" },
@@ -195,8 +195,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
             </>
           )}
           {(g.tables ?? []).map((t, i) => (
-            <details key={i} className="drawing-table">
-              <summary>{t.title || "Table"} <span className="muted small">{t.rows.length} rows</span></summary>
+            <Disclosure key={i} className="drawing-table" label={<>{t.title || "Table"} <span className="muted small">{t.rows.length} rows</span></>}>
               <div className="table-scroll">
                 <table className="small">
                   <thead><tr>{t.columns.map((c, j) => <th key={j}>{c}</th>)}</tr></thead>
@@ -205,7 +204,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
                   </tbody>
                 </table>
               </div>
-            </details>
+            </Disclosure>
           ))}
           {g.findings.length > 0 && (
             <>

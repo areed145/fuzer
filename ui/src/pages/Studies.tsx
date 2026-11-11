@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
 import { useState } from "react";
 import { api } from "../api";
 import { FigureView } from "../Figure";
@@ -15,11 +15,7 @@ export function StudiesPage({ query }: { query: URLSearchParams }) {
   const open = query.get("id");
   return (
     <section>
-      <PageHeader>Studies</PageHeader>
-      <p className="muted">
-        Correlation and clustering runs kept with their parameters and results, to re-run, cite (study:&lt;id&gt;) or attach
-        to a work item. Big ones run in the background.
-      </p>
+      <PageHeader subtitle="Saved correlation and clustering runs." help="analyses">Studies</PageHeader>
       <NewStudy onDone={list.reload} />
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.length === 0}>No studies yet.</Status>
       {list.data && list.data.length > 0 && (
@@ -95,7 +91,7 @@ function StudyDetail({ id, reload }: { id: number; reload: () => void }) {
           <Button onClick={async () => { await api.rerunStudy(d.id, loadPerson() || "anonymous"); reload(); }}>Run again</Button>
           {d.figure_id && <FigureView id={d.figure_id} />}
           {d.kind === "cascades" && d.result && <CascadeTable result={d.result as unknown as CascadeResult} />}
-          {d.result && <details><summary>Results</summary><pre className="small">{JSON.stringify(d.result, null, 1).slice(0, 20000)}</pre></details>}
+          {d.result && <Disclosure label={<>Results</>}><pre className="small">{JSON.stringify(d.result, null, 1).slice(0, 20000)}</pre></Disclosure>}
         </>
       )}
     </UICard>

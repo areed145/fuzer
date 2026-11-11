@@ -5,13 +5,12 @@
 @media (max-width: 1100px) { .task-layout { grid-template-columns: 1fr; } }
 .nowrap { white-space: nowrap; }
 label.choice-inline { display: inline-block; margin-right: 10px; white-space: nowrap; }
-.badge.change-added { background: var(--ok-soft); color: var(--ok); }
-.badge.change-changed { background: var(--warn-soft); color: var(--warn); }
-.badge.change-removed { background: var(--danger); color: var(--accent-text); }
+.badge.change-added { color: var(--ok); }
+.badge.change-changed { color: var(--warn); }
+.badge.change-removed { color: var(--danger); }
 .status.ok { color: var(--ok); }
 
 /* All work's views (#502): one row of tabs that scrolls sideways on a phone instead of widening the page. */
 .tabs.work-lists { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; margin: 4px 0 12px; }
 .tabs.work-lists > a { flex-shrink: 0; white-space: nowrap; }
 details.exception-types { margin-top: 16px; }
-details.exception-types > summary { cursor: pointer; color: var(--muted); }

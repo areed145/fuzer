@@ -108,11 +108,8 @@ function App() {
         status={
           <>
             {s && (
-              <div className="facts">
+              <div className="facts" title={`${Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities, ${s.edges.toLocaleString()} links, ${s.records.toLocaleString()} source records`}>
                 <strong>{s.facility}</strong>
-                <span>{Object.values(s.entities).reduce((a, b) => a + b, 0).toLocaleString()} entities</span>
-                <span>{s.edges.toLocaleString()} links</span>
-                <span>{s.records.toLocaleString()} source records</span>
               </div>
             )}
             {rebuilding && <UIBadge className="badge updating">Updating…</UIBadge>}

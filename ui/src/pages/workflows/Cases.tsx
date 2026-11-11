@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, Button, ConfirmAction, Input, PageHeader, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { Suspense, lazy, useMemo, useState } from "react";
@@ -30,8 +30,7 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
-  return <details className="new-work-item">
-    <summary>New work item</summary>
+  return <Disclosure className="new-work-item" label={<>New work item</>}>
     <div className="row wrap">
       <Input aria-label="Work item title" width="lg" placeholder="What needs doing" maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} />
       <Select aria-label="Queue" value={role} onChange={(e) => setRole(e.target.value)}>
@@ -44,7 +43,7 @@ function NewWorkItem({ onCreated }: { onCreated: () => void }) {
     <ActionStatus busy={busy ? "Creating the work item…" : null} error={error}>
       {created !== null && <>Created. <a href={caseHref(created)}>Open the case</a>.</>}
     </ActionStatus>
-  </details>;
+  </Disclosure>;
 }
 
 /** The In progress and Closed views of All work (#502), formerly the Cases list. With `fixedState` the view sets the
@@ -208,7 +207,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       )}
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
-        <details className="card" open={typeof raised.summary === "string"}><summary>Details</summary><DataView data={payload} /></details>
+        <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>
       )}
       <Timeline it={it} person={person} readOnly={demo} />
     </section>
@@ -312,7 +311,7 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
       </div>
       <Status loading={xml.loading} error={xml.error} />
       {xml.data && <Suspense fallback={<div className="status">Loading diagram…</div>}><BpmnView xml={xml.data} marks={marks} /></Suspense>}
-      <details className="small"><summary>Process data</summary><DataView data={p.data} /></details>
+      <Disclosure className="small" label={<>Process data</>}><DataView data={p.data} /></Disclosure>
       {a.error && <p className="error small">{a.error}</p>}
     </UICard>
   );

@@ -4,10 +4,8 @@ Calcs, SRE detection, studies and the knowledge tools the agents use.
 
 ## Production-efficiency dashboards
 
-Home's **Chart Show** (`ui/src/ChartShow.tsx`, a shared carousel) carries two charts of the latest
-production evidence. Swipe, trackpad, the arrows, the dots or the arrow keys move between them; a
-slide mounts when first reached, so the second chart's request runs only if someone opens it.
-`#/analytics` redirects to Home.
+Home shows two charts of the latest production evidence side by side (stacked on a phone), each
+in its own card. `#/analytics` redirects to Home.
 
 - **Production efficiency:** dynamic maximum oil capacity versus allocated oil over **14 daily
   samples** ending on the latest report for the facility, not necessarily the wall-clock date. Hover

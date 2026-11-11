@@ -10,13 +10,7 @@ export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
   return (
     <section>
-      <PageHeader>Incidents</PageHeader>
-      <p className="muted">
-        Logged events, downtime records and SAP notifications on the same piece of plant within a few days of each
-        other, grouped into one upset per piece of plant, so a trip that touched two units shows once on each, marked
-        "also on". Newest first. Lost production ranked by cause is
-        under <a href={href("/downtime")}>Downtime</a>; each day's story is in <a href={href("/reports")}>Daily reports</a>.
-      </p>
+      <PageHeader subtitle="Events, downtime and notifications grouped per asset.">Incidents</PageHeader>
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data?.total === 0}>
         No incidents yet.
       </Status>

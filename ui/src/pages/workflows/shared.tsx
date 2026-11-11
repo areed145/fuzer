@@ -142,10 +142,8 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
   return (
     <div className="notice small sample-team">
       {fresh
-        ? <p><strong>Nobody is on the team yet.</strong> Inbox and My jobs need people with roles. For this fictional
-          field, add a sample IOC team, then switch “You are” between them to follow work from triage to the field:</p>
-        : <p><strong>Some queues have nobody in them.</strong> The sample team now covers every queue this field's work
-          routes to. Add the rest of it:</p>}
+        ? <p><strong>Nobody is on the team yet.</strong> Add a sample team to dispatch work to people:</p>
+        : <p><strong>Some queues have nobody in them.</strong> Add the rest of the sample team:</p>}
       <ul className="plain">{missing.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</ul>
       <ConfirmAction label={fresh ? "Add the sample team" : "Add the rest of the sample team"} busy={!!busy}
         consequence={`Adds ${list} to this project's shared roster with the roles shown${fresh ? ", and sets you to riley if you haven't picked a name" : ""}. They are sample names for a demo field; remove them on Teams & routing.`} onConfirm={add} />

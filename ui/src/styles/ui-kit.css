@@ -41,10 +41,11 @@
 .ui-width-md { width: 16rem; }
 .ui-width-lg { width: 24rem; }
 .ui-width-full { width: 100%; }
-.ui-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 1px 8px; font-size: 11px; white-space: nowrap; background: var(--bg); color: var(--muted); }
-.ui-badge.ui-badge-ok { background: var(--ok-soft); color: var(--ok); }
-.ui-badge.ui-badge-warn { background: var(--warn-soft); color: var(--warn); }
-.ui-badge.ui-badge-danger { background: color-mix(in srgb, var(--danger) 16%, var(--panel)); color: var(--danger); }
+/* Badge: status as a short word in the state's colour, no pill. */
+.ui-badge { display: inline; font-size: 12px; font-weight: 500; white-space: nowrap; background: none; color: var(--muted); }
+.ui-badge.ui-badge-ok { color: var(--ok); }
+.ui-badge.ui-badge-warn { color: var(--warn); }
+.ui-badge.ui-badge-danger { color: var(--danger); }
 .ui-stat { display: grid; gap: 2px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 .ui-stat > span, .ui-stat small { color: var(--muted); font-size: 12px; }
 .ui-stat strong { font-size: 20px; font-weight: 600; }
@@ -53,3 +54,20 @@
 .ui-empty > div { margin-top: 4px; }
 .ui-bar { display: inline-block; height: 7px; overflow: hidden; border-radius: 999px; background: var(--line); vertical-align: middle; }
 .ui-bar > span { display: block; height: 100%; background: var(--accent); }
+/* Help: the page's way to its explanation in the docs, so the page itself carries none. */
+.ui-help { font-size: 13px; }
+/* Notice: something to act on. Neutral by default; warn and danger only when that is the state. */
+.notice { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; border-radius: 6px; margin: 8px 0; }
+.notice > p:first-child { margin-top: 0; }
+.notice > p:last-child { margin-bottom: 0; }
+.notice.ui-notice-warn { border-color: var(--warn); }
+.notice.ui-notice-danger { border-color: var(--danger); }
+/* A plain list: no bullets. Shared, so a page that uses it doesn't depend on another page's stylesheet being loaded. */
+ul.plain { list-style: none; padding: 0; margin: 0 0 12px; }
+ul.plain li { padding: 2px 0; }
+/* Disclosure: a text button that shows more. No caret, no box. */
+.ui-disclosure { margin: 8px 0; }
+.ui-disclosure-toggle { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; cursor: pointer; }
+.ui-disclosure-toggle:hover { text-decoration: underline; }
+.ui-disclosure-toggle[aria-expanded="true"] { color: var(--text); font-weight: 600; }
+.ui-disclosure-body { margin-top: 8px; }

@@ -2,11 +2,10 @@
 .analytics-summary dt { font-size: .8rem; color: var(--muted); }
 .analytics-summary dd { margin: 0; font-size: 1.25rem; font-weight: 600; }
 .analytics-summary small { font-size: .8rem; font-weight: 400; }
-.analytics-warnings { border-left: 3px solid var(--warn); padding: .75rem 1rem; background: var(--warn-soft); margin: 1rem 0; font-size: .85rem; }
+.analytics-warnings { margin: 1rem 0; font-size: .85rem; color: var(--muted); }
 .analytics-warnings ul { margin: .4rem 0 0; padding-left: 1.25rem; }
 .analytics-notes { margin: 4px 0; padding-left: 1.25rem; }
 .analytics-details { margin: 8px 0; }
-.analytics-details summary { cursor: pointer; font-weight: 600; }
 .analytics-table { overflow-x: auto; }
 .analytics-table td { white-space: nowrap; }
 @media (max-width: 700px) {

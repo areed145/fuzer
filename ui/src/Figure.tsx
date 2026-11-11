@@ -6,7 +6,7 @@ import { projectUrl } from "./authState";
 import { useEffect, useRef, useState } from "react";
 import { api, type FigureData } from "./api";
 import { entityHref, Status, useAsync } from "./lib";
-import { Button, Table , Card as UICard, Badge as UIBadge} from "./ui";
+import { Button, Table , Card as UICard, Badge as UIBadge, Disclosure } from "./ui";
 import { useTheme } from "./theme";
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -103,8 +103,7 @@ function FigureTable({ d }: { d: FigureData }) {
         const ys: unknown[] = t.y ?? [];
         const n = Math.min(200, Math.max(xs.length, ys.length));
         return (
-          <details key={i} open={d.spec.data.length === 1}>
-            <summary>{t.name || `series ${i + 1}`} <span className="muted">{Math.max(xs.length, ys.length)} points</span></summary>
+          <Disclosure key={i} open={d.spec.data.length === 1} label={<>{t.name || `series ${i + 1}`} <span className="muted">{Math.max(xs.length, ys.length)} points</span></>}>
             <Table variant="list" density="compact">
               <tbody>
                 {Array.from({ length: n }, (_, k) => (
@@ -112,7 +111,7 @@ function FigureTable({ d }: { d: FigureData }) {
                 ))}
               </tbody>
             </Table>
-          </details>
+          </Disclosure>
         );
       })}
     </div>

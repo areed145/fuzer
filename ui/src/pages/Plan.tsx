@@ -38,7 +38,7 @@ export function PlanPage() {
   const today = pos(new Date().toISOString());
   return (
     <section>
-      <PageHeader subtitle="Every planned activity from every source on one timeline, by area: SAP work orders, turnaround work, inspections and the exceptions the IOC chose to plan."
+      <PageHeader subtitle="Planned activity from every source on one timeline."
         actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
         Integrated plan</PageHeader>
       <div className="row">

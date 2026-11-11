@@ -11,7 +11,7 @@ table.ui-table--keyValue.ui-table-heading-capitalize th { text-transform: capita
 table.ui-table--keyValue.ui-table-heading-verbatim th { text-transform: none; }
 table.ui-table--keyValue td, table.ui-table--keyValue code { overflow-wrap: anywhere; }
 table.ui-table--keyValue tr:last-child > *, table.ui-table--list tr:last-child > * { border-bottom: none; }
-ul.others { list-style: none; margin: 6px 0 0; padding: 6px 8px; background: var(--warn-soft); border-radius: 6px; }
+ul.others { list-style: none; margin: 6px 0 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
 ul.others li { display: flex; gap: 6px; align-items: center; }
 .keys { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
 
