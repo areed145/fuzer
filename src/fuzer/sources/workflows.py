@@ -33,6 +33,7 @@ import re
 from psycopg.types.json import Jsonb
 
 from ..core import exceptions as xc
+from ..core.findings import EXTERNAL, Finding, external, fact
 from ._catalog_common import CatalogError
 
 OPS = ("eq", "ne", "in", "not_in", "gt", "ge", "lt", "le", "present", "absent", "contains")
@@ -291,7 +292,11 @@ def evaluate(conn, datasets: list[str] | None = None, by: str = BY) -> dict:
             title = fill(c["title"], p) if c.get("title") else f"{rule['name'].replace('_', ' ')}: {key}"
             row = xc.raise_exception(
                 conn, rule["type"], key, title, by, refs=_refs(c.get("refs"), p, pack), priority=c.get("priority"), value_usd=value,
-                source=rule["system"], evidence={"rule": label, "dataset": d["name"], "record": rec["source_key"]})
+                source=rule["system"], finding=Finding(
+                    f"{rule['system']}.{rule['name']}", EXTERNAL, method=f"Source rule {rule['name'].replace('_', ' ')}",
+                    items=(fact("Record", rec["source_key"]), fact("Dataset", d["name"]),
+                           fact("Rule", rule["name"].replace("_", " "))),
+                    data={"rule": label, "dataset": d["name"], "record": rec["source_key"]}))
             counts["raised" if row.get("raised") else "refreshed"] += 1
         for key in before - seen - held:
             if xc.clear_exception(conn, rule["type"], key, by, reason=f"the record no longer meets rule {label}"):
@@ -353,4 +358,5 @@ def webhook(conn, system: str, body: dict) -> dict:
         return xc.clear_exception(conn, t, body["key"], by, reason=body.get("reason")) or {"cleared": None}
     return xc.raise_exception(conn, t, body["key"], body["title"], by, refs=body.get("refs") or [],
                               priority=body.get("priority"), value_usd=body.get("value_usd"),
-                              evidence={**(body.get("evidence") or {}), "via": "webhook"}, source=system)
+                              finding=external(system, {**(body.get("evidence") or {}), "via": "webhook"}),
+                              source=system)

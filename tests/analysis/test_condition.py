@@ -108,6 +108,7 @@ def test_the_screen_raises_the_new_findings_with_their_remaining_life(conn):
     assert {"20-K-2300B", "20-GT-2000A", "20-GT-2000C"} <= {r["machine"] for r in out["raised"]}
     row = conn.execute("select * from exception_record where type = 'machine_health' and key = '20-K-2300B' "
                        "and state = 'open'").fetchone()
-    assert "dry gas seal" in row["title"] and "seal cartridge" in row["evidence"]["recommendation"]
-    assert row["evidence"]["next_window"] == "turnaround OK-TAR-2026 from 2026-04-06"
-    assert row["evidence"]["makes_the_window"] == "before the window" and "high-high" in row["evidence"]["remaining_life"]
+    said = {i["label"]: i["value"] for i in row["evidence"]["finding"]["items"]}
+    assert "dry gas seal" in row["title"] and "seal cartridge" in said["Recommended first"]
+    assert said["Next window"] == "turnaround OK-TAR-2026 from 2026-04-06"
+    assert said["Makes the window"] == "before the window" and "high-high" in said["Remaining life"]

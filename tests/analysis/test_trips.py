@@ -27,6 +27,11 @@ def fid(conn, ref):
     return queries.resolve_ref(conn, PACK, ref)
 
 
+def said(row) -> dict:
+    """What a raised exception's finding says, by the label a person reads it under."""
+    return {i["label"]: i["value"] for i in row["evidence"]["finding"]["items"]}
+
+
 def test_train_b_tripped_on_the_bearing_vibration_it_showed_for_hours(conn):
     d = trips.diagnose(conn, fid(conn, "20-K-2200B"), "2024-03-14T03:20", pack=PACK)
     assert d["value"] == "vibration" and d["cause"] == "high vibration" and d["train"].startswith("train B")
@@ -67,15 +72,18 @@ def test_trips_reach_the_ioc_with_the_restart_checklist(conn):
     out = trips.scan(conn, PACK, "2024-03-13T00:00", "2024-03-15T00:00")
     assert out["trips"] == 1 and len(out["raised"]) == 1 and not out["errors"]
     row = conn.execute("select * from exception_record where type = 'machine_trip'").fetchone()
-    assert row["evidence"]["cause"] == "high vibration" and row["evidence"]["checklist"]
-    assert row["evidence"]["first_out"].endswith("20-VT-2200B.PV") and row["item_id"]
+    found = row["evidence"]["finding"]
+    assert said(row)["Likely cause"] == "high vibration" and found["checks"] and found["standard"].startswith("ISO 13379")
+    assert said(row)["First out"].endswith("20-VT-2200B.PV") and row["item_id"]
     again = trips.scan(conn, PACK, "2024-03-13T00:00", "2024-03-15T00:00")  # the same trip: no second exception
     assert again["raised"][0]["new"] is False
     exceptions.dispatch(conn, row["id"], "ioc-ann", "fred", "check it before the restart")
     conn.commit()
     job = next(j for j in exceptions.field_jobs(conn, "fred") if j["id"] == row["id"])
-    assert job["checklist"] == row["evidence"]["checklist"]
-    assert dict(job["seen"])["cause"] == "high vibration" and "checklist" not in dict(job["seen"])
+    assert job["checklist"] == found["checks"] == job["finding"]["checks"]
+    assert dict(job["seen"])["Likely cause"] == "high vibration"
+    named = {i["label"]: i for i in job["finding"]["items"]}["Likely source"]  # the asset by its name, not its id
+    assert named["kind"] == "asset" and named["text"] and not named["text"].startswith("fz-")
 
 
 def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn):
@@ -85,7 +93,7 @@ def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn)
     row = conn.execute("select * from exception_record where type = 'machine_health' and key = '20-K-2200B' "
                        "and state = 'open'").fetchone()
     assert "vibration in zone D" in row["title"] and row["priority"] == 2.0
-    assert row["evidence"]["status"] == "act" and "zone D" in row["evidence"]["recommendation"]
+    assert row["evidence"]["status"] == "act" and "zone D" in said(row)["Recommended first"]
     case = conn.execute("select role from work_item where id = %s", (row["item_id"],)).fetchone()
     assert case["role"] == "engineer" or conn.execute(
         "select 1 from work_token where item_id = %s and role = 'engineer'", (row["item_id"],)).fetchone()
@@ -98,5 +106,5 @@ def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn)
     assert flagged["20-K-2100C"]["status"] == "act" and "20-K-2200B" in dec["cleared"]
     surge = conn.execute("select * from exception_record where type = 'machine_health' and key = '20-K-2100C' "
                          "and state = 'open'").fetchone()
-    assert "near surge" in surge["title"] and "anti-surge" in surge["evidence"]["recommendation"]
+    assert "near surge" in surge["title"] and "anti-surge" in said(surge)["Recommended first"]
     assert conn.execute("select state from exception_record where id = %s", (row["id"],)).fetchone()["state"] == "cleared"

@@ -10,6 +10,7 @@ import urllib.request
 
 from ..core import events, settings
 from ..core.exceptions import clear_exception, exception_type, raise_exception
+from ..core.findings import DETERMINISTIC, Finding, fact
 
 TYPE = "source_issue"
 ROLE = "role:data_steward"
@@ -51,7 +52,11 @@ def check(conn, names: list[str] | None = None, by: str = "fuzer") -> dict:
             text = f"Source {r['dataset']} ({r['system']}) {SAY.get(problem, problem)}"
             out = raise_exception(conn, TYPE, f"{r['dataset']}:{problem}", text, by, source="sources",
                                   priority=0.5 if problem in ("failed", "held", "stale") else 0.3, assignee=owner,
-                                  evidence={"dataset": r["dataset"], "problem": problem, "health": r})
+                                  finding=Finding(
+                                      f"sources.{problem}", DETERMINISTIC, method="Source health checks",
+                                      items=(fact("Dataset", r["dataset"]), fact("System", r["system"]),
+                                             fact("Problem", SAY.get(problem, problem))),
+                                      data={"dataset": r["dataset"], "problem": problem, "health": r}))
             if out["raised"]:
                 opened.append(f"{r['dataset']}: {problem}")
         for key in held:

@@ -81,8 +81,10 @@ def test_gaps_reach_the_ops_lead_queue_and_the_handover_and_clear(conn):
     assert [r["role"] for r in rows] == ["ops_lead", "ops_lead"]
     assert rows[0]["title"].startswith("Downtime on 40-V-2002 27 Dec 02:40 (Process trip): no log entry and no notification")
     assert rows[1]["title"] == "Log says OK-J09-02 stopped 29 Dec 19:00: no downtime record"
-    assert "12 h" in rows[0]["evidence"]["tolerance"] and "not proof" in rows[0]["evidence"]["note"]
-    assert {"40-V-2002"} <= {x for x in rows[0]["evidence"]["about"].split(", ")}
+    said = {i["label"]: i["value"] for i in rows[0]["evidence"]["finding"]["items"]}
+    assert "12 h" in said["Matched within"] and "not proof" in said["Note"]
+    assert {"40-V-2002"} <= {x for x in said["About"].split(", ")}
+    assert rows[0]["evidence"]["finding"]["origin"] == "deterministic" and rows[0]["evidence"]["at"]
     assert not any(r["new"] for r in records.watch(conn)["raised"])  # a second run updates, it doesn't duplicate
 
     now = datetime.now(UTC)

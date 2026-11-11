@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from fuzer.core import bundles, db, projects, settings
 from fuzer.core import pack as packs
+from fuzer.core.findings import external
 from fuzer.core.tags import TagGrammar
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -265,8 +266,8 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
                              (ids["B1-PT-2001"],)).fetchone()["dst"]
         iow = raise_exception(conn, "iow_breach", "iow:B1-PT-2001", "Suction pressure IOW breach", "agent:sre",
                               source="limits", refs=[point, ids["B1-PT-2001"]], value_usd=25000,
-                              evidence={"iow": "IOW-B1-01", "point": "KRGP:B1.PT2001.PV", "level": "critical",
-                                        "side": "lo", "limit": 18.0, "breaches": 1, "hours_outside": 2.5})
+                              finding=external("test", {"iow": "IOW-B1-01", "point": "KRGP:B1.PT2001.PV", "level": "critical",
+                                        "side": "lo", "limit": 18.0, "breaches": 1, "hours_outside": 2.5}))
         upset = raise_exception(conn, "upset", "upset:test", "Step change on B1-PT-2001 across 6 assets", "agent:sre",
                                 source="sre", refs=[ids["B1-K-2001"], point])
         conn.commit()

@@ -14,6 +14,7 @@ from fuzer.core.exceptions import (
     clear_exception,
     raise_exception,
 )
+from fuzer.core.findings import external
 from fuzer.ops import board
 from fuzer.ops import exceptions as impl
 from fuzer.resources import PACKAGE
@@ -52,9 +53,9 @@ def test_refs_match_entities_in_any_terms_and_unmatched_ones_stay(conn):
 def test_one_open_exception_per_condition_routed_to_its_queue(conn, types):
     types("pump_vibration", role="role:reliability")
     first = raise_exception(conn, "pump_vibration", "P-101", "P-101 vibration high", "sre", refs=["tag:P-101"],
-                            priority=0.7, evidence={"mm_s": 9.1})
+                            priority=0.7, finding=external("test", {"mm_s": 9.1}))
     again = raise_exception(conn, "pump_vibration", "P-101", "P-101 vibration still high", "sre",
-                            refs=["tag:SPARE-9"], evidence={"mm_s": 9.8})
+                            refs=["tag:SPARE-9"], finding=external("test", {"mm_s": 9.8}))
     assert first["raised"] and not again["raised"] and again["id"] == first["id"]
     assert again["raised_count"] == 2 and again["evidence"]["mm_s"] == 9.8
     assert again["subjects"] == ["fz-pump-1"] and again["unmatched"] == ["tag:SPARE-9"]
@@ -161,8 +162,8 @@ def test_a_process_type_starts_once_and_gets_repeats_as_evidence(conn, types):
     engine.set_person(conn, "olga", ["engineer", "workflow_admin"])
     engine.publish(conn, engine.import_bpmn(conn, _process("exc_proc"), "olga")[0]["id"], "olga")
     types("breach", process="exc_proc")
-    first = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached", "agent:sre", evidence={"hours": 3})
-    again = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached again", "agent:sre", evidence={"hours": 5})
+    first = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached", "agent:sre", finding=external("test", {"hours": 3}))
+    again = raise_exception(conn, "breach", "IOW-7", "IOW 7 breached again", "agent:sre", finding=external("test", {"hours": 5}))
     assert first["raised"] and not again["raised"] and again["item_id"] == first["item_id"]
     assert conn.execute("select count(*) as n from work_item where type = 'exc_proc'").fetchone()["n"] == 1
     messages = conn.execute("select count(*) as n from work_event where item_id = %s and kind = 'message'",
@@ -192,14 +193,17 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     conn.execute("insert into edge (src, dst, rel, sources, confidence) values ('fz-pump-1', 'fz-well-a12', 'part_of', '{test}', 1)")
     types("leak", audience=("ioc", "field"))
     e = raise_exception(conn, "leak", "walk-9", "Leak at P-101", "olga", refs=["tag:P-101"],
-                        evidence={"seen_by": "walkdown", "drips_per_min": 12.0, "detail": {"x": 1}})
+                        finding=external("test", {"seen_by": "walkdown", "drips_per_min": 12.0, "detail": {"x": 1}}))
     assert e["item_id"] is None
     sent = ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="nearest operator")
     assert sent["item_id"] and conn.execute("select assignee from work_item where id = %s",
                                             (sent["item_id"],)).fetchone()["assignee"] == "fred"
     [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
     assert job["assets"][0]["fuzer_id"] == "fz-pump-1" and job["assets"][0]["lat"] == 52.1  # located via its well
-    assert ("drips per min", "12") in job["seen"] and not any(k == "detail" for k, _ in job["seen"])
+    said = {i["label"]: i for i in job["finding"]["items"]}
+    assert said["Drips per min"] == {"label": "Drips per min", "value": 12.0, "kind": "number"} and "Detail" not in said
+    assert job["finding"]["origin"] == "external" and job["finding"]["subjects"] == ["fz-pump-1"]
+    assert ("Drips per min", "12") in job["seen"]
     assert job["sent"]["by"] == "ioc-ann" and job["sent"]["reason"] == "nearest operator"  # what the IOC asked for
     ex.report(conn, e["id"], "fred", "on_site")
     with pytest.raises(ExceptionError, match="say why"):
@@ -224,7 +228,7 @@ def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types)
     engine.publish(conn, engine.import_bpmn(conn, _process("field_proc"), "olga")[0]["id"], "olga")
     types("pressure_low", process="field_proc", audience=("ioc", "field"))
     e = raise_exception(conn, "pressure_low", "WHP-3", "Low wellhead pressure", "agent:sre", refs=["fz-well-a12"],
-                        evidence={"start": "2025-12-30T00:00", "ongoing": True, "upset_id": 3})
+                        finding=external("test", {"start": "2025-12-30T00:00", "ongoing": True, "upset_id": 3}))
     step = lambda: conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' "
                                 "and state = 'waiting'", (e["item_id"],)).fetchone()
     assert step() == {"assignee": None, "role": "engineer"}
@@ -232,8 +236,9 @@ def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types)
     assert step()["assignee"] == "fred"
     [job] = [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
     assert job["sent"]["reason"] == "check the gauge at the wellhead" and job["task_name"] == "Look"
-    assert ("started (data time)", "2025-12-30 00:00") in job["seen"] and ("still going", "yes") in job["seen"]
-    assert not any(k == "upset_id" for k, _ in job["seen"])  # internal ids aren't something to look for on site
+    assert ("Start", "2025-12-30 00:00") in job["seen"] and ("Ongoing", "yes") in job["seen"]
+    assert {"label": "Start", "value": "2025-12-30T00:00", "kind": "time"} in job["finding"]["items"]
+    assert not any(k == "Upset id" for k, _ in job["seen"])  # internal ids aren't something to look for on site
     ex.report(conn, e["id"], "fred", "on_site")
     assert step()["assignee"] == "fred"  # on site: still theirs
     ex.report(conn, e["id"], "fred", "done", note="gauge reads 13 barg; wing valve was part closed, reopened")
@@ -369,7 +374,7 @@ def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     engine.set_person(conn, "otto", ["operator"])
     types("upset_t", process="upset", audience=("ioc", "field"))
     e = raise_exception(conn, "upset_t", "UP-1", "Low wellhead pressure across 3 assets", "agent:sre",
-                        refs=["fz-well-a12"], evidence={"incident_id": "UP-1", "start": "2025-12-30T00:00"})
+                        refs=["fz-well-a12"], finding=external("test", {"incident_id": "UP-1", "start": "2025-12-30T00:00"}))
     steps = lambda: conn.execute("select element, assignee, role from work_token where item_id = %s and kind = 'user' "
                                  "and state = 'waiting' order by id", (e["item_id"],)).fetchall()
     assert [s["element"] for s in steps()] == ["triage"]
@@ -466,11 +471,11 @@ def three_sources(conn, types, compressor):
 
 def _raise_trip(conn, c, n):
     sap = raise_exception(conn, "sap_note", f"N-{n}", "High vibration trip on sales gas compressor", "sap",
-                          refs=[c["equipment"]], value_usd=5000, evidence={"notif_type": "M2"})
+                          refs=[c["equipment"]], value_usd=5000, finding=external("test", {"notif_type": "M2"}))
     iow = raise_exception(conn, "iow_hi", f"IOW-{n}", "Inlet pressure IOW breach", "limits", refs=[c["point"]],
-                          value_usd=20000, evidence={"minutes_outside": 95.0})
+                          value_usd=20000, finding=external("test", {"minutes_outside": 95.0}))
     sre = raise_exception(conn, "upset_x", f"U-{n}", "Step change across six assets", "sre", refs=[c["pt"]],
-                          evidence={"detections": 6})
+                          finding=external("test", {"detections": 6}))
     return sap, iow, sre
 
 
@@ -490,7 +495,8 @@ def test_one_event_reported_by_three_systems_is_one_case(conn, compressor, three
                      "Also reported: upset_x from sre: Step change across six assets"]
     sources = impl.on_case(conn, sap["item_id"])
     assert [s["id"] for s in sources] == [sap["id"], iow["id"], sre["id"]]
-    assert ("minutes outside", "95") in sources[1]["seen"]
+    assert ("Minutes outside", "95") in sources[1]["seen"]
+    assert sources[1]["finding"]["value_usd"] == 20000 and sources[0]["finding"]["detector"] == "test"
     again = raise_exception(conn, "iow_hi", "IOW-1", "Inlet pressure IOW breach", "limits", refs=[compressor["point"]])
     assert not again["raised"] and again["item_id"] == sap["item_id"]  # a repeat stays on the shared case
     [row] = [r for r in impl.listing(conn) if r["id"] == sap["id"]]
@@ -590,11 +596,19 @@ def test_a_waiting_exception_joins_the_case_another_source_opens(conn, compresso
 def test_an_sap_notification_reads_as_words_in_the_field():
     """SAP status and type, and the ISO 14224 failure mode and mechanism, read as words with the code after them;
     the site's damage and cause codes they map from aren't repeated (#494)."""
-    seen = dict(impl._seen({"notif_type": "M1", "status": "OSNO", "failure_mode": "VIB", "failure_mechanism": "1.2",
-                            "damage_code": "D01", "cause_code": "C02", "priority": "2"}))
-    assert seen == {"notification type": "maintenance request (M1)", "status": "outstanding (OSNO)",
-                    "failure mode": "Vibration (VIB)", "failure mechanism": "Vibration (1.2)"}
-    assert dict(impl._seen({"status": "ZZZZ", "damage_code": "DM-LEAK"})) == {"status": "ZZZZ", "damage code": "DM-LEAK"}
+    from fuzer.core.findings import shown
+    from fuzer.ops.intake import finding
+
+    def read(f):
+        return dict(impl._seen(shown(finding("10004711", f).evidence())))
+
+    assert read({"notif_type": "M1", "status": "OSNO", "failure_mode": "VIB", "failure_mechanism": "1.2",
+                 "damage_code": "D01", "cause_code": "C02", "priority": "2"}) == {
+        "Notification": "10004711", "Notification type": "maintenance request (M1)", "Status": "outstanding (OSNO)",
+        "SAP priority": "2", "Failure mode": "Vibration (VIB)", "Failure mechanism": "Vibration (1.2)"}
+    assert read({"status": "ZZZZ", "damage_code": "DM-LEAK"}) == {
+        "Notification": "10004711", "Status": "ZZZZ", "Damage code": "DM-LEAK"}
+    assert finding("10004711", {"status": "OSNO"}).record()["origin"] == "external"
 
 
 def test_a_dispatched_sap_notification_is_due_by_its_priority(conn):
@@ -604,7 +618,7 @@ def test_a_dispatched_sap_notification_is_due_by_its_priority(conn):
     from fuzer.ops import intake  # noqa: F401  (declares sap_notification)
 
     e = raise_exception(conn, "sap_notification", "N-DUE-1", "Seal leak (notification N-DUE-1)", "sap",
-                        refs=["tag:NO-SUCH-TAG"], evidence={"priority": "1", "status": "OSNO"})  # matches nothing: joins no case
+                        refs=["tag:NO-SUCH-TAG"], finding=external("test", {"priority": "1", "status": "OSNO"}))  # matches nothing: joins no case
     row = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the seal")
     due = conn.execute("select due from work_item where id = %s", (row["item_id"],)).fetchone()["due"]
     assert round((due - row["first_seen"]).total_seconds() / 3600) == 24
@@ -714,7 +728,7 @@ def test_any_type_can_carry_a_due_policy(conn):
             "by": "priority", "hours": {"1": 4.0, "3": 48.0}, "setting": None, "from": "raised",
             "applies": "when dispatched"}
         e = raise_exception(conn, "leak_report", "LR-1", "Drip at the manifold", "walkdown",
-                            refs=["tag:NO-SUCH-TAG"], evidence={"priority": "1"})
+                            refs=["tag:NO-SUCH-TAG"], finding=external("test", {"priority": "1"}))
         row = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Have a look")
         due = conn.execute("select due from work_item where id = %s", (row["item_id"],)).fetchone()["due"]
         assert round((due - row["first_seen"]).total_seconds() / 3600) == 4

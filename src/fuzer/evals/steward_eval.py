@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from psycopg.types.json import Jsonb
 
 from ..core import exceptions
+from ..core.findings import external
 from ..graph import proposals
 
 TYPE = "steward_eval"
@@ -51,7 +52,7 @@ def plant(conn, tags: int = 4) -> dict:
     for i, r in enumerate(rows):
         v = _variants(r["key"])[i % len(_variants(r["key"]))]
         exceptions.raise_exception(conn, TYPE, f"tag-{i}", f"Reading out of range on {v}", "eval", source="eval",
-                                   refs=[v])
+                                   refs=[v], finding=external("eval"))
         key[f"unresolved|{v}"] = {"fuzer_id": r["fuzer_id"], "planted": f"{r['key']} written {v}",
                                   "option": f"tag {r['key']}"}
     # a tag that isn't there: a loop number near real ones, so the options look plausible and the answer is "none"
@@ -62,7 +63,7 @@ def plant(conn, tags: int = 4) -> dict:
                for n in range(7, 400, 7)) if loop else iter(())
     decoy = next((d for d in shifted if d not in known), "QQ-Z-9999")
     exceptions.raise_exception(conn, TYPE, "decoy", f"Reading out of range on {decoy}", "eval", source="eval",
-                               refs=[decoy])
+                               refs=[decoy], finding=external("eval"))
     key[f"unresolved|{decoy}"] = {"fuzer_id": None, "planted": "names nothing"}
 
     usual = conn.execute(
