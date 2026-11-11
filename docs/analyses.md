@@ -295,6 +295,11 @@ restricted by about 35% in August until the bean change.
   Its 1st stage, 20-K-2100C, runs on its anti-surge valve at about 10 % margin and dips toward surge on December's
   load swings, while trains A and B run 1.8 times its flow. The Solar C40 stages have no map, and the check says
   so.
+- **`heat_rate(driver)`** (`rotating.py`, #474): a gas turbine's fuel gas flow times the design fuel's LHV, divided by
+  its output power, hourly while loaded. It is compared against the model's OEM curves (heat rate against load at
+  ISO, and the ambient correction) at the same load and ambient temperature. The check flags `heat_rate_high` at
+  4 % or more above expected and gives the weekly trend. On Okan, 20-GT-2000B's air compressor fouls from June
+  2025 to about 7 % above expected, until the offline water wash on 12 November.
 
 They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
 degradation is the existing `calc("pump_curve")`.

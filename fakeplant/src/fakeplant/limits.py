@@ -93,10 +93,14 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
             continue
         limits[p] = design(var, healthy[p], well)
 
-    # Compressor suction flows came later (#474): they get limits of their own but aren't where the planted faults
+    # Points added later (#474) get limits of their own but aren't where the planted faults
     # go, so the faults stay on the points they were planted on.
-    later = {p: limits.pop(p) for p in list(limits)
-             if spec["points"][p][1] == "flow" and units.get(spec["points"][p][0], {}).get("type") == "compressor"}
+    def came_later(p):  # compressor flows, gas turbine fuel and output, the ambient temperature (#474)
+        u, var = spec["points"][p]
+        kind = units.get(u, {}).get("type")
+        return (kind, var) in {("compressor", "flow"), ("gas_turbine", "fuel_flow"), ("gas_turbine", "power"),
+                               ("weather", "ambient")}
+    later = {p: limits.pop(p) for p in list(limits) if came_later(p)}
     af_points = {a["pi_point"]: a for el in af for a in el["attributes"]}
     story = {p for p, (u, _) in spec["points"].items() if u in STORY_UNITS}
     plant = sorted(p for p in limits if p in af_points and p not in story)  # faults go on equipment points

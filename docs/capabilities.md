@@ -267,4 +267,5 @@ Called by agents as themselves through the workflow engine.
 | `vibration` | machine tag or equipment |  |
 | `pump_bep` | pump tag or equipment |  |
 | `surge` | compressor stage tag or equipment |  |
+| `heat_rate` | gas turbine tag or equipment |  |
 | `rotating_health` | machine tag or equipment |  |

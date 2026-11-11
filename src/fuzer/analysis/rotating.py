@@ -11,6 +11,8 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   driver's speed, how often the anti-surge valve is open, head against the map at the same flow and speed, and the
   same stage on the other trains. Flags `near_surge` (the last week's 5th percentile margin under 5 %) and
   `recycling` (the valve open more than 30 % of the time). A machine without its map says so.
+- `heat_rate(ref)`: a gas turbine driver's heat rate (fuel energy per kWh out) against its OEM curves at the same
+  load and ambient temperature, and its weekly trend. Flags `heat_rate_high` at 4 % or more above expected.
 - `health(ref)`: one machine's health summary: every check that applies (curve, operating region, vibration,
   efficiency, failure history and its trend, peers), each finding with its basis, the dates of its data and a
   confidence, then a status (`act`, `watch`, `ok`) and recommendations. A check that cannot run says why (no OEM
@@ -279,6 +281,80 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
                          for d, x in sorted(daily.items())][-60:])
 
 
+HEAT_RATE_HIGH = 4.0  # % above the ambient- and load-corrected expected heat rate: worth a water wash
+
+
+def _ambient_point(conn) -> dict | None:
+    """The site's ambient air temperature point, wherever it hangs."""
+    r = conn.execute(
+        """
+        select e.fuzer_id from entity e join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
+        where e.kind = 'timeseries' and g.value #>> '{}' ilike '%%ambient air temperature%%' order by 1 limit 1
+        """).fetchone()
+    if not r:
+        return None
+    from ..sources.timeseries import _point as point
+
+    return point(conn, r["fuzer_id"])
+
+
+def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
+    """A gas turbine driver's heat rate (fuel energy per kWh of output) against what its OEM curves expect at the
+    same load and ambient temperature. A rising excess is the air compressor fouling (an offline water wash
+    recovers it) or hot section wear (it doesn't). Flags `heat_rate_high` when the last week runs 4 % or more above
+    expected."""
+    from ..sources import curves
+    from .calcs import curve_for
+    from .equipment import _tag_point
+
+    tag = _tag(conn, fid)
+    label = _label(conn, tag)
+    c = curve_for(conn, curves.model_of(conn, tag), "gas turbine")
+    need = ("power_ambient", "heat_rate_ambient", "heat_rate_load")
+    if c.get("curve") != "gas_turbine" or any(not c["series"].get(k) for k in need):
+        raise CalcError("no OEM gas turbine performance curves for this model")
+    lhv = (c["ratings"].get("fuel_lhv") or [None])[0]
+    parts = {"fuel": _tag_point(conn, label, "Fuel Gas Flow"), "power": _tag_point(conn, label, "Output Power"),
+             "ambient": _ambient_point(conn)}
+    missing = [k for k, v in parts.items() if not v]
+    if missing or not lhv:
+        raise CalcError("no " + ", ".join(missing or ["design fuel heating value"]) + " point for that driver")
+    start, end = window_of(conn, days, until)
+    v = read(parts, start, end, 60, src)
+    iso_kw = float(np.interp(15, *zip(*sorted(c["series"]["power_ambient"]))))
+    rows = []
+    for t, f in sorted(v["fuel"].items()):
+        pw, amb = v["power"].get(t), v["ambient"].get(t)
+        if pw is None or amb is None or pw < 0.3 * iso_kw or f <= 0:
+            continue  # stopped or idling
+        avail = float(np.interp(amb, *zip(*sorted(c["series"]["power_ambient"]))))
+        load = min(100.0, pw / avail * 100)
+        expected = (float(np.interp(load, *zip(*sorted(c["series"]["heat_rate_load"]))))
+                    * float(np.interp(amb, *zip(*sorted(c["series"]["heat_rate_ambient"])))))
+        rows.append((t, f * lhv * 1000 / pw, expected, load))
+    if len(rows) < 24:
+        raise CalcError("the driver hardly ran in that window")
+    cut = (datetime.fromisoformat(rows[-1][0]) - timedelta(days=recent_days)).isoformat()
+    recent = [r for r in rows if r[0] >= cut] or rows
+    actual, expected = float(np.median([r[1] for r in recent])), float(np.median([r[2] for r in recent]))
+    excess = (actual / expected - 1) * 100
+    daily: dict[str, list] = {}
+    for t, a, e, _ in rows:
+        daily.setdefault(t[:10], []).append((a / e - 1) * 100)
+    days_ = sorted((d, float(np.median(x))) for d, x in daily.items())
+    xs = np.arange(len(days_), dtype=float)
+    slope = float(np.polyfit(xs, [d[1] for d in days_], 1)[0]) * 7 if len(days_) >= 7 else None
+    return result(round(actual, 0), round(expected, 0), "heat_rate_high" if excess >= HEAT_RATE_HIGH else None,
+                  f"heat rate = fuel gas flow x the design fuel's LHV ({lhv:g} MJ/Sm3) / output power, hourly while "
+                  f"loaded, against the {c['source']} curves' heat rate at the same load and ambient temperature; "
+                  f"the last {recent_days} days' median. High at {HEAT_RATE_HIGH:g} % or more above expected",
+                  [tag, c["model_id"], *[p["id"] for p in parts.values()]], unit="kJ/kWh",
+                  excess_pct=round(excess, 1), trend_pct_per_week=round(slope, 2) if slope is not None else None,
+                  load_pct=round(float(np.median([r[3] for r in recent])), 1),
+                  data_from=rows[0][0][:10], data_to=rows[-1][0][:10], readings=len(rows),
+                  daily=[{"day": d, "excess_pct": round(x, 1)} for d, x in days_][-60:])
+
+
 def spectrum(conn, fid: str) -> dict:
     """Bearing defect frequencies and 1x / 2x running speed need a condition-monitoring source (spectra, waveforms,
     bearing geometry). None is connected; this is where one plugs in."""
@@ -301,6 +377,9 @@ ACTIONS = {
                   "from the other trains, or stop recycling by running one train fewer.",
     "recycling": "The anti-surge valve is open much of the time: it recycles gas it has already compressed, which "
                  "costs fuel. Rebalance the load between trains so this one runs off its control line.",
+    "heat_rate_high": "It burns more fuel than its curves expect at this load and ambient: usually the air "
+                      "compressor fouling; plan an offline water wash and check the inlet filters. If a wash doesn't "
+                      "recover it, suspect hot section wear and plan a borescope.",
     "efficiency_drop": "Polytropic efficiency has dropped: fouling, wear, or recycle through a hot cooler; "
                        "check the anti-surge valve and the cooler before it.",
     "wear_out": "Failures follow a wear-out pattern: a time-based PM interval below eta would help.",
@@ -315,8 +394,8 @@ def _confidence(check: str, r: dict) -> str:
     n = r.get("readings") or r.get("failures") or r.get("n") or 0
     if check == "reliability":
         return "medium" if (r.get("failures") or 0) >= 6 else "low"
-    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge"):
-        return "high" if n >= 100 or check in ("pump_curve", "compressor_performance") else "medium"
+    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge", "heat_rate"):
+        return "high" if n >= 100 or check in ("pump_curve", "compressor_performance", "heat_rate") else "medium"
     return "medium"
 
 
@@ -334,6 +413,8 @@ def health(conn, fid: str, until: str | None = None) -> dict:
     if "compressor" in what:
         checks += [("compressor_performance", lambda: equipment.compressor_performance(conn, tag, until=until)),
                    ("surge", lambda: surge(conn, tag, until=until))]
+    if "turbine" in what:
+        checks.append(("heat_rate", lambda: heat_rate(conn, tag, until=until)))
     checks += [("vibration", lambda: vibration(conn, tag, until=until)),
                ("reliability", lambda: reliability(conn, tag, "weibull", until=until)),
                ("failure_trend", lambda: reliability(conn, tag, "crow_amsaa", until=until)),
@@ -350,7 +431,7 @@ def health(conn, fid: str, until: str | None = None) -> dict:
                          "data": {k: r[k] for k in ("data_from", "data_to", "at", "first", "last") if r.get(k)},
                          "confidence": _confidence("reliability" if name == "failure_trend" else name, r),
                          **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_mm_s_per_week", "in_preferred_pct",
-                                              "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5",
+                                              "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5", "excess_pct",
                                               "asv_open_pct", "head", "siblings")
                             if r.get(k) is not None}})
     flags = [f["flag"] for f in findings if f["flag"]]
@@ -401,6 +482,6 @@ def screen(conn, until: str | None = None, limit: int = 20) -> dict:
     return {"at": until, "machines_checked": len(machines), "by_status": counts,
             "machines": machines[:limit], "unchecked": unchecked,
             "class_wide_failures": sorted(class_wide),
-            "basis": "rotating equipment health (curve, operating region, surge margin, vibration zone and trend, efficiency, "
+            "basis": "rotating equipment health (curve, operating region, surge margin, heat rate, vibration zone and trend, efficiency, "
                      "Weibull and Crow-AMSAA on the failure history, peers) for every ISO 14224 rotating class; "
                      "act = a severe flag (" + ", ".join(sorted(SEVERE)) + ")"}
