@@ -11,6 +11,8 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
     report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
     comment(conn, item_id, by, text)                      add a note to a case's history
+    process_routing(conn, process_key)                    each step of the published process: its lane, SLA, escalation
+    role_holders(conn, role)                              who on the roster holds a role (its queue reaches them)
 
 Every function takes the caller's connection and writes in its transaction, as the engine always has. The
 implementation is the built-in engine unless `use()` names another module with the same functions.
@@ -94,3 +96,14 @@ def roles_of(conn, person: str) -> list[str]:
 def comment(conn, item_id: int, by: str, text: str) -> dict:
     """A note on a case's history (what a field operator reported, say)."""
     return _engine().comment(conn, item_id, by, text)
+
+
+def process_routing(conn, process_key: str) -> list[dict] | None:
+    """Each step of the published version of `process_key` as it will route (role or agent, SLA, escalation, form),
+    so routing can be explained without starting it. None when no version is published."""
+    return _engine().published_routing(conn, process_key)
+
+
+def role_holders(conn, role: str) -> list[str]:
+    """The people whose roles include `role`, so work sent to its queue reaches them."""
+    return _engine().role_holders(conn, role)

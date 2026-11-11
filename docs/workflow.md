@@ -108,6 +108,16 @@ work order are raised on each register refresh (`intake.sap_notifications`, on b
 last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
 page. A type with a process starts it; one with a queue opens a case in that role's queue; the rest wait for the IOC.
 
+- **One front door.** Every case an exception opens goes through one routing step (`fuzer.ops.routing`, #509), which
+  reads one routing table: each type, where it is declared (code, data or a source pack), whether it joins one
+  event's case and within how many hours, what it starts (a process, a queue, or the IOC's dispatch) and its due
+  policy (today only SAP notifications', by priority). `GET /routing` lists the table, and
+  `GET /routing/{type}/explain?refs=…&key=…` dry-runs an intake without writing anything: the entities its refs
+  match, the open exception it would add to or the event's case it would join, the process with each step's lane and
+  who holds it (or the queue and its holders), and with `to=` and `priority=`, a dispatch and when it would be due.
+  Making every type start a BPMN process, moving the other places that open cases onto it and the Routing page
+  follow in #509's later phases.
+
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The
   same asset" means the same entity, or one sharing the tag or unit it stands for: a historian point counts as its

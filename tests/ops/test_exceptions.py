@@ -614,3 +614,97 @@ def test_a_dispatched_sap_notification_is_due_by_its_priority(conn):
         conn.execute("update work_item set state = 'done' where id = %s", (row["item_id"],))
         conn.execute("update exception_record set state = 'closed' where id = %s", (e["id"],))
     conn.commit()
+
+
+# ---- one front door for work: the routing table and explain (#509) --------------------------------------------------
+
+def _counts(conn) -> tuple:
+    return tuple(conn.execute(f"select count(*) as n from {t}").fetchone()["n"]
+                 for t in ("exception_record", "work_item", "work_event", "work_process"))
+
+
+def test_the_routing_table_lists_every_type_with_what_it_starts(conn, types, monkeypatch):
+    from fuzer.ops import intake, routing  # noqa: F401  (intake declares sap_notification)
+
+    types("r_queue", role="role:maintenance")
+    types("r_proc", process="exc_proc")
+    types("r_board", joins=False)
+    impl.define(conn, "r_pack", "test", "Pack type", role="role:engineer", source_system="kestrel_scada")
+    table = {r["type"]: r for r in routing.routes(conn)}
+    assert (table["r_queue"]["starts"], table["r_queue"]["role"]) == ("queue", "maintenance")
+    assert (table["r_proc"]["starts"], table["r_proc"]["process"]) == ("process", "exc_proc")
+    assert table["r_board"]["starts"] == "dispatch" and table["r_board"]["join_hours"] is None
+    assert table["r_queue"]["declared_in"] == "code" and table["r_queue"]["join_hours"] == 48
+    assert (table["r_pack"]["declared_in"], table["r_pack"]["source_system"]) == ("source pack", "kestrel_scada")
+    due = table["sap_notification"]["due"]
+    assert due["by"] == "priority" and due["hours"]["1"] == 24 and due["applies"] == "when dispatched"
+    assert table["r_queue"]["due"] is None
+    conn.rollback()
+
+
+def test_explain_says_where_work_goes_and_who_holds_it_without_writing(conn, types):
+    from fuzer.ops import routing
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "mia", ["operator"])
+    types("r_queue", role="role:operator")
+    types("r_board")
+    conn.commit()
+    before = _counts(conn)
+    queued = routing.explain(conn, "r_queue", refs=["tag:P-101", "tag:NOPE"], key="Q-1")
+    assert queued["outcome"] == "queue" and queued["queue"]["role"] == "operator" and "mia" in queued["queue"]["holders"]
+    assert [m["id"] for m in queued["matched"]] == ["fz-pump-1"] and queued["unmatched"] == ["tag:NOPE"]
+    assert "operator queue (" in queued["summary"] and "mia" in queued["summary"]
+    waits = routing.explain(conn, "r_board", key="B-1")
+    assert waits["outcome"] == "dispatch" and "dispatch" in waits["summary"]
+    sent = routing.explain(conn, "r_board", key="B-1", to="role:operator")
+    assert sent["outcome"] == "dispatched" and sent["queue"]["role"] == "operator"
+    assert _counts(conn) == before  # an explanation leaves nothing behind
+    with pytest.raises(ExceptionError, match="no exception type"):
+        routing.explain(conn, "no_such_type")
+
+
+def test_explain_names_the_process_and_each_lane(conn, types):
+    from fuzer.ops import routing
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "olga", ["engineer", "workflow_admin"])
+    if not conn.execute("select 1 from work_definition where process_key = 'exc_proc' and state = 'published'").fetchone():
+        engine.publish(conn, engine.import_bpmn(conn, _process("exc_proc"), "olga")[0]["id"], "olga")
+    types("r_proc", process="exc_proc")
+    types("r_unpublished", process="never_published")
+    conn.commit()
+    out = routing.explain(conn, "r_proc", key="P-1")
+    assert out["outcome"] == "process" and out["process"]["published"]
+    [step] = out["process"]["steps"]
+    assert (step["step"], step["role"], step["sla"]) == ("Look", "engineer", "P1D") and "olga" in step["holders"]
+    assert "first person step, Look, waits in the engineer queue" in out["summary"]
+    missing = routing.explain(conn, "r_unpublished", key="P-1")
+    assert not missing["process"]["published"] and "no version of it is published" in missing["summary"]
+
+
+def test_explain_finds_the_open_exception_and_the_event_it_joins(conn, compressor, three_sources):
+    from fuzer.ops import routing
+
+    sap, _, _ = _raise_trip(conn, compressor, 9)
+    again = routing.explain(conn, "sap_note", refs=[compressor["equipment"]], key="N-9")
+    assert again["outcome"] == "updates" and again["updates"]["exception_id"] == sap["id"]
+    joins = routing.explain(conn, "iow_hi", refs=[compressor["point"]], key="IOW-NEW")
+    assert joins["outcome"] == "joins" and joins["joins"]["case"]["id"] == sap["item_id"]
+    assert f"Joins case {sap['item_id']}" in joins["summary"]
+    elsewhere = routing.explain(conn, "iow_hi", refs=[compressor["elsewhere"]], key="IOW-V2")
+    assert elsewhere["outcome"] == "queue"  # same area is not the same event
+
+
+def test_explain_gives_a_dispatched_sap_notification_its_due_time(conn):
+    from fuzer.ops import intake, routing  # noqa: F401  (intake declares sap_notification)
+
+    out = routing.explain(conn, "sap_notification", key="N-EXPLAIN", to="fred", evidence={"priority": "1"})
+    assert out["outcome"] == "dispatched" and out["queue"]["assignee"] == "fred" and out["due"]
+
+
+def test_exceptions_open_cases_only_through_the_front_door():
+    """Every case an exception opens goes through routing.route (#509): the exception module calls the Work port
+    only to dispatch, feed or comment on a case that exists."""
+    src = (PACKAGE / "ops" / "exceptions.py").read_text()
+    assert not re.search(r"work\.(open_case|start_or_correlate)\(", src)
