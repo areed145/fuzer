@@ -1,13 +1,15 @@
 """Shift handover for the IOC (#467): at each shift change, what the incoming ops lead needs to know in a few minutes,
 drafted from live work, every line citing its case or exception the way the daily report cites its records.
 
-Five sections, over the shift that just ended:
+Six sections, over the shift that just ended:
 
     Open work               open cases by priority (most urgent first)
     Back from the field     exceptions the field reported done or could not do, waiting on the IOC to decide
     Escalated or overdue    steps escalated during the shift, and steps past their due time now
     Dispatched              what the outgoing shift sent to the field, and to whom
     New exceptions          exceptions raised during the shift
+    Records to check        downtime with no log entry or notification, and logged stops with no downtime record
+                            (#344): questions for the shift, open until a matching record turns up or it is closed
 
 Shift changes are the `handover.shift_times` setting (local times in the project's timezone, "06:00,18:00"). The
 work tick drafts a handover once per shift change (`at_shift_change`); it starts the `shift_handover` process, one
@@ -23,7 +25,9 @@ from psycopg.types.json import Jsonb
 from ..core import settings, work
 from ..core.exceptions import ExceptionError
 
-SECTIONS = ["Open work", "Back from the field", "Escalated or overdue", "Dispatched", "New exceptions"]
+SECTIONS = ["Open work", "Back from the field", "Escalated or overdue", "Dispatched", "New exceptions",
+            "Records to check"]
+RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
 LIMIT = 25  # lines per section; the rest is counted
@@ -62,7 +66,7 @@ def _line(text: str, *cites: str) -> dict:
 
 
 def facts(conn, start: datetime, end: datetime) -> dict:
-    """The five sections over [start, end), from live work. Each line is {text, cites}; `more` counts the rest."""
+    """The sections over [start, end), from live work. Each line is {text, cites}; `more` counts the rest."""
     sections: dict[str, list[dict]] = {s: [] for s in SECTIONS}
     more: dict[str, int] = {}
 
@@ -75,9 +79,9 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     keep("Open work", conn.execute(
         """
         select id, title, type, priority, assignee, role, due from work_item
-        where state not in ('done', 'cancelled') and type <> %s
+        where state not in ('done', 'cancelled') and type <> all(%s)
         order by priority desc nulls last, due nulls last, created_at
-        """, (CASE_TYPE,)).fetchall(),
+        """, ([CASE_TYPE, RECORDS],)).fetchall(),
         lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')}), with {holder(r)}"
                         + (f", due {r['due']:%d %b %H:%M}" if r["due"] else ""), f"case:{r['id']}"))
     keep("Back from the field", conn.execute(
@@ -113,10 +117,17 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     keep("New exceptions", conn.execute(
         """
         select id, title, type, source, item_id, state from exception_record
-        where first_seen >= %(s)s and first_seen < %(e)s and joined_to is null order by value_usd desc nulls last, id
-        """, {"s": start, "e": end}).fetchall(),
+        where first_seen >= %(s)s and first_seen < %(e)s and joined_to is null and type <> %(r)s
+        order by value_usd desc nulls last, id
+        """, {"s": start, "e": end, "r": RECORDS}).fetchall(),
         lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')} from {r['source']}, {r['state']})",
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
+    keep("Records to check", conn.execute(
+        """
+        select id, title, item_id, evidence->>'at' as at from exception_record
+        where type = %s and state = 'open' and joined_to is null order by evidence->>'at' desc, id
+        """, (RECORDS,)).fetchall(),
+        lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     return {"sections": sections, "more": more}
 
 

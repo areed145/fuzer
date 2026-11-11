@@ -62,7 +62,7 @@ def test_candidates_cover_ambiguous_tags_and_area_names(conn):
 def test_dry_run_calls_nothing(conn):
     fake = FakeClaude()
     out = llm_links.run(conn, PACK, client=fake, dry_run=True, sources=["oplog"])
-    assert out["entries"] == 2428 and out["requests"] > 0 and out["estimated_input_tokens"] > 0
+    assert out["entries"] == 2429 and out["requests"] > 0 and out["estimated_input_tokens"] > 0
     assert fake.requests == []
 
 

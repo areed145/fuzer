@@ -198,7 +198,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **Shift handover** (#467, `ops/handover.py`, Work > Handover). At each shift change (`handover.shift_times`,
   local times in the project's timezone, default `06:00,18:00`; empty turns it off) the work tick drafts a handover
   from live work over the shift that just ended: open work by priority, what came back from the field and waits on
-  the IOC, steps escalated or overdue, what was dispatched and to whom, and new exceptions. Every line cites its
+  the IOC, steps escalated or overdue, what was dispatched and to whom, new exceptions, and records to check (downtime with no log entry or
+  notification and logged stops with no downtime, #344, see [analyses](analyses.md)). Every line cites its
   case or exception (`case:<id>`, `exception:<id>`), as the daily report cites its records. It opens a
   `shift_handover` case on the `ops_lead` queue, run as the `shift_handover` process so reading it has the ops
   lead's SLA and escalates if nobody does; the outgoing lead adds notes, and the incoming lead acknowledges it
