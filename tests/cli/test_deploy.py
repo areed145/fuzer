@@ -1,9 +1,11 @@
 import signal
 import threading
+from contextlib import nullcontext
 
 import pytest
 
 from fuzer.cli import deploy
+from fuzer.core import db
 
 
 def test_commands_share_runtime_environment(monkeypatch):
@@ -63,3 +65,54 @@ def test_shutdown_stops_all_children(monkeypatch):
     monkeypatch.setattr(deploy.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
     deploy.supervise([("task", ["run"])], stop)
     assert killed == [(123, signal.SIGTERM)]
+
+
+@pytest.mark.parametrize("fail_first", [False, True])
+def test_startup_reads_each_project_in_its_own_scope(monkeypatch, capsys, fail_first):
+    seen = []
+    monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
+    monkeypatch.setattr(deploy.projects, "current", lambda conn: "okan")
+    monkeypatch.setattr(deploy.projects, "use", lambda conn, name: db.use(
+        db.Scope(name, "public" if name == "okan" else f"proj_{name}")))
+    monkeypatch.setattr(deploy, "current_pack", lambda conn: db.scope().project)
+
+    def read(conn, pack, report):
+        seen.append((pack, db.scope().schema))
+        if fail_first and pack == "okan":
+            raise RuntimeError("interrupted")
+        report("finished")
+
+    monkeypatch.setattr(deploy.pipeline, "read_pending", read)
+    deploy.read_projects(["kestrel"])
+    assert seen == [("okan", "public"), ("kestrel", "proj_kestrel")]
+    assert db.scope().project is None
+    out = capsys.readouterr().out
+    assert "LLM readings (kestrel): finished" in out
+    assert ("Inspect recorded readings before a deliberate retry" in out) == fail_first
+
+
+def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setenv("FUZER_DATABASE_URL", "postgresql://unused/test")
+    monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
+    monkeypatch.setattr(deploy, "seed", lambda conn, folder: calls.append("seed"))
+    monkeypatch.setattr(deploy, "register_projects", lambda conn: ["kestrel"])
+    monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
+    monkeypatch.setattr(deploy.projects, "use", lambda conn, name: nullcontext())
+    monkeypatch.setattr(deploy.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(deploy, "commands", lambda added: [])
+
+    class Thread:
+        def __init__(self, *, target, args, name, daemon):
+            assert target is deploy.read_projects and args == (["kestrel"],)
+            assert name == "startup-readings" and daemon
+
+        def start(self):
+            calls.append("background readers")
+
+    monkeypatch.setattr(deploy.threading, "Thread", Thread)
+    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop: calls.append("serve"))
+    deploy.main()
+    assert calls == ["seed", "background readers", "serve"]

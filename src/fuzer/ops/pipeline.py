@@ -46,6 +46,35 @@ def readings_newer(conn) -> bool:
     return row["read"] is not None and (row["built"] is None or row["read"] > row["built"])
 
 
+def read_pending(conn, pack: Pack, report: Callable[[str], None]) -> None:
+    """Read uncached source content once, then apply new or previously unapplied readings to the register."""
+    from ..core import llm
+    from ..core.pricing import cost
+    from ..sources import llm_curves
+
+    readers = [("operator log entries", "entries", llm_links.run), ("drawings", "sheets", llm_pids.run),
+               ("document sections", "sections", llm_docs.run), ("datasheets", "datasheets", llm_curves.run)]
+    todo = [(label, key, run, n) for label, key, run in readers if (n := run(conn, pack, dry_run=True)[key])]
+    if todo:
+        what = ", ".join(f"{n:,} {label}" for label, _, _, n in todo)
+        if not llm.configured():
+            report(f"Not read by {llm.provider()}: {what}. Configure the provider API key and restart.")
+        else:
+            report(f"{llm.provider()} ({llm.model()}) is reading {what}. This can take a few minutes ...")
+            stored, spent = 0, 0.0
+            for label, _, run, _ in todo:
+                out = run(conn, pack)
+                stored += out.get("stored", 0)
+                spent += cost(out.get("model", llm_links.DEFAULT_MODEL), out.get("input_tokens", 0),
+                              out.get("output_tokens", 0), out.get("cache_read_tokens", 0), 0, llm.provider())[0]
+                for err in out.get("errors", [])[:3]:
+                    report(f"Could not read some {label}: {err}. Inspect recorded readings before a deliberate retry.")
+            report(f"{llm.provider()} read {stored:,} item(s) for about ${spent:.2f}")
+    if readings_newer(conn):
+        report("Rebuilding the register with cached LLM readings ...")
+        rebuild(conn, pack)
+
+
 def rebuild(conn, pack: Pack) -> dict:
     timings = {}
     t = time.perf_counter()

@@ -8,6 +8,8 @@ import threading
 from pathlib import Path
 
 from ..core import db, llm, projects
+from ..core.pack import current_pack
+from ..ops import pipeline
 from ..workflow import engine
 from .demo_seed import register_projects, seed
 
@@ -62,6 +64,20 @@ def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None
                 proc.wait()
 
 
+def read_projects(added: list[str]) -> None:
+    """Enrich each project's loaded register without holding up API startup or replaying failures."""
+    for name in [None, *added]:
+        try:
+            with db.connect() as conn:
+                project = name or projects.current(conn)
+                with projects.use(conn, project), db.connect() as scoped:
+                    pipeline.read_pending(scoped, current_pack(scoped),
+                                          lambda msg, project=project: print(f"LLM readings ({project}): {msg}", flush=True))
+        except Exception as e:
+            print(f"LLM readings ({name or 'primary project'}) stopped: {e}. "
+                  "Inspect recorded readings before a deliberate retry.", flush=True)
+
+
 def main() -> None:
     if not os.environ.get("FUZER_DATABASE_URL"):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
@@ -79,6 +95,7 @@ def main() -> None:
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
+    threading.Thread(target=read_projects, args=(added,), name="startup-readings", daemon=True).start()
     supervise(commands(added), stop)
 
 
