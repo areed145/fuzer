@@ -295,9 +295,17 @@ def hand_back_item(conn, item_id: int, person: str, by: str, reason: str | None 
         "and assignee = %s order by due_at nulls last, id limit 1", (item_id, person)).fetchone()
     if step:
         prior = conn.execute(
-            "select data->>'from' as f from work_event where token_id = %s and kind = 'handed_off' "
+            "select actor, data->>'from' as f from work_event where token_id = %s and kind = 'handed_off' "
             "and data->>'to' = %s order by id desc limit 1", (step["id"], person)).fetchone()
-        to = _back_to(prior and prior["f"], person, step["role"])
+        came = prior and prior["f"]
+        if came and came.startswith("role:") and prior["actor"] == person:
+            # they took it from the queue, which isn't being sent it: back to whoever sent it to that queue
+            sender = conn.execute(
+                "select actor from work_event where token_id = %s and kind = 'handed_off' and data->>'to' = %s "
+                "and actor <> %s and actor not like 'agent:%%' and actor <> 'system' order by id desc limit 1",
+                (step["id"], came, person)).fetchone()
+            came = sender["actor"] if sender else came
+        to = _back_to(came, person, step["role"])
         return hand_off(conn, step["id"], by, to, reason) if to else None
     item = _item(conn, item_id)
     if item["assignee"] != person or item["state"] in ("done", "cancelled") or _has_process(conn, item_id):
