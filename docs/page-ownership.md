@@ -7,7 +7,7 @@ Sources, Jobs and Settings**. An optional **Demo** tab introduces first-time use
 by default; administrators hide or enable it application-wide with the global `demo.enabled` setting.
 Specialist pages appear in secondary area navigation using their existing URLs.
 
-Primary landings reuse Home, Browse (Explore), Downtime (Investigate), Work board
+Primary landings reuse Home, Browse (Explore), Downtime (Investigate), All work
 (Work), Sources, Jobs and Settings. Demo owns onboarding, not a new generic investigation subsystem.
 Direct links select their owning primary destination.
 
@@ -17,7 +17,7 @@ Direct links select their owning primary destination.
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
 | Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
-| Work | `#/board`, `#/inbox`, `#/inbox/task/:id`, contextual `#/teams`, `#/cases`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
+| Work | `#/exceptions` (All work, with compatible `#/board` and `#/cases` redirects into its views), `#/inbox`, `#/inbox/task/:id`, contextual `#/teams`, `#/cases/:id`, `#/review`, `#/processes`, `#/processes/:key`, `#/processes/forms/:key` | Human priorities, read-only team workload, review decisions, tasks, cases and process definitions. Data review decides; Sources owns the subsequent load/recovery action. |
 | Sources | `#/sources` with existing dataset/system/rule/add query views | Connect, test, map, ingest, monitor freshness and recover failed loads. Reuse its wizard, connection editor and dataset actions. |
 | Jobs | `#/jobs`, `#/jobs/run/:id` | Technical schedules, runs and diagnostics. Sources links here for scheduler failures, without copying job controls. |
 | Users (Settings subdestination) | `#/users`, `#/users?view=workflow` | Unified account approval, application roles and human workflow assignments/routing. Only owners grant application access; configure administrators manage routing. Work's contextual Team workload links to this administration owner. |
@@ -38,7 +38,11 @@ owner-only/configure/AI visibility rules.
 
 Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
 Demo contains the guided tour and compatible Okan walkthrough. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
-Lessons and Studies. Work contains Work board, Inbox, Cases, Data review and Processes.
+Lessons and Studies. Work contains All work, Inbox, My jobs, Handover, Plan, Turnaround, Data review, Master data and Processes.
+All work (#502) is the IOC's one list: its views are To dispatch, With the field, Back from the field, All open
+(exceptions), In progress and Closed (the former Cases list) and Ranked by value (the former Work board).
+`#/board?view=…` redirects to `#/exceptions?list=ranked&view=…`, and `#/cases?state=…` to the In progress or
+Closed view with its filters; case and task pages keep their URLs. The rest of the consolidation is planned in #501.
 Settings contains Application settings, configure-visible Users and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately
 a Settings subdestination, not an eighth primary destination.

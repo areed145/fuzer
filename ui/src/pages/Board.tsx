@@ -33,7 +33,8 @@ const VIEWS: [View, string][] = [["ranked", "Ranked"], ["owner", "By owner"], ["
 const money = (v: number | null) =>
   v === null ? "not valued" : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}k` : `$${Math.round(v)}`;
 
-export function BoardPage({ query }: { query: URLSearchParams }) {
+/** The Ranked by value view of All work (#502), formerly the Work board page. */
+export function BoardPage({ query, embedded = false }: { query: URLSearchParams; embedded?: boolean }) {
   const view = (query.get("view") as View) || "ranked";
   const [text, setText] = useState("");
   const [filter, setFilter] = useState<BoardFilter>({});
@@ -65,17 +66,16 @@ export function BoardPage({ query }: { query: URLSearchParams }) {
 
   return (
     <section>
-      <PageHeader>Work board</PageHeader>
+      {!embedded && <PageHeader>Work board</PageHeader>}
       <p className="muted">
-        Every outstanding piece of work in one list, ranked by value: SAP backlog, PMs and inspections, incidents and
-        upsets the SRE found, workflow items, opportunities, reviews and projects. One card per piece of work. The
-        steps waiting on you are in your <a href={href("/inbox")}>Inbox</a>; each workflow case, with its history, is
-        under <a href={href("/cases")}>Cases</a>.
+        Every outstanding piece of work ranked by value: SAP backlog, PMs and inspections, incidents and upsets the SRE
+        found, workflow items, opportunities, reviews and projects. One card per piece of work; open "Why" for its
+        value, pins and rank history.
       </p>
       <div className="row">
         <div className="tabs">
           {VIEWS.map(([v, label]) => (
-            <a key={v} className={view === v ? "on" : ""} href={href("/board", { view: v === "ranked" ? undefined : v })}>
+            <a key={v} className={view === v ? "on" : ""} href={href("/exceptions", { list: "ranked", view: v === "ranked" ? undefined : v })}>
               {label}
             </a>
           ))}

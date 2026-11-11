@@ -97,7 +97,7 @@ export function DemoPage({ query, stats }: {
           <li>Review agent activity and usage in Ask; missing evidence remains unknown.</li>
           <li>Inspect the case and task history to verify any saved change. A completed task is not proof of downstream execution.</li></ul>
         <ButtonLink href={href("/browse")}>Explore loaded evidence</ButtonLink>{" "}
-        <ButtonLink href={href("/board")}>Open Work</ButtonLink>
+        <ButtonLink href={href("/exceptions", { list: "ranked" })}>Open Work</ButtonLink>
         {configure && <p><a href={href("/settings", { filter: "demo.enabled" })}>Hide or enable Demo application-wide</a>.</p>}
       </>}
     </Card>

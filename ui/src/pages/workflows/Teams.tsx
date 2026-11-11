@@ -37,7 +37,7 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
       {administration ? <h2>Workflow assignments &amp; routing</h2> : <PageHeader>Team workload</PageHeader>}
       {!administration && <p>This operational view shows coverage and workload, not account access.
         {configure && <> Manage roles, assignments and coverage in <a href={href("/users", { view: "workflow", role: focus ?? undefined })}>Users</a>.</>}
-        {" "}<a href={href("/cases")}>Open work cases</a></p>}
+        {" "}<a href={href("/exceptions", { list: "progress" })}>Open work cases</a></p>}
       <p className="muted">Who does the work. Each step goes to a role; a role's default SLA covers steps that set none, overdue
         steps move along its escalation, and its assignment decides whether steps wait to be claimed or go to someone. People
         away hand their steps to whoever covers for them.</p>
@@ -137,7 +137,7 @@ function RoleCard({ r, roles, person, open, reload, editable }: { r: WorkRoleRow
             consequence={`Delete unused workflow role ${r.name}? The server verifies it has no members or published process use.`}
             onConfirm={() => a.run("del", () => api.deleteRole(r.name, person), reload)} />
         )}
-        {r.waiting > 0 && <a className="small" href={href("/cases", { who: `role:${r.name}` })}>see its {r.waiting} waiting</a>}
+        {r.waiting > 0 && <a className="small" href={href("/exceptions", { list: "progress", who: `role:${r.name}` })}>see its {r.waiting} waiting</a>}
       </div>
       <ActionStatus busy={a.busy ? "Updating workflow routing..." : null} error={a.error} />
       </>}
@@ -181,7 +181,7 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
           <tbody>{people.filter(p => !focus || p.name === focus).map(p => <tr key={p.name}>
             <td>{p.display_name || p.name}</td><td>{scopeText(p)}</td><td>{p.account_enabled === false ? "None (account disabled)"
               : p.owner ? "All human roles (owner)" : p.roles.join(", ") || "None"}</td>
-            <td><a href={href("/cases", { who: p.name })}>{p.assigned}</a></td><td>{p.overdue}</td>
+            <td><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned}</a></td><td>{p.overdue}</td>
             <td>{p.account_enabled === false ? "Account disabled" : p.away ? <>Away until {p.away_until ? when(p.away_until) : "unknown"}{p.delegate && `, ${p.delegate} covers`}</> : "Available"}</td>
           </tr>)}</tbody>
         </Table>}
@@ -217,7 +217,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
       <p className="small">Roster identity: <code>{p.name}</code>. {p.account_enabled === false
         ? "Account disabled: saved assignments remain, but effective workflow access is empty."
         : p.account_enabled === true ? "Linked to a signed-in account." : "Legacy roster identity, not automatically linked to a sign-in account."}</p>
-      <p><a href={href("/cases", { who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
+      <p><a href={href("/exceptions", { list: "progress", who: p.name })}>{p.assigned} assigned work items</a> · {p.overdue} overdue</p>
       <p>Works in: {scopeText(p)}{p.covers != null && p.cover_roles?.length ? ` (${p.cover_roles.join(", ")})` : ""}</p>
       <p>Saved workflow assignments: {(p.assigned_roles ?? p.roles).join(", ") || "None"}</p>
       <p>Effective workflow roles: {p.account_enabled === false ? "None (account disabled)"

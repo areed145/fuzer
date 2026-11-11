@@ -44,7 +44,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
         <h2 id="home-guide-title">Where would you like to start?</h2>
         <div className="home-guide-links">
           <a href={href("/browse")}><strong>Explore the facility</strong><span>Find equipment, wells, records and their connections.</span></a>
-          <a href={href("/board")}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
+          <a href={href("/exceptions", { list: "ranked" })}><strong>See priorities</strong><span>Review operational issues and the work that matters most.</span></a>
           {ai && <a href={href("/ask")}><strong>Ask a question</strong><span>Investigate with the assistant when a provider is configured by the owner.</span></a>}
           <a href={href("/review")}><strong>Review the data</strong><span>Check uncertain links and improve the register.</span></a>
           {configure && <a href={href("/sources")}><strong>Source readiness</strong><span>Connect and test sources, monitor freshness and recover failed loads.</span></a>}
@@ -188,7 +188,7 @@ function PrioritiesCard() {
     <UICard className="home-card" as="section">
       <div className="row spread">
         <h2>Top priorities</h2>
-        <a href={href("/board")}>Work board</a>
+        <a href={href("/exceptions", { list: "ranked" })}>All work, ranked</a>
       </div>
       <Status loading={board.loading && !board.data} error={board.error} onRetry={board.reload} empty={board.data?.total === 0}>
         Nothing on the work board.
@@ -208,7 +208,7 @@ function Priority({ card }: { card: BoardCard }) {
     <li>
       <span className="mono muted">{card.rank}.</span>
       <div>
-        <a href={card.item_id ? href(`/cases/${card.item_id}`) : href("/board")}>{card.title}</a>
+        <a href={card.item_id ? href(`/cases/${card.item_id}`) : href("/exceptions", { list: "ranked" })}>{card.title}</a>
         <span className="muted small">{card.kind.replace(/_/g, " ")} · {value}</span>
       </div>
     </li>
@@ -243,7 +243,7 @@ function IncidentsCard() {
       <div className="home-subsection">
         <div className="row spread">
           <h3>Detections without a recorded end</h3>
-          <a href={href("/board", { view: "kind" })}>Work board by type</a>
+          <a href={href("/exceptions", { list: "ranked", view: "kind" })}>All work by type</a>
         </div>
         <Status loading={upsets.loading && !upsets.data} error={upsets.error} onRetry={upsets.reload}
           empty={upsets.data !== undefined && openUpsets.length === 0}>
@@ -262,7 +262,7 @@ function IncidentsCard() {
 function UpsetItem({ upset }: { upset: Upset }) {
   return (
     <li>
-      <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/board", { view: "kind" })}>
+      <a href={upset.work_item_id ? href(`/cases/${upset.work_item_id}`) : href("/exceptions", { list: "ranked", view: "kind" })}>
         {upset.first_key || upset.first_point || `Upset ${upset.id}`}</a>
       <span className="muted small">Detected from {timestamp(upset.start)} · {upset.first_unit ?? "Unknown unit"} · {upset.detections} detections</span>
     </li>

@@ -2,7 +2,7 @@
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Table } from "../ui";
+import { Badge, Button, Card, Input, Select, Table } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -11,41 +11,46 @@ import { SampleTeam, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
 
-export function ExceptionsPage({ query }: { query?: URLSearchParams }) {
+export type ExceptionView = "dispatch" | "field" | "back" | "open";
+
+const EMPTY: Record<ExceptionView, string> = {
+  dispatch: "Nothing waiting to be dispatched.",
+  field: "Nothing is with the field right now.",
+  back: "Nothing back from the field waiting on the IOC.",
+  open: "Nothing here.",
+};
+
+/** The exception views of All work (#502): to dispatch, with the field, back from the field, and every exception in
+ * a chosen state. */
+export function ExceptionsPage({ query, view = "open" }: { query?: URLSearchParams; view?: ExceptionView }) {
   const [person] = usePerson();
-  const [state, setState] = useState("open");
+  const [state, setState] = useState(view === "open" ? query?.get("state") ?? "open" : "open");
   const [type, setType] = useState(query?.get("type") ?? "");
-  const back = state === "back";  // open, and the field's last word was done or could not do: the IOC decides next
-  const rows = useAsync(() => api.exceptions({ state: back ? "open" : state || "any", type: type || undefined }), [state, type]);
+  const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
   const types = [...new Set(rows.data.map((r) => r.type))].sort();
-  const waiting = rows.data.filter((r) => !r.item_id && !r.planned && r.state === "open");
-  const backRows = rows.data.filter(backFromField);
-  const shown = back ? backRows : rows.data;
+  const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
+  const shown = view === "dispatch" ? rows.data.filter(waitingToDispatch)
+    : view === "back" ? rows.data.filter(backFromField)
+    : view === "field" ? rows.data.filter((r) => withTheField(r, operators))
+    : rows.data;
   return (
-    <section>
-      <PageHeader subtitle={<>Every exception raised by Fuzer's detectors, other systems and the field, once per open
-        condition and matched to its assets. Routed ones are worked as <a href={href("/cases")}>cases</a>; the
-        rest wait for you to dispatch. Ranked work across everything is on the <a href={href("/board")}>Work board</a>.</>}>
-        Exceptions</PageHeader>
+    <>
       <div className="row">
-        <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
+        {view === "open" && <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
           <option value="open">open</option><option value="cleared">cleared</option>
-          <option value="closed">closed</option><option value="back">back from the field</option>
-          <option value="">any state</option>
-        </Select>
+          <option value="closed">closed</option><option value="">any state</option>
+        </Select>}
         <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">every type</option>{types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
         </Select>
-        {waiting.length > 0 && <Badge tone="warn">{waiting.length} waiting to be dispatched</Badge>}
-        {!back && backRows.length > 0 && <Button size="sm" onClick={() => setState("back")}>
-          {backRows.length} back from the field</Button>}
+        <span className="small muted">{shown.length} {shown.length === 1 ? "event" : "events"}</span>
       </div>
       <Card>
-        {!shown.length ? <p className="muted">{back ? "Nothing back from the field waiting on the IOC." : "Nothing here."}</p> : <Table variant="results">
+        {!shown.length ? <p className="muted">{EMPTY[view]}</p> : <Table variant="results">
           <thead><tr><th>Exception</th><th>Assets</th><th>Seen</th><th>With</th><th /></tr></thead>
           <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
             people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</tbody>
@@ -54,8 +59,11 @@ export function ExceptionsPage({ query }: { query?: URLSearchParams }) {
           only go to a role's queue. Add the IOC team and field operators on <a href={href("/teams")}>Teams &amp; routing</a>.</p>}
         <SampleTeam onAdded={people.reload} />
       </Card>
-      <Kinds person={person} queues={queues} />
-    </section>
+      <details className="exception-types">
+        <summary>Exception types: what raises work and where it goes</summary>
+        <Kinds person={person} queues={queues} />
+      </details>
+    </>
   );
 }
 
@@ -112,9 +120,20 @@ function Kinds({ person, queues }: { person: string | null; queues: string[] }) 
 
 /** Open, and the field's latest report says done or could not do: their part is over and the case is back with the
  * IOC to decide what happens next. */
-const backFromField = (r: ExceptionRow) => {
+export const backFromField = (r: ExceptionRow) => {
   const last = r.evidence?.field?.[r.evidence.field.length - 1];
   return r.state === "open" && !!last && (last.status === "done" || last.status === "could_not_do") && r.assignee !== last.by;
+};
+
+/** Open, raised and not yet given to anyone or put on the plan: the IOC's to dispatch. */
+export const waitingToDispatch = (r: ExceptionRow) => r.state === "open" && !r.item_id && !r.planned;
+
+/** Open, its case held by a field operator (a person with the operator role, or the operator queue) or the field said
+ * they are on site, and not yet back from the field. */
+export const withTheField = (r: ExceptionRow, operators: Set<string>) => {
+  if (r.state !== "open" || !r.item_id || backFromField(r)) return false;
+  const last = r.evidence?.field?.[r.evidence.field.length - 1];
+  return r.role === "operator" || (!!r.assignee && operators.has(r.assignee)) || last?.status === "on_site";
 };
 
 const FIELD_SAID: Record<string, string> = { on_site: "Field: on site", done: "Field: done", could_not_do: "Field: could not do", note: "Field note" };
