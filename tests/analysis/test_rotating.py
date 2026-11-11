@@ -5,6 +5,7 @@ summary combines the checks with basis, data dates and confidence, and says what
 import pytest
 
 from fuzer.analysis import calcs, rotating
+from fuzer.analysis.calcs import CalcError
 from fuzer.core.pack import load_pack
 from fuzer.graph import queries
 
@@ -108,3 +109,28 @@ def test_a_fouling_gas_turbine_burns_more_fuel_than_its_curves_expect_until_wash
     nov = rotating.screen(conn, "2025-11-10T00:00")
     b = next(m for m in nov["machines"] if m["machine"] == "20-GT-2000B")
     assert "heat_rate_high" in b["flags"] and any("water wash" in r for r in b["recommendations"])
+
+
+def test_a_pump_with_a_passing_recirculation_valve_runs_its_motor_above_the_service_factor(conn):
+    """Oil export pump B's minimum-flow recirculation valve passes from late October 2025 until it is repaired on
+    9 December: the pump runs out along its curve and its motor draws above the nameplate's service factor (the
+    rating on its SAP equipment record). The fleet screen finds it without being told which pump to check."""
+    b = fid(conn, "10-P-1001B")
+    clean = rotating.motor_load(conn, b, until="2025-10-01T00:00")
+    assert clean["flag"] is None and clean["unit"] == "kW" and clean["rated_kw"] == 260
+    assert clean["service_factor"] == 1.15 and 75 < clean["load_pct"] < 100
+    assert clean["hours_above_service_factor"] == 0 and "SAP equipment" in clean["basis"]
+    over = rotating.motor_load(conn, b, until="2025-11-25T00:00")
+    assert over["flag"] == "motor_overload" and over["load_pct"] > 115 and over["hours_above_service_factor"] > 100
+    assert over["first_above_service_factor"] >= "2025-10-25" and len(over["sources"]) == 3
+    assert rotating.motor_load(conn, b, until="2025-12-31T00:00")["flag"] is None
+    assert rotating.motor_load(conn, fid(conn, "10-P-1001A"), until="2025-11-25T00:00")["flag"] is None
+    h = calcs.run(conn, "rotating_health", b, until="2025-11-25T00:00")
+    f = {x["check"]: x for x in h["findings"]}["motor_load"]
+    assert f["flag"] == "motor_overload" and f["confidence"] == "high" and h["value"] == "act"
+    nov = rotating.screen(conn, "2025-11-25T00:00")
+    m = next(x for x in nov["machines"] if x["machine"] == "10-P-1001B")
+    assert m["status"] == "act" and "motor_overload" in m["flags"]
+    assert any("recirculation" in r for r in m["recommendations"])
+    with pytest.raises(CalcError, match="motor rating"):
+        rotating.motor_load(conn, fid(conn, "20-K-2300A"))

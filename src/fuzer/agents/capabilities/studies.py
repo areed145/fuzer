@@ -48,7 +48,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 )
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",
-                       "surge", "heat_rate", "rotating_health"], ref: str,
+                       "surge", "heat_rate", "motor_load", "rotating_health"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -71,7 +71,9 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     off_bep). surge (compressor stage): surge margin against the machine's own OEM map at its running speed,
     anti-surge valve open share, head against the map and the same stage on the other trains (near_surge,
     recycling). heat_rate (gas turbine): fuel energy per kWh against its OEM curves at the same load and ambient,
-    and the weekly trend (heat_rate_high). rotating_health (pump, compressor or other machine): every check that applies with basis, data
+    and the weekly trend (heat_rate_high). motor_load (motor-driven machine): measured motor power against the
+    nameplate rating and service factor on its SAP equipment record, hours above each (motor_overload,
+    motor_high). rotating_health (pump, compressor or other machine): every check that applies with basis, data
     dates and confidence, a status (act, watch, ok), what couldn't be checked and why, and recommendations: start
     here for "how is this machine". The plot_* chart of the same name shows the fit."""
     from ...analysis import calcs

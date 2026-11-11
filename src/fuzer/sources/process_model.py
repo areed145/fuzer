@@ -460,7 +460,8 @@ class Window:
             group = [p for p, x in self.m.units.items() if x.get("type") == "pump" and x.get("group") == u["group"]]
             n = sum(self.get(p, "running") for p in group)
             total = self.get(u["meter"], "flow") / 24 if u.get("meter") else u["q_bep"] * 2
-            return run * total / np.maximum(n, 0.5) * (1 + 0.01 * self.noise(unit + "q", 20))
+            spill = sum((self.path(e["points"]) for e in self.ev(unit, "recirculation")), np.zeros_like(self.t))
+            return run * total / np.maximum(n, 0.5) * (1 + spill) * (1 + 0.01 * self.noise(unit + "q", 20))
         if var == "head":  # m: the pump's curve through shut-off head and the best efficiency point, less wear
             q = self.get(unit, "flow")
             loss = sum((self.path(e["points"]) for e in self.ev(unit, "head_loss")), np.zeros_like(self.t))

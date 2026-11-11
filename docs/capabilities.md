@@ -268,4 +268,5 @@ Called by agents as themselves through the workflow engine.
 | `pump_bep` | pump tag or equipment |  |
 | `surge` | compressor stage tag or equipment |  |
 | `heat_rate` | gas turbine tag or equipment |  |
+| `motor_load` | motor-driven machine tag or equipment |  |
 | `rotating_health` | machine tag or equipment |  |

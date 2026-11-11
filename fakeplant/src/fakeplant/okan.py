@@ -127,6 +127,7 @@ PI_STYLE = {"10": "OKA_PP.{a}{f}{l}{s}.PV", "20": "OK_GGCP:{a}-{f}-{l}{s}.PV", "
 
 DAMAGE = {"P": ["D01", "D02", "D03", "D05"], "K": ["D01", "D04", "D09", "D06"], "GT": ["D03", "D04", "D09"],
           "E": ["D04", "D08"], "V": ["D07", "D08", "D02"], "XV": ["D03", "D08"], "FT": ["D07"], "PT": ["D07"]}
+MOTORS = {"P": ("260", "1.15")}  # electric motor drivers: rated kW and service factor (NEMA MG 1), per function
 FAILURE_RATE = {"P": 0.8, "K": 1.2, "GT": 0.9, "E": 0.3, "V": 0.2}
 AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor", "Field Operator"]
 
@@ -193,6 +194,9 @@ ASSISTANT_QUESTIONS = [
      "2024, and why?", "must_mention": ["20-K-2200B", ["vibration", "zone D"]], "specialists": ["maintenance-integrity"]},
     {"domain": "rotating equipment", "question": "Which rotating machines needed attention in early September 2025, "
      "and what should we do about them?", "must_mention": ["10-P-1001A", ["head", "curve"]],
+     "specialists": ["maintenance-integrity"]},
+    {"domain": "rotating equipment", "question": "Are any of our pump motors overloaded in late November 2025, and "
+     "why?", "must_mention": ["10-P-1001B", ["service factor", "overload"], ["recirculation", "recycle"]],
      "specialists": ["maintenance-integrity"]},
     {"domain": "rotating equipment", "question": "Is any of our gas turbines burning more fuel than it should in early "
      "November 2025, and what would fix it?", "must_mention": ["20-GT-2000B", "heat rate", ["wash", "foul"]],
@@ -286,8 +290,11 @@ def generate(out, seed: int = 11) -> dict:
         # Train C came later (2022); everything else in 2009.
         since = "2022-03-01" if s == "C" and area == "20" else "2009-06-01"
         serial += rng.randint(1, 900)
+        # The motor's nameplate rides on the pump's SAP equipment record (#515): rated kW and service factor.
+        motor = MOTORS.get(func, ("", ""))
         equipment.append({"equnr": str(30000000 + len(equipment)), "description": desc, "manufacturer": maker,
-                          "model": model, "serial": f"SN{serial}", "floc": eq_floc, "valid_from": since, "valid_to": ""})
+                          "model": model, "serial": f"SN{serial}", "floc": eq_floc, "valid_from": since, "valid_to": "",
+                          "motor_rated_kw": motor[0], "motor_service_factor": motor[1]})
 
     for area, (code, name, ftype, _) in FACILITIES.items():
         floc.append({"floc": f"{FIELD}-{area}", "parent": FIELD, "description": f"{code} {name}"})

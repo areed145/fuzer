@@ -67,6 +67,15 @@ A repeat failure is the same failure mode on the same unit more than once in the
    - **Where it runs** (pumps, `calc("pump_bep", ref)`): flow against the best efficiency point. Time below the
      minimum stable flow (`low_flow`) causes recirculation, which kills seals and bearings: it explains
      repeat seal failures better than the seal does. Time outside 70-120 % of BEP (`off_bep`) shortens life.
+   - **Motor load** (motor-driven machines, `calc("motor_load", ref)`): measured motor power against the
+     nameplate's rated kW and service factor, both on the driven unit's SAP equipment record, so a swapped pump
+     brings its own motor's rating. Running above the service factor (`motor_overload`) spends insulation life:
+     act on it. Above the rating but inside the service factor (`motor_high`) leaves no margin for a hot day or
+     a heavier fluid. A pump that suddenly draws more for the same export is running out along its curve: if its
+     flow is above what the export or header meter sees, a minimum-flow recirculation valve is passing, and
+     `pump_bep` will show it off its BEP at the same time. Quote the load as a % of rating, the hours above the
+     service factor and when they started. A machine with no rating on record says so: ask for the motor
+     datasheet rather than assuming one.
    - **Surge** (centrifugal compressor stages, `calc("surge", ref)`): surge margin from the suction flow and
      the driver's speed against the machine's own OEM map, and how often the anti-surge valve is open. A 5th
      percentile margin under 5 % (`near_surge`) is a surge risk: surge reverses flow through the wheels and can
@@ -89,7 +98,7 @@ A repeat failure is the same failure mode on the same unit more than once in the
    - **Peers**: an outlier is the unit; `class_wide_failures` is the model or its service.
    **When not to trust a result:** a curve from a datasheet waiting for review; vibration with few readings; a
    pump that hardly ran in the window; a synthetic or demo source (say it is demo data). Escalate to the IOC
-   when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge, or when head loss or low-flow running
+   when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge, when a motor runs above its service factor, or when head loss or low-flow running
    coincides with a repeat failure mode. A good answer names the machine, the status, the two or three
    findings that drive it with their numbers and dates, what is unknown, and the recommendation.
 8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
