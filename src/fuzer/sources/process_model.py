@@ -209,6 +209,8 @@ class Window:
             settle = u.get("p_settle", (u["p_suction"] + u["p_discharge"]) / 2)
             pd = ps + (u["p_discharge"] - ps) * load
             return self.lag(run * pd + (1 - run) * settle, 8) + 0.4 * self.noise(unit + "pd", 10)
+        if var in ("forward", "recycle", "flow", "asv"):
+            return self._surge_control(unit, u, var, run, load)
         if var == "vibration":
             wear = sum((self.path(e["points"]) for e in self.ev(unit, "vibration")), np.zeros_like(self.t))
             v = (u.get("vibration", 2.2) + wear) * (1 + 0.06 * self.noise(unit + "v", 15))
@@ -226,6 +228,26 @@ class Window:
             hot = run * (td + extra) + 3.5 * self.lag(vib_excess, 30)
             return self.lag(hot + (1 - run) * self.ambient(), 20) + 0.6 * self.noise(unit + "td", 15)
         raise KeyError(var)
+
+    def _surge_control(self, unit, u, var, run, load):
+        """Flow through a stage (actual inlet m3/h) and its anti-surge valve: the forward flow follows the train's
+        load (its speed) and its share of the inlet gas; when that falls below the control line (`control_line`
+        times the surge flow at this speed) the valve opens and recycles the difference, after `asv_lag` minutes."""
+        if var == "forward":
+            share = np.ones_like(self.t)
+            for e in self.ev(u["train"], "share"):
+                share = share * self.path(e["points"], 1.0)
+            q = u.get("q_design", 1000.0) * load * share * (1 + 0.015 * self.noise(unit + "q", 20))
+            for e in self.ev(unit, "swings"):  # load swings: the forward flow dips for half an hour or so
+                q = q * (1 - e["depth"] * np.maximum(self.noise(unit + "sw", 30), 0) * self.between(e["start"], e.get("end")))
+            return q
+        if var == "recycle":
+            line = u.get("q_surge", 0.62 * u.get("q_design", 1000.0)) * load * u.get("control_line", 1.1)
+            return self.lag(np.maximum(line - self.get(unit, "forward"), 0), u.get("asv_lag", 5))
+        if var == "flow":
+            return run * (self.get(unit, "forward") + self.get(unit, "recycle"))
+        open_pct = np.clip(self.get(unit, "recycle") / (0.4 * u.get("q_design", 1000.0)) * 100, 0, 100)
+        return run * open_pct + (1 - run) * 100  # asv: fully open while the train is stopped
 
     def _gas_turbine(self, unit, u, var):
         load = self.get(u["train"], "load")

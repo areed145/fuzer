@@ -69,7 +69,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
             "choke": fid(conn, "OK-J12-02"), "reliability": cls, "wall_loss": line["fuzer_id"]}
     refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"], "compressor_performance": fid(conn, "20-K-2300A"),
              "cooler_fouling": fid(conn, "20-E-2350A"), "peers": k, "vibration": k, "pump_bep": refs["pump_curve"],
-             "rotating_health": refs["pump_curve"]}
+             "rotating_health": refs["pump_curve"], "surge": fid(conn, "20-K-2100C")}
     assert set(refs) == set(calcs.CHECKS)
     for check, ref in refs.items():
         out = calcs.run(conn, check, ref)

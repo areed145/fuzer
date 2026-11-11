@@ -277,8 +277,7 @@ restricted by about 35% in August until the bean change.
 - **`compressor_performance(stage)`:** a stage's polytropic efficiency,
   ((k − 1)/k) ln(Pd/Ps) / ln(Td/Ts) with k 1.3, and head. The suction side is the scrubber before the
   stage and the cooler before that. Hourly values while running are compared: the last 3 days against
-  the window's first week (`efficiency_drop`). There is no flow or OEM map, so no distance to surge, and
-  the check says so. On Okan, 20-K-2300A's efficiency falls from 0.81 to 0.67 as its recycle cooler fouls
+  the window's first week (`efficiency_drop`). Distance to surge is a separate check (below). On Okan, 20-K-2300A's efficiency falls from 0.81 to 0.67 as its recycle cooler fouls
   through the summer and recovers after the clean; 20-K-2200B's falls with its bearing wear.
 - **`cooler_fouling(cooler)`:** daily median outlet temperature against the window's coolest tenth of
   days (clean), the rate since the last drop (a clean), and when it reaches its high limit at that rate.
@@ -286,6 +285,16 @@ restricted by about 35% in August until the bean change.
 - **`peers(ref)`:** the units of a class or model side by side (failures per year, MTBF, oil lost,
   vibration). Outliers are a robust z of 3 or more; `class_wide_failures` is set when the median unit fails
   1.5 times a year or more.
+
+- **`surge(stage)`** (`rotating.py`, #474): a centrifugal stage against its own OEM map (vendors issue a map
+  per machine, loaded from `oem_compressor_maps` by SAP equipment number). Surge margin is Q / Q surge − 1, from
+  the suction flow and the surge flow at the driver's speed. The check also gives the share of running time the
+  anti-surge valve is open, head against the map at the same flow and speed, and the same stage's flow on the
+  other trains. It flags `near_surge` when the last week's 5th percentile margin is under 5 %, and `recycling`
+  when the valve is open more than 30 % of the time. On Okan, train C is starved of gas from mid-October 2025.
+  Its 1st stage, 20-K-2100C, runs on its anti-surge valve at about 10 % margin and dips toward surge on December's
+  load swings, while trains A and B run 1.8 times its flow. The Solar C40 stages have no map, and the check says
+  so.
 
 They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
 degradation is the existing `calc("pump_curve")`.

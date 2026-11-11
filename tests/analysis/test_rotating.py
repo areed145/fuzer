@@ -67,3 +67,27 @@ def test_fleet_screen_finds_the_planted_faults_unnamed(conn):
     # the compressor class's failure rate is listed once, not as a reason to look at each compressor
     assert sept["class_wide_failures"] and all("class_wide_failures" not in m["flags"] for m in sept["machines"])
     assert sept["machines_checked"] >= 12
+
+
+def test_a_starved_compressor_runs_on_its_anti_surge_valve_and_dips_toward_surge(conn):
+    """Train C is starved of gas from mid-October 2025: its 1st stage recycles to hold the control line and, with a
+    slow anti-surge valve, dips toward surge on load swings in December. Its own OEM map gives the surge line."""
+    k = fid(conn, "20-K-2100C")
+    before = rotating.surge(conn, k, until="2025-09-01T00:00")
+    assert before["flag"] is None and before["value"] > 40 and before["asv_open_pct"] < 5
+    dec = rotating.surge(conn, k, until="2025-12-30T00:00")
+    assert dec["flag"] == "near_surge" and dec["margin_p5"] < 5 and dec["asv_open_pct"] > 50
+    assert 5 < dec["value"] < 15 and 80 < dec["speed_pct"] < 100 and dec["surge_flow"] < dec["flow"]
+    # load sharing: the same stage on trains A and B runs far more gas
+    assert {s["machine"] for s in dec["siblings"]} == {"20-K-2100A", "20-K-2100B"}
+    assert all(s["flow"] > 1.5 * dec["flow"] for s in dec["siblings"])
+    assert "map" in dec["basis"] and dec["data_to"] == "2025-12-30"
+    later = rotating.surge(conn, fid(conn, "20-K-2200C"), until="2025-12-30T00:00")  # held at the control line
+    assert later["flag"] == "recycling" and later["head"] and abs(later["head"]["vs_map_pct"]) < 15
+    with pytest.raises(calcs.CalcError, match="no OEM compressor map"):
+        rotating.surge(conn, fid(conn, "20-K-2300A"), until="2025-12-30T00:00")  # Solar's C40 maps never came
+    sharing = rotating.screen(conn, "2025-12-30T00:00")
+    c = next(m for m in sharing["machines"] if m["machine"] == "20-K-2100C")
+    assert c["status"] == "act" and "near_surge" in c["flags"] and any("surge" in r for r in c["recommendations"])
+    h = calcs.run(conn, "rotating_health", k, until="2025-12-30T00:00")
+    assert {f["check"]: f for f in h["findings"]}["surge"]["confidence"] == "high"

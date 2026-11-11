@@ -60,6 +60,48 @@ def choke(maker: str, model: str, cv_max: float, trim: str = "equal_percentage",
             "xt": 0.72, "series": {"cv": [(o, round(cv(o), 2)) for o in opens]}, "units": {"x": "%", "cv": "Cv (US)"}}
 
 
+SPEEDS = (80, 90, 100, 105)  # % of rated speed: the map's speed lines
+
+
+def compressor(maker: str, model: str, serial: str, equnr: str, q_design: float, h_design: float,
+               eff_design: float = 0.8, rpm: float = 14950.0, surge: float = 0.62) -> dict:
+    """A centrifugal compressor's map, as the vendor issues it for one machine (each order has its own wheels, so
+    the map is per serial): polytropic head and efficiency against actual inlet flow on speed lines 80 to 105 %,
+    and the surge line (flow at surge per speed). Speed lines follow the fan laws (flow with speed, head with its
+    square); surge at `surge` of design flow at rated speed."""
+    h0 = h_design * 1.08
+
+    def head(q, s):  # s: fraction of rated speed
+        return s * s * (h0 - (h0 - h_design) * (q / s / q_design) ** 2)
+
+    def eff(q, s):
+        return max(0.0, eff_design * (1 - 1.1 * (q / s / q_design - 1) ** 2))
+
+    series = {}
+    for pct in SPEEDS:
+        s = pct / 100
+        flows = [round(q_design * s * f, 0) for f in (surge, 0.75, 0.9, 1.0, 1.1, 1.2, 1.28)]
+        series[f"head@{pct}"] = [(q, round(head(q, s), 1)) for q in flows]
+        series[f"efficiency@{pct}"] = [(q, round(eff(q, s) * 100, 1)) for q in flows]
+    series["surge"] = [(pct, round(q_design * surge * pct / 100, 0)) for pct in SPEEDS]
+    units = {"x": "Am3/h", "surge": "Am3/h",
+             **{f"head@{p}": "kJ/kg" for p in SPEEDS}, **{f"efficiency@{p}": "%" for p in SPEEDS}}
+    return {"kind": "compressor", "manufacturer": maker, "model": model, "serial": serial, "equnr": equnr,
+            "rated_speed_rpm": rpm, "q_design": q_design, "h_design": h_design, "eff_design": eff_design,
+            "q_surge": round(q_design * surge, 0), "series": series, "units": units}
+
+
+def map_rows(c: dict) -> list[dict]:
+    """A compressor map export: one row per point on the machine's map (by its SAP equipment number), plus the
+    rating figures (rated speed, design point)."""
+    base = {"equnr": c["equnr"], "serial": c["serial"], "manufacturer": c["manufacturer"], "model": c["model"]}
+    rows = [{**base, "series": name, "x": x, "y": y, "x_unit": "%" if name == "surge" else c["units"]["x"],
+             "y_unit": c["units"][name]} for name, pts in c["series"].items() for x, y in pts]
+    for name, x, y in (("rated_speed", c["rated_speed_rpm"], ""), ("design", c["q_design"], c["h_design"])):
+        rows.append({**base, "series": name, "x": x, "y": y, "x_unit": "", "y_unit": ""})
+    return rows
+
+
 def cv_at(c: dict, opening: float) -> float:
     """Cv at an opening, interpolated on the characteristic."""
     pts = c["series"]["cv"]

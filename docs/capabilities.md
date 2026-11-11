@@ -86,7 +86,7 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Field Operations & Facilities | Validated operating envelopes | Envelopes validated by the control-system owner; alarm limits and IOWs are not that. |
 | Field Operations & Facilities | Control loop performance and tuning | Setpoint, controller output and mode points, with loop parameters. |
 | Maintenance & Integrity | Vibration spectra (bearing defect frequencies, 1x / 2x running speed) | A condition-monitoring source with spectra or waveforms and bearing geometry; overall vibration is checked. |
-| Maintenance & Integrity | Curve and map comparison for models without OEM data | OEM pump curves and compressor maps for those models (a datasheet Claude reads counts). |
+| Maintenance & Integrity | Curve and map comparison for machines without OEM data | OEM pump curves for those models and compressor maps for those machines (a datasheet Claude reads counts). |
 | Work Management & Supply Chain | Schedule-conflict and crew resource analysis | A planning system with crews, calendars and resource loading. |
 | Work Management & Supply Chain | Vendor, transport and site-access constraints; material reservations | Procurement and logistics sources; SAP stock on hand alone does not show them. |
 | HSE & Incident Management | Hazard and barrier status | An authoritative barrier or safety-case register. |
@@ -266,4 +266,5 @@ Called by agents as themselves through the workflow engine.
 | `peers` | tag, equipment class or model | chart `plot_peers` |
 | `vibration` | machine tag or equipment |  |
 | `pump_bep` | pump tag or equipment |  |
+| `surge` | compressor stage tag or equipment |  |
 | `rotating_health` | machine tag or equipment |  |

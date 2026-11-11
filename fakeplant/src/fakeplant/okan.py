@@ -27,6 +27,7 @@ import itertools
 import json
 import math
 import random
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -90,7 +91,8 @@ INSTRUMENTS = {
     # (function, description, units[, loop offset]): a pump's suction transmitter is the next loop up
     "P": [("PT", "Discharge Pressure", "barg"), ("TT", "Bearing Temperature", "degC"), ("VT", "Vibration", "mm/s"),
           ("FT", "Flow", "m3/h"), ("PT", "Suction Pressure", "barg", 10), ("JT", "Motor Power", "kW")],
-    "K": [("PT", "Discharge Pressure", "barg"), ("TT", "Discharge Temperature", "degC"), ("VT", "Vibration", "mm/s")],
+    "K": [("PT", "Discharge Pressure", "barg"), ("TT", "Discharge Temperature", "degC"), ("VT", "Vibration", "mm/s"),
+          ("FT", "Suction Flow", "Am3/h"), ("ZT", "Anti-Surge Valve Position", "%")],
     "GT": [("ST", "Speed", "rpm"), ("TT", "Exhaust Temperature", "degC")],
     "V": [("PT", "Vessel Pressure", "barg"), ("LT", "Liquid Level", "%")],
     "E": [("TT", "Outlet Temperature", "degC")],
@@ -189,6 +191,9 @@ ASSISTANT_QUESTIONS = [
      "2024, and why?", "must_mention": ["20-K-2200B", ["vibration", "zone D"]], "specialists": ["maintenance-integrity"]},
     {"domain": "rotating equipment", "question": "Which rotating machines needed attention in early September 2025, "
      "and what should we do about them?", "must_mention": ["10-P-1001A", ["head", "curve"]],
+     "specialists": ["maintenance-integrity"]},
+    {"domain": "rotating equipment", "question": "Are any of our compressors at risk at the end of December 2025, and "
+     "what should the IOC do about it?", "must_mention": ["20-K-2100C", "surge", ["anti-surge", "recycl"]],
      "specialists": ["maintenance-integrity"]},
     {"domain": "work orders", "question": "Is our maintenance backlog healthy?",
      "must_mention": [["90 days", "90-day"], ["priority", "P1", "P2"]], "specialists": ["work-management-supply-chain"]},
@@ -900,6 +905,17 @@ def generate(out, seed: int = 11) -> dict:
                                     "title": f"{c['manufacturer']} {m} {'performance curve' if c['kind'] == 'pump' else 'flow characteristic'} datasheet",
                                     "status": "current", "effective_date": "2019-03-01" if form == "scan" else "2021-06-01",
                                     "file": f"documents/{number}.pdf", "manufacturer": c["manufacturer"], "model": m})
+    # Compressor maps (#474): the vendor issues one per machine. Siemens and Baker Hughes sent theirs as a CSV
+    # export; Solar's C40 maps were never received, so those stages have no surge line to check against.
+    maps, map_rows = {}, []
+    for e in equipment:
+        m = re.match(r"OKAN-20-K2(\d)00([ABC])$", e["floc"])
+        if m and e["model"] in ("STC-SV", "BCL-406"):
+            stage = int(m.group(1))
+            q, h = process.STAGE_DESIGN[stage]
+            maps[f"20-K-2{stage}00{m.group(2)}"] = c = curves.compressor(e["manufacturer"], e["model"], e["serial"],
+                                                                         e["equnr"], q, h)
+            map_rows += curves.map_rows(c)
     documents = documents + sheets_meta
     (out / "documents.json").write_text(json.dumps(documents, indent=1))
     equipment += [{k: v for k, v in c.items() if k != "well"} for c in chokes]
@@ -956,8 +972,10 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "lims_results.csv", lab)
     _write_csv(out / "inspection_readings.csv", readings)
     _write_csv(out / "oem_curves.csv", curve_rows)
+    _write_csv(out / "oem_compressor_maps.csv", map_rows)
     # Limits are set from the process model without its stories; AF gets its limit traits before it's written.
-    model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests)
+    model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests,
+                               maps=maps)
     measured = process.scale_tests(model, tests)  # what a test separator measures
     _write_csv(out / "ec_well_tests.csv", measured)
     capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it

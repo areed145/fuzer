@@ -4,7 +4,7 @@ basis, sources}) for detectors, agents and charts.
 - `compressor_performance(stage)`: polytropic efficiency and head of one compressor stage over time, from
   its suction (the scrubber before it, and the cooler before that) and discharge pressure and
   temperature: eta = ((k - 1) / k) ln(Pd / Ps) / ln(Td / Ts). A falling efficiency means fouling, wear or
-  recycle through a hot cooler. There is no flow or OEM map in the data, so no distance to surge; it says so.
+  recycle through a hot cooler. Distance to surge is rotating.surge, from the stage's flow and its own OEM map.
 - `cooler_fouling(cooler)`: its outlet temperature against its clean baseline (the coolest days in the
   window), the rise since it was last cleaned, and the date it reaches its high limit (#101) at that rate.
 - `peers(ref)`: the units of one equipment class (or one model) side by side: failures per year, MTBF,
@@ -91,7 +91,7 @@ def compressor_performance(conn, fid: str, days: int = 30, until: str | None = N
                   f"against the window's first week", [fid, *[p["id"] for p in pts.values() if p]], unit="polytropic efficiency",
                   head_kj_kg=round(float(np.median([r[2] for r in last])), 1),
                   daily=[{"day": d, "efficiency": round(float(np.median(x)), 3)} for d, x in sorted(daily.items())],
-                  note="no flow measurement or OEM compressor map in the data: no distance to surge")
+                  note="surge margin against the machine's OEM map: calc surge")
 
 
 def cooler_fouling(conn, fid: str, days: int = 180, until: str | None = None, src=None, pack=None,
