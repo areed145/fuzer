@@ -290,12 +290,15 @@ stream's design case pressure, temperature and flow. Each drawing is cached
 by the SHA-256 of its image, so it's only re-read when it changes.
 `fuzer pid-score` reports recall / precision per element: tags, piping, off-page
 lines, loops, line numbers, alarm and trip settings, design ratings, notes and
-PFD streams.
+PFD streams. `--gate` fails under each element's floor or on a drop of more than
+0.05 since the last recorded run of the same model; `--record` saves the run to
+`evals/runs/` as the new baseline.
 
 On a P&ID's page the UI shows the drawing with every reading marked where it
 sits (linked to the register, not in the register, not a tag, line number;
 click a linked tag to open it), the piping, the notes, the data tables, the
-alarm settings that differ from the drawing, and the findings. Manuals and
+places where other systems disagree with the drawing (alarm settings that
+differ from its table, instruments SAP puts under another item), and the findings. Manuals and
 procedures show their file inline on their page.
 
 Model defaults to `claude-opus-5-5` (`--model` or the `llm.model` setting to change),

@@ -1,4 +1,5 @@
-"""Recorded eval runs (#134): `fuzer eval --agents --record` and `fuzer eval --ops --full --record` write a
+"""Recorded eval runs (#134): `fuzer eval --agents --record`, `fuzer eval --ops --full --record` and
+`fuzer pid-score --record` write a
 run's scores (no answers) to evals/runs/, and docs/eval-results.md is generated from them, so the baselines
 are committed with the code that made them.
 """
@@ -23,6 +24,11 @@ def assistant(res: dict, models: dict | None = None) -> dict:
 def ops(res: dict, since: str, until: str, live: bool) -> dict:
     return {"kind": "ops", "since": since, "until": until, "live": live,
             **{k: res.get(k) for k in ("sre", "grouping", "diagnosis", "daily_report", "opportunities")}}
+
+
+def pids(res: dict, model: str | None) -> dict:
+    """A P&ID benchmark run (#475): per element and per degradation level, with the reader's model."""
+    return {"kind": "pids", "model": model, **{k: res.get(k) for k in ("elements", "by_level", "sheets", "sheets_read")}}
 
 
 def save(run: dict, day: str | None = None, runs: Path = RUNS) -> Path:

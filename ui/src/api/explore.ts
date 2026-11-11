@@ -110,8 +110,9 @@ export interface Drawing {
   tables?: { title: string; columns: string[]; rows: string[][] }[];
   /** Numbered notes, with the registered tags each names. */
   notes?: { n: number; text: string; tags: string[] }[];
-  /** Where the sheet's alarm and trip table disagrees with the alarms configured in the DCS and AF. */
-  checks?: { tag: string; point: string; point_id: string; type: string; detail: string }[];
+  /** Where other systems disagree with the sheet: alarms configured in the DCS and AF that differ from its alarm
+   * and trip table, and instruments the register puts under another item (type "placement"). */
+  checks?: { tag: string; point: string | null; point_id: string; type: string; detail: string }[];
 }
 
 export interface GraphNode {

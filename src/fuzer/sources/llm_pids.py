@@ -43,7 +43,7 @@ from ..core.llm import call, run_batch, usage
 from ..core.model import Edge, Limit, Measurement
 from ..core.pack import Pack
 
-PROMPT_VERSION = "2026-11-11.1"
+PROMPT_VERSION = "2026-11-11.2"
 TILE_TARGET = 1400  # source pixels per tile side before overlap
 MAX_EDGE = 1568  # long edge sent per tile
 OVERLAP = 0.10
@@ -58,7 +58,9 @@ facility. The drawing comes as overlapping tiles in reading order.
 
 Report every tag you can read:
 - instrument bubbles: function letters on the top line, loop number with any suffix letter on the
-  bottom line. Write them FUNCTION-LOOP, e.g. PT-1001A. kind "instrument".
+  bottom line. Write them FUNCTION-LOOP, e.g. PT-1001A. kind "instrument". In `on`, give the tag of the
+  equipment its process connection (the line from the bubble down to the process) runs to, as written, or ""
+  when it sits on a line or you can't tell. Give "" in `on` for everything that isn't an instrument.
 - equipment tags written by vessels, pumps, compressors and exchangers, e.g. 44-P-1001A. kind "equipment".
 - line numbers on process lines, e.g. 6"-P-44123-A1. kind "line".
 - anything else that looks like an identifier: kind "other".
@@ -67,7 +69,8 @@ Also report the topology:
 - connections: each process line between two pieces of equipment, as from / to (the tags at each end,
   following the flow arrow), the line number written on it, and the valves it runs through in flow order
   in `via` (a valve's tag if it has one, such as LV-2001, else its type: gate, globe, ball, check,
-  butterfly). A line that only crosses another (drawn with or without a jump) is not connected to it.
+  butterfly, strainer, orifice, reducer, spectacle_blind; drains, vents and sample points branch off a line and
+  aren't in `via`). A line that only crosses another (drawn with or without a jump) is not connected to it.
 - offpage: each off-page connector (an arrow-shaped box at the sheet edge reading TO or FROM another
   drawing number): direction "to" or "from", the drawing number, the tag on this sheet the line comes
   from or goes to, the tag written in the connector (the item on the other sheet), and the line number.
@@ -132,9 +135,10 @@ SCHEMA = {
         "tags": {"type": "array", "items": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["text", "kind", "confidence", "tile", "x", "y"],
+            "required": ["text", "kind", "confidence", "tile", "x", "y", "on"],
             "properties": {
                 "text": {"type": "string"},
+                "on": {"type": "string"},
                 "kind": {"type": "string", "enum": ["instrument", "equipment", "line", "other"]},
                 "confidence": {"type": "number"},
                 "tile": {"type": "integer"},
@@ -429,7 +433,9 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
             findings.append({"text": t["text"], "kind": t["kind"], "key": key, "issue": "not in register", **at(t)})
         elif key not in seen:
             seen.add(key)
-            mentions.append({"text": t["text"], "kind": "tag", "key": key, "confidence": t["confidence"], **at(t)})
+            on = pack.tags.parse(t.get("on") or "", default_area=area) if t["kind"] == "instrument" else None
+            mentions.append({"text": t["text"], "kind": "tag", "key": key, "confidence": t["confidence"], **at(t),
+                             **({"on": on} if on in known_tags and on != key else {})})
     def key(text):
         return pack.tags.parse(text or "", default_area=area)
 
@@ -756,6 +762,28 @@ def score(conn, truth: dict) -> dict:
                    "precision": round(ptp / (ptp + pfp), 3) if ptp + pfp else None},
         "problems": per_sheet[:20],
     }
+
+
+# The benchmark as an eval (#475): a run fails when an element's recall or precision falls under its floor, or
+# more than DROP below the last recorded run of the same reader. Floors hold for any reader worth keeping; the
+# drop check is what judges a prompt or pipeline change against the run before it.
+FLOORS = {"tags": 0.8, "connections": 0.6, "offpage": 0.5, "loops": 0.5, "line_numbers": 0.6, "setpoints": 0.7,
+          "equipment_data": 0.7, "notes": 0.7, "streams": 0.6}
+DROP = 0.05
+
+
+def gate(scores: dict, previous: dict | None = None) -> list[str]:
+    """What fails in a pid-score result: elements under their floor, and elements that fell more than DROP since
+    `previous` (an earlier result of the same reader)."""
+    bad = []
+    for e, v in (scores.get("elements") or {}).items():
+        for m in ("recall", "precision"):
+            if v.get(m) is not None and e in FLOORS and v[m] < FLOORS[e]:
+                bad.append(f"{e} {m} {v[m]} under {FLOORS[e]}")
+            was = ((previous or {}).get("elements") or {}).get(e, {}).get(m)
+            if v.get(m) is not None and was is not None and v[m] < was - DROP:
+                bad.append(f"{e} {m} fell from {was} to {v[m]}")
+    return bad
 
 
 def _norm_note(text: str) -> str:

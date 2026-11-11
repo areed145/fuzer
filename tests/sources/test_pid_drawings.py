@@ -64,9 +64,11 @@ def test_loops_run_transmitter_controller_valve(truth):
 
 def test_symbols_and_line_numbers(truth):
     types = {v["type"] for k in truth.values() for v in k["valves"]}
-    assert {"gate", "globe", "ball", "check", "butterfly", "control", "esd"} <= types
+    assert {"gate", "globe", "ball", "check", "butterfly", "control", "esd", "strainer", "orifice", "sample_point",
+            "drain", "vent"} <= types
     conns = [c for k in truth.values() for c in k["connections"]]
     assert all("via" in c for c in conns) and any(len(c["via"]) > 1 for c in conns)
+    assert not any(set(c["via"]) & {"sample_point", "drain", "vent"} for c in conns)  # branches, not in line
     assert any(c["to"] is None and c.get("service") == "closed drain" for c in conns)
     lines = [c["line"] for c in conns]
     assert all(ln.count("-") >= 3 and '"' in ln for ln in lines)  # size"-service-number-spec[-insulation]

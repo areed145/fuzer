@@ -46,7 +46,7 @@ class FakeVision:
         if truth.get("kind") == "pfd":  # a PFD: typical tags as drawn, streams by number
             drawn = list(dict.fromkeys(x.get("as_drawn", x["key"]) for x in truth["tags"]))
             data = {"title_block": {"drawing_number": sheet, "title": "", "revision": "", "date": truth["date"]},
-                    "tags": [{"text": t, "kind": "equipment", "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
+                    "tags": [{"text": t, "kind": "equipment", "confidence": 0.9, "tile": 1, "x": 10, "y": 10, "on": ""}
                              for t in drawn],
                     "connections": [{"from": st["from"], "to": st["to"], "line": "", "via": [], "stream": str(st["n"])}
                                     for st in truth["streams"]],
@@ -55,8 +55,10 @@ class FakeVision:
             return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                    usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
-            tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
-                    for x in truth["tags"]]
+            tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10,
+                     "on": x.get("on") or ""} for x in truth["tags"]]
+            tags += [{"text": ln, "kind": "line", "confidence": 0.9, "tile": 1, "x": 10, "y": 10, "on": ""}
+                     for ln in dict.fromkeys(c["line"] for c in truth["connections"] if c.get("line"))]
             data = {"title_block": {"drawing_number": sheet, "title": "", "revision": "", "date": truth.get("date", "")}, "tags": tags,
                     **self.topology(sheet, truth)}
             return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
@@ -64,20 +66,20 @@ class FakeVision:
         tags = []
         # Positions as Claude gives them: a tile number and pixels within that tile (tiles here aren't shrunk).
         where = {x["key"]: x for x in truth["tags"]}
-        for key in where:
+        for key, drawn in where.items():
             if key == "20-TT-2200B":
                 continue  # missed
             text = key if key.split("-")[1] in ("P", "V", "K", "E") else key.split("-", 1)[1]  # bubbles have no area
             if key == "20-VT-2200B":
                 text = "VT-1OO1B"  # O for 0: not a tag
-            x, y = where[key]["x"], where[key]["y"]
+            x, y = drawn["x"], drawn["y"]
             boxes = llm_pids.tile_boxes(width, height)
             tile = next(i for i, b in enumerate(boxes, 1) if b[0] <= x < b[2] and b[1] <= y < b[3])
             box = boxes[tile - 1]
             tags.append({"text": text, "kind": "equipment" if text == key else "instrument", "confidence": 0.9,
-                         "tile": tile, "x": x - box[0], "y": y - box[1]})
-        tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300},
-                 {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300}]
+                         "tile": tile, "x": x - box[0], "y": y - box[1], "on": drawn.get("on") or ""})
+        tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300, "on": ""},
+                 {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300, "on": ""}]
         data = {"title_block": {"drawing_number": SHEET, "title": "AREA 20 - TRAIN B", "revision": "D",
                                 "date": truth["date"]},
                 "tags": tags, **self.topology(sheet, truth)}
@@ -256,6 +258,10 @@ def test_benchmark_scores_each_element_and_level(setup, read):
     assert s["elements"]["loops"]["recall"] == 1.0 and s["elements"]["connections"]["recall"] == 1.0
     assert s["elements"]["offpage"]["recall"] < 1.0  # train C's end was missed
     assert {"scan", "old", "poor"} <= set(s["by_level"])
+    # as an eval: the pipeline behind a good reader keeps every element over its floor, and a drop is caught
+    assert llm_pids.gate(s) == [], s["elements"]
+    worse = {"elements": {**s["elements"], "loops": {**s["elements"]["loops"], "recall": 0.9}}}
+    assert llm_pids.gate(worse, s) == ["loops recall fell from 1.0 to 0.9"]
 
 
 def test_tables_and_notes_are_read_and_checked(setup, read, okan_db):
@@ -309,3 +315,17 @@ def test_pfds_are_read_with_their_trains_and_streams(setup, read):
     assert f"{flow['value']:g} {flow['unit']}" == st4["flow"]
     s = llm_pids.score(conn, truth)
     assert s["elements"]["streams"]["recall"] == 1.0
+
+
+def test_an_instrument_the_register_puts_elsewhere_is_flagged(setup, read):
+    """Train B's 2nd stage suction pressure transmitter was moved to the compressor in the field (clouded on the
+    drawing); SAP still has it under the scrubber. The drawing view says so, and nothing else on the sheet (#475)."""
+    conn, truth = setup
+    drawn = {t["key"]: t for t in truth[SHEET]["tags"]}
+    assert drawn["20-PT-2201B"]["on"] == "20-K-2200B"
+    from fuzer.api import app
+    fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()
+    checks = TestClient(app).get(f"/documents/{fid['fuzer_id']}/drawing").json()["checks"]
+    placed = [c for c in checks if c["type"] == "placement"]
+    assert [c["tag"] for c in placed] == ["20-PT-2201B"]
+    assert "20-K-2200B" in placed[0]["detail"] and "20-V-2201B" in placed[0]["detail"]
