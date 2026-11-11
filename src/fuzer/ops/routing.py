@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from ..core import settings, work
 from ..core.exceptions import TYPES
 
+
 def _hours_map(text) -> dict[str, float]:
     out = {}
     for part in str(text or "").split(","):
