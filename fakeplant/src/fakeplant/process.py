@@ -271,6 +271,11 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     # Oil export pump A: wear rings open up through 2025, head falls at the same flow; new rings on 18 Sep.
     events.append({"unit": "10-P-1001A", "kind": "head_loss", "points": [
         ["2025-01-01T00:00", 0], ["2025-09-10T00:00", 0.08], ["2025-09-19T00:00", 0.085], ["2025-09-20T12:00", 0]]})
+    # Oil export pump B: its minimum-flow recirculation valve starts passing in late October 2025, so the pump
+    # pushes the export flow plus what spills back to suction. It runs out along its curve and its motor draws
+    # above the nameplate's service factor until the valve is repaired on 9 December (#515).
+    events.append({"unit": "10-P-1001B", "kind": "recirculation", "points": [
+        ["2025-10-20T00:00", 0], ["2025-11-04T00:00", 0.45], ["2025-12-09T08:00", 0.47], ["2025-12-09T14:00", 0]]})
     # OK-J12-02's choke erodes (the operators trim it back to hold the rate) until replaced on 15 Oct;
     # OK-NWP-G3's choke plugs with scale over August until the bean change on 12 Sep.
     events.append({"unit": "OK-J12-02", "kind": "choke_wear", "points": [

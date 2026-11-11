@@ -300,6 +300,12 @@ restricted by about 35% in August until the bean change.
   ISO, and the ambient correction) at the same load and ambient temperature. The check flags `heat_rate_high` at
   4 % or more above expected and gives the weekly trend. On Okan, 20-GT-2000B's air compressor fouls from June
   2025 to about 7 % above expected, until the offline water wash on 12 November.
+- **`motor_load(machine)`** (`rotating.py`, #515): measured motor power, hourly while running, against the motor's
+  nameplate rated kW and service factor from the driven unit's SAP equipment record. It gives the last week's
+  median load as a % of rating and the running hours above the rating and above the service factor, and flags
+  `motor_overload` when 10 % or more of the last week's running hours are above the service factor. On Okan, oil
+  export pump 10-P-1001B's minimum-flow recirculation valve passes from late October 2025: the pump runs out along
+  its curve and its 260 kW motor draws about 125 % of rating until the valve is repaired on 9 December.
 
 They are in `calc`, with `plot_compressor_performance`, `plot_cooler_fouling` and `plot_peers`. Pump
 degradation is the existing `calc("pump_curve")`.

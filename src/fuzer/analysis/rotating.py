@@ -13,6 +13,10 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   `recycling` (the valve open more than 30 % of the time). A machine without its map says so.
 - `heat_rate(ref)`: a gas turbine driver's heat rate (fuel energy per kWh out) against its OEM curves at the same
   load and ambient temperature, and its weekly trend. Flags `heat_rate_high` at 4 % or more above expected.
+- `motor_load(ref)`: an electric motor driver's measured power against its nameplate rating and service factor (the
+  motor's rated kW and service factor on the driven item's SAP equipment record), with the running hours above the
+  rating and above the service factor. Flags `motor_overload` (the last week runs above the service factor:
+  insulation life is being spent) and `motor_high` (above the rating, inside the service factor).
 - `health(ref)`: one machine's health summary: every check that applies (curve, operating region, vibration,
   efficiency, failure history and its trend, peers), each finding with its basis, the dates of its data and a
   confidence, then a status (`act`, `watch`, `ok`) and recommendations. A check that cannot run says why (no OEM
@@ -355,6 +359,79 @@ def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_d
                   daily=[{"day": d, "excess_pct": round(x, 1)} for d, x in days_][-60:])
 
 
+MOTOR_OVERLOAD_SHARE = 10.0  # % of the last week's running hours above the service factor: act
+MOTOR_HIGH_SHARE = 25.0  # % of the last week's running hours above the rating: watch
+
+
+def motor_rating(conn, tag: str) -> dict:
+    """The nameplate of the motor driving the unit installed at `tag`: rated kW and service factor from that unit's
+    SAP equipment record, with the record's id as the source. The rating follows the physical unit, so a swapped
+    pump brings its own motor's rating."""
+    rows = conn.execute(
+        """
+        select e.src as unit, g.field, g.value #>> '{}' as v from edge e
+        join golden g on g.fuzer_id = e.src and g.field in ('motor_rated_kw', 'motor_service_factor')
+        where e.rel = 'installed_at' and e.dst = %s and e.valid_to is null
+        """, (tag,)).fetchall()
+    out: dict = {}
+    for r in rows:
+        try:
+            out[r["field"]] = float(r["v"])
+        except (TypeError, ValueError):
+            continue
+        out["unit"] = r["unit"]
+    if not out.get("motor_rated_kw"):
+        raise CalcError("no motor rating (rated kW) on the equipment installed there")
+    return {"rated_kw": out["motor_rated_kw"], "service_factor": out.get("motor_service_factor"), "unit": out["unit"]}
+
+
+def motor_load(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
+    """An electric motor's measured power against its nameplate: the last week's median running load as a share of
+    the rating, and the running hours above the rating and above the service factor over the window. Running above
+    the service factor spends insulation life; a pump that suddenly draws more for the same duty is running out
+    along its curve (a passing recirculation valve, a lost downstream restriction) or pumping a heavier fluid."""
+    from .equipment import _tag_point
+
+    tag = _tag(conn, fid)
+    rating = motor_rating(conn, tag)
+    rated, sf = rating["rated_kw"], rating["service_factor"]
+    p = _tag_point(conn, _label(conn, tag), "Motor Power")
+    if not p:
+        raise CalcError("no motor power (kW) point on that machine")
+    start, end = window_of(conn, days, until)
+    v = read({"power": p}, start, end, 60, src)["power"]
+    running = sorted((t, x) for t, x in v.items() if x > 0.1 * rated)
+    if len(running) < 24:
+        raise CalcError("the motor hardly ran in that window")
+    cut = (datetime.fromisoformat(running[-1][0]) - timedelta(days=recent_days)).isoformat()
+    recent = [x for t, x in running if t >= cut] or [x for _, x in running]
+    limit = rated * (sf or 1.0)
+    over_sf = [t for t, x in running if sf and x > limit]
+    over_rated = [t for t, x in running if x > rated]
+    share_sf = 100 * sum(1 for x in recent if sf and x > limit) / len(recent)
+    share_rated = 100 * sum(1 for x in recent if x > rated) / len(recent)
+    median = float(np.median(recent))
+    flag = ("motor_overload" if share_sf >= MOTOR_OVERLOAD_SHARE else
+            "motor_high" if share_rated >= MOTOR_HIGH_SHARE else None)
+    daily: dict[str, list] = {}
+    for t, x in running:
+        daily.setdefault(t[:10], []).append(x)
+    return result(round(median, 0), rated, flag,
+                  f"measured motor power, hourly while running (above 10 % of rating), against the {rated:g} kW "
+                  f"nameplate rating" + (f" and its {sf:g} service factor ({limit:g} kW)" if sf else
+                                         " (no service factor on record: the rating is the limit)")
+                  + f" from the SAP equipment record; the last {recent_days} days' median. Overload when "
+                  f"{MOTOR_OVERLOAD_SHARE:g} % or more of those running hours are above the service factor; high "
+                  f"when {MOTOR_HIGH_SHARE:g} % or more are above the rating",
+                  [tag, rating["unit"], p["id"]], unit="kW", load_pct=round(median / rated * 100, 1),
+                  rated_kw=rated, service_factor=sf, hours_above_rating=len(over_rated),
+                  hours_above_service_factor=len(over_sf), recent_above_sf_pct=round(share_sf, 1),
+                  first_above_service_factor=over_sf[0][:16] if over_sf else None,
+                  data_from=running[0][0][:10], data_to=running[-1][0][:10], readings=len(running),
+                  daily=[{"day": d, "load_pct": round(float(np.median(x)) / rated * 100, 1)}
+                         for d, x in sorted(daily.items())][-60:])
+
+
 def spectrum(conn, fid: str) -> dict:
     """Bearing defect frequencies and 1x / 2x running speed need a condition-monitoring source (spectra, waveforms,
     bearing geometry). None is connected; this is where one plugs in."""
@@ -363,7 +440,7 @@ def spectrum(conn, fid: str) -> dict:
 
 # ---- the health summary ------------------------------------------------------------------------------------------
 
-SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow", "near_surge"}
+SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow", "near_surge", "motor_overload"}
 ACTIONS = {
     "zone_d": "Vibration is in zone D: plan to stop and inspect now (bearings, alignment, looseness).",
     "zone_c": "Vibration is in zone C: not for long-term running; plan the repair at the next window and trend it daily.",
@@ -380,6 +457,12 @@ ACTIONS = {
     "heat_rate_high": "It burns more fuel than its curves expect at this load and ambient: usually the air "
                       "compressor fouling; plan an offline water wash and check the inlet filters. If a wash doesn't "
                       "recover it, suspect hot section wear and plan a borescope.",
+    "motor_overload": "Its motor runs above the nameplate's service factor: insulation life is being spent. Find "
+                      "why the duty rose: for a pump, compare its flow with the export or header meter (a passing "
+                      "minimum-flow recirculation valve shows as pump flow the meter doesn't see), then fix it or "
+                      "share the load with the standby.",
+    "motor_high": "Its motor runs above its rating, inside the service factor: no margin for a hot day or a "
+                  "heavier fluid. Check the duty against the datasheet.",
     "efficiency_drop": "Polytropic efficiency has dropped: fouling, wear, or recycle through a hot cooler; "
                        "check the anti-surge valve and the cooler before it.",
     "wear_out": "Failures follow a wear-out pattern: a time-based PM interval below eta would help.",
@@ -394,7 +477,7 @@ def _confidence(check: str, r: dict) -> str:
     n = r.get("readings") or r.get("failures") or r.get("n") or 0
     if check == "reliability":
         return "medium" if (r.get("failures") or 0) >= 6 else "low"
-    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge", "heat_rate"):
+    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge", "heat_rate", "motor_load"):
         return "high" if n >= 100 or check in ("pump_curve", "compressor_performance", "heat_rate") else "medium"
     return "medium"
 
@@ -409,7 +492,8 @@ def health(conn, fid: str, until: str | None = None) -> dict:
     checks = []
     if "pump" in what:
         checks += [("pump_curve", lambda: pump_curve(conn, tag, until=until)),
-                   ("pump_bep", lambda: pump_bep(conn, tag, until=until))]
+                   ("pump_bep", lambda: pump_bep(conn, tag, until=until)),
+                   ("motor_load", lambda: motor_load(conn, tag, until=until))]
     if "compressor" in what:
         checks += [("compressor_performance", lambda: equipment.compressor_performance(conn, tag, until=until)),
                    ("surge", lambda: surge(conn, tag, until=until))]
@@ -432,6 +516,7 @@ def health(conn, fid: str, until: str | None = None) -> dict:
                          "confidence": _confidence("reliability" if name == "failure_trend" else name, r),
                          **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_mm_s_per_week", "in_preferred_pct",
                                               "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5", "excess_pct",
+                                              "load_pct", "hours_above_service_factor",
                                               "asv_open_pct", "head", "siblings")
                             if r.get(k) is not None}})
     flags = [f["flag"] for f in findings if f["flag"]]
@@ -482,6 +567,6 @@ def screen(conn, until: str | None = None, limit: int = 20) -> dict:
     return {"at": until, "machines_checked": len(machines), "by_status": counts,
             "machines": machines[:limit], "unchecked": unchecked,
             "class_wide_failures": sorted(class_wide),
-            "basis": "rotating equipment health (curve, operating region, surge margin, heat rate, vibration zone and trend, efficiency, "
+            "basis": "rotating equipment health (curve, operating region, motor load, surge margin, heat rate, vibration zone and trend, efficiency, "
                      "Weibull and Crow-AMSAA on the failure history, peers) for every ISO 14224 rotating class; "
                      "act = a severe flag (" + ", ".join(sorted(SEVERE)) + ")"}

@@ -1,4 +1,5 @@
-# SAP equipment: physical items, matched on serial number and the tag they are installed at.
+# SAP equipment: physical items, matched on serial number and the tag they are installed at. A motor-driven
+# item carries its motor's nameplate: rated power (kW) and service factor (#515).
 source: sap
 record_type: equipment
 shape: records
@@ -8,7 +9,7 @@ entity:
   kind: equipment
   key: {from: serial, as: serial}
   block: {from: floc, as: tag}
-  fields: [description, manufacturer, model, serial]
+  fields: [description, manufacturer, model, serial, motor_rated_kw, motor_service_factor]
 links:
   - rel: installed_at
     to: {kind: tag, from: floc, as: tag}
