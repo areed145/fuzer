@@ -2049,8 +2049,8 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
     role: "operator", queued: true, sent: null, seen: [], history: [] };
   const reports = [];
   const soon = { id: 12, kind: "maintenance", title: "Replace P-101 seal", source: "sap", source_key: "4000001",
-    subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: "2026-11-12T08:00:00Z",
-    end_at: "2026-11-12T16:00:00Z", status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
+    subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+    end_at: new Date(Date.now() + 3 * 86_400_000 + 8 * 3_600_000).toISOString(), status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
     deferment_usd: null, exception_id: null, notes: "bring the seal kit", clashes: [],
     assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump" }] };
   const today = { ...soon, id: 13, title: "Operator rounds", crew: "role:operator", notes: null,
