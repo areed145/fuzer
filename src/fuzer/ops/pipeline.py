@@ -166,6 +166,8 @@ def rebuild(conn, pack: Pack) -> dict:
                                 extra=llm_pids.design_measurements(conn, pid_sheets, pack))
     stats |= curves.build(conn, pack, maps, endpoint)
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
+    # where a drawing and the DCS, AF or SAP disagree: questions for a person, never a change to either (#475)
+    replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack)))
     lap("measurements")
 
     stats["located"] = spatial.index(conn)
@@ -324,6 +326,11 @@ def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:
                           max_days=days)
     handed = sre_handoff.handoff(conn, pack, max_diagnoses=0)
     out["handoff"] = {k: v for k, v in handed.items() if k != "items"}
+    from ..analysis import rotating, trips  # compressor trips join their upsets' cases; flagged machines reach the IOC
+    tripped = trips.scan(conn, pack, out["sre"]["since"], out["sre"]["until"])
+    out["trips"] = {"trips": tripped["trips"], "raised": len(tripped["raised"])}
+    watched = rotating.watch(conn)
+    out["machine_health"] = {"raised": len(watched["raised"]), "checked": watched["checked"]}
     board.refresh(conn, pack)
     conn.commit()
     return out

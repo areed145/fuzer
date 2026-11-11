@@ -642,6 +642,58 @@ CHECKS |= {
 }
 
 
+def _recip(name):
+    def fn(conn, fid, **kw):
+        from . import recip
+
+        return getattr(recip, name)(conn, fid, **kw)
+    return fn
+
+
+CHECKS |= {
+    "rod_load": {"fn": lambda conn, fid, days=30, until=None: _recip("rod_load")(conn, fid, days=days, until=until),
+                 "ref": "reciprocating compressor tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "valve_health": {"fn": lambda conn, fid, days=30, until=None: _recip("valve_health")(conn, fid, days=days, until=until),
+                     "ref": "reciprocating compressor tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "compressor_trip": {"fn": lambda conn, fid, until=None: __import__("fuzer.analysis.trips", fromlist=["diagnose"]).diagnose(
+        conn, fid, at=until), "ref": "compressor (any machine of the train)", "used_by": {"agent": "calc", "detector": "trips.scan"}},
+}
+
+
+def _cond(module, name):
+    def run(conn, fid, **kw):
+        import importlib
+
+        return getattr(importlib.import_module(f"fuzer.analysis.{module}"), name)(conn, fid, **kw)
+    return run
+
+
+CHECKS |= {
+    "protection": {"fn": _cond("protection", "protection"), "ref": "compressor or other machine with API 670 channels",
+                   "used_by": {"agent": "calc", "detector": None}},
+    "seal_gas": {"fn": _cond("protection", "seal_gas"), "ref": "compressor with dry gas seals",
+                 "used_by": {"agent": "calc", "detector": None}},
+    "lube_oil": {"fn": _cond("protection", "lube_oil"), "ref": "gas turbine, engine or compressor with a lube oil system",
+                 "used_by": {"agent": "calc", "detector": None}},
+    "surge_events": {"fn": _cond("rotating", "surge_events"), "ref": "centrifugal compressor stage",
+                     "used_by": {"agent": "calc", "detector": None}},
+    "gas_performance": {"fn": _cond("compression", "gas_performance"), "ref": "centrifugal compressor stage",
+                        "used_by": {"agent": "calc"}},
+    "power_balance": {"fn": _cond("compression", "power_balance"), "ref": "gas turbine or a machine on its train",
+                      "used_by": {"agent": "calc", "detector": None}},
+    "exhaust_spread": {"fn": _cond("drivers", "exhaust_spread"), "ref": "gas turbine",
+                       "used_by": {"agent": "calc", "detector": None}},
+    "hot_section": {"fn": _cond("drivers", "hot_section"), "ref": "gas turbine",
+                    "used_by": {"agent": "calc", "detector": None}},
+    "engine_cylinders": {"fn": _cond("drivers", "engine_cylinders"), "ref": "gas engine driven machine",
+                         "used_by": {"agent": "calc", "detector": None}},
+    "remaining_life": {"fn": _cond("prognosis", "remaining_life"), "ref": "rotating machine",
+                       "used_by": {"agent": "calc"}},
+    "failed_starts": {"fn": _cond("trips", "failed_starts"), "ref": "compressor or its train",
+                      "used_by": {"agent": "calc"}},
+}
+
+
 def _module(module, name):
     """A check that lives in one of the specialist modules (#515), imported when it runs."""
     def fn(conn, fid, **kw):

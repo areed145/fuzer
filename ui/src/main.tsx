@@ -40,6 +40,7 @@ import { Status } from "./lib";
 import "./theme";
 import { AuthGate } from "./Auth";
 import { UsersPage } from "./pages/Users";
+import { RoutingPage } from "./pages/Routing";
 
 // Graph views pull in Cytoscape; load them only when opened.
 const Ontology = lazy(() => import("./pages/Ontology").then((m) => ({ default: m.Ontology })));
@@ -194,6 +195,8 @@ function App() {
             <SettingsPage query={query} />
           ) : section === "users" || section === "access" ? (
             <UsersPage query={query} />
+          ) : section === "routing" ? (
+            <RoutingPage query={query} />
           ) : section === "board" || section === "cases" || section === "field" ? (
             null  /* redirecting to All work */
           ) : section === "review" ? (

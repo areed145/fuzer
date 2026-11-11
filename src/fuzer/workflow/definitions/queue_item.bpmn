@@ -4,7 +4,7 @@
     <bpmn:documentation>The standard process for work whose type names a queue and no process of its own (#509): one step in that role's queue, with the role's SLA and escalation. The type's role and case type come in the start data.</bpmn:documentation>
     <bpmn:participant id="Participant_queue_item" name="Queue item" processRef="queue_item" />
   </bpmn:collaboration>
-  <bpmn:process id="queue_item" name="Queue item" isExecutable="true" fuzer:workItemType="=case_type" fuzer:correlationKey="exception_id" fuzer:ownerRole="ops_lead">
+  <bpmn:process id="queue_item" name="Queue item" isExecutable="true" fuzer:workItemType="=case_type" fuzer:correlationKey="exception_id" fuzer:ownerRole="ops_lead" fuzer:closeWithCase="true">
     <bpmn:laneSet id="LaneSet_queue_item">
       <bpmn:lane id="Lane_queue" name="The type's queue" fuzer:role="=role">
         <bpmn:flowNodeRef>arrived</bpmn:flowNodeRef>

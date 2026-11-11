@@ -329,3 +329,38 @@ def test_an_instrument_the_register_puts_elsewhere_is_flagged(setup, read):
     placed = [c for c in checks if c["type"] == "placement"]
     assert [c["tag"] for c in placed] == ["20-PT-2201B"]
     assert "20-K-2200B" in placed[0]["detail"] and "20-V-2201B" in placed[0]["detail"]
+
+
+def test_drawing_disagreements_are_review_items(setup, read):
+    """Each place a drawing and the DCS, AF or SAP disagree is a question in Data review (#475): the relocated PT
+    SAP still files under the scrubber, and alarm and trip settings that differ from (or are missing in) the
+    configured alarms. A reviewer says which side needs changing; the decision changes neither side and is kept."""
+    conn, _ = setup
+    items = {r["subject"]: r["payload"] for r in conn.execute(
+        "select subject, payload from review_item where kind = 'pid_mismatch' and status = 'open'")}
+    placed = [p for p in items.values() if p["check"] == "placement"]
+    assert [(p["sheet"], p["tag"], p["drawn_on"]) for p in placed] == [(SHEET, "20-PT-2201B", "20-K-2200B")]
+    assert placed[0]["document"] and placed[0]["fuzer_id"] and "SAP" in placed[0]["question"].upper()
+    alarms = [p for p in items.values() if p["check"] in ("alarm", "alarm_unset")]
+    from fuzer.analysis import limits
+    drawn = {i["point_id"] for i in limits.issues(conn, None) if i["fault"] == "drawing"}
+    assert alarms and {p["fuzer_id"] for p in alarms} == drawn
+    assert all(p["sheet"] and p["tag"] and p["detail"] in p["question"] for p in alarms)
+
+    from fuzer.api import app
+    client = TestClient(app)
+    rows = client.get("/review", params={"kind": "pid_mismatch"}).json()
+    assert len(rows) == len(items) and all(r["label"] for r in rows)  # the point or instrument it's about
+    item = next(r for r in rows if r["payload"]["check"] == "placement")
+    conn.commit()
+    assert client.post(f"/review/{item['id']}", json={"decision": "accept", "by": "tester"}).status_code == 400
+    assert client.post(f"/review/{item['id']}", json={"decision": "choose", "value": "x", "by": "tester"}).status_code == 400
+    r = client.post(f"/review/{item['id']}", json={"decision": "choose", "value": "drawing", "by": "tester"})
+    assert r.status_code == 200 and "rebuild" not in r.json(), r.text
+    conn.rollback()
+    # a rebuild raises the same disagreement again: the decision stands, nothing reopens, SAP is untouched
+    pipeline.rebuild(conn, PACK)
+    row = conn.execute("select status, decision from review_item where id = %s", (item["id"],)).fetchone()
+    assert row["status"] == "decided" and row["decision"]["value"] == "drawing"
+    assert not conn.execute("select 1 from review_item where kind = 'pid_mismatch' and status = 'open' "
+                            "and payload->>'check' = 'placement'").fetchone()

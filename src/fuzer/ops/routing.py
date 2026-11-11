@@ -3,14 +3,17 @@
     routes(conn)                     the routing table: one row per type of work, wherever the type is declared
     route_for(conn, type)            one row of it
     route(conn, intake, by, ...)     open (or feed) the case that works an intake; returns its work item id or None
+    open_task(conn, case_type, ...)  open the case for work no exception raised (an opportunity, a posted task)
     due(conn, intake)                when the case is due, by the type's due policy
     explain(conn, type, refs, ...)   dry-run an intake: what it matches, whether it joins, where it goes, who holds it
 
 Phase 1 of #509 wraps what Fuzer already does, unchanged: a type is declared in code (`exception_type()`), as data
 (`exception_kind`) or by a source pack (data with its `source_system`), and its row here reads the same fields. A
 type either starts (or feeds) a published BPMN process, opens a case in a role's queue, or waits for the IOC to
-dispatch it; the one due policy is SAP notifications' priority-to-hours (`intake.sap_notifications.due_hours`, #494),
-applied when the IOC dispatches one. Later phases make every type start a process and the due policy generic.
+dispatch it. Since phase 2 a queue type runs as the standard `queue_item` process; phase 3 put the shift handover and
+the source close-out on their own processes; phase 4 made the due policy a field of every type (`due_hours`, a
+priority-to-hours map, or for SAP notifications the `intake.sap_notifications.due_hours` setting, #494), applied when
+the IOC dispatches one, and sends opportunities, assistant tasks and `POST /work/items` through the `task` process.
 
 This sits in `ops` because the layer contract keeps operations from importing the work engine: it reaches the engine
 only through the Work port (`fuzer.core.work`), and it is the one module in `ops` that opens a case for an
@@ -22,16 +25,10 @@ from datetime import datetime, timedelta
 from ..core import settings, work
 from ..core.exceptions import TYPES
 
-DUE_SETTING = "intake.sap_notifications.due_hours"
-DUE_TYPES = ("sap_notification",)  # the one due policy today (#494): SAP priority -> hours, from that setting
 
-
-def _due_hours(conn, type: str) -> dict[str, float] | None:
-    """A type's priority -> hours map, or None when the type has no due policy."""
-    if type not in DUE_TYPES:
-        return None
+def _hours_map(text) -> dict[str, float]:
     out = {}
-    for part in str(settings.get(conn, "intake.sap_notifications.due_hours") or "").split(","):
+    for part in str(text or "").split(","):
         if ":" in part:
             k, v = part.split(":", 1)
             try:
@@ -41,11 +38,29 @@ def _due_hours(conn, type: str) -> dict[str, float] | None:
     return out
 
 
-def _due_policy(conn, name: str) -> dict | None:
-    hours = _due_hours(conn, name)
+def _due_source(t) -> tuple[str | None, str | None]:
+    """Where a type's due policy is kept: (setting, None) for a code type that names a setting, (None, map) for a
+    map written on the type, (None, None) for no policy."""
+    if not t or not t.due_hours:
+        return None, None
+    return (None, t.due_hours) if ":" in t.due_hours else (t.due_hours, None)
+
+
+def _due_hours(conn, t) -> dict[str, float] | None:
+    """A type's priority -> hours map (#509: one policy for every type; SAP's is its type's row, read from the
+    `intake.sap_notifications.due_hours` setting), or None when the type has no due policy."""
+    setting, text = _due_source(t)
+    if setting:
+        text = settings.get(conn, setting)
+    return _hours_map(text) if (setting or text) else None
+
+
+def _due_policy(conn, t) -> dict | None:
+    setting, _ = _due_source(t)
+    hours = _due_hours(conn, t)
     if hours is None:
         return None
-    return {"by": "priority", "hours": hours, "setting": DUE_SETTING, "from": "raised", "applies": "when dispatched"}
+    return {"by": "priority", "hours": hours, "setting": setting, "from": "raised", "applies": "when dispatched"}
 
 
 def _starts(t) -> str:
@@ -70,7 +85,7 @@ def routes(conn) -> list[dict]:
             "joins": t.joins, "join_hours": join_hours if t.joins else None,
             "starts": _starts(t), "process": t.process or (QUEUE_PROCESS if t.role and standard else None), "role": t.role.removeprefix("role:") if t.role else None,
             "case_type": t.case_type or name, "audience": list(t.audience),
-            "close_case_on_clear": t.close_case_on_clear, "due": _due_policy(conn, name),
+            "close_case_on_clear": t.close_case_on_clear, "due": _due_policy(conn, t),
         })
     return out
 
@@ -84,10 +99,15 @@ def route_for(conn, type: str) -> dict:
 
 
 def due(conn, intake: dict) -> datetime | None:
-    """When an intake's case is due by its type's policy: SAP priority hours from when Fuzer raised it, on today's
-    clock (#494). None for a type with no policy, an unmapped priority or the setting turned off."""
-    hours = _due_hours(conn, intake.get("type"))
-    p = str((intake.get("evidence") or {}).get("priority") or "").strip()[:1]
+    """When an intake's case is due by its type's policy: the hours its priority maps to, from when Fuzer raised it,
+    on today's clock (#494, #509). None for a type with no policy, an unmapped priority or the policy turned off."""
+    from . import exceptions
+
+    hours = _due_hours(conn, exceptions.types(conn).get(intake.get("type")))
+    if not hours:
+        return None
+    p = str((intake.get("evidence") or {}).get("priority") or "").strip()
+    p = p if p in hours else p[:1]  # SAP's "1 - very high" reads as 1
     if not (hours and p and intake.get("first_seen")):
         return None
     return intake["first_seen"] + timedelta(hours=hours[p]) if p in hours else None
@@ -117,6 +137,28 @@ def open_process_case(conn, process_key: str, data: dict, by: str, title: str, p
         return work.start_or_correlate(conn, process_key, data, by=by, title=title, subjects=subjects,
                                        priority=priority)["item_id"]
     return work.open_case(conn, process_key, title, by, subjects=subjects, priority=priority, **plain)["id"]
+
+
+TASK_PROCESS = "task"
+
+
+def open_task(conn, case_type: str, title: str, by: str, key: str, role: str | None = None,
+              assignee: str | None = None, data: dict | None = None, subjects: list[str] | None = None,
+              priority: float | None = None, due: datetime | None = None, source: str | None = None) -> dict:
+    """Work asked of a queue that no exception raised (#509): an opportunity the scan finds, a task someone posts.
+    In a person role's queue it runs as the standard `task` process, so it has the role's SLA, escalation and a place
+    on the monitor; `key` names it (one open task per key). For a named person, a queue no person role backs, or
+    before the starting processes are loaded, it opens a plain case as before. Returns the case's work item."""
+    lane = role.removeprefix("role:") if role else None
+    if lane and not assignee and published(conn, TASK_PROCESS) and lane in work.person_roles(conn):
+        start = {**(data or {}), "task_key": key, "role": lane, "case_type": case_type, "source": source or by}
+        item_id = work.start_or_correlate(conn, TASK_PROCESS, start, by=by, title=title, subjects=subjects,
+                                          priority=priority)["item_id"]
+        if due:
+            work.set_due(conn, item_id, by, due, reason="due as asked")
+        return conn.execute("select * from work_item where id = %s", (item_id,)).fetchone()
+    return work.open_case(conn, case_type, title, by, subjects=subjects, priority=priority, assignee=assignee,
+                          role=lane, due=due, source=source, payload=data or {})
 
 
 def queue_data(t, intake: dict, queue: str) -> dict:

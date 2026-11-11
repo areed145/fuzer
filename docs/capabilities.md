@@ -273,6 +273,20 @@ Called by agents as themselves through the workflow engine.
 | `heat_rate` | gas turbine tag or equipment |  |
 | `motor_load` | motor-driven machine tag or equipment |  |
 | `rotating_health` | machine tag or equipment |  |
+| `rod_load` | reciprocating compressor tag or equipment |  |
+| `valve_health` | reciprocating compressor tag or equipment |  |
+| `compressor_trip` | compressor (any machine of the train) | SRE detector `trips.scan` |
+| `protection` | compressor or other machine with API 670 channels |  |
+| `seal_gas` | compressor with dry gas seals |  |
+| `lube_oil` | gas turbine, engine or compressor with a lube oil system |  |
+| `surge_events` | centrifugal compressor stage |  |
+| `gas_performance` | centrifugal compressor stage |  |
+| `power_balance` | gas turbine or a machine on its train |  |
+| `exhaust_spread` | gas turbine |  |
+| `hot_section` | gas turbine |  |
+| `engine_cylinders` | gas engine driven machine |  |
+| `remaining_life` | rotating machine |  |
+| `failed_starts` | compressor or its train |  |
 | `test_check` | oil well |  |
 | `deferment_attribution` | jacket, area or facility (or one well) |  |
 | `vessel_loading` | separator, scrubber or meter tag with a rating |  |

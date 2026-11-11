@@ -17,6 +17,7 @@ def conn(okan_db):
     with db.connect() as c:
         c.execute("delete from work_draft")
         c.commit()
+        work.load_defaults(c)  # a confirmed draft runs as the standard task process (#509)
         yield c
 
 
@@ -41,7 +42,11 @@ def test_confirming_creates_one_item_in_the_queue_with_its_evidence(conn):
     item = conn.execute("select * from work_item where id = %s", (out["item_id"],)).fetchone()
     assert (item["role"], item["assignee"], item["created_by"], item["source"], item["subjects"]) == (
         "production_engineer", None, "ana", "assistant", ["fz-well"])
-    assert item["payload"] == {"summary": "Rate fell.", "evidence": ["fz-a"], "draft": row["id"]}
+    assert {k: item["payload"]["start"][k] for k in ("summary", "evidence", "draft", "task_key")} == {
+        "summary": "Rate fell.", "evidence": ["fz-a"], "draft": row["id"], "task_key": f"draft:{row['id']}"}
+    step = conn.execute("select p.process_key, t.role from work_token t join work_process p on p.id = t.process_id "
+                        "where t.item_id = %s and t.kind = 'user'", (item["id"],)).fetchone()
+    assert step == {"process_key": "task", "role": "production_engineer"}  # the queue's SLA (#509)
 
 
 def test_a_resend_returns_the_same_item(conn):

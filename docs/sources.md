@@ -49,7 +49,8 @@ measurement system also puts its work in the right Inbox queue, without code:
 
 ```yaml
 exception_types:
-  - {name: short_gas_day, label: Short gas day, role: role:operator, description: ...}
+  - {name: short_gas_day, label: Short gas day, role: role:operator, description: ...,
+     due_hours: "1:24,2:72"}             # optional: when a dispatched one is due, by its evidence's priority
 exception_rules:
   - name: short_day
     dataset: daily_volumes
@@ -351,6 +352,16 @@ dated by the title block). Alarm and trip settings land in `point_limit` as basi
 they never become the limit that counts, but the `drawing` check lists every point whose configured alarm
 differs from its drawing, or that the drawing rates and no source configures. Notes keep the registered
 tags they name. Rows naming a tag not in the register are findings.
+
+## Drawing disagreements in Data review
+Each rebuild turns every place a drawing and another system disagree into a `pid_mismatch` review item, so the
+IOC triages them with the rest of the register's questions (Data review > Drawing disagreements): an alarm and trip
+setting that differs from the configured alarm (`alarm`), a setting the drawing rates and no alarm source has
+(`alarm_unset`), and an instrument the drawing shows on another item than SAP does (`placement`). Each names the
+sheet, tag and both sides. The reviewer records which one needs changing: **the drawing is right** (the DCS, AF or
+SAP needs changing), **the system is right** (the drawing needs a redline), or **not a disagreement** (a misread).
+A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
+back with different values is a new question. Questions no longer raised go stale.
 
 ## Where an instrument sits
 Claude also says which item each instrument's process connection runs to. When the register has the instrument

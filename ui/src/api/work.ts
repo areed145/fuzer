@@ -58,7 +58,7 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -84,6 +84,13 @@ export interface PidConnectionPayload {
   line: string; from: string | null; to: string | null; question: string;
 }
 
+/** Where a drawing and the DCS, AF or SAP disagree (#475): an alarm and trip setting, or where an instrument sits. */
+export interface PidMismatchPayload {
+  check: "alarm" | "alarm_unset" | "placement"; sheet: string; document: string | null; tag: string;
+  fuzer_id: string; point: string | null; detail: string; question: string; type?: string;
+  drawn_on?: string; register?: { parent: string; sources: string[] }[];
+}
+
 export interface HeldLoadPayload {
   dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
 }
@@ -95,6 +102,7 @@ export type ReviewItem =
   | { id: number; kind: "curve"; subject: string; status: string; label: null; payload: CurvePayload }
   | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
   | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
+  | { id: number; kind: "pid_mismatch"; subject: string; status: string; label: string | null; payload: PidMismatchPayload }
   | {
       id: number;
       kind: "conflict";
@@ -233,6 +241,31 @@ export interface StepRouting {
   element: string; step: string; kind: "person" | "agent"; role: string | null; sla: string | null;
   sla_from: "step" | "role" | null; escalation: string[]; escalation_from: "step" | "role" | null;
   assignment: string | null; form: string | null; requires_human: boolean; fallback_role: string | null;
+}
+
+/** One row of the routing table (#509): a type of work, where it is declared, how it joins and what it starts. */
+export interface Route {
+  type: string; label: string; description: string; declared_in: "code" | "data" | "source pack";
+  source_system: string | null; joins: boolean; join_hours: number | null; starts: "process" | "queue" | "dispatch";
+  process: string | null; role: string | null; case_type: string; audience: string[]; close_case_on_clear: boolean;
+  due: { by: "priority"; hours: Record<string, number>; setting: string | null; from: string; applies: string } | null;
+}
+
+export interface RouteStep extends StepRouting { holders?: string[] }
+
+/** A dry run of an intake: what it would match, join or start, and who would hold it. Writes nothing. */
+export interface RouteExplanation {
+  type: string; route: Route; summary: string;
+  outcome: "updates" | "joins" | "dispatched" | "process" | "queue" | "dispatch";
+  matched: { id: string; label: string; kind: string }[]; unmatched: string[]; unmatched_note: string | null;
+  updates: RouteCase | null; joins: RouteCase | null; due: string | null;
+  process: { key: string; published: boolean; lane?: string; steps: RouteStep[] } | null;
+  queue: { role: string | null; assignee: string | null; holders: string[] } | null;
+}
+
+export interface RouteCase {
+  exception_id: number; type: string; title: string; source: string | null;
+  case: { id: number; title: string; state: string; assignee: string | null; role: string | null } | null;
 }
 
 export interface ProcessInstance {
@@ -506,6 +539,8 @@ export interface FieldJob extends ExceptionRow {
   queued: boolean;
   /** Each system's report of this event, when more than one reported it (#464). */
   sources: CaseSource[];
+  /** Checks to make before the work, such as a compressor trip's restart checklist. */
+  checklist?: string[];
 }
 
 export const workApi = {
@@ -608,6 +643,13 @@ export const workApi = {
   removeCover: (name: string, by: string) =>
     request("DELETE", `/work/people/${encodeURIComponent(name)}/cover`, { by }),
   workRouting: (definitionId: number) => request<StepRouting[]>("GET", `/work/definitions/${definitionId}/routing`),
+  routes: () => request<Route[]>("GET", "/routing"),
+  explainRoute: (type: string, o: { refs?: string[]; key?: string; priority?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    for (const r of o.refs ?? []) if (r.trim()) qs.append("refs", r.trim());
+    for (const k of ["key", "priority", "to"] as const) if (o[k]?.trim()) qs.set(k, o[k]!.trim());
+    return request<RouteExplanation>("GET", `/routing/${encodeURIComponent(type)}/explain${qs.size ? `?${qs}` : ""}`);
+  },
   workStats: (days = 30) => request<ProcessStats[]>("GET", "/work/stats", { days }),
   workInstances: (processKey: string, state = "running") =>
     request<ProcessInstance[]>("GET", "/work/instances", { process_key: processKey, state }),

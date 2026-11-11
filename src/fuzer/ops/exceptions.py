@@ -38,7 +38,7 @@ def types(conn) -> dict[str, ExceptionType]:
     data = {r["name"]: ExceptionType(r["name"], r["label"], role=r["role"], process=r["process"],
                                      case_type=r["case_type"], audience=tuple(r["audience"]),
                                      close_case_on_clear=r["close_case_on_clear"], description=r["description"] or "",
-                                     joins=r.get("joins", True))
+                                     joins=r.get("joins", True), due_hours=r.get("due_hours"))
             for r in conn.execute("select * from exception_kind")}
     return {**data, **TYPES}
 
@@ -453,7 +453,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
 
 FIELD_STATUSES = ("on_site", "done", "could_not_do", "note")
 SEEN_SKIP = {"excursions", "priority", "health", "pre_diagnosis", "field", "exception_id", "type", "key", "upset_id",
-             "incident_id", "first_unit", "first_detection"}
+             "incident_id", "first_unit", "first_detection", "basis", "verdict", "checklist"}
 # What a field operator reads: the source's keys as words (the rest are spelled out from their key).
 SEEN_LABELS = {"start": "started (data time)", "ongoing": "still going",
                "detections": "detections", "first_point": "first seen on", "notif_type": "notification type",
@@ -679,7 +679,12 @@ def field_jobs(conn, person: str) -> list[dict]:
         t = known.get(r["type"])
         sources = on_case(conn, r["item_id"])
         subjects = list(dict.fromkeys(x for src in sources for x in src["subjects"])) or r["subjects"]
+        # The checks before the work (a compressor trip's restart checklist), from every source on the case
+        checklist = list(dict.fromkeys(c for x in conn.execute(
+            "select evidence from exception_record where item_id = %s and state = 'open' order by joined_to nulls first, first_seen",
+            (r["item_id"],)) for c in (x["evidence"].get("checklist") or []) if isinstance(c, str)))
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, subjects),
+                    "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
                     "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
                     "sent": sent})
@@ -691,10 +696,13 @@ def field_jobs(conn, person: str) -> list[dict]:
 
 def define(conn, name: str, by: str, label: str, role: str | None = None, process: str | None = None,
            case_type: str | None = None, audience=("ioc",), close_case_on_clear: bool = True,
-           description: str | None = None, joins: bool = True, source_system: str | None = None) -> dict:
+           description: str | None = None, joins: bool = True, source_system: str | None = None,
+           due_hours: str | None = None) -> dict:
     """Define (or change) an exception type as data, so another system (SAP notifications, SCADA alarms, a
     reporting app) can raise it over the API. Types modules declare in code can't be redefined here.
-    `source_system` is the system whose source pack brought it (#465): that system's webhook may raise it."""
+    `source_system` is the system whose source pack brought it (#465): that system's webhook may raise it.
+    `due_hours` is its due policy, priority to hours (`1:24,2:72`): a dispatched case is due that long after it was
+    raised, by the priority its evidence gives (#509)."""
     from ..core.exceptions import AUDIENCES
 
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", name or ""):
@@ -705,6 +713,9 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
         raise ExceptionError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
     if not (label or "").strip():
         raise ExceptionError("a type needs a label")
+    due_hours = (due_hours or "").strip() or None
+    if due_hours and not re.fullmatch(r"\s*[^:,\s]+\s*:\s*\d+(\.\d+)?\s*(,\s*[^:,\s]+\s*:\s*\d+(\.\d+)?\s*)*", due_hours):
+        raise ExceptionError("due hours map a priority to hours, comma separated: 1:24,2:72")
     if role:  # a queue nobody can be in would hold its cases where no Inbox shows them
         queue = role.removeprefix("role:")
         known = work.person_roles(conn)
@@ -714,16 +725,16 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
     return conn.execute(
         """
         insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,
-                                    updated_by, joins, source_system)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    updated_by, joins, source_system, due_hours)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         on conflict (name) do update set label = excluded.label, role = excluded.role, process = excluded.process,
             case_type = excluded.case_type, audience = excluded.audience,
             close_case_on_clear = excluded.close_case_on_clear, description = excluded.description, joins = excluded.joins,
-            source_system = coalesce(excluded.source_system, exception_kind.source_system),
+            source_system = coalesce(excluded.source_system, exception_kind.source_system), due_hours = excluded.due_hours,
             updated_by = excluded.updated_by, updated_at = now()
         returning *
         """, (name, label.strip(), role or None, process or None, case_type or None, list(audience), close_case_on_clear,
-              description, by, joins, source_system or None)).fetchone()
+              description, by, joins, source_system or None, due_hours)).fetchone()
 
 
 def undefine(conn, name: str) -> bool:

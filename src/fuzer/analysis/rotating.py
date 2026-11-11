@@ -1,7 +1,7 @@
 """Rotating equipment analysis (#474): what an experienced machinery engineer checks first, as calcs ({value,
 expected, flag, basis, sources}) the maintenance and integrity specialist cites.
 
-- `vibration(ref)`: overall vibration (mm/s RMS) against the ISO 10816-3 / 20816-3 zones for the machine's group
+- `vibration(ref)`: overall vibration (mm/s RMS) against the ISO 20816-3 (formerly 10816-3) zones for the machine's group
   and foundation, its trend over the last 30 days and, when rising, the date it reaches zone D at that rate. Flags
   `zone_d` (damage likely: act now), `zone_c` (not for long-term running: plan the repair), `rising`.
 - `pump_bep(ref)`: where a pump runs against its best efficiency point: the share of running time inside the
@@ -25,6 +25,20 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   through `health` at one date, `act` first, then by how many checks flag it. It finds the faulty machine without
   being told which one to look at; a flag every unit of a class shares (`class_wide_failures`) is reported once
   for the class rather than as a reason to look at each machine.
+
+- `watch(at)`: the screen raised for the IOC: one `machine_health` exception per machine whose condition is flagged,
+  routed to the engineers' queue, updated while it holds and cleared (closing its case) when it doesn't. Failure-
+  history flags alone stay with the reliability review.
+
+- `surge_events(ref)`: outright surges on a centrifugal stage from their signature (the suction flow collapsing as the
+  anti-surge valve snaps open), with the thrust kick each gave. Flags `surge_events`.
+
+`health` also runs the API 670 protection channels and the dry gas seal (`protection`), the lube oil system, and for
+a gas turbine its exhaust spread, hot section hours and the train's power balance (`drivers`, `compression`); a
+machine the screen raises carries its remaining life against the next window (`prognosis`).
+
+Reciprocating compressors (ISO 14224 CO.RE) take `recip.rod_load` and `recip.valve_health` in place of the
+centrifugal checks, and their vibration is judged against the maker's alarm and trip.
 
 Spectra (bearing defect frequencies, 1x and 2x running speed) need a condition-monitoring source; `spectrum()` is the
 interface it plugs into and says so until one is connected.
@@ -73,6 +87,26 @@ def machine_group(conn, fid: str) -> str:
     return "group1" if any(w in _describe(conn, fid) for w in LARGE) else "group2"
 
 
+def is_recip(conn, tag: str) -> bool:
+    """A reciprocating compressor (ISO 14224 CO.RE) is installed at the tag."""
+    return bool(conn.execute(
+        """
+        select 1 from edge i join edge c on c.src = i.src and c.rel = 'classified_as'
+        join entity_label cl on cl.fuzer_id = c.dst
+        where i.dst = %s and i.rel = 'installed_at' and i.valid_to is null and cl.label ~ '^ISO14224:CO[.]RE' limit 1
+        """, (tag,)).fetchone())
+
+
+def recip_bounds(conn, point_ids: list[str]) -> tuple[float, float, float]:
+    """Zone boundaries for a recip's frame vibration from its maker's alarm (hi) and trip (hihi) on the points."""
+    row = conn.execute("select min(value) filter (where limit_type = 'hi') as hi, min(value) filter (where limit_type = 'hihi') as hihi "
+                       "from point_limit where point_id = any(%s) and enabled", (point_ids,)).fetchone()
+    if not row or row["hi"] is None or row["hihi"] is None:
+        raise CalcError("no frame vibration alarm and trip on record for this reciprocating compressor (its datasheet "
+                        "gives them); the centrifugal zones don't apply")
+    return (round(row["hi"] / 2, 2), float(row["hi"]), float(row["hihi"]))
+
+
 def zone_of(v: float, bounds: tuple[float, float, float]) -> str:
     return "A" if v < bounds[0] else "B" if v < bounds[1] else "C" if v < bounds[2] else "D"
 
@@ -85,8 +119,13 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
     pts = [p for p in _unit_points(conn, tag, 30) if (p["uom"] or "").lower() == "mm/s"]
     if not pts:
         raise CalcError("no vibration point (mm/s) on that machine")
-    group = group or machine_group(conn, tag)
-    bounds = ZONES[(group, foundation)]
+    recip = is_recip(conn, tag)
+    if recip:  # ISO 20816-3's zones are for rotating machines: a recip's frame is judged against its maker's limits
+        bounds = recip_bounds(conn, [p["id"] for p in pts])
+        group = "reciprocating"
+    else:
+        group = group or machine_group(conn, tag)
+        bounds = ZONES[(group, foundation)]
     start, end = window_of(conn, days, until)
     v = read({p["id"]: p for p in pts}, start, end, 360, src)
     worst = None
@@ -123,8 +162,11 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
     flag = "zone_d" if zone == "D" else "zone_c" if zone == "C" else "rising" if rising else None
     return result(round(worst["now"], 2), bounds[0], flag,
                   f"overall vibration, median of the last 3 days of daily medians, on the highest of {len(pts)} "
-                  f"mm/s point(s), against ISO 10816-3 {group.replace('group', 'group ')} {foundation} zones "
-                  f"(A/B {bounds[0]}, B/C {bounds[1]}, C/D {bounds[2]} mm/s); trend fitted to the last 30 days",
+                  f"mm/s point(s), against "
+                  + (f"the maker's frame vibration alarm ({bounds[1]:g}) and trip ({bounds[2]:g} mm/s) for a "
+                     f"reciprocating compressor (ISO 20816-8; zone A/B at half the alarm)" if recip else
+                     f"ISO 20816-3 (formerly ISO 10816-3) {group.replace('group', 'group ')} {foundation} zones")
+                  + f" (A/B {bounds[0]:g}, B/C {bounds[1]:g}, C/D {bounds[2]:g} mm/s); trend fitted to the last 30 days",
                   [tag, worst["id"]], unit="mm/s RMS", zone=zone, zones={"A/B": bounds[0], "B/C": bounds[1],
                                                                         "C/D": bounds[2]},
                   group=group, foundation=foundation, point=worst["point"], trend_mm_s_per_week=round(worst["per_week"], 3),
@@ -285,6 +327,58 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
                          for d, x in sorted(daily.items())][-60:])
 
 
+SNAP = 40.0  # %-points the anti-surge valve opens in one step on a surge detection
+COLLAPSE = 0.3  # share of the forward flow lost in the same few minutes
+
+
+def surge_events(conn, fid: str, days: int = 30, until: str | None = None, src=None) -> dict:
+    """Outright surges on a centrifugal stage, from their signature: the suction flow collapses and the anti-surge
+    valve snaps open (the controller's surge response) in the same few minutes, while the train runs. Each event with
+    its time, the flow and valve before and after and, when the stage has an axial position channel, how far the
+    thrust kicked. A surge reverses the rotor's thrust in a fraction of a second and loads the dry gas seals, so
+    each one counts against the thrust bearing and the seals whatever the margin says afterwards. Flags
+    `surge_events` when there was one or more in the window."""
+    from .condition import points_like
+
+    tag = _tag(conn, fid)
+    parts = _stage_parts(conn, tag)
+    start, end = window_of(conn, days, until)
+    axial = next(iter(points_like(conn, tag, r"axial position|thrust position")), None)
+    pts = {"flow": parts["flow"], "asv": parts["asv"], "speed": parts["speed"], **({"axial": axial} if axial else {})}
+    v = read(pts, start, end, 5, src)
+    ts = sorted(v["flow"])
+    top = float(np.percentile(list(v["speed"].values()), 90)) if v["speed"] else 0.0
+    events: list[dict] = []
+    for i in range(2, len(ts)):
+        t, a, b = ts[i], ts[i - 1], ts[i - 2]
+        if (v["speed"].get(t) or 0) < 0.8 * top or (v["speed"].get(b) or 0) < 0.8 * top:
+            continue  # starting or stopping: the valve opens and the flow falls anyway
+        q0, q1 = v["flow"].get(b), min(v["flow"].get(a, np.inf), v["flow"][t])
+        z0, z1 = v["asv"].get(b), max(v["asv"].get(a, -np.inf), v["asv"].get(t, -np.inf))
+        if q0 is None or z0 is None or q0 <= 0:
+            continue
+        if z1 - z0 >= SNAP and (q0 - q1) / q0 >= COLLAPSE:
+            if events and (datetime.fromisoformat(t) - datetime.fromisoformat(events[-1]["at"])).total_seconds() < 1800:
+                continue  # the same surge cycle
+            ev = {"at": b[:16], "flow_before": round(q0, 0), "flow_min": round(float(q1), 0),
+                  "asv_before": round(z0, 1), "asv_after": round(float(z1), 1)}
+            if axial:
+                near = [v["axial"][x] for x in ts[max(0, i - 3):i + 3] if x in v["axial"]]
+                before = [v["axial"][x] for x in ts[max(0, i - 15):i - 3] if x in v["axial"]]
+                if near and before:
+                    kick = min(near) - float(np.median(before))
+                    ev["thrust_kick_mm"] = round(float(kick), 2)
+            events.append(ev)
+    recent = [e for e in events if e["at"] >= (end - timedelta(days=30)).isoformat()]
+    return result(len(events), 0, "surge_events" if events else None,
+                  f"surge signature: the suction flow down {COLLAPSE * 100:g} % or more and the anti-surge valve up "
+                  f"{SNAP:g} %-points or more within 10 minutes, at full running speed, every 5 minutes over the last "
+                  f"{days} days; cycles within 30 minutes count once. The axial position's kick when the stage has "
+                  "a thrust probe", [tag, *[p["id"] for p in pts.values()]], unit="surges",
+                  machine=_label(conn, tag), events=events, last_30_days=len(recent), last=events[-1]["at"] if events else None,
+                  data_from=ts[0][:10] if ts else None, data_to=ts[-1][:10] if ts else None, readings=len(ts))
+
+
 HEAT_RATE_HIGH = 4.0  # % above the ambient- and load-corrected expected heat rate: worth a water wash
 
 
@@ -440,7 +534,9 @@ def spectrum(conn, fid: str) -> dict:
 
 # ---- the health summary ------------------------------------------------------------------------------------------
 
-SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow", "near_surge", "motor_overload"}
+SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow", "near_surge", "motor_overload", "rod_load_high",
+          "thrust_wear", "bearing_hot", "shaft_vibration_high", "surge_events", "seal_leak", "lube_pressure_low",
+          "exhaust_spread", "inspection_overdue", "cylinder_misfire"}
 ACTIONS = {
     "zone_d": "Vibration is in zone D: plan to stop and inspect now (bearings, alignment, looseness).",
     "zone_c": "Vibration is in zone C: not for long-term running; plan the repair at the next window and trend it daily.",
@@ -469,7 +565,53 @@ ACTIONS = {
     "early_life": "Failures cluster early after repair: look at installation and repair quality.",
     "failures_accelerating": "Failures are coming faster: a bad actor; root-cause the repeat failure mode.",
     "outliers": "It is an outlier in its class: the unit, not the model.",
+    "rod_load_high": "A throw's gas rod load is past the frame's rating: crossheads, pins and rods are at risk. Cut "
+                     "the load or the stage pressure now, and find why the stage pressures moved (a leaking valve on "
+                     "the next stage pushes the interstage pressure up).",
+    "no_reversal": "A throw's rod load hardly reverses: the crosshead pin is starved of oil. Change the load step or "
+                   "the clearance pockets so the load reverses every revolution.",
+    "valve_leak": "One cylinder runs hotter than the others on its stage: a leaking suction or discharge valve. Plan "
+                  "a valve change on that cylinder; spares are the valve assembly on the datasheet.",
+    "ratio_shift": "The pressure ratio between the stages has shifted: one stage lost capacity, most often a leaking "
+                   "valve or worn rings on that stage. Check its cylinder temperatures and plan a valve inspection.",
     "class_wide_failures": "The whole class fails often: the model or its service.",
+    "thrust_wear": "The thrust bearing is going: the rotor has walked toward its active pads and they run hot. Plan "
+                   "the bearing change before the axial trip, cut the load meanwhile, and check what loads the thrust "
+                   "(balance piston seal wear, surges).",
+    "bearing_hot": "A journal bearing runs past its temperature alarm: check the lube oil supply pressure and "
+                   "temperature and take an oil sample; if the oil is fine, the bearing is wearing.",
+    "shaft_vibration_high": "Shaft vibration at the proximity probes is past its alarm: read it with the casing "
+                            "vibration and the bearing temperatures; a rub, unbalance or bearing wear.",
+    "protection_rising": "A protection channel is on course for its alarm within a month: trend it daily and plan the "
+                         "inspection before it gets there.",
+    "surge_events": "The stage has surged outright: each one reverses the thrust and loads the dry gas seals. Check "
+                    "the anti-surge valve's stroke time and the controller's tuning, look at the thrust position and "
+                    "seal vents after each event, and give the train more forward flow.",
+    "seal_leak": "The dry gas seal's primary vent flow is past its alarm: the primary seal is failing and the "
+                 "secondary is all that's left. Plan the seal cartridge change now; check the seal gas supply and its "
+                 "filter, and the separation gas, in the meantime.",
+    "seal_rising": "The dry gas seal's vent flow has doubled and keeps climbing: check the seal gas filter and supply "
+                   "pressure, and order a seal cartridge.",
+    "lube_pressure_low": "Lube oil header pressure is below its low alarm and still falling: change over to the "
+                         "standby filter (or pump) now, before it trips on low oil pressure; check the filter's "
+                         "differential pressure.",
+    "lube_pressure_falling": "Lube oil header pressure is falling toward its low alarm: check the filter differential "
+                             "and plan the changeover.",
+    "lube_oil_hot": "Lube oil supply runs hot: check the oil cooler (fouling, fans, cooling water) and the "
+                    "temperature control valve.",
+    "power_mismatch": "The power the stages absorb no longer matches the driver's output: a flow meter, the power "
+                      "estimate or a stage's efficiency has moved. Check the meters against each other first.",
+    "exhaust_spread": "The exhaust temperature spread has widened: a combustor runs lean or hot (a plugged fuel "
+                      "nozzle, a cracked liner) or a thermocouple failed. Check the thermocouple named, then borescope "
+                      "the combustor behind it before the hot section is damaged.",
+    "inspection_overdue": "The hot section inspection is past its fired hours: run on borrowed time only with the "
+                          "maker's extension; schedule it now.",
+    "inspection_due": "The hot section inspection falls due soon on fired hours: book the outage (or the maker's "
+                      "extension) now, and line it up with the next window if it reaches it.",
+    "cylinder_misfire": "An engine cylinder runs cold: it is misfiring. Check its spark plug, coil and gas valve; a "
+                        "misfire costs power and can damage the catalyst and the crankshaft.",
+    "cylinder_hot": "An engine cylinder runs hot: overload or detonation. Check its ignition timing and the fuel "
+                    "quality, and balance the cylinders.",
 }
 
 
@@ -477,7 +619,9 @@ def _confidence(check: str, r: dict) -> str:
     n = r.get("readings") or r.get("failures") or r.get("n") or 0
     if check == "reliability":
         return "medium" if (r.get("failures") or 0) >= 6 else "low"
-    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge", "heat_rate", "motor_load"):
+    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge", "heat_rate", "motor_load",
+                 "rod_load", "valve_health", "protection", "seal_gas", "lube_oil", "surge_events", "power_balance",
+                 "exhaust_spread", "engine_cylinders"):
         return "high" if n >= 100 or check in ("pump_curve", "compressor_performance", "heat_rate") else "medium"
     return "medium"
 
@@ -494,11 +638,25 @@ def health(conn, fid: str, until: str | None = None) -> dict:
         checks += [("pump_curve", lambda: pump_curve(conn, tag, until=until)),
                    ("pump_bep", lambda: pump_bep(conn, tag, until=until)),
                    ("motor_load", lambda: motor_load(conn, tag, until=until))]
-    if "compressor" in what:
+    from . import compression, drivers, protection
+    if is_recip(conn, tag):
+        from . import recip
+        checks += [("rod_load", lambda: recip.rod_load(conn, tag, until=until)),
+                   ("valve_health", lambda: recip.valve_health(conn, tag, until=until)),
+                   ("lube_oil", lambda: protection.lube_oil(conn, tag, until=until)),
+                   ("engine_cylinders", lambda: drivers.engine_cylinders(conn, tag, until=until))]
+    elif "compressor" in what:
         checks += [("compressor_performance", lambda: equipment.compressor_performance(conn, tag, until=until)),
-                   ("surge", lambda: surge(conn, tag, until=until))]
+                   ("surge", lambda: surge(conn, tag, until=until)),
+                   ("surge_events", lambda: surge_events(conn, tag, until=until)),
+                   ("protection", lambda: protection.protection(conn, tag, until=until)),
+                   ("seal_gas", lambda: protection.seal_gas(conn, tag, until=until))]
     if "turbine" in what:
-        checks.append(("heat_rate", lambda: heat_rate(conn, tag, until=until)))
+        checks += [("heat_rate", lambda: heat_rate(conn, tag, until=until)),
+                   ("exhaust_spread", lambda: drivers.exhaust_spread(conn, tag, until=until)),
+                   ("hot_section", lambda: drivers.hot_section(conn, tag, until=until)),
+                   ("lube_oil", lambda: protection.lube_oil(conn, tag, until=until)),
+                   ("power_balance", lambda: compression.power_balance(conn, tag, until=until))]
     checks += [("vibration", lambda: vibration(conn, tag, until=until)),
                ("reliability", lambda: reliability(conn, tag, "weibull", until=until)),
                ("failure_trend", lambda: reliability(conn, tag, "crow_amsaa", until=until)),
@@ -517,7 +675,10 @@ def health(conn, fid: str, until: str | None = None) -> dict:
                          **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_mm_s_per_week", "in_preferred_pct",
                                               "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5", "excess_pct",
                                               "load_pct", "hours_above_service_factor",
-                                              "asv_open_pct", "head", "siblings")
+                                              "asv_open_pct", "head", "siblings", "pct_of_rating", "worst_throw",
+                                              "hottest_cylinder", "weak_stage", "reversal_ratio", "stage_ratio",
+                                              "worst_channel", "times_clean", "reaches_high_high", "wandered",
+                                              "used_pct", "due", "cylinder", "last_30_days", "shift_pct")
                             if r.get(k) is not None}})
     flags = [f["flag"] for f in findings if f["flag"]]
     status = "act" if any(f in SEVERE for f in flags) else "watch" if flags else "ok"
@@ -568,5 +729,107 @@ def screen(conn, until: str | None = None, limit: int = 20) -> dict:
             "machines": machines[:limit], "unchecked": unchecked,
             "class_wide_failures": sorted(class_wide),
             "basis": "rotating equipment health (curve, operating region, motor load, surge margin, heat rate, vibration zone and trend, efficiency, "
+                     "rod load and cylinder valves on recips, API 670 protection channels, dry gas seals, lube oil, "
+                     "surges, gas turbine exhaust spread and hot section hours, engine cylinders, "
                      "Weibull and Crow-AMSAA on the failure history, peers) for every ISO 14224 rotating class; "
                      "act = a severe flag (" + ", ".join(sorted(SEVERE)) + ")"}
+
+
+# ---- raising them: the fleet screen as work for the IOC ----------------------------------------------------------
+
+def _health_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("machine_health") or exception_type(
+        "machine_health", "Machine health", role="role:engineer", audience=("ioc", "field"),
+        description="A rotating machine the fleet screen flags: vibration in zone C or D, near surge, a motor "
+                    "past its service factor, head or efficiency loss, a valve or rod load problem. It clears, "
+                    "closing its case, when the screen no longer flags it.")
+
+
+HEALTH_TYPE = _health_type().name
+PRIORITY = {"act": 2.0, "watch": 0.5}
+# Which severe finding leads a machine's title and recommendation: the one that ends the machine soonest.
+FIRST = ["zone_d", "thrust_wear", "bearing_hot", "rod_load_high", "motor_overload", "near_surge", "surge_events",
+         "seal_leak", "lube_pressure_low", "exhaust_spread", "cylinder_misfire", "inspection_overdue", "head_loss",
+         "low_flow", "shaft_vibration_high"]
+# Failure-history findings are for the reliability review (bad actors, PM intervals), not a condition to act on now:
+# the screen reports them, the queue gets the machines whose condition is flagged.
+HISTORY = {"wear_out", "early_life", "failures_accelerating", "outliers", "class_wide_failures"}
+WORDS = {"zone_d": "vibration in zone D", "zone_c": "vibration in zone C", "rising": "vibration rising",
+         "head_loss": "head below its curve", "low_flow": "running below minimum flow", "off_bep": "running off BEP",
+         "near_surge": "running near surge", "recycling": "recycling on its anti-surge valve",
+         "heat_rate_high": "heat rate above its curves", "motor_overload": "motor above its service factor",
+         "motor_high": "motor above its rating", "efficiency_drop": "efficiency dropped",
+         "wear_out": "failures in a wear-out pattern", "early_life": "failures early after repair",
+         "failures_accelerating": "failures coming faster", "outliers": "an outlier in its class",
+         "rod_load_high": "rod load past its limit", "no_reversal": "rod load not reversing",
+         "valve_leak": "a leaking cylinder valve", "ratio_shift": "stage pressure ratios shifted",
+         "thrust_wear": "thrust bearing wearing", "bearing_hot": "a bearing past its temperature alarm",
+         "shaft_vibration_high": "shaft vibration past its alarm", "protection_rising": "a protection channel rising",
+         "surge_events": "surged outright", "seal_leak": "dry gas seal vent past its alarm",
+         "seal_rising": "dry gas seal vent climbing", "lube_pressure_low": "lube oil pressure below its alarm",
+         "lube_pressure_falling": "lube oil pressure falling", "lube_oil_hot": "lube oil hot",
+         "power_mismatch": "power balance shifted", "exhaust_spread": "exhaust temperature spread widened",
+         "inspection_overdue": "hot section inspection overdue", "inspection_due": "hot section inspection due",
+         "cylinder_misfire": "an engine cylinder misfiring", "cylinder_hot": "an engine cylinder running hot"}
+
+
+def _prognosis(conn, fid: str, until: str | None) -> dict:
+    """The remaining life and the next window, in words, for a machine the screen raises: will it make the
+    turnaround? Empty when no trend on it heads for a limit."""
+    from . import prognosis
+
+    try:
+        r = prognosis.remaining_life(conn, fid, until=until)
+    except CalcError:
+        return {}
+    w, f = r["window"], r["first"]
+    out = {"next_window": f"{w['name']} from {w['start']}" if w else None}
+    if f:
+        rng = f" (range {f['range'][0]} to {f['range'][1]})" if f.get("range") and f["range"][0] else ""
+        out["remaining_life"] = (f"{f['what']}: now" if f["reaches"] == "now" else f"{f['what']} by {f['reaches']}{rng}")
+        out["makes_the_window"] = f["verdict"]
+    return out
+
+
+def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", watch_level: bool = True) -> dict:
+    """The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged
+    (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates
+    the open one), cleared when it doesn't. `act` machines come at priority 2, `watch` ones at 0.5 (left out with
+    `watch_level=False`). Each carries its status, the flags in words, the first
+    recommendation and the findings behind them, so the engineer the case reaches starts from the evidence."""
+    from ..core import work
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    s = screen(conn, until, limit=10 ** 6)
+    held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open'",
+                                           (HEALTH_TYPE,))}
+    raised, cleared, errors, keep = [], [], [], set()
+    for m in s["machines"]:
+        flags = sorted((f for f in dict.fromkeys(m["flags"]) if f not in HISTORY),
+                       key=lambda f: (f not in SEVERE, FIRST.index(f) if f in FIRST else len(FIRST)))
+        status = "act" if any(f in SEVERE for f in flags) else "watch" if flags else "ok"
+        if status == "ok" or (status == "watch" and not watch_level):
+            continue
+        m = {**m, "status": status}
+        keep.add(m["machine"])
+        words = [WORDS.get(f, f.replace("_", " ")) for f in flags]
+        recs = [ACTIONS[f] for f in flags if f in ACTIONS]
+        title = f"{m['machine']} {'needs action' if m['status'] == 'act' else 'to watch'}: " + ", ".join(words)
+        evidence = {"status": m["status"], "flags": ", ".join(flags), "recommendation": (recs or [None])[0],
+                    "recommendations": recs, "at": s["at"], "not_checked": ", ".join(m["unknown"]) or None,
+                    "basis": s["basis"], **_prognosis(conn, m["id"], until)}
+        try:
+            r = raise_exception(conn, HEALTH_TYPE, m["machine"], title, by, source="rotating_screen", refs=[m["id"]],
+                                priority=PRIORITY[m["status"]], evidence=evidence)
+        except (work.WorkError, ExceptionError) as e:
+            errors.append(f"{m['machine']}: {e}")
+            continue
+        raised.append({"machine": m["machine"], "status": m["status"], "exception_id": r["id"], "item_id": r["item_id"],
+                       "new": r["raised"]})
+    for key in held - keep:
+        clear_exception(conn, HEALTH_TYPE, key, by, reason="the fleet screen no longer flags it")
+        cleared.append(key)
+    conn.commit()
+    return {"at": until, "checked": s["machines_checked"], "raised": raised, "cleared": cleared, "errors": errors}

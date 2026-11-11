@@ -40,11 +40,23 @@ def _has_process(conn, item_id: int) -> bool:
     return conn.execute("select exists (select 1 from work_process where item_id = %s and state = 'running') as x",
                         (item_id,)).fetchone()["x"]
 
+def _closes_with_case(conn, item_id: int, by: str) -> bool:
+    """Whether every process running the case says the case may be closed directly (fuzer:closeWithCase), as a
+    plain case is: the standard one-step processes do, so a task posted to a queue still closes the way it did."""
+    run = _Run(conn, by)
+    procs = conn.execute("select id from work_process where item_id = %s and state = 'running' and parent_token is null",
+                         (item_id,)).fetchall()
+    return bool(procs) and all(str(run.defn(run.proc(r["id"])).attrs.get("closeWithCase", "")).lower() == "true"
+                               for r in procs)
+
 @_op
 def transition(conn, item_id: int, state: str, by: str, reason: str | None = None) -> dict:
     """Move an item that has no running process to another state (done and cancelled close it)."""
     item = _item(conn, item_id, lock=True)
     if _has_process(conn, item_id):
+        if state in ("done", "cancelled") and _closes_with_case(conn, item_id, by):
+            from .runtime import close_item  # a one-step standard process (task, queue_item) ends with its case (#509)
+            return close_item.__wrapped__(conn, item_id, state, by, reason=reason)
         raise Conflict("this item moves with its process: complete its open step instead")
     closed = state in ("done", "cancelled")
     conn.execute("update work_item set state = %s, closed_at = case when %s then now() end, updated_at = now() "
@@ -118,9 +130,15 @@ def reassign_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
 
 @_op
 def assign_item(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
-    """Hand off an item without a process (a person, `role:<role>` or `agent:<role>`)."""
+    """Hand off an item without a process (a person, `role:<role>` or `agent:<role>`), or the step of a one-step
+    standard process (fuzer:closeWithCase), which stands for the case."""
     item = _item(conn, item_id, lock=True)
     if _has_process(conn, item_id):
+        step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in "
+                            "('ready', 'waiting') order by due_at nulls last, id limit 1", (item_id,)).fetchone()
+        if step and _closes_with_case(conn, item_id, by):  # a one-step standard process: its step is the case (#509)
+            hand_off.__wrapped__(conn, step["id"], by, to, reason)
+            return {"item_id": item_id, "to": to}
         raise Conflict("this item moves with its process: hand off its open step instead")
     person, role = (None, to.split(":", 1)[1]) if ":" in to else (to, item["role"])
     conn.execute("update work_item set assignee = %s, role = %s, updated_at = now() where id = %s", (person, role, item_id))

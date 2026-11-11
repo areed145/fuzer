@@ -43,6 +43,7 @@ class ExceptionType:
     close_case_on_clear: bool = True     # a case without a process closes when the condition clears
     description: str = ""
     joins: bool = True                   # about an asset another open exception's case already works: join that case
+    due_hours: str | None = None         # its due policy: priority -> hours ("1:24,2:72"), or a setting that holds one
 
 
 TYPES: dict[str, ExceptionType] = {}
@@ -90,7 +91,7 @@ def reconcile(conn) -> dict:
 
 def define_type(conn, name: str, by: str, label: str, **fields) -> dict:
     """Define (or change) a type as data (role, process, case_type, audience, close_case_on_clear, description,
-    joins, source_system as keywords): how a source pack brings the exceptions its system raises (#465)."""
+    joins, source_system, due_hours as keywords): how a source pack brings the exceptions its system raises (#465)."""
     return _engine().define(conn, name, by, label, **fields)
 
 

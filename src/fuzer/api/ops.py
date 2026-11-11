@@ -229,7 +229,7 @@ class FieldReport(BaseModel):
 
 def _loaded_types() -> None:
     """Exception types are declared by the modules that raise them; load those so labels and audiences resolve."""
-    from ..analysis import limits  # noqa: F401
+    from ..analysis import limits, rotating, trips  # noqa: F401
     from ..ops import intake, sre_handoff  # noqa: F401
     from ..sources import alerts  # noqa: F401
 
@@ -297,6 +297,7 @@ class ExceptionKind(BaseModel):
     close_case_on_clear: bool = True
     description: str | None = None
     joins: bool = True
+    due_hours: str | None = None  # priority -> hours, "1:24,2:72" (#509)
 
 
 class ExceptionSplit(BaseModel):
@@ -441,7 +442,8 @@ def exception_type_define(name: str, k: ExceptionKind, conn=Depends(get_conn)):
     from ..ops import exceptions
     return _exception_call(conn, exceptions.define, name, k.by, k.label, role=k.role, process=k.process,
                            case_type=k.case_type, audience=tuple(k.audience),
-                           close_case_on_clear=k.close_case_on_clear, description=k.description, joins=k.joins)
+                           close_case_on_clear=k.close_case_on_clear, description=k.description, joins=k.joins,
+                           due_hours=k.due_hours)
 
 
 @router.delete("/exceptions/types/{name}")

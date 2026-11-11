@@ -142,9 +142,14 @@ def work_items(state: str | None = "open", type: str | None = None, assignee: st
 
 @router.post("/work/items")
 def work_item_create(i: WorkItemIn, conn=Depends(get_conn)):
-    """A work item without a process (a plain task with an owner, a due date and a history)."""
-    return work.create_item(conn, i.type, i.title, i.by, i.subjects, i.priority, i.assignee, i.role, i.due,
-                            i.source, i.payload)
+    """A task with an owner, a due date and a history. Asked of a role's queue, it runs as the standard task process
+    (the role's SLA and escalation, #509); for a named person it is a plain work item."""
+    import secrets
+
+    from ..ops import routing
+    return routing.open_task(conn, i.type, i.title, i.by, key=f"api:{secrets.token_hex(8)}", role=i.role,
+                             assignee=i.assignee, data=i.payload, subjects=i.subjects, priority=i.priority, due=i.due,
+                             source=i.source)
 
 
 @router.get("/work/drafts/{draft_id}")

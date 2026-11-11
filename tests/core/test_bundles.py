@@ -22,7 +22,7 @@ KESTREL_DATASETS = {
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 335
+KESTREL_ENTITIES = 353
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 
