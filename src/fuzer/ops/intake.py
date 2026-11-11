@@ -20,6 +20,7 @@ from datetime import date, timedelta
 
 from ..core import settings
 from ..core.exceptions import clear_exception, exception_type, raise_exception
+from ..core.findings import EXTERNAL, Finding, at, fact
 from ..graph.operations import as_of
 
 SAP_NOTIFICATION = exception_type(
@@ -28,6 +29,42 @@ SAP_NOTIFICATION = exception_type(
 
 OPEN = ("OSNO", "NOPR")  # SAP: outstanding, in process; NOCO (completed) and the rest are closed
 BY = "sap"
+# SAP's codes as the words they stand for; the code follows in brackets, since the planner knows it by that.
+SAP_WORDS = {"status": {"OSNO": "outstanding", "NOPR": "in process", "NOCO": "completed", "ORAS": "order assigned"},
+             "notif_type": {"M1": "maintenance request", "M2": "malfunction report", "M3": "activity report"}}
+
+
+def _worded(k: str, text) -> str | None:
+    """A code a field operator can't read as the words it stands for, with the code after it: `VIB` reads
+    "Vibration (VIB)", SAP status `OSNO` reads "outstanding (OSNO)". Unknown codes stay as they are."""
+    from ..core.taxonomy import load_standard
+
+    if text in (None, ""):
+        return None
+    text = str(text)
+    std = load_standard("iso14224")
+    iso = {"failure_mode": std.get("failure_modes", {}), "failure_mechanism": std.get("failure_mechanisms", {})}
+    words = SAP_WORDS.get(k, {}).get(text.upper()) or iso.get(k, {}).get(text)
+    return f"{words} ({text})" if words else text
+
+
+def finding(key: str, f: dict) -> Finding:
+    """An SAP notification as a finding: its type, status, priority and failure coding in words. The site's damage
+    and cause codes are left out where the ISO 14224 failure mode and mechanism they map to are there to read."""
+    data = {k: f[k] for k in ("notif_type", "status", "created", "priority", "failure_mode", "failure_mechanism",
+                              "damage_code", "cause_code") if k in f}
+    created = str(f.get("created") or "")
+    return Finding("sap.notification", EXTERNAL, method="An open notification with no work order",
+                   start=created or None, data={"notification": key, **data}, items=(
+                       fact("Notification", key),
+                       fact("Notification type", _worded("notif_type", f.get("notif_type"))),
+                       fact("Status", _worded("status", f.get("status"))),
+                       (at if "T" in created else fact)("Created in SAP", created),
+                       fact("SAP priority", f.get("priority")),
+                       fact("Failure mode", _worded("failure_mode", f.get("failure_mode"))),
+                       fact("Failure mechanism", _worded("failure_mechanism", f.get("failure_mechanism"))),
+                       None if f.get("failure_mode") else fact("Damage code", f.get("damage_code")),
+                       None if f.get("failure_mechanism") else fact("Cause code", f.get("cause_code"))))
 
 
 def _status(f: dict) -> str:
@@ -87,10 +124,7 @@ def sync_notifications(conn, max_age_days: int | None = None, enabled: bool | No
             held += 1  # done in the field; waiting for SAP's planners to close or change it
             continue
         text = f.get("short_text") or f.get("description") or "SAP notification"
-        evidence = {k: f[k] for k in ("notif_type", "status", "created", "priority", "failure_mode",
-                                       "failure_mechanism", "damage_code", "cause_code") if k in f}
         raise_exception(conn, SAP_NOTIFICATION, key, f"{text} (notification {key})", BY, source="sap",
-                        refs=r["concerns"] or [r["fuzer_id"]], priority=_priority(f),
-                        evidence={"notification": key, **evidence})
+                        refs=r["concerns"] or [r["fuzer_id"]], priority=_priority(f), finding=finding(key, f))
         raised += 1
     return {"raised": raised, "cleared": cleared, "held": held}

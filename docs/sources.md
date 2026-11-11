@@ -77,6 +77,30 @@ missing or wrong secret is refused before the body is read. The Sources page sho
 brings with how many are open, its rules, and whether its webhook secret resolves.
 `fakeplant/bundles/kestrel/packs/measurement.yaml` is Kestrel's gas measurement system as such a pack.
 
+**One finding contract** (P1.1). Whatever raises work hands over the same record, a `Finding`
+(`fuzer.core.findings`): its detector, its origin (`deterministic` for a rule or a calculation, `agentic` for an
+agent, `external` for another system's own detection or record), the method and the standard behind it, the time
+window, its confidence where the detector can say, the checks before the work, and the evidence as labelled items
+with their units. The assets it is about and the value at stake travel with it (`refs`, `value_usd`).
+
+```python
+from fuzer.core.exceptions import raise_exception
+from fuzer.core.findings import DETERMINISTIC, Finding, asset, at, fact
+
+raise_exception(conn, "iow_breach", iow, title, by, refs=[point_id], finding=Finding(
+    "limits.iow", DETERMINISTIC, method="Time outside an integrity operating window", standard="API RP 584",
+    start=first_outside,
+    items=(fact("Limit", 85.0, "barg"), fact("Peak", 91.2, "barg"), at("First outside", first_outside),
+           asset("Measured on", point_id)),
+    data={"iow": iow, "level": "critical"}))
+```
+
+A raiser writes no evidence keys of its own: what people read goes in `items` under the words they read it by,
+and one component renders every finding on the case, the task and the phone, with times in local time and assets
+by tag and description. `data` holds only the variables the type's process routes on and is never shown. A webhook
+or `POST /exceptions` body keeps sending `evidence` in the sender's own keys; `findings.external` turns it into a
+finding in one place. A test fails when a raiser under `src/fuzer` passes anything else.
+
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
 search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the

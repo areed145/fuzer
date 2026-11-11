@@ -1,7 +1,7 @@
 """The built-in exception implementation behind fuzer.core.exceptions: one `exception_record` per open condition,
 matched to entities, routed to a case through the Work port, and published on the event outbox.
 
-    raise_(conn, type, key, title, by, refs=..., priority=..., value_usd=..., evidence=..., source=..., assignee=...)
+    raise_(conn, type, key, title, by, refs=..., priority=..., value_usd=..., finding=..., source=..., assignee=...)
     clear(conn, type, key, by, reason)
     split(conn, exception_id, by)   take one that joined another's case back out to a case of its own
     join(conn, exception_id, into, by)  the reverse: bring one with its own case into another's, cancelling its own
@@ -18,12 +18,11 @@ one's case instead of opening another. The first is the host (`joined_to` null);
 case, so the IOC triages, dispatches and closes once. Exceptions lists the host with every source under it.
 """
 
-import functools
 import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import events, work
+from ..core import events, findings, work
 from ..core.exceptions import TYPES, ExceptionError, ExceptionType
 
 OPEN = "open"
@@ -320,19 +319,30 @@ def _promote(conn, host: dict) -> None:
                      (heir["id"], host["id"], host["id"], heir["id"]))
 
 
+def _findings(conn, rows: list[dict]) -> list[dict]:
+    """Each exception's finding as every reader gets it (core.findings.shown), its assets named."""
+    ids = list(dict.fromkeys(x for r in rows for x in findings.asset_ids(r["evidence"])))
+    names = {a["fuzer_id"]: a["label"] for a in _assets(conn, ids) if a["label"]}
+    return [findings.shown(r["evidence"], r["source"], r["subjects"], r["value_usd"], names) for r in rows]
+
+
 def on_case(conn, item_id: int) -> list[dict]:
-    """Every exception a case works, the host first, each with what its source saw: the task page's sources."""
+    """Every exception a case works, the host first, each with its finding: the task page's sources."""
     rows = conn.execute("select * from exception_record where item_id = %s order by joined_to nulls first, first_seen",
                         (item_id,)).fetchall()
     return [{**{k: r[k] for k in ("id", "type", "key", "title", "source", "state", "value_usd", "first_seen",
                                   "last_seen", "joined_to", "subjects")},
-             "label": _label(conn, r["type"]), "seen": _seen(r["evidence"])} for r in rows]
+             "label": _label(conn, r["type"]), "finding": f, "seen": _seen(f)}
+            for r, f in zip(rows, _findings(conn, rows), strict=True)]
 
 
 def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: float | None = None,
-           value_usd: float | None = None, evidence: dict | None = None, source: str | None = None,
+           value_usd: float | None = None, finding: findings.Finding | None = None, source: str | None = None,
            assignee: str | None = None, role: str | None = None) -> dict:
+    """Open an exception of `type` for `key`, or update the open one, from a finding (the contract in
+    core.findings; with none, a bare one from the source that says only who raised it)."""
     t = _type(conn, type)
+    evidence = (finding or findings.external(source or by)).evidence()
     if not key:
         raise ExceptionError("an exception needs a key: the source's own identity for the condition")
     subjects, unmatched = match(conn, refs)
@@ -348,9 +358,9 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
                 unmatched = array(select distinct unnest(unmatched || %s::text[])),
                 raised_count = raised_count + 1, last_seen = now(), updated_at = now()
             where id = %s returning *
-            """, (title, priority, value_usd, Jsonb(evidence or {}), subjects, unmatched, current["id"])).fetchone()
+            """, (title, priority, value_usd, Jsonb(evidence), subjects, unmatched, current["id"])).fetchone()
         if t.process and not row["joined_to"]:  # new evidence for the process already working it
-            _case(conn, t, {**row, "evidence": evidence or {}}, by, assignee, role)
+            _case(conn, t, {**row, "evidence": evidence}, by, assignee, role)
         return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}
     host = _host(conn, t, type, key, subjects) if not (assignee or role) else None
     row = conn.execute(
@@ -358,7 +368,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         insert into exception_record (type, key, title, source, priority, value_usd, subjects, unmatched, evidence,
                                       joined_to, item_id)
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
-        """, (type, key, title, source or by, priority, value_usd, subjects, unmatched, Jsonb(evidence or {}),
+        """, (type, key, title, source or by, priority, value_usd, subjects, unmatched, Jsonb(evidence),
               host["id"] if host else None, host["item_id"] if host else None)).fetchone()
     if host:
         return _joined(conn, t, row, host, by, unmatched)
@@ -452,13 +462,6 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
 # ---- the IOC dispatching and the field reporting back -------------------------------------------------------------
 
 FIELD_STATUSES = ("on_site", "done", "could_not_do", "note")
-SEEN_SKIP = {"excursions", "priority", "health", "pre_diagnosis", "field", "exception_id", "type", "key", "upset_id",
-             "incident_id", "first_unit", "first_detection", "basis", "verdict", "checklist"}
-# What a field operator reads: the source's keys as words (the rest are spelled out from their key).
-SEEN_LABELS = {"start": "started (data time)", "ongoing": "still going",
-               "detections": "detections", "first_point": "first seen on", "notif_type": "notification type",
-               "created": "created in SAP"}
-
 
 def _row(conn, exception_id: int, lock: bool = False) -> dict:
     row = conn.execute("select * from exception_record where id = %s" + (" for update" if lock else ""),
@@ -545,46 +548,9 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
 
 
 # SAP's own status and notification type codes, as words (#494); the code stays beside them.
-SAP_WORDS = {"status": {"OSNO": "outstanding", "NOPR": "in process", "NOCO": "completed", "ORAS": "order assigned"},
-             "notif_type": {"M1": "maintenance request", "M2": "malfunction report", "M3": "activity report"}}
-
-
-@functools.cache
-def _iso14224() -> dict:
-    from ..core.taxonomy import load_standard
-
-    std = load_standard("iso14224")
-    return {"failure_mode": std.get("failure_modes", {}), "failure_mechanism": std.get("failure_mechanisms", {})}
-
-
-def _worded(k: str, text: str) -> str:
-    """A code a field operator can't read as the words it stands for, with the code after it: `VIB` reads
-    "Vibration (VIB)", SAP status `OSNO` reads "outstanding (OSNO)". Unknown codes stay as they are."""
-    words = SAP_WORDS.get(k, {}).get(text.upper()) or _iso14224().get(k, {}).get(text)
-    return f"{words} ({text})" if words else text
-
-
-def _seen(evidence: dict) -> list[tuple[str, str]]:
-    """The evidence a person reads at a glance: short scalar values, not the nested detail. A site's damage and
-    cause codes are left out where the ISO 14224 failure mode and mechanism they map to are there to read."""
-    out = []
-    for k, v in evidence.items():
-        if k in SEEN_SKIP or isinstance(v, (dict, list)) or v is None or v == "":
-            continue
-        if (k == "damage_code" and evidence.get("failure_mode")) or (k == "cause_code" and evidence.get("failure_mechanism")):
-            continue
-        if isinstance(v, bool):
-            text = "yes" if v else "no"
-        elif isinstance(v, float):
-            text = f"{v:g}"
-        else:
-            text = str(v)[:120]
-            if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?", text):
-                text = text.replace("T", " ")[:16]
-            text = _worded(k, text)
-        label = "assets affected" if k == "units" and isinstance(v, int) else SEEN_LABELS.get(k, k.replace("_", " "))
-        out.append((label, text))  # an upset's `units` counts assets; another source's names a unit of measure
-    return out[:12]
+def _seen(finding: dict) -> list[tuple[str, str]]:
+    """A finding's items as label and text pairs, for readers not yet on the finding itself."""
+    return [(i["label"], findings.text(i)) for i in finding["items"]]
 
 
 def _sent(conn, item_id: int, person: str) -> dict | None:
@@ -679,14 +645,16 @@ def field_jobs(conn, person: str) -> list[dict]:
         t = known.get(r["type"])
         sources = on_case(conn, r["item_id"])
         subjects = list(dict.fromkeys(x for src in sources for x in src["subjects"])) or r["subjects"]
+        on = conn.execute("select * from exception_record where item_id = %s and state = 'open' "
+                          "order by joined_to nulls first, first_seen", (r["item_id"],)).fetchall()
+        shown = dict(zip([x["id"] for x in on], _findings(conn, on), strict=True))
+        mine = shown.get(r["id"]) or _findings(conn, [r])[0]
         # The checks before the work (a compressor trip's restart checklist), from every source on the case
-        checklist = list(dict.fromkeys(c for x in conn.execute(
-            "select evidence from exception_record where item_id = %s and state = 'open' order by joined_to nulls first, first_seen",
-            (r["item_id"],)) for c in (x["evidence"].get("checklist") or []) if isinstance(c, str)))
+        checklist = list(dict.fromkeys(c for f in shown.values() for c in f["checks"]))
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, subjects),
                     "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
-                    "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
+                    "finding": mine, "seen": _seen(mine), "history": history, "field": r["evidence"].get("field", []),
                     "sent": sent})
     return out
 

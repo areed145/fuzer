@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 
 from ..core import settings, work
 from ..core.exceptions import TYPES
+from ..core.findings import KEY as FINDING
 
 
 def _hours_map(text) -> dict[str, float]:
@@ -107,11 +108,17 @@ def due(conn, intake: dict) -> datetime | None:
     hours = _due_hours(conn, exceptions.types(conn).get(intake.get("type")))
     if not hours:
         return None
-    p = str((intake.get("evidence") or {}).get("priority") or "").strip()
+    p = str(_data(intake).get("priority") or "").strip()
     p = p if p in hours else p[:1]  # SAP's "1 - very high" reads as 1
     if not (hours and p and intake.get("first_seen")):
         return None
     return intake["first_seen"] + timedelta(hours=hours[p]) if p in hours else None
+
+
+def _data(intake: dict) -> dict:
+    """The variables an intake's process routes on: its evidence without the finding record, which is for people
+    (and read from the exception, core.findings.shown), not for gateways."""
+    return {k: v for k, v in (intake.get("evidence") or {}).items() if k != FINDING}
 
 
 QUEUE_PROCESS = "queue_item"
@@ -187,7 +194,7 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
     from . import exceptions
 
     t = exceptions.types(conn).get(intake["type"]) or exceptions.ExceptionType(intake["type"], intake["type"])
-    payload = {**(intake.get("evidence") or {}), "exception_id": intake["id"]}
+    payload = {**_data(intake), "exception_id": intake["id"]}
     common = {"subjects": intake["subjects"], "priority": intake["priority"], "source": intake["source"],
               "payload": payload}
     if to and (item_id := _dispatched(conn, t, intake, by, to, reason)):
@@ -198,14 +205,14 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
                               assignee=None if queue else to, role=to.removeprefix("role:") if queue else None,
                               reason=reason, **common)["id"]
     if t.process:
-        data = {"exception_id": intake["id"], "type": t.name, "key": intake["key"], **(intake.get("evidence") or {})}
+        data = {"exception_id": intake["id"], "type": t.name, "key": intake["key"], **_data(intake)}
         return work.start_or_correlate(conn, t.process, data, by=by, title=intake["title"],
                                        subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     if not (assignee or role or t.role):
         return None
     queue = None if assignee else (role or t.role)
     if queue and queue_process(conn) and queue.removeprefix("role:") in work.person_roles(conn):  # the standard process: the queue's SLA, escalation and monitor (#509)
-        data = {**(intake.get("evidence") or {}), **queue_data(t, intake, queue)}
+        data = {**_data(intake), **queue_data(t, intake, queue)}
         return work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
                                        subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     return work.open_case(conn, t.case_type or t.name, intake["title"], by, assignee=assignee,
@@ -231,7 +238,7 @@ def _dispatched(conn, t, intake: dict, by: str, to: str, reason: str | None) -> 
     lane = _dispatch_lane(conn, t, to) if queue_process(conn) else None
     if not lane:
         return None
-    data = {**(intake.get("evidence") or {}), **queue_data(t, intake, lane)}
+    data = {**_data(intake), **queue_data(t, intake, lane)}
     item_id = work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
                                       subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     if not to.startswith("role:") and not by.startswith("agent:") and by != to:

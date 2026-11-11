@@ -27,6 +27,8 @@ import numpy as np
 
 from ..core import db
 from ..core.exceptions import ExceptionError, exception_type, raise_exception
+from ..core.findings import DETERMINISTIC, Finding, asset, fact
+from ..core.findings import at as moment
 
 COLS = ["record", "limit_type", "point_id", "source", "basis", "value", "unit", "reported", "level", "allowed_minutes",
         "enabled", "valid_from", "valid_to", "note"]
@@ -674,10 +676,25 @@ def _open_work(conn, rows: list[tuple[dict, dict]]) -> dict:
              f"{row['limit_value']:g}, {len(rows)} time{'s' if len(rows) > 1 else ''} past the allowed "
              f"{row['allowed_minutes'] / 60:g} h")
     ids = [r["id"] for r, _ in rows]
+    uom = (conn.execute("select value #>> '{}' as uom from golden where fuzer_id = %s and field = 'uom'",
+                        (row["point_id"],)).fetchone() or {}).get("uom")
     try:
         res = raise_exception(conn, IOW_BREACH, iow, title, "agent:sre", source="limits",
                               refs=[s for s in (row["point_id"], x.get("unit_id")) if s],
-                              priority=WORK_LEVELS[row["level"]], evidence=data)
+                              priority=WORK_LEVELS[row["level"]], finding=Finding(
+                                  "limits.iow", DETERMINISTIC, standard="API RP 584", data=data,
+                                  method="Time outside an integrity operating window, past its allowed time",
+                                  start=min(r["start"] for r, _ in rows),
+                                  end=None if any(r["end"] is None for r, _ in rows) else max(r["end"] for r, _ in rows),
+                                  items=(fact("Window", iow), asset("Measured on", row["point_id"]),
+                                         asset("Unit", x.get("unit_id")), fact("Level", row["level"]),
+                                         fact("Limit", row["limit_value"], uom),
+                                         fact("Side", "above" if row["limit_type"] in HIGH else "below"),
+                                         fact("Peak", data["peak"], uom), fact("Breaches", len(rows)),
+                                         fact("Time outside", data["hours_outside"], "h"),
+                                         fact("Allowed", round(row["allowed_minutes"] / 60, 2), "h"),
+                                         moment("First outside", min(r["start"] for r, _ in rows)),
+                                         fact("Note", x.get("note")))))
     except (work.WorkError, ExceptionError) as e:
         return {"iow": iow, "excursions": ids, "error": str(e)}
     conn.execute("update excursion set work_item_id = %s where id = any(%s)", (res["item_id"], ids))

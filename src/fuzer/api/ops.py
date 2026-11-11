@@ -386,9 +386,10 @@ def upset_merge(upset_id: int, m: UpsetMerge, conn=Depends(get_conn)):
 def exception_raise(r: ExceptionRaise, conn=Depends(get_conn)):
     """Raise an exception from another system (or a person): opened once per type and key, matched to entities by
     `refs` (a Fuzer ID, kind:key or source/key), routed by its type. A repeat updates the open one."""
+    from ..core.findings import external
     from ..ops import exceptions
     return _exception_call(conn, exceptions.raise_, r.type, r.key, r.title, r.by, refs=r.refs, priority=r.priority,
-                           value_usd=r.value_usd, evidence=r.evidence, source=r.source)
+                           value_usd=r.value_usd, finding=external(r.source or r.by, r.evidence), source=r.source)
 
 
 @router.post("/exceptions/clear")

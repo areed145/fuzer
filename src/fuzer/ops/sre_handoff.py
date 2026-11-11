@@ -24,6 +24,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import settings
 from ..core.exceptions import ExceptionError, exception_type, raise_exception
+from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
 from ..core.jsonsafe import plain as _plain
 
 # Defaults; the values in effect are settings (#131): sre.handoff.min_detections, .max_diagnoses, .max_usd
@@ -256,10 +257,19 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
                 "priority": {"value_usd": s["value_usd"], "reason": s["reason"], "components": s["components"],
                              "urgency": s["urgency"], "unknown": s["unknown"]},
                 **({"pre_diagnosis": {k: diag.get(k) for k in ("answer", "causes", "actions", "error", "at")}} if diag else {})}
+        found = Finding(
+            f"sre.{u['detector'] or 'upset'}", DETERMINISTIC, start=u["start"], end=u["end"], data=data,
+            method="Detections grouped into one upset by time and plant topology",
+            items=(asset("First seen on", u["point_id"]), asset("Started at", u["first_unit"]),
+                   at("Started", u["start"]), fact("Still going", u["end"] is None), at("Ended", u["end"]),
+                   fact("Peak", float(u["magnitude"]) if u.get("detector") == "excursions" and u.get("magnitude") is not None
+                        else None, u.get("uom")),
+                   fact("Assets affected", len(u["units"])), fact("Detections", u["detections"]),
+                   fact("Why this value", s["reason"])))
         try:
             res = raise_exception(conn, UPSET, data["incident_id"], u["text"], "agent:sre", source="sre",
                                   refs=[x for x in (u["first_unit"], u["point_id"]) if x],
-                                  priority=s["value_usd"], value_usd=s["value_usd"], evidence=data)
+                                  priority=s["value_usd"], value_usd=s["value_usd"], finding=found)
         except (work.WorkError, ExceptionError) as e:
             out.append({"upset": u["id"], "error": str(e)})
             continue

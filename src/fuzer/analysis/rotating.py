@@ -48,6 +48,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core.findings import DETERMINISTIC, Finding, at, fact
 from .calcs import CalcError, _label, read, result, window_of
 
 # ISO 10816-3 / 20816-3 zone boundaries, mm/s RMS: (A/B, B/C, C/D). Group 1: large machines (300 kW to 50 MW,
@@ -817,12 +818,19 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
         words = [WORDS.get(f, f.replace("_", " ")) for f in flags]
         recs = [ACTIONS[f] for f in flags if f in ACTIONS]
         title = f"{m['machine']} {'needs action' if m['status'] == 'act' else 'to watch'}: " + ", ".join(words)
-        evidence = {"status": m["status"], "flags": ", ".join(flags), "recommendation": (recs or [None])[0],
-                    "recommendations": recs, "at": s["at"], "not_checked": ", ".join(m["unknown"]) or None,
-                    "basis": s["basis"], **_prognosis(conn, m["id"], until)}
+        life = _prognosis(conn, m["id"], until)
+        found = Finding(
+            "rotating.screen", DETERMINISTIC, method="Rotating equipment fleet screen", start=s["at"],
+            standard="ISO 20816-3 vibration zones; API 670 protection channels; ISO 14224 rotating classes",
+            data={"status": m["status"], "flags": ", ".join(flags), "recommendations": recs, "at": s["at"]},
+            items=(fact("Status", {"act": "needs action", "watch": "to watch"}[m["status"]]),
+                   fact("Flagged for", ", ".join(words)), fact("Recommended first", (recs or [None])[0]),
+                   fact("Also recommended", "; ".join(recs[1:])), at("Screened at", s["at"]),
+                   fact("Not checked", ", ".join(m["unknown"])), fact("Remaining life", life.get("remaining_life")),
+                   fact("Next window", life.get("next_window")), fact("Makes the window", life.get("makes_the_window"))))
         try:
             r = raise_exception(conn, HEALTH_TYPE, m["machine"], title, by, source="rotating_screen", refs=[m["id"]],
-                                priority=PRIORITY[m["status"]], evidence=evidence)
+                                priority=PRIORITY[m["status"]], finding=found)
         except (work.WorkError, ExceptionError) as e:
             errors.append(f"{m['machine']}: {e}")
             continue

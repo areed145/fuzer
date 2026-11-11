@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
 from .calcs import CalcError, _label, read
 
 STEP = 5  # minutes: the grid the sequence of events is read on
@@ -584,22 +585,27 @@ def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") ->
                 out["errors"].append(str(e))
                 continue
             out["trips"] += 1
-            evidence = {"cause": d["cause"], "means": d["means"], "restart": d["restart"], "verdict": d["verdict"],
-                        "tripped_at": d["tripped_at"], "train": d["train"],
-                        "first_out": d["first_out"]["point"] if d["first_out"] else "none in the data",
-                        "first_out_minutes_before": d["first_out"]["lead_minutes"] if d["first_out"] else None,
-                        "tripped_on": ", ".join(f"{x['point']} {x['value']:g} (trip {x['trip_setting']:g})"
-                                                for x in d["tripped_on"]) or None,
-                        "earlier_trips": len(d["prior_trips"]), "checklist": d["checklist"],
-                        "spurious": f"{d['spurious']['point']} jumped from {d['spurious']['before']:g} to "
-                                    f"{d['spurious']['value']:g} (trip {d['spurious']['trip_setting']:g})"
-                                    if d["spurious"] else None,
-                        "failed_restarts": "; ".join(f"{x['at']}: {x['reason']}" for x in d["restart_attempts"]) or None,
-                        "sequence": d["sequence"][:6], "basis": d["basis"]}
+            sp = d["spurious"]
+            found = Finding(
+                "trips.diagnosis", DETERMINISTIC, method="The first point to move before the trip names the cause family",
+                standard="ISO 13379-1 symptom-to-cause",
+                start=d["tripped_at"], checks=d["checklist"],
+                data={"verdict": d["verdict"], "tripped_at": d["tripped_at"], "sequence": d["sequence"][:6]},
+                items=(at("Tripped", d["tripped_at"]), fact("Train", d["train"]), asset("Likely source", d["culprit_id"]),
+                       fact("Likely cause", d["cause"]), fact("What it means", d["means"]),
+                       fact("Before restart", d["restart"]),
+                       fact("First out", d["first_out"]["point"] if d["first_out"] else "none in the data"),
+                       fact("First out led the trip by", d["first_out"]["lead_minutes"] if d["first_out"] else None, "min"),
+                       fact("Tripped on", ", ".join(f"{x['point']} {x['value']:g} (trip {x['trip_setting']:g})"
+                                                    for x in d["tripped_on"])),
+                       fact("Earlier trips", len(d["prior_trips"])),
+                       fact("Looks spurious", f"{sp['point']} jumped from {sp['before']:g} to {sp['value']:g} "
+                                              f"(trip {sp['trip_setting']:g})" if sp else None),
+                       fact("Failed restarts", "; ".join(f"{x['at']}: {x['reason']}" for x in d["restart_attempts"]))))
             try:
                 res = raise_exception(conn, TYPE, f"{d['train_key']}@{d['tripped_at']}", d["title"], by,
                                       source="trips", refs=[x for x in [d["culprit_id"], *d["machines"]] if x],
-                                      priority=2.0 if d["verdict"] == "inspect_first" else 1.0, evidence=evidence)
+                                      priority=2.0 if d["verdict"] == "inspect_first" else 1.0, finding=found)
             except (work.WorkError, ExceptionError) as e:
                 out["errors"].append(str(e))
                 continue

@@ -27,6 +27,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 from ..core import settings
+from ..core.findings import DETERMINISTIC, Finding, at, fact
 
 # Words that say something stopped, in an operator's log entry (the reverse check reads these).
 STOP = re.compile(r"\b(trip(ped|s)?|shut[ -]?(in|down)|died|stopped|went down|lost lift|curtail(ed|ment)?|"
@@ -245,16 +246,17 @@ def watch(conn, by: str = "agent:records_check") -> dict:
     for r in rows:
         if r["record"] not in held and _t(r["at"]) < recent:
             continue  # older than the lookback: in the calc, not raised now
-        evidence = {"at": r["at"], "missing": ", ".join(r["missing"]), "about": ", ".join(r["about"]) or None,
-                    "record": r["record"], "reason": r.get("reason"), "comment": r.get("comment"),
-                    "text": r.get("text"), "lost_oil_sm3": r.get("lost_oil_sm3"),
-                    "tolerance": f"log ±{m['tolerance']['log_hours']} h, notification ±"
-                                 f"{m['tolerance']['notification_days']} d",
-                    "basis": m["basis"], "note": m["caveats"][0]}
+        tolerance = f"log ±{m['tolerance']['log_hours']} h, notification ±{m['tolerance']['notification_days']} d"
+        found = Finding(
+            "records.mismatch", DETERMINISTIC, method="Downtime records compared with the operator log and notifications",
+            start=r["at"], data={"at": r["at"], "record": r["record"]},
+            items=(at("When", r["at"]), fact("Missing", ", ".join(r["missing"])), fact("About", ", ".join(r["about"])),
+                   fact("Reason recorded", r.get("reason")), fact("Comment", r.get("comment")),
+                   fact("Log entry", r.get("text")), fact("Lost oil", r.get("lost_oil_sm3"), "Sm³"),
+                   fact("Matched within", tolerance), fact("Note", m["caveats"][0])))
         try:
             x = raise_exception(conn, GAP_TYPE, r["record"], title(r), by, source="records_check",
-                                refs=[r["record"], *r["subjects"]], priority=0.5,
-                                evidence={k: v for k, v in evidence.items() if v is not None})
+                                refs=[r["record"], *r["subjects"]], priority=0.5, finding=found)
         except (work.WorkError, ExceptionError) as e:
             errors.append(f"{r['record']}: {e}")
             continue

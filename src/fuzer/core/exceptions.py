@@ -13,7 +13,9 @@ and other systems hear of it the same way.
 Each type says who works it (`role`, or a BPMN `process` that is started or correlated), who sees it
 (`audience`: the IOC desk, and the field once a case is dispatched to someone there) and whether clearing the
 condition closes its case. Callers pass `refs` in whatever terms they have: a Fuzer ID, `kind:key` (tag:12-FI-101,
-well:A-12) or `source/key` (sap/10004711); the ones that match no entity stay on the exception, visible.
+well:A-12) or `source/key` (sap/10004711); the ones that match no entity stay on the exception, visible. What was
+found is a `finding` (fuzer.core.findings): detector, origin, method and standard, time window, evidence items and
+confidence, the same shape from a rule, an agent or another system.
 
 This module is the port, in platform core so sources, analyses and operations raise exceptions without importing
 the implementation (fuzer.ops.exceptions today, the IOC core module later), which `use()` can replace.
@@ -74,8 +76,9 @@ def _engine() -> ModuleType:
 
 
 def raise_exception(conn, type: str, key: str, title: str, by: str, **fields) -> dict:
-    """Open an exception of `type` for `key`, or update the one already open (refs, priority, value_usd, evidence,
-    source, assignee, role as keywords). Returns its row, with `raised` true when it is new."""
+    """Open an exception of `type` for `key`, or update the one already open (refs, priority, value_usd, finding,
+    source, assignee, role as keywords). What was found goes in `finding`, the one record shape every raiser uses
+    (fuzer.core.findings). Returns its row, with `raised` true when it is new."""
     return _engine().raise_(conn, type, key, title, by, **fields)
 
 
