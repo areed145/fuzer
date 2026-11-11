@@ -59,6 +59,8 @@ create index if not exists upset_recent on upset (start desc);
 alter table upset add column if not exists work_item_id bigint;
 alter table upset add column if not exists priority_usd double precision;
 alter table upset add column if not exists diagnosis jsonb;
+-- The IOC merged this upset's case into another upset's (one cascade, one case).
+alter table upset add column if not exists merged_into bigint;
 
 -- Detection patterns an engineer called a false alarm (#96): the SRE doesn't hand them off again.
 create table if not exists sre_suppress (

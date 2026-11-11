@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import settings
 
-KINDS = ("correlate", "correlation_matrix", "modes", "entities", "events", "spe")
+KINDS = ("correlate", "correlation_matrix", "modes", "entities", "events", "spe", "cascades")
 
 
 def _call(conn, pack, kind: str, p: dict) -> tuple[dict, object | None]:
@@ -33,6 +33,10 @@ def _call(conn, pack, kind: str, p: dict) -> tuple[dict, object | None]:
         return clusters.entities(conn, p.get("entity", "wells"), p.get("scope"), p.get("since"), p.get("until")), None
     if kind == "events":
         return clusters.events(conn, p.get("since"), p.get("until")), None
+    if kind == "cascades":
+        from . import cascades
+        return cascades.patterns(conn, p.get("since") or None, p.get("until") or None, p.get("window_minutes", cascades.PATTERN_MINUTES),
+                                 p.get("min_support", 2)), None
     if kind == "spe":
         out = clusters.spe(conn, p["scope"], (p["train_since"], p["train_until"]), (p["since"], p["until"]))
         fig = troubleshooting.spe_chart(conn, p["scope"], p["train_since"], p["train_until"], p["since"], p["until"])
@@ -50,6 +54,10 @@ def _summary(kind: str, r: dict) -> str:
     if kind == "modes":
         return f"{r['value']} modes on {', '.join(r['regime_points'])}: " + ", ".join(f"{m['name']} {m['share']:.0%}"
                                                                                         for m in r["modes"])
+    if kind == "cascades":
+        return f"{r['value']} recurring cascades in {r['upsets']} upsets" + ("; most often: " + ", ".join(
+            f"{x['first']} then {x['then']} ({x['support']}x, ~{x['median_lag_minutes']} min)"
+            for x in r["patterns"][:2]) if r["patterns"] else "")
     if kind == "spe":
         return f"{r['value']} anomalous stretches (limit {r['limit']}, {r['components']} components)"
     return f"{r['value']} {r.get('unit', 'groups')}"
@@ -57,7 +65,7 @@ def _summary(kind: str, r: dict) -> str:
 
 def big(kind: str, p: dict) -> bool:
     """Whether to queue it: a facility scope, or a window long enough to read many values."""
-    if kind == "events":
+    if kind in ("events", "cascades"):
         return False
     if p.get("scope") == "facility":
         return True

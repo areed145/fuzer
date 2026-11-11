@@ -442,6 +442,33 @@ it. A small study runs at once; a facility scope or a long window queues for the
 runs every 5 minutes. API: `POST /studies`, `GET /studies[/{id}]`, `POST /studies/{id}/rerun`. MCP:
 `start_study`, `get_study`. The Studies page (`#/studies`) starts, lists and opens them.
 
+## Correlated upsets and cascades
+
+The SRE groups detections into one upset while each starts within `sre.group_gap_hours` of the last and sits within
+`sre.hops` links of the others. A cascade slower than that, or carried by something the plant model doesn't hold
+(power, instrument air, fuel gas), arrives as several upsets and so several cases. `fuzer.ops.cascades` puts them
+back together for the IOC:
+
+- **Related upsets** (`related_upsets`, `GET /upsets/{id}/related`): every process upset within 12 h (up to 72),
+  scored by how close in time it started, the plant-model hops between the two upsets' units, and how often the two
+  signatures (first unit, detector) came together in the last 90 days. Each gets a role: *likely cause* (earlier and
+  connected), *likely knock-on* (later and connected), *same time*, *seen together before* (no link, but history) or
+  *coincident*.
+- **Triage page**: an upset case's task shows how it spread (the propagation chart), its detections in time order
+  and the related upsets, each linked to its case (`GET /upsets/{id}/view`).
+- **Merge** (`POST /upsets/{id}/merge`, operate access): the IOC says two upsets are one event. The upset's
+  exception joins the other's case (`exceptions.join`, the reverse of `split`), its own case is cancelled with its
+  process (`work.cancel_case`), both histories say so and `upset.merged_into` records it. From a likely cause the
+  current case moves under it, so triage and the one dispatch start where the event did. Split it back out on
+  Exceptions if it was a different event.
+- **Recurring cascades** (`cascade_patterns`, study kind `cascades`): ordered pairs of signatures starting within
+  `window_minutes` (360) of each other and linked within 8 hops, kept when seen twice or more, with how often the
+  first was followed (confidence) and the median and range of lags. A recurring cascade with high confidence is a
+  case for fixing the first unit, not for faster triage of the knock-ons.
+
+Time and plant-model links are leads, not causes; the specialist skill `field-operations-facilities/upset-correlation`
+says what would confirm each.
+
 ## Correlation studies
 
 `studies.py` answers what moves with what across hundreds of points, and what moved first.

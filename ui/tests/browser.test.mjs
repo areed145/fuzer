@@ -2561,3 +2561,44 @@ test("an overarching person's Inbox lists their work in other fields and opens a
   await page.getByRole("button", { name: "Work in kestrel" }).click();
   assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
 });
+
+test("an upset's triage shows how it spread and merges a knock-on into one case", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "erin"));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    task: { ...demoTask.task, element: "triage", name: "Triage", requires_human: false, assignee: "erin" },
+    data: { upset_id: 13 } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  const related = (over) => ({ id: 14, signature: "a step change on OK-J12-01", start: "2024-11-05T12:00:00", end: null,
+    lag_minutes: 20, hops: 5, seen_together: 2, role: "likely_knock_on", why: "", score: 0.4, status: "detected",
+    detections: 4, units: 4, work_item_id: 8, case_title: "Step change on OK-J12-01", case_state: "open",
+    merged_into: null, same_case: false, ...over });
+  let merged = false;
+  await page.route("**/upsets/13/view", (route) => route.fulfill({ json: {
+    upset: { id: 13, start: "2024-11-05T11:40:00", detections: 5 }, signature: "an excursion on 67-FT-3001",
+    timeline: [{ id: 1, start: "2024-11-05T11:40:00", end: null, unit: "67-FT-3001", point: "67-FT-3001.PV",
+      detector: "excursions", key: "alarm:hi", magnitude: 56, finding: "High alarm" }],
+    detections_shown: 1, by_unit: {}, spread: { spec: null, summary: null, title: null, note: "It reached one unit." },
+    related: { related: merged ? [related({ same_case: true, work_item_id: 7 })] : [related(),
+      related({ id: 20, signature: "a stop on 10-P-1001C", role: "coincident", hops: null, work_item_id: null })],
+      considered: 2, window_hours: 12, basis: "Time and links are leads, not causes." },
+    merged: merged ? [{ id: 14, signature: "a step change on OK-J12-01", start: "2024-11-05T12:00:00" }] : [] } }));
+  const posts = [];
+  await page.route("**/upsets/14/merge", (route) => { posts.push(route.request().postDataJSON()); merged = true;
+    return route.fulfill({ json: { upset: 14, into: 13, item_id: 7, cancelled_case: 8, reason: "" } }); });
+  await page.goto(`${url}/#/inbox/task/42`);
+  const panel = page.locator(".upset-panel");
+  await panel.getByText("It reached one unit.").waitFor();
+  await panel.getByText("High alarm").waitFor();
+  const row = panel.locator("li", { hasText: "a step change on OK-J12-01" });
+  await row.getByText("Likely knock-on").waitFor();
+  await row.getByText("20 min later", { exact: false }).waitFor();
+  await row.getByText("seen together 2× in 90 days", { exact: false }).waitFor();
+  assert.equal(await panel.getByText("a stop on 10-P-1001C").count(), 0);  // coincident and caseless: not worth a look
+  await row.getByRole("button", { name: "Bring into this case" }).click();
+  await row.getByRole("button", { name: "Confirm Bring into this case" }).click();
+  await panel.getByText("Merged: case #8 is now part of this one.").waitFor();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].into, 13);
+  await panel.getByText("Merged into this case: a step change on OK-J12-01.").waitFor();
+  await panel.getByText("Already on this case.").waitFor();
+});

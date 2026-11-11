@@ -132,6 +132,35 @@ def upset_detail(upset_id: int) -> dict[str, Any]:
     return _plain(out) if out else {"error": f"no upset {upset_id}"}
 
 
+@capability("field-operations-facilities", "hse-incident-management", kind="query")
+def related_upsets(upset_id: int, hours: float = 12) -> dict[str, Any]:
+    """Other upsets starting within `hours` (max 72) of this one, most likely related first: each with its lag in
+    minutes (negative = started earlier), plant-model hops between their units (None = not connected), how often
+    the two signatures came together in the last 90 days, and a role: likely_cause (earlier, connected),
+    likely_knock_on (later, connected), same_time, seen_together (no link but history) or coincident. A cascade
+    slower than the SRE's grouping gap, or carried by utilities the plant model doesn't hold, arrives as several
+    upsets: this puts them back together. Only a person merges cases."""
+    from ...ops import cascades
+    with db.connect() as conn:
+        try:
+            return cascades.related(conn, upset_id, min(max(hours, 0.5), 72))
+        except cascades.CascadeError as e:
+            return {"error": str(e)}
+
+
+@capability("field-operations-facilities", "production-surveillance", "hse-incident-management", kind="calc")
+def cascade_patterns(since: str | None = None, until: str | None = None, window_minutes: int = 360,
+                     min_support: int = 2) -> dict[str, Any]:
+    """Recurring cascades across history: a finding on one unit (first unit and detector) followed within
+    `window_minutes` by a finding on another linked unit, how many times (support), the share of times the first
+    was followed (confidence), the median and range of lags and example upsets. A sequence in time is a lead,
+    not a cause. start_study(kind="cascades") keeps one to cite."""
+    from ...ops import cascades
+    with db.connect() as conn:
+        return cascades.patterns(conn, _date(since) if since else None, _date(until) if until else None,
+                                 min(max(window_minutes, 10), 1440), max(min_support, 2))
+
+
 @capability(
     "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
     kind="calc"

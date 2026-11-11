@@ -193,10 +193,10 @@ def similar_cases(ref: str) -> dict[str, Any]:
     "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
     kind="calc"
 )
-def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe"],
+def start_study(kind: Literal["correlate", "correlation_matrix", "modes", "entities", "events", "spe", "cascades"],
                 params: dict[str, Any], agent: str = "assistant") -> dict[str, Any]:
     """Keep a correlation or clustering study (params as for correlate / correlation_matrix / cluster_modes /
-    cluster_entities / cluster_events, plus spe: scope, train_since, train_until, since, until). Small ones run
+    cluster_entities / cluster_events / cascade_patterns, plus spe: scope, train_since, train_until, since, until). Small ones run
     now and come back with a summary; big ones (a facility scope, long windows) queue for the background job:
     check with get_study. Cite it as study:<id>."""
     from ...ops import study

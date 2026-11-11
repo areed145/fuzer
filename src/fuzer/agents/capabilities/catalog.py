@@ -268,6 +268,12 @@ SKILL_CATALOG = (
         "What happened, what the values did, similar past cases, and checks to make.",
         _OPERATE),
     SkillDefinition(
+        f"{_FIELD}/upset-correlation", (_FIELD,),
+        (FIELD_OPERATOR, FACILITIES_ENGINEER),
+        "SRE upsets and their detections, the plant model's links, unit run states and alarm history.",
+        "One event told first cause first, the knock-ons with their lags, upsets to merge and recurring cascades.",
+        "Recommends merges and where to send one operator; the IOC merges cases and dispatches. " + _OPERATE),
+    SkillDefinition(
         f"{_FIELD}/shift-handover", (_FIELD,),
         (FIELD_OPERATOR, FACILITIES_ENGINEER),
         "Operator log events, notifications, downtime, the daily report and excursions for a stated window.",

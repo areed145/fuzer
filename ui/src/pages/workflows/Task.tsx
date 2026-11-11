@@ -7,6 +7,7 @@ import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, reportedBy, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
 import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
+import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
 
@@ -53,6 +54,8 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
         <div>
           <FromField v={v} />
           <Sources v={v} />
+          {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
+            canMerge={waiting && operate && !demo} onMerged={refresh} />}
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
             <p className="muted">This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</p>
           ) : t.kind === "agent" ? (
