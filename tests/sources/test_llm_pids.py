@@ -119,7 +119,7 @@ def test_read_link_and_score(setup, read):
 
     result = conn.execute("select result from llm_extraction where source = 'pid' and source_key = %s",
                           (SHEET,)).fetchone()["result"]
-    assert len(result["mentions"]) == 34
+    assert len(result["mentions"]) == 36
     issues = {f["issue"] for f in result["findings"] if f["kind"] not in ("connection", "title_block")}
     assert issues == {"not a tag", "not in register"} and result["lines"][0]["text"] == '6"-P-44479-A1'
     # Positions come back in sheet pixels, close to where the generator drew each tag.
@@ -129,7 +129,7 @@ def test_read_link_and_score(setup, read):
     assert result["size"] == truth[SHEET]["size"]
 
     s = llm_pids.score(conn, {SHEET: truth[SHEET]})
-    assert s["recall"] == round(34 / 36, 3) and s["precision"] == 1.0
+    assert s["recall"] == round(36 / 38, 3) and s["precision"] == 1.0
     assert set(s["problems"][0]["missed"]) == {"20-TT-2200B", "20-VT-2200B"}
     assert s["piping"] == {"recall": 1.0, "precision": 1.0}
 

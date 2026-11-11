@@ -75,6 +75,12 @@ A repeat failure is the same failure mode on the same unit more than once in the
      train starved while the others run full is a load-sharing problem the IOC can fix by moving gas between
      trains, not a machine fault. Maps are issued per machine; a stage without one says so, and then only the
      anti-surge valve's position tells you anything.
+   - **Heat rate** (gas turbine drivers, `calc("heat_rate", ref)`): fuel energy per kWh of output against the
+     OEM curves at the same load and ambient temperature, so a hot afternoon or part load isn't mistaken for a
+     fault. Excess rising a fraction of a percent a week is the air compressor fouling: an offline water wash
+     recovers most of it. A step, or an excess a wash doesn't recover, points at the hot section: recommend a
+     borescope. Quote the excess, its trend and when it started. The fuel's heating value is the design value,
+     not a measured one, so a few percent either way is within the method.
    - **Performance**: `pump_curve` (head below the curve at the same flow means internal wear) or
      `compressor_performance` (an efficiency drop means fouling, wear or recycle).
    - **Failure history**: Weibull beta (`wear_out` suits a PM interval, `early_life` points at repair

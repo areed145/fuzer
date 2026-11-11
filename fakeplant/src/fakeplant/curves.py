@@ -60,6 +60,21 @@ def choke(maker: str, model: str, cv_max: float, trim: str = "equal_percentage",
             "xt": 0.72, "series": {"cv": [(o, round(cv(o), 2)) for o in opens]}, "units": {"x": "%", "cv": "Cv (US)"}}
 
 
+def gas_turbine(maker: str, model: str, iso_kw: float = 5670.0, iso_heat_rate: float = 11300.0,
+                lhv: float = 36.0) -> dict:
+    """A gas turbine driver's performance curves as the vendor publishes them per model: available output and the
+    heat rate factor against ambient temperature, and heat rate at ISO (15 degC) against load. The design fuel's
+    lower heating value (MJ/Sm3) is a rating, so fuel flow converts to energy."""
+    temps = [-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+    loads = [30, 40, 50, 60, 70, 80, 90, 100]
+    series = {"power_ambient": [(t, round(iso_kw * (1 - 0.0075 * (t - 15)), 0)) for t in temps],
+              "heat_rate_ambient": [(t, round(1 + 0.0032 * (t - 15), 4)) for t in temps],
+              "heat_rate_load": [(x, round(iso_heat_rate * (1 + 0.55 * (1 - x / 100) ** 1.6), 0)) for x in loads]}
+    return {"kind": "gas_turbine", "manufacturer": maker, "model": model, "iso_kw": iso_kw,
+            "iso_heat_rate": iso_heat_rate, "lhv": lhv, "series": series,
+            "units": {"x": "", "power_ambient": "kW", "heat_rate_ambient": "factor", "heat_rate_load": "kJ/kWh"}}
+
+
 SPEEDS = (80, 90, 100, 105)  # % of rated speed: the map's speed lines
 
 
@@ -117,10 +132,14 @@ def csv_rows(c: dict) -> list[dict]:
     for name, pts in c["series"].items():
         for x, y in pts:
             rows.append({"manufacturer": c["manufacturer"], "model": c["model"], "curve": c["kind"], "series": name,
-                         "x": x, "y": y, "x_unit": c["units"]["x"], "y_unit": c["units"][name]})
+                         "x": x, "y": y, "x_unit": c["units"]["x"] or ("degC" if "ambient" in name else "%"),
+                         "y_unit": c["units"][name]})
     extra = ({"bep": (c["q_bep"], c["h_bep"]), "mcsf": (c["mcsf"], ""), "por": tuple(c["por"]), "aor": tuple(c["aor"]),
               "rated_speed": (c["rated_speed_rpm"], ""), "impeller": (c["impeller_mm"], "")}
-             if c["kind"] == "pump" else {"cv_max": (c["cv_max"], ""), "trim_size": (c["trim_in"], ""), "xt": (c["xt"], "")})
+             if c["kind"] == "pump" else
+             {"iso_power": (c["iso_kw"], ""), "iso_heat_rate": (c["iso_heat_rate"], ""), "fuel_lhv": (c["lhv"], "")}
+             if c["kind"] == "gas_turbine" else
+             {"cv_max": (c["cv_max"], ""), "trim_size": (c["trim_in"], ""), "xt": (c["xt"], "")})
     for name, (x, y) in extra.items():
         rows.append({"manufacturer": c["manufacturer"], "model": c["model"], "curve": c["kind"], "series": name,
                      "x": x, "y": y, "x_unit": "", "y_unit": ""})

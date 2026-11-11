@@ -79,7 +79,8 @@ def for_model(conn, model_id: str) -> dict | None:
         if r["source"] != src:
             continue
         out["curve"] = out["curve"] or r["curve"]
-        if r["series"] in ("head", "efficiency", "npshr", "power", "cv", "surge") or "@" in r["series"]:
+        if r["series"] in ("head", "efficiency", "npshr", "power", "cv", "surge", "power_ambient", "heat_rate_ambient",
+                           "heat_rate_load") or "@" in r["series"]:
             out["series"].setdefault(r["series"], []).append([r["x"], r["y"]])
             out["units"][r["series"]] = r["y_unit"]
             out["units"]["x"] = r["x_unit"] or out["units"].get("x")

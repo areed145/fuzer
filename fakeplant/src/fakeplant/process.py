@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from . import curves
 
-VARS = {"Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bearing_temperature",
+VARS = {"Fuel Gas Flow": "fuel_flow", "Output Power": "power", "Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bearing_temperature",
         "Vibration": "vibration", "Discharge Temperature": "discharge_temperature", "Speed": "speed",
         "Exhaust Temperature": "exhaust_temperature", "Vessel Pressure": "vessel_pressure",
         "Liquid Level": "liquid_level", "Outlet Temperature": "outlet_temperature",
@@ -78,7 +78,10 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
                               "vibration": 2.2, "cooler_before": f"20-E-2{stage - 1}50{s}" if stage > 1 else None,
                               "q_design": q_d, "q_surge": round(q_d * SURGE, 0), "control_line": CONTROL_LINE}
             elif func == "GT":
-                units[tag] = {"type": "gas_turbine", "train": train}
+                g = (oem or {}).get(next((e["model"] for e in equipment if e["floc"].endswith(f"-{area}-GT{loop}{s}")), ""), {})
+                units[tag] = {"type": "gas_turbine", "train": train, "iso_kw": g.get("iso_kw", 5670.0),
+                              "iso_heat_rate": g.get("iso_heat_rate", 11300.0), "lhv": g.get("lhv", 36.0),
+                              "duty": 0.86}
             elif func == "E":
                 units[tag] = {"type": "cooler", "train": train}
             elif func == "V":
@@ -111,7 +114,9 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
              "ST2 Lift Gas Header Flow": ("header:40", "flow"), "ST2 Lift Gas Header Pressure": ("header:40", "pressure"),
              "Compression Bypass Valve": ("valve:20-XV-3100", "position"), "ST1 Trunkline Meter": ("meter:st1", "flow"),
              "ST2 Trunkline Meter": ("meter:st2", "flow"), "NWP Gas Export Meter": ("meter:nwp_export", "flow"),
-             "NWP EGP Export ESDV": ("valve:50-XV-3100", "position")}
+             "NWP EGP Export ESDV": ("valve:50-XV-3100", "position"),
+             "GGCP Ambient Air Temperature": ("weather", "ambient")}
+    units["weather"] = {"type": "weather"}
 
     # ---- wells and jackets ----
     choke_of = {c["well"]: c for c in (chokes or []) if not c.get("valid_to")}
@@ -223,6 +228,12 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     for e in [e for e in events if e["unit"] == "train:A" and e["kind"] == "trip"]:
         events.append({"unit": "20-K-2300A", "kind": "discharge_temperature",
                        "points": [[_hours(e["start"], -3), 0], [_hours(e["start"], -0.1), 26], [e["start"], 0]]})
+
+    # Train B's gas turbine: its air compressor fouls from June 2025 (salt and dust on the blades), so it burns more
+    # fuel for the same output, until the offline water wash on 12 November recovers most of it (#474).
+    events.append({"unit": "20-GT-2000B", "kind": "heat_rate", "points": [
+        ["2025-06-01T00:00", 0], ["2025-11-11T00:00", 0.075], ["2025-11-12T06:00", 0.075], ["2025-11-12T18:00", 0.01],
+        ["2025-12-31T23:55", 0.015]]})
 
     # Train C is starved of gas from mid-October 2025 as the inlet gas shifts to trains A and B: its 1st stage's
     # forward flow falls to its surge line, so the anti-surge valve opens and recycles to hold the control line,

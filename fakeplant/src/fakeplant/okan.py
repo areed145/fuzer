@@ -93,7 +93,8 @@ INSTRUMENTS = {
           ("FT", "Flow", "m3/h"), ("PT", "Suction Pressure", "barg", 10), ("JT", "Motor Power", "kW")],
     "K": [("PT", "Discharge Pressure", "barg"), ("TT", "Discharge Temperature", "degC"), ("VT", "Vibration", "mm/s"),
           ("FT", "Suction Flow", "Am3/h"), ("ZT", "Anti-Surge Valve Position", "%")],
-    "GT": [("ST", "Speed", "rpm"), ("TT", "Exhaust Temperature", "degC")],
+    "GT": [("ST", "Speed", "rpm"), ("TT", "Exhaust Temperature", "degC"), ("FT", "Fuel Gas Flow", "Sm3/h"),
+           ("JT", "Output Power", "kW")],
     "V": [("PT", "Vessel Pressure", "barg"), ("LT", "Liquid Level", "%")],
     "E": [("TT", "Outlet Temperature", "degC")],
 }
@@ -101,7 +102,8 @@ INSTRUMENTS = {
 LOOSE = {
     "10": [("FT", 3001, "Oil Export Fiscal Meter", "Sm3/d")],
     "20": [("FT", 3001, "EGP Gas Export Meter", "kSm3/d"), ("FT", 3002, "GGCP Lift Gas Header Flow", "kSm3/d"),
-           ("PT", 3003, "GGCP Lift Gas Header Pressure", "barg"), ("XV", 3100, "Compression Bypass Valve", "%")],
+           ("PT", 3003, "GGCP Lift Gas Header Pressure", "barg"), ("XV", 3100, "Compression Bypass Valve", "%"),
+           ("TT", 3004, "GGCP Ambient Air Temperature", "degC")],
     "30": [("FT", 3001, "ST1 Trunkline Meter", "Sm3/d"), ("FT", 3002, "ST1 Lift Gas Header Flow", "kSm3/d"),
            ("PT", 3003, "ST1 Lift Gas Header Pressure", "barg")],
     "40": [("FT", 3001, "ST2 Trunkline Meter", "Sm3/d"), ("FT", 3002, "ST2 Lift Gas Header Flow", "kSm3/d"),
@@ -191,6 +193,9 @@ ASSISTANT_QUESTIONS = [
      "2024, and why?", "must_mention": ["20-K-2200B", ["vibration", "zone D"]], "specialists": ["maintenance-integrity"]},
     {"domain": "rotating equipment", "question": "Which rotating machines needed attention in early September 2025, "
      "and what should we do about them?", "must_mention": ["10-P-1001A", ["head", "curve"]],
+     "specialists": ["maintenance-integrity"]},
+    {"domain": "rotating equipment", "question": "Is any of our gas turbines burning more fuel than it should in early "
+     "November 2025, and what would fix it?", "must_mention": ["20-GT-2000B", "heat rate", ["wash", "foul"]],
      "specialists": ["maintenance-integrity"]},
     {"domain": "rotating equipment", "question": "Are any of our compressors at risk at the end of December 2025, and "
      "what should the IOC do about it?", "must_mention": ["20-K-2100C", "surge", ["anti-surge", "recycl"]],
@@ -884,12 +889,15 @@ def generate(out, seed: int = 11) -> dict:
     for e in equipment:
         if "-P" in e["floc"][4:]:
             oem.setdefault(e["model"], curves.pump(e["manufacturer"], e["model"], q_bep=190.0, h_bep=430.0))
+    for e in equipment:  # the gas turbines' performance curves (#474): one model, Solar's CSV
+        if "-GT" in e["floc"][4:]:
+            oem.setdefault(e["model"], curves.gas_turbine(e["manufacturer"], e["model"]))
     for maker, model in CHOKES:
         cv_max, trim, size = CHOKE_CURVES[model]
         oem[model] = curves.choke(maker, model, cv_max, trim, size)
     # How each model's curve reaches us: the pumps' vendors sent a CSV and an old scanned datasheet (curve
     # only); Master Flo a CSV; Cameron a datasheet PDF with its table; Mokveld only a scan (with its table).
-    delivery = {m: ("csv", "scan") if c["kind"] == "pump" else
+    delivery = {m: ("csv", "scan") if c["kind"] == "pump" else ("csv",) if c["kind"] == "gas_turbine" else
                 {"P2-12": ("csv",), "CC30": ("pdf",), "MCV-40": ("scan",)}[m] for m, c in oem.items()}
     curve_rows, sheets_meta = [], []
     for m, c in sorted(oem.items()):

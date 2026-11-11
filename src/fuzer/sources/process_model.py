@@ -255,7 +255,22 @@ class Window:
             return self.lag(load * u.get("rpm", 14950) * (1 + 0.003 * self.noise(unit + "n", 20)), 5)
         if var == "exhaust_temperature":
             return self.lag(self.ambient() + load * (u.get("exhaust", 485) - 30 + 0.4 * (self.ambient() - 27)), 25)
+        if var == "power":  # kW the compressors take: the train's load on the driver's duty share of ISO output
+            return load * u.get("duty", 0.86) * u.get("iso_kw", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
+        if var == "fuel_flow":  # Sm3/h: output times the heat rate at that load and ambient, worse as it fouls
+            amb = self.ambient()
+            avail = u.get("iso_kw", 5670.0) * (1 - 0.0075 * (amb - 15))
+            pw = self.get(unit, "power")
+            frac = np.clip(pw / np.maximum(avail, 1), 0.3, 1.0)
+            hr = u.get("iso_heat_rate", 11300.0) * (1 + 0.55 * (1 - frac) ** 1.6) * (1 + 0.0032 * (amb - 15))
+            foul = sum((self.path(e["points"]) for e in self.ev(unit, "heat_rate")), np.zeros_like(self.t))
+            return pw * hr * (1 + foul) / (u.get("lhv", 36.0) * 1000) * (1 + 0.008 * self.noise(unit + "ff", 15))
         raise KeyError(var)
+
+    def _weather(self, unit, u, var):
+        if var != "ambient":
+            raise KeyError(var)
+        return self.ambient() + 0.3 * self.noise(unit + "amb", 30)
 
     def _cooler(self, unit, u, var):
         if var != "outlet_temperature":

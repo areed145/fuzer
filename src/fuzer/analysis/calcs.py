@@ -633,6 +633,8 @@ CHECKS |= {
                  "ref": "pump tag or equipment", "used_by": {"agent": "calc", "detector": None}},
     "surge": {"fn": lambda conn, fid, days=30, until=None: _rotating("surge")(conn, fid, days=days, until=until),
               "ref": "compressor stage tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "heat_rate": {"fn": lambda conn, fid, days=30, until=None: _rotating("heat_rate")(conn, fid, days=days, until=until),
+                  "ref": "gas turbine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
     "rotating_health": {"fn": lambda conn, fid, until=None: _rotating("health")(conn, fid, until=until),
                         "ref": "machine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
 }

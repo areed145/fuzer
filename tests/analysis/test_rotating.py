@@ -91,3 +91,20 @@ def test_a_starved_compressor_runs_on_its_anti_surge_valve_and_dips_toward_surge
     assert c["status"] == "act" and "near_surge" in c["flags"] and any("surge" in r for r in c["recommendations"])
     h = calcs.run(conn, "rotating_health", k, until="2025-12-30T00:00")
     assert {f["check"]: f for f in h["findings"]}["surge"]["confidence"] == "high"
+
+
+def test_a_fouling_gas_turbine_burns_more_fuel_than_its_curves_expect_until_washed(conn):
+    """Train B's gas turbine fouls from June 2025 until the offline water wash on 12 November: its heat rate climbs
+    above what Solar's curves expect at the same load and ambient temperature, and recovers after the wash."""
+    k = fid(conn, "20-GT-2000B")
+    clean = rotating.heat_rate(conn, k, until="2025-05-15T00:00")
+    assert clean["flag"] is None and abs(clean["excess_pct"]) < 1.5 and clean["unit"] == "kJ/kWh"
+    fouled = rotating.heat_rate(conn, k, until="2025-11-10T00:00")
+    assert fouled["flag"] == "heat_rate_high" and fouled["excess_pct"] > 5 and fouled["trend_pct_per_week"] > 0
+    assert fouled["value"] > fouled["expected"] and "LHV" in fouled["basis"] and 60 < fouled["load_pct"] <= 100
+    washed = rotating.heat_rate(conn, k, until="2025-12-01T00:00")
+    assert washed["flag"] is None and washed["excess_pct"] < 3
+    assert rotating.heat_rate(conn, fid(conn, "20-GT-2000A"), until="2025-11-10T00:00")["flag"] is None
+    nov = rotating.screen(conn, "2025-11-10T00:00")
+    b = next(m for m in nov["machines"] if m["machine"] == "20-GT-2000B")
+    assert "heat_rate_high" in b["flags"] and any("water wash" in r for r in b["recommendations"])
