@@ -80,7 +80,9 @@ def test_limits_land_dated_against_points(conn):
     assert conn.stats["limits"] > 1500
     assert conn.stats["unresolved_limits"] == {"iow window: unknown tag": 1}  # IOW-010's typo
     sources = {r["source"]: r["n"] for r in conn.execute("select source, count(*) as n from point_limit group by 1")}
-    assert set(sources) == {"pi_af", "dcs", "iow"} and sources["dcs"] > sources["pi_af"]
+    # pid: the smart P&IDs' alarm and trip tables, as designed; checked against the others, never counted (#475)
+    assert set(sources) == {"pi_af", "dcs", "iow", "pid"} and sources["dcs"] > sources["pi_af"]
+    assert {r["basis"] for r in conn.execute("select distinct basis from point_limit where source = 'pid'")} == {"design"}
     # ST1's DCS is in psig; stored in barg with what it said kept.
     st1 = conn.execute("select value, unit, reported from point_limit where source = 'dcs' and reported like '%%psig' "
                        "limit 1").fetchone()

@@ -278,13 +278,20 @@ every tag and line number as drawn, says where each sits, and reads the piping
 between equipment. Fuzer turns each reading into a tag key with the asset
 pack's grammar and checks it against the register. Readings that aren't tags,
 tags missing from the register, and title blocks that disagree with the
-document register are kept as findings rather than links. Each drawing is cached
+document register are kept as findings rather than links. Claude also reads
+each sheet's data tables and numbered notes: the equipment data table becomes
+dated design pressure and temperature measurements, the alarm and trip table
+becomes `design` limits on each instrument's point (checked against the DCS and
+AF, never used for alarms themselves), and notes are kept with the tags they
+name. Smart sheets export their tables and notes. Each drawing is cached
 by the SHA-256 of its image, so it's only re-read when it changes.
-`fuzer pid-score` reports tag and piping recall / precision.
+`fuzer pid-score` reports recall / precision per element: tags, piping, off-page
+lines, loops, line numbers, alarm and trip settings, design ratings and notes.
 
 On a P&ID's page the UI shows the drawing with every reading marked where it
 sits (linked to the register, not in the register, not a tag, line number;
-click a linked tag to open it), the piping and the findings. Manuals and
+click a linked tag to open it), the piping, the notes, the data tables, the
+alarm settings that differ from the drawing, and the findings. Manuals and
 procedures show their file inline on their page.
 
 Model defaults to `claude-opus-5-5` (`--model` or the `llm.model` setting to change),

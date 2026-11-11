@@ -375,6 +375,29 @@ def exception_refs(conn=Depends(get_conn)):
     return exceptions.ref_forms(conn)
 
 
+# ---- routing: one table for what every kind of work starts (#509) --------------------------------------------------
+
+@router.get("/routing")
+def routing_table(conn=Depends(get_conn)):
+    """The routing table: every type of work, where it is declared, how it joins one event's case, what it starts
+    (a process, a queue, or the IOC's dispatch) and when it is due."""
+    from ..ops import routing
+    return _exception_call(conn, routing.routes)
+
+
+@router.get("/routing/{type}/explain")
+def routing_explain(type: str, refs: list[str] = Query(default=[]), key: str | None = None,
+                    priority: str | None = None, to: str | None = None, conn=Depends(get_conn)):
+    """Dry-run an intake of this type, writing nothing: the entities its refs match, the open exception it would add
+    to or the event's case it would join, the process (each step's lane and who holds it) or queue it goes to, and
+    when it is due. `priority` is the source's own priority (SAP's 1-4); `to` explains a dispatch to that person or
+    `role:<name>`."""
+    from ..ops import routing
+    out = _exception_call(conn, routing.explain, type, refs=refs, key=key,
+                          evidence={"priority": priority} if priority else None, to=to)
+    return out
+
+
 @router.put("/exceptions/types/{name}")
 def exception_type_define(name: str, k: ExceptionKind, conn=Depends(get_conn)):
     """Define or change a type as data, for another system's exceptions."""

@@ -2229,10 +2229,21 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   await page.getByText("Nobody is on the team yet.").waitFor();
   await page.getByRole("button", { name: "Add the sample team" }).click();
   await page.getByRole("button", { name: "Confirm Add the sample team" }).click();
-  await expectReports(added, 3);
+  await expectReports(added, 5);
   assert.deepEqual(added.map((p) => [p.name, p.roles]), [["riley", ["ops_lead", "engineer"]], ["sam", ["operator"]],
-    ["pat", ["maintenance_planner"]]]);
+    ["pat", ["maintenance_planner"]], ["jordan", ["production_engineer"]], ["casey", ["data_steward"]]]);
   await page.getByText("Nobody is on the team yet.").waitFor({ state: "detached" });
+
+  // a demo that added the earlier three-person team gets the production engineer and data steward, and only them
+  added.length = 0;
+  roster = roster.slice(0, 3);
+  await page.reload();
+  await page.getByText("Some queues have nobody in them.").waitFor();
+  await page.getByRole("button", { name: "Add the rest of the sample team" }).click();
+  await page.getByRole("button", { name: "Confirm Add the rest of the sample team" }).click();
+  await expectReports(added, 2);
+  assert.deepEqual(added.map((p) => p.name), ["jordan", "casey"]);
+  await page.getByText("Some queues have nobody in them.").waitFor({ state: "detached" });
 
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
   const handed = [];

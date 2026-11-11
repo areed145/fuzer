@@ -16,7 +16,9 @@ diamonds. Controllers, control valves and relief valves are drawn even when the 
 a real sheet; the answer key lists them as `unregistered`, so a reader that reports them is right to and a
 reader that links them to the register is wrong. Loose meters and valves sit on a header along the foot of
 the sheet. Off-page connectors (`TO OKAN-20-PID-004` with the tag at the other end) carry lines across sheets.
-Notes, a hold cloud and a revision triangle fill the margins.
+Notes, a hold cloud and a revision triangle fill the margins. Given `data`, the sheet's foot carries an
+equipment data table (design pressure, temperature, capacity), an alarm and trip table (LL / L / H / HH per
+instrument, with units) and numbered notes that name items on the sheet, and the title block a date.
 
 Degradation levels: `clean` (CAD export), `scan` (slight rotation, blur, speckle), `old` (faded strokes, more
 skew, stains, hand redlines) and `poor` (low resolution, heavy speckle and a torn corner; tags lost in the tear
@@ -26,7 +28,8 @@ are marked `hidden` in the key).
 in-sheet equipment-to-equipment line (`lines`, as before), every connection with the valves it runs through and
 the sheet it continues on (`connections`), the valves (`valves`), the control loops (`loops`), the off-page
 connectors (`offpage`), the unregistered items drawn (`unregistered`), how many line crossings there are (none of
-them a connection) and the degradation level.
+them a connection), the degradation level, the data tables with each row's tag (`tables`) and the notes with the
+tags they name (`notes`).
 """
 
 import itertools
@@ -46,6 +49,9 @@ LEVELS = ("clean", "scan", "old", "poor")
 HAND_VALVES = ("gate", "globe", "ball", "check", "butterfly")
 INSULATION = ("", "", "-IH", "-PP", "-IC", "-ET")  # none, heat conservation, personnel protection, cold, traced
 TALL = ("V", "T", "F", "H")
+ROW = 28  # data table row height
+EQ_COLS = (("TAG", 170), ("SERVICE", 330), ("DES. P (barg)", 150), ("DES. T (DEG C)", 160), ("CAPACITY", 160))
+SP_COLS = (("TAG", 160), ("LL", 110), ("L", 110), ("H", 110), ("HH", 110), ("UNITS", 120))
 ABBREV = {"SEPARATOR": "SEP.", "COMPRESSOR": "COMPR.", "EXCHANGER": "EXCH.", "PRESSURE": "PRESS.", "TRAIN": "TRN",
           "DISCHARGE": "DISCH.", "SUCTION": "SUCT.", "COOLER": "CLR", "SCRUBBER": "SCRUB.", "PRODUCTION": "PROD."}
 
@@ -339,6 +345,43 @@ def _degrade(img: Image.Image, level: str, rng: random.Random, hide: list) -> Im
     return img
 
 
+def _num(v) -> str:
+    if v is None:
+        return "-"
+    return f"{v:g}" if abs(v) < 1000 else f"{v:.0f}"
+
+
+def _table(s: "_Sheet", x: float, y: float, title: str, cols, rows: list[list[str]]) -> dict:
+    """A data table in the sheet's foot: a title, a header row and one row per item, ruled. Returns it with the
+    centre of each row's first cell (where a reader would point to it)."""
+    d, w = s.d, sum(c[1] for c in cols)
+    d.text((x + 4, y + ROW / 2), title, font=s.f_small, fill=0, anchor="lm")
+    y0 = y + ROW
+    d.rectangle([x, y0, x + w, y0 + ROW * (len(rows) + 1)], outline=0, width=2)
+    d.line([(x, y0 + ROW), (x + w, y0 + ROW)], fill=0, width=2)
+    cx = x
+    for k, (name, cw) in enumerate(cols):
+        if k:
+            d.line([(cx, y0), (cx, y0 + ROW * (len(rows) + 1))], fill=0, width=1)
+        d.text((cx + cw / 2, y0 + ROW / 2), name, font=s.f_small, fill=0, anchor="mm")
+        cx += cw
+    out = []
+    for i, row in enumerate(rows):
+        ry = y0 + ROW * (i + 1.5)
+        if i:
+            d.line([(x, ry - ROW / 2), (x + w, ry - ROW / 2)], fill=0, width=1)
+        cx = x
+        for (_, cw), cell in zip(cols, row, strict=True):
+            d.text((cx + cw / 2, ry), cell, font=s.f_small, fill=0, anchor="mm")
+            cx += cw
+        out.append({"cells": row, "x": round(x + cols[0][1] / 2), "y": round(ry)})
+    return {"title": title, "columns": [c[0] for c in cols], "rows": out}
+
+
+def _table_h(n: int) -> int:
+    return ROW * (n + 2) if n else 0
+
+
 def _in_tear(x, y, tear) -> bool:
     x0, y0, x1, y1 = tear
     return x <= x0 + (x1 - x0) * (y - y0) / (y1 - y0) and y >= y0
@@ -346,10 +389,14 @@ def _in_tear(x, y, tear) -> bool:
 
 def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: random.Random,
          connections: list[dict] = (), scan: bool = True, equipment_funcs: tuple[str, ...] = EQUIPMENT_FUNCS,
-         level: str | None = None, offpage: list[dict] = ()) -> dict:
+         level: str | None = None, offpage: list[dict] = (), data: dict | None = None) -> dict:
     """Render one drawing and return its answer key (see the module docstring). `connections`: the sheet's
     process lines {from, to, line} between its equipment; `offpage`: lines leaving or entering the sheet
-    {tag, direction: to|from, sheet, other, line}. `level` defaults to `scan` when scan is set, else `clean`."""
+    {tag, direction: to|from, sheet, other, line}. `level` defaults to `scan` when scan is set, else `clean`.
+    `data` fills the sheet's foot: `equipment` {tag: {service, design_pressure, design_temperature, capacity}}
+    for an equipment data table, `setpoints` {instrument tag: {lolo, lo, hi, hihi, unit}} for an alarm and trip
+    table, `notes` [{text, tags}] numbered after the standard ones, and `date` for the title block."""
+    data = data or {}
     level = level or ("scan" if scan else "clean")
     equipment = [t for t in tags if t.func in equipment_funcs]
     by_key = {t.canonical: t for t in equipment}
@@ -371,7 +418,23 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
 
     loose = [t for t in tags if t.func not in equipment_funcs and owner(t) is None]
     width = W + max(0, per_band - 4) * 330
-    height = H + (bands - 1) * BAND_H + (140 if loose else 0)
+    body_h = H + (bands - 1) * BAND_H + (140 if loose else 0)
+    # the foot: data tables at the left, notes in the middle, the title block at the right
+    on_sheet = {t.canonical: t for t in tags}
+    eq_rows = [[k, _abbrev(v.get("service") or titles.get(k, ""), rng), _num(v.get("design_pressure")),
+                _num(v.get("design_temperature")), v.get("capacity") or "-"]
+               for k, v in data.get("equipment", {}).items() if k in by_key]
+    sp_keys = [k for k in data.get("setpoints", {}) if k in on_sheet]
+    sp_rows = [[on_sheet[k].fmt("{f}-{l}{s}"), *(_num(data["setpoints"][k].get(t)) for t in ("lolo", "lo", "hi", "hihi")),
+                data["setpoints"][k].get("unit") or ""] for k in sp_keys]
+    room = width - 1300 - 40  # left of the notes
+    eq_w, sp_w = sum(c[1] for c in EQ_COLS), sum(c[1] for c in SP_COLS)
+    side = room >= eq_w + sp_w + 40
+    tables_h = max(_table_h(len(eq_rows)), _table_h(len(sp_rows))) if side else (
+        _table_h(len(eq_rows)) + _table_h(len(sp_rows)) + (20 if eq_rows and sp_rows else 0))
+    extra_notes = data.get("notes", [])
+    foot_h = max(210, tables_h + 50, 34 * (5 + len(extra_notes)) + 30)
+    height = body_h + foot_h - 210
     s = _Sheet(width, height, rng)
     d, img = s.d, s.img
 
@@ -382,13 +445,35 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     d.text((tb[0] + 20, tb[1] + 20), sheet["title"], font=s.f_tag if d.textlength(sheet["title"], font=s.f_tag) < 580
            else s.f_small, fill=0)
     d.text((tb[0] + 20, tb[1] + 75), f"DWG No. {sheet['sheet']}", font=s.f_tag, fill=0)
-    d.text((tb[0] + 20, tb[1] + 130), f"REV {sheet['revision']}    SCALE NTS", font=s.f_tag, fill=0)
+    rev = f"REV {sheet['revision']}  {data['date']}  SCALE NTS" if data.get("date") else f"REV {sheet['revision']}    SCALE NTS"
+    d.text((tb[0] + 20, tb[1] + 130), rev, font=s.f_tag if not data.get("date") else s.f_small, fill=0)
     area = equipment[0].area if equipment else (tags[0].area if tags else "")
     notes = ["NOTES:", f"1. INSTRUMENT TAGS ARE PREFIXED {area}- UNLESS SHOWN.",
              "2. LINE No.: SIZE-SERVICE-NUMBER-SPEC-INSULATION.", "3. ALL VALVES LINE SIZE UNLESS NOTED.",
              "4. HOLD 1: TIE-IN LOCATION TO BE CONFIRMED."]
+    notes_key = [{"n": k, "text": t.split(". ", 1)[1], "tags": [], "x": round(tb[0] - 620), "y": round(height - foot_h + 10 + 34 * k)}
+                 for k, t in enumerate(notes) if k]
+    for j, n in enumerate(extra_notes):
+        k = len(notes)
+        notes.append(f"{k}. {n['text']}")
+        notes_key.append({"n": k, "text": n["text"], "tags": list(n.get("tags", [])), "x": round(tb[0] - 620),
+                          "y": round(height - foot_h + 10 + 34 * k)})
     for k, n in enumerate(notes):
-        d.text((tb[0] - 620, tb[1] + 10 + 34 * k), n, font=s.f_small, fill=0)
+        d.text((tb[0] - 620, height - foot_h + 10 + 34 * k), n, font=s.f_small, fill=0)
+    tables = []
+    tx, ty = 40, height - foot_h + 10
+    if eq_rows:
+        tables.append({"kind": "equipment", **_table(s, tx, ty, "EQUIPMENT DATA", EQ_COLS, eq_rows)})
+        for r in tables[-1]["rows"]:
+            r["key"] = r["cells"][0]
+        if side:
+            tx += eq_w + 40
+        else:
+            ty += _table_h(len(eq_rows)) + 20
+    if sp_rows:
+        tables.append({"kind": "setpoints", **_table(s, tx, ty, "ALARM AND TRIP SETTINGS", SP_COLS, sp_rows)})
+        for r, k in zip(tables[-1]["rows"], sp_keys, strict=True):
+            r["key"] = k
 
     # equipment, laid out by process flow
     spacing = (width - 480) / per_band
@@ -543,7 +628,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
 
     # loose meters and valves on a header along the foot of the sheet
     if loose:
-        hy = height - 330
+        hy = body_h - 330
         hx0, hx1 = 200, width - 720
         header = f'{rng.choice([8, 10, 12])}"-P-{area}{900 + len(loose)}-B1A{rng.choice(INSULATION)}'
         s.line([(hx0, hy), (hx1, hy)], header)
@@ -581,7 +666,7 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     tear: list = []
     img = _degrade(s.img, level, rng, tear)
     if tear:
-        for x in drawn:
+        for x in drawn + notes_key + [r for t in tables for r in t["rows"]]:
             if _in_tear(x["x"], x["y"], tear[0]):
                 x["hidden"] = True
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -589,4 +674,5 @@ def draw(path: Path, sheet: dict, tags: list, titles: dict[str, str], rng: rando
     return {"size": [width, height], "level": level, "tags": drawn, "lines": lines,
             "connections": [{k: v for k, v in c.items() if k != "pts"} for c in conns],
             "header": lines_header, "valves": s.valves, "loops": loops, "offpage": off,
-            "unregistered": s.unregistered, "crossings": s.crossings}
+            "unregistered": s.unregistered, "crossings": s.crossings, "tables": tables, "notes": notes_key,
+            **({"date": data["date"]} if data.get("date") else {})}

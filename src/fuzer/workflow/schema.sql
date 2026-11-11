@@ -80,6 +80,12 @@ from (values
 where exists (select 1 from work_role)
 on conflict do nothing;
 
+-- The data steward (#476): source problems (fuzer.sources.alerts) route to its queue. Same rule as above.
+insert into work_role (name, kind, description, default_sla, escalate_to, updated_by)
+select 'data_steward', 'person', 'Master data steward: source problems and register gaps', 'P1D', 'ops_lead', 'seed'
+where exists (select 1 from work_role)
+on conflict do nothing;
+
 create table if not exists work_item (
     id          bigserial primary key,
     type        text not null,

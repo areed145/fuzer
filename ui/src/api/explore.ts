@@ -106,6 +106,12 @@ export interface Drawing {
     status: "confirmed" | "one_sided" | "unread"; sheet_id: string | null }[];
   /** Instrument loops read from bubbles and signal lines: transmitter, controller, final element. */
   loops?: { members: string[] }[];
+  /** Data tables on the sheet (equipment data, alarm and trip settings), as read (#475). */
+  tables?: { title: string; columns: string[]; rows: string[][] }[];
+  /** Numbered notes, with the registered tags each names. */
+  notes?: { n: number; text: string; tags: string[] }[];
+  /** Where the sheet's alarm and trip table disagrees with the alarms configured in the DCS and AF. */
+  checks?: { tag: string; point: string; point_id: string; type: string; detail: string }[];
 }
 
 export interface GraphNode {

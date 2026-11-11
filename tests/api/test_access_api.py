@@ -151,6 +151,12 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
     assert runtime.get("/demo/okan/investigation").status_code == 200
     assert runtime.get("/ontology/declared").status_code == 200
     assert len(runtime.get("/assistant/agents").json()["agents"]) == 8  # the roster is readable, asking is not
+    # where work goes is readable, and explaining an intake writes nothing (#509)
+    routes = {r["type"]: r for r in runtime.get("/routing").json()}
+    assert routes["source_issue"]["starts"] == "queue" and routes["source_issue"]["role"] == "data_steward"
+    explained = runtime.get("/routing/source_issue/explain", params={"key": "x:stale", "refs": ["tag:NOPE"]})
+    assert explained.status_code == 200 and explained.json()["outcome"] in ("queue", "updates")
+    assert runtime.get("/routing/no_such_type/explain").status_code == 400
     for method, path, body in [
         ("POST", "/rebuild", {}),
         ("PUT", "/settings/agents.model", {"value": "changed"}),

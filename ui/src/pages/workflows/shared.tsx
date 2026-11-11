@@ -106,13 +106,18 @@ export function useAct() {
   return { busy, error, run };
 }
 
-/** A sample IOC team for a fictional demo field: an ops lead who triages, a field operator who gets dispatched and
- * a maintenance planner. Offered only where nobody is on the roster, the demo is on and names are attribution, not
- * accounts (local mode), so a real deployment's roster is never touched. Uses the ordinary roster write. */
+/** A sample IOC team for a fictional demo field: an ops lead who triages, a field operator who gets dispatched, a
+ * maintenance planner, a production engineer (short gas days, deferment) and a data steward (source problems), so
+ * every queue the demo's work routes to has someone in it. Offered only where the roster is empty or holds only
+ * sample people (a demo that added an earlier, smaller sample team gets the rest), the demo is on and names are
+ * attribution, not accounts (local mode), so a real deployment's roster is never touched. Uses the ordinary roster
+ * write. */
 export const SAMPLE_TEAM: { name: string; roles: string[]; does: string }[] = [
   { name: "riley", roles: ["ops_lead", "engineer"], does: "IOC ops lead: triages and dispatches" },
   { name: "sam", roles: ["operator"], does: "field operator: gets sent to look" },
   { name: "pat", roles: ["maintenance_planner"], does: "maintenance planner: raises notifications" },
+  { name: "jordan", roles: ["production_engineer"], does: "production engineer: explains short gas days and deferment" },
+  { name: "casey", roles: ["data_steward"], does: "data steward: fixes source problems" },
 ];
 
 export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
@@ -122,17 +127,28 @@ export function SampleTeam({ onAdded }: { onAdded?: () => void }) {
   const demo = useAsync(() => api.demoConfig(), []);
   const people = useAsync(() => api.workPeople(), []);
   const { busy, error, run } = useAct();
-  if (session?.mode === "microsoft" || !configure || !demo.data?.enabled || !people.data || people.data.length) return null;
+  if (session?.mode === "microsoft" || !configure || !demo.data?.enabled || !people.data) return null;
+  const sample = new Set(SAMPLE_TEAM.map((p) => p.name));
+  if (people.data.some((p) => !sample.has(p.name))) return null;  // someone's own roster: leave it alone
+  const have = new Set(people.data.map((p) => p.name));
+  const missing = SAMPLE_TEAM.filter((p) => !have.has(p.name));
+  if (!missing.length) return null;
+  const fresh = !people.data.length;
+  const names = missing.map((p) => p.name);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
   const add = () => run("Adding the sample team", async () => {
-    for (const p of SAMPLE_TEAM) await api.setWorkPerson(p.name, p.roles, person || "demo");
+    for (const p of missing) await api.setWorkPerson(p.name, p.roles, person || "demo");
   }, () => { if (!person) setPerson("riley"); people.reload(); onAdded?.(); });
   return (
     <div className="notice small sample-team">
-      <p><strong>Nobody is on the team yet.</strong> Inbox and My jobs need people with roles. For this fictional
-        field, add a sample IOC team, then switch “You are” between them to follow work from triage to the field:</p>
-      <ul className="plain">{SAMPLE_TEAM.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</ul>
-      <ConfirmAction label="Add the sample team" busy={!!busy}
-        consequence="Adds riley, sam and pat to this project's shared roster with the roles shown, and sets you to riley if you haven't picked a name. They are sample names for a demo field; remove them on Teams & routing." onConfirm={add} />
+      {fresh
+        ? <p><strong>Nobody is on the team yet.</strong> Inbox and My jobs need people with roles. For this fictional
+          field, add a sample IOC team, then switch “You are” between them to follow work from triage to the field:</p>
+        : <p><strong>Some queues have nobody in them.</strong> The sample team now covers every queue this field's work
+          routes to. Add the rest of it:</p>}
+      <ul className="plain">{missing.map((p) => <li key={p.name}><strong>{p.name}</strong> · {p.does}</li>)}</ul>
+      <ConfirmAction label={fresh ? "Add the sample team" : "Add the rest of the sample team"} busy={!!busy}
+        consequence={`Adds ${list} to this project's shared roster with the roles shown${fresh ? ", and sets you to riley if you haven't picked a name" : ""}. They are sample names for a demo field; remove them on Teams & routing.`} onConfirm={add} />
       {" "}<a href={href("/teams")}>Or add your own people on Teams &amp; routing</a>
       {error && <p role="alert" className="error">{error}</p>}
     </div>

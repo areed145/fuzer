@@ -31,7 +31,10 @@ class FakeVision:
                    if sheet != "OKAN-20-PID-006"]
         return {"connections": [{"from": c["from"], "to": c["to"], "line": c["line"], "via": c["via"]}
                                 for c in truth["connections"] if c.get("to") and not c.get("offpage")],
-                "offpage": offpage, "loops": [{"members": lp["members"]} for lp in truth["loops"]]}
+                "offpage": offpage, "loops": [{"members": lp["members"]} for lp in truth["loops"]],
+                "tables": [{"title": t["title"], "columns": t["columns"],
+                            "rows": [r["cells"] for r in t["rows"] if not r.get("hidden")]} for t in truth["tables"]],
+                "notes": [{"number": n["n"], "text": n["text"]} for n in truth["notes"] if not n.get("hidden")]}
 
     def create(self, **kw):
         self.requests.append(kw)
@@ -43,7 +46,7 @@ class FakeVision:
         if sheet != SHEET:  # other drawings: read perfectly, in the top-left tile
             tags = [{"text": x["key"], "kind": x["kind"], "confidence": 0.9, "tile": 1, "x": 10, "y": 10}
                     for x in truth["tags"]]
-            data = {"title_block": {"drawing_number": sheet, "title": "", "revision": ""}, "tags": tags,
+            data = {"title_block": {"drawing_number": sheet, "title": "", "revision": "", "date": truth.get("date", "")}, "tags": tags,
                     **self.topology(sheet, truth)}
             return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                    usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
@@ -64,7 +67,8 @@ class FakeVision:
                          "tile": tile, "x": x - box[0], "y": y - box[1]})
         tags += [{"text": '6"-P-44479-A1', "kind": "line", "confidence": 0.8, "tile": 2, "x": 400, "y": 300},
                  {"text": "PT-9999", "kind": "instrument", "confidence": 0.6, "tile": 3, "x": 400, "y": 300}]
-        data = {"title_block": {"drawing_number": SHEET, "title": "AREA 20 - TRAIN B", "revision": "D"},
+        data = {"title_block": {"drawing_number": SHEET, "title": "AREA 20 - TRAIN B", "revision": "D",
+                                "date": truth["date"]},
                 "tags": tags, **self.topology(sheet, truth)}
         return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(data))],
                                usage=SimpleNamespace(input_tokens=9000, output_tokens=400, cache_read_input_tokens=0))
@@ -100,8 +104,8 @@ def test_tiles_stay_within_size_limit(setup):
 
     from PIL import Image
     t = llm_pids.tiles(p["image_path"])
-    assert len(t) == 6 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
-    assert [box for _, _, box in t] == llm_pids.tile_boxes(*truth[SHEET]["size"])  # a two-band train sheet: 3 x 2
+    assert len(t) == 9 and all(max(Image.open(io.BytesIO(png)).size) <= llm_pids.MAX_EDGE for _, png, _ in t)
+    assert [box for _, _, box in t] == llm_pids.tile_boxes(*truth[SHEET]["size"])  # a two-band train sheet with its data tables: 3 x 3
 
 
 def test_every_drawn_sheet_but_smart_is_read(setup):
@@ -241,3 +245,33 @@ def test_benchmark_scores_each_element_and_level(setup, read):
     assert s["elements"]["loops"]["recall"] == 1.0 and s["elements"]["connections"]["recall"] == 1.0
     assert s["elements"]["offpage"]["recall"] < 1.0  # train C's end was missed
     assert {"scan", "old", "poor"} <= set(s["by_level"])
+
+
+def test_tables_and_notes_are_read_and_checked(setup, read, okan_db):
+    """The alarm and trip tables land as design limits on each instrument's point, checked against the DCS and AF:
+    an alarm an MOC moved without the drawing following, or never configured, is found (#475). Design ratings
+    land as measurements, notes are kept with the tags they name, and the viewer gets all three."""
+    conn, truth = setup
+    from fuzer.analysis import limits
+
+    design = conn.execute("select count(*) as n from point_limit where basis = 'design'").fetchone()["n"]
+    assert design > 100
+    # the drawing's limits never count: the alarms that count still come from the DCS and AF
+    assert not conn.execute("select 1 from point_limit where basis = 'design' and source <> 'pid'").fetchone()
+    found = {i["point"] for i in limits.issues(conn, None) if i["fault"] == "drawing"}
+    planted = json.loads((okan_db.data / "answer_keys" / "limits.json").read_text())
+    moved = {t["point"] for t in planted if t["fault"] in ("disagree", "missing") and t["point"]}
+    assert found and found & moved
+    m = conn.execute("select quantity, value, unit, method from measurement m join entity_label l using (fuzer_id) "
+                     "where l.label = '20-V-2101B' and m.method = 'pid_table' order by quantity").fetchall()
+    assert [r["quantity"] for r in m] == ["design_pressure", "design_temperature"] and m[0]["unit"] == "barg"
+
+    from fuzer.api import app
+    fid = conn.execute("select fuzer_id from crosswalk where source = 'pid' and source_key = %s", (SHEET,)).fetchone()
+    d = TestClient(app).get(f"/documents/{fid['fuzer_id']}/drawing").json()
+    assert {t["title"] for t in d["tables"]} == {"EQUIPMENT DATA", "ALARM AND TRIP SETTINGS"}
+    psv = next(n for n in d["notes"] if n["text"].startswith("PSV-"))
+    assert psv["tags"] and psv["tags"][0].startswith("20-V-")
+    assert isinstance(d["checks"], list)
+    s = llm_pids.score(conn, truth)
+    assert s["elements"]["setpoints"]["recall"] == 1.0 and s["elements"]["notes"]["recall"] == 1.0
