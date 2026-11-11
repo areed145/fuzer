@@ -182,9 +182,9 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         {!closed && <Due at={it.due} />}
       </div>
       <ScenarioClock />
-      {typeof payload.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
-        <a href={href("/handover", { id: String(payload.handover_id) })}>Read it and acknowledge it</a>.</p>}
-      {typeof payload.closeout_id === "number" && <CloseoutPanel id={payload.closeout_id} person={person} readOnly={demo}
+      {typeof raised.handover_id === "number" && <p className="notice small">This is a shift handover.{" "}
+        <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
+      {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (

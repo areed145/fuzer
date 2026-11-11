@@ -8,7 +8,7 @@ source pack brought) drafts the update for that system:
     could_not_do  a follow-up record: what could not be done and why, so the work stays on that system's books
 
 How it goes back is the system's `closeout` setting (on Sources): `none` (nothing), `draft` (a case on the
-`closeout_role` queue's Inbox to approve or edit first) or `send` (sent at once). SAP drafts to the maintenance
+`closeout_role` queue to approve or edit first, run as the `source_closeout` process with that role's SLA, #509) or `send` (sent at once). SAP drafts to the maintenance
 planners unless its system says otherwise. An approved (or sent) update is published on the event outbox as
 `source.update` for that system's adapter to deliver.
 
@@ -79,11 +79,16 @@ def on_field_report(conn, row: dict, by: str, status: str, note: str | None) -> 
     if m == "send":
         return _send(conn, out, by)
     what = "completion" if draft["action"] == "complete" else "follow-up"
-    item = work.open_case(conn, CASE_TYPE, f"{row['source'].upper()} {what} to approve: {row['title'] or draft['record']}", by,
-                          subjects=row["subjects"], priority=row["priority"], role=role, source=row["source"],
-                          payload={"closeout_id": out["id"], "exception_id": row["id"], **draft})
+    from . import routing
+
+    payload = {"closeout_id": out["id"], "exception_id": row["id"], **draft}
+    title = f"{row['source'].upper()} {what} to approve: {row['title'] or draft['record']}"
+    item_id = routing.open_process_case(
+        conn, CASE_TYPE, {**payload, "role": role, "source": row["source"]}, by, title, lane=role,
+        subjects=row["subjects"], priority=row["priority"], plain={"role": role, "source": row["source"],
+                                                                   "payload": payload})
     return dict(conn.execute("update source_closeout set item_id = %s where id = %s returning *",
-                             (item["id"], out["id"])).fetchone())
+                             (item_id, out["id"])).fetchone())
 
 
 def get(conn, closeout_id: int) -> dict:

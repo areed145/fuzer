@@ -88,6 +88,7 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 # it is a case on the ops lead queue, and the incoming lead's Inbox has it
                 case = conn.execute("select * from work_item where id = %s", (h["item_id"],)).fetchone()
                 assert case["type"] == "shift_handover" and case["role"] == "ops_lead" and case["state"] == "open"
+                assert case["due"] is not None  # the shift_handover process: the ops lead's SLA (#509)
                 conn.rollback()
 
                 ok(client.post(f"/handovers/{h['id']}/notes", json={"by": "lead-out", "notes": "K-2001 restart at 07:00"}))

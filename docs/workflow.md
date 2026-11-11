@@ -125,8 +125,7 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   hold it, else their first role), the dispatcher hands it to them with the reason, so Could not do comes back to
   the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
   the queue and hands it back returns it to whoever sent it to the queue. A queue no person role backs and a case
-  raised for a named person still open a plain case; moving handover and close-out onto processes and the Routing
-  page follow in #509's later phases.
+  raised for a named person still open a plain case; the Routing page follows in #509's later phases.
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The
@@ -175,7 +174,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   on work another system raised (an SAP notification, or a type a source pack brought), the update for that system
   is drafted: a completion with the field's note and the closed status, or a follow-up record saying what still
   needs doing and why. Each system's `closeout` setting on Sources says how it goes back: `none`, `draft` (a
-  `source_closeout` case on its `closeout_role` queue; SAP drafts to `maintenance_planner` unless set otherwise) or
+  `source_closeout` case on its `closeout_role` queue, run as the `source_closeout` process so the step carries that
+  role's SLA and escalation; SAP drafts to `maintenance_planner` unless set otherwise) or
   `send`. The planner edits the text on the case and approves (`POST /closeouts/{id}/approve`) or doesn't send it
   (`/discard`). A sent update is published on the outbox as `source.update` for the system's adapter. The demo has
   no SAP, so with `closeout.apply_to_exports` on, the update is written to the system's export file (the
@@ -187,7 +187,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   from live work over the shift that just ended: open work by priority, what came back from the field and waits on
   the IOC, steps escalated or overdue, what was dispatched and to whom, and new exceptions. Every line cites its
   case or exception (`case:<id>`, `exception:<id>`), as the daily report cites its records. It opens a
-  `shift_handover` case on the `ops_lead` queue; the outgoing lead adds notes, and the incoming lead acknowledges it
+  `shift_handover` case on the `ops_lead` queue, run as the `shift_handover` process so reading it has the ops
+  lead's SLA and escalates if nobody does; the outgoing lead adds notes, and the incoming lead acknowledges it
   (`POST /handovers/{id}/acknowledge`), which goes on the case history with who and when and closes the case. Past
   handovers are listed (`GET /handovers`) and readable. **Draft now** refreshes an unacknowledged one from live work.
 
