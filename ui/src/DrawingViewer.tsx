@@ -135,6 +135,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
               <li key={i}>
                 <End id={c.from_id} text={c.from} /> → <End id={c.to_id} text={c.to} />
                 {c.line && <span className="muted small mono">{c.line}</span>}
+                {c.stream && <span className="muted small">stream {c.stream}</span>}
                 {c.via && c.via.length > 0 && <span className="muted small"> via {c.via.join(", ")}</span>}
               </li>
             ))}

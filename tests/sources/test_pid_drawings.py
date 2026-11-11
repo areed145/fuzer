@@ -8,7 +8,29 @@ import pytest
 
 @pytest.fixture(scope="module")
 def truth(okan_db):
-    yield json.loads((okan_db.data / "pid_truth.json").read_text())
+    """The P&IDs' answer keys (the PFDs' are in `pfds`)."""
+    yield {s: k for s, k in json.loads((okan_db.data / "pid_truth.json").read_text()).items() if k.get("kind") != "pfd"}
+
+
+@pytest.fixture(scope="module")
+def pfds(okan_db):
+    yield {s: k for s, k in json.loads((okan_db.data / "pid_truth.json").read_text()).items() if k.get("kind") == "pfd"}
+
+
+def test_pfds_draw_trains_once_with_a_stream_table(pfds):
+    """The gas plant's PFD draws its three trains once (20-K-2100A/B/C): the key expands each to its tags, a stream
+    between trains to one connection per train, and the header into the trains to one per train (#475)."""
+    gas = pfds["OKAN-20-PFD-002"]
+    assert set(pfds) == {"OKAN-10-PFD-001", "OKAN-20-PFD-002"} and gas["level"] == "old"
+    k = {t["key"]: t["as_drawn"] for t in gas["tags"]}
+    assert k["20-K-2100B"] == "20-K-2100A/B/C" and k["20-V-2001"] == "20-V-2001"
+    pairs = {(c["from"], c["to"], c["stream"]) for c in gas["connections"]}
+    assert {("20-V-2001", "20-V-2101A", 2), ("20-V-2001", "20-V-2101C", 2), ("20-K-2100B", "20-E-2150B", 4)} <= pairs
+    assert not any(c["from"][-1] != c["to"][-1] and c["from"] != "20-V-2001" for c in gas["connections"])
+    table = gas["tables"][0]
+    assert table["kind"] == "streams" and table["columns"][0] == "STREAM No." and len(table["columns"]) == 12
+    assert [r["cells"][0] for r in table["rows"]] == ["DESCRIPTION", "PHASE", "PRESSURE (barg)", "TEMPERATURE (DEG C)",
+                                                     "FLOW"]
 
 
 def test_every_degradation_level_is_drawn(truth):
