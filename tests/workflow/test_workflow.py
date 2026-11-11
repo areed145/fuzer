@@ -604,8 +604,19 @@ def test_items_without_a_process_and_listing(conn):
     client.post(f"/work/items/{iid}/hand-off", json={"by": "system", "to": "alice"})
     client.post(f"/work/items/{iid}/comment", json={"by": "alice", "text": "looking"})
     assert client.post(f"/work/items/{iid}/transition", json={"by": "alice", "state": "done"}).json()["state"] == "done"
+    # asked of a queue, it runs as the standard task process (#509), and still hands off and closes as a case does
     kinds = [e["kind"] for e in client.get(f"/work/items/{iid}").json()["events"]]
-    assert kinds == ["created", "handed_off", "commented", "state_changed"]
+    assert kinds[0] == "created" and "commented" in kinds and kinds[-1] == "state_changed", kinds
+    assert conn.execute("select process_key, state from work_process where item_id = %s", (iid,)).fetchone() == \
+        {"process_key": "task", "state": "completed"}
+    assert conn.execute("select assignee from work_token where item_id = %s and kind = 'user'",
+                        (iid,)).fetchone()["assignee"] == "alice"
+    plain = client.post("/work/items", json={"type": "lesson_review", "title": "Review lesson 13", "by": "system",
+                                             "assignee": "alice"}).json()["id"]  # for a named person: a plain item
+    client.post(f"/work/items/{plain}/comment", json={"by": "alice", "text": "looking"})
+    assert client.post(f"/work/items/{plain}/transition", json={"by": "alice", "state": "done"}).json()["state"] == "done"
+    assert [e["kind"] for e in client.get(f"/work/items/{plain}").json()["events"]] == \
+        ["created", "commented", "state_changed"]
     upset = engine.start(conn, "upset", {"incident_id": "inc-list", "title": "Listed"}, "sre")
     listed = client.get("/work/items", params={"type": "upset", "state": "all"}).json()
     assert listed["total"] >= 1 and all(i["type"] == "upset" for i in listed["items"])

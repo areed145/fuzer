@@ -44,6 +44,9 @@ def test_scan_board_and_rejection(conn):
     opp = [c for c in page if c["kind"] in ("opportunity",) or any(r.startswith("opportunity:scan:") for r in c["records"])]
     assert opp and {"work_order", "maintenance_plan"} <= set(out["by_kind"])  # ranked against problems
     held = next(c for c in opp if any(r.startswith("work_item:") for r in c["records"]))  # scan item and work item: one card
+    item_id = conn.execute("select item_id from opportunity where status = 'open' limit 1").fetchone()["item_id"]
+    assert conn.execute("select process_key from work_process where item_id = %s",  # the engineer's SLA (#509)
+                        (item_id,)).fetchone()["process_key"] == "task"
     assert any(r.startswith("opportunity:scan:") for r in held["records"])
 
     key = max(opportunities.listing(conn), key=lambda o: o["gain_sm3d"] or 0)["key"]

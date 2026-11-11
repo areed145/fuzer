@@ -112,7 +112,9 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **One front door.** Every case an exception opens goes through one routing step (`fuzer.ops.routing`, #509), which
   reads one routing table: each type, where it is declared (code, data or a source pack), whether it joins one
   event's case and within how many hours, what it starts (a process, a queue, or the IOC's dispatch) and its due
-  policy (today only SAP notifications', by priority). `GET /routing` lists the table, and
+  policy. Any type can carry one (`due_hours`, priority to hours such as `1:24,2:72`, set on the type or in a source
+  pack's `exception_types`): a dispatched case is due that long after it was raised, by the priority its evidence
+  gives. SAP notifications' policy is their type's, read from `intake.sap_notifications.due_hours` (#494). `GET /routing` lists the table, and
   `GET /routing/{type}/explain?refs=…&key=…` dry-runs an intake without writing anything: the entities its refs
   match, the open exception it would add to or the event's case it would join, the process with each step's lane and
   who holds it (or the queue and its holders), and with `to=` and `priority=`, a dispatch and when it would be due.
@@ -126,6 +128,13 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
   the queue and hands it back returns it to whoever sent it to the queue. A queue no person role backs and a case
   raised for a named person still open a plain case; the Routing page follows in #509's later phases.
+- **Task.** `task.bpmn` is the same one step for work no exception raised: an opportunity the scan finds (the
+  engineer's queue), a draft the assistant proposed and a person confirmed, and `POST /work/items` asked of a role.
+  Its start data names the role, the case type and a `task_key` (one open task per key). Both standard processes are
+  marked `fuzer:closeWithCase="true"`, so their case still hands off and closes as a plain case did
+  (`/work/items/{id}/hand-off` and `/transition` act on the step). Work for a named person, and any case raised
+  before the starting processes are loaded, is a plain work item. Outside the work engine only `fuzer.ops.routing`
+  opens a case (`tests/ops/test_front_door.py`).
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The

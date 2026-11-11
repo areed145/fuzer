@@ -8,7 +8,8 @@ Anything else is refused at publish with the element named.
 Fuzer properties are attributes in the `fuzer:` namespace:
 
 - process: `fuzer:workItemType`, `fuzer:correlationKey` (an expression over the start data, e.g.
-  `incident_id`), `fuzer:ownerRole` (who gets a step that fails); thresholds (#100) as
+  `incident_id`), `fuzer:ownerRole` (who gets a step that fails), `fuzer:closeWithCase="true"` (closing the case
+  ends the process, as a plain case closes: the one-step standard processes); thresholds (#100) as
   `<fuzer:threshold name=".." value=".."/>` in extensionElements, read in conditions as `thresholds["..."]`.
 - lane: `fuzer:role` (a person role) or `fuzer:agent` (an agent role); the lane name is used otherwise. A role
   starting with `=` is an expression over the process data, read when the step starts (`=role`: the queue the

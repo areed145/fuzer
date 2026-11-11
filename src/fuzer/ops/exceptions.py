@@ -38,7 +38,7 @@ def types(conn) -> dict[str, ExceptionType]:
     data = {r["name"]: ExceptionType(r["name"], r["label"], role=r["role"], process=r["process"],
                                      case_type=r["case_type"], audience=tuple(r["audience"]),
                                      close_case_on_clear=r["close_case_on_clear"], description=r["description"] or "",
-                                     joins=r.get("joins", True))
+                                     joins=r.get("joins", True), due_hours=r.get("due_hours"))
             for r in conn.execute("select * from exception_kind")}
     return {**data, **TYPES}
 
@@ -691,10 +691,13 @@ def field_jobs(conn, person: str) -> list[dict]:
 
 def define(conn, name: str, by: str, label: str, role: str | None = None, process: str | None = None,
            case_type: str | None = None, audience=("ioc",), close_case_on_clear: bool = True,
-           description: str | None = None, joins: bool = True, source_system: str | None = None) -> dict:
+           description: str | None = None, joins: bool = True, source_system: str | None = None,
+           due_hours: str | None = None) -> dict:
     """Define (or change) an exception type as data, so another system (SAP notifications, SCADA alarms, a
     reporting app) can raise it over the API. Types modules declare in code can't be redefined here.
-    `source_system` is the system whose source pack brought it (#465): that system's webhook may raise it."""
+    `source_system` is the system whose source pack brought it (#465): that system's webhook may raise it.
+    `due_hours` is its due policy, priority to hours (`1:24,2:72`): a dispatched case is due that long after it was
+    raised, by the priority its evidence gives (#509)."""
     from ..core.exceptions import AUDIENCES
 
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", name or ""):
@@ -705,6 +708,9 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
         raise ExceptionError(f"audience must be among {AUDIENCES}, not {sorted(bad)}")
     if not (label or "").strip():
         raise ExceptionError("a type needs a label")
+    due_hours = (due_hours or "").strip() or None
+    if due_hours and not re.fullmatch(r"\s*[^:,\s]+\s*:\s*\d+(\.\d+)?\s*(,\s*[^:,\s]+\s*:\s*\d+(\.\d+)?\s*)*", due_hours):
+        raise ExceptionError("due hours map a priority to hours, comma separated: 1:24,2:72")
     if role:  # a queue nobody can be in would hold its cases where no Inbox shows them
         queue = role.removeprefix("role:")
         known = work.person_roles(conn)
@@ -714,16 +720,16 @@ def define(conn, name: str, by: str, label: str, role: str | None = None, proces
     return conn.execute(
         """
         insert into exception_kind (name, label, role, process, case_type, audience, close_case_on_clear, description,
-                                    updated_by, joins, source_system)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    updated_by, joins, source_system, due_hours)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         on conflict (name) do update set label = excluded.label, role = excluded.role, process = excluded.process,
             case_type = excluded.case_type, audience = excluded.audience,
             close_case_on_clear = excluded.close_case_on_clear, description = excluded.description, joins = excluded.joins,
-            source_system = coalesce(excluded.source_system, exception_kind.source_system),
+            source_system = coalesce(excluded.source_system, exception_kind.source_system), due_hours = excluded.due_hours,
             updated_by = excluded.updated_by, updated_at = now()
         returning *
         """, (name, label.strip(), role or None, process or None, case_type or None, list(audience), close_case_on_clear,
-              description, by, joins, source_system or None)).fetchone()
+              description, by, joins, source_system or None, due_hours)).fetchone()
 
 
 def undefine(conn, name: str) -> bool:

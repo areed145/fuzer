@@ -179,7 +179,7 @@ def architecture_md() -> str:
     out.append("")
 
     # each component
-    reads = {p: sorted(set(re.findall(r'settings\.get\([^,()]+,\s*"([\w.]+)"', _source(p)))) for p in COMPONENTS}
+    reads = {p: sorted(set(re.findall(r'(?:settings\.get\([^,()]+,\s*|due_hours=)"([\w.]+)"', _source(p)))) for p in COMPONENTS}
     writes = {p: sorted({t for t in tables if re.search(rf"(insert into|update|delete from) {t}\b", _source(p))})
               for p in COMPONENTS}
     by_agent = {a: len(names) for a, names in capabilities.tools_by_agent().items() if names}  # loads the tools

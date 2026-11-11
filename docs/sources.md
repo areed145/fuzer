@@ -49,7 +49,8 @@ measurement system also puts its work in the right Inbox queue, without code:
 
 ```yaml
 exception_types:
-  - {name: short_gas_day, label: Short gas day, role: role:operator, description: ...}
+  - {name: short_gas_day, label: Short gas day, role: role:operator, description: ...,
+     due_hours: "1:24,2:72"}             # optional: when a dispatched one is due, by its evidence's priority
 exception_rules:
   - name: short_day
     dataset: daily_volumes

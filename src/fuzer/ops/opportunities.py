@@ -182,6 +182,7 @@ def scan(conn, pack, at: str | None = None) -> dict:
     longer supports, and leave decided ones alone unless the data changed materially."""
     from ..analysis import value
     from ..core import work
+    from . import routing
 
     cfg = value.config(pack)
     found = {o["key"]: o for o in candidates(conn, at)}
@@ -200,10 +201,11 @@ def scan(conn, pack, at: str | None = None) -> dict:
         usd = value.score(item, cfg)["value_usd"] if o["gain_sm3d"] is not None else None
         item_id = prev["item_id"] if prev and prev["status"] == "open" else None
         if item_id is None:
-            item_id = work.open_case(conn, "opportunity", o["title"], "agent:opportunity_scan",
-                                     subjects=[s for s in [o["target"]] if s], priority=usd, role="engineer",
-                                     payload={"opportunity": key, **{k: o[k] for k in ("gain_sm3d", "basis", "confidence",
-                                                                                        "evidence", "confirm_by")}})["id"]
+            item_id = routing.open_task(  # the engineer's queue, with its SLA and escalation (#509)
+                conn, "opportunity", o["title"], "agent:opportunity_scan", key=f"opportunity:{key}", role="engineer",
+                subjects=[s for s in [o["target"]] if s], priority=usd,
+                data={"opportunity": key, **{k: o[k] for k in ("gain_sm3d", "basis", "confidence", "evidence",
+                                                               "confirm_by")}})["id"]
             stats["reopened" if reopened else "new"] += 1
         else:
             conn.execute("update work_item set priority = %s, title = %s, updated_at = now() where id = %s", (usd, o["title"], item_id))

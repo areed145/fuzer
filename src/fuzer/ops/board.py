@@ -129,7 +129,7 @@ def _links(conn, keys: set[str]) -> list[tuple[str, str]]:
         where wo.rel = 'for_notification'
         """):
         out.append((f"work_order:{r['wo']}", f"incident:{r['inc']}"))
-    for r in conn.execute("select id, payload ->> 'opportunity' as o from work_item where type = 'opportunity' and state = 'open'"):
+    for r in conn.execute("select id, coalesce(payload -> 'start', payload) ->> 'opportunity' as o from work_item where type = 'opportunity' and state = 'open'"):
         out.append((f"work_item:{r['id']}", f"opportunity:scan:{r['o']}"))
     return [(a, b) for a, b in out if a in keys and b in keys]
 
