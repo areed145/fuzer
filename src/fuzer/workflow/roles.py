@@ -371,10 +371,10 @@ def instances(conn, process_key: str, now: datetime, state: str | None = "runnin
         """, {"key": process_key, "state": state, "now": now, "limit": limit})]
 
 
-def routing(conn, definition_id: int) -> list[dict]:
+def routing(conn, definition_id: int, data: dict | None = None) -> list[dict]:
     """Each step of a process version as it will route: who does it (role, or agent), its SLA (the step's, else its
     role's default), where it goes when that passes (the step's escalateTo, else the role chain), how the role
-    assigns, the form, and whether it needs a person."""
+    assigns, the form, and whether it needs a person. A `=role` step's role is worked out from `data` when given."""
     from . import engine
 
     refresh(conn)
@@ -384,14 +384,20 @@ def routing(conn, definition_id: int) -> list[dict]:
     for n in p.nodes.values():
         if n.type not in ("userTask", "serviceTask"):
             continue
-        r = rows.get(n.role or n.agent or "") or {}
+        role = n.role
+        if data is not None and bpmn.is_expression(role):
+            try:
+                role = bpmn.resolve(role, data)
+            except bpmn.ExpressionError:
+                pass
+        r = rows.get(role or n.agent or "") or {}
         chain, seen, cur = [], set(), n.attrs.get("escalateTo") or r.get("escalate_to")
         while cur and cur not in seen and len(chain) < MAX_HOPS:
             chain.append(cur)
             seen.add(cur)
             cur = (rows.get(cur) or {}).get("escalate_to")
         out.append({"element": n.id, "step": n.label, "kind": "person" if n.type == "userTask" else "agent",
-                    "role": n.role or n.agent, "sla": n.attrs.get("sla") or r.get("default_sla"),
+                    "role": role or n.agent, "sla": n.attrs.get("sla") or r.get("default_sla"),
                     "sla_from": "step" if n.attrs.get("sla") else ("role" if r.get("default_sla") else None),
                     "escalation": chain, "escalation_from": "step" if n.attrs.get("escalateTo") else ("role" if chain else None),
                     "assignment": r.get("assignment"), "form": n.attrs.get("form"), "requires_human": n.requires_human,

@@ -437,10 +437,10 @@ published. Fuzer's properties are attributes in the `fuzer:` namespace:
 
 | Element | Attribute | Meaning |
 |---|---|---|
-| process | `fuzer:workItemType` | the case type shown on Cases and the board |
+| process | `fuzer:workItemType` | the case type shown on All work and the board; `=case_type` takes it from the start data |
 | process | `fuzer:correlationKey` | an expression over the start data; messages and repeat starts find the open case by it |
 | process | `fuzer:ownerRole` | who gets a step that fails |
-| lane | `fuzer:role` / `fuzer:agent` | the person role or agent role for steps in the lane |
+| lane | `fuzer:role` / `fuzer:agent` | the person role or agent role for steps in the lane; a role starting with `=` is an expression over the process data (`=role`), read when the step starts, so one process can serve every queue (#509) |
 | userTask | `fuzer:role`, `fuzer:assignee` | override the lane |
 | userTask | `fuzer:sla`, `fuzer:escalateTo` | ISO 8601 duration, and the role an overdue step moves to |
 | userTask | `fuzer:form`, `fuzer:requiresHuman` | the task form's key; an agent may never complete it |
