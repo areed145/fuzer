@@ -505,7 +505,7 @@ Screens:
   needs a definition. **Data review**: yes/no on possible matches, pick the right
   value when sources disagree, accept changed schemas and new mappings, held
   loads. **Sources**, **Jobs**, **Settings**, and a link to these docs.
-- **Workflows**: **Inbox** is everything waiting for you, most urgent first
+- **Workflows**: **My work** (`#/inbox`) is everything waiting for you, field jobs included,, most urgent first
   (escalated to you, assigned to you or to someone you cover for, unclaimed in
   your roles), with inline claim and bulk actions; a task opens as a page with its
   form, evidence, hand-off and where it sits in its process. All work's **In progress** and **Closed** views list every

@@ -1,40 +1,22 @@
-/** My jobs: what a field operator has been sent to, on a phone. Each job is one exception routed to them: where to
- * go, the asset and what happened there lately, what was seen, and the few things to say back (on site, done,
- * could not do, a note). What they report lands on the exception as evidence the IOC sees. */
+/** Field jobs on My work (#503): what a person has been sent to, laid out for a phone. Each job is one exception routed
+ * to them: where to go, the asset and what happened there lately, what was seen, and the few things to say back (on
+ * site, done, could not do, a note). What they report lands on the exception as evidence the IOC sees. My jobs was its
+ * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
+ * else waiting on them. */
 import { useState } from "react";
 import { api, type FieldJob, type PlanItem } from "../api";
-import { Badge, Button, ButtonLink, Card, PageHeader } from "../ui";
-import { Status, entityHref, href, useAsync } from "../lib";
-import { Due, reportedBy, usePerson, when } from "../work";
-import { SampleTeam, taskHref, useAct } from "./workflows/shared";
+import { Badge, Button, ButtonLink, Card } from "../ui";
+import { entityHref, href } from "../lib";
+import { Due, reportedBy, when } from "../work";
+import { taskHref, useAct } from "./workflows/shared";
 
 const SAID: Record<string, string> = { on_site: "On site", done: "Done", could_not_do: "Could not do", note: "Note" };
-
-export function FieldPage() {
-  const [person] = usePerson();
-  const jobs = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
-  if (!person) return <section><PageHeader>My jobs</PageHeader><Card title="Choose who you are">
-    <p>Use “You are” in the navigation to pick your name; your dispatched jobs then show here.</p>
-    <SampleTeam />
-  </Card></section>;
-  if (!jobs.data) return <Status loading={jobs.loading} error={jobs.error} />;
-  const list = jobs.data.jobs;
-  return (
-    <section className="field-jobs">
-      <PageHeader subtitle="Jobs the IOC has sent you, most urgent first, then ones waiting in your queues for whoever is free, then what you're planned onto. Tell them when you're on site, when it's done, or why it couldn't be.">
-        My jobs</PageHeader>
-      {!list.length && <p className="muted">Nothing dispatched to you right now.</p>}
-      {list.map((j) => <Job key={j.id} job={j} person={person} onChange={jobs.reload} />)}
-      {jobs.data.coming_up.length > 0 && <ComingUp items={jobs.data.coming_up} person={person} onChange={jobs.reload} />}
-    </section>
-  );
-}
 
 const day = (at: string) => new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
 /** What they are planned onto over the next two weeks, so tomorrow's job is no surprise today. On the day, they
  * say when they've started and when it's done; the plan, and the IOC, see it. */
-function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: string; onChange: () => void }) {
+export function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: string; onChange: () => void }) {
   const { busy, error, run } = useAct();
   const soon = Date.now() + 86_400_000;
   const set = (i: PlanItem, status: string) =>
@@ -60,7 +42,7 @@ function ComingUp({ items, person, onChange }: { items: PlanItem[]; person: stri
   );
 }
 
-function Job({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
+export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
   const { busy, error, run } = useAct();
   const [note, setNote] = useState("");
   const say = (status: string) => {
