@@ -505,6 +505,31 @@ def migrate(conn, process_id: int, definition_id: int, by: str, mapping: dict[st
     return {"process_id": process_id, "definition_id": definition_id, "version": new["version"]}
 
 @_op
+def close_item(conn, item_id: int, state: str, by: str, reason: str | None = None, now: datetime | None = None) -> dict:
+    """Finish or cancel a case from outside its process (its condition cleared, the field did it): a case without a
+    process moves to `state`; one with a process has its open steps ended with the reason and the case moves to
+    `state` with it, as when the process reaches its end (#509: a queue case is a process now)."""
+    from .work_items import transition
+
+    if not conn.execute("select 1 from work_process where item_id = %s and state = 'running' and parent_token is null",
+                        (item_id,)).fetchone():
+        return transition(conn, item_id, state, by, reason=reason)
+    run = _Run(conn, by, now)
+    why = reason or f"{state} by {by}"
+    for r in conn.execute("select id from work_process where item_id = %s and state = 'running' and parent_token is null",
+                          (item_id,)).fetchall():
+        proc = run.proc(r["id"])
+        _cancel_process(run, proc, why, state="completed" if state == "done" else "cancelled")
+        proc["outcome"] = why
+        run.event("completed_process" if state == "done" else "cancelled", proc, outcome=why, state=proc["state"])
+    conn.execute("update work_item set state = %s, outcome = %s, closed_at = %s, updated_at = %s where id = %s "
+                 "and closed_at is null", (state, why, run.now, run.now, item_id))
+    run.event("state_changed", item_id=item_id, state=state, reason=reason)
+    run.flush()
+    return {"item_id": item_id, "state": state}
+
+
+@_op
 def cancel(conn, process_id: int, by: str, reason: str | None = None, now: datetime | None = None) -> dict:
     run = _Run(conn, by, now)
     proc = run.proc(process_id)

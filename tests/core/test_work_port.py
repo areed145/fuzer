@@ -14,7 +14,7 @@ def fake():
     impl = SimpleNamespace(
         create_item=lambda conn, type, title, by, **kw: calls.append(("create", type, title, by, kw)) or {"id": 7},
         start_or_correlate=lambda conn, key, data, by, **kw: calls.append(("start", key, data, by, kw)) or {"item_id": 8},
-        transition=lambda conn, item_id, state, by, reason=None: calls.append(("move", item_id, state, by, reason)) or {},
+        close_item=lambda conn, item_id, state, by, reason=None: calls.append(("move", item_id, state, by, reason)) or {},
         agent_work=lambda conn, role, limit: calls.append(("steps", role, limit)) or [],
     )
     work.use(impl)

@@ -106,7 +106,8 @@ Work from every source arrives as an **exception** on **All work** (`#/exception
 it concerns. Fuzer's detectors raise them (SRE upsets, IOW breaches, source problems), open SAP notifications with no
 work order are raised on each register refresh (`intake.sap_notifications`, on by default, for notifications from the
 last 60 days of data), and other systems raise their own through `POST /exceptions` once their type is defined on the
-page. A type with a process starts it; one with a queue opens a case in that role's queue; the rest wait for the IOC.
+page. A type with a process starts it; one with a queue starts the standard **queue item** process, one step in that
+role's queue with the role's SLA and escalation (#509); the rest wait for the IOC.
 
 - **One front door.** Every case an exception opens goes through one routing step (`fuzer.ops.routing`, #509), which
   reads one routing table: each type, where it is declared (code, data or a source pack), whether it joins one
@@ -115,8 +116,13 @@ page. A type with a process starts it; one with a queue opens a case in that rol
   `GET /routing/{type}/explain?refs=…&key=…` dry-runs an intake without writing anything: the entities its refs
   match, the open exception it would add to or the event's case it would join, the process with each step's lane and
   who holds it (or the queue and its holders), and with `to=` and `priority=`, a dispatch and when it would be due.
-  Making every type start a BPMN process, moving the other places that open cases onto it and the Routing page
-  follow in #509's later phases.
+- **Queue item.** `queue_item.bpmn` is the standard process for a type that names a queue and no process: its lane's
+  role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each
+  case still shows as its own kind of work. Its one step has the role's default SLA (Users, workflow assignments)
+  and escalates along the role's chain like any process step. Clearing the condition or the field's **Done** still
+  closes it as it closed a plain queue case; **Could not do** hands the step back. A queue no person role backs, a
+  case raised for a named person, and a dispatch from All work still open a plain case for now; the dispatch
+  process, moving handover and close-out onto processes, and the Routing page follow in #509's later phases.
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The

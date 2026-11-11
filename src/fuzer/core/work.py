@@ -56,8 +56,9 @@ def start_or_correlate(conn, process_key: str, data: dict, by: str, **fields) ->
 
 
 def close_case(conn, item_id: int, state: str, by: str, reason: str | None = None) -> dict:
-    """Move a case to `done` or `cancelled` (or another state the engine allows), with the reason on its history."""
-    return _engine().transition(conn, item_id, state, by, reason=reason)
+    """Move a case to `done` or `cancelled` (or another state the engine allows), with the reason on its history. A
+    case with a process has its open steps ended with it."""
+    return _engine().close_item(conn, item_id, state, by, reason=reason)
 
 
 def agent_steps(conn, role: str, limit: int = 100) -> list[dict]:
