@@ -108,6 +108,34 @@ def client_for(instance) -> TestClient:
     return TestClient(app)
 
 
+def test_dagster_link_keeps_local_default_for_development(monkeypatch):
+    monkeypatch.delenv("FUZER_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("FUZER_DAGSTER_URL", raising=False)
+    monkeypatch.setattr(jobs, "_reachable", lambda url: True)
+
+    assert jobs.get_dagster_link() == {"url": "http://127.0.0.1:3000", "reachable": True}
+
+
+@pytest.mark.parametrize("url", [
+    "http://127.0.0.1:3000", "http://127.2.3.4:3000", "http://[::1]:3000",
+    "http://0.0.0.0:3000", "http://localhost:3000",
+])
+def test_dagster_link_hides_loopback_url_in_public_deployment(monkeypatch, url):
+    monkeypatch.setenv("FUZER_PUBLIC_URL", "https://fuzer.example")
+    monkeypatch.setenv("FUZER_DAGSTER_URL", url)
+    monkeypatch.setattr(jobs, "_reachable", lambda _: pytest.fail("loopback URL must not be probed"))
+
+    assert jobs.get_dagster_link() == {"url": "", "reachable": False}
+
+
+def test_dagster_link_uses_public_url_when_configured(monkeypatch):
+    monkeypatch.setenv("FUZER_PUBLIC_URL", "https://fuzer.example")
+    monkeypatch.setenv("FUZER_DAGSTER_URL", "https://dagster.example")
+    monkeypatch.setattr(jobs, "_reachable", lambda url: url == "https://dagster.example")
+
+    assert jobs.get_dagster_link() == {"url": "https://dagster.example", "reachable": True}
+
+
 def test_overview_without_the_daemon(instance):
     body = client_for(instance).get("/jobs").json()
     assert body["available"] and body["scheduler"]["running"] is False

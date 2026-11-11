@@ -60,6 +60,9 @@ on this disk. The Jobs page reads that same instance, including daemon heartbeat
 Dagster's port 3000 listens on loopback only; Render exposes only the API on
 `$PORT`. The supervisor logs child output to Render, propagates shutdown, and
 exits if any required child dies so Render restarts the whole runtime.
+The Jobs page only offers an external Dagster link when `FUZER_DAGSTER_URL` is
+configured with a browser-accessible URL; it never exposes the server's loopback
+address to remote users.
 Persistent disks imply downtime during deploys; do not scale this configuration
 to multiple replicas. Splitting services later requires shared Dagster database
 storage and code-location configuration, not merely `FUZER_DAGSTER_URL`.
