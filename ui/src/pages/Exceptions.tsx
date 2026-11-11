@@ -22,21 +22,25 @@ const EMPTY: Record<ExceptionView, string> = {
 
 /** The exception views of All work (#502): to dispatch, with the field, back from the field, and every exception in
  * a chosen state. */
-export function ExceptionsPage({ query, view = "open" }: { query?: URLSearchParams; view?: ExceptionView }) {
+export function ExceptionsPage({ query, view = "open", filters = {} }: {
+  query?: URLSearchParams; view?: ExceptionView; filters?: { type?: string; who?: string; q?: string };
+}) {
   const [person] = usePerson();
   const [state, setState] = useState(view === "open" ? query?.get("state") ?? "open" : "open");
-  const [type, setType] = useState(query?.get("type") ?? "");
+  const type = filters.type ?? "";
   const rows = useAsync(() => api.exceptions({ state: state || "any", type: type || undefined }), [state, type]);
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
-  const types = [...new Set(rows.data.map((r) => r.type))].sort();
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
-  const shown = view === "dispatch" ? rows.data.filter(waitingToDispatch)
+  const words = filters.q?.toLowerCase();
+  const shown = (view === "dispatch" ? rows.data.filter(waitingToDispatch)
     : view === "back" ? rows.data.filter(backFromField)
     : view === "field" ? rows.data.filter((r) => withTheField(r, operators))
-    : rows.data;
+    : rows.data)
+    .filter((r) => !filters.who || r.assignee === filters.who || (!!r.role && `role:${r.role}` === filters.who))
+    .filter((r) => !words || r.title.toLowerCase().includes(words));
   return (
     <>
       <div className="row">
@@ -44,9 +48,6 @@ export function ExceptionsPage({ query, view = "open" }: { query?: URLSearchPara
           <option value="open">open</option><option value="cleared">cleared</option>
           <option value="closed">closed</option><option value="">any state</option>
         </Select>}
-        <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">every type</option>{types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-        </Select>
         <span className="small muted">{shown.length} {shown.length === 1 ? "event" : "events"}</span>
       </div>
       <Card>
