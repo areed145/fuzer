@@ -87,6 +87,49 @@
     "uom": "barg",
     "Hi": 27.0,
     "Lo": 20.0
+   },
+   {
+    "name": "Compressor Speed",
+    "pi_point": "KRGP:B1.ST2004.PV",
+    "uom": "rpm",
+    "Hi": 1260,
+    "Lo": 900
+   },
+   {
+    "name": "Compressor Interstage Pressure",
+    "pi_point": "KRGP:B1.PT2007.PV",
+    "uom": "barg",
+    "HiHi": 50,
+    "Hi": 48,
+    "Lo": 36
+   },
+   {
+    "name": "Compressor Cylinder 1 Discharge Temperature",
+    "pi_point": "KRGP:B1.TT2021.PV",
+    "uom": "degC",
+    "HiHi": 150,
+    "Hi": 140
+   },
+   {
+    "name": "Compressor Cylinder 2 Discharge Temperature",
+    "pi_point": "KRGP:B1.TT2022.PV",
+    "uom": "degC",
+    "HiHi": 150,
+    "Hi": 140
+   },
+   {
+    "name": "Compressor Cylinder 3 Discharge Temperature",
+    "pi_point": "KRGP:B1.TT2023.PV",
+    "uom": "degC",
+    "HiHi": 150,
+    "Hi": 140
+   },
+   {
+    "name": "Compressor Cylinder 4 Discharge Temperature",
+    "pi_point": "KRGP:B1.TT2024.PV",
+    "uom": "degC",
+    "HiHi": 150,
+    "Hi": 140
    }
   ]
  },

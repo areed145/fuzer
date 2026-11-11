@@ -273,6 +273,9 @@ Called by agents as themselves through the workflow engine.
 | `heat_rate` | gas turbine tag or equipment |  |
 | `motor_load` | motor-driven machine tag or equipment |  |
 | `rotating_health` | machine tag or equipment |  |
+| `rod_load` | reciprocating compressor tag or equipment |  |
+| `valve_health` | reciprocating compressor tag or equipment |  |
+| `compressor_trip` | compressor (any machine of the train) | SRE detector `trips.scan` |
 | `test_check` | oil well |  |
 | `deferment_attribution` | jacket, area or facility (or one well) |  |
 | `vessel_loading` | separator, scrubber or meter tag with a rating |  |

@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 32 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 22 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 19 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 21 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 16 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 9 modules</small>"]
@@ -191,7 +191,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `equipment`, `facilities`, `flow_capacity`, `hydraulics`, `integrity`, `limits`, `production_efficiency`, `rotating`, `signals`, `studies`, `surveillance`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `equipment`, `facilities`, `flow_capacity`, `hydraulics`, `integrity`, `limits`, `production_efficiency`, `recip`, `rotating`, `signals`, `studies`, `surveillance`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)

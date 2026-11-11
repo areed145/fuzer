@@ -7,3 +7,17 @@ Ariel,JGK/4,compressor,power,18,980,barg,kW
 Ariel,JGK/4,compressor,power,21,1040,barg,kW
 Ariel,JGK/4,compressor,power,24,1090,barg,kW
 Ariel,JGK/4,compressor,power,27,1130,barg,kW
+Ariel,JGK/4,recip,bore@throw,1,241,throw,mm
+Ariel,JGK/4,recip,bore@throw,2,241,throw,mm
+Ariel,JGK/4,recip,bore@throw,3,178,throw,mm
+Ariel,JGK/4,recip,bore@throw,4,178,throw,mm
+Ariel,JGK/4,recip,rod@throw,1,63.5,throw,mm
+Ariel,JGK/4,recip,rod@throw,2,63.5,throw,mm
+Ariel,JGK/4,recip,rod@throw,3,63.5,throw,mm
+Ariel,JGK/4,recip,rod@throw,4,63.5,throw,mm
+Ariel,JGK/4,recip,stage@throw,1,1,throw,stage
+Ariel,JGK/4,recip,stage@throw,2,1,throw,stage
+Ariel,JGK/4,recip,stage@throw,3,2,throw,stage
+Ariel,JGK/4,recip,stage@throw,4,2,throw,stage
+Ariel,JGK/4,recip,rod_load_limit,1,95,throw,kN
+Ariel,JGK/4,recip,rated_speed,1,1200,throw,rpm

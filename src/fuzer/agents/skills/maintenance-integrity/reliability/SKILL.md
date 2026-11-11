@@ -58,8 +58,8 @@ A repeat failure is the same failure mode on the same unit more than once in the
    each finding with its basis, data dates and confidence, what couldn't be checked and why, and
    recommendations. Then read the findings in this order, because it is the order an experienced machinery
    engineer trusts them:
-   - **Vibration** (`calc("vibration", ref)`): overall mm/s RMS against ISO 10816-3 zones for the machine's
-     group (group 1: compressors, turbines and large machines; group 2: most pumps). Zone D means damage is
+   - **Vibration** (`calc("vibration", ref)`): overall mm/s RMS against ISO 20816-3 zones for the machine's
+     group (formerly ISO 10816-3; group 1: compressors, turbines and large machines; group 2: most pumps). Zone D means damage is
      likely: recommend stopping to inspect. Zone C is not for long-term running: plan the repair. A steady
      rise (`rising`, `trend_mm_s_per_week`, `reaches_zone_d`) matters even in zone B. Quote the zone, the
      value, the trend and the date it reaches zone D. Overall vibration cannot tell a bearing from
@@ -85,6 +85,15 @@ A repeat failure is the same failure mode on the same unit more than once in the
      train starved while the others run full is a load-sharing problem the IOC can fix by moving gas between
      trains, not a machine fault. Maps are issued per machine; a stage without one says so, and then only the
      anti-surge valve's position tells you anything.
+   - **Reciprocating compressors** (ISO 14224 CO.RE, API 618): `calc("rod_load", ref)` gives each throw's gas rod
+     load from its stage pressures and its bore and rod (the maker's cylinder data) against the frame rating.
+     Past the rating (`rod_load_high`) breaks crossheads, pins and rods: act on it. A load that hardly reverses
+     (`no_reversal`) starves the crosshead pin of oil. It is gas load only; inertia needs crank-angle data.
+     `calc("valve_health", ref)`: a cylinder hotter than the others on its stage is a leaking valve (`valve_leak`,
+     `hottest_cylinder`); the stage pressure ratios shifting (`ratio_shift`) shows which stage lost capacity
+     (`weak_stage`). A leak on the 2nd stage pushes the interstage pressure up and loads the 1st stage throws, so
+     a valve leak and a rod load problem are often the same story: say so. A recip's vibration is judged against
+     its maker's frame alarm and trip, not the centrifugal zones.
    - **Heat rate** (gas turbine drivers, `calc("heat_rate", ref)`): fuel energy per kWh of output against the
      OEM curves at the same load and ambient temperature, so a hot afternoon or part load isn't mistaken for a
      fault. Excess rising a fraction of a percent a week is the air compressor fouling: an offline water wash
@@ -97,6 +106,9 @@ A repeat failure is the same failure mode on the same unit more than once in the
      quality, random failures mean PM won't help) and Crow-AMSAA (`failures_accelerating` marks a bad actor).
      Fewer than about six failures make a fit indicative only: say "low confidence".
    - **Peers**: an outlier is the unit; `class_wide_failures` is the model or its service.
+   **Already in the queue:** a machine the daily screen flags on its condition (not on failure history alone)
+   is a `machine_health` case for the engineer, priority 2 when a severe flag drives it; it clears when the
+   screen stops flagging it. Say when the machine you are asked about already has one.
    **When not to trust a result:** a curve from a datasheet waiting for review; vibration with few readings; a
    pump that hardly ran in the window; a synthetic or demo source (say it is demo data). Escalate to the IOC
    when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge, when a motor runs above its service factor, or when head loss or low-flow running

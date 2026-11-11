@@ -48,7 +48,8 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 )
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",
-                       "surge", "heat_rate", "motor_load", "rotating_health", "test_check",
+                       "surge", "heat_rate", "motor_load", "rotating_health", "rod_load", "valve_health",
+                       "compressor_trip", "test_check",
                        "deferment_attribution", "vessel_loading", "corrosion_circuit"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
@@ -66,8 +67,9 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     as of then. compressor_performance (stage tag, e.g. 20-K-2300A): polytropic efficiency against its first
     week (efficiency_drop). cooler_fouling (cooler tag): outlet temperature above its clean baseline, the rate
     since the last clean and when it reaches its limit (fouling). peers (tag, class or model): the class's units
-    side by side, outliers or class_wide_failures. vibration (machine): overall mm/s against the ISO 10816-3
-    zones for its group, trend and the date it reaches zone D (zone_d, zone_c, rising). pump_bep (pump): flow
+    side by side, outliers or class_wide_failures. vibration (machine): overall mm/s against the ISO 20816-3
+    zones for its group (a reciprocating compressor: its maker's frame alarm and trip), trend and the date it
+    reaches zone D (zone_d, zone_c, rising). pump_bep (pump): flow
     against the best efficiency point, time in the preferred region and below minimum stable flow (low_flow,
     off_bep). surge (compressor stage): surge margin against the machine's own OEM map at its running speed,
     anti-surge valve open share, head against the map and the same stage on the other trains (near_surge,
@@ -76,7 +78,13 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     nameplate rating and service factor on its SAP equipment record, hours above each (motor_overload,
     motor_high). rotating_health (pump, compressor or other machine): every check that applies with basis, data
     dates and confidence, a status (act, watch, ok), what couldn't be checked and why, and recommendations: start
-    here for "how is this machine". test_check (oil well): the latest test against what its choke passes at the
+    here for "how is this machine". rod_load (reciprocating compressor): gas rod load per throw from its stage
+    pressures and cylinder bore and rod against the frame rating, and whether it reverses (rod_load_high,
+    no_reversal). valve_health (reciprocating compressor): each cylinder's discharge temperature against the
+    others on its stage, and the stage pressure ratio split (valve_leak, ratio_shift; weak_stage holds the leak).
+    compressor_trip (any machine of a compression train; until = around the trip): why the train tripped, from
+    what moved first (first_out, sequence, tripped_on, cause family), and the restart gate: verdict
+    (inspect_first, review, restart_after_checks) and the checklist before a restart. test_check (oil well): the latest test against what its choke passes at the
     day's pressures, its inflow and its gas lift curve (test_suspect: retest before acting; off_lift_curve).
     deferment_attribution (jacket, area or facility): each well's latest test below its decline with one cause
     (recorded deferment, suspect test, water, flowline restriction, back-pressure, lift, choke, nothing on record)

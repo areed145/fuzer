@@ -326,6 +326,11 @@ def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:
                           max_days=days)
     handed = sre_handoff.handoff(conn, pack, max_diagnoses=0)
     out["handoff"] = {k: v for k, v in handed.items() if k != "items"}
+    from ..analysis import rotating, trips  # compressor trips join their upsets' cases; flagged machines reach the IOC
+    tripped = trips.scan(conn, pack, out["sre"]["since"], out["sre"]["until"])
+    out["trips"] = {"trips": tripped["trips"], "raised": len(tripped["raised"])}
+    watched = rotating.watch(conn)
+    out["machine_health"] = {"raised": len(watched["raised"]), "checked": watched["checked"]}
     board.refresh(conn, pack)
     conn.commit()
     return out

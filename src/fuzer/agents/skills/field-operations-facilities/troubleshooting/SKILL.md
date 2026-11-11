@@ -12,6 +12,15 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    swaps, limit changes and excursions in the window. `get_upsets(since)` lists what the SRE found in
    the process data itself, grouped by cause, and `upset_detail(id)` shows its detections in time order,
    the first being the likely first cause.
+   **A compressor trip:** `calc("compressor_trip", ref, until=<around the trip>)` on any machine of the train
+   rebuilds the sequence of events: the run signal's fall, each point's departure from its own last day, the
+   first to move (`first_out`, with how many minutes before) and its cause family (vibration, discharge
+   temperature, loss of cooling, liquid carryover, surge, driver, suction pressure; `none` = no precursor: an ESD,
+   a power dip or a spurious trip, so check the DCS first-out and the transmitter). `tripped_on` lists the points
+   at their trip setting. Quote the restart gate as given: `verdict` `inspect_first` (a second trip of the same
+   family within 30 days: inspect, don't restart), `review` (another trip within 45 days) or
+   `restart_after_checks`, and the `checklist`. The IOC already has the trip as a `machine_trip` case with the same
+   checklist, joined to the upset's case.
 2. **One call for the picture:** `troubleshooting_brief(ref)` returns the incident timeline, similar past
    incidents and how they ended, approved lessons, manual / guide sections for the failure modes,
    maintenance history, downtime, spares in stock, suggested checks, and a process-value summary.

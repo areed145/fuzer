@@ -229,6 +229,52 @@ class Window:
             return self.lag(hot + (1 - run) * self.ambient(), 20) + 0.6 * self.noise(unit + "td", 15)
         raise KeyError(var)
 
+    def _recip(self, unit, u, var):
+        """A two-stage reciprocating compressor: suction, interstage and discharge pressure, a discharge temperature per
+        cylinder (`throws` maps each throw to its stage), speed and frame vibration. A `valve_leak` on a throw makes
+        that cylinder run hot (the leaking valve recompresses gas it already discharged) and costs its stage capacity,
+        so a leak on the 2nd stage pushes the interstage pressure up and loads the 1st stage throws harder."""
+        run = self.get(u["train"], "running")
+        load = self.get(u["train"], "load")
+        throws = {int(k): int(v) for k, v in u.get("throws", {"1": 1, "2": 2}).items()}
+        leak = {n: sum((self.path(e["points"]) for e in self.ev(unit, "valve_leak") if int(e.get("throw", 0)) == n),
+                       np.zeros_like(self.t)) for n in throws}
+        settle = u.get("p_settle", (u["p_suction"] + u["p_discharge"]) / 2)
+        if var == "suction_pressure":
+            return u["p_suction"] * (1 + 0.01 * self.noise(unit + "ps", 30))
+        if var == "speed":
+            return self.lag(run * u.get("rpm", 1180) * (1 + 0.002 * self.noise(unit + "n", 10)), 2)
+        if var in ("interstage_pressure", "discharge_pressure"):
+            ps = self.get(unit, "suction_pressure")
+            target = u["p_discharge"] if var == "discharge_pressure" else (
+                math.sqrt((u["p_suction"] + 1) * (u["p_discharge"] + 1)) - 1
+                + 4.0 * sum((leak[n] for n, st in throws.items() if st == 2), np.zeros_like(self.t))
+                - 4.0 * sum((leak[n] for n, st in throws.items() if st == 1), np.zeros_like(self.t)))
+            p = ps + (target - ps) * load
+            return self.lag(run * p + (1 - run) * settle, 8) + 0.3 * self.noise(unit + var, 10)
+        if var == "vibration":
+            wear = sum((self.path(e["points"]) for e in self.ev(unit, "vibration")), np.zeros_like(self.t))
+            v = (u.get("vibration", 2.4) + wear) * (1 + 0.05 * self.noise(unit + "v", 15))
+            return self.lag(run * v + (1 - run) * 0.3, 5)
+        if var.startswith("cylinder_temperature_") or var == "discharge_temperature":
+            ps, pi, pd = (self.get(unit, k) for k in ("suction_pressure", "interstage_pressure", "discharge_pressure"))
+            amb = self.ambient()
+            stage_td = {1: (amb + 8 + 273.15) * np.maximum((pi + 1) / (ps + 1), 1) ** 0.45 - 273.15,
+                        2: (amb + 12 + 273.15) * np.maximum((pd + 1) / (pi + 1), 1) ** 0.45 - 273.15}
+            offset = {1: 0.8, 2: -0.6, 3: 0.4, 4: -0.5}
+
+            def cyl(n):
+                hot = stage_td[throws[n]] + offset.get(n, 0.0) + 20 * leak[n]
+                return self.lag(run * hot + (1 - run) * amb, 20) + 0.5 * self.noise(f"{unit}td{n}", 15)
+            if var != "discharge_temperature":
+                return cyl(int(var.rsplit("_", 1)[1]))
+            last = [n for n, st in throws.items() if st == max(throws.values())]
+            td = sum(cyl(n) for n in last) / len(last)
+            extra = sum((self.path(e["points"]) for e in self.ev(unit, "discharge_temperature")), np.zeros_like(self.t))
+            vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.4) * 1.3, 0)
+            return td + self.lag(run * extra, 5) + 2.0 * self.lag(vib_excess, 30)
+        raise KeyError(var)
+
     def _surge_control(self, unit, u, var, run, load):
         """Flow through a stage (actual inlet m3/h) and its anti-surge valve: the forward flow follows the train's
         load (its speed) and its share of the inlet gas; when that falls below the control line (`control_line`
