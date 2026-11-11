@@ -120,9 +120,13 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each
   case still shows as its own kind of work. Its one step has the role's default SLA (Users, workflow assignments)
   and escalates along the role's chain like any process step. Clearing the condition or the field's **Done** still
-  closes it as it closed a plain queue case; **Could not do** hands the step back. A queue no person role backs, a
-  case raised for a named person, and a dispatch from All work still open a plain case for now; the dispatch
-  process, moving handover and close-out onto processes, and the Routing page follow in #509's later phases.
+  closes it as it closed a plain queue case; **Could not do** hands the step back. A dispatch from All work runs as
+  queue_item too: the step opens in the lane of the role it was sent to (for a person, the type's queue when they
+  hold it, else their first role), the dispatcher hands it to them with the reason, so Could not do comes back to
+  the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
+  the queue and hands it back returns it to whoever sent it to the queue. A queue no person role backs and a case
+  raised for a named person still open a plain case; moving handover and close-out onto processes and the Routing
+  page follow in #509's later phases.
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The

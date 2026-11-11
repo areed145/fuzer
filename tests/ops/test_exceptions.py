@@ -747,6 +747,23 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
     assert done["state"] == "closed"
     assert conn.execute("select state from work_item where id = %s", (f["item_id"],)).fetchone()["state"] == "done"
 
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "fred", ["operator"])
+    types("leak", audience=("ioc", "field"))
+    w = raise_exception(conn, "leak", "walk-QI", "Leak at the meter run", "olga", refs=["tag:NOPE-4"])
+    assert w["item_id"] is None  # no queue: waits for the IOC
+    explained = routing.explain(conn, "leak", key="walk-QI2", to="fred")
+    assert explained["process"]["key"] == "queue_item" and "hands it to fred" in explained["summary"]
+    sent = ex.dispatch(conn, w["id"], "ioc-ann", "fred", reason="nearest operator")
+    assert routing.queue_case(conn, sent["item_id"])  # a dispatch runs as queue_item too (#509)
+    step = conn.execute("select assignee, role, due_at from work_token where item_id = %s and kind = 'user' "
+                        "and state = 'waiting'", (sent["item_id"],)).fetchone()
+    assert step["assignee"] == "fred" and step["due_at"] is not None
+    ex.report(conn, w["id"], "fred", "could_not_do", note="no access")
+    assert conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
+                        (sent["item_id"],)).fetchone()["assignee"] == "ioc-ann"  # back to whoever sent it
+
     types("odd_queue", role="role:not_a_person_role")  # a queue no person role backs stays a plain case
     g = raise_exception(conn, "odd_queue", "OQ-1", "Odd", "kestrel", refs=["tag:NOPE-3"])
     assert not routing.queue_case(conn, g["item_id"])

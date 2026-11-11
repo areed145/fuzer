@@ -588,12 +588,13 @@ def _seen(evidence: dict) -> list[tuple[str, str]]:
 
 
 def _sent(conn, item_id: int, person: str) -> dict | None:
-    """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them, else the case
-    being opened for them or for the queue they took it from (taking it isn't being sent it)."""
+    """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them or to a queue they
+    took it from, else the case being opened for them or that queue (taking it isn't being sent it)."""
     return conn.execute(
         """
         select actor as by, at, data->>'reason' as reason from work_event
-        where item_id = %(i)s and ((kind = 'handed_off' and data->>'to' = %(p)s and actor <> %(p)s)
+        where item_id = %(i)s and ((kind = 'handed_off' and actor <> %(p)s
+                                    and (data->>'to' = %(p)s or data->>'to' like 'role:%%'))
                                    or (kind = 'created' and (data->>'assignee' = %(p)s
                                        or (actor <> %(p)s and actor not like 'agent:%%'))))
         order by id desc limit 1

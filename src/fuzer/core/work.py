@@ -10,6 +10,7 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     cancel_case(conn, item_id, by, reason)                cancel a case and any process running it
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
+    set_due(conn, item_id, by, due, reason)               move a case's due date (its open person steps' SLA clock)
     report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
     comment(conn, item_id, by, text)                      add a note to a case's history
     process_routing(conn, process_key)                    each step of the published process: its lane, SLA, escalation
@@ -76,6 +77,11 @@ def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) ->
     """Give a case to a person, `role:<role>` or `agent:<role>`: a case without a process directly, a process's
     open person step otherwise (the one due first)."""
     return _engine().dispatch_item(conn, item_id, by, to, reason)
+
+
+def set_due(conn, item_id: int, by: str, due, reason: str | None = None) -> dict:
+    """Move a case's due date: a case with a process moves its open person steps' due times."""
+    return _engine().set_item(conn, item_id, by, reason=reason, due=due)
 
 
 def hand_back(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:

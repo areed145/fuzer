@@ -130,6 +130,8 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
     payload = {**(intake.get("evidence") or {}), "exception_id": intake["id"]}
     common = {"subjects": intake["subjects"], "priority": intake["priority"], "source": intake["source"],
               "payload": payload}
+    if to and (item_id := _dispatched(conn, t, intake, by, to, reason)):
+        return item_id
     if to:
         queue = to.startswith("role:")
         return work.open_case(conn, t.case_type or t.name, intake["title"], by, due=due(conn, intake),
@@ -148,6 +150,36 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
                                        subjects=intake["subjects"], priority=intake["priority"])["item_id"]
     return work.open_case(conn, t.case_type or t.name, intake["title"], by, assignee=assignee,
                           role=queue.removeprefix("role:") if queue else None, **common)["id"]
+
+
+def _dispatch_lane(conn, t, to: str) -> str | None:
+    """The queue a dispatched case's step sits in: the role it was sent to; for a person, the type's queue when they
+    hold it, else the first role they hold. None when no person role fits (the case then opens plain)."""
+    known = work.person_roles(conn)
+    if to.startswith("role:"):
+        lane = to.removeprefix("role:")
+        return lane if lane in known else None
+    theirs = [r for r in work.roles_of(conn, to) if r in known]
+    own = t.role.removeprefix("role:") if t.role else None
+    return own if own in theirs else (theirs[0] if theirs else None)
+
+
+def _dispatched(conn, t, intake: dict, by: str, to: str, reason: str | None) -> int | None:
+    """A dispatch from All work as the queue_item process (#509): the step opens in the lane `to` belongs to and is
+    handed to them by the dispatcher, with the reason, so a hand-back returns it to the dispatcher; due by the type's
+    policy when it has one, else by the role's SLA. None when queue_item isn't published or no person role fits."""
+    lane = _dispatch_lane(conn, t, to) if queue_process(conn) else None
+    if not lane:
+        return None
+    data = {**(intake.get("evidence") or {}), **queue_data(t, intake, lane)}
+    item_id = work.start_or_correlate(conn, QUEUE_PROCESS, data, by=by, title=intake["title"],
+                                      subjects=intake["subjects"], priority=intake["priority"])["item_id"]
+    if not to.startswith("role:") and not by.startswith("agent:") and by != to:
+        work.dispatch(conn, item_id, by, by, f"to send it to {to}")  # the IOC holds it, then sends it
+    work.dispatch(conn, item_id, by, to, reason)
+    if when := due(conn, intake):
+        work.set_due(conn, item_id, by, when, reason="due by its priority")
+    return item_id
 
 
 def _case_summary(conn, row: dict) -> dict:
@@ -200,8 +232,17 @@ def explain(conn, type: str, refs=(), key: str | None = None, evidence: dict | N
             when = due(conn, intake)
             out["due"] = when.isoformat() if when else None
             out["outcome"] = "dispatched"
-            out["summary"] = f"Opens a {r['case_type'].replace('_', ' ')} case for {to}" + (
-                f", due {when:%Y-%m-%d %H:%M}." if when else ".")
+            lane = _dispatch_lane(conn, t, to) if queue_process(conn) else None
+            if lane:
+                steps = work.process_routing(conn, QUEUE_PROCESS, queue_data(t, {"key": key}, lane)) or []
+                out["process"] = {"key": QUEUE_PROCESS, "published": True, "lane": lane, "steps": steps}
+                sla = next((step["sla"] for step in steps if step["sla"]), None)
+                when_text = f", due {when:%Y-%m-%d %H:%M}" if when else (f", due within its SLA ({sla})" if sla else "")
+                out["summary"] = (f"Opens a {r['case_type'].replace('_', ' ')} case in the {lane} lane and hands it "
+                                  f"to {to}{when_text}.")
+            else:
+                out["summary"] = f"Opens a {r['case_type'].replace('_', ' ')} case for {to}" + (
+                    f", due {when:%Y-%m-%d %H:%M}." if when else ".")
             return out
         if t.process:
             steps = work.process_routing(conn, t.process, {"type": type, "key": key, **(evidence or {})})
