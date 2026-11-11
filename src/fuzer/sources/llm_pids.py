@@ -81,8 +81,15 @@ top-left corner). If a character is
 unclear, give your best reading and a lower confidence (0 to 1). Also read the title block, with its date
 if one is written.
 
+Some sheets are process flow diagrams (PFDs): main equipment and the process streams between them, each stream
+with its number in a diamond. Give a stream's number as its connection's `stream` (and "" for `line` when no
+line number is written); a stream from or to the edge of the unit has the label written there (e.g.
+"FROM JACKETS") as its other end. An item drawn once for several identical trains is tagged like
+20-K-2100A/B/C: write that tag exactly as drawn. On a P&ID, give "" for `stream`.
+
 Read the sheet's data tables and notes too:
-- tables: each ruled table (equipment data, alarm and trip settings, line lists, ...): its title, its column
+- tables: each ruled table (equipment data, alarm and trip settings, line lists, a PFD's heat and material
+  balance with one column per stream, ...): its title, its column
   headings as written, and every row's cells as written, one string per column ("-" where a cell is blank or
   a dash). Copy numbers exactly; don't convert units.
 - notes: each numbered note, with its number and its text as written."""
@@ -109,9 +116,9 @@ SCHEMA = {
             "properties": {"number": {"type": "integer"}, "text": {"type": "string"}},
         }},
         "connections": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["from", "to", "line", "via"],
+            "type": "object", "additionalProperties": False, "required": ["from", "to", "line", "via", "stream"],
             "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "line": {"type": "string"},
-                           "via": {"type": "array", "items": {"type": "string"}}},
+                           "via": {"type": "array", "items": {"type": "string"}}, "stream": {"type": "string"}},
         }},
         "offpage": {"type": "array", "items": {
             "type": "object", "additionalProperties": False, "required": ["direction", "sheet", "tag", "other", "line"],
@@ -318,7 +325,7 @@ def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pac
     """A sheet's data tables and notes, read: alarm and trip settings per instrument (`setpoints`), design ratings
     per item (`equipment_data`) and notes with the registered tags they name. Table rows are lists of cells, or
     {cells} as a smart sheet exports them. Rows whose tag isn't in the register become findings."""
-    setpoints, equipment, findings = [], [], []
+    setpoints, equipment, findings, streams = [], [], [], []
     for t in tables:
         raw = [re.sub(r"\s+", " ", str(c)).strip() for c in t.get("columns", [])]
         cols = [c.upper() for c in raw]
@@ -338,6 +345,25 @@ def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pac
                                  **({"key": key} if key else {}), "issue": "not in register" if key else "not a tag"})
             return None
 
+        if cols and cols[0].startswith("STREAM"):  # a heat and material balance: one column per stream
+            for j, n in enumerate(raw[1:], 1):
+                st = {"n": n.strip()}
+                for r in rows:
+                    label = str(r[0]).upper() if r else ""
+                    cell = str(r[j]).strip() if j < len(r) else ""
+                    for word, k in (("PRESS", "pressure"), ("TEMP", "temperature"), ("FLOW", "flow"),
+                                    ("DESC", "description"), ("PHASE", "phase")):
+                        if word in label:
+                            if k in ("pressure", "temperature"):
+                                st[k] = _number(cell)
+                                st[k + "_unit"] = _unit_in(str(r[0])) or ("barg" if k == "pressure" else "degC")
+                            elif k == "flow":
+                                st["flow"] = _number(cell)
+                                st["flow_unit"] = re.sub(r"^[-+\d.,\s]+", "", cell).strip() or None
+                            else:
+                                st[k] = cell if cell not in ("", "-") else None
+                streams.append(st)
+            continue
         if sum(1 for k in kinds if k) >= 2:
             iu = col(lambda c: c.startswith("UNIT"))
             for r in rows:
@@ -368,7 +394,16 @@ def read_foot(tables: list[dict], notes: list[dict], area: str | None, pack: Pac
     for n in notes:
         keys = sorted({m.key for m in nel.find_mentions(n["text"], pack, default_area=area) if m.key in known})
         read_notes.append({"n": n["n"], "text": n["text"], "tags": keys})
-    return {"setpoints": setpoints, "equipment_data": equipment, "notes": read_notes, "findings": findings}
+    return {"setpoints": setpoints, "equipment_data": equipment, "notes": read_notes, "streams": streams,
+            "findings": findings}
+
+
+def typicals(text: str) -> list[str]:
+    """A tag drawn once for identical trains, 20-K-2100A/B/C, as the tags it stands for; any other text as itself."""
+    m = re.fullmatch(r"\s*(\S*?)([A-Z])((?:\s*/\s*[A-Z])+)\s*", text or "")
+    if not m:
+        return [text]
+    return [m[1] + m[2]] + [m[1] + x.strip() for x in m[3].split("/")[1:]]
 
 
 def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
@@ -381,7 +416,9 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
     def at(t):
         return sheet_xy(t, boxes)
 
-    for t in data["tags"]:
+    tags = [{**t, "text": x, **({"drawn": t["text"]} if x != t["text"] else {})}
+            for t in data["tags"] for x in (typicals(t["text"]) if t["kind"] != "line" else [t["text"]])]
+    for t in tags:
         if t["kind"] == "line":
             lines.append({"text": t["text"], **at(t)})
             continue
@@ -398,12 +435,21 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
 
     connections = []
     for c in data.get("connections", []):
-        a, b = key(c["from"]), key(c["to"])
-        if a in known_tags and b in known_tags and a != b:
-            connections.append({"from": a, "to": b, "line": c["line"], "via": c.get("via", []),
-                                **({"line_parts": lp} if (lp := parse_line(c["line"])) else {})})
+        froms, tos = typicals(c["from"]), typicals(c["to"])
+        if len(froms) != len(tos) and len(froms) > 1 and len(tos) > 1:
+            pairs = []  # trains that don't line up: nothing safe to link
+        elif len(froms) == len(tos):
+            pairs = list(zip(froms, tos, strict=True))  # train to train
         else:
-            findings.append({"text": f"{c['from']} -> {c['to']}", "kind": "connection", "issue": "end not in register"})
+            pairs = [(f, t) for f in froms for t in tos]  # a header into (or out of) every train
+        for fa, tb_ in pairs:
+            a, b = key(fa), key(tb_)
+            if a in known_tags and b in known_tags and a != b:
+                connections.append({"from": a, "to": b, "line": c["line"] or None, "via": c.get("via", []),
+                                    **({"stream": c["stream"]} if c.get("stream") else {}),
+                                    **({"line_parts": lp} if (lp := parse_line(c["line"])) else {})})
+            elif not (c.get("stream") and (a is None or b is None)):  # a stream to a battery limit isn't one
+                findings.append({"text": f"{fa} -> {tb_}", "kind": "connection", "issue": "end not in register"})
     offpage = []
     for o in data.get("offpage", []):
         here, there = key(o["tag"]), pack.tags.parse(o["other"] or "", default_area=pack.tags.area_in(o["sheet"] or ""))
@@ -425,6 +471,8 @@ def interpret(data: dict, sheet: dict, pack: Pack, known_tags: set[str],
     foot = read_foot(data.get("tables", []), [{"n": n["number"], "text": n["text"]} for n in data.get("notes", [])],
                      area, pack, known_tags)
     findings += foot.pop("findings")
+    for st in foot["streams"]:  # a PFD's stream conditions belong to the item(s) each stream leaves
+        st["from"] = sorted({c["from"] for c in connections if c.get("stream") == st["n"]})
     out = {"title_block": tb, "mentions": mentions, "findings": findings, "lines": lines, "connections": connections,
            "offpage": offpage, "loops": loops, "tables": data.get("tables", []), **foot}
     if boxes:
@@ -567,10 +615,10 @@ def feet(conn, sheets: dict[str, dict], pack: Pack, readings: dict[str, dict] | 
             if known is None:
                 known = {r["key"] for r in conn.execute("select key from entity_key where kind = 'tag'")}
             f = read_foot(p.get("tables", []), p.get("notes", []), _area(p, pack), pack, known)
-            out[sk] = {**f, "date": p.get("date")}
-        elif sk in readings and ("setpoints" in readings[sk] or "notes" in readings[sk]):
+            out[sk] = {**f, "streams": [], "date": p.get("date")}
+        elif sk in readings and ("setpoints" in readings[sk] or "notes" in readings[sk] or "streams" in readings[sk]):
             r = readings[sk]
-            out[sk] = {k: r.get(k, []) for k in ("setpoints", "equipment_data", "notes")} | {
+            out[sk] = {k: r.get(k, []) for k in ("setpoints", "equipment_data", "notes", "streams")} | {
                 "date": (r.get("title_block") or {}).get("date") or None}
     return out
 
@@ -595,7 +643,8 @@ def design_limits(conn, sheets: dict[str, dict], pack: Pack) -> list[tuple[str, 
 
 
 def design_measurements(conn, sheets: dict[str, dict], pack: Pack) -> list[Measurement]:
-    """Design pressure and temperature from the drawings' equipment data tables, dated by the sheet (#475)."""
+    """Design pressure and temperature from the drawings' equipment data tables, and each PFD stream's design case
+    pressure, temperature and flow on the item it leaves (location `stream N`), dated by the sheet (#475)."""
     out = []
     for sk, f in feet(conn, sheets, pack).items():
         at = _date(f.get("date"))
@@ -606,6 +655,13 @@ def design_measurements(conn, sheets: dict[str, dict], pack: Pack) -> list[Measu
                 if e.get(q) is not None:
                     out.append(Measurement(f"pid:sheet:{sk}#{e['tag']}", [("tag", e["tag"])], q, at, e[q],
                                            e.get(unit), method="pid_table"))
+        for st in f.get("streams", []):  # a PFD's design case, on the item each stream leaves
+            for tag in st.get("from", []):
+                for q in ("pressure", "temperature", "flow"):
+                    if st.get(q) is not None:
+                        out.append(Measurement(f"pid:sheet:{sk}#stream{st['n']}#{tag}", [("tag", tag)],
+                                               f"design_case_{q}", at, st[q], st.get(f"{q}_unit"),
+                                               method="pfd_design", location=f"stream {st['n']}"))
     return out
 
 
@@ -620,17 +676,19 @@ def reviews(conn, sheets: dict[str, dict]) -> list[tuple[str, dict]]:
 
 def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:
     """Edges from cached readings whose image hasn't changed: mentions, piping on each sheet, piping across
-    sheets both ends agree on (and disputed ones a reviewer accepted), and instrument loops."""
+    sheets both ends agree on (and disputed ones a reviewer accepted), instrument loops, and PFD streams (piping
+    marked with the stream number and the PFD)."""
     readings = _readings(conn, sheets)
-    edges = []
+    edges, streams = [], []  # a PFD's streams go last, so a P&ID's line and off-page details win on the same pair
     for sk, r in readings.items():
         for m in r["mentions"]:
             edges.append(Edge(("ref", f"pid:sheet:{sk}"), "mentions", ("tag", m["key"]), "claude",
                               confidence=m["confidence"], props={"text": m["text"], "method": r["model"]}))
         for c in r.get("connections", []):
-            edges.append(Edge(("tag", c["from"]), "pipes_to", ("tag", c["to"]), "claude",
-                              props={"line": c["line"], "sheet": sk, "method": r["model"],
-                                     **({"via": c["via"]} if c.get("via") else {})}))
+            (streams if c.get("stream") else edges).append(Edge(
+                ("tag", c["from"]), "pipes_to", ("tag", c["to"]), "claude",
+                props={"line": c["line"], "sheet": sk, "method": r["model"], **({"via": c["via"]} if c.get("via") else {}),
+                       **({"stream": c["stream"], "pfd": sk} if c.get("stream") else {})}))
         for lp in r.get("loops", []):
             m, reg = lp["members"], lp.get("registered") or []
             if len(m) >= 2 and reg and reg[0] and reg[-1] and m[0] != m[-1]:
@@ -646,7 +704,7 @@ def cached_edges(conn, sheets: dict[str, dict]) -> list[Edge]:
         if p.get("registered") and p.get("from") and p.get("to"):
             edges.append(Edge(("tag", p["from"]), "pipes_to", ("tag", p["to"]), "review",
                               props={"line": p.get("line"), "sheets": [p["sheet"], p["other_sheet"]], "offpage": True}))
-    return edges
+    return edges + streams
 
 
 def score(conn, truth: dict) -> dict:
@@ -740,13 +798,15 @@ def _elements(conn, truth: dict) -> tuple[dict, dict]:
             {(a, b) for a, b in joined if {a, b} & {t["key"] for t in key["tags"]}})
         add(level, "loops", {tuple(lp["members"]) for lp in key["loops"]},
             {tuple(lp["members"]) for lp in r.get("loops", [])})
-        add(level, "line_numbers", {_norm_line(c["line"]) for c in key["connections"]},
+        add(level, "line_numbers", {_norm_line(c["line"]) for c in key["connections"] if c.get("line")},
             {_norm_line(ln["text"]) for ln in r.get("lines", [])})
         if "tables" in key:  # data tables and notes (#475): each setting, each design rating, each note
             want_sp, want_eq = set(), set()
             for t in key["tables"]:
                 for row in t["rows"]:
                     if row.get("hidden"):
+                        continue
+                    if t["kind"] == "streams":
                         continue
                     if t["kind"] == "setpoints":
                         want_sp |= {(row["key"], typ, v) for typ, c in zip(("lolo", "lo", "hi", "hihi"), row["cells"][1:5],
@@ -757,6 +817,11 @@ def _elements(conn, truth: dict) -> tuple[dict, dict]:
                                               for typ, v in sp["limits"].items()})
             add(level, "equipment_data", want_eq, {(e["tag"], e["design_pressure"], e["design_temperature"])
                                                    for e in r.get("equipment_data", [])})
+            if key.get("kind") == "pfd":  # each stream's design pressure and temperature
+                hidden = any(r.get("hidden") for t in key["tables"] for r in t["rows"])
+                add(level, "streams", set() if hidden else
+                    {(str(st["n"]), _number(st["pressure"]), _number(st["temperature"])) for st in key["streams"]},
+                    {(st["n"], st.get("pressure"), st.get("temperature")) for st in r.get("streams", [])})
             add(level, "notes", {_norm_note(n["text"]) for n in key["notes"] if not n.get("hidden")},
                 {_norm_note(n["text"]) for n in r.get("notes", [])})
     elements = {e: _pr(*c) for (lv, e), c in counts.items() if lv == "all"}

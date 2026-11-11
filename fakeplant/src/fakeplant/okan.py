@@ -31,7 +31,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import capacity, curves, docs, limits, measurements, pid, process
+from . import capacity, curves, docs, limits, measurements, pfd, pid, process
 from .common import (
     ACTIONS,
     CAUSES,
@@ -287,6 +287,52 @@ def _sheet_data(tags: list[Tag], titles: dict[str, str], designed: dict[str, dic
     if lt:
         notes.append({"text": f"{lt.fmt('{f}-{l}{s}')} IS GUIDED WAVE RADAR; SEE DATASHEET.", "tags": [lt.canonical]})
     return {"equipment": eq, "setpoints": sp, "notes": notes, "date": "2019-05-14"}
+
+
+# Process flow diagrams (#475): the oil plant drawn clean, the gas plant an old scan with its three trains drawn once.
+PFDS = [
+    ("OKAN-10-PFD-001", "AREA 10 - OKA_PP OIL PROCESSING", "clean", "FROM JACKETS", "TO ESCRAVOS", "LIQ",
+     ["10-V-2001", "10-V-2002", "10-V-2003", "10-E-3001", "10-V-2004", "10-P-1001A/B/C"], []),
+    ("OKAN-20-PFD-002", "AREA 20 - OK_GGCP GAS COMPRESSION", "old", "FROM INLET MANIFOLD", "TO EXPORT AND LIFT GAS",
+     "VAP", ["20-V-2001", "20-V-2101A/B/C", "20-K-2100A/B/C", "20-E-2150A/B/C", "20-V-2201A/B/C", "20-K-2200A/B/C",
+             "20-E-2250A/B/C", "20-V-2301A/B/C", "20-K-2300A/B/C", "20-E-2350A/B/C"],
+     ["TRAINS A, B AND C ARE IDENTICAL; TRAIN A SHOWN.", "DESIGN CASE: 3 TRAINS AT 100 %."]),
+]
+
+
+def _pfds(out: Path, titles: dict[str, str], designed: dict[str, dict], point_tag: dict[str, str],
+          rng: random.Random) -> tuple[list[dict], dict]:
+    """Draw the PFDs: each stream's design case is the normal pressure, temperature and flow measured at the item
+    it leaves (train A's for a typical)."""
+    normal: dict[str, tuple[float, str]] = {}
+    for p, tag in point_tag.items():
+        if p in designed and tag not in normal:
+            normal[tag] = (designed[p]["normal"], designed[p]["unit"])
+    sheets, truth = [], {}
+    for number, title, level, src, dst, phase, tags, notes in PFDS:
+        items = [{"tag": t, "func": t.split("-")[1],
+                  "title": re.sub(r"\s(Train )?A\b|^Train A ", " ", titles.get(t.split("/")[0], "")).strip()
+                  if "/" in t else titles.get(t, "")} for t in tags]
+
+        def at(t, func):
+            area, _, rest = t.split("/")[0].split("-", 2)
+            v = normal.get(f"{area}-{func}-{rest}")
+            return f"{v[0]:g}" if v and func != "FT" else f"{v[0]:g} {v[1]}" if v else "-"
+
+        streams = [{"n": 1, "from": src, "to": 0, "description": src.removeprefix("FROM "), "phase": "MIXED",
+                    "pressure": at(tags[0], "PT"), "temperature": at(tags[0], "TT"), "flow": "-"}]
+        for i, t in enumerate(tags):
+            last = streams[-1]  # an item with no transmitter of its own passes on what came in
+            streams.append({"n": i + 2, "from": i, "to": i + 1 if i + 1 < len(tags) else dst,
+                            "description": f"{pid._abbrev(items[i]['title'], random.Random(i)) or t} OUT",
+                            "phase": phase, "pressure": at(t, "PT") if at(t, "PT") != "-" else last["pressure"],
+                            "temperature": at(t, "TT") if at(t, "TT") != "-" else last["temperature"],
+                            "flow": at(t, "FT")})
+        sheet = {"sheet": number, "title": title, "revision": "C", "format": "image", "drawing": "pfd",
+                 "date": "1998-06-01", "image": f"pid/{number}.png"}
+        truth[number] = pfd.draw(out / sheet["image"], sheet, items, streams, rng, level, notes)
+        sheets.append(sheet)
+    return sheets, truth
 
 
 def generate(out, seed: int = 11) -> dict:
@@ -1045,6 +1091,9 @@ def generate(out, seed: int = 11) -> dict:
             sheet["tables"], sheet["notes"] = truth["tables"], truth["notes"][4:]  # a smart sheet exports its data
             sheet["date"] = truth["date"]
         pid_truth[sheet["sheet"]] = truth
+    pfd_sheets, pfd_truth = _pfds(out, titles, designed, point_tag, random.Random(seed + 31))
+    sheets += pfd_sheets
+    pid_truth |= pfd_truth
     _write_csv(out / "dcs_alarms.csv", alarms)
     _write_csv(out / "iow_register.csv", iows)
     (out / "answer_keys" / "limits.json").write_text(json.dumps(limit_truth, indent=1))

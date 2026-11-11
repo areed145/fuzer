@@ -283,10 +283,14 @@ each sheet's data tables and numbered notes: the equipment data table becomes
 dated design pressure and temperature measurements, the alarm and trip table
 becomes `design` limits on each instrument's point (checked against the DCS and
 AF, never used for alarms themselves), and notes are kept with the tags they
-name. Smart sheets export their tables and notes. Each drawing is cached
+name. Smart sheets export their tables and notes. Process flow diagrams go through
+the same reader: trains drawn once (`20-K-2100A/B/C`) expand to each train's tag,
+numbered streams become piping, and the heat and material balance becomes each
+stream's design case pressure, temperature and flow. Each drawing is cached
 by the SHA-256 of its image, so it's only re-read when it changes.
 `fuzer pid-score` reports recall / precision per element: tags, piping, off-page
-lines, loops, line numbers, alarm and trip settings, design ratings and notes.
+lines, loops, line numbers, alarm and trip settings, design ratings, notes and
+PFD streams.
 
 On a P&ID's page the UI shows the drawing with every reading marked where it
 sits (linked to the register, not in the register, not a tag, line number;
