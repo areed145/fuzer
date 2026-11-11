@@ -15,7 +15,7 @@ from fuzer.sources.process_model import ProcessModel
 
 # Healthy reference weeks: both seasons, both years (the wells' rates follow their tests).
 WEEKS = ["2024-03-11", "2024-09-16", "2025-03-10", "2025-09-15"]
-SKIP = {"choke", "position", "esdv", "wht", "glir", "liquid", "running", "load"}  # no limits: learned
+SKIP = {"choke", "position", "esdv", "wht", "glir", "liquid", "running", "load", "asv"}  # no limits: learned
 WELL_LIMITS = {"whp": ("hihi", "hi", "lo"), "casp": ("hi", "lo")}
 PSI = 14.5038
 TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
@@ -93,6 +93,10 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
             continue
         limits[p] = design(var, healthy[p], well)
 
+    # Compressor suction flows came later (#474): they get limits of their own but aren't where the planted faults
+    # go, so the faults stay on the points they were planted on.
+    later = {p: limits.pop(p) for p in list(limits)
+             if spec["points"][p][1] == "flow" and units.get(spec["points"][p][0], {}).get("type") == "compressor"}
     af_points = {a["pi_point"]: a for el in af for a in el["attributes"]}
     story = {p for p, (u, _) in spec["points"].items() if u in STORY_UNITS}
     plant = sorted(p for p in limits if p in af_points and p not in story)  # faults go on equipment points
@@ -139,6 +143,8 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
             truth.append({"point": p, "fault": "standing", "source": "dcs", "type": "lo",
                           "detail": "DCS Lo set inside the normal range"})
 
+    dcs |= {p: dict(v) for p, v in later.items()}
+    af_lim |= {p: dict(v) for p, v in later.items() if p in af_points}
     for p, a in af_points.items():  # AF limit traits, as attributes of the attribute
         for t, v in af_lim.get(p, {}).items():
             a[{"hihi": "HiHi", "hi": "Hi", "lo": "Lo", "lolo": "LoLo"}[t]] = v

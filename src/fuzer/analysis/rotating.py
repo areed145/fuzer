@@ -7,6 +7,10 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
 - `pump_bep(ref)`: where a pump runs against its best efficiency point: the share of running time inside the
   preferred operating region (70-120 % of BEP flow, API 610), in the allowable region, and below the minimum
   continuous stable flow (recirculation, the seal and bearing killer). Flags `low_flow`, `off_bep`.
+- `surge(ref)`: a centrifugal compressor stage against its own OEM map: surge margin from the suction flow and the
+  driver's speed, how often the anti-surge valve is open, head against the map at the same flow and speed, and the
+  same stage on the other trains. Flags `near_surge` (the last week's 5th percentile margin under 5 %) and
+  `recycling` (the valve open more than 30 % of the time). A machine without its map says so.
 - `health(ref)`: one machine's health summary: every check that applies (curve, operating region, vibration,
   efficiency, failure history and its trend, peers), each finding with its basis, the dates of its data and a
   confidence, then a status (`act`, `watch`, `ok`) and recommendations. A check that cannot run says why (no OEM
@@ -151,6 +155,130 @@ def pump_bep(conn, fid: str, days: int = 90, until: str | None = None, low_flow_
                   data_from=p["ops"][0][0][:10], data_to=p["ops"][-1][0][:10], readings=len(p["ops"]))
 
 
+NEAR_SURGE = 5.0  # % surge margin: the 5th percentile of the last week under this is a surge risk
+RECYCLING = 0.3  # share of running time with the anti-surge valve open: recycling, not compressing for the process
+
+
+def _stage_map(conn, tag: str) -> dict:
+    from ..sources import curves
+
+    c = curves.for_machine(conn, tag)
+    if not c or c.get("curve") != "compressor" or not c["series"].get("surge"):
+        raise CalcError("no OEM compressor map for this machine (maps are issued per machine), so no surge line")
+    return c
+
+
+def _surge_flow(c: dict, speed_pct) -> np.ndarray:
+    """Flow at surge at a speed, on the map's surge line (fan law, flow with speed, beyond its ends)."""
+    pts = sorted(c["series"]["surge"])
+    xs, ys = np.array([p[0] for p in pts], float), np.array([p[1] for p in pts], float)
+    s = np.asarray(speed_pct, float)
+    return np.where(s < xs[0], ys[0] * s / xs[0], np.where(s > xs[-1], ys[-1] * s / xs[-1], np.interp(s, xs, ys)))
+
+
+def _map_head(c: dict, q: float, speed_pct: float) -> float | None:
+    """Polytropic head on the map at a flow and speed: the rated speed line scaled by the fan laws."""
+    from ..sources import curves
+
+    line = c["series"].get("head@100")
+    if not line:
+        return None
+    s = speed_pct / 100
+    h = curves.at(line, q / s)
+    return None if h is None else h * s * s
+
+
+def _stage_parts(conn, tag: str) -> dict:
+    """A compressor stage's suction flow and anti-surge valve points, and its driver's speed (20-K-2100C is
+    driven by 20-GT-2000C)."""
+    import re
+
+    from .equipment import _tag_point
+
+    label = _label(conn, tag)
+    m = re.match(r"^(\d\d)-K-(\d)\d00([A-Z])$", label)
+    if not m:
+        raise CalcError("not a compressor stage tag (NN-K-N?00X)")
+    area, series, train = m.groups()
+    parts = {"flow": _tag_point(conn, label, "Suction Flow"), "asv": _tag_point(conn, label, "Anti-Surge Valve"),
+             "speed": _tag_point(conn, f"{area}-GT-{series}000{train}", "Speed")}
+    missing = [k for k, v in parts.items() if not v]
+    if missing:
+        raise CalcError("no " + " or ".join({"flow": "suction flow", "asv": "anti-surge valve", "speed": "driver speed"}[k]
+                                            for k in missing) + " point for that stage")
+    return parts
+
+
+def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
+    """Where a centrifugal compressor stage runs against its own OEM map: surge margin ((Q / Q surge at the
+    running speed) - 1, from the suction flow and the driver's speed), how often the anti-surge valve is open
+    (recycling), polytropic head against the map at the same flow and speed, and the same stage on the other trains
+    (load sharing). Flags `near_surge` when the 5th percentile margin of the last week is under 5 %, `recycling`
+    when the valve is open more than 30 % of the running time."""
+    from . import equipment
+
+    tag = _tag(conn, fid)
+    c = _stage_map(conn, tag)
+    parts = _stage_parts(conn, tag)
+    rated = (c["ratings"].get("rated_speed") or [None])[0]
+    design = c["ratings"].get("design") or [None, None]
+    if not rated or not design[0]:
+        raise CalcError("the map gives no rated speed or design point")
+    start, end = window_of(conn, days, until)
+    v = read(parts, start, end, 10, src)
+    rows = [(t, q, v["speed"].get(t), v["asv"].get(t)) for t, q in sorted(v["flow"].items())]
+    rows = [r for r in rows if r[2] is not None and r[1] > 0.2 * design[0] and r[2] > 0.5 * rated]  # running
+    if len(rows) < 36:
+        raise CalcError("the stage hardly ran in that window")
+    cut = (datetime.fromisoformat(rows[-1][0]) - timedelta(days=recent_days)).isoformat()
+    recent = [r for r in rows if r[0] >= cut] or rows
+    speed = np.array([r[2] for r in recent], float) / rated * 100
+    q = np.array([r[1] for r in recent], float)
+    margin = (q / _surge_flow(c, speed) - 1) * 100
+    asv = np.array([r[3] if r[3] is not None else 0 for r in recent], float)
+    open_share = float(np.mean(asv > 3))
+    p5, med = float(np.percentile(margin, 5)), float(np.median(margin))
+    daily: dict[str, list] = {}
+    for t, qq, sp, a in rows:
+        daily.setdefault(t[:10], []).append((qq / float(_surge_flow(c, sp / rated * 100)) - 1) * 100)
+    head = None
+    try:  # head from the stage's pressures and temperatures, against the map at the same flow and speed
+        perf = equipment.compressor_performance(conn, tag, days=days, until=until, src=src)
+        mh = _map_head(c, float(np.median(q)), float(np.median(speed)))
+        if mh:
+            head = {"data_kj_kg": perf["head_kj_kg"], "map_kj_kg": round(mh, 1),
+                    "vs_map_pct": round((perf["head_kj_kg"] / mh - 1) * 100, 1)}
+    except CalcError:
+        pass
+    siblings = []
+    label = _label(conn, tag)
+    for other in conn.execute("select fuzer_id, label from entity_label where label ~ %s and label <> %s order by label",
+                              (f"^{label[:-1]}[A-Z]$", label)).fetchall():
+        try:
+            o = _stage_parts(conn, other["fuzer_id"])
+            ov = read({"flow": o["flow"]}, end - timedelta(days=recent_days), end, 60, src)["flow"]
+            run = [x for x in ov.values() if x > 0.2 * design[0]]
+            if run:
+                siblings.append({"machine": other["label"], "flow": round(float(np.median(run)), 0)})
+        except CalcError:
+            continue
+    flag = "near_surge" if p5 < NEAR_SURGE else "recycling" if open_share > RECYCLING else None
+    return result(round(med, 1), None, flag,
+                  f"surge margin (Q / Q surge - 1) from the suction flow and the driver's speed against the "
+                  f"{c['source']} map's surge line for this machine; anti-surge valve open (> 3 %) share of running "
+                  f"time; the last {recent_days} days, every 10 minutes while running. Near surge under {NEAR_SURGE:g} % "
+                  f"(5th percentile), recycling above {RECYCLING * 100:g} % of the time",
+                  [tag, c["model_id"], *[p["id"] for p in parts.values()]], unit="% surge margin",
+                  margin_p5=round(p5, 1), margin_min=round(float(margin.min()), 1),
+                  asv_open_pct=round(open_share * 100, 1),
+                  asv_median_open=round(float(np.median(asv[asv > 3])), 1) if open_share else 0.0,
+                  speed_pct=round(float(np.median(speed)), 1), flow=round(float(np.median(q)), 0),
+                  surge_flow=round(float(np.median(_surge_flow(c, speed))), 0), design_flow=design[0], head=head,
+                  siblings=siblings, data_from=rows[0][0][:10], data_to=rows[-1][0][:10], readings=len(rows),
+                  daily=[{"day": d, "margin_pct": round(float(np.median(x)), 1), "min_pct": round(float(min(x)), 1)}
+                         for d, x in sorted(daily.items())][-60:])
+
+
 def spectrum(conn, fid: str) -> dict:
     """Bearing defect frequencies and 1x / 2x running speed need a condition-monitoring source (spectra, waveforms,
     bearing geometry). None is connected; this is where one plugs in."""
@@ -159,7 +287,7 @@ def spectrum(conn, fid: str) -> dict:
 
 # ---- the health summary ------------------------------------------------------------------------------------------
 
-SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow"}
+SEVERE = {"zone_d", "head_loss", "failures_accelerating", "low_flow", "near_surge"}
 ACTIONS = {
     "zone_d": "Vibration is in zone D: plan to stop and inspect now (bearings, alignment, looseness).",
     "zone_c": "Vibration is in zone C: not for long-term running; plan the repair at the next window and trend it daily.",
@@ -168,6 +296,11 @@ ACTIONS = {
     "low_flow": "It runs below its minimum stable flow too often: recirculation damages seals and bearings; "
                 "check the minimum-flow bypass and the process demand, or resize.",
     "off_bep": "It runs away from its best efficiency point: shorter seal and bearing life; check the operating envelope.",
+    "near_surge": "It runs close to surge: the margin dips under 5 % with the anti-surge valve open. Check the "
+                  "anti-surge valve's response and the controller's tuning, and give this train more gas: shift load "
+                  "from the other trains, or stop recycling by running one train fewer.",
+    "recycling": "The anti-surge valve is open much of the time: it recycles gas it has already compressed, which "
+                 "costs fuel. Rebalance the load between trains so this one runs off its control line.",
     "efficiency_drop": "Polytropic efficiency has dropped: fouling, wear, or recycle through a hot cooler; "
                        "check the anti-surge valve and the cooler before it.",
     "wear_out": "Failures follow a wear-out pattern: a time-based PM interval below eta would help.",
@@ -182,7 +315,7 @@ def _confidence(check: str, r: dict) -> str:
     n = r.get("readings") or r.get("failures") or r.get("n") or 0
     if check == "reliability":
         return "medium" if (r.get("failures") or 0) >= 6 else "low"
-    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance"):
+    if check in ("vibration", "pump_bep", "pump_curve", "compressor_performance", "surge"):
         return "high" if n >= 100 or check in ("pump_curve", "compressor_performance") else "medium"
     return "medium"
 
@@ -199,7 +332,8 @@ def health(conn, fid: str, until: str | None = None) -> dict:
         checks += [("pump_curve", lambda: pump_curve(conn, tag, until=until)),
                    ("pump_bep", lambda: pump_bep(conn, tag, until=until))]
     if "compressor" in what:
-        checks.append(("compressor_performance", lambda: equipment.compressor_performance(conn, tag, until=until)))
+        checks += [("compressor_performance", lambda: equipment.compressor_performance(conn, tag, until=until)),
+                   ("surge", lambda: surge(conn, tag, until=until))]
     checks += [("vibration", lambda: vibration(conn, tag, until=until)),
                ("reliability", lambda: reliability(conn, tag, "weibull", until=until)),
                ("failure_trend", lambda: reliability(conn, tag, "crow_amsaa", until=until)),
@@ -216,7 +350,8 @@ def health(conn, fid: str, until: str | None = None) -> dict:
                          "data": {k: r[k] for k in ("data_from", "data_to", "at", "first", "last") if r.get(k)},
                          "confidence": _confidence("reliability" if name == "failure_trend" else name, r),
                          **{k: r[k] for k in ("zone", "reaches_zone_d", "trend_mm_s_per_week", "in_preferred_pct",
-                                              "below_min_flow_pct", "reading", "eta_days", "worst_month")
+                                              "below_min_flow_pct", "reading", "eta_days", "worst_month", "margin_p5",
+                                              "asv_open_pct", "head", "siblings")
                             if r.get(k) is not None}})
     flags = [f["flag"] for f in findings if f["flag"]]
     status = "act" if any(f in SEVERE for f in flags) else "watch" if flags else "ok"
@@ -266,6 +401,6 @@ def screen(conn, until: str | None = None, limit: int = 20) -> dict:
     return {"at": until, "machines_checked": len(machines), "by_status": counts,
             "machines": machines[:limit], "unchecked": unchecked,
             "class_wide_failures": sorted(class_wide),
-            "basis": "rotating equipment health (curve, operating region, vibration zone and trend, efficiency, "
+            "basis": "rotating equipment health (curve, operating region, surge margin, vibration zone and trend, efficiency, "
                      "Weibull and Crow-AMSAA on the failure history, peers) for every ISO 14224 rotating class; "
                      "act = a severe flag (" + ", ".join(sorted(SEVERE)) + ")"}

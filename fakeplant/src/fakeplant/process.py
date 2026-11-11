@@ -13,12 +13,17 @@ VARS = {"Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bear
         "Vibration": "vibration", "Discharge Temperature": "discharge_temperature", "Speed": "speed",
         "Exhaust Temperature": "exhaust_temperature", "Vessel Pressure": "vessel_pressure",
         "Liquid Level": "liquid_level", "Outlet Temperature": "outlet_temperature",
-        "Suction Pressure": "suction_pressure", "Flow": "flow", "Motor Power": "power"}
+        "Suction Pressure": "suction_pressure", "Flow": "flow", "Motor Power": "power",
+        "Anti-Surge Valve Position": "asv"}
 WELL_VARS = {"WHP": "whp", "WHT": "wht", "CHOKE": "choke", "GLIR": "glir", "CASP": "casp", "QGAS": "qgas"}
 TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
 
 # Compression: stage -> (suction, discharge) barg; the 3rd stage feeds the lift gas header.
 STAGES = {1: (6.0, 18.0), 2: (17.0, 38.0), 3: (37.0, 92.0)}
+# Each stage's design point per train: actual inlet flow (Am3/h) and polytropic head (kJ/kg) at rated speed.
+STAGE_DESIGN = {1: (3900.0, 205.0), 2: (1500.0, 155.0), 3: (720.0, 180.0)}
+SURGE = 0.62  # surge flow as a share of design flow at rated speed
+CONTROL_LINE = 1.10  # the anti-surge controller holds flow 10 % above surge
 HEADER = {"10": "header:20", "30": "header:30", "40": "header:40", "50": "header:20"}
 SEPARATOR = {"30": "30-V-2002", "40": "40-V-2002"}  # a jacket's production goes to its hub's separator; PP and NWP: 10-V-2001
 VESSELS = {"10-V-2001": (12.0, 50), "10-V-2002": (3.0, 50), "10-V-2003": (12.0, 45), "10-V-2004": (2.5, 55),
@@ -48,7 +53,7 @@ def choke_opening(c: dict, cv: float) -> float:
 
 def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list[dict], wparams: dict,
                hub: dict, downtime: list[dict], logs: list[dict], oem: dict | None = None,
-               chokes: list[dict] | None = None, tests: list[dict] | None = None) -> dict:
+               chokes: list[dict] | None = None, tests: list[dict] | None = None, maps: dict | None = None) -> dict:
     units: dict[str, dict] = {}
     pts: dict[str, list[str]] = {}
     events: list[dict] = []
@@ -68,8 +73,10 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
             stage = int(loop[1]) if loop[0] == "2" and loop[1] in "123" else None
             if func == "K":
                 ps, pd = STAGES[stage]
+                q_d = (maps or {}).get(tag, {}).get("q_design") or STAGE_DESIGN[stage][0]
                 units[tag] = {"type": "compressor", "train": train, "stage": stage, "p_suction": ps, "p_discharge": pd,
-                              "vibration": 2.2, "cooler_before": f"20-E-2{stage - 1}50{s}" if stage > 1 else None}
+                              "vibration": 2.2, "cooler_before": f"20-E-2{stage - 1}50{s}" if stage > 1 else None,
+                              "q_design": q_d, "q_surge": round(q_d * SURGE, 0), "control_line": CONTROL_LINE}
             elif func == "GT":
                 units[tag] = {"type": "gas_turbine", "train": train}
             elif func == "E":
@@ -216,6 +223,18 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     for e in [e for e in events if e["unit"] == "train:A" and e["kind"] == "trip"]:
         events.append({"unit": "20-K-2300A", "kind": "discharge_temperature",
                        "points": [[_hours(e["start"], -3), 0], [_hours(e["start"], -0.1), 26], [e["start"], 0]]})
+
+    # Train C is starved of gas from mid-October 2025 as the inlet gas shifts to trains A and B: its 1st stage's
+    # forward flow falls to its surge line, so the anti-surge valve opens and recycles to hold the control line,
+    # and on load swings in December the slow valve lets the margin dip well under it (#474).
+    share = [["2025-10-15T00:00", 1.0], ["2025-11-20T00:00", 0.56], ["2025-12-31T23:55", 0.55]]
+    events.append({"unit": "train:C", "kind": "share", "points": share})
+    for t in "AB":
+        events.append({"unit": f"train:{t}", "kind": "share", "points": [[p[0], 1 + (1 - p[1]) / 2] for p in share]})
+    if "20-K-2100C" in units:
+        units["20-K-2100C"].update({"asv_lag": 90})
+        events.append({"unit": "20-K-2100C", "kind": "swings", "start": "2025-12-01T00:00", "end": "2026-01-01T00:00",
+                       "depth": 0.25})
 
     # Inlet separator: the level transmitter hunts from 4 to 12 November 2024 while the real level twice
     # runs high, and liquid carries over into train C's 1st stage scrubber.

@@ -1,0 +1,14 @@
+# OEM compressor map exports (#474): one row per point of a machine's map (polytropic head and efficiency against
+# actual inlet flow on each speed line, and the surge line as flow against speed), plus its rating figures (rated
+# speed, design point). A map belongs to one machine, by its SAP equipment number, not to the model.
+source: oem
+record_type: map_point
+shape: curves
+dataset: oem_compressor_maps
+key: [equnr, series, x]
+curves:
+  of: {ref: "sap:equipment", from: equnr}
+  curve: compressor
+  series: {from: series}
+  x: x
+  y: y

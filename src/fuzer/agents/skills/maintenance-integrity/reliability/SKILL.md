@@ -67,6 +67,14 @@ A repeat failure is the same failure mode on the same unit more than once in the
    - **Where it runs** (pumps, `calc("pump_bep", ref)`): flow against the best efficiency point. Time below the
      minimum stable flow (`low_flow`) causes recirculation, which kills seals and bearings: it explains
      repeat seal failures better than the seal does. Time outside 70-120 % of BEP (`off_bep`) shortens life.
+   - **Surge** (centrifugal compressor stages, `calc("surge", ref)`): surge margin from the suction flow and
+     the driver's speed against the machine's own OEM map, and how often the anti-surge valve is open. A 5th
+     percentile margin under 5 % (`near_surge`) is a surge risk: surge reverses flow through the wheels and can
+     wreck the thrust bearing and seals in seconds, so act on it. A valve open much of the time (`recycling`)
+     is safe but burns fuel compressing gas twice. Compare `siblings` (the same stage on the other trains): one
+     train starved while the others run full is a load-sharing problem the IOC can fix by moving gas between
+     trains, not a machine fault. Maps are issued per machine; a stage without one says so, and then only the
+     anti-surge valve's position tells you anything.
    - **Performance**: `pump_curve` (head below the curve at the same flow means internal wear) or
      `compressor_performance` (an efficiency drop means fouling, wear or recycle).
    - **Failure history**: Weibull beta (`wear_out` suits a PM interval, `early_life` points at repair
@@ -75,7 +83,7 @@ A repeat failure is the same failure mode on the same unit more than once in the
    - **Peers**: an outlier is the unit; `class_wide_failures` is the model or its service.
    **When not to trust a result:** a curve from a datasheet waiting for review; vibration with few readings; a
    pump that hardly ran in the window; a synthetic or demo source (say it is demo data). Escalate to the IOC
-   when vibration is in zone D or rising into it within two weeks, or when head loss or low-flow running
+   when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge, or when head loss or low-flow running
    coincides with a repeat failure mode. A good answer names the machine, the status, the two or three
    findings that drive it with their numbers and dates, what is unknown, and the recommendation.
 8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in

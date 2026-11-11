@@ -251,10 +251,11 @@ create index if not exists source_audit_of on source_audit (object, object_id, i
 -- exports, and from datasheets Claude read once an engineer accepted them (curve_digitised). Rebuilt
 -- with the graph.
 create table if not exists equipment_curve (
-    model_id  text not null,              -- equipment_model entity
+    model_id  text not null,              -- equipment_model entity (or an equipment item, for its own compressor map)
     source    text not null,              -- 'oem' (vendor export) or 'datasheet:<doc number>'
-    curve     text,                       -- pump | choke
-    series    text not null,              -- head, efficiency, npshr, power, cv, or a rating (bep, por, cv_max, ...)
+    curve     text,                       -- pump | choke | compressor
+    series    text not null,              -- head, efficiency, npshr, power, cv, head@<speed %>, efficiency@<speed %>,
+                                          -- surge, or a rating (bep, por, cv_max, rated_speed, design, ...)
     x         double precision not null,
     y         double precision,
     x_unit    text,

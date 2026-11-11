@@ -48,7 +48,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 )
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",
-                       "rotating_health"], ref: str,
+                       "surge", "rotating_health"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
     """One diagnostic check as a number against what it should be: {value, expected, deviation,
@@ -68,7 +68,9 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     side by side, outliers or class_wide_failures. vibration (machine): overall mm/s against the ISO 10816-3
     zones for its group, trend and the date it reaches zone D (zone_d, zone_c, rising). pump_bep (pump): flow
     against the best efficiency point, time in the preferred region and below minimum stable flow (low_flow,
-    off_bep). rotating_health (pump, compressor or other machine): every check that applies with basis, data
+    off_bep). surge (compressor stage): surge margin against the machine's own OEM map at its running speed,
+    anti-surge valve open share, head against the map and the same stage on the other trains (near_surge,
+    recycling). rotating_health (pump, compressor or other machine): every check that applies with basis, data
     dates and confidence, a status (act, watch, ok), what couldn't be checked and why, and recommendations: start
     here for "how is this machine". The plot_* chart of the same name shows the fit."""
     from ...analysis import calcs

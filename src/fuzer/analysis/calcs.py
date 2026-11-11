@@ -631,6 +631,8 @@ CHECKS |= {
                   "ref": "machine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
     "pump_bep": {"fn": lambda conn, fid, days=90, until=None: _rotating("pump_bep")(conn, fid, days=days, until=until),
                  "ref": "pump tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "surge": {"fn": lambda conn, fid, days=30, until=None: _rotating("surge")(conn, fid, days=days, until=until),
+              "ref": "compressor stage tag or equipment", "used_by": {"agent": "calc", "detector": None}},
     "rotating_health": {"fn": lambda conn, fid, until=None: _rotating("health")(conn, fid, until=until),
                         "ref": "machine tag or equipment", "used_by": {"agent": "calc", "detector": None}},
 }

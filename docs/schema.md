@@ -612,10 +612,10 @@ Reference curves per equipment model (OEM pump curves, choke characteristics): f
 
 | Column | Type | Note |
 |---|---|---|
-| `model_id` | text | equipment_model entity |
+| `model_id` | text | equipment_model entity (or an equipment item, for its own compressor map) |
 | `source` | text | 'oem' (vendor export) or 'datasheet:<doc number>' |
-| `curve` | text, | pump \| choke |
-| `series` | text | head, efficiency, npshr, power, cv, or a rating (bep, por, cv_max, ...) |
+| `curve` | text, | pump \| choke \| compressor |
+| `series` | text | head, efficiency, npshr, power, cv, head@<speed %>, efficiency@<speed %> |
 | `x` | double precision |  |
 | `y` | double precision |  |
 | `x_unit` | text |  |

@@ -1,4 +1,5 @@
-"""Reference curves per equipment model (#92): OEM pump curves and choke characteristics.
+"""Reference curves per equipment model (#92): OEM pump curves and choke characteristics; and per machine (#474):
+compressor maps, which a vendor issues for one machine's wheels.
 
 They arrive as vendor CSV exports (a mapping with a `curves` block) or on datasheets, which Claude
 reads (llm_curves.py) into review items; accepted ones are kept in curve_digitised. The rebuild lands
@@ -78,13 +79,28 @@ def for_model(conn, model_id: str) -> dict | None:
         if r["source"] != src:
             continue
         out["curve"] = out["curve"] or r["curve"]
-        if r["series"] in ("head", "efficiency", "npshr", "power", "cv"):
+        if r["series"] in ("head", "efficiency", "npshr", "power", "cv", "surge") or "@" in r["series"]:
             out["series"].setdefault(r["series"], []).append([r["x"], r["y"]])
             out["units"][r["series"]] = r["y_unit"]
             out["units"]["x"] = r["x_unit"] or out["units"].get("x")
         else:
             out["ratings"][r["series"]] = [r["x"], r["y"]]
     return out
+
+
+def for_machine(conn, fid: str) -> dict | None:
+    """The curves of one machine (a compressor map is issued per machine, #474): the item installed at a tag, or the
+    item itself; None when it has none of its own."""
+    kind = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()
+    if kind is None:
+        return None
+    if kind["kind"] == "tag":
+        eq = conn.execute("select src from edge where rel = 'installed_at' and dst = %s and valid_to is null "
+                          "order by valid_from desc nulls last limit 1", (fid,)).fetchone()
+        if not eq:
+            return None
+        fid = eq["src"]
+    return for_model(conn, fid)
 
 
 def at(points: list[list[float]], x: float) -> float | None:

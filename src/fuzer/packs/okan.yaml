@@ -9,7 +9,7 @@ data_notice: Fictional, historical data, not a live operating update.
 tag_grammar:
   area_digits: 2
   loop_digits: [3, 5]
-  function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, JT, HCV, FIC, LIC, PIC, TIC, XV, PSV, ZSC]
+  function_codes: [P, V, K, E, GT, PT, TT, LT, FT, VT, ST, PDT, JT, HCV, FIC, LIC, PIC, TIC, XV, PSV, ZSC, ZT]
 
 # Wells by site and slot: OK-J07-03 (jacket 07, slot 03), OK-NWP-05, gas producer OK-NWP-G2.
 # Sources write them OKAN_J07_03 (EC), OK_J07_03.WHP (PI), OKAN-WELL-OKJ07-03 (SAP).
@@ -121,6 +121,7 @@ classification:
     JT: IP
     PSV: VA.PS
     ZSC: IP
+    ZT: IP
   templates:
     Centrifugal Pump: PU.CE
     Compressor: CO.CE
