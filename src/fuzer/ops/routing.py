@@ -96,10 +96,27 @@ def due(conn, intake: dict) -> datetime | None:
 QUEUE_PROCESS = "queue_item"
 
 
-def queue_process(conn) -> bool:
-    """Whether the standard queue_item process is published here (loading the starting processes publishes it)."""
+def published(conn, process_key: str) -> bool:
+    """Whether a process is published here (loading the starting processes publishes Fuzer's own)."""
     return bool(conn.execute("select 1 from work_definition where process_key = %s and state = 'published' limit 1",
-                             (QUEUE_PROCESS,)).fetchone())
+                             (process_key,)).fetchone())
+
+
+def queue_process(conn) -> bool:
+    """Whether the standard queue_item process is published here."""
+    return published(conn, QUEUE_PROCESS)
+
+
+def open_process_case(conn, process_key: str, data: dict, by: str, title: str, plain: dict,
+                      subjects: list[str] | None = None, priority: float | None = None, lane: str | None = None) -> int:
+    """The case for work Fuzer itself raises (a shift handover, a close-out to approve, #509): its process when
+    published, so it has its lane's SLA, escalation and a place on the monitor; else a plain case with the `plain`
+    fields (role, source, payload), as before the starting processes are loaded, or when its `lane` (the role a
+    `=role` lane takes from the data) is no person role."""
+    if published(conn, process_key) and (lane is None or lane in work.person_roles(conn)):
+        return work.start_or_correlate(conn, process_key, data, by=by, title=title, subjects=subjects,
+                                       priority=priority)["item_id"]
+    return work.open_case(conn, process_key, title, by, subjects=subjects, priority=priority, **plain)["id"]
 
 
 def queue_data(t, intake: dict, queue: str) -> dict:

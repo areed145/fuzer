@@ -10,8 +10,8 @@ Five sections, over the shift that just ended:
     New exceptions          exceptions raised during the shift
 
 Shift changes are the `handover.shift_times` setting (local times in the project's timezone, "06:00,18:00"). The
-work tick drafts a handover once per shift change (`at_shift_change`); it opens a `shift_handover` case on the
-ops lead queue. The outgoing lead adds notes; the incoming lead acknowledges it, which is kept on the case history
+work tick drafts a handover once per shift change (`at_shift_change`); it starts the `shift_handover` process, one
+step on the ops lead queue with its SLA (#509). The outgoing lead adds notes; the incoming lead acknowledges it, which is kept on the case history
 (who and when) and closes the case. Past handovers stay readable.
 """
 
@@ -137,10 +137,14 @@ def draft(conn, by: str, now: datetime | None = None, force: bool = False) -> di
         (start, end, Jsonb(f), by)).fetchone())
     label = end.astimezone(_tz()).strftime("%a %d %b %H:%M")
     n = {k: len(v) + f["more"].get(k, 0) for k, v in f["sections"].items()}
-    item = work.open_case(conn, CASE_TYPE, f"Shift handover {label}", by, role=ROLE, source="handover",
-                          priority=1.0, payload={"handover_id": row["id"], **{k.lower(): v for k, v in n.items()}})
+    from . import routing
+
+    payload = {"handover_id": row["id"], **{k.lower(): v for k, v in n.items()}}
+    item_id = routing.open_process_case(conn, CASE_TYPE, {**payload, "source": "handover"}, by,
+                                        f"Shift handover {label}", priority=1.0,
+                                        plain={"role": ROLE, "source": "handover", "payload": payload})
     return _ordered(conn.execute("update shift_handover set item_id = %s where id = %s returning *",
-                             (item["id"], row["id"])).fetchone())
+                             (item_id, row["id"])).fetchone())
 
 
 def at_shift_change(conn, now: datetime | None = None) -> dict | None:

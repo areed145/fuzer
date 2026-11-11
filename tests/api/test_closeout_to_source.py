@@ -84,7 +84,9 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                 assert "repacked the gland" in draft["draft"]["text"] and draft["draft"]["status"] == "NOCO"
                 case = conn.execute("select * from work_item where id = %s", (draft["item_id"],)).fetchone()
                 assert case["role"] == "maintenance_planner" and case["state"] == "open"
-                assert case["type"] == "source_closeout" and case["payload"]["closeout_id"] == draft["id"]
+                assert case["type"] == "source_closeout" and case["payload"]["start"]["closeout_id"] == draft["id"]
+                assert conn.execute("select process_key from work_process where item_id = %s",  # its role's SLA (#509)
+                                    (draft["item_id"],)).fetchone()["process_key"] == "source_closeout"
                 conn.rollback()
 
                 # the field's word holds it until SAP moves
