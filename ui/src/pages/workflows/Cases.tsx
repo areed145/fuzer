@@ -208,7 +208,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       )}
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
-        <details className="card" open={typeof payload.summary === "string"}><summary>Details</summary><DataView data={payload} /></details>
+        <details className="card" open={typeof raised.summary === "string"}><summary>Details</summary><DataView data={payload} /></details>
       )}
       <Timeline it={it} person={person} readOnly={demo} />
     </section>

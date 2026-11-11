@@ -23,7 +23,7 @@ from ..core.exceptions import clear_exception, exception_type, raise_exception
 from ..graph.operations import as_of
 
 SAP_NOTIFICATION = exception_type(
-    "sap_notification", "SAP notification", audience=("ioc", "field"),
+    "sap_notification", "SAP notification", audience=("ioc", "field"), due_hours="intake.sap_notifications.due_hours",
     description="An open SAP maintenance notification with no work order raised for it yet.").name
 
 OPEN = ("OSNO", "NOPR")  # SAP: outstanding, in process; NOCO (completed) and the rest are closed

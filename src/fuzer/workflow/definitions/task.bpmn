@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:fuzer="https://fuzer.dev/schema/bpmn" id="Definitions_task" targetNamespace="https://fuzer.dev/workflow">
+  <bpmn:collaboration id="Collaboration_task">
+    <bpmn:documentation>The standard process for work a person or the assistant asks for, and for opportunities the scan finds (#509): one step in the queue it names, with that role's SLA and escalation. The role, the case type and a key (task_key) come in the start data.</bpmn:documentation>
+    <bpmn:participant id="Participant_task" name="Task" processRef="task" />
+  </bpmn:collaboration>
+  <bpmn:process id="task" name="Task" isExecutable="true" fuzer:workItemType="=case_type" fuzer:correlationKey="task_key" fuzer:ownerRole="ops_lead" fuzer:closeWithCase="true">
+    <bpmn:laneSet id="LaneSet_task">
+      <bpmn:lane id="Lane_queue" name="The queue it was asked of" fuzer:role="=role">
+        <bpmn:flowNodeRef>arrived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>work</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>finished</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="arrived" name="Asked for">
+      <bpmn:outgoing>f_start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="work" name="Do the task">
+      <bpmn:incoming>f_start</bpmn:incoming>
+      <bpmn:outgoing>f_done</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="finished" name="Done">
+      <bpmn:incoming>f_done</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_start" sourceRef="arrived" targetRef="work" />
+    <bpmn:sequenceFlow id="f_done" sourceRef="work" targetRef="finished" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_task">
+    <bpmndi:BPMNPlane id="Plane_task" bpmnElement="Collaboration_task">
+      <bpmndi:BPMNShape id="Participant_task_di" bpmnElement="Participant_task" isHorizontal="true"><dc:Bounds x="0" y="60" width="520" height="160" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_queue_di" bpmnElement="Lane_queue" isHorizontal="true"><dc:Bounds x="30" y="60" width="490" height="160" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="arrived_di" bpmnElement="arrived"><dc:Bounds x="102" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="work_di" bpmnElement="work"><dc:Bounds x="210" y="100" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finished_di" bpmnElement="finished"><dc:Bounds x="392" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_start_di" bpmnElement="f_start"><di:waypoint x="138" y="140" /><di:waypoint x="210" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_done_di" bpmnElement="f_done"><di:waypoint x="310" y="140" /><di:waypoint x="392" y="140" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

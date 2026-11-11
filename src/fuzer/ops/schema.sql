@@ -258,6 +258,7 @@ create table if not exists exception_kind (
 
 alter table exception_kind add column if not exists joins boolean not null default true;  -- may join another's case
 alter table exception_kind add column if not exists source_system text;  -- the system whose source pack brought it (#465)
+alter table exception_kind add column if not exists due_hours text;  -- its due policy: priority -> hours, "1:24,2:72" (#509)
 
 -- The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders,
 -- exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches,

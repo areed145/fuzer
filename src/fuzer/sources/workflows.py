@@ -36,7 +36,8 @@ from ..core import exceptions as xc
 from ._catalog_common import CatalogError
 
 OPS = ("eq", "ne", "in", "not_in", "gt", "ge", "lt", "le", "present", "absent", "contains")
-TYPE_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_on_clear", "description", "joins")
+TYPE_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_on_clear", "description", "joins",
+               "due_hours")
 RULE_FIELDS = ("dataset", "type", "when", "clear_when", "key", "refs", "title", "priority", "value_usd", "enabled")
 BY = "source rules"
 _FIELD = re.compile(r"\{([^{}]+)\}")
@@ -77,7 +78,7 @@ def define_types(conn, system: str, types: list[dict], by: str) -> list[str]:
 
 
 _DEFAULTS = {"role": None, "process": None, "case_type": None, "audience": ("ioc",), "close_case_on_clear": True,
-             "description": None, "joins": True}
+             "description": None, "joins": True, "due_hours": None}
 
 
 def types_of(conn, system: str) -> list[dict]:

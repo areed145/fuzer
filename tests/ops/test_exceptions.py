@@ -699,6 +699,32 @@ def test_explain_finds_the_open_exception_and_the_event_it_joins(conn, compresso
     assert elsewhere["outcome"] == "queue"  # same area is not the same event
 
 
+def test_any_type_can_carry_a_due_policy(conn):
+    """The due policy is a field of every type (#509): a type defined as data with due_hours is due by its priority
+    when dispatched, as SAP notifications are; a bad map is refused."""
+    from fuzer.ops import exceptions as ex
+    from fuzer.ops import routing
+
+    with pytest.raises(ex.ExceptionError, match="priority to hours"):
+        ex.define(conn, "leak_report", "test", "Leak report", due_hours="soon")
+    ex.define(conn, "leak_report", "test", "Leak report", due_hours="1:4, 3:48")
+    conn.commit()
+    try:
+        assert routing.route_for(conn, "leak_report")["due"] == {
+            "by": "priority", "hours": {"1": 4.0, "3": 48.0}, "setting": None, "from": "raised",
+            "applies": "when dispatched"}
+        e = raise_exception(conn, "leak_report", "LR-1", "Drip at the manifold", "walkdown",
+                            refs=["tag:NO-SUCH-TAG"], evidence={"priority": "1"})
+        row = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Have a look")
+        due = conn.execute("select due from work_item where id = %s", (row["item_id"],)).fetchone()["due"]
+        assert round((due - row["first_seen"]).total_seconds() / 3600) == 4
+        assert routing.route_for(conn, "sap_notification")["due"]["setting"] == "intake.sap_notifications.due_hours"
+    finally:
+        conn.execute("update work_item set state = 'done' where type = 'leak_report'")
+        conn.execute("update exception_record set state = 'closed' where type = 'leak_report'")
+        conn.commit()
+
+
 def test_explain_gives_a_dispatched_sap_notification_its_due_time(conn):
     from fuzer.ops import intake, routing  # noqa: F401  (intake declares sap_notification)
 

@@ -12,6 +12,7 @@ from .definitions import NotFound, WorkError, _op
 
 MAX_TITLE, MAX_SUMMARY = 160, 2000
 TYPE, SOURCE = "task", "assistant"
+TASK_PROCESS = "task"  # the standard process a confirmed draft runs as (definitions/task.bpmn)
 
 
 @_op
@@ -54,9 +55,19 @@ def confirm(conn, draft_id: str, by: str) -> dict:
     found = roles.role(conn, draft["role"])
     if found is None or found["kind"] != "person":
         raise WorkError(f"the {draft['role']} queue no longer exists")
-    item = work_items.create_item.__wrapped__(  # the op's own commit would end this transaction, and the lock
-        conn, TYPE, draft["title"], by, draft["subjects"], role=draft["role"], source=SOURCE,
-        payload={"summary": draft["summary"], "evidence": draft["evidence"], "draft": draft_id})
+    payload = {"summary": draft["summary"], "evidence": draft["evidence"], "draft": draft_id}
+    # The ops' own commits would end this transaction, and the lock, so their unwrapped bodies run here.
+    if conn.execute("select 1 from work_definition where process_key = %s and state = 'published' limit 1",
+                    (TASK_PROCESS,)).fetchone():  # the standard task process: the queue's SLA and escalation (#509)
+        from . import runtime
+
+        item_id = runtime.start_or_correlate.__wrapped__(
+            conn, TASK_PROCESS, {**payload, "task_key": f"draft:{draft_id}", "role": draft["role"], "case_type": TYPE,
+                                 "source": SOURCE},
+            by=by, title=draft["title"], subjects=draft["subjects"])["item_id"]
+    else:
+        item_id = work_items.create_item.__wrapped__(conn, TYPE, draft["title"], by, draft["subjects"],
+                                                     role=draft["role"], source=SOURCE, payload=payload)["id"]
     conn.execute("update work_draft set item_id = %s, confirmed_by = %s, confirmed_at = now() where id = %s",
-                 (item["id"], by, draft_id))
-    return {"item_id": item["id"], "created": True}
+                 (item_id, by, draft_id))
+    return {"item_id": item_id, "created": True}
