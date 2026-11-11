@@ -2048,9 +2048,11 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   const waiting = { ...job, id: 8, key: "scada-1", title: "Compressor trip on high discharge pressure", item_id: 32, assignee: null,
     role: "operator", queued: true, sent: null, seen: [], history: [] };
   const reports = [];
+  // Relative to now: the Coming up card offers Done for anything starting within a day, so a fixed date
+  // stops being "later" once the clock reaches it.
   const soon = { id: 12, kind: "maintenance", title: "Replace P-101 seal", source: "sap", source_key: "4000001",
-    subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: "2026-11-12T08:00:00Z",
-    end_at: "2026-11-12T16:00:00Z", status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
+    subjects: ["fz-equipment-0123456789ab"], area_id: null, area_label: null, start_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+    end_at: new Date(Date.now() + 3 * 86_400_000 + 8 * 3_600_000).toISOString(), status: "scheduled", crew: "fred", crew_hours: null, needs_shutdown: false,
     deferment_usd: null, exception_id: null, notes: "bring the seal kit", clashes: [],
     assets: [{ fuzer_id: "fz-equipment-0123456789ab", label: "P-101 export pump" }] };
   const today = { ...soon, id: 13, title: "Operator rounds", crew: "role:operator", notes: null,
@@ -2491,7 +2493,8 @@ test("one network draws several link types together, filtered by link type and k
   const links = page.getByRole("group", { name: "Link types" });
   const flows = links.getByRole("button", { name: /flows to/ });
   const lift = links.getByRole("button", { name: /lift gas to/ });
-  await flows.waitFor();
+  // The buttons draw once the ontology loads and show as pressed once the network arrives: wait for that.
+  await links.locator('[aria-pressed="true"]', { hasText: /flows to/ }).waitFor();
   // No tabs: the default draws the ontology's whole flow view at once.
   assert.equal(asked[0], null);
   assert.equal(await flows.getAttribute("aria-pressed"), "true");
