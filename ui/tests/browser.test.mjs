@@ -2623,3 +2623,40 @@ test("an upset's triage shows how it spread and merges a knock-on into one case"
   await panel.getByText("Merged into this case: a step change on OK-J12-01.").waitFor();
   await panel.getByText("Already on this case.").waitFor();
 });
+
+test("Routing lists each type of work, flags an empty lane and dry-runs a dispatch (#507)", async () => {
+  const route = { type: "short_gas_day", label: "Short gas day", description: "Flow under 23 hours.", declared_in: "source pack",
+    source_system: "measurement", joins: true, join_hours: 12, starts: "queue", process: "queue_item", role: "production_engineer",
+    case_type: "short_gas_day", audience: ["ioc"], close_case_on_clear: true, due: null };
+  const sap = { ...route, type: "sap_notification", label: "SAP notification", description: "", declared_in: "code",
+    source_system: null, process: null, role: null, starts: "dispatch", case_type: "sap_notification",
+    due: { by: "priority", hours: { "1": 24, "2": 72 }, setting: "intake.sap_notifications.due_hours", from: "raised", applies: "when dispatched" } };
+  const step = { element: "work", step: "Work the case", kind: "person", role: "production_engineer", sla: "PT8H", sla_from: "role",
+    escalation: ["ops_lead"], escalation_from: "role", assignment: null, form: null, requires_human: false, fallback_role: null, holders: [] };
+  const asked = [];
+  await page.route("**/routing", (r) => r.fulfill({ json: [sap, route] }));
+  await page.route("**/routing/short_gas_day/explain*", (r) => {
+    const q = new URL(r.request().url()).searchParams;
+    asked.push({ refs: q.getAll("refs"), to: q.get("to") });
+    return r.fulfill({ json: { type: "short_gas_day", route, outcome: q.get("to") ? "dispatched" : "queue",
+      summary: q.get("to") ? "Opens a short gas day case in the production_engineer lane and hands it to riley." : "Opens a short gas day case in the production_engineer queue, which nobody holds.",
+      matched: q.getAll("refs").length ? [{ id: "fz-meter-1", label: "Meter 7", kind: "meter" }] : [], unmatched: [], unmatched_note: null,
+      updates: null, joins: null, due: null, queue: { role: "production_engineer", assignee: null, holders: [] },
+      process: { key: "queue_item", published: false, steps: [step] } } });
+  });
+  await page.goto(`${url}/#/routing`);
+  await page.getByRole("heading", { name: "Routing", exact: true }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Settings pages" }).getByRole("link", { name: "Routing" }).getAttribute("aria-current"), "page");
+  await page.getByText("1: 24 h, 2: 72 h").waitFor();  // SAP's due policy, from its setting
+  await page.getByText("waits for the IOC to dispatch").waitFor();
+  await page.getByRole("link", { name: "Short gas day" }).click();
+  await page.waitForURL(/type=short_gas_day/);
+  await page.getByText(/which nobody holds/).waitFor();
+  await page.getByRole("alert").getByText(/Nobody holds production_engineer/).waitFor();
+  await page.getByLabel("Refs").fill("tag:FT-7");
+  await page.getByLabel("Dispatch to").fill("riley");
+  await page.getByRole("button", { name: "Try it" }).click();
+  await page.getByText(/hands it to riley/).waitFor();
+  await page.getByText("Matches Meter 7.").waitFor();
+  assert.deepEqual(asked.at(-1), { refs: ["tag:FT-7"], to: "riley" });
+});
