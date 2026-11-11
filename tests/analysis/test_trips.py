@@ -58,6 +58,12 @@ def test_train_a_tripped_on_discharge_temperature_and_train_c_on_carryover(conn)
 def test_trips_reach_the_ioc_with_the_restart_checklist(conn):
     from fuzer.ops import exceptions
 
+    # The tests share the module's plant in random order: the machine health test's December 2025 watch leaves
+    # train B's seal and hot section cases open, and a train B trip rightly joins an open case on its train. This
+    # test follows the trip's own case, so it starts with none of those open.
+    for r in conn.execute("select key from exception_record where type = 'machine_health' and state = 'open'"):
+        exceptions.clear(conn, "machine_health", r["key"], "test", "not this test's")
+    conn.commit()
     out = trips.scan(conn, PACK, "2024-03-13T00:00", "2024-03-15T00:00")
     assert out["trips"] == 1 and len(out["raised"]) == 1 and not out["errors"]
     row = conn.execute("select * from exception_record where type = 'machine_trip'").fetchone()

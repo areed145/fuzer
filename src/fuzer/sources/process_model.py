@@ -213,8 +213,27 @@ class Window:
             return self._surge_control(unit, u, var, run, load)
         if var == "vibration":
             wear = sum((self.path(e["points"]) for e in self.ev(unit, "vibration")), np.zeros_like(self.t))
-            v = (u.get("vibration", 2.2) + wear) * (1 + 0.06 * self.noise(unit + "v", 15))
+            v = (u.get("vibration", 2.2) + wear) * (1 + 0.06 * self.noise(unit + "v", 15)) + 3.0 * self._surging(unit, 5)
             return self.lag(run * v + (1 - run) * 0.3, 5)
+        if var == "shaft_vibration":  # um pk-pk at the proximity probes: follows the casing, about 9 um per mm/s
+            return run * 9.0 * self.get(unit, "vibration") * (1 + 0.03 * self.noise(unit + "sv", 10)) + (1 - run) * 3.0
+        if var in ("axial_position", "thrust_temperature"):
+            # the rotor's axial position (mm toward the active thrust pads) and those pads' temperature: a worn thrust
+            # bearing walks it over weeks; a surge reverses the thrust for a moment
+            shift = sum((self.path(e["points"]) for e in self.ev(unit, "thrust")), np.zeros_like(self.t))
+            if var == "axial_position":
+                return (run * (0.12 + shift - 0.35 * self._surging(unit, 5))
+                        + (1 - run) * 0.02 + 0.008 * self.noise(unit + "ax", 10))
+            hot = 74 + 0.3 * (self.ambient() - 27) + 70 * shift + 4 * load
+            return self.lag(run * hot + (1 - run) * (self.ambient() + 15), 20) + 0.4 * self.noise(unit + "tb", 15)
+        if var == "journal_temperature":  # babbitt pads: oil temperature plus friction, more with vibration
+            vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.2) * 1.3, 0)
+            hot = 79 + 0.3 * (self.ambient() - 27) + 3 * load + 2.5 * self.lag(vib_excess, 30)
+            return self.lag(run * hot + (1 - run) * (self.ambient() + 15), 20) + 0.4 * self.noise(unit + "jb", 15)
+        if var == "seal_vent":  # Nm3/h through the primary vent of the dry gas seals; a worn seal passes more
+            wear = sum((self.path(e["points"]) for e in self.ev(unit, "seal_wear")), np.zeros_like(self.t))
+            base = u.get("seal_vent", 3.5) * (0.6 + 0.4 * u["p_suction"] / 37)
+            return (run + (1 - run) * 0.3) * base * (1 + wear) * (1 + 0.04 * self.noise(unit + "sg", 20))
         if var == "discharge_temperature":
             # polytropic rise from suction temperature, plus heat from a failing bearing after a lag
             ts = self.get(u["cooler_before"], "outlet_temperature") if u.get("cooler_before") else self.ambient() + 8
@@ -225,7 +244,7 @@ class Window:
             td = (ts + 273.15) * ratio ** 0.27 - 273.15
             extra = sum((self.path(e["points"]) for e in self.ev(unit, "discharge_temperature")), np.zeros_like(self.t))
             vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.2) * 1.3, 0)
-            hot = run * (td + extra) + 3.5 * self.lag(vib_excess, 30)
+            hot = run * (td + extra + 12 * self._surging(unit, 10)) + 3.5 * self.lag(vib_excess, 30)
             return self.lag(hot + (1 - run) * self.ambient(), 20) + 0.6 * self.noise(unit + "td", 15)
         raise KeyError(var)
 
@@ -255,7 +274,23 @@ class Window:
         if var == "vibration":
             wear = sum((self.path(e["points"]) for e in self.ev(unit, "vibration")), np.zeros_like(self.t))
             v = (u.get("vibration", 2.4) + wear) * (1 + 0.05 * self.noise(unit + "v", 15))
-            return self.lag(run * v + (1 - run) * 0.3, 5)
+            # a failed transmitter or a loose probe cable reads what it reads, whatever the frame does
+            fault = sum((self.path(e["points"]) for e in self.ev(unit, "signal_fault") if e.get("var") == var),
+                        np.zeros_like(self.t))
+            return np.where(fault > 0, fault, self.lag(run * v + (1 - run) * 0.3, 5))
+        if var == "lube_pressure":  # barg in the frame's oil gallery: the shaft-driven pump makes it with speed
+            n = self.get(unit, "speed") / u.get("rpm", 1180)
+            weak = np.maximum(self.any_between(unit, "lube_fault"), 0)  # no prelube: it never builds
+            return (4.3 * np.clip(n, 0, 1) * (1 - 0.75 * weak) + 0.2 * (1 - np.clip(n, 0, 1))
+                    + 0.04 * self.noise(unit + "lo", 10))
+        if var.startswith("engine_cylinder_"):  # the gas engine driver's exhaust temperature at each cylinder; a
+            n = int(var.rsplit("_", 1)[1])  # misfiring cylinder passes unburnt mixture and reads cold
+            off = {1: 6.0, 2: -4.0, 3: 3.0, 4: -7.0, 5: 2.0, 6: -2.0, 7: 5.0, 8: -3.0}.get(n, 0.0)
+            miss = sum((self.path(e["points"]) for e in self.ev(unit, "misfire") if int(e.get("cylinder", 0)) == n),
+                       np.zeros_like(self.t))
+            amb = self.ambient()
+            hot = 470 + 60 * load + 0.3 * amb + off - 160 * miss
+            return self.lag(run * hot + (1 - run) * (amb + 20), 10) + 2.0 * self.noise(f"{unit}ec{n}", 10)
         if var.startswith("cylinder_temperature_") or var == "discharge_temperature":
             ps, pi, pd = (self.get(unit, k) for k in ("suction_pressure", "interstage_pressure", "discharge_pressure"))
             amb = self.ambient()
@@ -275,6 +310,14 @@ class Window:
             return td + self.lag(run * extra, 5) + 2.0 * self.lag(vib_excess, 30)
         raise KeyError(var)
 
+    def _surging(self, unit, span: float) -> np.ndarray:
+        """1 for `span` minutes from each `surge` event on a compressor (an outright surge), else 0."""
+        out = np.zeros_like(self.t)
+        for e in self.ev(unit, "surge"):
+            a = minutes(e["at"])
+            out = np.maximum(out, ((self.t >= a) & (self.t < a + span)).astype(float))
+        return out
+
     def _surge_control(self, unit, u, var, run, load):
         """Flow through a stage (actual inlet m3/h) and its anti-surge valve: the forward flow follows the train's
         load (its speed) and its share of the inlet gas; when that falls below the control line (`control_line`
@@ -290,10 +333,14 @@ class Window:
         if var == "recycle":
             line = u.get("q_surge", 0.62 * u.get("q_design", 1000.0)) * load * u.get("control_line", 1.1)
             return self.lag(np.maximum(line - self.get(unit, "forward"), 0), u.get("asv_lag", 5))
-        if var == "flow":
-            return run * (self.get(unit, "forward") + self.get(unit, "recycle"))
+        if var == "flow":  # a surge: flow collapses and reverses for a few minutes
+            return run * (self.get(unit, "forward") + self.get(unit, "recycle")) * (1 - 0.6 * self._surging(unit, 5))
         open_pct = np.clip(self.get(unit, "recycle") / (0.4 * u.get("q_design", 1000.0)) * 100, 0, 100)
-        return run * open_pct + (1 - run) * 100  # asv: fully open while the train is stopped
+        snap = np.zeros_like(self.t)  # the controller's surge response: the valve steps fully open, then eases back
+        for e in self.ev(unit, "surge"):
+            a = minutes(e["at"])
+            snap = np.maximum(snap, np.interp(self.t, [a - DT, a, a + 15, a + 45], [0, 100, 100, 0], left=0, right=0))
+        return run * np.maximum(open_pct, snap) + (1 - run) * 100  # asv: fully open while the train is stopped
 
     def _gas_turbine(self, unit, u, var):
         load = self.get(u["train"], "load")
@@ -303,6 +350,18 @@ class Window:
             return self.lag(self.ambient() + load * (u.get("exhaust", 485) - 30 + 0.4 * (self.ambient() - 27)), 25)
         if var == "power":  # kW the compressors take: the train's load on the driver's duty share of ISO output
             return load * u.get("duty", 0.86) * u.get("iso_kw", 5670.0) * (1 + 0.01 * self.noise(unit + "kw", 20))
+        if var == "lube_pressure":  # barg at the lube oil header: the pumps run while it turns; a plugging filter
+            plug = sum((self.path(e["points"]) for e in self.ev(unit, "lube_filter")), np.zeros_like(self.t))
+            return u.get("lube_pressure", 2.6) - plug + 0.02 * self.noise(unit + "lp", 10)
+        if var == "lube_temperature":  # degC at the supply, after the oil cooler
+            hot = 45 + 0.4 * (self.ambient() - 27) + 3 * load
+            return self.lag(hot, 30) + 0.3 * self.noise(unit + "lt", 15)
+        if var.startswith("exhaust_tc_"):  # each thermocouple around the exhaust: the mean, its own offset, and a
+            n = int(var.rsplit("_", 1)[1])  # lean combustor upstream of it reads colder
+            off = {1: 4.0, 2: -3.0, 3: 6.0, 4: -2.0, 5: -6.0, 6: 1.0}.get(n, 0.0)
+            cold = sum((self.path(e["points"]) for e in self.ev(unit, "combustor") if int(e.get("tc", 0)) == n),
+                       np.zeros_like(self.t))
+            return self.get(unit, "exhaust_temperature") + load * (off + cold) + 1.2 * self.noise(f"{unit}tc{n}", 10)
         if var == "fuel_flow":  # Sm3/h: output times the heat rate at that load and ambient, worse as it fouls
             amb = self.ambient()
             avail = u.get("iso_kw", 5670.0) * (1 - 0.0075 * (amb - 15))

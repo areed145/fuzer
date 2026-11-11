@@ -98,6 +98,16 @@ INSTRUMENTS = {
     "V": [("PT", "Vessel Pressure", "barg"), ("LT", "Liquid Level", "%")],
     "E": [("TT", "Outlet Temperature", "degC")],
 }
+# Instruments added later (#537 follow-up): the API 670 protection channels and dry gas seal vent on each compressor,
+# the lube oil system and the exhaust thermocouples on each gas turbine. Not drawn on the P&IDs (they sit on the
+# machine's own vendor drawings), so the sheets stay as they were.
+LATER = {
+    "K": [("VT", "Shaft Vibration", "um", 5), ("ZT", "Axial Position", "mm", 5),
+          ("TT", "Journal Bearing Temperature", "degC", 5), ("TT", "Thrust Bearing Temperature", "degC", 6),
+          ("FT", "Seal Gas Primary Vent Flow", "Nm3/h", 5)],
+    "GT": [("PT", "Lube Oil Header Pressure", "barg", 5), ("TT", "Lube Oil Supply Temperature", "degC", 5),
+           *[("TT", f"Exhaust Thermocouple {n}", "degC", 10 + n) for n in range(1, 7)]],
+}
 # Single instruments and valves that aren't on an item: area -> (function, loop, description, uom)
 LOOSE = {
     "10": [("FT", 3001, "Oil Export Fiscal Meter", "Sm3/d")],
@@ -380,6 +390,11 @@ def generate(out, seed: int = 11) -> dict:
         for ifunc, idesc, uom, *offset in INSTRUMENTS[func]:
             inst = Tag(area, ifunc, loop + (offset[0] if offset else 0), s)
             sheet_tags[sheet].append(inst)
+            floc.append({"floc": inst.fmt(f"{FIELD}-{{a}}-{{f}}{{l}}{{s}}"), "parent": eq_floc,
+                         "description": f"{title} {idesc}"})
+            attrs.append(add_points(area, inst, f"{title} {idesc}", uom, PI_STYLE[area]))
+        for ifunc, idesc, uom, offset in LATER.get(func, []):
+            inst = Tag(area, ifunc, loop + offset, s)
             floc.append({"floc": inst.fmt(f"{FIELD}-{{a}}-{{f}}{{l}}{{s}}"), "parent": eq_floc,
                          "description": f"{title} {idesc}"})
             attrs.append(add_points(area, inst, f"{title} {idesc}", uom, PI_STYLE[area]))
@@ -778,6 +793,15 @@ def generate(out, seed: int = 11) -> dict:
             plans.append({"plan": f"VIB-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
                           "task": f"Vibration monitoring route, {e['description'].lower()}", "interval_days": "30",
                           "last_done": done, "next_due": _add_days(done, 30), "needs_shutdown": ""})
+    # Gas turbine hot section inspections run on fired hours (30,000 for a Taurus 60), not the calendar: SAP holds
+    # the calendar equivalent, the control system counts the hours. Train B's is close: about 29,000 hours since its
+    # last one, so it falls due before the 2026 turnaround.
+    for t, done in (("A", "2023-10-02"), ("B", "2022-09-05"), ("C", "2025-04-14")):
+        e = eq_of(f"20-GT-2000{t}")
+        plans.append({"plan": f"HSI-{e['equnr']}", "kind": "INSP", "equnr": e["equnr"], "floc": e["floc"],
+                      "task": "Hot section inspection every 30,000 fired hours, gas turbine driver",
+                      "interval_days": "1250", "last_done": done, "next_due": _add_days(done, 1250),
+                      "needs_shutdown": "X"})
 
     tests, wparams = [], {}
     trng = random.Random(seed + 8)
@@ -1051,6 +1075,11 @@ def generate(out, seed: int = 11) -> dict:
         {"well": j0302["name"], "sample_point": "Wellhead", "kind": "well",
          "step": {"chloride": (breakthrough, 1.9), "bsw": (breakthrough, 2.7)}},
     ], date(2024, 1, 2), date.fromisoformat(AS_OF) - timedelta(days=1))
+    # The inlet gas's composition by GC, monthly (its own sequence, so the samples above are unchanged): the relative
+    # density and molar mass the compressor calcs take their real-gas properties from.
+    lab += measurements.lab_results(random.Random(seed + 13), [
+        {"tag": "20-V-2001", "sample_point": "GGCP inlet gas", "kind": "gas_composition"}],
+        date(2024, 1, 2), date.fromisoformat(AS_OF) - timedelta(days=1), every=30)
     wetter = f'production flowline {j0302["area"]} to'
     wet = {"rate_mm_y": 0.55, "faster": (breakthrough, 2.0), "follow_up": "2025-11-18"}
     walls = [{"line_id": f["properties"]["line_id"], "nominal_mm": measurements.nominal_wall_mm(f["properties"]["diameter_in"]),

@@ -15,6 +15,14 @@ long before, which is what separates a machine fault from a process upset and fr
   protection channels). A second trip of the same family on the train within `REPEAT_DAYS` is `inspect_first`: an
   inspection, not another restart (the site procedure for repeated vibration trips). Any other trip in the last
   `REVIEW_DAYS` asks for a reliability review.
+- Spurious trips: when nothing moved ahead of the stop and the one point at its trip setting got there in a single
+  step from its normal value, with no other point on the train following it, the trip is called `spurious`: a failed
+  transmitter, a loose probe or its wiring, not the machine (ISO 14224's "spurious operation" of the protection).
+  It doesn't count as a repeat of a real fault in the restart gate.
+- `starts(ref, days)`: start attempts that failed: the run signal rose but fell back before it held running speed
+  for half an hour. Each with the reason the data gives: the point past its trip setting at the attempt's peak (low
+  lube oil pressure, high vibration, ...), or that it never got near running speed (ignition, fuel, starter or a
+  start permissive). A failed start after a trip shows on the trip's diagnosis as `restart_attempts`.
 - `scan(since, until)`: every compressor train's trips in the window, diagnosed, each raised as a `machine_trip`
   exception for the IOC. It joins the case already open on the train (the upset the stop raised), so the IOC works
   one case with the cause and the restart checklist on it, and the operator dispatched to the train sees the
@@ -103,6 +111,16 @@ FAMILIES = {
         "label": "a process change",
         "means": "a process value moved first, with no machine signal ahead of it",
         "checks": ["Check what moved first and why before restarting."]},
+    "spurious": {
+        "label": "a spurious trip",
+        "means": "one transmitter jumped past its trip setting in a single step while nothing else on the train moved: "
+                 "a failed transmitter, a loose probe or its wiring, not the machine",
+        "checks": ["Check the transmitter that tripped it: its loop, cable and junction box, and the probe's gap "
+                   "voltage for a proximity probe.",
+                   "Compare it with its neighbours (the other bearing, shaft against casing vibration, the redundant "
+                   "transmitter): a real fault shows on more than one.",
+                   "Walk the machine down as for any trip, then restart once the instrument is fixed or confirmed.",
+                   "Log it as an instrument failure (spurious operation), so it isn't counted against the machine."]},
     "none": {
         "label": "no precursor",
         "means": "nothing moved before the stop: an ESD, a power dip, a spurious trip or a stop by hand",
@@ -266,9 +284,11 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
     found = stops(conn, pack, fid, end - timedelta(days=2), end + timedelta(hours=3), src)  # the run signal lags
     if not found:
         raise CalcError(f"{tr['name']} did not trip in the two days before {end:%Y-%m-%d %H:%M}")
-    stop = found[-1]
     pts = _points(conn, tr["members"] + tr["shared"])
     sig = _run_signal(conn, pack, tr, pts)
+    stop = next((t for t in reversed(found) if not _failed_start(conn, sig, t, src)), None)
+    if stop is None:
+        raise CalcError(f"{tr['name']} had only failed start attempts in the two days before {end:%Y-%m-%d %H:%M}")
     a = stop - timedelta(hours=LOOKBACK_HOURS + BASELINE_HOURS)
     b = stop + timedelta(minutes=30)
     run = read({"run": sig["point"]}, a, b, STEP, src)["run"]
@@ -298,25 +318,38 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
                               "to": round(float(win[-1][1]), 2), "unit_of_measure": p["uom"],
                               "family": _family(p["description"], p["unit_label"], d)})
                 break
-        # at its trip setting in the quarter hour before (not after: a falling flow is the trip, not its cause)
-        last = [x for t, x in v.items() if (t0 - timedelta(minutes=15)).isoformat(timespec="minutes") <= t < t0.isoformat(timespec="minutes")]
+        # at its trip setting in the quarter hour up to the trip (not after: a falling flow is the trip, not its cause)
+        last = [x for t, x in v.items() if (t0 - timedelta(minutes=15)).isoformat(timespec="minutes") <= t <= t0.isoformat(timespec="minutes")]
         lim = lims.get(pid, {})
+        hit = None
         if last and "hihi" in lim and max(last) >= lim["hihi"]:
-            at_trip.append({"point": p["point"], "value": round(float(max(last)), 2), "trip_setting": lim["hihi"],
-                            "side": "high", "unit": p["unit_label"]})
+            hit = {"point": p["point"], "value": round(float(max(last)), 2), "trip_setting": lim["hihi"],
+                   "side": "high", "unit": p["unit_label"]}
         elif last and "lolo" in lim and min(last) <= lim["lolo"]:
-            at_trip.append({"point": p["point"], "value": round(float(min(last)), 2), "trip_setting": lim["lolo"],
-                            "side": "low", "unit": p["unit_label"]})
+            hit = {"point": p["point"], "value": round(float(min(last)), 2), "trip_setting": lim["lolo"],
+                   "side": "low", "unit": p["unit_label"]}
+        if hit:
+            # how it got there: the step from its normal to past the setting, in one reading or over several
+            before = [x for t, x in sorted(v.items()) if t < (t0 - timedelta(minutes=15)).isoformat(timespec="minutes")]
+            prev = before[-1] if before else None
+            hit.update(id=pid, unit_id=p["unit"], measures=p["description"],
+                       from_normal=prev is not None and abs(prev - med) <= max(Z * scale, 0.1 * abs(med)),
+                       before=round(float(prev), 2) if prev is not None else None)
+            at_trip.append(hit)
     moved.sort(key=lambda m: (m["at"], m["point"]))
     first = moved[0] if moved else None
     family = first["family"] if first else "none"
+    spurious = None
+    if not first and len(at_trip) == 1 and at_trip[0]["from_normal"]:
+        spurious = at_trip[0]  # one transmitter, normal one reading and past its trip the next, nothing else moved
+        family = "spurious"
     if first and family == "process":  # a machine signal close behind a process one is the likelier cause
         mech = next((m for m in moved if m["family"] in ("vibration", "bearing", "discharge_temperature")
                      and m["lead_minutes"] >= first["lead_minutes"] - 30), None)
         family = mech["family"] if mech else family
     fam = FAMILIES[family]
     prior = _prior(conn, pack, fid, t0, src) if history else []
-    same = [p for p in prior if p["family"] == family and p["days_before"] <= REPEAT_DAYS]
+    same = [p for p in prior if p["family"] == family and p["days_before"] <= REPEAT_DAYS and family != "spurious"]
     verdict = "inspect_first" if same else "review" if prior else "restart_after_checks"
     checks = list(fam["checks"])
     if same:
@@ -325,11 +358,17 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
     elif prior:
         checks.append(f"Trip {len(prior) + 1} on this train in {REVIEW_DAYS} days (last {prior[0]['at'][:10]}, "
                       f"{FAMILIES[prior[0]['family']]['label']}): ask reliability to review it.")
-    culprit = first["unit"] if first else None
+    attempts = [x for x in starts(conn, fid, until=(t0 + timedelta(hours=12)).isoformat(timespec="minutes"), days=0.5,
+                                  pack=pack, src=src, sig=sig) if x["at"] > t0.isoformat(timespec="minutes")] if history else []
+    if attempts:
+        checks.append(f"{len(attempts)} restart attempt(s) failed after this trip, the first on "
+                      f"{attempts[0]['reason']}: fix that before the next attempt.")
+    culprit = first["unit"] if first else spurious["unit"] if spurious else None
     name = tr["name"][0].upper() + tr["name"][1:]
     title = (f"{name} tripped {t0:%Y-%m-%d %H:%M}: "
-             + (f"{fam['label']} on {culprit}, {first['point']} moved {first['lead_minutes']} min before"
-                if first else "no precursor in the data")
+             + (f"{fam['label']} on {culprit}, {first['point']} moved {first['lead_minutes']} min before" if first
+                else f"likely spurious, {spurious['point']} jumped past its trip setting with nothing else moving"
+                if spurious else "no precursor in the data")
              + f". {VERDICTS[verdict]}")
     return {"value": family, "expected": None, "deviation": None, "deviation_pct": None, "flag": verdict if verdict != "restart_after_checks" else None,
             "basis": (f"the run signal {sig['point'].get('point') or sig['point'].get('label') or ''} fell at "
@@ -340,9 +379,111 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
             "sources": list(dict.fromkeys([sig["point"]["id"], *(m["id"] for m in moved[:8])])),
             "unit": "cause family", "train": tr["name"], "train_key": tr["key"], "tripped_at": t0.isoformat(timespec="minutes"),
             "cause": fam["label"], "means": fam["means"], "first_out": first, "sequence": moved[:12],
-            "tripped_on": at_trip, "verdict": verdict, "restart": VERDICTS[verdict], "checklist": checks,
+            "tripped_on": [{k: x[k] for k in ("point", "value", "trip_setting", "side", "unit")} for x in at_trip],
+            "spurious": {k: spurious[k] for k in ("point", "before", "value", "trip_setting", "unit")} if spurious else None,
+            "restart_attempts": attempts, "verdict": verdict, "restart": VERDICTS[verdict], "checklist": checks,
             "prior_trips": prior, "machines": tr["machines"], "title": title,
-            "culprit_id": first["unit_id"] if first else None}
+            "culprit_id": first["unit_id"] if first else spurious["unit_id"] if spurious else None}
+
+
+HOLD_MINUTES = 30  # a start holds once the run signal stays near running for this long
+
+
+def _ran_level(series: dict[str, float], on: float) -> float:
+    vals = [x for x in series.values() if x >= on]
+    return float(np.percentile(vals, 75)) if vals else on
+
+
+def _failed_start(conn, sig: dict, stop: datetime, src=None) -> bool:
+    """Whether the stop the modes saw ended a start attempt that never held running speed, rather than a run."""
+    a = stop - timedelta(hours=3)
+    run = read({"run": sig["point"]}, stop - timedelta(days=2), stop + timedelta(minutes=30), STEP, src)["run"]
+    ran = _ran_level(run, sig["on"])
+    ts = [t for t in sorted(run) if t >= a.isoformat()]
+    # walk back from the stop to the last time it was below the off level: the attempt began there
+    i = max((k for k, t in enumerate(ts) if t <= stop.isoformat(timespec="minutes")), default=len(ts) - 1)
+    while i > 0 and run[ts[i]] < sig["off"]:
+        i -= 1
+    j = i
+    while j > 0 and run[ts[j - 1]] >= sig["off"]:
+        j -= 1
+    if j == 0:
+        return False  # running since before the window: a trip
+    held = sum(1 for t in ts[j:i + 1] if run[t] >= 0.9 * ran)
+    return held * STEP < HOLD_MINUTES
+
+
+def starts(conn, fid: str, days: float = 30, until: str | None = None, pack=None, src=None, sig: dict | None = None) -> list[dict]:
+    """Start attempts in the window that failed (the run signal rose and fell back before holding running speed for
+    half an hour), each with the reason the data gives."""
+    from ..core.pack import current_pack
+    from .calcs import window_of
+
+    pack = pack or current_pack(conn)
+    tr = train(conn, fid)
+    pts = _points(conn, tr["members"] + tr["shared"])
+    sig = sig or _run_signal(conn, pack, tr, pts)
+    start, end = window_of(conn, 1, until)
+    start = end - timedelta(days=days)
+    run = read({"run": sig["point"]}, start - timedelta(days=2), end, STEP, src)["run"]
+    ran = _ran_level(run, sig["on"])
+    ts = [t for t in sorted(run) if t >= start.isoformat()]
+    out, i = [], 1
+    while i < len(ts):
+        if run[ts[i - 1]] < sig["off"] <= run[ts[i]]:  # it began to turn
+            j = i
+            while j < len(ts) and run[ts[j]] >= sig["off"]:
+                j += 1
+            seg = ts[i:j]
+            held = sum(1 for t in seg if run[t] >= 0.9 * ran) * STEP
+            if held < HOLD_MINUTES and j < len(ts):  # it fell back before holding
+                peak = max(seg, key=lambda t: run[t])
+                out.append({"at": ts[i][:16], "peak": round(run[peak], 1), "peak_at": peak[:16],
+                            "peak_pct": round(run[peak] / ran * 100, 0), "minutes": len(seg) * STEP})
+            i = j
+        i += 1
+    if not out:
+        return out
+    others = {k: p for k, p in pts.items() if k != sig["point"]["id"]}
+    lims = _limits(conn, list(others))
+    vals = read({k: others[k] for k in lims}, start, end, STEP, src) if lims else {}
+    for x in out:
+        hits = []
+        for pid, lim in lims.items():
+            val = vals.get(pid, {}).get(x["peak_at"])
+            if val is None:
+                continue
+            if "lolo" in lim and val <= lim["lolo"]:
+                hits.append((others[pid], val, lim["lolo"], "low"))
+            elif "hihi" in lim and val >= lim["hihi"]:
+                hits.append((others[pid], val, lim["hihi"], "high"))
+        if hits:
+            p, val, setting, side = hits[0]
+            x.update(reason=f"{side} {p['description'].lower()} ({p['point']} {val:.3g}, "
+                            f"trip {setting:g})", point=p["point"])
+        elif x["peak_pct"] < 70:
+            x.update(reason="it never got near running speed (ignition, fuel, the starter or a start permissive): "
+                            "read the driver's start sequence", point=None)
+        else:
+            x.update(reason="it reached speed but did not hold: read the first-out panel for the attempt", point=None)
+    return out
+
+
+def failed_starts(conn, fid: str, days: int = 90, until: str | None = None) -> dict:
+    """The calc: a train's failed start attempts in the window, with their reasons."""
+    from .calcs import result
+
+    tr = train(conn, fid)
+    found = starts(conn, fid, days=days, until=until)
+    reasons: dict[str, int] = {}
+    for x in found:
+        key = x["point"] or x["reason"].split(" (")[0]
+        reasons[key] = reasons.get(key, 0) + 1
+    return result(len(found), 0, "failed_starts" if found else None,
+                  f"start attempts on {tr['name']} in the last {days} days: the driver's run signal rising past a "
+                  f"third of its running level and falling back before holding 90 % of it for {HOLD_MINUTES} min; the "
+                  "reason is the point past its trip setting at the attempt's peak, else how far it got",
+                  [fid], unit="failed starts", train=tr["name"], attempts=found, by_reason=reasons)
 
 
 def planned(conn, t: datetime, hours: float = 3.0) -> bool:
@@ -428,10 +569,16 @@ def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") ->
             found = stops(conn, pack, m, a, b, src)
         except CalcError:
             continue
+        sig = None
         for t in found:
             if planned(conn, t):
                 continue
             try:
+                if sig is None:
+                    tr = train(conn, m)
+                    sig = _run_signal(conn, pack, tr, _points(conn, tr["members"] + tr["shared"]))
+                if _failed_start(conn, sig, t, src):
+                    continue  # a failed restart shows on the trip it followed
                 d = diagnose(conn, m, t.isoformat(timespec="minutes"), pack=pack, src=src)
             except CalcError as e:
                 out["errors"].append(str(e))
@@ -444,6 +591,10 @@ def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") ->
                         "tripped_on": ", ".join(f"{x['point']} {x['value']:g} (trip {x['trip_setting']:g})"
                                                 for x in d["tripped_on"]) or None,
                         "earlier_trips": len(d["prior_trips"]), "checklist": d["checklist"],
+                        "spurious": f"{d['spurious']['point']} jumped from {d['spurious']['before']:g} to "
+                                    f"{d['spurious']['value']:g} (trip {d['spurious']['trip_setting']:g})"
+                                    if d["spurious"] else None,
+                        "failed_restarts": "; ".join(f"{x['at']}: {x['reason']}" for x in d["restart_attempts"]) or None,
                         "sequence": d["sequence"][:6], "basis": d["basis"]}
             try:
                 res = raise_exception(conn, TYPE, f"{d['train_key']}@{d['tripped_at']}", d["title"], by,

@@ -19,6 +19,15 @@ KRGP:B1.TT2021.PV,Compressor Cylinder 1 Discharge Temperature,degC,OPC
 KRGP:B1.TT2022.PV,Compressor Cylinder 2 Discharge Temperature,degC,OPC
 KRGP:B1.TT2023.PV,Compressor Cylinder 3 Discharge Temperature,degC,OPC
 KRGP:B1.TT2024.PV,Compressor Cylinder 4 Discharge Temperature,degC,OPC
+KRGP:B1.PT2008.PV,Compressor Frame Lube Oil Pressure,barg,OPC
+KRGP:B1.TT2031.PV,Engine Cylinder 1 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2032.PV,Engine Cylinder 2 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2033.PV,Engine Cylinder 3 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2034.PV,Engine Cylinder 4 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2035.PV,Engine Cylinder 5 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2036.PV,Engine Cylinder 6 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2037.PV,Engine Cylinder 7 Exhaust Temperature,degC,OPC
+KRGP:B1.TT2038.PV,Engine Cylinder 8 Exhaust Temperature,degC,OPC
 KRGP:C1.TT3008.PV,TEG Reboiler Temperature,degC,OPC
 KRGP:C1.AT3011.PV,Dry Gas Water Content,mg/Sm3,OPC
 KRGP:D1.PDT4001.PV,Amine Contactor Differential Pressure,bar,OPC

@@ -13,6 +13,8 @@ ANALYTES = {
     "water": [("oil_in_water", "mg/L", 18.0, 6.0, "IR, ISO 9377-2")],
     "gas": [("h2s", "ppmv", 12.0, 3.0, "ASTM D4810 stain tube"), ("co2", "% mol", 2.1, 0.2, "GC, GPA 2261"),
             ("water_dewpoint", "degC", -8.0, 1.5, "chilled mirror")],
+    "gas_composition": [("relative_density", "-", 0.68, 0.004, "GC, GPA 2261 / GPA 2172"),
+                        ("molar_mass", "g/mol", 19.7, 0.12, "GC, GPA 2261 / GPA 2172")],
     "well": [("chloride", "mg/L", 18000.0, 900.0, "Mohr titration"), ("bsw", "% vol", 25.0, 4.0, "ASTM D4007 centrifuge")],
 }
 DETECTION_LIMIT = {"oil_in_water": 5.0, "h2s": 1.0}

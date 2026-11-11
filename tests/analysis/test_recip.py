@@ -108,3 +108,34 @@ def test_yesterdays_vibration_trip_and_the_one_five_weeks_ago(kestrel):
     dip = (date.today() - timedelta(days=96)).isoformat() + "T14:20"
     p = trips.diagnose(conn, k2001(conn, pack), dip, pack=pack, history=False)
     assert p["value"] == "none" and p["first_out"] is None and "first-out panel" in p["checklist"][0]
+
+
+def test_a_loose_probe_tripped_it_two_months_ago_and_the_first_restart_failed_on_lube_oil(kestrel):
+    from datetime import date, timedelta
+
+    from fuzer.analysis import trips
+
+    conn, pack = kestrel
+    day = (date.today() - timedelta(days=60)).isoformat()
+    d = trips.diagnose(conn, k2001(conn, pack), day + "T09:12", pack=pack)
+    assert d["value"] == "spurious" and d["first_out"] is None and "likely spurious" in d["title"]
+    assert d["spurious"]["point"] == "KRGP:B1.VT2003.PV" and d["spurious"]["before"] < 4 and d["spurious"]["value"] >= 11.2
+    assert "transmitter" in d["checklist"][0] and "spurious operation" in " ".join(d["checklist"])
+    assert len(d["restart_attempts"]) == 1 and "lube oil pressure" in d["restart_attempts"][0]["reason"]
+    assert "restart attempt" in d["checklist"][-1]
+    s = trips.failed_starts(conn, k2001(conn, pack), days=90)
+    assert s["flag"] == "failed_starts" and s["value"] == 1 and s["attempts"][0]["at"].startswith(day)
+    assert s["attempts"][0]["point"] == "KRGP:B1.PT2008.PV" and s["attempts"][0]["peak_pct"] < 90
+
+
+def test_the_gas_engine_driver_has_a_misfiring_cylinder(kestrel):
+    from fuzer.analysis import drivers, protection, rotating
+
+    conn, pack = kestrel
+    e = drivers.engine_cylinders(conn, k2001(conn, pack))
+    assert e["flag"] == "cylinder_misfire" and e["cylinder"] == 5 and e["value"] < -100 and e["cylinders"] == 8
+    lube = protection.lube_oil(conn, k2001(conn, pack))
+    assert lube["flag"] is None and lube["pressure"]["now"] > lube["pressure"]["alarm"]
+    h = rotating.health(conn, k2001(conn, pack))
+    assert {"engine_cylinders", "lube_oil"} <= {f["check"] for f in h["findings"]}
+    assert any("misfiring" in r for r in h["recommendations"])

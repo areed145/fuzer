@@ -19,7 +19,10 @@ description: Method for troubleshooting a unit or incident (a trip, leak, high v
    a power dip or a spurious trip, so check the DCS first-out and the transmitter). `tripped_on` lists the points
    at their trip setting. Quote the restart gate as given: `verdict` `inspect_first` (a second trip of the same
    family within 30 days: inspect, don't restart), `review` (another trip within 45 days) or
-   `restart_after_checks`, and the `checklist`. The IOC already has the trip as a `machine_trip` case with the same
+   `restart_after_checks`, and the `checklist`. Family `spurious` means one transmitter jumped past its trip in a
+   single reading with nothing else moving: say the machine is likely fine and the instrument is the job.
+   `restart_attempts` lists restarts that failed afterwards with their reason (low lube oil pressure, never reached
+   speed); `calc("failed_starts", ref)` lists them over a longer window. The IOC already has the trip as a `machine_trip` case with the same
    checklist, joined to the upset's case.
 2. **One call for the picture:** `troubleshooting_brief(ref)` returns the incident timeline, similar past
    incidents and how they ended, approved lessons, manual / guide sections for the failure modes,

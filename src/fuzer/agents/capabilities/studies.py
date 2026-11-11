@@ -49,7 +49,9 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",
                        "surge", "heat_rate", "motor_load", "rotating_health", "rod_load", "valve_health",
-                       "compressor_trip", "test_check",
+                       "compressor_trip", "protection", "seal_gas", "lube_oil", "surge_events", "gas_performance",
+                       "power_balance", "exhaust_spread", "hot_section", "engine_cylinders", "remaining_life",
+                       "failed_starts", "test_check",
                        "deferment_attribution", "vessel_loading", "corrosion_circuit"], ref: str,
          method: Literal["weibull", "crow_amsaa"] | None = None, model: str | None = None, days: int | None = None,
          breakeven: float | None = None, min_required_mm: float | None = None, until: str | None = None) -> dict[str, Any]:
@@ -84,7 +86,25 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
     others on its stage, and the stage pressure ratio split (valve_leak, ratio_shift; weak_stage holds the leak).
     compressor_trip (any machine of a compression train; until = around the trip): why the train tripped, from
     what moved first (first_out, sequence, tripped_on, cause family), and the restart gate: verdict
-    (inspect_first, review, restart_after_checks) and the checklist before a restart. test_check (oil well): the latest test against what its choke passes at the
+    (inspect_first, review, restart_after_checks) and the checklist before a restart; a lone transmitter that
+    jumped past its trip with nothing else moving is family spurious, and failed restarts afterwards are listed.
+    failed_starts (compression train): start attempts that never held running speed, each with the reason (the
+    point past its trip at the attempt's peak). protection (compressor): API 670 channels (shaft vibration,
+    axial position, journal and thrust bearing temperatures) against alarm and trip, trends and trip dates
+    (thrust_wear, bearing_hot, shaft_vibration_high, protection_rising). seal_gas (compressor): dry gas seal
+    primary vent flow against its clean level and alarm, API 692 (seal_leak, seal_rising). lube_oil (gas
+    turbine, engine or recip frame): lube oil pressure and temperature against their settings, API 614
+    (lube_pressure_low, lube_pressure_falling, lube_oil_hot). surge_events (compressor stage): outright surges
+    from the flow collapsing as the anti-surge valve snaps open, with the thrust kick (surge_events).
+    gas_performance (compressor stage): polytropic efficiency, head and gas power on real-gas properties (k and Z
+    from the gas analysis, ASME PTC 10 Schultz) against its first week (efficiency_drop). power_balance (gas
+    turbine or its train): stage gas power over driver output, shifted from its first week (power_mismatch).
+    exhaust_spread (gas turbine): exhaust thermocouple spread against its clean level, and the thermocouple that
+    wandered (exhaust_spread). hot_section (gas turbine): fired hours since the last hot section inspection
+    against the plan's interval and the due date (inspection_due, inspection_overdue). engine_cylinders (gas
+    engine driven machine): each cylinder's exhaust temperature against the others (cylinder_misfire,
+    cylinder_hot). remaining_life (machine): the earliest date a trend reaches its limit, with a 90 % range (ISO
+    13381-1), against the next turnaround or shutdown (fails_before_window, tight). test_check (oil well): the latest test against what its choke passes at the
     day's pressures, its inflow and its gas lift curve (test_suspect: retest before acting; off_lift_curve).
     deferment_attribution (jacket, area or facility): each well's latest test below its decline with one cause
     (recorded deferment, suspect test, water, flowline restriction, back-pressure, lift, choke, nothing on record)

@@ -60,9 +60,9 @@ def test_lag_sign_cleaning_and_order():
 def test_what_moved_before_a_well_lost_its_lift_gas(conn):
     """Rank the whole facility against OK-J01-01's casing pressure across train C's trip: the other gas
     lifted wells move with it, and the points that moved first are the lift gas headers and train C."""
-    out = studies.correlate(conn, PACK, point(conn, "OK_J01_01.CASP"), "facility", *TRIP, top=10)
+    out = studies.correlate(conn, PACK, point(conn, "OK_J01_01.CASP"), "facility", *TRIP, top=15)
     assert out["candidates"] > 900 and out["ranking"][0]["r"] > 0.98
-    first = [x["point"] for x in out["leaders"][:12]]
+    first = [x["point"] for x in out["leaders"][:15]]
     assert any("FT-3002" in p or "FT3002" in p for p in first) and any("2000C" in p or "2100C" in p for p in first), first
     assert all(x["leads_by_minutes"] > 0 and x["moves"] == "first" for x in out["leaders"])
     assert any(x["connected"] for x in out["leaders"]) and out["sources"][0] == out["target_id"]

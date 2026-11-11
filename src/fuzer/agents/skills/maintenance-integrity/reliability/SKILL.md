@@ -94,6 +94,32 @@ A repeat failure is the same failure mode on the same unit more than once in the
      (`weak_stage`). A leak on the 2nd stage pushes the interstage pressure up and loads the 1st stage throws, so
      a valve leak and a rod load problem are often the same story: say so. A recip's vibration is judged against
      its maker's frame alarm and trip, not the centrifugal zones.
+   - **Protection channels** (API 670, `calc("protection", ref)`): shaft vibration at the proximity probes, the
+     rotor's axial (thrust) position and the journal and thrust bearing temperatures, each against its alarm and
+     trip, with its trend and the date it reaches the trip (a 90 % range). Axial position or thrust pad temperature
+     past its alarm (`thrust_wear`) means the thrust bearing is going, and a thrust failure wrecks the rotor: act.
+     Read them with the casing vibration: a bearing problem shows on several channels at once.
+   - **Surges** (`calc("surge_events", ref)`): outright surges from their signature (the flow collapsing as the
+     anti-surge valve snaps open), each with the thrust kick. Every surge loads the thrust bearing and the dry gas
+     seals, so after one look at `protection` and `seal_gas` too.
+   - **Dry gas seals and lube oil**: `calc("seal_gas", ref)` (API 692) compares the primary vent flow with its own
+     clean level and its alarm; `seal_leak` means the secondary seal is all that's left, so plan the cartridge change.
+     `calc("lube_oil", ref)` (API 614) trends the header pressure to its low alarm and trip (a plugging filter shows
+     as a steady fall: change over before it trips) and the supply temperature.
+   - **Real-gas performance**: `calc("gas_performance", ref)` gives polytropic efficiency, head and gas power with k
+     and Z from the latest gas analysis (ASME PTC 10, Schultz), beside the fixed-k `compressor_performance`; quote
+     the real-gas one when the two differ. `calc("power_balance", ref)` on a gas turbine sets its stages' gas power
+     against the driver's output: a closure that shifts means a meter, the power estimate or a stage moved.
+   - **Drivers**: `calc("exhaust_spread", ref)` names the exhaust thermocouple that wandered when the spread widens
+     (a lean or hot combustor, or the thermocouple itself: check it before the borescope); `calc("hot_section",
+     ref)` counts fired hours since the last hot section inspection against the plan's interval and gives the due
+     date at the recent running rate; `calc("engine_cylinders", ref)` finds a misfiring (cold) or hot cylinder on a
+     gas engine driver.
+   - **Will it make the window?** `calc("remaining_life", ref)` gathers every trend heading for a limit (zone D, the
+     protection trips, the seal vent's high-high, the lube oil trip, the inspection hours), each with a 90 % range
+     (ISO 13381-1), and sets the earliest against the next turnaround or shutdown. `fails_before_window` means act
+     now or pull the window forward; `tight` means only the early end of the range misses it. Quote the date, the
+     range and the window, never a bare "remaining life".
    - **Heat rate** (gas turbine drivers, `calc("heat_rate", ref)`): fuel energy per kWh of output against the
      OEM curves at the same load and ambient temperature, so a hot afternoon or part load isn't mistaken for a
      fault. Excess rising a fraction of a percent a week is the air compressor fouling: an offline water wash
@@ -108,10 +134,12 @@ A repeat failure is the same failure mode on the same unit more than once in the
    - **Peers**: an outlier is the unit; `class_wide_failures` is the model or its service.
    **Already in the queue:** a machine the daily screen flags on its condition (not on failure history alone)
    is a `machine_health` case for the engineer, priority 2 when a severe flag drives it; it clears when the
-   screen stops flagging it. Say when the machine you are asked about already has one.
+   screen stops flagging it. Say when the machine you are asked about already has one; its evidence carries the
+   remaining life and whether it makes the next window.
    **When not to trust a result:** a curve from a datasheet waiting for review; vibration with few readings; a
    pump that hardly ran in the window; a synthetic or demo source (say it is demo data). Escalate to the IOC
-   when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge, when a motor runs above its service factor, or when head loss or low-flow running
+   when vibration is in zone D or rising into it within two weeks, when a compressor runs near surge or has surged, when a thrust bearing, dry gas seal or lube oil system is
+   past its alarm, when a machine won't make the next window, when a motor runs above its service factor, or when head loss or low-flow running
    coincides with a repeat failure mode. A good answer names the machine, the status, the two or three
    findings that drive it with their numbers and dates, what is unknown, and the recommendation.
 8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
