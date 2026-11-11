@@ -453,7 +453,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
 
 FIELD_STATUSES = ("on_site", "done", "could_not_do", "note")
 SEEN_SKIP = {"excursions", "priority", "health", "pre_diagnosis", "field", "exception_id", "type", "key", "upset_id",
-             "incident_id", "first_unit", "first_detection"}
+             "incident_id", "first_unit", "first_detection", "basis", "verdict", "checklist"}
 # What a field operator reads: the source's keys as words (the rest are spelled out from their key).
 SEEN_LABELS = {"start": "started (data time)", "ongoing": "still going",
                "detections": "detections", "first_point": "first seen on", "notif_type": "notification type",
@@ -679,7 +679,12 @@ def field_jobs(conn, person: str) -> list[dict]:
         t = known.get(r["type"])
         sources = on_case(conn, r["item_id"])
         subjects = list(dict.fromkeys(x for src in sources for x in src["subjects"])) or r["subjects"]
+        # The checks before the work (a compressor trip's restart checklist), from every source on the case
+        checklist = list(dict.fromkeys(c for x in conn.execute(
+            "select evidence from exception_record where item_id = %s and state = 'open' order by joined_to nulls first, first_seen",
+            (r["item_id"],)) for c in (x["evidence"].get("checklist") or []) if isinstance(c, str)))
         out.append({**r, "label": t.label if t else r["type"].replace("_", " "), "assets": _assets(conn, subjects),
+                    "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
                     "seen": _seen(r["evidence"]), "history": history, "field": r["evidence"].get("field", []),
                     "sent": sent})

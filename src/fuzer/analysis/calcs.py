@@ -642,6 +642,24 @@ CHECKS |= {
 }
 
 
+def _recip(name):
+    def fn(conn, fid, **kw):
+        from . import recip
+
+        return getattr(recip, name)(conn, fid, **kw)
+    return fn
+
+
+CHECKS |= {
+    "rod_load": {"fn": lambda conn, fid, days=30, until=None: _recip("rod_load")(conn, fid, days=days, until=until),
+                 "ref": "reciprocating compressor tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "valve_health": {"fn": lambda conn, fid, days=30, until=None: _recip("valve_health")(conn, fid, days=days, until=until),
+                     "ref": "reciprocating compressor tag or equipment", "used_by": {"agent": "calc", "detector": None}},
+    "compressor_trip": {"fn": lambda conn, fid, until=None: __import__("fuzer.analysis.trips", fromlist=["diagnose"]).diagnose(
+        conn, fid, at=until), "ref": "compressor (any machine of the train)", "used_by": {"agent": "calc", "detector": "trips.scan"}},
+}
+
+
 def _module(module, name):
     """A check that lives in one of the specialist modules (#515), imported when it runs."""
     def fn(conn, fid, **kw):

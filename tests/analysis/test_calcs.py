@@ -72,10 +72,13 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
              "rotating_health": refs["pump_curve"], "surge": fid(conn, "20-K-2100C"),
              "heat_rate": fid(conn, "20-GT-2000B"), "motor_load": refs["pump_curve"],
              "corrosion_circuit": line["fuzer_id"], "test_check": refs["decline"],
-             "deferment_attribution": fid(conn, "OKAN-63"), "vessel_loading": fid(conn, "10-V-2001")}
-    assert set(refs) == set(calcs.CHECKS)
+             "deferment_attribution": fid(conn, "OKAN-63"), "vessel_loading": fid(conn, "10-V-2001"),
+             "compressor_trip": k}
+    recip = {"rod_load", "valve_health"}  # Okan has no reciprocating compressor: tests/analysis/test_recip.py (Kestrel)
+    assert set(refs) | recip == set(calcs.CHECKS)
+    options = {"compressor_trip": {"until": "2024-03-14T03:20"}}
     for check, ref in refs.items():
-        out = calcs.run(conn, check, ref)
+        out = calcs.run(conn, check, ref, **options.get(check, {}))
         assert EVIDENCE <= set(out) and out["sources"] and out["basis"], check
         assert out["of"]["id"] == ref and json.dumps(out, default=str)
         assert calcs.CHECKS[check]["used_by"].get("person", "plot_").startswith("plot_")

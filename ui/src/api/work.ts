@@ -506,6 +506,8 @@ export interface FieldJob extends ExceptionRow {
   queued: boolean;
   /** Each system's report of this event, when more than one reported it (#464). */
   sources: CaseSource[];
+  /** Checks to make before the work, such as a compressor trip's restart checklist. */
+  checklist?: string[];
 }
 
 export const workApi = {

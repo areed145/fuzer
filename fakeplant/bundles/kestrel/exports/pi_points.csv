@@ -13,6 +13,12 @@ KRGP:A1.PDT1004.PV,Inlet Filter Coalescer Differential Pressure,bar,OPC
 KRGP:A1.FT1008.PV,Inlet Condensate Flow,m3/d,OPC
 KRGP:B1.PT2006.PV,Compressor Suction Pressure,barg,OPC
 KRGP:B1.LT2005.PV,Suction Scrubber Liquid Level,%,OPC
+KRGP:B1.ST2004.PV,Compressor Speed,rpm,OPC
+KRGP:B1.PT2007.PV,Compressor Interstage Pressure,barg,OPC
+KRGP:B1.TT2021.PV,Compressor Cylinder 1 Discharge Temperature,degC,OPC
+KRGP:B1.TT2022.PV,Compressor Cylinder 2 Discharge Temperature,degC,OPC
+KRGP:B1.TT2023.PV,Compressor Cylinder 3 Discharge Temperature,degC,OPC
+KRGP:B1.TT2024.PV,Compressor Cylinder 4 Discharge Temperature,degC,OPC
 KRGP:C1.TT3008.PV,TEG Reboiler Temperature,degC,OPC
 KRGP:C1.AT3011.PV,Dry Gas Water Content,mg/Sm3,OPC
 KRGP:D1.PDT4001.PV,Amine Contactor Differential Pressure,bar,OPC

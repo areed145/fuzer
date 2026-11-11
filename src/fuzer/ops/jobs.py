@@ -352,10 +352,13 @@ def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSett
     from . import sre, sre_handoff
     with fuzer.connect() as conn:
         pack = fuzer.pack_for(conn)
-        context.log.info(f"sre scan: {sre.scan(conn, pack)}")
+        scanned = sre.scan(conn, pack)
+        context.log.info(f"sre scan: {scanned}")
         engine.load_defaults(conn)
         out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
         context.log.info(f"sre hand-off: {({k: v for k, v in out.items() if k != 'items'})}")
+        from ..analysis import trips  # after the hand-off, so a trip joins the case its upset opened
+        context.log.info(f"compressor trips: {trips.scan(conn, pack, scanned['since'], scanned['until'])}")
         from . import board
         context.log.info(f"board: {board.refresh(conn, pack)}")
 
@@ -386,6 +389,8 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         from . import board, opportunities
         context.log.info(f"debottleneck options: {hydraulics.store_options(conn, pack)}")
         context.log.info(f"opportunity scan: {opportunities.scan(conn, pack)}")
+        from ..analysis import rotating
+        context.log.info(f"machine health: {rotating.watch(conn)}")
         board.refresh(conn, pack)
 
 
