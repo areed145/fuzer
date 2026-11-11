@@ -11,6 +11,7 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
     set_due(conn, item_id, by, due, reason)               move a case's due date (its open person steps' SLA clock)
+    attach_process(conn, item_id, process_key, data, by)  put an open case with no process onto a published one
     report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
     comment(conn, item_id, by, text)                      add a note to a case's history
     process_routing(conn, process_key)                    each step of the published process: its lane, SLA, escalation
@@ -55,6 +56,12 @@ def start_or_correlate(conn, process_key: str, data: dict, by: str, **fields) ->
     """Start the published `process_key` for this data, or send the data as evidence to the one already open
     for the same correlation key. Returns the engine's result, with `item_id` and `started`."""
     return _engine().start_or_correlate(conn, process_key, data, by=by, **fields)
+
+
+def attach_process(conn, item_id: int, process_key: str, data: dict, by: str) -> dict | None:
+    """Put an open case that has no process onto a published one, keeping who holds it and when it is due; None
+    when it is closed or already has a process."""
+    return _engine().attach_process(conn, item_id, process_key, data, by)
 
 
 def close_case(conn, item_id: int, state: str, by: str, reason: str | None = None) -> dict:

@@ -4,6 +4,7 @@
     route_for(conn, type)            one row of it
     route(conn, intake, by, ...)     open (or feed) the case that works an intake; returns its work item id or None
     open_task(conn, case_type, ...)  open the case for work no exception raised (an opportunity, a posted task)
+    adopt_open_cases(conn)           move cases opened plain before every kind of work ran as a process onto one
     due(conn, intake)                when the case is due, by the type's due policy
     explain(conn, type, refs, ...)   dry-run an intake: what it matches, whether it joins, where it goes, who holds it
 
@@ -337,3 +338,68 @@ def explain(conn, type: str, refs=(), key: str | None = None, evidence: dict | N
         out["outcome"] = "dispatch"
         out["summary"] = "Waits under All work for the IOC to dispatch it: nothing routes this type on its own."
         return out
+
+
+def _adoption(conn, item: dict, known: list[str], types: dict) -> tuple[str, dict] | str:
+    """The process an open plain case moves onto and its start data, or why it stays plain."""
+    pay = {k: v for k, v in (item["payload"] or {}).items() if k != "priority"}  # its priority stays the case's
+    role = item["role"]
+    if item["type"] == "shift_handover" and pay.get("handover_id") is not None:
+        return ("shift_handover", {**pay, "source": "handover"}) if "ops_lead" in known else "no ops_lead role"
+    if item["type"] == "source_closeout" and pay.get("closeout_id") is not None:
+        return ("source_closeout", {**pay, "role": role, "source": item["source"]}) if role in known \
+            else f"its role {role!r} is no person role"
+    if pay.get("exception_id") is not None:
+        ex = conn.execute("select id, type, key, source from exception_record where id = %s",
+                          (pay["exception_id"],)).fetchone()
+        t = types.get(ex["type"]) if ex else None
+        if t is None:
+            return "its exception or type is gone"
+        if t.process:
+            return f"its type starts {t.process}, which would begin again from the start"
+        lane = role if role in known else (_dispatch_lane(conn, t, item["assignee"]) if item["assignee"] else None)
+        if lane not in known:
+            return "no person role fits it"
+        return QUEUE_PROCESS, {**pay, **queue_data(t, dict(ex), lane)}
+    if not role:
+        return "it is for a named person"  # as a task posted for one is (open_task)
+    if role not in known:
+        return f"its role {role!r} is no person role"
+    key = (f"opportunity:{pay['opportunity']}" if item["type"] == "opportunity" and pay.get("opportunity")
+           else f"draft:{pay['draft']}" if pay.get("draft") else f"item:{item['id']}")
+    return TASK_PROCESS, {**pay, "task_key": key, "role": role, "case_type": item["type"],
+                          "source": item["source"] or item["created_by"]}
+
+
+def adopt_open_cases(conn, by: str = "system") -> dict:
+    """Move the cases opened as plain work items before routing ran every kind of work as a process (#509) onto the
+    process route() now starts for them: a queue case onto queue_item, a handover and a close-out onto theirs, an
+    opportunity, an assistant's task or a task asked of a role onto task. Whoever held each still holds it and its
+    due date stays. Cases for a named person and ones whose type has its own process stay as they are. Idempotent:
+    only open cases with no process are looked at. Returns how many moved onto each process, and why the rest
+    stayed."""
+    from . import exceptions
+
+    out: dict = {"moved": {}, "stayed": {}, "failed": []}
+    rows = conn.execute("select i.* from work_item i where i.state not in ('done', 'cancelled') and not exists "
+                        "(select 1 from work_process p where p.item_id = i.id) order by i.id").fetchall()
+    conn.commit()
+    if not rows:
+        return out
+    known, types = work.person_roles(conn), exceptions.types(conn)
+    for item in rows:
+        how = _adoption(conn, item, known, types)
+        if isinstance(how, str):
+            out["stayed"][how] = out["stayed"].get(how, 0) + 1
+            continue
+        process_key, data = how
+        if not published(conn, process_key):
+            out["stayed"][f"{process_key} isn't published"] = out["stayed"].get(f"{process_key} isn't published", 0) + 1
+            continue
+        try:
+            if work.attach_process(conn, item["id"], process_key, data, by):
+                out["moved"][process_key] = out["moved"].get(process_key, 0) + 1
+        except Exception as e:  # one case that can't move must not hold up the rest
+            conn.rollback()
+            out["failed"].append({"item_id": item["id"], "process": process_key, "error": str(e)})
+    return out

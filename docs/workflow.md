@@ -139,6 +139,12 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`/work/items/{id}/hand-off` and `/transition` act on the step). Work for a named person, and any case raised
   before the starting processes are loaded, is a plain work item. Outside the work engine only `fuzer.ops.routing`
   opens a case (`tests/ops/test_front_door.py`).
+- **Cases opened before.** When the server starts, after it loads the starting processes, every open case that
+  has no process is moved onto the one `route()` starts today (`routing.adopt_open_cases`): a queue case onto
+  queue_item, a handover and a close-out onto theirs, an opportunity, an assistant's task or a task asked of a role
+  onto task. Whoever held it still holds its step and a due date it had stays; one with none is due by the role's
+  SLA counted from the move, so nothing turns overdue at once. Cases for a named person, and ones whose type has its
+  own process (which would begin again from the start), stay as they are. The history says when a case moved.
 
 - **One event, one case.** When several systems report the same event, the IOC works it once. A new exception
   about the same asset as an open one from another source joins that one's case instead of opening another. "The
