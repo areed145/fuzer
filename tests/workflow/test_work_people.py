@@ -66,8 +66,8 @@ def test_roles_say_which_processes_use_them_and_what_waits(conn, client):
     client.put("/work/people/cy", json={"roles": ["engineer"], "by": "olga"})
     after = role(client, "engineer")
     assert after["waiting"] == before["waiting"] + 1 and "cy" in after["people"]
-    assert all(r["role"] in {"engineer", "ops_lead", "production_engineer", "maintenance_planner", "operator",
-                             "workflow_admin"} for r in client.get("/work/roles/summary").json())
+    assert all(r["role"] in {"engineer", "ops_lead", "production_engineer", "data_steward",
+                             "maintenance_planner", "operator", "workflow_admin"} for r in client.get("/work/roles/summary").json())
 
 
 def test_removing_a_person_puts_their_claimed_work_back_in_its_queue(conn, client):
@@ -110,3 +110,15 @@ def test_roles_routing_and_cases_api(client):
     assert stats and {"running", "median_h", "sla_breach_pct"} <= set(stats[0])
     key = stats[0]["process_key"]
     assert isinstance(client.get("/work/instances", params={"process_key": key, "state": "all"}).json(), list)
+
+
+def test_source_problems_reach_a_data_steward(conn, client):
+    """`source_issue` cases route to role:data_steward (sources/alerts.py), so it is a person role someone can hold,
+    and a database whose roles were seeded before it existed gets it too (schema.sql)."""
+    assert client.put("/work/people/casey", json={"roles": ["data_steward"], "by": "olga"}).status_code == 200
+    assert "casey" in role(client, "data_steward")["people"]
+    conn.execute("delete from work_role where name = 'data_steward'")
+    conn.execute(db.schema_sql())  # what a deploy with this schema runs on a database seeded before it
+    row = conn.execute("select kind, escalate_to from work_role where name = 'data_steward'").fetchone()
+    conn.commit()
+    assert row == {"kind": "person", "escalate_to": "ops_lead"}
