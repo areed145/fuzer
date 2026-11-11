@@ -130,6 +130,69 @@
     "uom": "degC",
     "HiHi": 150,
     "Hi": 140
+   },
+   {
+    "name": "Compressor Frame Lube Oil Pressure",
+    "pi_point": "KRGP:B1.PT2008.PV",
+    "uom": "barg",
+    "Lo": 2.8,
+    "LoLo": 2.0
+   },
+   {
+    "name": "Engine Cylinder 1 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2031.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 2 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2032.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 3 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2033.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 4 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2034.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 5 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2035.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 6 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2036.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 7 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2037.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
+   },
+   {
+    "name": "Engine Cylinder 8 Exhaust Temperature",
+    "pi_point": "KRGP:B1.TT2038.PV",
+    "uom": "degC",
+    "HiHi": 650,
+    "Hi": 620
    }
   ]
  },

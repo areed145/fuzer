@@ -21,6 +21,10 @@ PSI = 14.5038
 TAG = re.compile(r"(\d\d)-?([A-Z]+)-?(\d{4})([A-Z]?)\b")
 DCS_TYPES = {"hihi": "PVHH", "hi": "PVHI", "lo": "PVLO", "lolo": "PVLL"}
 PRIORITY = {"hihi": "1", "lolo": "1", "hi": "2", "lo": "2"}
+# The protection channels, seal vents, lube oil and exhaust thermocouples added after (#537 follow-up): limits of
+# their own, never a planted fault.
+LATER_VARS = {"shaft_vibration", "axial_position", "journal_temperature", "thrust_temperature", "seal_vent",
+              "lube_pressure", "lube_temperature", *(f"exhaust_tc_{n}" for n in range(1, 7))}
 # Points the stories run through: no planted faults on these.
 STORY_UNITS = {"20-K-2300A", "20-E-2350A", "20-K-2200B", "20-V-2001", "20-V-2101C", "10-P-1001A", "10-P-1001B",
                "10-P-1001C", "header:20"}
@@ -65,6 +69,22 @@ def design(var: str, v: np.ndarray, well: bool) -> dict[str, float]:
         return {k: _round(x) for k, x in out.items() if k in WELL_LIMITS[var] and x > 0}
     if var == "vibration":
         return {"hihi": 7.1, "hi": 4.5}  # ISO 10816-3 zones C and D
+    # The protection channels and auxiliaries (API 670, 692, 614): set from the machine's own data sheet, not the
+    # process spread.
+    if var == "shaft_vibration":
+        return {"hihi": 75.0, "hi": 50.0}  # um pk-pk
+    if var == "axial_position":
+        return {"hihi": 0.6, "hi": 0.4, "lo": -0.4, "lolo": -0.6}  # mm, either way from the thrust collar's centre
+    if var in ("journal_temperature", "thrust_temperature"):
+        return {"hihi": 120.0, "hi": 110.0}  # babbitt pads
+    if var == "seal_vent":
+        return {"hihi": _round(5 * med), "hi": _round(3 * med)}
+    if var == "lube_pressure":
+        return {"lo": _round(med - 0.5), "lolo": _round(med - 0.9)}
+    if var == "lube_temperature":
+        return {"hihi": _round(hi + 12), "hi": _round(hi + 6)}
+    if var.startswith("exhaust_tc_"):
+        var = "exhaust_temperature"
     if var == "liquid_level":
         return {"hihi": _round(min(95, med + 37)), "hi": _round(med + 27), "lo": _round(max(8, med - 25)),
                 "lolo": _round(max(3, med - 32))}
@@ -103,7 +123,7 @@ def okan_limits(spec: dict, points: list[dict], af: list[dict], seed: int) -> tu
         u, var = spec["points"][p]
         kind = units.get(u, {}).get("type")
         return (kind, var) in {("compressor", "flow"), ("gas_turbine", "fuel_flow"), ("gas_turbine", "power"),
-                               ("weather", "ambient")}
+                               ("weather", "ambient")} or var in LATER_VARS
     later = {p: limits.pop(p) for p in list(limits) if came_later(p)}
     af_points = {a["pi_point"]: a for el in af for a in el["attributes"]}
     story = {p for p, (u, _) in spec["points"].items() if u in STORY_UNITS}

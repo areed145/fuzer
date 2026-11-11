@@ -9,7 +9,14 @@ from datetime import datetime, timedelta
 
 from . import curves
 
-VARS = {"Fuel Gas Flow": "fuel_flow", "Output Power": "power", "Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bearing_temperature",
+# The more specific endings first: "Shaft Vibration" before "Vibration", "Thrust Bearing Temperature" before
+# "Bearing Temperature".
+VARS = {"Shaft Vibration": "shaft_vibration", "Axial Position": "axial_position",
+        "Journal Bearing Temperature": "journal_temperature", "Thrust Bearing Temperature": "thrust_temperature",
+        "Seal Gas Primary Vent Flow": "seal_vent", "Lube Oil Header Pressure": "lube_pressure",
+        "Lube Oil Supply Temperature": "lube_temperature",
+        **{f"Exhaust Thermocouple {n}": f"exhaust_tc_{n}" for n in range(1, 7)},
+        "Fuel Gas Flow": "fuel_flow", "Output Power": "power", "Discharge Pressure": "discharge_pressure", "Bearing Temperature": "bearing_temperature",
         "Vibration": "vibration", "Discharge Temperature": "discharge_temperature", "Speed": "speed",
         "Exhaust Temperature": "exhaust_temperature", "Vessel Pressure": "vessel_pressure",
         "Liquid Level": "liquid_level", "Outlet Temperature": "outlet_temperature",
@@ -175,6 +182,8 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
         item = tags.get((m.group(1), m.group(3), m.group(4))) if m else None
         if m and not item and desc.endswith("Suction Pressure"):  # a pump's suction transmitter: next loop up
             item = tags.get((m.group(1), str(int(m.group(3)) - 10), m.group(4)))
+        if m and not item:  # a machine's later instruments sit a few loops above it (20-TT-2206B on 20-K-2200B)
+            item = tags.get((m.group(1), str(int(m.group(3)) // 50 * 50), m.group(4)))
         var = next((v for k, v in VARS.items() if desc.endswith(k)), None)
         if item and var and item[0] in units:
             pts[name] = [item[0], var]
@@ -218,6 +227,29 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     wear += [["2024-04-02T23:00", 7.4], ["2024-04-03T00:00", 0]]
     events.append({"unit": "20-K-2200B", "kind": "vibration", "points": sorted(wear)})
     events.append({"unit": "train:B", "kind": "down", "start": "2024-04-03T00:00", "end": "2024-04-07T16:00"})
+
+    # The thrust bearing on 20-K-2200B wore with the journal bearings: the rotor walks toward the active pads (axial
+    # position up, about half a millimetre by the end) and the thrust pads run hotter, slowly, through February and
+    # March; the axial alarm (0.4 mm) is crossed before the first trip. New bearings on 3 April put it back.
+    events.append({"unit": "20-K-2200B", "kind": "thrust", "points": [
+        ["2024-01-20T00:00", 0], ["2024-03-08T14:00", 0.30], ["2024-03-14T00:00", 0.42], ["2024-03-29T00:00", 0.47],
+        ["2024-04-02T23:00", 0.48], ["2024-04-03T00:00", 0]]})
+    # Train B's 3rd stage dry gas seal: its primary seal starts passing in September 2025, and the primary vent flow
+    # climbs past its alarm by mid-December (API 692: a seal on its way out, not yet a trip).
+    events.append({"unit": "20-K-2300B", "kind": "seal_wear", "points": [
+        ["2025-09-01T00:00", 0], ["2025-11-01T00:00", 0.9], ["2025-12-31T23:55", 3.2]]})
+    # Train A's gas turbine: its lube oil filter plugs from late October 2025, so the header pressure falls toward its
+    # low alarm and on to the trip at the rate it is going (API 614: change over to the standby filter).
+    events.append({"unit": "20-GT-2000A", "kind": "lube_filter", "points": [
+        ["2025-10-20T00:00", 0], ["2025-12-31T23:55", 0.75]]})
+    # Train C's gas turbine: a fuel nozzle partly plugs from October 2025, its combustor runs lean and the exhaust
+    # thermocouple behind it (number 4) reads ever colder, so the exhaust temperature spread widens.
+    events.append({"unit": "20-GT-2000C", "kind": "combustor", "tc": 4, "points": [
+        ["2025-10-01T00:00", 0], ["2025-12-31T23:55", -48]]})
+    # 20-K-2100C surges outright three times on December's load swings, when its slow anti-surge valve misses the
+    # dip: flow collapses, the valve snaps open, the rotor's thrust reverses for a moment.
+    for t in ("2025-12-08T14:20", "2025-12-15T03:40", "2025-12-22T16:10"):
+        events.append({"unit": "20-K-2100C", "kind": "surge", "at": t})
 
     # Train A: the 3rd stage after-cooler fouls each spring and summer until cleaned; recycle through it
     # heats the 3rd stage suction, so its discharge temperature climbs to the trip on hot afternoons.
