@@ -27,10 +27,11 @@ A repeat failure is the same failure mode on the same unit more than once in the
    `well_performance()` lists water cut risers across the asset: a well on that jacket whose water cut
    jumped (breakthrough) makes its flowline wetter and more corrosive, and `measurements(well)` shows its
    chloride. Name the well and the date its water cut rose, against when the line's loss sped up. If
-   nothing upstream changed, say the cause isn't in the records. Remaining life needs the minimum required
-   thickness from the design, which Fuzer doesn't hold; say so rather than guessing it. With it,
-   `calc("wall_loss", ref, min_required_mm=...)` gives the fastest CML against the item's median and the
-   remaining life per CML (`retire_soon`, `localised`).
+   nothing upstream changed, say the cause isn't in the records. `calc("corrosion_circuit", pipeline)` rolls
+   the line up with the others in its service: rate, remaining life and next inspection date per line (see the
+   integrity skill). Its retirement thickness is estimated from the MOP on an assumed grade unless one is given;
+   say so. With the design minimum, `calc("wall_loss", ref, min_required_mm=...)` gives the fastest CML against
+   the item's median and the remaining life per CML (`retire_soon`, `localised`).
    Integrity operating windows (IOWs) are the process side of this: `limits(ref)` lists a unit's IOWs
    (class, limits, time allowed outside) and excursions past them; a breach past its allowed time
    already has an `iow_breach` work item. Repeated breaches explain faster wall loss or seal damage.

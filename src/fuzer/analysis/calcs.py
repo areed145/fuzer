@@ -642,6 +642,30 @@ CHECKS |= {
 }
 
 
+def _module(module, name):
+    """A check that lives in one of the specialist modules (#515), imported when it runs."""
+    def fn(conn, fid, **kw):
+        from . import facilities, integrity, surveillance
+
+        mod = {"facilities": facilities, "integrity": integrity, "surveillance": surveillance}[module]
+        return getattr(mod, name)(conn, fid, **kw)
+    return fn
+
+
+CHECKS |= {
+    "test_check": {"fn": lambda conn, fid, until=None: _module("surveillance", "test_check")(conn, fid, until=until),
+                   "ref": "oil well", "used_by": {"agent": "calc", "detector": None}},
+    "deferment_attribution": {"fn": lambda conn, fid, until=None, days=30: _module(
+        "surveillance", "deferment_attribution")(conn, fid, at=until, days=days),
+        "ref": "jacket, area or facility (or one well)", "used_by": {"agent": "calc", "detector": None}},
+    "vessel_loading": {"fn": lambda conn, fid, until=None: _module("facilities", "vessel_loading")(conn, fid, until=until),
+                       "ref": "separator, scrubber or meter tag with a rating", "used_by": {"agent": "calc", "detector": None}},
+    "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
+        conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
+        "used_by": {"agent": "calc", "detector": None}},
+}
+
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes."""
     import inspect

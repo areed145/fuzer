@@ -195,6 +195,15 @@ ASSISTANT_QUESTIONS = [
     {"domain": "rotating equipment", "question": "Which rotating machines needed attention in early September 2025, "
      "and what should we do about them?", "must_mention": ["10-P-1001A", ["head", "curve"]],
      "specialists": ["maintenance-integrity"]},
+    {"domain": "production surveillance", "question": "OK-J08-04's October 2025 well test shows a big jump in oil. "
+     "Should we act on it?", "must_mention": ["OK-J08-04", ["retest", "suspect", "not supported"],
+     ["choke", "wellhead pressure"]], "specialists": ["production-surveillance"]},
+    {"domain": "facilities", "question": "Which separator is working hardest against its rating at the end of 2025, "
+     "and why is its load rising?", "must_mention": ["10-V-2001", ["MOC", "rating", "derat"], "water"],
+     "specialists": ["field-operations-facilities"]},
+    {"domain": "integrity", "question": "Which of our production flowlines has the least remaining life at the end of "
+     "2025, and when should it next be inspected?", "must_mention": ["{wet_line}", ["remaining life", "retire"],
+     ["assum", "design thickness", "Barlow"]], "specialists": ["maintenance-integrity"]},  # {wet_line}: J03's flowline
     {"domain": "rotating equipment", "question": "Are any of our pump motors overloaded in late November 2025, and "
      "why?", "must_mention": ["10-P-1001B", ["service factor", "overload"], ["recirculation", "recycle"]],
      "specialists": ["maintenance-integrity"]},
@@ -1080,6 +1089,10 @@ def generate(out, seed: int = 11) -> dict:
     model = process.okan_model(seed, points, equipment, wells, wparams, hub, downtime, logs, oem, chokes, tests,
                                maps=maps)
     measured = process.scale_tests(model, tests)  # what a test separator measures
+    # Story (#515): OK-J08-04's October 2025 test reads 45 % high on oil (the test separator's oil meter over-read
+    # that day). The well didn't change: its wellhead pressure and choke say so, and November's test is normal.
+    measured = [{**t, "oil_sm3d": round(float(t["oil_sm3d"]) * 1.45, 1)}
+                if t["well"] == "OK-J08-04" and t["test_date"].startswith("2025-10") else t for t in measured]
     _write_csv(out / "ec_well_tests.csv", measured)
     capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it
     _write_csv(out / "ec_day001.csv", daily)

@@ -70,7 +70,9 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
     refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"], "compressor_performance": fid(conn, "20-K-2300A"),
              "cooler_fouling": fid(conn, "20-E-2350A"), "peers": k, "vibration": k, "pump_bep": refs["pump_curve"],
              "rotating_health": refs["pump_curve"], "surge": fid(conn, "20-K-2100C"),
-             "heat_rate": fid(conn, "20-GT-2000B"), "motor_load": refs["pump_curve"]}
+             "heat_rate": fid(conn, "20-GT-2000B"), "motor_load": refs["pump_curve"],
+             "corrosion_circuit": line["fuzer_id"], "test_check": refs["decline"],
+             "deferment_attribution": fid(conn, "OKAN-63"), "vessel_loading": fid(conn, "10-V-2001")}
     assert set(refs) == set(calcs.CHECKS)
     for check, ref in refs.items():
         out = calcs.run(conn, check, ref)
@@ -277,3 +279,27 @@ def test_tools_and_charts(conn, okan_pack):
             assert plots.png(plots.get(c, got["figure"])["spec"])[:4] == b"\x89PNG"
     names = {t.name for t in asyncio.run(mcp_server.server.list_tools())}
     assert {"calc", "instrument_health", "detect_changes", "what_changed", "plot_instrument_health", "plot_changes"} <= names
+
+
+def test_the_wet_flowline_leads_its_corrosion_circuit_and_retires_soon(conn):
+    """J03's flowline has always corroded faster than the other production flowlines, and its rate more than doubles
+    after OK-J03-02's water breakthrough in June 2025. Rolled up with its circuit (the production flowlines), the
+    short-term rate from November's follow-up survey leaves it under two years to the retirement thickness."""
+    line = conn.execute("select fuzer_id from measurement m join entity e using (fuzer_id) where m.quantity = "
+                        "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
+    wet = line["fuzer_id"]
+    before = calcs.run(conn, "corrosion_circuit", wet, until="2025-05-01")
+    assert before["circuit"] == "production flowline" and before["flag"] == "localised"
+    assert before["line"]["line"] in before["localised"] and before["line"]["remaining_years"] > 5
+    after = calcs.run(conn, "corrosion_circuit", wet)
+    me = after["line"]
+    assert after["flag"] == "retire_soon" and after["retire_soon"] == [me["line"]] and after["lines"][0]["id"] == wet
+    assert me["short_term_mm_per_year"] > 2 * me["long_term_mm_per_year"] and me["remaining_years"] < 2
+    assert me["last_survey"] == "2025-11-18" and "2026" in me["next_inspection_due"]
+    assert after["retirement_assumed"] and "assumed API 5L X52" in after["basis"] and after["value"] > 5 * after["expected"]
+    assert len(after["lines"]) > 5 and all(x["service"] == "production flowline" for x in after["lines"])
+    given = calcs.run(conn, "corrosion_circuit", wet, min_required_mm=5.0)
+    assert not given["retirement_assumed"] and given["line"]["remaining_years"] < me["remaining_years"]
+    vessel = calcs.run(conn, "corrosion_circuit", fid(conn, "10-V-2001"))
+    assert vessel["circuit"] == "10-V-2001" and vessel["line"]["remaining_years"] is None
+    assert "stands alone" in vessel["basis"] and "min_required_mm" in vessel["basis"]
