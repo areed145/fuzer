@@ -10,6 +10,7 @@ calling the model.
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 
 from psycopg.types.json import Jsonb
 
@@ -164,7 +165,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                   totals, errors, poll_seconds)
     else:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(call, client, request(c)): c for c in chunks}
+            futures = {pool.submit(copy_context().run, call, client, request(c)): c for c in chunks}
             for fut in as_completed(futures):
                 try:
                     handle(futures[fut], fut.result())

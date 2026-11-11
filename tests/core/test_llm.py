@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fuzer.core import llm, settings
+from fuzer.core import db, llm, settings
 
 
 class FakeOpenAI:
@@ -119,12 +119,19 @@ def test_azure_endpoint_client_modes(endpoint, client_type, monkeypatch):
     configured.close()
 
 
-def test_non_anthropic_batch_uses_concurrent_adapter_calls():
+def test_non_anthropic_batch_uses_concurrent_adapter_calls(monkeypatch):
     fake = FakeOpenAI()
     completed = []
     totals = {"failed_requests": 0}
     errors = []
-    with settings.Overrides({"llm.provider": "openai"}):
+    scope = db.Scope("kestrel", "proj_kestrel")
+
+    def provider(scope="llm"):
+        assert db.scope().project == "kestrel"
+        return "openai"
+
+    monkeypatch.setattr(llm, "provider", provider)
+    with db.use(scope), settings.Overrides({"llm.provider": "openai"}):
         llm.run_batch(fake, {"one": {"model": "gpt-4o", "max_tokens": 10,
                                      "messages": [{"role": "user", "content": "one"}]}},
                       lambda key, response: completed.append((key, response.stop_reason)), totals, errors)

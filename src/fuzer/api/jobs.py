@@ -11,8 +11,10 @@ import time
 import urllib.request
 from datetime import UTC, datetime
 from functools import lru_cache
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -72,6 +74,18 @@ def _reachable(url: str) -> bool:
 
 def get_dagster_link():
     url = dagster_url()
+    if os.environ.get("FUZER_PUBLIC_URL"):
+        try:
+            host = urlsplit(url).hostname
+            try:
+                address = ip_address(host)
+                local_host = address.is_loopback or address.is_unspecified
+            except ValueError:
+                local_host = host == "localhost" or (host or "").endswith(".localhost")
+            if local_host:
+                return {"url": "", "reachable": False}
+        except ValueError:
+            pass
     return {"url": url, "reachable": _reachable(url)}
 
 

@@ -6,6 +6,7 @@ import math
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from types import SimpleNamespace
 
 from . import models, settings
@@ -348,7 +349,7 @@ def run_batch(client, requests: dict[str, dict], on_result, totals: dict, errors
                 errors.append(f"{result.custom_id}: {result.result.type}")
         return
     with ThreadPoolExecutor(max_workers=min(8, max(1, len(requests)))) as pool:
-        futures = {pool.submit(call, client, params): cid for cid, params in requests.items()}
+        futures = {pool.submit(copy_context().run, call, client, params): cid for cid, params in requests.items()}
         for future in as_completed(futures):
             cid = futures[future]
             try:

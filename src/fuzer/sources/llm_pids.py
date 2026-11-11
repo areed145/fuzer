@@ -34,6 +34,7 @@ import json
 import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 
 from PIL import Image
 from psycopg.types.json import Jsonb
@@ -553,7 +554,7 @@ def run(conn, pack: Pack, *, client=None, model: str | None = None, effort: str 
                   lambda sk, m: handle(sk, _data(m), [m]), totals, errors, poll_seconds)
     else:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(read, sk, p): sk for sk, p in sheets.items()}
+            futures = {pool.submit(copy_context().run, read, sk, p): sk for sk, p in sheets.items()}
             for fut in as_completed(futures):
                 try:
                     handle(futures[fut], *fut.result())
