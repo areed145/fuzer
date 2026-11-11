@@ -166,6 +166,8 @@ def rebuild(conn, pack: Pack) -> dict:
                                 extra=llm_pids.design_measurements(conn, pid_sheets, pack))
     stats |= curves.build(conn, pack, maps, endpoint)
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
+    # where a drawing and the DCS, AF or SAP disagree: questions for a person, never a change to either (#475)
+    replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack)))
     lap("measurements")
 
     stats["located"] = spatial.index(conn)

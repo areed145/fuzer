@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   type HeldLoadPayload,
   type PidConnectionPayload,
+  type PidMismatchPayload,
   api,
   type ConflictPayload,
   type CurvePayload,
@@ -24,7 +25,7 @@ import { usePerson } from "../work";
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
-    asked === "check" || asked === "pid_connection" ? asked : "match";
+    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -56,6 +57,12 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? d.decision === "accept"
               ? `Saved #${item.id}. ${item.payload.from} pipes to ${item.payload.to} from the next rebuild (running now).`
               : `Saved #${item.id}. The line stays unlinked.`
+          : item.kind === "pid_mismatch"
+            ? d.decision === "reject"
+              ? `Saved #${item.id}. Recorded as not a disagreement.`
+              : d.value === "drawing"
+                ? `Saved #${item.id}. Recorded: ${item.payload.check === "placement" ? "SAP" : "the configured alarm"} needs changing to match ${item.payload.sheet}. Nothing was changed in either system.`
+                : `Saved #${item.id}. Recorded: ${item.payload.sheet} needs a redline. Nothing was changed in either system.`
           : `Saved #${item.id}. The chosen value is live.`,
     );
     notifyChanged();
@@ -94,6 +101,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "pid_connection" ? "on" : ""} href={href("/review", { kind: "pid_connection" })}>
             Drawing connections <span className="muted">{stats?.open_reviews.pid_connection ?? 0}</span>
           </a>
+          <a className={kind === "pid_mismatch" ? "on" : ""} href={href("/review", { kind: "pid_mismatch" })}>
+            Drawing disagreements <span className="muted">{stats?.open_reviews.pid_mismatch ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -112,6 +122,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
           : kind === "pid_connection"
             ? "Lines that leave one P&ID for another, where the other drawing doesn't show them. Check both sheets: accept links the two items, reject leaves them unlinked."
+          : kind === "pid_mismatch"
+            ? "Places where a P&ID and another system disagree: an alarm or trip setting that differs from the DCS or AF, or an instrument SAP files under a different item. Check the drawing and the system, then record which one needs changing. Recording a decision changes neither."
           : kind === "check"
             ? "A dataset's last load was held: it repeated keys or failed a check that holds the load, so its records stay as they were. Fix it at the source (or the check), then load it again from its page."
             : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
@@ -141,6 +153,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <HeldLoadCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "pid_connection" ? (
           <PidConnectionCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "pid_mismatch" ? (
+          <PidMismatchCard key={item.id} id={item.id} label={item.label} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
           <ConflictCard
             key={item.id}
@@ -509,6 +523,44 @@ function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPa
         <ButtonLink href={href("/", { q: p.other_sheet })}>Find {p.other_sheet}</ButtonLink>
         <Button variant="primary" disabled={busy || !p.from || !p.to} onClick={() => run({ decision: "accept" })}>Accept</Button>
         <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "reject" })}>Reject</Button>
+      </div>
+      {feedback}
+    </UICard>
+  );
+}
+
+const MISMATCH_TITLE = { alarm: "Alarm setting differs from the drawing", alarm_unset: "Drawing rates an alarm nobody configured",
+  placement: "Instrument drawn on another item" } as const;
+
+/** A drawing and the DCS, AF or SAP disagree (#475): which side needs changing. Recording it changes neither. */
+function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string | null; p: PidMismatchPayload; onDecide: OnDecide }) {
+  const { busy, feedback, run } = useBusy(onDecide,
+    "It records which side needs changing for the team to act on. It does not change the drawing, the DCS, AF or SAP.");
+  const system = p.check === "placement" ? "SAP" : "the alarm";
+  return (
+    <UICard className="review">
+      <div className="row spread">
+        <h3>{MISMATCH_TITLE[p.check] ?? "Drawing disagreement"} <span className="muted small">#{id}</span></h3>
+        <span className="muted small">{p.sheet}</span>
+      </div>
+      <p>{p.question}</p>
+      <p className="muted small">
+        <a className="mono" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
+        {p.check === "placement" && p.register
+          ? <> · drawn on <span className="mono">{p.drawn_on}</span>; {p.register.map((r) => `${r.sources.join("/")} has it under ${r.parent}`).join(", ")}</>
+          : <> · {p.detail}</>}
+      </p>
+      <div className="row">
+        {p.document
+          ? <ButtonLink href={entityHref(p.document)}>Open {p.sheet}</ButtonLink>
+          : <ButtonLink href={href("/", { q: p.sheet })}>Find {p.sheet}</ButtonLink>}
+        <Button variant="primary" disabled={busy} onClick={() => run({ decision: "choose", value: "drawing" })}>
+          Drawing is right, change {system}
+        </Button>
+        <Button disabled={busy} onClick={() => run({ decision: "choose", value: "system" })}>
+          {p.check === "placement" ? "SAP" : "Alarm"} is right, redline the drawing
+        </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "reject" })}>Not a disagreement</Button>
       </div>
       {feedback}
     </UICard>
