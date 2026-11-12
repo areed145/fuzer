@@ -36,6 +36,7 @@ dependencies = [
     "scipy>=1.14",
     "scikit-learn>=1.5",
     "openpyxl>=3.1",
+    "sentry-sdk[fastapi]>=2.40,<3",
 ]
 
 [project.optional-dependencies]

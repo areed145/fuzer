@@ -29,6 +29,8 @@ services:
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false
 
 databases:
   - name: fuzer-db

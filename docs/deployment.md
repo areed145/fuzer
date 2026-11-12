@@ -98,6 +98,7 @@ disk, and set these environment values (or sync the Blueprint):
 |---|---|
 | `FUZER_DATABASE_URL` | Existing `fuzer-db` internal connection string (injected by Blueprint) |
 | `DAGSTER_HOME` | `/var/lib/fuzer/dagster` |
+| `SENTRY_DSN` | Optional: the Sentry project's DSN. Every process (supervisor, API, workers, Dagster) then reports crashes and errors to Sentry, tagged with its program and the deployed commit |
 
 Remove stale `FUZER_PROJECT`, `FUZER_PACK`, `FUZER_DATA_DIR`, `FUZER_TIMESERIES` or other asset-specific
 overrides: each deploy registers the `--bundle` facility as the database's first project from its seed bundle,

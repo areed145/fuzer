@@ -30,4 +30,28 @@ def _load_env() -> None:
     os.environ.setdefault("FUZER_PGDATA", str(base / ".fuzer" / "pgdata"))
 
 
+def _init_sentry() -> None:
+    """Report crashes and errors to Sentry when SENTRY_DSN is set (the deployment sets it; local runs and tests don't).
+    Every Fuzer process imports this package first: the deploy supervisor, the API, the agent workers and Dagster's
+    webserver, daemon and run processes. Each is tagged with its program, so Sentry shows which one failed.
+    Uncaught exceptions and ERROR log records become events; request bodies and user details are not sent."""
+    dsn = os.environ.get("SENTRY_DSN")
+    if not dsn:
+        return
+    import sys
+
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=os.environ.get("SENTRY_ENVIRONMENT") or ("render" if os.environ.get("RENDER") else "local"),
+        release=os.environ.get("RENDER_GIT_COMMIT") or None,
+        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE") or 0),
+        send_default_pii=False,
+    )
+    program = Path(sys.argv[0]).name if sys.argv and sys.argv[0] else "python"
+    sentry_sdk.set_tag("program", "deploy" if program == "deploy.py" else program)
+
+
 _load_env()
+_init_sentry()
