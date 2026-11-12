@@ -22,6 +22,7 @@ from psycopg.types.json import Jsonb
 from ..core import settings, work
 from ..core.pack import Pack
 from ..core.taxonomy import failure_modes_in, load_standard
+from . import routing
 
 DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplicate": "Duplicate",
                 "data_problem": "Data problem"}
@@ -200,8 +201,9 @@ def _due_rechecks(conn) -> list[int]:
                           "join work_item i on i.id = d.item_id where d.disposition = 'real' and d.recheck_item is null "
                           "and d.held is null and d.recheck_at <= now() and i.state = 'done' "
                           "order by d.recheck_at").fetchall():
-        check = work.open_case(conn, RECHECK, f"Did the fix hold? {d['title']}", by="fuzer", assignee=d["by"],
-                               subjects=d["subjects"], payload={"recheck_of": d["item_id"]})["id"]
+        check = routing.open_task(conn, RECHECK, f"Did the fix hold? {d['title']}", by="fuzer",
+                                  key=f"recheck:{d['item_id']}", assignee=d["by"], subjects=d["subjects"],
+                                  data={"recheck_of": d["item_id"]})["id"]
         conn.execute("update case_disposition set recheck_item = %s where item_id = %s", (check, d["item_id"]))
         opened.append(check)
     return opened
