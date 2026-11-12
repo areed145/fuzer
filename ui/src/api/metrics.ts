@@ -207,6 +207,21 @@ export interface WellScreen {
       status: "current" | "stale" | "no_test_on_file" }[] };
 }
 
+/** Allocated oil against the wells' tested offer, month by month (#338). */
+export interface AllocationFactor {
+  since: string; until: string; source?: string; note: string;
+  verdict: "steady" | "low" | "high" | "drifting" | "no_tests" | "no_daily_report";
+  flags: ("low" | "high" | "drifting")[];
+  months: { month: string; days: number; days_left_out: number;
+    left_out: { facility_or_tag_downtime: number; field_trip: number };
+    allocated_sm3: number; offered_sm3: number; factor: number | null; factor_ignoring_downtime: number | null;
+    wells_offering: number; well_days_shut_in: number; wells_without_a_live_test: number;
+    median_test_age_days: number | null; max_test_age_days: number | null }[];
+  summary: { months: number; factor: number | null; first_months_factor: number | null;
+    latest_months_factor: number | null; drift: number | null; days_used: number; days_left_out: number;
+    band: [number, number]; drift_threshold: number; drift_months: number; test_days: number };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -218,6 +233,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  allocationFactor: () => request<AllocationFactor>("GET", "/plant/allocation-factor"),
   wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
   backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
   plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),

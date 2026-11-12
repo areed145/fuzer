@@ -465,3 +465,30 @@ def gor_trend(conn, well: str) -> Figure:
     return Figure("gor_trend", lay["title"]["text"], data, lay, {
         "verdict": d["verdict"], "gor_climb": d["gor_climb"], "water_cut_step": d["water_cut_step"],
         "tests": d["tests"], "thresholds": d["thresholds"], "note": d["note"]}, [p["record"] for p in pts][-10:])
+
+
+def field_allocation_factor(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """Allocated oil over the wells' tested offer each month (#338), with and without each well's downtime taken out,
+    the 0.90 to 1.10 band, and the median age of the tests used."""
+    from ..analysis import well_test_factor
+
+    out = well_test_factor.trend(conn, since, until, days)
+    months = [m for m in out["months"] if m["factor"]]
+    if not months:
+        raise ChartError("no month with both a daily report and a live well test in that window")
+    x = [m["month"] for m in months]
+    lo, hi = out["summary"]["band"]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "allocated / tested (shut-in wells out)", "x": x,
+             "y": [m["factor"] for m in months], "line": {"color": "rgba(90,120,200,0.95)"}},
+            {"type": "scatter", "mode": "lines", "name": "ignoring downtime", "x": x,
+             "y": [m["factor_ignoring_downtime"] for m in months], "line": {"dash": "dot", "color": "rgba(90,120,200,0.5)"}},
+            {"type": "scatter", "mode": "lines", "name": f"band {lo} to {hi}", "x": x + x[::-1],
+             "y": [lo] * len(x) + [hi] * len(x), "fill": "toself", "fillcolor": "rgba(40,150,90,0.08)",
+             "line": {"width": 0}, "hoverinfo": "skip"},
+            {"type": "bar", "name": "median test age (days)", "x": x, "y": [m["median_test_age_days"] for m in months],
+             "yaxis": "y2", "marker": {"color": "rgba(150,150,150,0.35)"}}]
+    lay = layout(f"Allocated oil against well tests, {out['since']} to {out['until']}", None, "factor")
+    lay["yaxis2"] = {"title": {"text": "test age (days)"}, "overlaying": "y", "side": "right", "showgrid": False}
+    return Figure("field_allocation_factor", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "verdict": out["verdict"], "flags": out["flags"], "since": out["since"],
+        "until": out["until"], "source": out["source"], "note": out["note"]}, [])

@@ -260,6 +260,25 @@ def test_staleness(max_days: int = 90) -> dict[str, Any]:
         return _plain(wd.staleness(conn, max(1, min(max_days, 3650))))
 
 
+@capability("production-surveillance", kind="calc")
+def field_allocation_factor(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Well test against allocated oil, field-wide, month by month (#338): the oil the daily report books over what the
+    producing wells offer at their latest test within 120 days, cut by each well's own downtime, with the factor
+    ignoring downtime beside it and the median age of the tests used. Days with a facility or tag downtime, or a field
+    trip, are left out. Flags low or high (outside 0.90 to 1.10) and drifting (latest 3 months against the first 3 by
+    0.05 or more). Well status history isn't loaded. For one meter's factor, use calc allocation_factor."""
+    from ...analysis import well_test_factor
+    with db.connect() as conn:
+        return _plain(well_test_factor.trend(conn, since, until, days))
+
+
+@capability("production-surveillance", kind="plot")
+def plot_field_allocation_factor(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart allocated oil over the wells' tested offer each month, with the band and the age of the tests."""
+    from ...plots import production
+    return _chart(production.field_allocation_factor, {"since": since, "until": until, "days": days})
+
+
 @capability("wells-subsurface", "production-surveillance", kind="plot")
 def plot_gor_trend(well: str) -> dict[str, Any]:
     """Chart one well's GOR over its tests, with its first and latest levels when it climbed."""

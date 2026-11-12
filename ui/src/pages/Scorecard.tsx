@@ -8,6 +8,7 @@ import { InterventionGains } from "./InterventionGains";
 import { AgainstTheAccounts } from "./AgainstTheAccounts";
 import { BacklogBurn } from "./BacklogBurn";
 import { WellScreen } from "./WellScreen";
+import { AllocationFactor } from "./AllocationFactor";
 import { AcrossAssets } from "./AcrossAssets";
 import { Badge, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
@@ -68,6 +69,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <AcrossAssets days={days} />
       <WellsAgainstForecast />
       <WellScreen />
+      <AllocationFactor />
       <BacklogBurn />
       <CostOfUnreliability />
       <InterventionGains />

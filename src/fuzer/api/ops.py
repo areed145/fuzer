@@ -349,6 +349,13 @@ def plant_backlog_burn(days: int = 365, conn=Depends(get_conn)):
     return backlog.burn(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/allocation-factor")
+def plant_allocation_factor(days: int = 365, conn=Depends(get_conn)):
+    """Allocated oil over the producing wells' tested offer each month, shut-in wells taken out by downtime (#338)."""
+    from ..analysis import well_test_factor
+    return well_test_factor.trend(conn, days=max(31, min(days, 1825)))
+
+
 @router.get("/plant/well-screen")
 def plant_well_screen(conn=Depends(get_conn)):
     """Wells whose water cut stepped up or whose GOR climbed, and how old each well's latest test is (#339)."""
