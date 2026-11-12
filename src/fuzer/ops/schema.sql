@@ -346,3 +346,44 @@ create table if not exists shift_handover (
     acknowledged_at   timestamptz,
     acknowledged_note text
 );
+
+-- The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer proposes to a source system, and
+-- the only way one is written. drafted -> awaiting_approval -> approved -> sent -> confirmed, or failed (back to the
+-- approver with the source's reason) or rejected. `idem_key` makes a proposal, and a send, happen once.
+create table if not exists writeback (
+    id            bigserial primary key,
+    system        text not null,
+    kind          text not null,      -- notification, safety_notification, order, master_data, annotation, ...
+    record        text,               -- the system's own key, when the change is to an existing record
+    action        text not null default 'update',
+    payload       jsonb not null default '{}',
+    idem_key      text not null unique,
+    state         text not null default 'drafted'
+                  check (state in ('drafted', 'awaiting_approval', 'approved', 'sent', 'confirmed', 'failed', 'rejected')),
+    drafted_by    text not null,
+    drafted_at    timestamptz not null default now(),
+    approver_role text,
+    item_id       bigint,             -- the approver's case
+    source_ref    text,               -- what proposed it (closeout:12, review:4, ...)
+    approved_by   text,
+    approved_at   timestamptz,
+    due_at        timestamptz,        -- when its cadence lets it go
+    sent_at       timestamptz,
+    confirmed_at  timestamptz,
+    failed_at     timestamptz,
+    attempts      integer not null default 0,
+    error         text,
+    reason        text
+);
+create index if not exists writeback_due on writeback (due_at) where state = 'approved';
+create index if not exists writeback_item on writeback (item_id);
+create index if not exists writeback_ref on writeback (source_ref);
+create table if not exists writeback_event (
+    id            bigserial primary key,
+    writeback_id  bigint not null,
+    state         text not null,
+    by            text not null,
+    note          text,
+    at            timestamptz not null default now()
+);
+create index if not exists writeback_event_row on writeback_event (writeback_id, id);

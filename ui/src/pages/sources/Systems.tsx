@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json, type PackReport } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { TestSteps, reviewer, useAction } from "./common";
+import { SystemWritebacks } from "../Writeback";
 
 const SYSTEM_FIELDS: [keyof CatalogSystem & string, string, string][] = [
   ["kind", "Kind", "erp, historian, planning, ..."], ["owner", "Owner", "who answers for it; alerts go to them"],
@@ -196,6 +197,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
         (r) => download(`${s.name}.source-pack.yaml`, r.yaml, "application/yaml"))}>Download source pack</Button>
       {a.error && <p className="error small">{a.error}</p>}
       <SystemWork system={s.name} />
+      <SystemWritebacks system={s.name} />
       <h3>Connections</h3>
       {s.connections.map((c) => <ConnectionRow key={c.id} c={c} system={s.name} reload={reload} />)}
       {adding ? (
