@@ -10,7 +10,8 @@ over; the agent gets the step's last checkpoint (`call.save(...)`) and `call.key
 anything it does outside Fuzer, so the work it had done isn't done twice. A step that raises is
 retried with backoff and then given to a person (engine.agent_failed).
 
-Agents propose; they never complete `requiresHuman` steps and have no tools that act on the plant.
+Agents propose; they never complete `requiresHuman` steps, never set the data a person decides (the engine refuses
+it, and the step goes to a person with the reason), and have no tools that act on the plant.
 """
 
 import logging
@@ -108,6 +109,9 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     t = claim(conn, worker, sorted(agents), now, lease)
     if t is None:
         return None
+    over = _over_cap(conn, t["item_id"])
+    if over:
+        return engine.agent_failed(conn, t["id"], worker, over, now, max_attempts=0)
     call = _call(conn, t, worker, now, lease)
     try:
         result = agents[t["role"]](call) or {}
@@ -119,6 +123,22 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     except engine.Conflict as e:  # the lease ran out and another worker has it: its result counts, not ours
         log.warning("dropped result of step %s: %s", t["id"], e)
         return {"task_id": t["id"], "dropped": str(e)}
+    except engine.Forbidden as e:  # the result crossed the human-decision boundary (P4.4): a person takes the step
+        log.warning("refused result of step %s: %s", t["id"], e)
+        return engine.agent_failed(conn, t["id"], worker, f"refused: {e}", now, max_attempts=0)
+
+
+def _over_cap(conn, item_id: int) -> str | None:
+    """Why the case's agent budget stops this step (P4.4), or None while it is under its cap."""
+    from .ledger import case_spend
+
+    cap = settings.get(conn, "agents.case_cap_usd")
+    spent = case_spend(conn, item_id) if cap else 0.0
+    conn.commit()
+    if cap and spent >= cap:
+        return (f"agent spend on this case reached its cap: ${spent:.2f} of ${cap:.2f} "
+                "(setting agents.case_cap_usd); a person takes this step")
+    return None
 
 
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
@@ -137,9 +157,11 @@ def default_worker() -> str:
 
 def assistant_agents() -> dict[str, Agent]:
     """Agent steps run by the operations assistant's specialists (#80), read-only, one Claude call each.
-    The answer is kept as `<step id>` in the process data, for the person who reviews it next."""
+    The answer is kept as `<step id>` in the process data, for the person who reviews it next, with its ledger
+    (P4.4): the agents, skill and model versions, tools and cost behind it."""
 
     from .. import agents
+    from . import ledger
 
     def specialist(role: str) -> Agent:
         def run_step(call: AgentCall) -> dict:
@@ -149,7 +171,8 @@ def assistant_agents() -> dict[str, Agent]:
                       + (f"Step instructions / parameters: {call.instructions}\n" if call.instructions else "") +
                       f"Ask the {role} specialist to do this step and propose, not take, any action.")
             answer = agents.ask_sync(prompt)
-            return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}
+            return {call.element: {"answer": answer["answer"], "usage": answer["usage"],
+                                   "ledger": ledger.record(role, answer)}}
         return run_step
     from ..ops import daily_report
 

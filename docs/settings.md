@@ -25,6 +25,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.specialist_model` | str | `` |  | Model for the specialists (empty: the orchestrator's). Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_MODEL`. |
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
+| `agents.case_cap_usd` | float | `2.0` | ≥ 0 | Agent spend a case may reach (USD) before its next agent step goes to a person, with the spend and the cap on the case (0: no cap). |
 | `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
 | `assistant.concurrent_questions` | int | `1` | 1 to 8 | Questions the web assistant can run at once per server process; prevents overlapping model/tool workloads. |
 | `assistant.timeout_seconds` | int | `300` | 30 to 900 | Time limit for a web assistant question, including specialists. |

@@ -152,7 +152,11 @@ def test_detection_worker_passes_parameters_to_specialist(monkeypatch):
     prompts = []
     def ask(prompt):
         prompts.append(prompt)
-        return {"answer": "No drift detected", "usage": {}}
+        return {"answer": "No drift detected", "seconds": 4.2,
+                "usage": {"model_calls": 2, "cost_usd": 0.0312, "models": {"claude-test": {}}},
+                "specialists": ["field-operations-facilities"],
+                "tools": [{"agent": "field-operations-facilities", "tool": "detections", "args": {"ref": "unit_1"},
+                           "seconds": 1.0}]}
     monkeypatch.setattr(fuzer.agents, "ask_sync", ask)
     call = AgentCall(1, "troubleshooter", "inspect", "Inspect", {"id": 1, "type": "inspection",
                     "title": "Review", "subjects": ["unit_1"]}, {"window": "PT24H"}, 1, None,
@@ -161,3 +165,9 @@ def test_detection_worker_passes_parameters_to_specialist(monkeypatch):
     assert "Use detections for drifts over 24 hours" in prompts[0]
     assert "unit_1" in prompts[0] and "PT24H" in prompts[0]
     assert result["inspect"]["answer"] == "No drift detected"
+    # P4.4: the step keeps its ledger: the agents, skill and model versions, tools and cost behind the answer
+    led = result["inspect"]["ledger"]
+    assert led["agent"] == "field-operations-facilities" and led["agents"] == ["field-operations-facilities"]
+    assert led["skills"] and all(len(v) == 12 for v in led["skills"].values())
+    assert led["models"] == ["claude-test"] and led["cost_usd"] == 0.0312 and led["model_calls"] == 2
+    assert led["tools"] == [{"agent": "field-operations-facilities", "tool": "detections", "args": {"ref": "unit_1"}}]

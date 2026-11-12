@@ -125,6 +125,13 @@ are missing, how many records back it and whose numbers they are. Synthetic time
 synthetic. Agents organize evidence and propose questions; they don't authorize or execute field, control,
 maintenance, HSE, emergency, schedule, resource or commercial decisions.
 
+**The human-decision boundary is the server's (P4.4).** Every tool a domain agent holds is read-only; the work tools
+are MCP-only and act through the engine as the agent. The engine refuses an agent setting the data a person decides
+(`decision`, `approved`, `approval`, `approved_by`, `disposition`), any field on a person step's form, or any key a
+person has already set on the process, whether it arrives as a step result, through the worker or as a message. A
+worker whose agent crosses it hands the step to a person with the reason. `tests/agents/test_agent_boundary.py` and
+the boundary tests in `tests/workflow/test_workflow.py` hold this.
+
 `fuzer eval --agents` is the check on routing: its keys name the expected domain per question, including
 missing-data and escalation cases. Offline tests prove what reaches each agent, not how well Claude routes.
 
