@@ -30,3 +30,5 @@ arrive:
   # G1 that G1's sheet doesn't show
   drawing_disagreement: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
+  # Crude tank A's high-high level shutdown, still bypassed past its expiry (the bypass register)
+  bypass_overdue: {detector: bypass_overdue}
