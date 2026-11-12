@@ -905,6 +905,20 @@ Reviewer choices (source = 'review'). What each source says is re-derived from i
 | `decided_at` | timestamptz |  |
 | `reason` | text |  |
 
+### `placement_decision`
+
+Where a new item sits and which drawing and documents are about it (P2.1d, graph/placement.py): a steward's answer to a proposal (rel part_of, shown_on or applies_to), kept by every rebuild after it.
+
+| Column | Type | Note |
+|---|---|---|
+| `fuzer_id` | text |  |
+| `rel` | text |  |
+| `target` | text |  |
+| `accepted` | boolean |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `reason` | text |  |
+
 ### `review_item`
 
 | Column | Type | Note |

@@ -160,6 +160,9 @@ def rebuild(conn, pack: Pack) -> dict:
     stats |= edges.build(conn, cands + d_cands, extra + d_edges, {**assigned, **d_assigned}, key_index)
     coverage = stats.pop("coverage")
     stats["maintenance_event_links"] = edges.link_maintenance_to_events(conn)
+    from ..graph import placement
+
+    stats["placement"] = placement.apply(conn, pack)  # where new items sit (P2.1d)
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
     # the drawings' equipment data and alarm and trip tables (#475), from the cached readings

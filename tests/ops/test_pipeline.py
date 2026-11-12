@@ -103,7 +103,9 @@ def test_review_accept_match_survives_rebuild(conn, api):
 
 def test_review_choose_conflict_value(conn, api):
     field = conn.execute(
-        "select fuzer_id, field, value from golden where field = 'manufacturer' limit 1"
+        # not the plant's one Baker Hughes machine, which the search test looks for (an unordered pick sometimes was)
+        "select fuzer_id, field, value from golden where field = 'manufacturer' "
+        "and value #>> '{}' not ilike 'baker%%hughes' order by fuzer_id limit 1"
     ).fetchone()
     item = conn.execute(
         "insert into review_item (kind, subject, payload) values ('conflict', %s, %s) returning id",
