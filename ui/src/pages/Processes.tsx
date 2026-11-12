@@ -624,10 +624,6 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
           <Button variant="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</Button>
         </div>
       </div>
-      <p className="muted small">
-        A person's task shows this form. Each field's key becomes process data that the next conditions read (for example
-        <code> approval == "approved"</code>). Required fields must be filled to complete the task.
-      </p>
       <NeedName person={person} />
       {isNew && (
         <div className="actions">
@@ -643,10 +639,6 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
         </Suspense>
       )}
       <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
-        <p className="muted">
-          Low-risk ways to complete many tasks at once from the inbox, e.g. <code>[{`{"label": "Close as false alarm", "data": {"triage": "false_alarm"}, "reason_key": "triage_note"}`}]</code>.
-          Never offered on a step that needs a person.
-        </p>
         <textarea className="mono" rows={5} value={bulk} onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
       </Disclosure>
     </section>

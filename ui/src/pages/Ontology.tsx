@@ -70,7 +70,7 @@ export function Ontology({ query }: { query?: URLSearchParams }) {
               <OntologyPanel o={o} selected={selected} kindDef={kindDef} relDef={relDef} edit={edit} />
             </UICard>
           </div>
-          {view === "all" && <p className="muted small">Link names show when you point at a link or a kind, or select a kind.</p>}
+          {view === "all" && <p className="small">Link names show when you point at a link or a kind, or select a kind.</p>}
           <Legend kinds={o.kinds.map((k) => k.kind)} />
         </>
       ) : (
@@ -130,10 +130,6 @@ function NeedsDefinition({ o, edit, relDef }: {
   return (
     <UICard  as="section">
       <h2>Needs definition</h2>
-      <p className="muted small">
-        What the register holds that the model doesn't describe yet, usually from a newly added dataset. Define each
-        so people and Claude know what it means, or change the mapping that makes it (Sources).
-      </p>
       <ul className="plain">
         {n.kinds.map((k) => (
           <li key={k} className="row small">
@@ -199,7 +195,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
           <Button onClick={() => edit(def ? { what: "kind", def } : { what: "kind", draft: { name: kind.kind } })}>
             {def ? "Edit" : "Define"}</Button>
         </p>
-        <p className="muted small">{kind.count.toLocaleString()} entities</p>
+        <p className="small">{kind.count.toLocaleString()} entities</p>
 
         <h3>Fed by</h3>
         <div className="row">
@@ -211,7 +207,6 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
         </div>
 
         <h3>Fields</h3>
-        <p className="muted small">Share of {words(kind.kind)} entities that have each field.</p>
         <Coverage kind={kind} />
 
         <h3>Links</h3>
@@ -244,7 +239,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
           {rel.allowed === false && def && <span className="muted small"> (not among the kinds this link type allows)</span>}
         </p>
         {def && (def.from_kinds.length > 0 || def.to_kinds.length > 0) && (
-          <p className="muted small">
+          <p className="small">
             Allowed: {def.from_kinds.map(words).join(", ") || "any kind"} → {def.to_kinds.map(words).join(", ") || "any kind"}
           </p>
         )}
@@ -253,7 +248,7 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
             what: "relation", draft: { name: rel.rel, from_kinds: [rel.src_kind], to_kinds: [rel.dst_kind] },
           })}>{def ? "Edit link type" : "Define"}</Button>
         </p>
-        <p className="muted small">
+        <p className="small">
           {rel.n.toLocaleString()} links{rel.dated > 0 && `, ${rel.dated.toLocaleString()} with start/end dates`}
         </p>
         <h3>From</h3>
@@ -268,16 +263,8 @@ function OntologyPanel({ o, selected, kindDef, relDef, edit }: {
 
   return (
     <>
-      <h2>How to read this</h2>
-      <p className="muted small">
-        Every record from every system is merged into one entity per real-world thing. A <b>tag</b> is a position in
-        the plant; <b>equipment</b> is the physical item installed there (pumps get swapped, tags stay).
-      </p>
-      <p className="muted small">
-        Click a kind or a link for what it means and to edit it. A grey circle or a link marked ? isn't defined in
-        the model yet. The view buttons show one part of the model at a time.
-      </p>
-      <p className="muted small">
+      <h2>Model</h2>
+      <p className="small">
         {o.kinds.reduce((a, k) => a + k.count, 0).toLocaleString()} entities ·{" "}
         {o.relations.reduce((a, r) => a + r.n, 0).toLocaleString()} links
       </p>

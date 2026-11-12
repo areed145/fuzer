@@ -2,7 +2,7 @@
  * conflicts between sources. Each says where it is fixed; spellings are fixed here, across every entity at once. */
 import { useState } from "react";
 import { api, type SpellingGroup } from "../../api";
-import { Button, Card, Select, Table } from "../../ui";
+import { Button, Card, Select, Table, Empty } from "../../ui";
 import { Status, entityHref, fieldLabel, fmt, href, useAsync } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -23,7 +23,7 @@ function Spellings() {
       <p className="small muted">Case, spacing, punctuation or a company suffix apart. Pick the spelling to keep; it is set on
         the others as a reviewer's choice, so it holds on every rebuild, and it can be reversed from Decisions.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
-      {rows.data && !rows.data.length && <p className="muted">No field has a value written more than one way.</p>}
+      {rows.data && !rows.data.length && <Empty>No field has a value written more than one way.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Field</th><th>Spellings (entities)</th><th /></tr></thead>
         <tbody>{rows.data.map((g) => <SpellingRow key={`${g.field}|${g.usual}`} g={g} done={rows.reload} />)}</tbody>
@@ -65,7 +65,7 @@ function Completeness() {
       <p className="small muted">Fix these in the source system (or set the value on the entity); the next load and rebuild
         bring it in.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
-      {rows.data && !rows.data.length && <p className="muted">No field is missing from a few of a kind that most of it carry.</p>}
+      {rows.data && !rows.data.length && <Empty>No field is missing from a few of a kind that most of it carry.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Kind</th><th>Field</th><th>Have it</th><th>Lacking (first few)</th></tr></thead>
         <tbody>{rows.data.map((g) => (
@@ -88,7 +88,7 @@ function Conflicts() {
     <Card title="Sources that disagree">
       <p className="small muted">The field rule asks a person to pick. Decide them on the <a href={href("/review")}>Review</a> page.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
-      {rows.data && !rows.data.length && <p className="muted">No open conflicts.</p>}
+      {rows.data && !rows.data.length && <Empty>No open conflicts.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">
         <thead><tr><th>Entity</th><th>Field</th><th>Values</th></tr></thead>
         <tbody>{rows.data.map((c) => (

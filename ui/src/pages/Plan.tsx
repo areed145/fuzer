@@ -3,7 +3,7 @@
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { useMemo, useState } from "react";
 import { api, type PlanItem } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select } from "../ui";
+import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
 import { usePerson } from "../work";
@@ -67,7 +67,7 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
       {error && <p role="alert" className="error">{error}</p>}
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
       <div>
-      {!plan.data.length && <p className="muted">Nothing planned in these weeks.</p>}
+      {!plan.data.length && <Empty>Nothing planned in these weeks.</Empty>}
       {groups.map(([area, list]) => (
         <Card key={area} title={area} className="plan-area">
           <ul className="plan-rows">{list.map((i) => <li key={i.id} className={`plan-row status-${i.status}`}>
@@ -121,7 +121,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={(e) => change({ status: e.target.value })}>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </Select>
-      </div> : <p className="muted small">Choose who you are to change the plan.</p>}
+      </div> : <p className="small">Choose who you are to change the plan.</p>}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );

@@ -1,4 +1,4 @@
-import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../../ui";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
@@ -96,7 +96,7 @@ export function InboxPage() {
         </Select>
       </div>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
-      {!all.length && !jobs.length && <p className="muted">Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}. <a href={href("/exceptions", { list: "progress" })}>All cases</a></p>}
+      {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       <Group title="Escalated to you" rows={escalated} person={person} picked={picked} toggle={toggle}
         hint="past their SLA and moved to you or your role" />

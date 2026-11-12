@@ -141,10 +141,6 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           not tested any provider to show this.
         </UICard>
       )}
-      <p className="muted">
-        A read-only operations assistant routes questions to domain specialists and answers from the evidence
-        available in Fuzer's linked data. Every fact links to where it came from. It never acts on the plant.
-      </p>
       {turns.length === 0 && (
         <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
@@ -222,13 +218,13 @@ const agentLabel = (labels: Record<string, string>, id: string) =>
 function Specialists({ catalog }: { catalog: Catalog }) {
   if (catalog.error) {
     return (
-      <p className="muted small" role="status">
+      <p className="small" role="status">
         The list of specialists could not be loaded. You can still ask a question.{" "}
         <Button variant="link" onClick={catalog.reload}>Try again</Button>
       </p>
     );
   }
-  if (catalog.loading && !catalog.data) return <p className="muted small" role="status">Loading specialists…</p>;
+  if (catalog.loading && !catalog.data) return <p className="small" role="status">Loading specialists…</p>;
   const specialists = catalog.data?.agents?.filter((a) => a.personas.length > 0) ?? [];
   if (specialists.length === 0) return null;
   const labels = Object.fromEntries(catalog.data!.agents.map((a) => [a.id, a.label]));
@@ -245,7 +241,7 @@ function Specialists({ catalog }: { catalog: Catalog }) {
         ))}
       </ul>
       <h3>Not available yet</h3>
-      <p className="muted small">These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</p>
+      <p className="small">These need a source Fuzer doesn't have. Asking gets an explanation, not an estimate.</p>
       <ul className="specialist-gaps">
         {catalog.data!.unavailable.map((u) => (
           <li key={u.capability}>{u.capability} <span className="muted small">({agentLabel(labels, u.agent)}: {u.needed})</span></li>

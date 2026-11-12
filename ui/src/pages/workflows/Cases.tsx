@@ -72,13 +72,7 @@ export function CasesPage({ query, fixedState, filters }: {
   const rows = [...(list.data?.items ?? [])].sort(state === "open" ? byUrgency : () => 0);
   return (
     <section>
-      {fixedState ? <p className="muted">{fixedState === "open"
-        ? "Every case still open, with who holds its open steps. Open one for where its process is and its history."
-        : "Finished and cancelled cases, newest first."}</p> : <>
-      <PageHeader>Cases</PageHeader>
-      <p className="muted">Every piece of work: an upset, a daily report, a source issue, an IOW breach. Each moves through its
-        process; open one for where it is, who has it and its history. The steps waiting on you are in
-        your <a href={href("/inbox")}>Inbox</a>.</p></>}
+      {!fixedState && <PageHeader>Cases</PageHeader>}
       <ScenarioClock />
       {state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <div className="row wrap">
