@@ -19,6 +19,10 @@ more is kept and says so.
     prepare(conn, item_id, ask)  write the brief, or record why there is none; returns what was recorded
     latest(conn, item_id)        the case's brief, or its reason for having none
     pending(conn)                open cases with no brief yet, oldest first
+    next_one(conn, ask)          write the oldest pending brief, one worker per case; None when there is none
+
+The agent worker writes briefs when it has no agent step to run (`agents.briefs`, on by default), so steps a
+process is waiting on go first and briefs fill the idle time; the per-brief budget and the case cap bound the spend.
 """
 
 import json
@@ -150,3 +154,18 @@ def pending(conn, limit: int = 20) -> list[int]:
         "select i.id from work_item i where i.state = 'open' and i.type = any(%s) and not exists (select 1 "
         "from work_event e where e.item_id = i.id and e.kind = 'agent_result' and e.element = %s) "
         "order by i.created_at, i.id limit %s", (sorted(briefed_types()), STEP, limit))]
+
+
+def next_one(conn, ask=None, now: datetime | None = None) -> dict | None:
+    """Write the oldest pending brief; None when no case needs one. A case another worker is briefing is skipped."""
+    for item_id in pending(conn):
+        got = conn.execute("select pg_try_advisory_lock(hashtext('agent_brief'), %s::int) as ok", (item_id,)).fetchone()
+        conn.commit()
+        if not got["ok"]:
+            continue
+        try:
+            return {"item_id": item_id, **prepare(conn, item_id, ask, now)}
+        finally:
+            conn.execute("select pg_advisory_unlock(hashtext('agent_brief'), %s::int)", (item_id,))
+            conn.commit()
+    return None

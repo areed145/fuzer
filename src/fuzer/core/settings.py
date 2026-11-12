@@ -122,6 +122,8 @@ register(
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
     Setting("agents.case_cap_usd", "float", 2.0, "Agent spend a case may reach (USD) before its next agent step goes "
             "to a person, with the spend and the cap on the case (0: no cap)", "Agents", min=0),
+    Setting("agents.briefs", "bool", True, "Have the owning specialist brief each new case of a type a pack briefs, "
+            "when the agent worker has no step to run", "Agents"),
     Setting("agents.brief_cap_usd", "float", 0.5, "What one agent brief on a case may cost (USD); a brief that costs more "
             "says so on the case (0: no budget)", "Agents", min=0),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "

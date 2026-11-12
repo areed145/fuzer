@@ -99,3 +99,39 @@ def test_a_brief_is_due_within_the_cadence_of_what_raises_its_type():
     from datetime import timedelta
     assert brief.tier("machine_health") == timedelta(days=1)  # the daily machine health screen
     assert brief.tier("no_such_type") == brief.DEFAULT_TIER
+
+
+def test_the_worker_briefs_pending_cases_when_idle_one_worker_per_case(conn, classes):
+    from fuzer.agents import worker
+
+    for i in brief.pending(conn, 100):  # earlier tests' cases are not this test's concern
+        brief._record(conn, {"id": i}, "system", {"missing": "test"})
+    first, second = _case(conn, "machine_health", "unit-co"), _case(conn, "machine_health", "unit-co")
+    ok = lambda q: {"answer": BRIEFED, "usage": {"cost_usd": 0.1}}
+    with db.connect() as other:  # another worker is briefing the first case
+        other.execute("select pg_advisory_lock(hashtext('agent_brief'), %s::int)", (first,))
+        assert brief.next_one(conn, ok)["item_id"] == second
+        other.execute("select pg_advisory_unlock(hashtext('agent_brief'), %s::int)", (first,))
+    loops = iter([False, True])
+    worker.run(lambda: _Same(conn), {}, "w-brief", poll=0, stop=lambda: next(loops), ask=ok)
+    assert brief.latest(conn, first)["brief"]["proposal"]["disposition"] == "plan an anti-surge valve check"
+    assert brief.next_one(conn, ok) is None
+    settings.set(conn, "agents.briefs", False, by="test")
+    try:
+        third = _case(conn, "machine_health", "unit-co")
+        assert worker.idle_brief(conn, ok) is None and brief.latest(conn, third) is None
+    finally:
+        settings.reset(conn, "agents.briefs", by="test")
+
+
+class _Same:
+    """The test's connection, lent to worker.run, which opens and closes its own."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        return self.conn
+
+    def __exit__(self, *exc):
+        return False
