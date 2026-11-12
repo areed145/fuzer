@@ -31,7 +31,7 @@ AUDIENCES = ("ioc", "field")
 # the routing table holds every type before any has been raised; a module that declares one adds itself here.
 DECLARED_IN = ("fuzer.ops.intake", "fuzer.ops.sre_handoff", "fuzer.sources.alerts", "fuzer.analysis.records",
                "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating", "fuzer.graph.data_work",
-               "fuzer.graph.criticality")
+               "fuzer.graph.criticality", "fuzer.analysis.completeness")
 _impl: ModuleType | None = None
 
 

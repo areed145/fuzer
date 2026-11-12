@@ -5,6 +5,7 @@ import { Suspense, lazy, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
+import { AssetContextCard } from "./masterdata/Context";
 
 const EntityMapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
 
@@ -123,6 +124,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <Fields e={e} />
             <Records e={e} />
           </div>
+          {["tag", "equipment", "well"].includes(e.kind) && <AssetContextCard id={e.fuzer_id} />}
           {hasFlow && <Trace id={e.fuzer_id} asOf={asOf || undefined} />}
           <Suspense fallback={null}>
             <EntityMap id={e.fuzer_id} />

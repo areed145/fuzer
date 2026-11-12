@@ -475,6 +475,17 @@ so the next rebuild doesn't ask it again; each rebuild keeps what every source s
 chosen. It comes back to the steward, reopened on the Questions tab and as a case in their queue with what
 happened, when the owner rejects it, the source changes to something else, or the field check is answered.
 
+## Asset context completeness
+Each asset (a tag that is not part of another, or a well) is scored on what Fuzer knows about it
+(`analysis.completeness`): an equipment class, a make and model, a maintenance record, historian points, measurement
+roles on them, limits, a drawing position, documents and a criticality. An asset is only asked for what its class
+usually has (at least half its assets of that class have it, in a class of three or more), so valves are not asked
+for maintenance plans because pumps have them. Each gap says what it holds back: the detectors that need it and
+apply to the asset's class, read from the detector registry. The 25 assets whose gaps hold back the most checks,
+weighted by criticality, are open `context_gap` cases for the data steward, refreshed at every rebuild; a case
+clears when its gaps are filled. The asset page shows its context in one panel, and Master data > Asset context
+shows completeness by area and class with the top gaps.
+
 ## Where an instrument sits
 Claude also says which item each instrument's process connection runs to. When the register has the instrument
 part of a different item (SAP's functional locations), the drawing view lists it: a field change the maintenance

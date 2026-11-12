@@ -8,6 +8,7 @@
     GET  /stewardship/merge/preview, POST /stewardship/merge    "Same as…" from the entity page
     GET  /stewardship/split/preview, POST /stewardship/split    "Not this record" from the entity page
     GET  /stewardship/completeness, /consistency, /conflicts     gaps in the register, each with where to fix it
+    GET  /stewardship/context       asset context completeness by area and class, and the top gaps as cases (P2.5)
     POST /stewardship/fixes, POST /stewardship/fixes/{batch}/undo   one value for many entities, and back
     POST /exceptions/{id}/resolve   (api/ops.py) pick the asset an exception's unmatched ref meant
 """
@@ -49,6 +50,20 @@ def unmatched(conn=Depends(get_conn)):
         where e.state = 'open'
         group by u.ref order by bool_or(e.item_id is not null) desc, count(*) desc, u.ref limit 500
         """)]
+
+
+@router.get("/context")
+def context(conn=Depends(get_conn)):
+    """Asset context completeness by area and by class, and the assets whose gaps hold back most, with their case."""
+    from ..analysis import completeness
+    from ..core.jsonsafe import plain
+
+    out = completeness.summary(conn)
+    cases = {r["key"]: r["item_id"] for r in conn.execute(
+        "select key, item_id from exception_record where type = %s and state = 'open'", (completeness.TYPE.name,))}
+    for r in out["top"]:
+        r["item_id"] = cases.get(r["fuzer_id"])
+    return plain(out)
 
 
 @router.get("/unresolved")
