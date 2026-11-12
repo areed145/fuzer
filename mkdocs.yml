@@ -61,6 +61,7 @@ nav:
       - workflow.md
       - evals.md
       - deployment.md
+      - ot-security.md
       - roadmap.md
   - Reference:
       - capabilities.md

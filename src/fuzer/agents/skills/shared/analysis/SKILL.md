@@ -13,7 +13,8 @@ what would change the conclusion.
 
 - **Did something change?** `detect_changes(ref)` finds steps, drifts and jitter changes with their start times.
 - **Did the fix work?** `compare_periods(ref, before_since, before_until, after_since, after_until)` gives medians and whether the change is significant,
-  allowing for autocorrelation. A significant change after a fix doesn't prove the fix caused it.
+  allowing for autocorrelation. A significant change after a fix doesn't prove the fix caused it. Name the points
+  under `not_compared` and why, and say when a row is `thin`.
 - **What moves with this?** `correlate(target)` ranks points and says what moved first, and `correlation_matrix(scope)`
   shows groups; `plot_correlation(ref)` draws them. Correlation is a lead, never a cause. Check the plant model
   with `trace_flow(ref)`: a strong pair with no physical link is a question, not a finding.

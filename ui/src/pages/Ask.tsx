@@ -218,7 +218,7 @@ const agentLabel = (labels: Record<string, string>, id: string) =>
 function Specialists({ catalog }: { catalog: Catalog }) {
   if (catalog.error) {
     return (
-      <p className="small" role="status">
+      <p className="small" role="alert">
         The list of specialists could not be loaded. You can still ask a question.{" "}
         <Button variant="link" onClick={catalog.reload}>Try again</Button>
       </p>
