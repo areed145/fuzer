@@ -3771,10 +3771,10 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   await page.route("**/work/performance", (route) => route.fulfill({ json: {
     weeks: [0, 1, 2, 3, 4].map((k) => ({ start: `2026-10-${12 + 7 * k}T00:00:00Z`, end: "" })),
     queues: [
-      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0,
+      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0, arrivals_avg4: 1, closed_avg4: 0.8,
         weeks: [cell(), cell(), cell(), cell(), cell({ arrivals: { n: 3, ids: [11, 12, 13] }, closed: { n: 0, ids: [] },
           backlog: { n: 3, ids: [11, 12, 13] }, hand_backs: { n: 1, ids: [11] } })] },
-      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, weeks: [cell(), cell(), cell(), cell(), cell()] },
+      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, arrivals_avg4: 1, closed_avg4: 1, weeks: [cell(), cell(), cell(), cell(), cell()] },
     ],
     types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
   } }));
@@ -3783,6 +3783,7 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   await page.getByRole("heading", { name: "Work performance" }).waitFor();
   const row = page.getByRole("row").filter({ hasText: "operator" });
   await row.getByText("falling behind").waitFor();
+  await row.getByText("avg 0.8").waitFor();  // the server's four-week mean, not one worked out on the page
   await page.getByRole("row").filter({ hasText: "maintenance planner" }).getByText("keeping up").waitFor();
   await row.getByRole("button", { name: "3" }).first().click();
   const cases = page.locator(".perf-cases");

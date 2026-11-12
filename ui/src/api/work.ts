@@ -279,6 +279,8 @@ export interface PerfCell {
 
 export interface PerfRow {
   queue?: string; type?: string; weeks: PerfCell[]; keeping_up: "keeping_up" | "holding" | "falling_behind"; backlog_avg4: number;
+  /** The last four weeks' mean arrivals and closed, from the server like backlog_avg4. */
+  arrivals_avg4: number; closed_avg4: number;
 }
 
 export interface WorkPerformance {
