@@ -6,6 +6,7 @@ import {
   type HeldLoadPayload,
   type PidConnectionPayload,
   type PidMismatchPayload,
+  type RolePayload,
   api,
   type ConflictPayload,
   type CurvePayload,
@@ -19,7 +20,7 @@ import {
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
-import { ActionStatus, Bar, Button, ButtonLink, Table, Card as UICard, Input } from "../ui";
+import { ActionStatus, Bar, Button, ButtonLink, Select, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 import { FindingEvidence } from "../Finding";
@@ -33,7 +34,7 @@ export const questionsHref = (kind?: string, item?: number) =>
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
-    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" ? asked : "match";
+    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" || asked === "role" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -71,6 +72,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
               : d.value === "drawing"
                 ? `Saved #${item.id}. Recorded: ${item.payload.check === "placement" ? "SAP" : "the configured alarm"} needs changing to match ${item.payload.sheet}. Nothing was changed in either system.`
                 : `Saved #${item.id}. Recorded: ${item.payload.sheet} needs a redline. Nothing was changed in either system.`
+          : item.kind === "role"
+            ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
           : `Saved #${item.id}. The chosen value is live.`,
     );
     notifyChanged();
@@ -109,6 +112,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <a className={kind === "pid_mismatch" ? "on" : ""} href={questionsHref("pid_mismatch")}>
             Drawing disagreements <span className="muted">{stats?.open_reviews.pid_mismatch ?? 0}</span>
           </a>
+          <a className={kind === "role" ? "on" : ""} href={questionsHref("role")}>
+            Measurement roles <span className="muted">{stats?.open_reviews.role ?? 0}</span>
+          </a>
         </div>
         <label className="reviewer">
           Reviewer
@@ -129,6 +135,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? "Check both sheets: accept links the two items, reject leaves them unlinked."
           : kind === "pid_mismatch"
             ? "Check the drawing and the system, then record which one needs changing."
+          : kind === "role"
+            ? "What each signal means for its equipment. Detectors read roles, never tag names, so confirm or correct the ones Fuzer wasn't sure of."
           : kind === "check"
             ? "The last load was held. Fix it at the source, then load it again from its page."
             : "Pick the right value. Your choice wins from now on."}
@@ -159,6 +167,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
           <HeldLoadCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "pid_connection" ? (
           <PidConnectionCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
+        ) : item.kind === "role" ? (
+          <RoleCard key={item.id} id={item.id} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : item.kind === "pid_mismatch" ? (
           <PidMismatchCard key={item.id} id={item.id} label={item.label} p={item.payload} onDecide={(d) => decide(item, d)} />
         ) : (
@@ -607,6 +617,43 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "reject" })}>Not a disagreement</Button>
+      </div>
+      {feedback}
+    </UICard>
+  );
+}
+
+const roleLabel = (p: RolePayload, d: Omit<Decision, "by">) =>
+  (d.decision === "accept" ? p.proposed_label : p.choices.find((c) => c.key === d.value)?.label ?? String(d.value))?.toLowerCase();
+
+function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: OnDecide }) {
+  const { busy, feedback, run } = useBusy(onDecide, "It sets this point's role only. No values or tags change.");
+  const [chosen, setChosen] = useState(p.proposed ?? "");
+  return (
+    <UICard className="review">
+      <div className="row spread">
+        <h3>{p.description ?? p.point} <span className="muted small">#{id}</span></h3>
+        <span className="muted small">{Math.round(p.confidence * 100)}% sure</span>
+      </div>
+      <p className="small">
+        <span className="mono">{p.point}</span>{p.uom ? ` in ${p.uom}` : ""}
+        {p.asset && <> on <a href={entityHref(p.asset)}>{p.asset_label ?? "its equipment"}</a></>}
+      </p>
+      <p>{p.proposed_label ? <>Proposed: <b>{p.proposed_label}</b></> : "Nothing says what this point measures."}</p>
+      <ul className="small">{p.basis.map((b) => <li key={b}>{b}</li>)}</ul>
+      <div className="row">
+        {p.proposed && <Button variant="primary" disabled={busy} onClick={() => run({ decision: "accept" })}>
+          Confirm {p.proposed_label?.toLowerCase()}
+        </Button>}
+        <label className="row small">
+          Or
+          <Select aria-label="Role" value={chosen} onChange={(e) => setChosen(e.target.value)}>
+            <option value="">pick a role</option>
+            {p.choices.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </Select>
+        </label>
+        <Button disabled={busy || !chosen || chosen === p.proposed}
+          onClick={() => run({ decision: "choose", value: chosen })}>Use this role</Button>
       </div>
       {feedback}
     </UICard>

@@ -62,7 +62,7 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch" | "role";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -98,6 +98,13 @@ export interface PidMismatchPayload {
   returned?: Returned;
 }
 
+/** A measurement role the proposer wasn't sure of (P1.4b): what the point says about itself and the role it proposed. */
+export interface RolePayload {
+  point_id: string; point: string | null; description: string | null; uom: string | null; letters: string | null;
+  asset: string | null; asset_label: string | null; proposed: string | null; proposed_label: string | null;
+  confidence: number; basis: string[]; choices: { key: string; label: string }[];
+}
+
 export interface HeldLoadPayload {
   dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
 }
@@ -110,6 +117,7 @@ export type ReviewItem =
   | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
   | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
   | { id: number; kind: "pid_mismatch"; subject: string; status: string; label: string | null; payload: PidMismatchPayload }
+  | { id: number; kind: "role"; subject: string; status: string; label: string | null; payload: RolePayload }
   | {
       id: number;
       kind: "conflict";

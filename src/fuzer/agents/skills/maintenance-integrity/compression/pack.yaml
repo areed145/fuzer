@@ -9,6 +9,7 @@ charts: [plot_compressor_performance, plot_cooler_fouling, plot_vibration]
 methods: [compressor_performance, cooler_fouling, gas_performance, lube_oil, power_balance, protection, rod_load,
           rotating_health, seal_gas, surge, surge_events, valve_health]
 detectors: [machine_health, compressor_trips]
+briefs: [machine_health, machine_trip]   # the work types it briefs, on a subject of its classes (P4.3)
 roles: [running_status, speed, suction_pressure, interstage_pressure, discharge_pressure, suction_temperature,
         discharge_temperature, cylinder_discharge_temperature, suction_flow, anti_surge_valve_position, vibration,
         shaft_vibration, axial_position, bearing_temperature, seal_vent_flow, lube_oil_pressure, lube_oil_temperature]

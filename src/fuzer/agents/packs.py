@@ -9,6 +9,7 @@ on, and an eval of questions with answer keys:
     charts            the plot tools whose charts it shows (a subset of tools)
     methods           the registered methods (standards/methods.yaml) the playbook runs through `calc`
     detectors         the registered detectors that raise its work
+    briefs            the work types it briefs when a case opens on a subject of its classes (P4.3; optional)
     roles             the measurement roles it reads (core/roles.py), including every role its detectors read
     eval              the eval's name: each bundle holds its answer keys in evals/<name>.yaml (questions with
                       must_mention, specialists and charts keys), so nothing facility specific sits in the pack
@@ -106,6 +107,10 @@ def conformance(path: str) -> list[str]:
     read = {r for d in pack["detectors"] if d in found for r in found[d].roles}
     if bad := sorted(read - set(pack["roles"])):
         problems.append(f"roles its detectors read but it does not declare: {', '.join(bad)}")
+
+    raised = {t for d in pack["detectors"] if d in found for t in found[d].raises}
+    if bad := sorted(set(pack.get("briefs") or ()) - raised):
+        problems.append(f"briefs work types none of its detectors raise: {', '.join(bad)}")
 
     questions = pack["questions"]
     for b in bundles.shipped():

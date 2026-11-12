@@ -4,12 +4,16 @@ rebuild from its description, instrument letters, units and the equipment it han
 `measurement_role` holds one row per point: the role, the asset it is a role of (the equipment or well, not the
 instrument), the confidence and the evidence. Detectors read `on(conn, asset, role)` instead of matching tag names
 or descriptions.
+
+A proposal below `core.roles.CONFIDENT` becomes a Review item (kind `role`, P1.4b). The steward's answer is pinned in
+`measurement_role_pin` (`confirm`) and wins over the proposal on every rebuild.
 """
 
 import json
 
 from ..core import db
 from ..core import roles as vocabulary
+from .resolve import replace_open_reviews
 
 COLS = ["point_id", "role", "asset", "confidence", "basis"]
 
@@ -57,19 +61,53 @@ def evidence(conn, pack) -> list[dict]:
     return out
 
 
+def _choices(quantity: str | None) -> list[dict]:
+    """Every role, those of the proposal's quantity first: what the steward picks from."""
+    return [{"key": r.key, "label": r.label} for r in sorted(vocabulary.ROLES.values(),
+                                                           key=lambda r: r.quantity != quantity)]
+
+
 def build(conn, pack) -> dict:
-    """Propose a role for every point and land them in measurement_role."""
-    rows, unsure = [], 0
+    """Propose a role for every point, keep the ones a steward pinned, land them in measurement_role, and ask a
+    steward about the rest of the uncertain ones."""
+    pins = {r["point_id"]: r for r in conn.execute("select * from measurement_role_pin")}
+    rows, ask = [], []
     for e in evidence(conn, pack):
-        r = vocabulary.propose(e["description"], e["letters"], e["uom"], e["classes"])
-        if r["role"] is None:
-            unsure += 1
+        if pin := pins.get(e["id"]):
+            rows.append((e["id"], pin["role"], e["asset"], 1.0, json.dumps([f"confirmed by {pin['decided_by']}"])))
             continue
-        unsure += r["confidence"] < vocabulary.CONFIDENT
-        rows.append((e["id"], r["role"], e["asset"], r["confidence"], json.dumps(r["basis"])))
+        r = vocabulary.propose(e["description"], e["letters"], e["uom"], e["classes"])
+        if r["role"] is not None:
+            rows.append((e["id"], r["role"], e["asset"], r["confidence"], json.dumps(r["basis"])))
+        if r["role"] is None or r["confidence"] < vocabulary.CONFIDENT:
+            role = vocabulary.ROLES.get(r["role"])
+            ask.append((e["id"], {
+                "point_id": e["id"], "point": e["point"], "description": e["description"], "uom": e["uom"],
+                "letters": e["letters"], "asset": e["asset"],
+                "proposed": r["role"], "proposed_label": role.label if role else None,
+                "confidence": r["confidence"], "basis": r["basis"],
+                "choices": _choices(role.quantity if role else None)}))
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", ([q["asset"] for _, q in ask],))}
+    for _, q in ask:
+        q["asset_label"] = labels.get(q["asset"])
     sync = db.sync_table(conn, "measurement_role", COLS[:1], COLS[1:], rows)
-    return {"roles": len(rows), "roles_unsure": unsure,
+    replace_open_reviews(conn, "role", ask)
+    return {"roles": len(rows), "roles_unsure": len(ask), "roles_confirmed": len(pins),
             "role_changes": {k: v for k, v in sync.items() if k != "rows"}}
+
+
+def confirm(conn, point_id: str, role: str, by: str) -> None:
+    """A steward's role for a point: pinned for every rebuild, and live now."""
+    if role not in vocabulary.ROLES:
+        raise ValueError(f"{role!r} isn't a measurement role")
+    conn.execute(
+        """
+        insert into measurement_role_pin (point_id, role, decided_by) values (%s, %s, %s)
+        on conflict (point_id) do update set role = excluded.role, decided_by = excluded.decided_by, decided_at = now()
+        """, (point_id, role, by))
+    conn.execute("update measurement_role set role = %s, confidence = 1.0, basis = %s where point_id = %s",
+                 (role, json.dumps([f"confirmed by {by}"]), point_id))
 
 
 def on(conn, asset: str, role: str) -> list[str]:

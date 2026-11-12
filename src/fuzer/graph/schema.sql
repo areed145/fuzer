@@ -311,6 +311,13 @@ create table if not exists measurement_role (
     basis      jsonb not null               -- what said so, in words
 );
 create index if not exists measurement_role_of on measurement_role (asset, role);
+-- A steward's role for a point (P1.4b): wins over the proposal on every rebuild.
+create table if not exists measurement_role_pin (
+    point_id   text primary key,
+    role       text not null,
+    decided_by text not null,
+    decided_at timestamptz not null default now()
+);
 
 -- #242: the EC DAY001 record of a day's allocated production is the `production_day` kind ("daily report" is the
 -- drafted narrative in daily_ops_report). Renamed in place so Fuzer IDs stay; idempotent.

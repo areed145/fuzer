@@ -1069,6 +1069,17 @@ What each historian point means for the asset it measures (P1.4, graph/roles.py)
 | `confidence` | double precision | 0-1; below core.roles.CONFIDENT a steward confirms it |
 | `basis` | jsonb | what said so, in words |
 
+### `measurement_role_pin`
+
+A steward's role for a point (P1.4b): wins over the proposal on every rebuild.
+
+| Column | Type | Note |
+|---|---|---|
+| `point_id` | text |  |
+| `role` | text |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+
 ### `steward_fix`
 
 Values a steward set across many entities at once (#476: one spelling for a manufacturer, say). Each row keeps what the golden value was, so the batch can be undone; the value itself is held as a 'review' assertion, which wins on every rebuild.
