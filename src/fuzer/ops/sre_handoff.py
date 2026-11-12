@@ -12,8 +12,11 @@
   highest priority first. Each is diagnosed while the run's cap allows, then starts or adds evidence to
   the `upset` process (correlation key: the upset). An upset over the cap still gets its work item; the
   field-operations specialist diagnoses it in the workflow after triage.
-- feedback: an engineer's triage of "false alarm" marks the upset and suppresses its first detection's
-  pattern (point, detector, finding), so the same pattern isn't handed off again.
+- feedback: an engineer's triage of "false alarm" marks the upset and records its first detection's pattern
+  (point, detector, finding). A later upset with that pattern still gets its case, and is closed as a false alarm
+  only through the auto-close gate (P5.10): at or above its threshold (95%), never on a high-criticality asset. The
+  confidence is the rule of succession over how people triaged the pattern before; the case says it and the
+  threshold either way.
 """
 
 import json
@@ -202,8 +205,28 @@ def suppressed(conn) -> set[tuple]:
     return {(r["point_id"], r["detector"], r["key"]) for r in conn.execute("select point_id, detector, key from sre_suppress")}
 
 
+def history(conn, pattern: tuple) -> dict:
+    """How earlier upsets that started with this detection pattern (point, detector, key) were triaged."""
+    row = conn.execute(
+        """
+        select count(*) filter (where u.status = 'false_alarm') as false_alarms,
+               count(*) filter (where u.status in ('confirmed', 'resolved')) as real
+        from upset u join detection d on d.id = u.first_detection
+        where d.point_id = %s and d.detector = %s and d.key = %s
+        """, pattern).fetchone()
+    return {"false_alarms": max(row["false_alarms"], 1), "real": row["real"]}  # suppressed: a person called one
+
+
+def false_alarm_confidence(seen: dict) -> float:
+    """How sure the SRE is that an upset matching a pattern people called a false alarm is one again: Laplace's rule
+    of succession over the pattern's triaged upsets, so one false alarm gives 67% and it takes 18 with none real to
+    reach 95%."""
+    return round((seen["false_alarms"] + 1) / (seen["false_alarms"] + seen["real"] + 2), 3)
+
+
 def candidates(conn) -> list[dict]:
-    """Process upsets of note not handed off yet, nor matching a suppressed pattern."""
+    """Process upsets of note not handed off yet. One matching a pattern people called a false alarm comes with that
+    pattern's history (`known_false_alarm`); the hand-off closes it only where the auto-close gate allows (P5.10)."""
     rows = conn.execute(
         """
         select u.*, d.point_id, d.detector, d.key, d.unit_id, d.magnitude, l.label as unit_label, p.label as point,
@@ -216,7 +239,35 @@ def candidates(conn) -> list[dict]:
         order by u.start
         """, (settings.get(conn, "sre.handoff.min_detections"),)).fetchall()
     skip = suppressed(conn)
-    return [dict(r) for r in rows if (r["point_id"], r["detector"], r["key"]) not in skip]
+    out = []
+    for r in map(dict, rows):
+        pattern = (r["point_id"], r["detector"], r["key"])
+        r["known_false_alarm"] = history(conn, pattern) if pattern in skip else None
+        out.append(r)
+    return out
+
+
+def _auto_close(conn, u: dict, item_id: int) -> dict:
+    """An upset matching a pattern people called a false alarm, through the auto-close gate (P5.10): closed as a false
+    alarm only at or above its threshold and never on a high-criticality asset. Either way the case says the
+    confidence and the threshold."""
+    from ..core import gates, work
+
+    seen = u["known_false_alarm"]
+    confidence = false_alarm_confidence(seen)
+    crit = min((c for c in (gates.criticality(conn, x) for x in [u["first_unit"], *(u.get("units") or [])]) if c),
+               default=None)  # the most critical asset it reached: A, the highest, sorts first
+    gate = gates.check(conn, "auto_close", confidence, actor="agent:sre", criticality=crit, ref=f"upset:{u['id']}",
+                       item_id=item_id)
+    why = (f"It starts like {seen['false_alarms']} earlier upset{'s' if seen['false_alarms'] != 1 else ''} people "
+           f"called a false alarm" + (f" and {seen['real']} they found real" if seen["real"] else "") + ". ")
+    if gate["proceed"]:
+        work.close_case(conn, item_id, "cancelled", "agent:sre", reason=f"false alarm. {why}{gate['reason']}")
+        conn.execute("update upset set status = 'false_alarm', updated_at = now() where id = %s", (u["id"],))
+    else:
+        work.comment(conn, item_id, "agent:sre", f"{why}{gate['reason']}")
+    return {"auto_closed": gate["proceed"], "confidence": confidence, "threshold": gate["threshold"],
+            "reason": gate["reason"]}
 
 
 def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: float | None = None,
@@ -239,7 +290,7 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
     spent, diagnosed, started, out = 0.0, 0, 0, []
     for u in ups:
         diag = None
-        if diagnosed < max_diagnoses and spent < max_usd:
+        if not u.get("known_false_alarm") and diagnosed < max_diagnoses and spent < max_usd:
             try:
                 diag = diagnose(conn, u, ask)
             except Exception as e:  # a failed diagnosis still hands the upset off; the workflow diagnoses it
@@ -275,9 +326,11 @@ def handoff(conn, pack, ask=None, max_diagnoses: int | None = None, max_usd: flo
             continue
         conn.execute("update upset set work_item_id = %s, priority_usd = %s, diagnosis = %s where id = %s",
                      (res["item_id"], s["value_usd"], Jsonb(_plain(diag)) if diag else None, u["id"]))
+        closed = _auto_close(conn, u, res["item_id"]) if u.get("known_false_alarm") and res.get("item_id") else None
         conn.commit()
         started += 1
-        out.append({"upset": u["id"], "item_id": res["item_id"], "value_usd": s["value_usd"], "diagnosed": bool(diag)})
+        out.append({"upset": u["id"], "item_id": res["item_id"], "value_usd": s["value_usd"], "diagnosed": bool(diag),
+                    **({"false_alarm": closed} if closed else {})})
     return {"candidates": len(ups), "handed_off": started, "diagnosed": diagnosed, "claude_usd": round(spent, 4),
             "items": out}
 
