@@ -40,20 +40,47 @@ def _pt(conn, tag_label: str, ending: str = "Pressure") -> dict | None:
     return next((p for p in _unit_points(conn, t["fuzer_id"], 20) if (p["description"] or "").endswith(ending)), None)
 
 
-def well_points(conn, well: str) -> dict:
-    """A well's wellhead pressure and choke position points, and its back-pressure point (the jacket's
-    production header, as plot_choke reads it)."""
+WELL_ROLES = (("whp", "wellhead_pressure"), ("choke", "choke_position"), ("wht", "wellhead_temperature"))
+
+
+def _back(conn, well: str) -> dict | None:
+    """The well's back-pressure point: a pressure measured on the manifold it flows straight into; else the jacket
+    production header found from the well's choke tag (a register whose manifolds carry no points); else a pressure on
+    what that manifold flows into (a pad manifold with no gauge of its own, feeding the plant inlet)."""
+    from ..graph import edges
+    from ..graph import roles as measured
     from ..sources.timeseries import _unit_points
 
-    pts = _unit_points(conn, well, 20, children=False)
-    by = {k: next((p for p in pts if (p["description"] or "").endswith(end)), None)
-          for k, end in (("whp", "Wellhead Pressure"), ("choke", "Choke Position"), ("wht", "Wellhead Temperature"))}
+    def on(depth: int) -> dict | None:
+        for r in edges.trace(conn, well, "flows_to", "down", None, depth):
+            if r["depth"] != depth:
+                continue
+            pts = _unit_points(conn, r["fuzer_id"], 20)
+            role = measured.of(conn, [p["id"] for p in pts])
+            if p := next((p for p in pts if role.get(p["id"]) == "pressure"), None):
+                return p
+        return None
+
+    if p := on(1):
+        return p
     choke = conn.execute("select e.src from edge e join entity_label l on l.fuzer_id = e.src "
                          "where e.rel = 'part_of' and e.dst = %s and l.label like '%%-HCV-%%' limit 1", (well,)).fetchone()
     area = _label(conn, choke["src"]).split("-")[0] if choke else None
-    by["back"] = _pt(conn, f"{area}-PT-3002") if area else None
+    return (_pt(conn, f"{area}-PT-3002") if area else None) or on(2)
+
+
+def well_points(conn, well: str) -> dict:
+    """A well's wellhead pressure, choke position and wellhead temperature points, found by measurement role on the
+    well, and its back-pressure point (as plot_choke reads it)."""
+    from ..graph import roles as measured
+    from ..sources.timeseries import _unit_points
+
+    pts = _unit_points(conn, well, 20, children=False)
+    role = measured.of(conn, [p["id"] for p in pts])
+    by = {k: next((p for p in pts if role.get(p["id"]) == r), None) for k, r in WELL_ROLES}
     if not by["whp"]:
         raise CalcError("the well has no wellhead pressure point")
+    by["back"] = _back(conn, well)
     return by
 
 

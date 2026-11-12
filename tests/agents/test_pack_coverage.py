@@ -113,3 +113,16 @@ def test_on_kestrel_a_gas_well_declines_on_its_gas_rate(kestrel):
         calcs.decline_fit(kestrel, w, product="oil")
     with pytest.raises(ChartError, match="gas well's gas rate"):
         production.decline(kestrel, w)
+
+
+def test_on_kestrel_well_hydraulics_find_their_points_by_role(kestrel):
+    """P4.2f-2: Kestrel names its wellhead pressure "Tubing Head Pressure" and records no choke tag; the well's points
+    are found by measurement role, and its back-pressure on what it flows to, so the constraint and drift checks run."""
+    from fuzer.analysis import calcs, hydraulics
+
+    w = kestrel.execute("select fuzer_id from entity_label where label = 'KR 12-03H'").fetchone()["fuzer_id"]
+    pts = hydraulics.well_points(kestrel, w)
+    assert pts["whp"]["point"] == "KR12-03H.THP" and pts["choke"] is None and pts["back"] is not None
+    c = calcs.run(kestrel, "well_constraint", w)
+    assert c["flag"] in ("choke", "back_pressure") and 0 < c["back_barg"] < c["whp_barg"]
+    assert calcs.run(kestrel, "dp_drift", w)["value"] > 0
