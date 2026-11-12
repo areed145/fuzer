@@ -56,7 +56,7 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | Skill | Owner | Also used by | Personas | Purpose | Tools | Required data | Output | Human boundary |
 |---|---|---|---|---|---|---|---|---|
 | `orchestrator/answering` | Orchestrator | none | all | How to write the final answer to an engineer - sources on every fact, units and dates, what to check next, and the safety rules. Load before writing any final answer. |  | Findings returned by specialists and tools. | One cited answer with units, periods, gaps and next steps. | Never tells anyone to operate plant; recommends checks under site procedures. |
-| `production-surveillance/production-surveillance` | Production & Surveillance | none | Production Surveillance; Optimization Engineer | Production surveillance and optimisation - how production is trending against potential, what changed and when, which facilities, wells or systems explain it, and where the upside is. | `calc`, `deferment_pareto`, `gas_lift_network`, `get_events`, `production_constraints`, `production_summary`, `well_performance` | EC daily production and potential, deferment records, well tests, operator log. | A dated trend against potential, the change points and the systems that explain them. | Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
+| `production-surveillance/production-surveillance` | Production & Surveillance | none | Production Surveillance; Optimization Engineer | Production surveillance and optimisation - how production is trending against potential, what changed and when, which facilities, wells or systems explain it, and where the upside is. | `calc`, `deferment_pareto`, `forecast_vs_actual`, `gas_lift_network`, `get_events`, `plot_forecast_vs_actual`, `production_constraints`, `production_summary`, `well_performance` | EC daily production and potential, deferment records, well tests, operator log. | A dated trend against potential, the change points and the systems that explain them. | Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
 | `production-surveillance/production-efficiency` | Production & Surveillance | none | Production Surveillance; Production / Operations Engineer | Production efficiency (PE) and deferment accounting - PE by period, deferment Pareto by reason, category, unit, class and well, planned vs unplanned losses, and what drives the gap to potential. | `deferment_pareto`, `downtime`, `production_summary` | EC daily production, potential and downtime records with reason codes. | Production efficiency and a deferment Pareto by reason, category, unit or well for a stated period. | Reports recorded losses; it is not production accounting. |
 | `production-surveillance/constraint-management` | Production & Surveillance | Field Operations & Facilities | Production / Operations Engineer; Optimization Engineer; Surface / Facilities Engineer | Constraint management - what is limiting throughput (compression, lift gas, export, process trips, wells), how often and how much, whether it is getting worse, and how constraints cascade through the flow network. | `calc`, `debottleneck_options`, `get_events`, `process_values`, `production_constraints`, `trace_flow`, `well_performance` | Deferment by reason, causing units, the flow network and the operator log. | Ranked constraints with volume, hours, trend and how they cascade. | Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
 | `production-surveillance/back-pressure` | Production & Surveillance | Field Operations & Facilities | Optimization Engineer; Surface / Facilities Engineer | Back-pressure and hydraulics - what holds wells back without a deferment record (jacket header, separator, a fouling flowline, the choke), how much oil a bar is worth, and the ranked debottleneck options with their next constraint. | `backpressure_sensitivity`, `calc`, `capacity_headroom`, `debottleneck_options`, `plot_backpressure_sensitivity`, `plot_choke_criticality`, `plot_debottleneck`, `plot_dp_drift`, `plot_pressure_profile`, `pressure_profile` | Well and header pressures, well tests and operating limits; process values need a time-series source. | What holds wells back, what a bar is worth and ranked debottleneck options with their next constraint. | Options are for engineering review and management of change, not instructions. |
@@ -163,15 +163,15 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Agent | Tools |
 |---|---|
 | Orchestrator | 23 |
-| Production & Surveillance | 65 |
-| Wells & Subsurface | 54 |
+| Production & Surveillance | 67 |
+| Wells & Subsurface | 55 |
 | Field Operations & Facilities | 83 |
 | Maintenance & Integrity | 66 |
 | Work Management & Supply Chain | 32 |
 | HSE & Incident Management | 39 |
-| Asset Performance & Reporting | 39 |
+| Asset Performance & Reporting | 41 |
 
-## Shared (99)
+## Shared (101)
 
 Used by every agent or by several specialists.
 
@@ -240,6 +240,8 @@ Used by every agent or by several specialists.
 | `plot_debottleneck` | plot | at? | Chart the debottleneck options ranked by oil gained, coloured by kind. |
 | `plot_loss_waterfall` | plot | since, until | Chart oil potential, planned losses, unplanned losses by reason and actual over a period, priced. |
 | `plot_flare` | plot | since, until | Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate). |
+| `forecast_vs_actual` | calc | well?, since?, until?, days? | Each producing well's own decline forecast (fitted before the window, 90 % range) against its tests in the window (default the last year), ranked by the gap, with a field line. |
+| `plot_forecast_vs_actual` | plot | well?, since?, until?, days? | Chart a well's forecast band against its tests with its downtime marked; without a well, the wells furthest under their forecast. |
 | `search_knowledge` | query | question, ref?, limit?, include_superseded?, failure_modes? | Search OEM manuals, troubleshooting guides, procedures and past incidents, returning cited passages (document, revision, page, section, snippet with [[matches]]). |
 | `documents_for` | query | ref | Current documents that apply to a tag / equipment / model / class: its OEM manual (via model), class procedures and area troubleshooting guides, closest first, with why each applies. |
 | `lessons_learned` | query | status?, limit? | Lessons learned per equipment model (or class) and ISO 14224 failure mode: the corrective work that has fixed it before, how often it held for 30 days, and the incidents behind it. |

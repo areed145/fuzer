@@ -289,6 +289,17 @@ def plant_scorecard(until: date | None = None, days: int = 30, conn=Depends(get_
         raise HTTPException(400, str(e)) from e
 
 
+@router.get("/plant/forecast-vs-actual")
+def plant_forecast_vs_actual(well: str | None = None, days: int = 365, conn=Depends(get_conn)):
+    """Each producing well's own decline forecast against its tests in the window, ranked by the gap, with a field
+    line and the wells too thin to fit (P7.3b, #336)."""
+    from ..analysis import forecast_actual as fa
+    out = fa.forecast_vs_actual(conn, well, days=max(30, min(days, 1095)))
+    for w in out["wells"]:
+        w.pop("sufficiency", None)
+    return out
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

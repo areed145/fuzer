@@ -4449,6 +4449,9 @@ test("How the plant is running compares each KPI with the period before and show
         change: null, verdict: "unknown" },
     ],
   } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.goto(`${url}/#/metrics`);
   await page.getByRole("link", { name: "How the plant is running" }).click();
   await page.getByRole("heading", { name: "How the plant is running" }).waitFor();
@@ -4467,6 +4470,39 @@ test("How the plant is running compares each KPI with the period before and show
   await page.getByRole("link", { name: "90 days" }).click();
   await page.waitForURL(/days=90/);
   assert.equal(await page.getByRole("link", { name: "Metrics", exact: true }).first().getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P7.3b (#336): on How the plant is running, wells under their own forecast stand apart from natural decline, with the
+// field line, the test the loss started from and the downtime beside it; wells with too few tests are listed, not fitted.
+test("Wells under their own forecast are listed with the field line, and thin wells aren't fitted (#336)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: {
+    since: "2024-12-31", until: "2025-12-31", unit: "Sm3/d oil", source: "well tests (the actual)",
+    note: "A gap is a lead for review; the reservoir cause stays unknown.",
+    field: { wells_compared: 2, forecast_sm3d: 170, actual_sm3d: 135, gap_sm3d: -35, below_forecast: ["OK-J03-02"], above_forecast: [] },
+    wells: [
+      { id: "fz-well-1", well: "OK-J03-02", verdict: "below_forecast", gap_sm3d: -33.7, below_since: "2025-06-08",
+        latest: { at: "2025-12-21", actual_sm3d: 50.5, forecast_sm3d: 84.2, low_sm3d: 84.0, high_sm3d: 84.4 },
+        downtime: [{ id: "fz-downtime-1", start: "2025-07-13T08:00", reason: "Well intervention", lost_oil_sm3: 76 }] },
+      { id: "fz-well-2", well: "OK-J07-05", verdict: "on_forecast", gap_sm3d: 5.5, downtime: [] },
+    ],
+    not_fitted: [{ id: "fz-well-3", well: "OK-J01-01", tests_before: 3, reason: "3 readings, fewer than the 6 it needs" }],
+  } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".wells-forecast");
+  await card.getByText("Across 2 wells the latest tests make 135 Sm3/d against a forecast of 170 Sm3/d", { exact: false }).waitFor();
+  const row = card.locator('tr[data-well="OK-J03-02"]');
+  await row.getByText("-33.7 Sm3/d").waitFor();
+  await row.getByText("2025-06-08").waitFor();
+  await row.getByText("Well intervention").waitFor();
+  assert.equal(await card.locator('tr[data-well="OK-J07-05"]').count(), 0);  // on its decline: not a lead
+  await card.getByRole("button", { name: "1 wells with too few tests to forecast" }).click();
+  await card.getByText("OK-J01-01: 3 readings, fewer than the 6 it needs", { exact: false }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });

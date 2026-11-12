@@ -2,6 +2,7 @@
  * against the one before, reached from Metrics. Each KPI shows its window, unit and source, and opens the records
  * behind each value; one the records can't say is unknown, never zero. Internal evidence, not an approved report. */
 import { api, type Kpi, type KpiPeriod } from "../api";
+import { WellsAgainstForecast } from "./WellsAgainstForecast";
 import { Badge, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 
@@ -58,6 +59,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
         </Table>
         <div className="small muted scorecard-note">{d.note}</div>
       </> : <Empty>No KPIs to show.</Empty>)}
+      <WellsAgainstForecast />
     </section>
   );
 }
