@@ -89,3 +89,30 @@ def test_the_first_question_carries_the_case_and_a_follow_up_keeps_the_conversat
     assert saved["item_id"] == item and saved["subject"] == "fz-pump-1" and saved["title"] == "Is it the bearing?"
     with pytest.raises(context.Unknown):
         service.start("Lost?", by="user:test", item_id=99999999)
+
+
+def test_a_person_attaches_an_answer_and_its_charts_to_the_case_in_one_action(conn):
+    """P4.5b (#761)."""
+    item = _case(conn)
+    with conn.transaction():
+        history.ensure(conn, "conv-attach", "user:ana", "Is it the bearing?", item, "fz-pump-1")
+        conn.execute("insert into assistant_answer (id, conversation_id, question, answer, by_user) values "
+                     "('ans-1', 'conv-attach', 'Is it the bearing?', %s, 'user:ana')",
+                     ("The 1x peak points at the coupling.\n\n[[figure:f_0a1b]]\n\nAgain: [[figure:f_0a1b]] [[figure:f_2c3d]]",))
+        conn.execute("insert into assistant_answer (id, conversation_id, question, error) values "
+                     "('ans-failed', 'conv-attach', 'And?', 'timed out')")
+    out = context.attach(conn, "ans-1", item, "user:ana")
+    assert out["figures"] == ["f_0a1b", "f_2c3d"] and out["conversation_id"] == "conv-attach"
+    e = conn.execute("select actor, data from work_event where item_id = %s and kind = 'attached'", (item,)).fetchall()
+    assert len(e) == 1 and e[0]["actor"] == "user:ana" and "coupling" in e[0]["data"]["answer"]
+    assert e[0]["data"]["question"] == "Is it the bearing?"
+    for who in ("agent:maintenance-integrity", "system", "anonymous"):
+        with pytest.raises(context.Refused):
+            context.attach(conn, "ans-1", item, who)
+    with pytest.raises(context.Unknown):
+        context.attach(conn, "ans-failed", item, "user:ana")  # nothing to attach from a failed answer
+    with pytest.raises(context.Unknown):
+        context.attach(conn, "ans-1", 99999999, "user:ana")
+    state = conn.execute("select state from work_item where id = %s", (item,)).fetchone()["state"]
+    assert state == "open"  # attaching changes nothing else on the case
+    conn.commit()  # the route's connection commits after it

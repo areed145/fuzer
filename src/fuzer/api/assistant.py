@@ -152,6 +152,24 @@ def assistant_conversation_delete(conversation_id: str, conn=Depends(get_conn)):
     return {"deleted": conversation_id}
 
 
+class Attach(BaseModel):
+    item_id: int
+    by: str = "anonymous"
+
+
+@router.post("/assistant/answers/{answer_id}/attach")
+def assistant_attach(answer_id: str, a: Attach, conn=Depends(get_conn)):
+    """Put an answer and its charts on a case in one action (P4.5b): an `attached` event in the case's history, by the
+    person who attached it. It changes nothing else."""
+    from ..agents import context
+    try:
+        return context.attach(conn, answer_id, a.item_id, a.by)
+    except context.Refused as e:
+        raise HTTPException(403, str(e))
+    except context.Unknown as e:
+        raise HTTPException(404, str(e))
+
+
 class Remember(BaseModel):
     statement: str
     by: str = "anonymous"

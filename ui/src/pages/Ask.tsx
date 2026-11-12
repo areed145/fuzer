@@ -164,7 +164,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       )}
       {openError && <div className="error small">{openError}</div>}
       <Specialists catalog={catalog} />
-      {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} />)}
+      {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} caseId={context.data?.item_id ?? undefined} />)}
       <div ref={end} />
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
         <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : context.data ? `Ask about ${context.data.label}…` : "Ask about the plant…"}
@@ -284,7 +284,8 @@ function Specialists({ catalog }: { catalog: Catalog }) {
   );
 }
 
-function TurnView({ turn, labels, demo = false }: { turn: Turn; labels: Record<string, string>; demo?: boolean }) {
+function TurnView({ turn, labels, demo = false, caseId }: { turn: Turn; labels: Record<string, string>; demo?: boolean;
+                                                       caseId?: number }) {
   const j = turn.job;
   const steps = j?.steps ?? [];
   return (
@@ -335,10 +336,29 @@ function TurnView({ turn, labels, demo = false }: { turn: Turn; labels: Record<s
               <span className="spacer" />
               {!demo && <Rate id={j.id} />}
             </div>
+            {!demo && caseId !== undefined && <AttachToCase id={j.id} caseId={caseId} />}
             {!demo && <Remember id={j.id} />}
           </>
         )}
       </UICard>
+    </div>
+  );
+}
+
+/** One action puts the answer, with its charts, on the case the conversation is about (P4.5b). */
+function AttachToCase({ id, caseId }: { id: string; caseId: number }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [error, setError] = useState<string>();
+  if (state === "done") return <p className="small" role="status">Attached to <a href={href(`/cases/${caseId}`)}>case {caseId}</a>.</p>;
+  return (
+    <div className="small">
+      <Button disabled={state === "busy"} title="Adds this answer and its charts to the case's history; changes nothing else"
+        onClick={() => {
+          setState("busy"); setError(undefined);
+          api.attachAnswer(id, caseId, asker()).then(() => setState("done"),
+            (e) => { setError(e instanceof Error ? e.message : String(e)); setState("idle"); });
+        }}>{state === "busy" ? "Attaching…" : `Attach to case ${caseId}`}</Button>
+      {error && <span className="error" role="alert"> {error}</span>}
     </div>
   );
 }

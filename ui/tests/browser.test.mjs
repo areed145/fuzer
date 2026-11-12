@@ -329,6 +329,20 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case links to Ask about it and shows an answer attached from Ask in its history (P4.5)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Pump vibration rising", type: "machine_health",
+    state: "open", subjects: [], created_by: "detector:machine_health", created_at: "2026-11-09T09:00:00Z", processes: [],
+    events: [{ id: 1, kind: "attached", actor: "user:ana", at: "2026-11-09T10:00:00Z",
+      data: { answer_id: "a1", conversation_id: "c1", question: "Is it the bearing?", answer: "The 1x peak points at the coupling.", figures: [] } }] } }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.getByRole("heading", { name: "Pump vibration rising" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Ask about this case", exact: true }).getAttribute("href"), "#/ask?case=8");
+  const entry = page.locator(".ev-attached");
+  await entry.getByText("attached an answer from Ask", { exact: false }).waitFor();
+  await entry.getByText("Is it the bearing?", { exact: true }).waitFor();
+  await entry.getByText("The 1x peak points at the coupling.", { exact: true }).waitFor();
+});
+
 test("a case opens with the specialist's brief above the decision, and the person says whether they followed it (P4.3)", async () => {
   const posted = [];
   let verdict = null;
@@ -551,6 +565,17 @@ test("Ask opened from a case names it, links back and sends it only with the fir
   await box.fill("Is it the bearing?");
   await box.press("Enter");
   await page.getByText("Looks like the coupling.").waitFor();
+  // P4.5b: one action puts the answer and its charts on the case
+  const attached = [];
+  await page.route("**/assistant/answers/*/attach", route => {
+    attached.push({ url: route.request().url(), body: route.request().postDataJSON() });
+    return route.fulfill({ json: { item_id: 9, figures: [] } });
+  });
+  await page.getByRole("button", { name: "Attach to case 9", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Attached to case 9" }).waitFor();
+  assert.equal(attached.length, 1);
+  assert.equal(attached[0].body.item_id, 9);
+  assert.match(attached[0].url, /\/assistant\/answers\/j\/attach$/);
   await box.fill("And the seal?");
   await Promise.all([page.waitForRequest("**/assistant/ask"), box.press("Enter")]);
   assert.equal(asked[0].case_id, 9);
