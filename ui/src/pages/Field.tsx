@@ -279,6 +279,8 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <ul className="plain small">{job.sources.map((x) => <li key={x.id}>
           <strong>{x.label}</strong>: {x.title} <span className="muted">· {x.source ?? ""}</span></li>)}</ul>
       </div>}
+      {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">
+        {job.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul>}
       {job.permit && <PermitPanel permit={job.permit} />}
       {(job.checklist?.length ?? 0) > 0 && <div>
         <h3 className="small">Checks before restart</h3>

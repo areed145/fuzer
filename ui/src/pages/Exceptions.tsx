@@ -265,7 +265,9 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
   const r = check.data && Array.isArray(check.data.blockers) ? check.data : null;
   useEffect(() => { onResult(r); }, [r]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return check.error ? <p className="small error">Readiness not checked: {check.error}</p> : null;
-  return r.ready
+  const warned = r.warnings?.length ? <ul className="plain small ready-warnings" aria-label="Before you send it">
+    {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
+  return <>{warned}{r.ready
     ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
@@ -273,5 +275,5 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
           .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
         ...r.checks.filter((c) => !c.checked).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
-      <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>;
+      <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}</>;
 }

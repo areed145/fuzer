@@ -3983,6 +3983,39 @@ test("a job with no valid permit shows blocked on the phone and starts only with
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
+// An open MOC on the job's equipment (Adam, on #742): the dispatch card and the phone say so, and it holds nothing.
+test("an open MOC on the equipment is a warning at dispatch and on the phone, never a blocker (MOC)", async () => {
+  const warn = "Open MOC MOC-2025-031 on 10-V-2001: Proposed re-rate with new internals. Not approved; no change to operating limits";
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 31, type: "upset", key: "k31", title: "HP separator level control", state: "open", source: "olga", priority: 2,
+    value_usd: null, subjects: ["fz-sep"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
+    raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/exceptions/31/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], warnings: [warn],
+    checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByText("HP separator level control").waitFor();
+  await page.getByLabel("Dispatch to").first().selectOption("fred");
+  await page.getByText(warn).waitFor();
+  await page.getByText("ready", { exact: true }).waitFor();
+
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const field = { ...job, item_id: 61, case_state: "open", assignee: "fred", label: "Process upset", due: null, task_id: null, task_name: null,
+    assets: [{ fuzer_id: "fz-sep", label: "10-V-2001", kind: "tag", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false, own_step: false,
+    sent: { by: "ines", at: "2026-11-12T06:05:00Z", reason: "check the level bridle" }, sources: [], permit: null, warnings: [warn] };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [field], coming_up: [] } }));
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "HP separator level control" });
+  await card.getByText(warn).waitFor();
+  assert.equal(await card.getByRole("button", { name: "On site" }).isDisabled(), false);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 // P5.11b (#709): two jobs in one area at once whose permits clash are flagged on Plan in plain words, and the same
 // conflict blocks the dispatch card.
 test("hot work beside a line break is flagged on Plan and at dispatch (#709)", async () => {
