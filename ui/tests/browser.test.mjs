@@ -913,7 +913,7 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
     type: "folder", tables: [{ table: "equipment", dataset: "contractor_equipment" }],
     subfolders: [{ name: "incoming", path: "incoming", tables: 6 }] } }));
   await page.goto(`${url}/#/sources?view=add&system=contractor&connection=4`);
-  await page.getByText("A folder connection reads only the tables directly in its folder", { exact: false }).waitFor();
+  await page.getByText("Only tables directly in its folder are read.", { exact: false }).waitFor();
   await page.getByRole("button", { name: "Add a connection for incoming/ (6 tables)" }).click();
   await page.getByRole("heading", { name: /Where is the data\?/ }).waitFor();
   assert.equal(await page.getByPlaceholder("name (default folder)").inputValue(), "incoming");
@@ -958,8 +958,8 @@ test("optional Demo preserves existing primary destinations and specialist route
   // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
   assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
-  await breadcrumb.getByText("Okan investigation", { exact: true }).waitFor();
-  assert.equal(await breadcrumb.getByText("Okan investigation", { exact: true }).count(), 1);
+  await breadcrumb.getByText("Guided investigation", { exact: true }).waitFor();
+  assert.equal(await breadcrumb.getByText("Guided investigation", { exact: true }).count(), 1);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
@@ -1045,7 +1045,7 @@ test("fresh Microsoft visitor gets a responsive sign-in entry without preloading
   await page.goto(url);
   await page.getByRole("heading", { name: "Investigate with evidence, not guesswork" }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Continue with Microsoft" }).getAttribute("href"), "/auth/login");
-  await page.getByText("Personal Microsoft and work/school accounts are supported.", { exact: false }).waitFor();
+  await page.getByText("Personal and work or school Microsoft accounts work.", { exact: false }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(protectedRequests, []);
 });
@@ -1501,7 +1501,7 @@ test("Okan loading and transport errors keep recovery and navigation usable", as
   });
   await page.goto(`${url}/#/investigate/okan`);
   await page.getByRole("status").filter({ hasText: "Loading" }).waitFor();
-  await page.getByRole("heading", { name: "Okan investigation", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Guided investigation", exact: true }).waitFor();
   release();
   await page.getByRole("alert").waitFor();
   await page.getByRole("button", { name: "Try again", exact: true }).waitFor();
@@ -2838,5 +2838,58 @@ for (const [type, job] of Object.entries(LOOP_JOBS)) {
       const box = await card.getByRole("button", { name, exact: true }).boundingBox();
       assert.ok(box && box.height >= 44 && box.width >= 44, `${name} is a 44 px tap target, got ${box?.width}x${box?.height}`);
     }
+  });
+}
+
+// P0.2c (#578): every page has its empty, loading and failed states. A page never goes blank or crashes: with empty data
+// it shows its heading, while its reads are held it says it is loading, and when they fail it says so with a retry.
+const EVERY_PAGE = ["#/", "#/browse", "#/network", "#/ontology", "#/downtime", "#/ask", "#/incidents", "#/reports",
+  "#/lessons", "#/studies", "#/exceptions", "#/exceptions?list=ranked", "#/exceptions?list=progress", "#/inbox", "#/plan",
+  "#/masterdata", "#/review", "#/handover", "#/teams", "#/processes", "#/sources", "#/sources?view=systems", "#/jobs",
+  "#/settings", "#/users", "#/routing", "#/demo"];
+const SHELL = new Set(["/auth/me"]);
+
+for (const state of ["empty", "loading", "failed"]) {
+  test(`every page shows its ${state} state (#578)`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    if (state === "empty") {
+      // what the server answers for a facility with nothing in it, where that is not a bare list
+      const empties = {
+        "/ontology": { kinds: [], relations: [], groups: [], views: [], model: { kinds: [], relations: [] },
+          needs_definition: { kinds: [], relations: [], not_allowed: [] } },
+        "/network": { nodes: [], edges: [], truncated: false, rels: [] },
+        "/feedback/briefs": { incidents: 0, rated: 0, ratings: 0, useful_share: null, items: [] },
+        "/work/workload": { people: [], roles: {}, agents: [], agent_failures: [] },
+      };
+      await page.route("**/*", (route) => {
+        const path = new URL(route.request().url()).pathname;
+        return path in empties ? route.fulfill({ json: empties[path] }) : route.fallback();
+      });
+    } else {
+      await page.route("**/*", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|woff2?)$/.test(path) || SHELL.has(path)) return route.fallback();
+        if (state === "failed") return route.fulfill({ status: 503, json: { detail: "Service unavailable" } });
+        // loading: hold the read; the page must say it is loading meanwhile
+      });
+    }
+    const crashed = [];
+    for (const to of EVERY_PAGE) {
+      await page.goto(`${url}/${to}`);
+      await page.reload();
+      const main = page.locator("#main-content");
+      if (state === "loading") {
+        await main.getByText(/Loading|Checking/).first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no loading status`));
+      } else if (state === "failed") {
+        await main.getByRole("alert").first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no error shown`));
+      } else {
+        await page.getByRole("heading", { level: 1 }).first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no heading`));
+      }
+      if (await page.getByText("This page could not be displayed").count()) {
+        crashed.push(`${to}: crashed: ${await page.locator("#main-content .error, main .error").first().textContent().catch(() => "")}`);
+      }
+    }
+    errors.length = 0;
+    assert.deepEqual(crashed, []);
   });
 }

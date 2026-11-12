@@ -19,7 +19,8 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .calcs import CalcError, _label, read, result, window_of
-from .condition import daily, points_like, running
+from .condition import TREND_MIN_DAYS, daily, points_like, projection, running
+from .forecast import sufficiency
 
 SPREAD_TIMES, SPREAD_WIDER = 2.0, 25.0
 DUE_SHARE, DUE_DAYS = 0.9, 90
@@ -115,6 +116,12 @@ def hot_section(conn, fid: str, until: str | None = None, src=None) -> dict:
     rate = sum(1 for t in keep if t >= recent_from) * STEP / 60 / (span * 24)  # share of the time it ran lately
     left = interval - hours
     due = (end + timedelta(hours=left / max(rate, 0.05))).date().isoformat() if left > 0 else "now"
+    # The range: the due date at the running rates of the last 30 and the last 90 days, whichever is faster or slower.
+    recent30 = (end - timedelta(days=30)).isoformat()
+    rate30 = sum(1 for t in keep if t >= recent30) * STEP / 60 / (min(30.0, span) * 24)
+    rng = None if left <= 0 else sorted(
+        (end + timedelta(hours=left / max(r, 0.05))).date().isoformat() for r in (rate, rate30))
+    ran = sufficiency(sorted({t[:10] for t in keep if t >= recent_from}), TREND_MIN_DAYS)
     used = hours / interval
     soon = due != "now" and due <= (end + timedelta(days=DUE_DAYS)).date().isoformat()
     flag = "inspection_overdue" if left <= 0 else "inspection_due" if used >= DUE_SHARE or soon else None
@@ -126,8 +133,9 @@ def hot_section(conn, fid: str, until: str | None = None, src=None) -> dict:
                   [tag, plan["id"]], unit="fired hours", machine=_label(conn, tag), used_pct=round(used * 100, 1),
                   hours_left=round(left, 0), due=due, last_done=plan["last_done"], plan_next_due=plan["next_due"],
                   running_share_pct=round(rate * 100, 1),
-                  etas=[{"what": f"hot section inspection due at {interval:,.0f} fired hours", "reaches": due,
-                         "range": None}])
+                  etas=[projection(f"hot section inspection due at {interval:,.0f} fired hours", None,
+                                   {"reaches": due, "range": rng, "window": ran["window"], "points": ran["points"],
+                                    "sufficiency": ran})])
 
 
 def engine_cylinders(conn, fid: str, days: int = 30, until: str | None = None, src=None) -> dict:

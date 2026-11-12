@@ -35,7 +35,7 @@ export function Identity() {
     const user = session.user;
     return <><ProjectPicker session={session} /><div className="identity small">
       <strong>{user?.display_name}</strong>
-      <p className="muted">{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
+      <p>{user?.owner ? "Owner · all human roles" : user?.roles.join(", ") || "No application roles"}</p>
       {configure && <p><a href={href("/users")}>Manage users</a></p>}
       <SignOut />
     </div></>;

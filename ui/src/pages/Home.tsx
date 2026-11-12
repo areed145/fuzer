@@ -5,7 +5,7 @@ import { caseHref, taskHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
 import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
-import { Button, PageHeader, Input , Card as UICard} from "../ui";
+import { Button, PageHeader, Input, Card as UICard, Empty } from "../ui";
 import { usePermission } from "../Auth";
 import { LiveFigure } from "../analytics/LiveFigure";
 
@@ -88,14 +88,14 @@ function LatestReportCard() {
       </Status>
       {latest.data && (
         <>
-          <p className="muted small">Report date {latest.data.day.day}</p>
+          <p className="small">Report date {latest.data.day.day}</p>
           {headlines.length > 0 ? (
             <ul className="home-list home-headline">
               {headlines.map((fact, i) => <li key={i}>{fact.text}</li>)}
             </ul>
-          ) : <p className="muted small">This report has no headline facts.</p>}
+          ) : <Empty className="small">This report has no headline facts.</Empty>}
           {production.length > 0 && (
-            <p className="muted small">
+            <p className="small">
               {production.filter((fact) => fact.text.includes("7-day average")).map((fact) => fact.text).join(" · ")}
             </p>
           )}
@@ -136,7 +136,7 @@ function MyWorkCard({ person, inbox, loading, error, retry, jobs }: {
   return (
     <UICard className="home-card" as="section">
       <div className="row spread"><h2>My work</h2><a href={my}>Open My work</a></div>
-      {!person && <p className="muted small">Choose your name under “You are” in the menu.</p>}
+      {!person && <Empty className="small">Choose your name under “You are” in the menu.</Empty>}
       <Status loading={loading && !inbox} error={error} onRetry={retry} />
       {c && <>
         <ul className="home-counts">
@@ -148,7 +148,7 @@ function MyWorkCard({ person, inbox, loading, error, retry, jobs }: {
         </ul>
         {c.top.length > 0 ? <ol className="home-list">{c.top.map((r) => <li key={`${r.task_id ?? "i"}-${r.item_id}`}>
           <a href={r.task_id ? taskHref(r.task_id) : caseHref(r.item_id)}>{r.title}</a></li>)}</ol>
-          : <p className="muted small">Nothing waiting for you.</p>}
+          : <Empty className="small">Nothing waiting for you.</Empty>}
       </>}
     </UICard>
   );
@@ -232,7 +232,7 @@ function IncidentsCard() {
           No upsets without a recorded end.
         </Status>
         {openUpsets.length > 0 && (
-          <><p className="muted small">No end is recorded for these detections. This does not establish a current plant outage.</p><ul className="home-list">
+          <><ul className="home-list">
             {openUpsets.map((upset) => <UpsetItem key={upset.id} upset={upset} />)}
           </ul></>
         )}
@@ -276,8 +276,7 @@ function SourceHealthPanel() {
       </Status>
       {sources.data && rows.length > 0 && (
         <>
-          <p className="muted small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.
-            {" "}Freshness is time since ingestion against configured expectations, not the age of source events.</p>
+          <p className="small">{rows.length} datasets · {problems.length} with reported problems · {checks.length} failed {checks.length === 1 ? "check" : "checks"}.</p>
           {rows.length > 0 && (
             <ul className="home-list">
               {rows.filter((source) => source.problems.length || source.failing_checks.length).slice(0, 3).map((source) => (
@@ -315,8 +314,8 @@ function JobsHealthPanel() {
       <Status loading={jobs.loading && !jobs.data} error={jobs.error} onRetry={jobs.reload} />
       {jobs.data && (
         <>
-          {jobs.data.available && <p className="muted small">{jobs.data.health.summary}</p>}
-          {!jobs.data.available ? <p className="muted small">Scheduler history unavailable. Open Jobs for diagnostics; loaded records remain browsable.</p>
+          {jobs.data.available && <p className="small">{jobs.data.health.summary}</p>}
+          {!jobs.data.available ? <Empty className="small">Scheduler history unavailable.</Empty>
           : failedRuns.length > 0 || failedChecks.length > 0 ? (
             <ul className="home-list">
               {failedRuns.map((run) => (
@@ -329,7 +328,7 @@ function JobsHealthPanel() {
                 <li key={`${check.asset}-${check.name}`} className="error small">{check.asset}: {check.name}</li>
               ))}
             </ul>
-          ) : <p className="muted small">No failures in the returned recent runs/checks. This does not establish source freshness.</p>}
+          ) : <Empty className="small">No failures in recent runs or checks.</Empty>}
         </>
       )}
     </div>

@@ -36,7 +36,7 @@ export interface NavGroup {
 /** Every page in the nav. Add a page here; nothing else needs to change for it to appear. */
 export const NAV: NavGroup[] = [
   { label: "Home", items: [{ label: "Home", section: "" }] },
-  // One entry: the tour starts the Okan walkthrough, which keeps its #/investigate/okan URL (#556).
+  // One entry: the tour starts the guided walkthrough, which keeps its #/investigate/okan URL (#556).
   { label: "Demo", demo: true, items: [{ label: "Demo tour", section: "demo", also: ["investigate"] }] },
   {
     label: "Explore",
@@ -235,7 +235,7 @@ export function Breadcrumbs({ path }: { path: string[] }) {
     trail.push({ label: "Forms" });
     if (path[2]) trail.push({ label: path[2] });
   } else if (section === "processes" && path[1]) trail.push({ label: path[1] });
-  else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Okan investigation" });
+  else if (section === "investigate" && path[1] === "okan") trail.push({ label: "Guided investigation" });
   else return null;
   return (
     <nav className="crumbs" aria-label="Breadcrumb">

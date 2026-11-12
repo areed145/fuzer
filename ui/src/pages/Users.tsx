@@ -59,8 +59,7 @@ function Administration({ query }: { query: URLSearchParams }) {
       <Card title="Owner recovery">
         <p>{enabledOwners} enabled {enabledOwners === 1 ? "owner" : "owners"}. Keep at least one enabled owner.
           {enabledOwners < 2 && " Ask a second trusted account holder to sign in, then review owner access for recovery."}</p>
-        <p className="muted small">Owner status grants every application capability and all human workflow roles.
-          Workflow assignments alone never grant account access.</p>
+        <p className="small">Owner status grants every application capability and all human workflow roles.</p>
       </Card>
       <h2>Accounts</h2>
       <div className="row account-filters">
@@ -188,8 +187,7 @@ function RoleCard({ role, data, reload }: { role?: AccessRole; data: AccessAdmin
           {label}
         </label>)}
       </fieldset>
-      <p className="muted small">AI access permits provider charges; it is not included in the administrator role.
-        Configuration access is trusted administration, including source connections and scheduled jobs.</p>
+      <p className="small">AI access permits provider charges and is not part of the administrator role.</p>
       <ConfirmAction label={role ? "Save application role" : "Add application role"} busy={busy}
         disabled={!/^[a-z][a-z0-9_]{0,63}$/.test(name) || !description.trim()}
         consequence={`Apply application role ${name} with permissions ${permissions.join(", ") || "none"}? This affects all assigned accounts and their existing sessions. AI access can incur provider charges.`}
