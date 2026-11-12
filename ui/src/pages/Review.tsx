@@ -13,6 +13,7 @@ import {
   type MappingPayload,
   type MatchPayload,
   type ReviewItem,
+  type ReviewGroup,
   type ReviewKind,
   type SchemaPayload,
   type Stats,
@@ -141,6 +142,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         </div>
       )}
 
+      <LikeQuestions kind={kind} name={name} onDone={() => { items.reload(); notifyChanged(); }} />
       <Status loading={items.loading && !items.data} error={items.error} empty={items.data && open.length === 0}>
         All done. Nothing left to review here.
       </Status>
@@ -171,6 +173,46 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         ),
       )}
     </section>
+  );
+}
+
+/** Like questions answered once (P2.3c): each group's answers, applied to every question in it; a standing answer
+ * also decides new ones like them at each rebuild, as the person who set it. */
+function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string; onDone: () => void }) {
+  const groups = useAsync(() => api.reviewGroups(kind), [kind]);
+  const operate = usePermission("operate");
+  const [standing, setStanding] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [result, setResult] = useState<string>();
+  const [error, setError] = useState<string>();
+  if (!groups.data?.length) return result ? <p role="status" className="small">{result}</p> : null;
+  const answer = async (g: ReviewGroup, o: ReviewGroup["options"][number]) => {
+    const forNew = !!standing[g.key];
+    if (!confirm(`${o.label} for all ${g.count} questions${forNew ? ", and for new ones like them" : ""}?`)) return;
+    setBusy(g.key); setError(undefined);
+    try {
+      const r = await api.decideGroup({ key: g.key, decision: o.decision, source: o.source, value: o.value, standing: forNew, by: name || "anonymous" });
+      setResult(`Answered ${r.decided.length} of ${g.count}${r.skipped.length ? `; ${r.skipped.length} left for you (${r.skipped[0].why})` : ""}.`);
+      groups.reload(); onDone();
+    } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(null); }
+  };
+  return (
+    <UICard className="like-questions" title="Like questions">
+      <p className="small">One answer for questions that share it. Each is kept as if answered alone.</p>
+      <Table variant="list" density="compact">
+        <tbody>{groups.data.map((g) => (
+          <tr key={g.key}>
+            <th scope="row">{g.count} × {g.label}{g.standing && <div className="small">New ones are answered by {g.standing.set_by}'s standing answer.</div>}</th>
+            <td>{operate && <div className="row">
+              {g.options.map((o) => <Button key={o.label} size="sm" variant="secondary" disabled={!!busy} onClick={() => void answer(g, o)}>{o.label}</Button>)}
+              <label className="small"><input type="checkbox" checked={!!standing[g.key]} onChange={(e) => setStanding({ ...standing, [g.key]: e.target.checked })} /> and new ones like these</label>
+            </div>}</td>
+          </tr>
+        ))}</tbody>
+      </Table>
+      {result && <p role="status" className="small">{result}</p>}
+      {error && <p className="error small">{error}</p>}
+    </UICard>
   );
 }
 
