@@ -3763,3 +3763,26 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   await expectReports(sent, 1);
   assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
 });
+
+// P5.5b (#682): the dispatch card says how busy the job's crew is, and a full crew is a blocker naming its jobs.
+test("the dispatch card shows the crew's load and a full crew blocks the job (#682)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = (id, title) => ({ id, type: "leak", key: `k${id}`, title, state: "open", source: "olga", priority: 2,
+    value_usd: null, subjects: ["fz-g7006"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
+    raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job(8, "Generator load test"), job(9, "Generator batteries")] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  const elec = { id: "fz-elec", label: "ELEC", description: "Electrical technicians", crew: 1, busy: 0, full: false, jobs: [] };
+  await page.route("**/exceptions/8/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [],
+    checks: [{ check: "spares", label: "Spares", ready: true, checked: false, note: "No BOM for this equipment, so no parts to check.", blockers: [] },
+      { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] }] } }));
+  await page.route("**/exceptions/9/readiness", (route) => route.fulfill({ json: { ready: false,
+    blockers: ["Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #3 Look at the standby generator"],
+    checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [],
+      centers: [{ ...elec, busy: 1, full: true, jobs: [{ id: 3, title: "Look at the standby generator", assignee: "fred" }] }] }] } }));
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByText("Generator batteries").waitFor();
+  for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
+  await page.getByText("Electrical technicians: 0 of 1 busy.", { exact: false }).waitFor();
+  await page.getByText("all 1 busy on open jobs: #3 Look at the standby generator", { exact: false }).waitFor();
+});

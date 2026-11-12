@@ -81,6 +81,23 @@ def _purchase_orders(materials: list[dict]) -> list[dict]:
     return out
 
 
+WORK_CENTERS = [  # SAP work centers (P5.5b): the crews work orders are planned against
+    {"arbpl": "MECH", "description": "Mechanical maintenance crew", "crew_size": "6", "shift": "days"},
+    {"arbpl": "INST", "description": "Instrument technicians", "crew_size": "2", "shift": "days"},
+    {"arbpl": "ELEC", "description": "Electrical technicians", "crew_size": "2", "shift": "days"},
+]
+
+
+def _work_center(text: str) -> str:
+    """The crew a work order's text calls for: instrument work to INST, electrical to ELEC, the rest to MECH."""
+    t = text.lower()
+    if any(w in t for w in ("transmitter", "calibrat", "instrument", "analyser", "analyzer")):
+        return "INST"
+    if any(w in t for w in ("motor", "electrical", "switchgear", "battery", "batteries", "cable")):
+        return "ELEC"
+    return "MECH"
+
+
 def _add_hours(when: str, n: int) -> str:
     from datetime import datetime, timedelta
 

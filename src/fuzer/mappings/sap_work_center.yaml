@@ -1,0 +1,12 @@
+# SAP work centers (P5.5b, #682): the crews maintenance work is planned against, with how many people each has.
+source: sap
+record_type: work_center
+shape: records
+dataset: sap_work_centers
+key: arbpl
+entity:
+  kind: work_center
+  fields:
+    - description
+    - [crew_size, {from: crew_size, as: number, keep: true}]
+    - shift

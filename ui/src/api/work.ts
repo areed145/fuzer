@@ -290,7 +290,9 @@ export interface Readiness {
   ready: boolean; blockers: string[];
   checks: { check: string; label: string; ready: boolean; blockers: string[]; checked: boolean; note: string | null;
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
-      orders: { po: string; quantity: number; due: string }[] }[] }[];
+      orders: { po: string; quantity: number; due: string }[] }[];
+    centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
+      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[] }[];
 }
 
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
