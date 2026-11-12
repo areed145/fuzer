@@ -418,7 +418,7 @@ def test_skills_are_valid():
                      "compression", "constraint-management", "gas-lift", "gas-treating", "incident-evidence", "integrity", "job-readiness",
                      "metering-and-balances", "operations-summary", "production-efficiency", "production-engineering",
                      "production-surveillance", "pumps-and-drivers", "reliability", "shift-handover", "static-equipment", "troubleshooting", "turnarounds", "upset-correlation",
-                     "well-review", "work-orders"]
+                     "well-review", "wells-and-lift", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
         assert callable(getattr(mcp_server, t))  # every tool an agent is given exists
 

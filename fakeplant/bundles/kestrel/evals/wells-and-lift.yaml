@@ -1,0 +1,9 @@
+# Answer keys for the wells and artificial lift specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Kestrel's wells are gas condensate wells: their decline is on gas rate, and they record no choke position.
+- question: How fast is KR 12-03H declining, and what will it make in a year?
+  must_mention: [KR 12-03H, [gas rate, kSm3/d], [range, interval, estimate]]
+  specialists: [wells-subsurface]
+- question: What limits KR 12-04H's rate?
+  must_mention: [KR 12-04H, [choke, critical, back-pressure, back pressure], [choke position, no choke]]
+  specialists: [wells-subsurface]

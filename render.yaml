@@ -29,10 +29,14 @@ services:
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: FUZER_GITHUB_ISSUES_TOKEN
+        sync: false
+      - key: FUZER_GITHUB_ISSUES_REPO
+        sync: false
 
 databases:
   - name: fuzer-db
     databaseName: fuzer
     user: fuzer
-    plan: 0.1c-256mb
+    plan: 0.5c-1g  # 0.1 CPU was pinned at its limit by Dagster and the API (12 Nov)
     postgresMajorVersion: "16"

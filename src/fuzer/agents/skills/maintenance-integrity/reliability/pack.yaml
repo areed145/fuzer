@@ -1,0 +1,27 @@
+# The reliability and maintenance specialist pack (P4.2, pack 7): bad actors and repeat failures, failure patterns and
+# whether the PM interval suits them, PM and inspection compliance, the cost of unreliability, and spares criticality,
+# on ISO 14224 failure data with ISO 55000 and IEC 60300 practice (IEC 61649 for the Weibull fits). SKILL.md is its
+# playbook; this file names what the playbook relies on, so a missing or renamed piece fails the pack conformance
+# test (tests/agents/test_specialist_packs.py) instead of an answer on a case. The machine and static equipment
+# packs beside it hold the condition analysis of one machine or one vessel; this pack is the fleet and history view.
+title: Reliability and maintenance
+owner: maintenance-integrity          # the agent that loads this pack
+classes: [CO, PU, EM, GT, CE, VE, HE, PI, VA]   # ISO 14224: every maintained class with failure and plan records
+tools: [bad_actors, calc, cost_of_unreliability, get_entity, lessons_learned, limits, maintenance_compliance,
+        maintenance_history, maintenance_spend, measurements, plot_compressor_performance, plot_cooler_fouling,
+        plot_peers, plot_reliability, rotating_screen, search_knowledge, spare_parts, well_performance]
+charts: [plot_compressor_performance, plot_cooler_fouling, plot_peers, plot_reliability]
+methods: [compressor_performance, cooler_fouling, corrosion_circuit, peers, pm_interval, reliability, remaining_life,
+          rotating_health, spares_coverage, vibration, wall_loss]
+detectors: [machine_health]
+roles: [running_status, vibration, bearing_temperature, suction_pressure, suction_flow, discharge_pressure,
+        discharge_temperature, outlet_temperature]
+eval: reliability                     # each bundle's answer keys: evals/reliability.yaml in the bundle
+# Each method that reads the asset's own measurements, and the roles it needs there (P4.1b). The failure fits, PM
+# intervals, spares, compliance and wall loss read records (notifications, plans, stock, inspections), so they are
+# left out.
+needs:
+  vibration: [vibration]
+  rotating_health: [vibration]
+  cooler_fouling: [outlet_temperature]
+  compressor_performance: [discharge_pressure, discharge_temperature]

@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 37 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 36 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 37 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 29 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
@@ -20,7 +20,7 @@ flowchart LR
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
   c_api["API<br><small>fuzer.api, 19 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 29 modules</small>"]
+  c_core["Core<br><small>fuzer.core, 30 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -207,8 +207,8 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 - **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `contextualized`, `criticality`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `placement`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `review`, `roles`, `spatial`, `structure`, `topology`
 - **Uses:** core, sources
-- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `placement_decision`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
-- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `unlinked`, `placement_decision`, `review_item`, `pinned_link`, `review_rule`, `match_score`, `match_calibration`, `reviewed_value`, `source_new_record`, `knowledge_index`, `lesson`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `measurement_role_pin`, `steward_fix`, `steward_proposal` (its `schema.sql`)
+- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `lesson_history`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `placement_decision`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
+- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `unlinked`, `placement_decision`, `review_item`, `pinned_link`, `review_rule`, `match_score`, `match_calibration`, `reviewed_value`, `source_new_record`, `knowledge_index`, `lesson`, `lesson_history`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `measurement_role_pin`, `steward_fix`, `steward_proposal` (its `schema.sql`)
 - **Settings:** `stewardship.bulk_accept_at` ([settings](settings.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 
@@ -216,7 +216,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `metering`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `metering`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `spares`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -301,7 +301,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `metrics`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `roles`, `settings`, `tags`, `taxonomy`, `units`, `work`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bugreports`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `metrics`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `roles`, `settings`, `tags`, `taxonomy`, `units`, `work`
 - **Uses:** nothing else in fuzer
 - **Writes:** `access_account`, `access_event`, `access_membership`, `access_project_grant`, `access_role`, `access_session`, `detector_run`, `event_outbox`, `gate_decision`, `gate_policy`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
 - **Owns:** `schema_version`, `access_account`, `access_role`, `access_membership`, `access_session`, `access_project_grant`, `access_login`, `access_event`, `setting`, `setting_history`, `project`, `ontology_kind`, `ontology_relation`, `ontology_audit`, `event_outbox`, `gate_policy`, `gate_decision` (its `schema.sql`)
