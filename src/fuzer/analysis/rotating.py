@@ -115,12 +115,15 @@ def zone_of(v: float, bounds: tuple[float, float, float]) -> str:
 
 def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: str | None = None,
               foundation: str = "rigid", src=None) -> dict:
+    from ..graph import roles
     from ..sources.timeseries import _unit_points
 
     tag = _tag(conn, fid)
-    pts = [p for p in _unit_points(conn, tag, 30) if (p["uom"] or "").lower() == "mm/s"]
+    pts = _unit_points(conn, tag, 30)
+    casing = roles.of(conn, [p["id"] for p in pts])
+    pts = [p for p in pts if casing.get(p["id"]) == "vibration"]  # casing vibration (velocity), what ISO 20816 zones
     if not pts:
-        raise CalcError("no vibration point (mm/s) on that machine")
+        raise CalcError("no casing vibration point on that machine")
     recip = is_recip(conn, tag)
     if recip:  # ISO 20816-3's zones are for rotating machines: a recip's frame is judged against its maker's limits
         bounds = recip_bounds(conn, [p["id"] for p in pts])
@@ -386,16 +389,11 @@ HEAT_RATE_HIGH = 4.0  # % above the ambient- and load-corrected expected heat ra
 
 def _ambient_point(conn) -> dict | None:
     """The site's ambient air temperature point, wherever it hangs."""
-    r = conn.execute(
-        """
-        select e.fuzer_id from entity e join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-        where e.kind = 'timeseries' and g.value #>> '{}' ilike '%%ambient air temperature%%' order by 1 limit 1
-        """).fetchone()
-    if not r:
-        return None
+    from ..graph import roles
     from ..sources.timeseries import _point as point
 
-    return point(conn, r["fuzer_id"])
+    pid = roles.anywhere(conn, "ambient_temperature")
+    return point(conn, pid) if pid else None
 
 
 def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:

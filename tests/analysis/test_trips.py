@@ -108,3 +108,29 @@ def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn)
                          "and state = 'open'").fetchone()
     assert "near surge" in surge["title"] and "anti-surge" in said(surge)["Recommended first"]
     assert conn.execute("select state from exception_record where id = %s", (row["id"],)).fetchone()["state"] == "cleared"
+
+
+def test_trip_causes_vibration_and_ambient_read_roles_not_descriptions_or_tag_names(conn):
+    """P1.4c: with every point's description blanked and the tags renamed out of their -K-, -V- and -E- letters, the
+    trip causes, the train's run signal, the vibration zones and the ambient point come out the same. They read the
+    measurement roles and the equipment classes, so they run on any facility whose points carry roles."""
+    ids = {ref: fid(conn, ref) for ref in ("20-K-2200B", "20-K-2300A", "20-K-2100C")}
+
+    def seen() -> dict:
+        b = trips.diagnose(conn, ids["20-K-2200B"], "2024-03-14T03:20", pack=PACK)
+        a = trips.diagnose(conn, ids["20-K-2300A"], "2024-06-11T15:00", pack=PACK)
+        c = trips.diagnose(conn, ids["20-K-2100C"], "2024-11-05T05:30", pack=PACK)
+        v = rotating.vibration(conn, ids["20-K-2200B"], until="2024-03-05T00:00")
+        return {"trips": [(d["value"], d["verdict"], d["tripped_at"], d["first_out"]["id"],
+                           [(m["id"], m["family"]) for m in d["sequence"]]) for d in (b, a, c)],
+                "vibration": (v["zone"], v["value"], v["point"]), "ambient": rotating._ambient_point(conn)["id"]}
+
+    before = seen()
+    try:
+        conn.execute("update golden set value = '\"\"' where field = 'description' "
+                     "and fuzer_id in (select fuzer_id from entity where kind = 'timeseries')")
+        conn.execute("update entity_label set label = replace(label, '-', '_') "
+                     "where fuzer_id in (select fuzer_id from entity where kind = 'tag')")
+        assert seen() == before
+    finally:
+        conn.rollback()
