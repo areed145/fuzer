@@ -73,3 +73,54 @@ def test_a_provider_posts_its_own_alerts_behind_its_secret_and_its_pack_exports_
         exported = yaml.safe_load(client.get("/sources/systems/healthwatch/pack").json()["yaml"])
     assert exported["detection_providers"][0]["name"] == "healthwatch"
     assert exported["detection_providers"][0]["severity"]["map"]["critical"] == 1.0
+
+
+def test_a_noisy_provider_is_muted_for_one_class_or_triaged_first_and_its_close_outs_are_counted(kestrel_db):
+    """Trust (P3.8b): muted for the compressors' class, a new alert is kept and counted with no case; set to triage
+    first, its case goes to the triage role; and closing that case as a false alarm shows in its rates."""
+    from fuzer.core import detectors, settings
+    from fuzer.core.pack import resolve
+    from fuzer.ops import disposition, suppression
+
+    conn = kestrel_db
+    engine.load_defaults(conn)
+    loop._people(conn)
+    packs.install(conn, PACK.read_text(), "test")
+    [k] = exceptions.match(conn, ["tag:B1-K-2001"])[0]
+    for x in conn.execute("select type, key from exception_record where state = 'open' and %s = any(subjects)", (k,)):
+        exceptions.clear(conn, x["type"], x["key"], "test", reason="a fresh start, so a new alert opens its own case")
+    co = detectors.classes_of(conn, [k])[k]
+    alert = {"alert_id": "HW-KR-0200", "asset_tag": "B1-K-2001", "severity": "medium", "probability": 40,
+             "message": "bearing wear pattern", "detected_at": "2026-01-02T00:00", "status": "open"}
+
+    providers.set_trust(conn, "healthwatch", "healthwatch", "triage", "new vendor, look first", "ana")
+    providers.set_trust(conn, "healthwatch", "healthwatch", "mute", "three false alarms on these", "ana", co)
+    [muted] = providers.alerts(conn, "healthwatch", alert)["alerts"]
+    assert muted["trust"] == "mute" and muted["item_id"] is None
+    held = [x for x in suppression.found(conn)["items"] if x["key"] == "HW-KR-0200"]
+    assert held and held[0]["window_kind"] == "muted" and "three false alarms" in held[0]["reason"]
+
+    settings.set(conn, "providers.triage_role", "role:ops_lead", by="test", reason="the desk looks first")
+    providers.set_trust(conn, "healthwatch", "healthwatch", "triage", "watch it a while", "ana", co)
+    [triaged] = providers.alerts(conn, "healthwatch", {**alert, "alert_id": "HW-KR-0201"})["alerts"]
+    assert triaged["trust"] == "triage" and triaged["item_id"] and not triaged["joined"], triaged
+    assert conn.execute("select role from work_item where id = %s", (triaged["item_id"],)).fetchone()["role"] == "ops_lead"
+
+    disposition.record(conn, resolve(conn), triaged["item_id"], "ana", "false_alarm", note="the pattern was a sensor")
+    r = disposition.rates(conn)[("health_alert", "healthwatch")]
+    assert r["false_alarm"] >= 1 and r["closed"] >= 1
+    q = disposition.quality([r])
+    assert q["false_alarm_rate"] == r["false_alarm"] / r["closed"]
+    from fuzer.api import settings as settings_api  # what the Detection page reads
+
+    page = settings_api.detectors_list(conn)
+    [hw] = [p for p in page["providers"] if p["name"] == "healthwatch"]
+    assert hw["closeouts"]["false_alarm"] == r["false_alarm"] and {t["class"] for t in hw["trust"]} == {"", co}
+    assert all("closeouts" in d for d in page["detectors"])
+    try:
+        providers.set_trust(conn, "healthwatch", "healthwatch", "mute", " ", "ana")
+    except Exception as e:
+        assert "reason" in str(e)
+    else:
+        raise AssertionError("trust changed with no reason")
+    conn.commit()

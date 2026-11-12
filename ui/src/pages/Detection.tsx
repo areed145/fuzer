@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type DetectorParam, type DetectorRow, type EquipmentClass } from "../api";
+import { api, type Closeouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust } from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { ActionStatus, Badge, Button, Card, Field, Input, Select, Table } from "../ui";
@@ -31,6 +31,14 @@ function Score({ d }: { d: DetectorRow }) {
   return <span className="muted">{d.eval?.startsWith("replay:") ? "Not replayed yet" : "Fake plant test"}</span>;
 }
 
+/** How what it raised was closed out: confirmed and false-alarm rates of the cases closed out so far. */
+function CloseoutRates({ c }: { c: Closeouts }) {
+  if (!c.cases) return <span className="muted">No cases yet</span>;
+  if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
+  return <span>Confirmed {pct(c.confirmed_rate)}, false alarm {pct(c.false_alarm_rate)}
+    <div className="muted small">{c.closed} of {c.cases} cases closed out</div></span>;
+}
+
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
  * thresholds, with a value for one equipment class where the detector reads one. */
 export function Detection() {
@@ -45,7 +53,8 @@ export function Detection() {
     {list.data && <Card>
       <Table variant="settings">
         <thead>
-          <tr><th>Detector</th><th>Kind</th><th>Runs</th><th>State</th><th>Last run</th><th>Replay score</th><th /></tr>
+          <tr><th>Detector</th><th>Kind</th><th>Runs</th><th>State</th><th>Last run</th><th>Replay score</th>
+            <th>Close-outs</th><th /></tr>
         </thead>
         <tbody>
           {list.data.detectors.map((d) => <DetectorLine key={d.name} d={d} classes={list.data!.classes}
@@ -54,6 +63,64 @@ export function Detection() {
         </tbody>
       </Table>
     </Card>}
+    {list.data && (list.data.providers?.length ?? 0) > 0 && <Card title="Detection providers">
+      <Table variant="settings">
+        <thead><tr><th>Provider</th><th>Raises</th><th>Trust</th><th>Close-outs</th><th /></tr></thead>
+        <tbody>
+          {list.data.providers.map((p) => <ProviderLine key={`${p.system}/${p.name}`} p={p} classes={list.data!.classes}
+            levels={list.data!.trust_levels} person={person} open={open === `provider:${p.system}/${p.name}`}
+            toggle={() => setOpen(open === `provider:${p.system}/${p.name}` ? null : `provider:${p.system}/${p.name}`)}
+            saved={saved} />)}
+        </tbody>
+      </Table>
+    </Card>}
+  </>;
+}
+
+function ProviderLine({ p, classes, levels, person, open, toggle, saved }: {
+  p: ProviderRow; classes: EquipmentClass[]; levels: Record<Trust, string>; person: string; open: boolean;
+  toggle: () => void; saved: () => void;
+}) {
+  const c = useChange(saved);
+  const [cls, setCls] = useState("");
+  const [trust, setTrust] = useState<Trust>("route");
+  const name = (code: string) => (code ? classes.find((x) => x.code === code)?.name ?? code : "All classes");
+  const all = p.trust.find((t) => t.class === "");
+  return <>
+    <tr>
+      <td>{p.label}<div className="muted small">{p.system}{p.enabled ? "" : " · off"}</div></td>
+      <td><code>{p.type}</code></td>
+      <td>{all ? levels[all.trust] : levels.route}
+        {p.trust.filter((t) => t.class).map((t) => <div key={t.class} className="muted small">{name(t.class)}: {levels[t.trust]}</div>)}
+      </td>
+      <td><CloseoutRates c={p.closeouts} /></td>
+      <td><Button size="sm" onClick={toggle}>{open ? "Close" : "Change"}</Button></td>
+    </tr>
+    {open && <tr className="setting-edit">
+      <td colSpan={5}>
+        {p.trust.map((t) => <p key={t.class} className="small"><b>{name(t.class)}</b>: {levels[t.trust]}, "{t.reason}"
+          <span className="muted"> ({t.updated_by}, {when(t.updated_at)})</span></p>)}
+        <div className="row small">
+          <Field label="Equipment class" width="sm">
+            <Select value={cls} onChange={(e) => setCls(e.target.value)}>
+              <option value="">All classes</option>
+              {classes.map((x) => <option key={x.code} value={x.code}>{x.name} ({x.units})</option>)}
+            </Select>
+          </Field>
+          <Field label="Trust" width="sm">
+            <Select value={trust} onChange={(e) => setTrust(e.target.value as Trust)}>
+              {(Object.keys(levels) as Trust[]).map((k) => <option key={k} value={k}>{levels[k]}</option>)}
+            </Select>
+          </Field>
+          <Input aria-label={`Reason to change trust in ${p.label}`} className="grow" placeholder="reason for the change"
+            value={c.reason} onChange={(e) => c.setReason(e.target.value)} />
+          <Button variant="primary" disabled={!!c.busy}
+            onClick={() => c.run("Saving", (r) => api.setProviderTrust(p.system, p.name, trust, cls || null, person, r),
+              "Saved. Applies to its next alerts; cases already open stay as they are.")}>Save</Button>
+        </div>
+        <ActionStatus busy={c.busy} error={c.error}>{c.done}</ActionStatus>
+      </td>
+    </tr>}
   </>;
 }
 
@@ -69,10 +136,11 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
       <td><State d={d} />{!d.applicable && d.note && <div className="muted small">{d.note}</div>}</td>
       <td><LastRun d={d} /></td>
       <td><Score d={d} /></td>
+      <td>{d.closeouts && <CloseoutRates c={d.closeouts} />}</td>
       <td><Button size="sm" onClick={toggle}>{open ? "Close" : "Change"}</Button></td>
     </tr>
     {open && <tr className="setting-edit">
-      <td colSpan={7}>
+      <td colSpan={8}>
         <Switch d={d} project={project} person={person} saved={saved} />
         {d.settings.map((s) => <Param key={s.key} d={d} s={s} classes={classes} person={person} saved={saved} />)}
       </td>

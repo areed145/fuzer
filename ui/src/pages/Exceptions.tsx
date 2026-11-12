@@ -63,7 +63,9 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
   );
 }
 
-const WINDOW: Record<string, string> = { shutdown: "Shutdown", planned_work: "Planned work", person: "Set by a person" };
+const WINDOW: Record<string, string> = {
+  shutdown: "Shutdown", planned_work: "Planned work", person: "Set by a person", muted: "Provider muted",
+};
 
 /** What planned work, shutdowns and people's windows held back (P3.5b): counted, not lost. Nothing shows until
  * something was held back. */

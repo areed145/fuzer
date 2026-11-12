@@ -26,6 +26,13 @@ system's webhook secret (`?provider=` when the system has more than one). Each b
 the provider, with its severity, confidence and link, and goes through the exception contract, so a Fuzer detection
 open on the same asset hosts it (`ops.exceptions._host`). An alert whose asset reference matches nothing in the
 register is never dropped: it goes to the data steward's queue with its references kept, to match.
+
+Trust (P3.8b, #705): a person says how far each provider is trusted, for every equipment class or one, with a
+reason. `route` (the default) opens its case for the role its type names; `triage` opens it for
+`providers.triage_role` first, a person who looks before it goes on; `mute` keeps and counts its alerts with no case,
+as suppression does (`ops.suppression.found`). Where an alert's assets span classes set differently, the most trusting
+wins, so an alert is muted only when every class it is about is. Joining a Fuzer case already open on the asset is
+the same at every level but mute.
 """
 
 import re
@@ -41,6 +48,7 @@ FIELDS = ("label", "type", "key", "refs", "title", "severity", "confidence", "st
           "enabled")
 STEWARD = "role:data_steward"  # where an alert about an asset the register doesn't know goes
 MAX_ALERTS = 500  # in one call
+TRUST = {"route": "Route directly", "triage": "Triage first", "mute": "Muted"}
 
 
 class ProviderError(ValueError):
@@ -110,6 +118,44 @@ def as_pack(p: dict) -> dict:
             **({} if p["enabled"] else {"enabled": False})}
 
 
+def set_trust(conn, system: str, name: str, trust: str, reason: str, by: str, cls: str | None = None) -> dict:
+    """How far a provider is trusted, for every class (`cls` None) or one equipment class, and why."""
+    if trust not in TRUST:
+        raise CatalogError(f"trust is one of {', '.join(TRUST)}")
+    if not (reason or "").strip():
+        raise CatalogError("say why: a provider's trust changes with a reason")
+    if not any(p["name"] == name for p in providers(conn, system)):
+        raise CatalogError(f"{system} has no provider {name!r}")
+    return dict(conn.execute(
+        """
+        insert into provider_trust (system, name, class, trust, reason, updated_by) values (%s, %s, %s, %s, %s, %s)
+        on conflict (system, name, class) do update set trust = excluded.trust, reason = excluded.reason,
+            updated_by = excluded.updated_by, updated_at = now()
+        returning *
+        """, (system, name, cls or "", trust, reason.strip(), by)).fetchone())
+
+
+def trust_rules(conn, system: str, name: str) -> list[dict]:
+    """A provider's trust settings, every class first."""
+    return [dict(r) for r in conn.execute("select * from provider_trust where system = %s and name = %s order by class",
+                                          (system, name))]
+
+
+def trust_for(conn, p: dict, subjects: list[str]) -> tuple[str, str | None]:
+    """How far `p` is trusted about these assets, and the reason a person gave (None: never set, so route)."""
+    from ..core import detectors
+
+    rules = {r["class"]: r for r in trust_rules(conn, p["system"], p["name"])}
+    if not rules:
+        return "route", None
+    classes = set(detectors.classes_of(conn, subjects).values()) or {""}
+    picked = [rules.get(c) or rules.get("") for c in classes]
+    if any(r is None for r in picked):
+        return "route", None
+    best = min(picked, key=lambda r: list(TRUST).index(r["trust"]))  # the most trusting of them
+    return best["trust"], best["reason"]
+
+
 def _provider(conn, system: str, name: str | None) -> dict:
     mine = [p for p in providers(conn, system) if p["enabled"]]
     if name:
@@ -167,11 +213,21 @@ def _one(conn, system: str, p: dict, alert: dict) -> dict:
     found, priority = finding(p, alert)
     subjects, unmatched = xc.match(conn, refs)
     lost = not subjects  # the register doesn't know the asset: the steward matches it, nothing is dropped
+    trust, why = ("route", None) if lost else trust_for(conn, p, subjects)
+    how = ({"role": STEWARD} if lost else {"mute": f"{p['label']}: {why}"} if trust == "mute"
+           else {"first_role": _triage_role(conn)} if trust == "triage" else {})
     row = xc.raise_exception(conn, p["type"], key, title, by, refs=refs, priority=priority, finding=found,
-                             source=system, **({"role": STEWARD} if lost else {}))
+                             source=system, **how)
     return {"key": key, "exception_id": row.get("id"), "item_id": row.get("item_id"), "new": row.get("raised"),
-            "joined": row.get("joined"), "state": row.get("state"), "unmatched": unmatched,
+            "joined": row.get("joined"), "state": row.get("state"), "unmatched": unmatched, "trust": trust,
             **({"to_steward": True} if lost else {})}
+
+
+def _triage_role(conn) -> str:
+    from ..core import settings
+
+    r = str(settings.get(conn, "providers.triage_role") or "role:engineer")
+    return r if r.startswith("role:") else f"role:{r}"
 
 
 def alerts(conn, system: str, body, provider: str | None = None) -> dict:
