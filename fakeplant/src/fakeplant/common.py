@@ -111,6 +111,14 @@ def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
             isolations.append({"isolation_id": f"ISO-{30000 + n}-{k + 1}", "permit_no": no,
                                "point": f"{e['floc'].split('-', 1)[1]} {point}", "method": method,
                                "state": "planned" if last and n % 3 == 0 else "applied"})
+    # Closed permits migrated from the plant's old permit system (P6.5): it named the location by the SAP equipment
+    # number with its own prefix, which no resolver reads; stewards answer a few, and the register learns the rest.
+    for n, e in enumerate(items[3::5]):
+        start = today - timedelta(days=400 + 7 * n)
+        permits.append({"permit_no": f"LPS-{7000 + n}", "floc": f"EQ-{e['equnr']}", "permit_type": "cold work",
+                        "state": "closed", "valid_from": f"{start.isoformat()} 06:00",
+                        "valid_to": f"{(start + timedelta(days=2)).isoformat()} 18:00",
+                        "issued_to": "Mechanical maintenance crew", "work": f"Maintenance on {e['description'].lower()}"})
     return permits, isolations
 
 

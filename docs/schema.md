@@ -787,6 +787,23 @@ Aliases a steward recorded (#476, sources/aliases.py): a value a system writes, 
 | `retired_at` | timestamptz |  |
 | `retired_by` | text |  |
 
+### `learned_rule`
+
+Rules the register learned from stewards (P6.5, sources/learned.py): when people have answered enough values from one source the same way (an alias whose value is the target's key with the same prefix or suffix around it), the rule is proposed; accepted, it records an alias for every like value now and after each rebuild (created_by rule:<id>). A rejected rule isn't proposed again; a withdrawn one retires the aliases it recorded.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `source` | text |  |
+| `kind` | text | the key kind the core of the value is: equipment, tag, floc, ... |
+| `prefix` | text | lower case, letters and digits only |
+| `suffix` | text |  |
+| `status` | text |  |
+| `taught_by` | bigint[] | the aliases it was learned from |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `reason` | text |  |
+
 ## Graph and golden records
 
 [`src/fuzer/graph/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/schema.sql)

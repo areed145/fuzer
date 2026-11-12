@@ -23,7 +23,7 @@ KESTREL_DATASETS = {
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 374
+KESTREL_ENTITIES = 388  # with 14 closed permits from the old permit system (P6.5)
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 
