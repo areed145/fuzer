@@ -1337,7 +1337,11 @@ test("an asset says what is known, what is missing and what each gap holds back;
       { check: "limits", label: "Limits", has: false, expected: true },
       { check: "documents", label: "Documents", has: false, expected: false }],
     gaps: [{ check: "limits", label: "Limits", missing: "no alarm limits, IOWs or normal ranges", prevents: "excursion and IOW cases",
-      usual: "89% of heat exchangers have it", detectors: [{ name: "excursions", title: "Process excursions" }, { name: "iow_breaches", title: "IOW breaches" }] }] } }));
+      usual: "89% of heat exchangers have it", detectors: [{ name: "excursions", title: "Process excursions" }, { name: "iow_breaches", title: "IOW breaches" }] }],
+    suggestions: [{ target: "doc-pc", target_label: "Propane chiller datasheet", rel: "applies_to", confidence: 0.4,
+      kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
+  const answers = [];
+  await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
   await page.goto(`${url}/#/e/tag-e5002`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
@@ -1345,6 +1349,12 @@ test("an asset says what is known, what is missing and what each gap holds back;
   assert.equal(await panel.getByText("Missing", { exact: true }).count(), 1);
   assert.equal(await panel.getByText("Not recorded", { exact: true }).count(), 1);
   assert.equal(await panel.getByRole("link", { name: "Open case", exact: true }).getAttribute("href"), "#/cases/41");
+  // a ranked suggestion for the gap, with its evidence; the steward's answer is posted (P2.1d)
+  await panel.getByText("it applies to its equipment class").waitFor();
+  await panel.getByRole("button", { name: "Yes", exact: true }).click();
+  for (let i = 0; i < 50 && !answers.length; i++) await page.waitForTimeout(50);
+  assert.deepEqual(answers[0] && { rel: answers[0].rel, target: answers[0].target, accept: answers[0].accept },
+    { rel: "applies_to", target: "doc-pc", accept: true });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `asset overflows at ${width}`);

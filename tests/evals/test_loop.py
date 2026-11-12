@@ -18,9 +18,12 @@ def _json(x):
     return x.isoformat() if isinstance(x, (date, datetime)) else float(x) if isinstance(x, Decimal) else str(x)
 
 
+OPTIONAL_ITEM = {"unit"}  # core.findings.Item: a unit is written only when the value has one
+
+
 def _shape(job: dict) -> dict:
-    return {"keys": sorted(job), "finding": sorted(job["finding"]), "item": sorted({k for i in job["finding"]["items"]
-                                                                                   for k in i}),
+    return {"keys": sorted(job), "finding": sorted(job["finding"]),
+            "item": sorted({k for i in job["finding"]["items"] for k in i} - OPTIONAL_ITEM),
             "asset": sorted({k for a in job["assets"] for k in a})}
 
 
