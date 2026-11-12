@@ -36,6 +36,8 @@ arrive:
   bypass_overdue: {detector: bypass_overdue}
   # The suction scrubber's high-high level trip, last proof tested 400 days ago on a 12 month interval
   proof_test_overdue: {detector: proof_test_overdue}
+  # The compressor vibration trip called on twice this year, designed for 0.1 a year (the demand log)
+  safeguard_demand: {detector: safeguard_demands}
   # D1-E-4006's temperature cycling every two hours: a loop candidate for the engineer
   loop_candidate: {detector: loop_oscillation}
   # The next well test delivery: KR 12-03H's water cut up from 2.5 to 14 % on yesterday's test

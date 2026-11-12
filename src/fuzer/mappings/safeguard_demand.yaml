@@ -1,0 +1,17 @@
+# Safeguard demands (P4.2e, #850): the site's log of each time a safeguard was called on to act (IEC 61511-1 asks that
+# demands on a safety instrumented function are recorded): when, whether it worked, failed to act, or acted with no
+# real demand (spurious), and the cause. Compared with the demand rate the register says it was designed for.
+source: safeguards
+record_type: demand
+shape: records
+dataset: safeguard_demands
+key: demand_id
+entity:
+  kind: demand
+  fields:
+    - at
+    - outcome
+    - cause
+links:
+  - rel: demands
+    to: {kind: safeguard, from: safeguard_id}

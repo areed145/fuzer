@@ -98,6 +98,11 @@ kinds:
     group: Maintenance
     colour: "#d08a3c"
     description: A safeguard taken out of service, with its state, when it went in, its expiry and change record.
+  demand:
+    label: Safeguard demand
+    group: Maintenance
+    colour: "#c0603f"
+    description: A time a safeguard was called on to act, whether it worked, failed or acted spuriously, and why.
   change:
     label: Change record
     group: Maintenance
@@ -299,6 +304,12 @@ relations:
     view: maintenance
     description: A bypass and the safeguard it takes out of service.
     from: [bypass]
+    to: [safeguard]
+  demands:
+    label: demands
+    view: maintenance
+    description: A demand and the safeguard it called on.
+    from: [demand]
     to: [safeguard]
   checks:
     label: checks

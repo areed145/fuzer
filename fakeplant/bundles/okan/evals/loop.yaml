@@ -55,6 +55,9 @@ arrive:
   # The same delivery: that trip last proof tested 430 days ago on a 12 month interval
   proof_test_overdue: {deliver: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses],
                        rebuild: true, detector: proof_test_overdue}
+  # The same delivery's demand log: that trip called on twice this year, designed for 0.1 a year
+  safeguard_demand: {deliver: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses,
+                     safeguard_demands], rebuild: true, detector: safeguard_demands}
   # The test separator's level limit-cycling while its level valve sticks (February 2025)
   loop_candidate: {detector: loop_oscillation, until: "2025-02-14T00:00"}
   # OK-J03-02's water breakthrough on its June 2025 test
