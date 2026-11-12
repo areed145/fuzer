@@ -64,9 +64,6 @@ export function Detection() {
       </Table>
     </Card>}
     {list.data && (list.data.providers?.length ?? 0) > 0 && <Card title="Detection providers">
-      <p className="muted small">Other systems' detections, mapped to findings by their source pack. Set how far each
-        is trusted, for every equipment class or one: a muted provider's alerts are kept and counted under Suppressed,
-        never opened.</p>
       <Table variant="settings">
         <thead><tr><th>Provider</th><th>Raises</th><th>Trust</th><th>Close-outs</th><th /></tr></thead>
         <tbody>
