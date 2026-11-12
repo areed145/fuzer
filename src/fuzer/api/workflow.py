@@ -207,6 +207,14 @@ def work_agent_spend(since: datetime | None = None, until: datetime | None = Non
     return ledger.spend(conn, since, until)
 
 
+@router.get("/work/skill-shortfalls")
+def work_skill_shortfalls(since: datetime | None = None, conn=Depends(get_conn)):
+    """Where each skill fell short (P6.4a): briefs not followed and answers rated not useful, with the cases."""
+    from ..agents import shortfalls
+
+    return shortfalls.gather(conn, since.isoformat() if since else None)
+
+
 @router.post("/work/items/{item_id}/comment")
 def work_item_comment(item_id: int, c: WorkComment, conn=Depends(get_conn)):
     return work.comment(conn, item_id, c.by, c.text, c.attachments)
