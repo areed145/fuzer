@@ -9,6 +9,7 @@ import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText,
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { AgentWork } from "../../AgentWork";
+import { CaseGates } from "../Gates";
 import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
@@ -182,6 +183,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
       <CaseFindings sources={it.sources} />
+      <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">

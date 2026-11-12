@@ -7,6 +7,7 @@ import { loadPerson } from "../work";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
 import { ApplicationReadiness } from "./ApplicationReadiness";
+import { HumanGates } from "./Gates";
 import { Detection } from "./Detection";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
@@ -51,7 +52,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
         <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
         <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
       </nav>
-      {detection ? <Detection /> : !configuration ? <ApplicationReadiness list={list} /> : <>
+      {detection ? <Detection /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
         <label>
           Project{" "}

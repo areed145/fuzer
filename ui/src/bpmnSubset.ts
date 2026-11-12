@@ -20,10 +20,10 @@ export const fuzerModdle = {
     { name: "FuzerLane", extends: ["bpmn:Lane"], properties: [attr("role"), attr("agent")] },
     { name: "FuzerUserTask", extends: ["bpmn:UserTask"],
       properties: [attr("role"), attr("assignee"), attr("requiresHuman", "Boolean"), attr("sla"), attr("escalateTo"),
-                   attr("form")] },
+                   attr("form"), attr("dispatch"), attr("gate")] },
     { name: "FuzerServiceTask", extends: ["bpmn:ServiceTask"],
       properties: [attr("agent"), attr("fallbackRole"), attr("requiresHuman", "Boolean"),
-                   attr("component"), attr("instructions")] },
+                   attr("component"), attr("instructions"), attr("gate"), attr("gateRole")] },
     // A score threshold (#100) in the process's extensionElements, read in conditions as thresholds["name"].
     { name: "Threshold", superClass: ["Element"], meta: { allowedIn: ["bpmn:Process"] },
       properties: [attr("name"), attr("value")] },
