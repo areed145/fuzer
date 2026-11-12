@@ -1958,6 +1958,26 @@ Facts the assistant learned from answers rated useful, or statements an engineer
 | `ended_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `skill_version`
+
+Skill versions (P6.4b): a skill's playbook as drafted, published, retired or rolled back. Version 0 is the folder shipped under agents/skills and has no row; the published row, when there is one, is what the agents load.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `skill` | text | the skill's path under agents/skills |
+| `version` | int |  |
+| `playbook` | text | the whole SKILL.md |
+| `status` | text |  |
+| `cases` | jsonb | the shortfalls behind the change (P6.4a) |
+| `questions` | jsonb | eval questions drawn from them |
+| `note` | text |  |
+| `eval` | jsonb | the eval scores it was published on (P6.4d) |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `published_by` | text |  |
+| `published_at` | timestamptz |  |
+
 ## Evals
 
 [`src/fuzer/evals/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals/schema.sql)

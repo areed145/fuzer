@@ -19,12 +19,12 @@ def test_a_skill_version_changes_when_its_files_change(tmp_path, monkeypatch):
     (tmp_path / "s").mkdir()
     (tmp_path / "s" / "SKILL.md").write_text("threshold 1")
     monkeypatch.setattr(ledger, "SKILLS", tmp_path)
-    ledger._skill_hash.cache_clear()
+    ledger._hash.cache_clear()
     before = ledger._skill_hash("s")
     (tmp_path / "s" / "SKILL.md").write_text("threshold 2")
-    ledger._skill_hash.cache_clear()
+    ledger._hash.cache_clear()
     assert ledger._skill_hash("s") != before
-    ledger._skill_hash.cache_clear()
+    ledger._hash.cache_clear()
 
 
 def test_a_ledger_without_usage_still_says_who_worked():

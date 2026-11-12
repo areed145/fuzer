@@ -249,7 +249,11 @@ def _agent(chat, name: str, instructions: str, effort: str, description: str | N
     from .capabilities import tools_by_agent
 
     # Our own markdown skills (no scripts), so loading them needs no approval.
-    skills = SkillsProvider.from_paths([SKILLS / path for path in AGENT_BY_ID[name].skill_paths],
+    # A skill's live published version (P6.4b) loads in place of the shipped folder.
+    from .skill_versions import roots
+
+    live = roots()
+    skills = SkillsProvider.from_paths([live.get(path, SKILLS / path) for path in AGENT_BY_ID[name].skill_paths],
                                        script_extensions=(), disable_load_skill_approval=True,
                                        disable_read_skill_resource_approval=True)
     return create_harness_agent(
