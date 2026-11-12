@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings
+from ..core import metrics, settings
 
 OUTLINE = ["Headline", "Production and deferment", "Upsets and events", "Wells", "Maintenance and integrity",
            "Look-ahead and asks"]
@@ -88,9 +88,16 @@ def facts(conn, pack, day: str) -> dict:
     prev = _day001(conn, (d - timedelta(days=1)).isoformat())
     week = [r for r in (_day001(conn, (d - timedelta(days=i)).isoformat()) for i in range(1, 8)) if r]
     avg = sum(num(r.get("oil_sm3")) for r in week) / len(week) if week else None
-    prod = _f("Oil {oil} Sm3 against a potential of {pot} Sm3 ({eff}% efficiency)", [today["id"]], oil=oil, pot=pot,
-              eff=round(oil / pot * 100, 1) if pot else None)
+    # The day's oil against its reported potential, named so it can't be read as the registered production efficiency,
+    # which follows next, read from the metric registry for the 14 days to this report (P7.1b).
+    prod = _f("Oil {oil} Sm3 against a potential of {pot} Sm3 ({share}% of potential)", [today["id"]], oil=oil, pot=pot,
+              share=round(oil / pot * 100, 1) if pot else None)
     sections["Production and deferment"].append(prod)
+    eff = metrics.value(conn, pack, "production.efficiency", at=d)
+    if eff["value"] is not None:
+        sections["Production and deferment"].append(_f(
+            "Production efficiency {eff}% over the 14 days to {day} ({standard})", eff["refs"], eff=eff["value"], day=day,
+            standard=eff["standard"]))
     if prev:
         p_oil = num(prev.get("oil_sm3"))
         sections["Production and deferment"].append(_f(_vs("yesterday's {prev} Sm3", oil - p_oil), [today["id"], prev["id"]],
