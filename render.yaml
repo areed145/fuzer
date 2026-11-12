@@ -25,10 +25,6 @@ services:
         sync: false
       - key: FUZER_OWNER_BOOTSTRAP_TOKEN
         generateValue: true
-      - key: FUZER_DATA_DIR
-        value: /app/fakeplant/data/okan
-      - key: FUZER_TIMESERIES
-        value: synthetic
       - key: DAGSTER_HOME
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY

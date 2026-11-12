@@ -85,22 +85,21 @@ there is **no automatic reset**, on first boot or on subsequent redeploys.
 Zero-record ingestion is an error, not a successful bootstrap.
 
 For an existing dashboard-managed service, remove any custom Docker Command
-override so the image runs `python -m fuzer.cli.deploy`, attach the persistent
+override so the image runs `python -m fuzer.cli.deploy --bundle /app/fakeplant/bundles/okan`, attach the persistent
 disk, and set these environment values (or sync the Blueprint):
 
 | Variable | Value |
 |---|---|
 | `FUZER_DATABASE_URL` | Existing `fuzer-db` internal connection string (injected by Blueprint) |
-| `FUZER_DATA_DIR` | `/app/fakeplant/data/okan` |
-| `FUZER_TIMESERIES` | `synthetic` |
 | `DAGSTER_HOME` | `/var/lib/fuzer/dagster` |
 
-Remove stale `FUZER_PROJECT`, `FUZER_PACK` or other asset-specific overrides: each
-deploy registers Okan as the database's first project from its seed bundle, and the
-pack comes from the project. Deploy the merged
+Remove stale `FUZER_PROJECT`, `FUZER_PACK`, `FUZER_DATA_DIR`, `FUZER_TIMESERIES` or other asset-specific
+overrides: each deploy registers the `--bundle` facility as the database's first project from its seed bundle,
+and its pack, exports folder and time-series provider come from the project (P1.6). A leftover
+`FUZER_DATA_DIR` still overrides the first project's folder, with a deprecation warning in the log. Deploy the merged
 revision from the branch Render actually tracks. Once it starts, `/health`
 should report `{"ok":true,"pack":"okan"}` and, after approved sign-in, `/stats` should have nonzero records
-and entities. The logs should show `Okan sample loaded` on the first empty load,
+and entities. The logs should show `OKAN sample loaded` on the first empty load,
 and on later starts `already initialized` followed by `Data refreshed` or `Data unchanged`. Jobs should show a live daemon. Source
 timestamps are historic demo data, so freshness warnings are not live plant
 outages. Do not use `fakeplant demo`, `fuzer reset` or `up --fresh` as a startup

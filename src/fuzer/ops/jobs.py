@@ -17,7 +17,7 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
 - Asset checks on the register flag data-quality problems; failed runs post to
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
-Settings come from the environment: FUZER_DATABASE_URL, FUZER_DATA_DIR (default data),
+Settings come from the environment: FUZER_DATABASE_URL, each project's exports folder from its bundle,
 FUZER_TIMEZONE (default UTC); the Claude model and effort are the
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
@@ -45,7 +45,7 @@ def project_tags(project: str) -> dict[str, str]:
 class Fuzer(dg.ConfigurableResource):
     """Where the exports are and which database / asset pack / project to use."""
 
-    data_dir: str = os.environ.get("FUZER_DATA_DIR") or "data"
+    data_dir: str = os.environ.get("FUZER_DATA_DIR") or ""  # deprecated override of the first project's folder
     pack: str = ""  # a packaged pack to use instead; empty: the pack of the project the run is for (#376)
     database_url: str | None = os.environ.get("FUZER_DATABASE_URL")
     project: str = ""  # empty: the run's fuzer/project tag, else the database's first project
@@ -64,12 +64,18 @@ class Fuzer(dg.ConfigurableResource):
             scope = projects.scope(conn, name)
             data = projects.config(conn, name).get("data")
         db.set_default(scope)
-        # A project added beside the first has its own exports; the first keeps the deployment's folder.
-        self._data = data if data and scope.schema != db.PROJECT_SCHEMA else None
+        self._data = self._pick(scope.schema, data)
+
+    def _pick(self, schema: str, data: str | None) -> str:
+        """A project's exports folder: its own (from its bundle). The first project's can still be overridden by
+        the deprecated FUZER_DATA_DIR; a project added beside it never is."""
+        if schema != db.PROJECT_SCHEMA:
+            return data or self.data_dir or "data"
+        return self.data_dir or data or "data"
 
     def folder(self) -> str:
         """The exports folder of the project this run is for."""
-        return self._data or self.data_dir
+        return self._data or self.data_dir or "data"
 
     def targets(self) -> list[tuple[str, str]]:
         """(project, exports folder) for each project a schedule or sensor runs for: every project this
@@ -80,8 +86,8 @@ class Fuzer(dg.ConfigurableResource):
             for name in names:
                 scope = projects.scope(conn, name)
                 data = projects.config(conn, name).get("data")
-                out.append((name, data if data and scope.schema != db.PROJECT_SCHEMA else self.data_dir))
-        return out or [("", self.data_dir)]
+                out.append((name, self._pick(scope.schema, data)))
+        return out or [("", self.data_dir or "data")]
 
     def connect(self):
         conn = db.connect(url=self.database_url)

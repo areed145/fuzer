@@ -468,15 +468,16 @@ def suggest_checks(conn, name: str) -> list[dict]:
 
 def next_load(cron: str | None, tz: str | None = None) -> str | None:
     """When a dataset's own schedule next loads it (ISO, project timezone); None without one."""
-    import os
     import time
+
+    from ..core import projects
 
     if not cron:
         return None
     try:
         from dagster._utils.schedules import cron_string_iterator
 
-        return next(cron_string_iterator(time.time(), cron, tz or os.environ.get("FUZER_TIMEZONE") or "UTC")).isoformat(
+        return next(cron_string_iterator(time.time(), cron, tz or projects.field("timezone") or "UTC")).isoformat(
             timespec="minutes")
     except Exception:
         return None

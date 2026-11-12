@@ -472,8 +472,8 @@ def _assistant(args) -> None:
 
 
 def data_dir() -> str:
-    """Where source exports land: $FUZER_DATA_DIR, else ./data."""
-    return os.environ.get("FUZER_DATA_DIR") or "data"
+    """Where source exports land: the project's data folder (from its bundle), else ./data."""
+    return projects.field("data") or "data"
 
 
 def _bench(conn, pack) -> dict:

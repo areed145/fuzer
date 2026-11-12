@@ -18,7 +18,6 @@ come later (#106b).
 """
 
 import hashlib
-import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -26,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..core import settings
+from ..core import projects, settings
 from .calcs import CalcError
 
 # Defaults; the values in effect are settings (#131): studies.max_points, .max_values, .workers
@@ -73,7 +72,7 @@ def points(conn, scope: str | list[str], path: str | None = None, depth: int = 3
 # ---- the matrix -----------------------------------------------------------------------------------
 
 def _cache_dir() -> Path:
-    d = Path(os.environ.get("FUZER_CACHE_DIR", ".fuzer/cache")) / "studies"
+    d = Path(projects.field("cache") or ".fuzer/cache") / "studies"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
