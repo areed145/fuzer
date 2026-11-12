@@ -1,0 +1,7 @@
+# Answer keys for the gas treating and dehydration specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Okan's glycol contactor has no differential pressure point and no online analyser: a good answer reads the lab's
+# dry gas samples and says which checks it could not run.
+- question: Is the glycol contactor 20-V-2400 drying the gas properly?
+  must_mention: [20-V-2400, [water dew point, water dewpoint, dew point], [differential pressure, analyser, analyzer]]
+  specialists: [field-operations-facilities]

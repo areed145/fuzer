@@ -274,6 +274,15 @@ SKILL_CATALOG = (
         "One event told first cause first, the knock-ons with their lags, upsets to merge and recurring cascades.",
         "Recommends merges and where to send one operator; the IOC merges cases and dispatches. " + _OPERATE),
     SkillDefinition(
+        f"{_FIELD}/gas-treating", (_FIELD,),
+        (FACILITIES_ENGINEER, FIELD_OPERATOR),
+        "Contactor differential pressure, treated gas analysers, reboiler and chiller temperatures, and their "
+        "recorded operating windows (IOW, alarm settings or learned).",
+        "Each treating unit's status with the checks that drive it (foaming, treated gas, reboiler, chiller), the "
+        "window each was judged against, the link along the train and the lab samples it could not read.",
+        "Advises; antifoam, a solvent change-out, a rate cut or a reboiler setpoint change is the operator's and "
+        "engineer's call."),
+    SkillDefinition(
         f"{_FIELD}/shift-handover", (_FIELD,),
         (FIELD_OPERATOR, FACILITIES_ENGINEER),
         "Operator log events, notifications, downtime, the daily report and excursions for a stated window.",

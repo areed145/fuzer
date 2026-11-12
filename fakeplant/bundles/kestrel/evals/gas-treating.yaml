@@ -1,0 +1,11 @@
+# Answer keys for the gas treating and dehydration specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: The amine contactor D1-V-4001 has been acting up since yesterday's restart. What is going on?
+  must_mention: [D1-V-4001, [foam, foaming], differential pressure, [CO2, sweet gas]]
+  specialists: [field-operations-facilities]
+- question: Is our dry gas on spec for water, and if not, why?
+  must_mention: [C1-V-3001, [water content, 112], [reboiler, C1-H-3008], [IOW-KR-004, 190]]
+  specialists: [field-operations-facilities]
+- question: Is the propane chiller holding the dew point?
+  must_mention: [E1-V-5003, [-15, dew point]]
+  specialists: [field-operations-facilities]

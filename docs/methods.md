@@ -49,6 +49,10 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
 | [`period_comparison`](#period_comparison) Each measurement in two windows, before and after a change | Engineering practice | Historian readings on the point or the unit's points (each point's own) | Enough readings in each window for the shared sufficiency check; a point without them is listed as not compared. |
+| [`contactor_foaming`](#contactor_foaming) Contactor differential pressure against its clean level (foaming and fouling) | Engineering practice | Contactor differential pressure (bar); Treated gas analyser (optional) (mol% or mg/Sm³) | A week of differential pressure history before the last two days. |
+| [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
+| [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
+| [`chiller`](#chiller) Low temperature separator temperature against its operating window | Engineering practice | Separator temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
 
 ## Refusals
 
@@ -411,3 +415,39 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `min_readings`:** Readings each window needs before a point is compared. (5)
 - **Threshold `window_gap`:** A gap this long inside a window makes the comparison thin. (1 days)
 - **Worked example:** `tests/plots/test_views.py::test_compare_periods_and_similar_cases`, on the fake plant
+
+## contactor_foaming
+
+**Contactor differential pressure against its clean level (foaming and fouling).** Engineering practice. GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing.
+
+- **Valid for:** Amine and glycol contactors with a differential pressure point, while gas flows through them.
+- **Needs:** A week of differential pressure history before the last two days.
+- **Threshold `foaming`:** Peak differential pressure as a share of the clean level, reached within a day, that reads as foaming. (150 %)
+- **Threshold `fouling`:** The last week's median as a share of the clean level that reads as fouling. (125 %)
+- **Worked example:** `tests/analysis/test_treating.py::test_the_amine_contactor_foamed_after_the_restart`, on the fake plant
+
+## treated_gas
+
+**Treated gas analyser against its operating window.** Engineering practice. GPSA Engineering Data Book; API 12GDU for glycol dehydration units. The limit is the site's recorded window (IOW, alarm settings or the learned range), not a number in the code.
+
+- **Valid for:** Contactors with a treated gas analyser (acid gas after an amine column, water after a glycol one).
+- **Needs:** Seven days of analyser readings and an operating window on the point.
+- **Threshold `approaching`:** On course for the limit within this many days. (30 days)
+- **Worked example:** `tests/analysis/test_treating.py::test_the_glycol_unit_lost_purity_as_its_reboiler_cooled`, on the fake plant
+
+## regenerator
+
+**Reboiler temperature against its operating window.** Engineering practice. GPSA Engineering Data Book; API 12GDU for glycol dehydration units: too cold leaves the solvent under-stripped, too hot degrades it. The window is the site's recorded one.
+
+- **Valid for:** Amine, glycol and stabilizer reboilers with a temperature point.
+- **Needs:** Seven days of temperature readings and an operating window on the point.
+- **Threshold `drifting`:** On course for a limit within this many days. (30 days)
+- **Worked example:** `tests/analysis/test_treating.py::test_the_glycol_unit_lost_purity_as_its_reboiler_cooled`, on the fake plant
+
+## chiller
+
+**Low temperature separator temperature against its operating window.** Engineering practice. GPSA Engineering Data Book (refrigeration, hydrocarbon dew point control): the separator temperature sets the dew point of the gas leaving it. The limit is the site's recorded window.
+
+- **Valid for:** Chilled (low temperature) separators of a dew point control unit with a temperature point.
+- **Needs:** Seven days of temperature readings and an operating window on the point.
+- **Worked example:** `tests/analysis/test_treating.py::test_the_chiller_holds_the_dew_point`, on the fake plant

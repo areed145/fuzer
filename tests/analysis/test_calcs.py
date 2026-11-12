@@ -80,6 +80,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
              "remaining_life": fid(conn, "20-K-2300B"), "failed_starts": k}
     # Okan has no reciprocating compressor or gas engine: tests/analysis/test_recip.py (Kestrel)
     recip = {"rod_load", "valve_health", "engine_cylinders"}
+    recip |= {"contactor_foaming", "treated_gas", "regenerator", "chiller"}  # no gas treating: test_treating.py (Kestrel)
     assert set(refs) | recip == set(calcs.CHECKS)
     options = {"compressor_trip": {"until": "2024-03-14T03:20"}}
     for check, ref in refs.items():

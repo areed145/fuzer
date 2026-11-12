@@ -16,6 +16,7 @@ from fuzer.sources import ingest
 pytestmark = pytest.mark.integration
 
 COMPRESSION, PUMPS = "maintenance-integrity/compression", "maintenance-integrity/pumps-and-drivers"
+TREATING = "field-operations-facilities/gas-treating"
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
 
 
@@ -72,7 +73,13 @@ def test_on_okan_the_pumps_have_what_their_curve_needs(okan_db):
     assert "heat_rate" in site["20-GT-2000B"]["can"]
 
 
-@pytest.mark.parametrize("path", [COMPRESSION, PUMPS])
+def test_on_okan_the_treating_pack_says_its_glycol_contactor_is_not_instrumented_for_it(okan_db):
+    site = packs.on_site(okan_db.conn, TREATING)  # no differential pressure or analyser on any vessel: its lab samples are the evidence
+    assert site["problems"] == ["none of its methods can run on any asset here"]
+    assert {c["method"] for c in _by_label(site)["20-V-2400"]["cannot"]} == {"contactor_foaming", "treated_gas"}
+
+
+@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, TREATING])
 def test_each_pack_works_on_kestrel(kestrel, path):
     site = packs.on_site(kestrel, path)
     assert site["problems"] == [] and site["assets"]
