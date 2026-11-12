@@ -1212,7 +1212,7 @@ Detections grouped by time and plant topology (#96b): one upset per cause, its e
 
 ### `sre_suppress`
 
-Detection patterns an engineer called a false alarm (#96): the SRE doesn't hand them off again.
+Detection patterns an engineer called a false alarm (#96): an upset matching one is closed as a false alarm only where the auto-close gate allows (P5.10, core/gates.py); otherwise it reaches a person saying why.
 
 | Column | Type | Note |
 |---|---|---|

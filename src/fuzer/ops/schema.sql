@@ -76,7 +76,8 @@ alter table upset add column if not exists diagnosis jsonb;
 -- The IOC merged this upset's case into another upset's (one cascade, one case).
 alter table upset add column if not exists merged_into bigint;
 
--- Detection patterns an engineer called a false alarm (#96): the SRE doesn't hand them off again.
+-- Detection patterns an engineer called a false alarm (#96): an upset matching one is closed as a false alarm only
+-- where the auto-close gate allows (P5.10, core/gates.py); otherwise it reaches a person saying why.
 create table if not exists sre_suppress (
     point_id    text not null,
     detector    text not null,

@@ -453,7 +453,11 @@ haven't been handed off are handled highest priority first:
 
 An upset over the cap still gets its work item, and the workflow's diagnose step diagnoses it
 after triage. When an engineer triages one as a false alarm, the upset is marked and its first
-detection's pattern (point, detector, finding) goes in `sre_suppress`, so it isn't handed off again.
+detection's pattern (point, detector, finding) goes in `sre_suppress`. A later upset with that pattern still gets
+its case, and goes through the auto-close gate (`core/gates.py`, P5.10): it is closed as a false alarm only when
+the confidence, Laplace's rule of succession over how people triaged the pattern before (67% after one false alarm,
+95% after 18 with none real), meets the threshold, and never on a high-criticality asset. The case says the
+confidence and the threshold either way, and the gate decision is on its record.
 `fuzer sre --handoff` does the same by hand.
 
 ## Clustering and multivariate anomaly
