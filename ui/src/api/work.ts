@@ -225,6 +225,13 @@ export interface WorkloadPerson {
 }
 
 /** A person's Inbox in one field (project), for the cross-field view (#497). */
+/** What changed on a person's work since they last looked at Home (P5.1). */
+export interface WorkHome {
+  person: string; seen_at: string | null;
+  changes: { id: number; item_id: number; kind: string; actor: string; at: string; data: Record<string, unknown>;
+    title: string; type: string; state: string }[];
+}
+
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
@@ -759,6 +766,7 @@ export const workApi = {
   setAway: (name: string, by: string, until: string | null, delegate?: string | null, note?: string | null) =>
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
+  workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   inboxFields: (person: string) => request<FieldInbox[]>("GET", "/work/inbox/fields", { person }),
   setCover: (name: string, roles: string[], projects: string[], by: string) =>
     request("PUT", `/work/people/${encodeURIComponent(name)}/cover`, undefined, { roles, projects, by }),

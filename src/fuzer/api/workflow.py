@@ -210,6 +210,14 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
     return work.my_work(conn, person, role)
 
 
+@router.get("/work/home")
+def work_home(person: str, mark: bool = False, conn=Depends(get_conn)):
+    """What changed on a person's work since they last looked at Home (P5.1); `mark` records this look."""
+    out = work.home(conn, person, mark)
+    conn.commit()
+    return out
+
+
 class NotificationsRead(BaseModel):
     person: str
     ids: list[int] | None = None   # None: all of theirs

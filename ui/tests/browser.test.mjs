@@ -3291,3 +3291,41 @@ test("a report made without signal waits on the phone and is sent once with its 
   const made = Date.parse(posts[0].at);
   assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
 });
+
+// P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
+// with what changed since they last looked, and reaches an item in another field in one click from Home.
+test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "local", configured: true, user: null,
+    project: "okan", projects: ["okan", "kestrel"] } }));
+  const row = (over) => ({ task_id: 9, item_id: 3, element: "triage", title: "Okan separator level", name: "Triage", type: "upset",
+    assignee: null, role: "ops_lead", kind: "user", requires_human: true, due_at: "2099-01-01T00:00:00Z", escalated_at: null,
+    error: null, created_at: "2026-11-12T05:00:00Z", overdue: false, claimed_by: null, priority: null, subjects: [],
+    process_id: 1, process_key: "upset", bulk: [], ...over });
+  const okan = row({});
+  const kestrel = row({ task_id: 77, item_id: 21, title: "Kestrel compressor trip", overdue: true, due_at: "2026-11-11T00:00:00Z" });
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ines", roles: ["ops_lead"], mine: [], queue: [okan],
+    counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
+  await page.route("**/work/inbox/fields?*", (route) => route.fulfill({ json: [
+    { project: "okan", roles: ["ops_lead"], mine: [], queue: [okan] },
+    { project: "kestrel", roles: ["ops_lead"], mine: [], queue: [kestrel] },
+  ] }));
+  let marked = null;
+  await page.route("**/work/home?*", (route) => {
+    marked = new URL(route.request().url()).searchParams.get("mark");
+    return route.fulfill({ json: { person: "ines", seen_at: "2026-11-12T04:00:00Z", changes: [
+      { id: 5, item_id: 3, kind: "commented", actor: "fred", at: "2026-11-12T05:30:00Z", data: { text: "gland weeping" },
+        title: "Okan separator level", type: "upset", state: "open" }] } });
+  });
+  await page.route("**/work/tasks/77", (route) => route.fulfill({ json: demoTask }));
+  await page.goto(`${url}/#/`);
+  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
+  await shift.getByText("1 more in your other field, ranked below").waitFor();
+  const titles = await shift.locator(".home-shift > li .work-title, .home-shift > li button").allInnerTexts();
+  assert.deepEqual(titles, ["Kestrel compressor trip", "Okan separator level"]);  // overdue first, whichever field
+  await shift.getByText("gland weeping", { exact: false }).waitFor();
+  assert.equal(marked, "true");  // this look is the new last look
+  await shift.getByRole("button", { name: "Kestrel compressor trip" }).click();
+  await page.waitForURL(/#\/inbox\/task\/77$/);
+  assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
+});

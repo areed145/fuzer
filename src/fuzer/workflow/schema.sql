@@ -238,3 +238,16 @@ create table if not exists work_notify_pref (
     updated_by text,
     updated_at timestamptz not null default now()
 );
+
+-- Home is my shift (P5.1): when each person last looked at Home, so it can say what changed since.
+create table if not exists work_home_seen (
+    name    text primary key,
+    seen_at timestamptz not null default now()
+);
+-- A watch (P5.1b): a person follows an asset (its fuzer id) or a case ('case:<id>') without being assigned it.
+create table if not exists work_watch (
+    name       text not null,
+    ref        text not null,
+    created_at timestamptz not null default now(),
+    primary key (name, ref)
+);
