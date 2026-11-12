@@ -191,7 +191,7 @@ function MasterDataCard({ stats }: { stats?: Stats }) {
       <Status loading={unmatched.loading && !unmatched.data} error={unmatched.error} onRetry={unmatched.reload} />
       <ul className="home-counts">
         {unmatched.data && <Count n={unmatched.data.length} to={href("/masterdata")} late>ref on open work matched nothing|refs on open work matched nothing</Count>}
-        {reviews !== null && <Count n={reviews} to={href("/review")}>record to review|records to review</Count>}
+        {reviews !== null && <Count n={reviews} to={href("/masterdata", { tab: "questions" })}>record to review|records to review</Count>}
       </ul>
     </UICard>
   );

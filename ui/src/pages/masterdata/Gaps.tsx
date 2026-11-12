@@ -86,7 +86,7 @@ function Conflicts() {
   const rows = useAsync(() => api.conflictGaps(), []);
   return (
     <Card title="Sources that disagree">
-      <p className="small muted">The field rule asks a person to pick. Decide them on the <a href={href("/review")}>Review</a> page.</p>
+      <p className="small muted">The field rule asks a person to pick. Decide them on the <a href={href("/masterdata", { tab: "questions", kind: "conflict" })}>Questions</a> tab.</p>
       <Status loading={rows.loading && !rows.data} error={rows.error} />
       {rows.data && !rows.data.length && <Empty>No open conflicts.</Empty>}
       {rows.data && rows.data.length > 0 && <Table density="compact">

@@ -536,8 +536,8 @@ export interface JoinedException {
 /** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
 export interface FindingItem {
   label: string; value: string | number | boolean; unit?: string;
-  kind: "text" | "number" | "flag" | "time" | "asset";
-  /** An asset's tag and description. */
+  kind: "text" | "number" | "flag" | "time" | "asset" | "page";
+  /** An asset's tag and description, or a page link's words. */
   text?: string | null;
 }
 

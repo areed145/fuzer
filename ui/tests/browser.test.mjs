@@ -1039,6 +1039,33 @@ test("Rules shows each source's match thresholds with the precision measured at 
   assert.equal(await card.getByRole("button", { name: /Use the measured thresholds/ }).count(), 0);
 });
 
+test("Data review is the Questions tab of Master data, old links land on the same kind, and a case opens its question (P2.3)", async () => {
+  await page.route("**/review?*", (route) => {
+    const kind = new URL(route.request().url()).searchParams.get("kind");
+    return route.fulfill({ json: kind === "conflict" ? [
+      { id: 4, kind: "conflict", label: "20-P-1001A", description: "Export pump", payload: { fuzer_id: "fz-1", field: "manufacturer",
+        chosen: "Flowserve", values: [{ value: "Flowserve", source: "sap", source_key: "1" }, { value: "FLOWSERVE", source: "maximo", source_key: "MX-1" }] } },
+      { id: 9, kind: "conflict", label: "20-K-2200B", description: "Compressor", payload: { fuzer_id: "fz-2", field: "model",
+        chosen: "JGK/4", values: [{ value: "JGK/4", source: "sap", source_key: "2" }, { value: "JGK4", source: "maximo", source_key: "MX-2" }] } },
+    ] : [] });
+  });
+  await page.goto(`${url}/#/review?kind=conflict`);
+  await page.waitForURL(/#\/masterdata\?tab=questions&kind=conflict/);
+  await page.getByRole("heading", { level: 1, name: "Master data" }).waitFor();
+  assert.equal(await page.getByRole("tab", { name: /Questions/ }).getAttribute("aria-selected"), "true");
+  await page.getByText("20-P-1001A").first().waitFor();
+  // Opened from its case: that question comes first.
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict&item=9`);
+  await page.getByText("20-K-2200B").first().waitFor();
+  const first = await page.locator(".review").first().innerText();
+  assert.match(first, /20-K-2200B/);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`masterdata-questions-${width}`);
+  }
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
@@ -2132,7 +2159,7 @@ test("Home counts the ops lead's and steward's work, each number matching the vi
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
   await page.goto(`${url}/#/`);
   for (const [name, to] of [["2 to dispatch", "#/exceptions"], ["1 with the field", "#/exceptions?list=field"],
-    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/review"],
+    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/masterdata?tab=questions"],
     ["1 ref on open work matched nothing", "#/masterdata"]]) {
     assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
   }

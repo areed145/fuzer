@@ -18,11 +18,17 @@ import {
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
-import { ActionStatus, Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
+import { ActionStatus, Bar, Button, ButtonLink, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 import { FindingEvidence } from "../Finding";
 
+/** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
+export const questionsHref = (kind?: string, item?: number) =>
+  href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
+
+/** The questions the build leaves for the data steward, by kind (P2.3): a tab on Master data. Each is also a case in
+ * the steward's queue, which links here opened on its question; answering closes that case. */
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
@@ -69,35 +75,37 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
     notifyChanged();
   };
 
-  const open = items.data?.filter((i) => !done.has(i.id)) ?? [];
+  const asked_item = Number(query.get("item")) || null;
+  // Opened from its case: that question first.
+  const open = (items.data?.filter((i) => !done.has(i.id)) ?? [])
+    .sort((a, b) => Number(b.id === asked_item) - Number(a.id === asked_item));
 
   return (
     <section>
-      <PageHeader subtitle="Data waiting for a decision." help="data-model">Data review</PageHeader>
       <div className="row spread">
         <div className="tabs">
-          <a className={kind === "match" ? "on" : ""} href={href("/review", { kind: "match" })}>
+          <a className={kind === "match" ? "on" : ""} href={questionsHref("match")}>
             Possible matches <span className="muted">{stats?.open_reviews.match ?? 0}</span>
           </a>
-          <a className={kind === "conflict" ? "on" : ""} href={href("/review", { kind: "conflict" })}>
+          <a className={kind === "conflict" ? "on" : ""} href={questionsHref("conflict")}>
             Conflicting values <span className="muted">{stats?.open_reviews.conflict ?? 0}</span>
           </a>
-          <a className={kind === "schema" ? "on" : ""} href={href("/review", { kind: "schema" })}>
+          <a className={kind === "schema" ? "on" : ""} href={questionsHref("schema")}>
             Schema changes <span className="muted">{stats?.open_reviews.schema ?? 0}</span>
           </a>
-          <a className={kind === "mapping" ? "on" : ""} href={href("/review", { kind: "mapping" })}>
+          <a className={kind === "mapping" ? "on" : ""} href={questionsHref("mapping")}>
             New tables <span className="muted">{stats?.open_reviews.mapping ?? 0}</span>
           </a>
-          <a className={kind === "curve" ? "on" : ""} href={href("/review", { kind: "curve" })}>
+          <a className={kind === "curve" ? "on" : ""} href={questionsHref("curve")}>
             Datasheet curves <span className="muted">{stats?.open_reviews.curve ?? 0}</span>
           </a>
-          <a className={kind === "check" ? "on" : ""} href={href("/review", { kind: "check" })}>
+          <a className={kind === "check" ? "on" : ""} href={questionsHref("check")}>
             Held loads <span className="muted">{stats?.open_reviews.check ?? 0}</span>
           </a>
-          <a className={kind === "pid_connection" ? "on" : ""} href={href("/review", { kind: "pid_connection" })}>
+          <a className={kind === "pid_connection" ? "on" : ""} href={questionsHref("pid_connection")}>
             Drawing connections <span className="muted">{stats?.open_reviews.pid_connection ?? 0}</span>
           </a>
-          <a className={kind === "pid_mismatch" ? "on" : ""} href={href("/review", { kind: "pid_mismatch" })}>
+          <a className={kind === "pid_mismatch" ? "on" : ""} href={questionsHref("pid_mismatch")}>
             Drawing disagreements <span className="muted">{stats?.open_reviews.pid_mismatch ?? 0}</span>
           </a>
         </div>

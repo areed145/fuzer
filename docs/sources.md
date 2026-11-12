@@ -115,6 +115,16 @@ by tag and description. `data` holds only the variables the type's process route
 or `POST /exceptions` body keeps sending `evidence` in the sender's own keys; `findings.external` turns it into a
 finding in one place. A test fails when a raiser under `src/fuzer` passes anything else.
 
+**Data problems are routed work** (P2.3, `graph/data_work.py`). Every open question the build leaves becomes a case in
+the data steward's queue, with its own work type on the Routing page and the role's SLA. That covers a possible
+match, sources that disagree, a drawing that disagrees with a system, a drawing line or datasheet curve to
+confirm, an export whose columns changed, a suggested mapping, and a load a check held. These cases are worked in
+the same engine as the IOC's, so they show in My work and All work. Each case is keyed to its question and synced
+at every rebuild. An answer clears the case, and so does a question that no longer arises, so the queue always
+matches the questions. Steward cases don't join the IOC's cases about the same asset. The questions themselves are
+the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
+there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
+
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
 search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the
