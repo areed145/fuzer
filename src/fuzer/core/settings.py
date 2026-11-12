@@ -148,6 +148,9 @@ register(
     Setting("closeout.apply_to_exports", "bool", False, "Demo: apply a close-out sent back to a source system (an "
             "SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it",
             "Work"),
+    Setting("closeout.recheck_days", "int", 30, "Days after a real problem is closed out to ask whoever closed it "
+            "whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat",
+            "Work"),
     Setting("stewardship.bulk_accept_at", "float", 0.0, "Offer to accept, in one step, Claude's master data proposals "
             "at or above this confidence (0: never; set it once the proposal evals show they hold at that level)",
             "Work", min=0, max=1),

@@ -250,6 +250,42 @@ export interface SavedWorkView {
   id: number; role: string; name: string; list: string; filters: Record<string, string>; created_by: string; created_at: string;
 }
 
+export interface CloseoutVocabulary {
+  dispositions: Record<string, string>; outcomes: Record<string, string>; failure_modes: Record<string, string>;
+  mechanisms: Record<string, string>; causes: Record<string, string>; activities: Record<string, string>;
+}
+
+export interface CaseCloseout {
+  item_id: number; disposition: string; failure_mode: string | null; mechanism: string | null; cause: string | null;
+  activity: string | null; outcome: string | null; note: string | null; duplicate_of: number | null; by: string; at: string;
+  recheck_at?: string | null; held?: boolean | null; held_note?: string | null; held_by?: string | null;
+}
+
+export interface CloseoutSuggestion {
+  from: "words" | "agent"; disposition?: string; failure_mode?: string; mechanism?: string; cause?: string;
+  activity?: string; outcome?: string;
+}
+
+export interface CloseoutInput {
+  by: string; disposition: string; failure_mode?: string; mechanism?: string; cause?: string; activity?: string;
+  outcome?: string; note?: string; duplicate_of?: number; suggested?: CloseoutSuggestion;
+}
+
+export interface PerfCell {
+  arrivals: { n: number; ids: number[] }; closed: { n: number; ids: number[] }; backlog: { n: number; ids: number[] };
+  sla_misses: { n: number; ids: number[] }; escalations: { n: number; ids: number[] }; hand_backs: { n: number; ids: number[] };
+  repeats: { n: number; ids: number[] }; triage_h: number | null; dispatch_h: number | null; close_h: number | null;
+}
+
+export interface PerfRow {
+  queue?: string; type?: string; weeks: PerfCell[]; keeping_up: "keeping_up" | "holding" | "falling_behind"; backlog_avg4: number;
+}
+
+export interface WorkPerformance {
+  weeks: { start: string; end: string }[]; queues: PerfRow[]; types: PerfRow[];
+  compliance: { as_of: string; summary: Record<string, { plans: number; overdue: number; on_time_pct: number }> } | null;
+}
+
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
@@ -788,6 +824,13 @@ export const workApi = {
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
+  caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
+    vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[] }>("GET", `/work/items/${id}/closeout`),
+  answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
+    request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
+  recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),
+  closeoutMissing: () => request<{ id: number; title: string; type: string; closed_at: string }[]>("GET", "/closeout/missing"),
+  workPerformance: () => request<WorkPerformance>("GET", "/work/performance"),
   workViews: (person: string) => request<SavedWorkView[]>("GET", "/work/views", { person }),
   saveWorkView: (person: string, role: string, name: string, list: string, filters: Record<string, string>) =>
     request<SavedWorkView>("POST", "/work/views", undefined, { person, role, name, list, filters }),

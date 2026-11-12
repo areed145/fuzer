@@ -1603,6 +1603,33 @@ Corrections that flow back to a source (P2.4): what a steward's answer said was 
 | `created_at` | timestamptz |  |
 | `closed_at` | timestamptz |  |
 
+### `case_disposition`
+
+Structured close-out (P6.1a, #655): what a closed case was, in controlled terms.
+
+| Column | Type | Note |
+|---|---|---|
+| `item_id` | bigint |  |
+| `disposition` | text | real \| false_alarm \| duplicate \| data_problem |
+| `failure_mode` | text, | ISO 14224 codes from standards/iso14224.yaml |
+| `mechanism` | text |  |
+| `cause` | text |  |
+| `activity` | text |  |
+| `outcome` | text, | fixed \| contained \| not_fixed \| monitoring |
+| `note` | text |  |
+| `duplicate_of` | bigint |  |
+| `suggested` | jsonb | what the form was pre-filled with |
+| `by` | text |  |
+| `at` | timestamptz |  |
+
+### `case_repeat`
+
+| Column | Type | Note |
+|---|---|---|
+| `again` | bigint | the case (or re-check) that showed the problem came back |
+| `first` | bigint | the case reopened as a repeat |
+| `at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

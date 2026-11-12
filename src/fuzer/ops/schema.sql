@@ -418,3 +418,32 @@ create table if not exists source_correction (
     closed_at      timestamptz
 );
 create index if not exists source_correction_item on source_correction (review_item_id);
+
+-- Structured close-out (P6.1a, #655): what a closed case was, in controlled terms.
+create table if not exists case_disposition (
+    item_id      bigint primary key,
+    disposition  text not null,          -- real | false_alarm | duplicate | data_problem
+    failure_mode text,                   -- ISO 14224 codes from standards/iso14224.yaml
+    mechanism    text,
+    cause        text,
+    activity     text,
+    outcome      text,                   -- fixed | contained | not_fixed | monitoring
+    note         text,
+    duplicate_of bigint,
+    suggested    jsonb not null default '{}',   -- what the form was pre-filled with
+    by           text not null,
+    at           timestamptz not null default now()
+);
+
+-- Re-check and repeats (P6.1b, #656): did the fix hold, and a problem that came back inside the window.
+alter table case_disposition add column if not exists recheck_at timestamptz;
+alter table case_disposition add column if not exists recheck_item bigint;      -- the "did the fix hold?" case
+alter table case_disposition add column if not exists held boolean;
+alter table case_disposition add column if not exists held_note text;
+alter table case_disposition add column if not exists held_by text;
+alter table case_disposition add column if not exists held_at timestamptz;
+create table if not exists case_repeat (
+    again      bigint primary key,      -- the case (or re-check) that showed the problem came back
+    first      bigint not null,         -- the case reopened as a repeat
+    at         timestamptz not null default now()
+);

@@ -15,6 +15,7 @@ import { CaseWritebacks } from "../Writeback";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
+import { CaseCloseoutCard, RecheckCard } from "../Disposition";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -192,6 +193,10 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
+      {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}
+        readOnly={demo} reload={item.reload} />}
+      {it.type !== "recheck" && (closed ? it.state === "done" : !it.processes.some((p) => p.state === "running")) &&
+        <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">
           <h3>Waiting on</h3>
@@ -269,7 +274,6 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
   const a = useAct();
-  const hasProcess = it.processes.some((p) => p.state === "running");
   return (
     <UICard className="inset">
       <div className="row wrap">
@@ -285,8 +289,6 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
             ...(priority !== (it.priority?.toString() ?? "") && priority ? { priority: Number(priority) } : {}),
             ...(due ? { due: new Date(due).toISOString() } : {}), reason: reason || undefined }), () => { setDue(""); reload(); })}>Save</Button>
         <Input placeholder="why (kept in its history)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        {!hasProcess && <Button variant="secondary" disabled={!!a.busy}
-          onClick={() => a.run("close", () => api.transitionCase(it.id, person, "done", reason || undefined), reload)}>Close as done</Button>}
       </div>
       {a.error && <p className="error small">{a.error}</p>}
     </UICard>

@@ -18,6 +18,7 @@ import { LessonsPage } from "./pages/Lessons";
 import { Search } from "./pages/Search";
 import { InboxPage } from "./pages/workflows/Inbox";
 import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
+import { PerformancePage } from "./pages/Performance";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
@@ -169,6 +170,8 @@ function App() {
             <TaskPage key={`${path[2]}:${query.get("demo")}`} id={Number(path[2])} demo={query.get("demo") === "workflow"} />
           ) : section === "inbox" || section === "work" ? (
             <InboxPage />
+          ) : section === "performance" ? (
+            <PerformancePage query={query} />
           ) : section === "exceptions" ? (
             <AllWorkPage query={query} />
           ) : section === "masterdata" ? (
