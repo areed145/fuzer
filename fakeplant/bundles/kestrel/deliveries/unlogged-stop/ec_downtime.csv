@@ -1,0 +1,8 @@
+event_id,object_code,start,end,reason_code,lost_oil_sm3,lost_gas_ksm3,comment
+KRDT-0001,KRGP,today-182d 06:00,today-180d 18:00,PLAN-MAINT,0,3550,Planned plant shutdown for B1-K-2001 valve change and C1-V-3001 tray repair
+KRDT-0002,KRGP,today-96d 14:20,today-96d 16:05,POWER,0,105,Utility power dip; B1-K-2001 and glycol pumps tripped and restarted
+KRDT-0003,KR12-04H,today-25d 05:40,today-25d 11:10,HYDRATE,4,160,KR 12-04H flowline hydrate after cold night; methanol injected and cleared
+KRDT-0004,KRGP,today-35d 13:30,today-35d 15:00,COMP-TRIP,0,90,B1-K-2001 tripped on high discharge temperature B1-TT-2002; aftercooler fins fouled with dust
+KRDT-0005,KRGP,today-1d 03:10,today-1d 06:40,COMP-TRIP,0,205,"B1-K-2001 tripped on high vibration; sales gas lost, wells KR 12-03H and KR 12-04H choked back, restarted after 3.5 h"
+KRDT-0006,KRGP,today-60d 09:12,today-60d 10:50,COMP-TRIP,0,95,"B1-K-2001 tripped on high vibration B1-VT-2003 with no change on the frame; probe cable found loose and re-terminated. First restart failed on low frame lube oil pressure (prelube pump breaker), restarted after it was reset"
+KRDT-0007,KRGP,today-4d 10:00,today-4d 12:30,COMP-TRIP,0,150,Sales gas compressor stopped; restarted by the night crew
