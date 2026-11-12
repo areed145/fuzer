@@ -43,6 +43,15 @@ asks where each folder connection's folder is here, and refuses a folder that is
 (#458). A folder of documents whose files (by content, whatever the folder is called) already load through a
 manifest or another folder isn't offered again, and a document saved twice in one folder is read once.
 
+**The source pack contract** (P1.5, `sources/packs.py`). A pack is what one system type brings: its connection
+template, datasets with their mappings and checks, the work types it raises (`exception_types`, shown on Routing),
+the registered detectors it brings (`detectors`, switched on when it is installed and shown on Detection) and a
+`fixture`, a folder of sample exports relative to the pack file. Installing (`import-pack`, or `POST
+/sources/packs`) does all of it in one step. Every pack must pass the conformance suite: it installs, installs
+again with nothing changed, and its fixture loads through its own mappings with no dataset held or missing.
+`fuzer sources conformance FILE` runs it on the current project (use a scratch database), and
+`tests/sources/test_pack_conformance.py` runs it for every shipped pack on both Okan and Kestrel.
+
 **The work a system brings** (#465, `sources/workflows.py`). A pack can also declare the exception types its
 system raises and the rules that turn its loaded records into exceptions, so onboarding a SCADA, LIMS or
 measurement system also puts its work in the right Inbox queue, without code:
