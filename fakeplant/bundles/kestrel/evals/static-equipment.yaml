@@ -1,0 +1,9 @@
+# Answer keys for the static equipment and integrity specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: How much life does the amine contactor D1-V-4001 have left, and is its inspection plan right?
+  must_mention: [D1-V-4001, CML-V2, [remaining life, years], [interval, shorten, five-year, 5-year]]
+  specialists: [maintenance-integrity]
+  charts: [wall_thickness]
+- question: Is the inlet separator A1-V-1001 inspected often enough for its corrosion rate?
+  must_mention: [A1-V-1001, [ten years, 10 years, interval], [rate, mm/year, mm per year]]
+  specialists: [maintenance-integrity]

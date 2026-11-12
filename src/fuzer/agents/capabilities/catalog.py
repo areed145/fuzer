@@ -318,6 +318,14 @@ SKILL_CATALOG = (
         "exhaust spread, hot section hours, cylinders, heat rate), their basis and data dates.",
         "Advises; stopping a pump, changing a duty or deferring an inspection is the operator's and engineer's call."),
     SkillDefinition(
+        f"{_MAINT}/static-equipment", (_MAINT,),
+        (INTEGRITY_ENGINEER, INSPECTION_SPECIALIST),
+        "CML wall thickness readings and each CML's recorded minimum thickness, the maintenance plans' condition "
+        "inspections, exchanger outlet temperatures and integrity operating windows.",
+        "Each vessel, exchanger or line's remaining life at its governing CML, its inspection plan against the "
+        "interval its wall supports, fouling, and what could not be checked (RBI, fitness for service).",
+        "Advises; inspection intervals, deferrals and fitness for service are the integrity engineer's decisions."),
+    SkillDefinition(
         f"{_MAINT}/integrity", (_MAINT,),
         (INTEGRITY_ENGINEER, INSPECTION_SPECIALIST),
         "Wall thickness at CMLs, inspection plans, integrity operating windows and excursions.",

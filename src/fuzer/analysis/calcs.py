@@ -733,6 +733,9 @@ CHECKS |= {
     "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
         conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
         "used_by": {"agent": "calc", "detector": None}},
+    "inspection_plan": {"fn": lambda conn, fid, until=None: _module("integrity", "inspection_plan")(conn, fid, until=until),
+                        "ref": "vessel, exchanger or piping tag with an inspection plan",
+                        "used_by": {"agent": "calc", "detector": None}},
 }
 
 
