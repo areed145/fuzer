@@ -2701,6 +2701,8 @@ test("a dispatched operator sees what they were sent on My work and lands on the
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
   const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  // the case the notification opens: without it the case page renders an empty list as a case and fails
+  await page.route("**/work/items/41", (route) => route.fulfill({ json: { ...demoTask.item, id: 41, processes: [], events: [] } }));
   const read = [];
   let notifications = [
     { id: 3, kind: "dispatched", item_id: 41, token_id: null, text: "ines sent you 'Check the pump seal'. seal weeping",
