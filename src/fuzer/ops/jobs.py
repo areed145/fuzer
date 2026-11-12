@@ -354,9 +354,9 @@ def work_tick():
 
 @dg.op(description="Tell people about work that moved to them and steps coming due (P5.2).")
 def work_notify_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
-    from ..workflow import notify
+    from ..workflow import engine
     with fuzer.connect() as conn:
-        context.log.info(f"notify: {notify.scan(conn)}")
+        context.log.info(f"notify: {engine.notify_scan(conn)}")
 
 
 @dg.job(description="Notifications: work sent, handed back, escalated or coming due, told to the person within a minute.")
