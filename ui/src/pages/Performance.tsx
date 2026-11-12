@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, type PerfCell, type PerfRow } from "../api";
 import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, href, useAsync } from "../lib";
+import { when } from "../work";
 
 const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: string }> = {
   keeping_up: { text: "keeping up", tone: "ok" },
@@ -40,14 +41,12 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
           <tbody>{rows.map((r) => {
             const name = (r.queue ?? r.type ?? "").replace(/_/g, " ");
             const w = r.weeks[r.weeks.length - 1];
-            const before = r.weeks.slice(0, -1);
-            const avg = (k: "arrivals" | "closed") => Math.round(before.reduce((s, c) => s + c[k].n, 0) / (before.length || 1) * 10) / 10;
             return (
               <tr key={name}>
                 <td><strong>{name}</strong></td>
                 <td><Badge className={`badge ${VERDICT[r.keeping_up].tone}`}>{VERDICT[r.keeping_up].text}</Badge></td>
-                <td>{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {avg("arrivals")}</span></td>
-                <td>{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {avg("closed")}</span></td>
+                <td>{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {r.arrivals_avg4}</span></td>
+                <td>{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {r.closed_avg4}</span></td>
                 <td>{n(`${name}: open now`, w.backlog)} <span className="small muted">avg {r.backlog_avg4}</span>
                   <div className="small muted" title="open at the end of each of the last five weeks, oldest first">
                     {r.weeks.map((c) => c.backlog.n).join(" · ")}</div></td>
@@ -67,6 +66,19 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
           <li key={kind}><strong>{kind}</strong> {s.on_time_pct}% on time · {s.overdue} of {s.plans} plans overdue</li>
         ))}</ul>
         <p className="small muted">Maintenance and inspection plans as of {d.compliance.as_of}.</p>
+      </Card>}
+      {d?.rounds && d.rounds.length > 0 && <Card title="Operator rounds per shift">
+        <Table density="compact" className="phone-rows">
+          <thead><tr><th>Shift</th><th>Done</th><th>Partly done</th><th>Missed</th><th>Checks not taken</th><th>Found something</th></tr></thead>
+          <tbody>{d.rounds.map((r) => <tr key={r.shift_start}>
+            <td>{when(r.shift_start)}{r.open ? <span className="small muted"> · {r.open} under way</span> : null}</td>
+            <td data-label="Done">{r.done} of {r.rounds}</td>
+            <td data-label="Partly done">{r.partly_done}</td>
+            <td data-label="Missed">{r.missed ? <Badge tone="warn">{r.missed}</Badge> : 0}</td>
+            <td data-label="Checks not taken">{r.not_taken}</td>
+            <td data-label="Found something">{r.found}</td>
+          </tr>)}</tbody>
+        </Table>
       </Card>}
     </section>
   );
