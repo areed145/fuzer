@@ -17,6 +17,12 @@ what is installed at one or where one is installed, and, with `system=True`, the
 A safeguard is proof tested every so many months (IEC 61511): `proof_tests(conn, subjects)` reads its interval and
 last test from the register, and one past its interval, or with an interval and no test on file, is overdue. The
 `proof_test_overdue` detector raises it as work for the engineer until a later test is on file (P4.2e, #850).
+
+Each time a safeguard was called on to act is in the site's demand log (IEC 61511-1 asks for it): `demands(conn)` reads
+the last year of it per safeguard against the demand rate the register says it was designed for. A demand it failed
+to act on, or more real demands than that rate allows (and at least two: one demand in a year says little), is raised
+by the `safeguard_demands` detector for the engineer, as the risk assessment behind it assumed otherwise. A spurious
+trip is listed but is not a demand.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -317,6 +323,151 @@ def watch_proof_tests(conn, by: str = "agent:safeguards", now: datetime | None =
         cleared.append(key)
     conn.commit()
     return {"overdue": len(late), "raised": raised, "cleared": cleared, "errors": errors}
+
+
+# ---- demands on a safeguard (P4.2e, #850) ------------------------------------------------------------------------
+
+DEMAND_DAYS = 365
+LOW_DEMAND = 1.0  # demands a year a safeguard is taken to see when the register gives no rate (IEC 61508 low demand)
+REAL, FAILED, SPURIOUS = ("worked", "success", "successful", "acted"), ("failed", "failure", "did not act"), \
+    ("spurious", "false")
+
+
+def _outcome(v: str | None) -> str:
+    v = (v or "").strip().lower()
+    return "failed" if v in FAILED else "spurious" if v in SPURIOUS else "worked" if v in REAL else "unknown"
+
+
+def demands(conn, subjects: list[str] | None = None, at_time: datetime | None = None, *, days: int = DEMAND_DAYS,
+            system: bool = False) -> list[dict]:
+    """Each safeguard with a demand in the last `days`: its demands (worked, failed, unknown) and spurious trips,
+    newest first, the rate a year they come to, the rate it was designed for, and whether it is `over` that rate or
+    `failed` on one; on `subjects` (see `reach`) when given."""
+    now = at_time or datetime.now(UTC)
+    since = now - timedelta(days=days)
+    near = set(reach(conn, subjects, system)) if subjects is not None else None
+    by: dict[str, dict] = {}
+    for r in conn.execute(
+            """
+            select d.fuzer_id as id, dl.label, s.fuzer_id as safeguard_id, sl.label as safeguard,
+                   max(case when g.field = 'at' then g.value #>> '{}' end) as at,
+                   max(case when g.field = 'outcome' then g.value #>> '{}' end) as outcome,
+                   max(case when g.field = 'cause' then g.value #>> '{}' end) as cause
+            from entity d
+            join edge l on l.src = d.fuzer_id and l.rel = 'demands' and l.valid_to is null
+            join entity s on s.fuzer_id = l.dst and s.kind = 'safeguard' and s.retired_at is null
+            left join entity_label dl on dl.fuzer_id = d.fuzer_id
+            left join entity_label sl on sl.fuzer_id = s.fuzer_id
+            left join golden g on g.fuzer_id = d.fuzer_id
+            where d.kind = 'demand' and d.retired_at is null
+            group by d.fuzer_id, dl.label, s.fuzer_id, sl.label
+            """).fetchall():
+        t = _when(r["at"])
+        if t is None or not since <= t <= now:
+            continue
+        s = by.setdefault(r["safeguard_id"], {"id": r["safeguard_id"], "label": r["safeguard"], "demands": [],
+                                              "spurious": []})
+        e = {"demand": r["label"], "at": t.isoformat(), "outcome": _outcome(r["outcome"]), "cause": r["cause"]}
+        s["spurious" if e["outcome"] == "spurious" else "demands"].append(e)
+    if not by:
+        return []
+    facts = {r["fuzer_id"]: r for r in conn.execute(
+        """
+        select s.fuzer_id,
+               max(case when g.field = 'function' then g.value #>> '{}' end) as function,
+               max(case when g.field = 'action' then g.value #>> '{}' end) as action,
+               max(case when g.field = 'sil' then g.value #>> '{}' end) as sil,
+               max(case when g.field = 'demand_rate_per_year' then g.value #>> '{}' end) as designed,
+               (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
+                where e.src = s.fuzer_id and e.rel = 'protects' and e.valid_to is null) as protects,
+               (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
+                where e.src = s.fuzer_id and e.rel = 'acts_on' and e.valid_to is null) as acts_on
+        from entity s left join golden g on g.fuzer_id = s.fuzer_id
+        where s.fuzer_id = any(%s) group by s.fuzer_id
+        """, (list(by),))}
+    out = []
+    for sid, s in sorted(by.items(), key=lambda kv: kv[1]["label"] or kv[0]):
+        f = facts.get(sid) or {}
+        protects, acts_on = list(f.get("protects") or []), list(f.get("acts_on") or [])
+        if near is not None and not near & set(protects + acts_on):
+            continue
+        designed = _number(f.get("designed"))
+        allowed = (designed if designed is not None else LOW_DEMAND) * days / 365.25
+        n = len(s["demands"])
+        s["demands"].sort(key=lambda e: e["at"], reverse=True)
+        s["spurious"].sort(key=lambda e: e["at"], reverse=True)
+        out.append({**s, "function": f.get("function"), "action": f.get("action"), "sil": f.get("sil"),
+                    "protects": protects, "acts_on": acts_on, "protects_labels": _names(conn, protects),
+                    "days": days, "rate_per_year": round(n * 365.25 / days, 2), "designed_per_year": designed,
+                    "allowed": round(allowed, 2), "over": n >= 2 and n > allowed,
+                    "failed": [e for e in s["demands"] if e["outcome"] == "failed"]})
+    return out
+
+
+def _demand_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("safeguard_demand") or exception_type(
+        "safeguard_demand", "Safeguard demand to review", role="role:engineer", audience=("ioc",), joins=False,
+        description="A safeguard that failed to act on a demand, or was called on more often than the rate its risk "
+                    "assessment assumed. Find what keeps creating the demand, and check whether the protection it "
+                    "claims still holds at this rate. It clears when the last year of demands is back within the "
+                    "rate and none failed.")
+
+
+DEMAND_TYPE = _demand_type().name
+
+
+@detectors.register("safeguard_demands", title="A safeguard failed on demand or was demanded more than designed",
+                    kind=detectors.RULE, cadence="daily", raises=(DEMAND_TYPE,),
+                    needs={"safeguard demand records": lambda conn, pack: conn.execute(
+                        "select 1 from entity where kind = 'demand' and retired_at is null limit 1").fetchone()
+                        is not None},
+                    eval="test:tests/evals/test_safeguards_kestrel.py::"
+                         "test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer",
+                    found=lambda out: len(out["raised"]))
+def watch_demands(conn, by: str = "agent:safeguards", now: datetime | None = None) -> dict:
+    """Each safeguard that failed on a demand or is over its designed demand rate raised as `safeguard_demand` for
+    the engineer (keyed by the safeguard); open ones back within the rate with no failure are cleared."""
+    from ..core import work
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    held = [r["key"] for r in conn.execute(
+        "select key from exception_record where type = %s and state = 'open'", (DEMAND_TYPE,))]
+    late = [d for d in demands(conn, at_time=now) if d["over"] or d["failed"]]
+    raised, cleared, errors = [], [], []
+    for d in late:
+        on = ", ".join(d["protects_labels"]) or "the plant"
+        what = d["function"] or d["label"]
+        n = len(d["demands"])
+        designed = f"{d['designed_per_year']:g} a year" if d["designed_per_year"] is not None else \
+            f"none on the register, so {LOW_DEMAND:g} a year (low demand)"
+        found = Finding(
+            "safeguards.demand", DETERMINISTIC, method="Demand log read against the demand rate on the register",
+            start=d["demands"][-1]["at"] if d["demands"] else None,
+            data={"safeguard": d["label"], "demands": n, "failed": len(d["failed"]), "spurious": len(d["spurious"]),
+                  "rate_per_year": d["rate_per_year"], "designed_per_year": d["designed_per_year"]},
+            items=(fact("Safeguard", f"{d['label']}: {what}"), fact("Action", d["action"]), fact("SIL", d["sil"]),
+                   fact("Protects", on), fact("Demands", n), fact("Over the last", d["days"], "days"),
+                   fact("Designed for", designed), fact("Failed to act", len(d["failed"]) or None),
+                   fact("Spurious trips", len(d["spurious"]) or None),
+                   *(at(f"Demand: {e['outcome']}" + (f", {e['cause']}" if e["cause"] else ""), e["at"])
+                     for e in d["demands"][:6])))
+        title = (f"{what} on {on} failed to act on a demand" if d["failed"] else
+                 f"{what} on {on} demanded {n} times in {d['days']} days, designed for {d['allowed']:g}")
+        try:
+            x = raise_exception(conn, DEMAND_TYPE, d["label"], title, by, source="safeguards",
+                                refs=[d["id"], *d["protects"], *d["acts_on"]],
+                                priority=0.95 if d["failed"] else 0.7, finding=found)
+        except (work.WorkError, ExceptionError) as e:
+            errors.append(f"{d['label']}: {e}")
+            continue
+        raised.append({"safeguard": d["label"], "exception_id": x["id"], "item_id": x["item_id"], "new": x["raised"]})
+    for key in set(held) - {d["label"] for d in late}:
+        clear_exception(conn, DEMAND_TYPE, key, by, reason="its demands are within the designed rate and none failed")
+        cleared.append(key)
+    conn.commit()
+    return {"reviewed": len(late), "raised": raised, "cleared": cleared, "errors": errors}
 
 
 # ---- changes, and what a case should know before anything else (P3.9b) --------------------------------------------

@@ -100,6 +100,7 @@ flowchart LR
   kind_bypass(["bypass"])
   kind_change(["change"])
   kind_conversation(["conversation"])
+  kind_demand(["demand"])
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
@@ -145,6 +146,7 @@ flowchart LR
   src_ptw --> kind_permit
   src_rounds --> kind_round_point
   src_safeguards --> kind_bypass
+  src_safeguards --> kind_demand
   src_safeguards --> kind_safeguard
   src_sap --> kind_equipment
   src_sap --> kind_maintenance_plan
