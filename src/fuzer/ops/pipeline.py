@@ -203,10 +203,11 @@ def rebuild(conn, pack: Pack) -> dict:
         (Jsonb(queries.ontology(conn, cached=False)),),
     )
     lap("summary")
-    from ..graph import data_work, review
+    from ..graph import criticality, data_work, review
 
     stats["standing_answers"] = review.apply_standing(conn)  # like questions a steward already answered (P2.3c)
     stats["steward_work"] = data_work.sync(conn)  # every open question is a case in the steward's queue (P2.3)
+    stats["criticality_work"] = criticality.sync(conn)  # an asset with no criticality is a steward case
     lap("steward work")
     conn.commit()
     lap("commit")
