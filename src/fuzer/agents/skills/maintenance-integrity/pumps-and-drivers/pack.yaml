@@ -1,0 +1,15 @@
+# The pumps and drivers specialist pack (P4.2, pack 1): pumps, their motors, and gas turbine and gas engine drivers.
+# SKILL.md is its playbook; this file names what the playbook relies on, so a missing or renamed piece fails the
+# pack conformance test (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Pumps and drivers
+owner: maintenance-integrity          # the agent that loads this pack
+classes: [PU, EM, GT, CE]             # ISO 14224: pumps, electric motors, gas turbines, combustion engines
+tools: [calc, equipment_curves, plot_pump_curve, plot_vibration, rotating_screen]
+charts: [plot_pump_curve, plot_vibration]
+methods: [engine_cylinders, exhaust_spread, heat_rate, hot_section, motor_load, pump_bep, pump_curve, rotating_health,
+          vibration]
+detectors: [machine_health, models]
+briefs: [machine_health]              # the work types it briefs, on a subject of its classes (P4.3)
+roles: [running_status, speed, power, flow, suction_flow, suction_pressure, discharge_pressure, vibration,
+        bearing_temperature, exhaust_temperature, fuel_flow, ambient_temperature]
+eval: pumps-and-drivers               # each bundle's answer keys: evals/pumps-and-drivers.yaml in the bundle

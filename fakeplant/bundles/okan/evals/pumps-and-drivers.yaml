@@ -1,0 +1,12 @@
+# Answer keys for the pumps and drivers specialist pack's eval on this bundle (P4.2), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: Is oil export pump 10-P-1001A performing to its curve, and what happened to it in 2025?
+  must_mention: [10-P-1001A, wear ring, head]
+  specialists: [maintenance-integrity]
+  charts: [pump_curve]
+- question: Are any of our pump motors overloaded in late November 2025, and why?
+  must_mention: [10-P-1001B, [service factor, overload], [recirculation, recycle]]
+  specialists: [maintenance-integrity]
+- question: Is any of our gas turbines burning more fuel than it should in early November 2025, and what would fix it?
+  must_mention: [20-GT-2000B, heat rate, [wash, foul]]
+  specialists: [maintenance-integrity]
