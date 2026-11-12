@@ -56,3 +56,12 @@ def test_a_slope_band_reaching_past_the_calendar_gives_no_date_instead_of_failin
     e = condition.eta(_days(20), ys, 5.0)
     assert e["per_day"] > 0 and e["r2"] >= 0.5
     assert e["reaches"] is None and e["range"] is None
+
+
+def test_a_near_flat_vibration_trend_gives_no_zone_d_date_instead_of_failing():
+    from fuzer.analysis.rotating import zone_d_date
+
+    # Harrier's steady machines: a rise of 1e-12 mm/s a week once put zone D past the calendar and stopped the screen
+    assert zone_d_date("2026-11-01", 2.0, 1e-12, 7.1) is None
+    assert zone_d_date("2026-11-01", 2.0, 0.0, 7.1) is None and zone_d_date("2026-11-01", 8.0, 1.0, 7.1) is None
+    assert zone_d_date("2026-11-01", 2.0, 1.0, 7.1) == "2026-12-06"  # 5.1 weeks at 1 mm/s a week
