@@ -52,6 +52,12 @@ export interface JobCheck {
   run_id: string | null;
 }
 
+/** A detector tier (P3.2): how often it runs, what runs in it and what it cost over the last day. */
+export interface DetectorTier {
+  tier: string; label: string; cron: string; detectors: { name: string; title: string }[];
+  runs: number; seconds: number; avg_seconds: number; last_at: string | null; failures: number; found: number;
+}
+
 export interface JobsOverview {
   available: boolean;
   dagster: { url: string; reachable: boolean };
@@ -77,6 +83,7 @@ export interface JobRunDetail extends JobRunSummary {
 
 export const jobsApi = {
   jobs: () => request<JobsOverview>("GET", "/jobs"),
+  jobTiers: () => request<{ tiers: DetectorTier[] }>("GET", "/jobs/tiers"),
   jobsHealth: () => request<JobsHealth>("GET", "/jobs/health"),
   jobRun: (id: string) => request<JobRunDetail>("GET", `/jobs/runs/${encodeURIComponent(id)}`),
 };
