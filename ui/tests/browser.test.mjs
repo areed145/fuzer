@@ -2818,6 +2818,29 @@ for (const [type, found] of Object.entries(FINDINGS)) {
   });
 }
 
+// The jobs the loop eval (P1.7) handed a field operator on the Okan bundle, one per type the field sees, written by
+// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py -k okan` and checked against the API's shape there.
+const LOOP_JOBS = JSON.parse(readFileSync(new URL("./fixtures/loop-field-jobs.json", import.meta.url), "utf8"));
+
+for (const [type, job] of Object.entries(LOOP_JOBS)) {
+  test(`the loop's ${type.replace(/_/g, " ")} field job is usable on a 390 px phone (P1.7)`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "loop-field"));
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "loop-field", jobs: [job], coming_up: [] } }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${url}/#/inbox`);
+    const card = page.locator(".field-job").first();
+    await card.getByRole("heading", { name: job.title }).waitFor();
+    await card.getByText(job.sent.reason).waitFor();  // what the IOC asked
+    for (const a of job.assets) await card.getByText(a.label ?? a.name, { exact: false }).first().waitFor();
+    assert.doesNotMatch(await card.innerText(), /\bfz-[\w-]+/, "no raw ids on the job");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "fits 390 px");
+    for (const name of ["On site", "Done"]) {
+      const box = await card.getByRole("button", { name, exact: true }).boundingBox();
+      assert.ok(box && box.height >= 44 && box.width >= 44, `${name} is a 44 px tap target, got ${box?.width}x${box?.height}`);
+    }
+  });
+}
+
 // P0.2c (#578): every page has its empty, loading and failed states. A page never goes blank or crashes: with empty data
 // it shows its heading, while its reads are held it says it is loading, and when they fail it says so with a retry.
 const EVERY_PAGE = ["#/", "#/browse", "#/network", "#/ontology", "#/downtime", "#/ask", "#/incidents", "#/reports",
