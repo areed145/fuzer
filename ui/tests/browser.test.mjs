@@ -3225,3 +3225,44 @@ test("My work, the job, the task and the case fit a 390 px phone with 44 px targ
   };
   assert.deepEqual(found, { "My work": [], task: [], case: [] });
 });
+
+// P5.3b (#642): Done with a reading and a photo from the phone; the IOC's "From the field" box shows both.
+test("a reading and a photo taken on the phone reach the IOC's From the field box (#642)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [], checklist: [], sources: [], history: [], field: [], queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const sent = [];
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/exceptions/7/report", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByLabel("What was read").fill("Gland temperature");
+  await card.getByLabel("Reading", { exact: true }).fill("72.5");
+  await card.getByLabel("Unit").fill("°C");
+  await card.locator('input[type="file"]').setInputFiles({ name: "gland.png", mimeType: "image/png", buffer: PNG });
+  await card.getByRole("img", { name: "Photo 1 to send" }).waitFor();
+  await card.getByRole("button", { name: "Done", exact: true }).click();
+  for (let i = 0; i < 50 && !sent.length; i++) await page.waitForTimeout(50);
+  assert.equal(sent[0].status, "done");
+  assert.deepEqual(sent[0].reading, { value: 72.5, unit: "°C", what: "Gland temperature" });
+  assert.equal(sent[0].photos.length, 1);
+  assert.match(sent[0].photos[0], /^data:image\/jpeg;base64,/);  // shrunk on the phone
+
+  const said = { id: 99, kind: "commented", actor: "fred", element: null, at: "2026-11-12T06:00:00Z",
+    data: { text: "Field: Done: gland repacked (Gland temperature 72.5 °C; 1 photo)",
+      attachments: [{ kind: "photo", exception_id: 7, photo_id: 3 }] } };
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    evidence: { ...demoTask.evidence, comments: [said] } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [], sources: [] } }));
+  await page.route("**/exceptions/7/photos/3", (route) => route.fulfill({ body: PNG, contentType: "image/png" }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/inbox/task/42`);
+  const box = page.locator(".from-field");
+  await box.getByText("Done: gland repacked (Gland temperature 72.5 °C; 1 photo)").waitFor();
+  await box.getByRole("img", { name: "Photo from the field" }).waitFor();
+});

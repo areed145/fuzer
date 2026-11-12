@@ -363,6 +363,9 @@ export interface WritebackDetail extends Writeback {
   history: { id: number; state: string; by: string; note: string | null; at: string }[];
 }
 
+/** A reading the field took on site (P5.3b): a number with its unit, and what it was of. */
+export interface FieldReading { value: number; unit: string; what?: string | null }
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -633,7 +636,7 @@ export interface FieldJob extends ExceptionRow {
   assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
   finding: Finding;
   history: { id: number; title: string; state: string; first_seen: string }[];
-  field: { at: string; by: string; status: string; note: string | null }[];
+  field: { at: string; by: string; status: string; note: string | null; reading?: FieldReading; photos?: number[] }[];
   /** Who sent it to them, when, and what they asked for. */
   sent: { by: string | null; at: string | null; reason: string | null } | null;
   /** The open step is in one of their roles (a Field check), so they can open it; another role's step handed to
@@ -697,8 +700,9 @@ export const workApi = {
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
-  fieldReport: (id: number, by: string, status: string, note?: string) =>
-    request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
+  fieldReport: (id: number, by: string, status: string, note?: string, extra: { reading?: FieldReading; photos?: string[] } = {}) =>
+    request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
+      reading: extra.reading ?? null, photos: extra.photos ?? [] }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

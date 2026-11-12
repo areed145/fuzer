@@ -4,7 +4,7 @@ import re
 from datetime import date
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from ..graph import queries
@@ -225,6 +225,8 @@ class FieldReport(BaseModel):
     by: str
     status: Literal["on_site", "done", "could_not_do", "note"]
     note: str | None = None
+    reading: dict[str, Any] | None = None  # {value, unit, what}
+    photos: list[str] = []                 # data URLs, resized on the phone
 
 
 def _loaded_types() -> None:
@@ -265,7 +267,19 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
 def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""
     from ..ops import exceptions
-    return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note)
+    return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note, reading=r.reading,
+                           photos=r.photos)
+
+
+@router.get("/exceptions/{exception_id}/photos/{photo_id}")
+def exception_photo(exception_id: int, photo_id: int, conn=Depends(get_conn)):
+    """A photo the field attached to a report."""
+    from ..ops import exceptions
+    try:
+        p = exceptions.photo(conn, exception_id, photo_id)
+    except exceptions.ExceptionError as e:
+        raise HTTPException(404, str(e)) from e
+    return Response(content=bytes(p["data"]), media_type=p["mime"], headers={"Cache-Control": "private, max-age=86400"})
 
 
 class ExceptionRaise(BaseModel):

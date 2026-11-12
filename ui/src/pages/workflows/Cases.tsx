@@ -11,6 +11,7 @@ import { CaseFindings } from "../../Finding";
 import { AgentWork } from "../../AgentWork";
 import { CaseGates } from "../Gates";
 import { CaseWritebacks } from "../Writeback";
+import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
@@ -332,6 +333,8 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
             <li key={e.id} className={`ev-${e.kind}`}>
               <div className="row small"><span className="muted mono">{when(e.at)}</span> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</div>
               {body}
+              {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>
+                <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
             </li>
           );
         })}

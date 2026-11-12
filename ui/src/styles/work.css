@@ -66,3 +66,10 @@ ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { bo
   .phone-rows td:nth-child(3) { flex: 1 1 auto; }
   .phone-rows td:nth-child(4) { flex: none; }
 }
+
+/* Evidence from the field (P5.3b, #642): a reading and photos on a report, and the photos where the IOC reads it. */
+.field-evidence { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; min-width: 0; }
+.field-evidence .row > input { flex: 1 1 120px; min-width: 0; }
+.field-photos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.field-photo { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 64px; min-height: 64px; }
+.field-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
