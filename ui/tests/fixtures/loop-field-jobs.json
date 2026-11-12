@@ -1,0 +1,476 @@
+{
+ "iow_breach": {
+  "ask": null,
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-5d9e20e8301c",
+    "kind": "tag",
+    "label": "10-E-3001",
+    "lat": 5.42,
+    "lon": 4.985
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-12T05:11:48.559791+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "loop-eval",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Seen",
+      "value": "in the loop eval"
+     },
+     {
+      "kind": "text",
+      "label": "Iow",
+      "value": "loop:iow_breach:20261112011148542509"
+     },
+     {
+      "kind": "text",
+      "label": "Level",
+      "value": "critical"
+     }
+    ],
+    "origin": "external",
+    "v": 1
+   },
+   "iow": "loop:iow_breach:20261112011148542509",
+   "level": "critical",
+   "seen": "in the loop eval"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "loop-eval",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Seen",
+     "value": "in the loop eval"
+    },
+    {
+     "kind": "text",
+     "label": "Iow",
+     "value": "loop:iow_breach:20261112011148542509"
+    },
+    {
+     "kind": "text",
+     "label": "Level",
+     "value": "critical"
+    }
+   ],
+   "method": null,
+   "origin": "external",
+   "origin_label": "Reported by",
+   "standard": null,
+   "start": null,
+   "subjects": [
+    "fz-tag-5d9e20e8301c"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-12T01:11:48.542509+00:00",
+  "history": [],
+  "id": 1,
+  "item_id": 1,
+  "joined_to": null,
+  "key": "loop:iow_breach:20261112011148542509",
+  "label": "IOW breach",
+  "last_seen": "2026-11-12T01:11:48.542509+00:00",
+  "own_step": false,
+  "priority": null,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "engineer",
+  "sent": {
+   "at": "2026-11-12T01:11:48.576859+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "source": "loop-eval",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-5d9e20e8301c"
+  ],
+  "task_id": 2,
+  "task_name": "Review IOW breach",
+  "task_role": "engineer",
+  "title": "Loop eval: IOW breach",
+  "type": "iow_breach",
+  "unmatched": [],
+  "updated_at": "2026-11-12T01:11:48.542509+00:00",
+  "value_usd": null
+ },
+ "machine_health": {
+  "ask": null,
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-3846606dc99b",
+    "kind": "tag",
+    "label": "10-FT-1001A",
+    "lat": 5.42,
+    "lon": 4.985
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-13T01:11:48.611479+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "loop-eval",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Seen",
+      "value": "in the loop eval"
+     }
+    ],
+    "origin": "external",
+    "v": 1
+   },
+   "seen": "in the loop eval"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "loop-eval",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Seen",
+     "value": "in the loop eval"
+    }
+   ],
+   "method": null,
+   "origin": "external",
+   "origin_label": "Reported by",
+   "standard": null,
+   "start": null,
+   "subjects": [
+    "fz-tag-3846606dc99b"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-12T01:11:48.605817+00:00",
+  "history": [],
+  "id": 2,
+  "item_id": 2,
+  "joined_to": null,
+  "key": "loop:machine_health:20261112011148542509",
+  "label": "Machine health",
+  "last_seen": "2026-11-12T01:11:48.605817+00:00",
+  "own_step": false,
+  "priority": null,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "engineer",
+  "sent": {
+   "at": "2026-11-12T01:11:48.625872+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "source": "loop-eval",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-3846606dc99b"
+  ],
+  "task_id": 6,
+  "task_name": "Work the case",
+  "task_role": "engineer",
+  "title": "Loop eval: Machine health",
+  "type": "machine_health",
+  "unmatched": [],
+  "updated_at": "2026-11-12T01:11:48.605817+00:00",
+  "value_usd": null
+ },
+ "machine_trip": {
+  "ask": null,
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-0e3cf54d293c",
+    "kind": "tag",
+    "label": "10-FT-1001B",
+    "lat": 5.42,
+    "lon": 4.985
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-13T01:11:48.652923+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "loop-eval",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Seen",
+      "value": "in the loop eval"
+     }
+    ],
+    "origin": "external",
+    "v": 1
+   },
+   "seen": "in the loop eval"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "loop-eval",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Seen",
+     "value": "in the loop eval"
+    }
+   ],
+   "method": null,
+   "origin": "external",
+   "origin_label": "Reported by",
+   "standard": null,
+   "start": null,
+   "subjects": [
+    "fz-tag-0e3cf54d293c"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-12T01:11:48.646410+00:00",
+  "history": [],
+  "id": 3,
+  "item_id": 3,
+  "joined_to": null,
+  "key": "loop:machine_trip:20261112011148542509",
+  "label": "Compressor trip",
+  "last_seen": "2026-11-12T01:11:48.646410+00:00",
+  "own_step": false,
+  "priority": null,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "engineer",
+  "sent": {
+   "at": "2026-11-12T01:11:48.665116+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "source": "loop-eval",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-0e3cf54d293c"
+  ],
+  "task_id": 8,
+  "task_name": "Work the case",
+  "task_role": "engineer",
+  "title": "Loop eval: Compressor trip",
+  "type": "machine_trip",
+  "unmatched": [],
+  "updated_at": "2026-11-12T01:11:48.646410+00:00",
+  "value_usd": null
+ },
+ "sap_notification": {
+  "ask": null,
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-213bedf66af7",
+    "kind": "tag",
+    "label": "10-FT-3001",
+    "lat": 5.42,
+    "lon": 4.985
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-12T05:11:48.715230+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "loop-eval",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Seen",
+      "value": "in the loop eval"
+     }
+    ],
+    "origin": "external",
+    "v": 1
+   },
+   "seen": "in the loop eval"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "loop-eval",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Seen",
+     "value": "in the loop eval"
+    }
+   ],
+   "method": null,
+   "origin": "external",
+   "origin_label": "Reported by",
+   "standard": null,
+   "start": null,
+   "subjects": [
+    "fz-tag-213bedf66af7"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-12T01:11:48.708405+00:00",
+  "history": [],
+  "id": 5,
+  "item_id": 5,
+  "joined_to": null,
+  "key": "loop:sap_notification:20261112011148542509",
+  "label": "SAP notification",
+  "last_seen": "2026-11-12T01:11:48.708405+00:00",
+  "own_step": true,
+  "priority": null,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "operator",
+  "sent": {
+   "at": "2026-11-12T01:11:48.722114+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "source": "loop-eval",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-213bedf66af7"
+  ],
+  "task_id": 13,
+  "task_name": "Work the case",
+  "task_role": "operator",
+  "title": "Loop eval: SAP notification",
+  "type": "sap_notification",
+  "unmatched": [],
+  "updated_at": "2026-11-12T01:11:48.723781+00:00",
+  "value_usd": null
+ },
+ "upset": {
+  "ask": "Loop eval: check it on site",
+  "assets": [
+   {
+    "fuzer_id": "fz-tag-9379cf6b01f1",
+    "kind": "tag",
+    "label": "10-JT-1001B",
+    "lat": 5.42,
+    "lon": 4.985
+   }
+  ],
+  "assignee": "loop-field",
+  "case_state": "open",
+  "checklist": [],
+  "closed_at": null,
+  "due": "2026-11-12T09:11:48.777598+00:00",
+  "evidence": {
+   "finding": {
+    "detector": "loop-eval",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Seen",
+      "value": "in the loop eval"
+     },
+     {
+      "kind": "flag",
+      "label": "Ongoing",
+      "value": true
+     }
+    ],
+    "origin": "external",
+    "v": 1
+   },
+   "incident_id": "loop:upset:20261112011148542509",
+   "ongoing": true,
+   "seen": "in the loop eval"
+  },
+  "field": [],
+  "finding": {
+   "checks": [],
+   "confidence": null,
+   "detector": "loop-eval",
+   "end": null,
+   "items": [
+    {
+     "kind": "text",
+     "label": "Seen",
+     "value": "in the loop eval"
+    },
+    {
+     "kind": "flag",
+     "label": "Ongoing",
+     "value": true
+    }
+   ],
+   "method": null,
+   "origin": "external",
+   "origin_label": "Reported by",
+   "standard": null,
+   "start": null,
+   "subjects": [
+    "fz-tag-9379cf6b01f1"
+   ],
+   "value_usd": null
+  },
+  "first_seen": "2026-11-12T01:11:48.761226+00:00",
+  "history": [],
+  "id": 7,
+  "item_id": 7,
+  "joined_to": null,
+  "key": "loop:upset:20261112011148542509",
+  "label": "Process upset",
+  "last_seen": "2026-11-12T01:11:48.761226+00:00",
+  "own_step": true,
+  "priority": null,
+  "queued": false,
+  "raised_count": 1,
+  "reports": 1,
+  "role": "operator",
+  "sent": {
+   "at": "2026-11-12T01:11:48.777598+00:00",
+   "by": "loop-ioc",
+   "reason": "Loop eval: check it on site"
+  },
+  "source": "loop-eval",
+  "sources": [],
+  "state": "open",
+  "subjects": [
+   "fz-tag-9379cf6b01f1"
+  ],
+  "task_id": 20,
+  "task_name": "Field check",
+  "task_role": "operator",
+  "title": "Loop eval: Process upset",
+  "type": "upset",
+  "unmatched": [],
+  "updated_at": "2026-11-12T01:11:48.761226+00:00",
+  "value_usd": null
+ }
+}

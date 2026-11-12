@@ -27,6 +27,7 @@ from datetime import timedelta
 from ..core import work
 from ..core.exceptions import raise_exception
 from ..core.findings import external
+from ..core.jsonsafe import plain
 
 STEPS = ("arrive", "match", "route", "triage", "dispatch", "field", "close", "count")
 IOC, FIELD, BY = "loop-ioc", "loop-field", "loop-eval"
@@ -198,6 +199,7 @@ def run_type(conn, route: dict, ref: str, run_id: str = "") -> dict:
         if not field:
             return "skipped: the field doesn't see this type"
         [job] = [j for j in ex.field_jobs(conn, FIELD) if j["id"] == row["id"]]
+        out["job"] = plain(job)  # what the phone was given, for the 390 px check (ui/tests/fixtures)
         _readable(job)
         if job["sent"] is None or not (job["sent"].get("reason") or "").strip():
             raise Step("the field job doesn't say what the IOC asked")
