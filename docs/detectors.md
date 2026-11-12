@@ -21,6 +21,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
 | [`bypass_overdue`](#bypass_overdue) A safeguard still bypassed past its expiry | Rule | Every 30 minutes | `bypass_overdue` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
+| [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 
 ## excursions
 
@@ -210,3 +211,14 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `unrecorded_change`
 - **Needs:** change records
 - **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up`, on the fake plant
+
+## loop_oscillation
+
+**A measurement cycling as a hunting control loop does.** Each controlled measurement cycling regularly over the last `days` raised as `loop_candidate` for the engineer (keyed by the point), with its period and amplitude; open ones whose point no longer cycles are cleared.
+
+- **Kind:** Statistical
+- **Runs:** Once a day
+- **Raises:** `loop_candidate`
+- **Measurement roles:** level, process pressure, differential pressure, process flow, process temperature, outlet temperature, suction pressure, discharge pressure, suction flow, fuel flow
+- **Needs:** historian points, measurement roles of what a controller holds
+- **Scored by:** `tests/analysis/test_loops.py::test_a_cycling_level_is_a_loop_candidate_until_it_stops`, on the fake plant
