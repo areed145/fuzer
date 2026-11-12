@@ -66,7 +66,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
     line = conn.execute("select fuzer_id from measurement m join entity e using (fuzer_id) where m.quantity = "
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
     refs = {"decline": fid(conn, "OK-J07-03"), "gas_lift": fid(conn, "OK-J07-03"), "pump_curve": fid(conn, "10-P-1001A"),
-            "choke": fid(conn, "OK-J12-02"), "reliability": cls, "wall_loss": line["fuzer_id"]}
+            "choke": fid(conn, "OK-J12-02"), "reliability": cls, "pm_interval": cls, "wall_loss": line["fuzer_id"]}
     refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"], "compressor_performance": fid(conn, "20-K-2300A"),
              "cooler_fouling": fid(conn, "20-E-2350A"), "peers": k, "vibration": k, "pump_bep": refs["pump_curve"],
              "rotating_health": refs["pump_curve"], "surge": fid(conn, "20-K-2100C"),
@@ -78,7 +78,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
              "gas_performance": fid(conn, "20-K-2200A"), "power_balance": fid(conn, "20-GT-2000A"),
              "exhaust_spread": fid(conn, "20-GT-2000C"), "hot_section": fid(conn, "20-GT-2000B"),
              "remaining_life": fid(conn, "20-K-2300B"), "failed_starts": k, "loop_oscillation": fid(conn, "10-V-2003"),
-             "inspection_plan": fid(conn, "20-V-2001")}
+             "inspection_plan": fid(conn, "20-V-2001"), "spares_coverage": k}
     # Okan has no reciprocating compressor or gas engine: tests/analysis/test_recip.py (Kestrel)
     recip = {"rod_load", "valve_health", "engine_cylinders"}
     recip |= {"contactor_foaming", "treated_gas", "regenerator", "chiller"}  # no gas treating: test_treating.py (Kestrel)
@@ -318,3 +318,42 @@ def test_the_wet_flowline_leads_its_corrosion_circuit_and_retires_soon(conn):
     vessel = calcs.run(conn, "corrosion_circuit", fid(conn, "10-V-2001"))
     assert vessel["circuit"] == "10-V-2001" and vessel["line"]["remaining_years"] is None
     assert "stands alone" in vessel["basis"] and "min_required_mm" in vessel["basis"]
+
+
+def test_pm_intervals_are_read_against_how_each_class_fails(conn):
+    """P4.2g (#345): Okan's centrifugal compressors wear out and their 180-day PM sits inside the characteristic life;
+    its gas turbines fail at random and its centrifugal pumps early in life, so a fixed interval won't help either;
+    a class with too few failures says so; inspection plans never enter the advice."""
+    def run(label):
+        return calcs.run(conn, "pm_interval", fid(conn, label))
+
+    co = run("ISO14224:CO.CE")
+    assert (co["value"], co["flag"]) == (180.0, None) and co["beta"] > 1.2 and co["value"] < co["expected"]
+    assert co["inspection_plans_left_out"] > 0 and 0 < co["fails_before_pm_pct"] < 100 and co["unit"] == "days"
+    assert run("ISO14224:GT")["flag"] == "random_failures"
+    pu = run("ISO14224:PU.CE")
+    assert pu["flag"] == "early_life" and "repair quality" in pu["reading"]
+    te = run("ISO14224:IP.TE")
+    assert (te["value"], te["flag"]) == (None, "insufficient_failures")
+    pump = calcs.run(conn, "pm_interval", fid(conn, "10-P-1001A"))  # a unit reads its class
+    assert pump["class"] == "ISO14224:PU.CE"
+
+
+def test_spares_coverage_ranks_stock_outs_by_criticality_and_failures(conn):
+    """P4.2g (#349): 20-K-2200B is A-critical and one part on its bill of materials is out of stock, so its area flags
+    a critical stock-out with it first; two of the three centrifugal pumps lack a part; a unit with no bill of
+    materials is unknown, never covered."""
+    k = fid(conn, "20-K-2200B")
+    area = conn.execute("""with recursive up(id) as (select %s::text union select p.dst from edge p join up on p.src = up.id
+                           where p.rel = 'part_of') select e.fuzer_id from up join entity e on e.fuzer_id = up.id
+                           where e.kind = 'area' limit 1""", (k,)).fetchone()["fuzer_id"]
+    out = calcs.run(conn, "spares_coverage", area)
+    assert out["flag"] == "critical_stock_out" and out["value"] >= 1 and out["unknown"] > 0
+    first = out["units"][0]
+    assert (first["unit"], first["criticality"], first["status"]) == ("20-K-2200B", "A", "uncovered") and first["out_of_stock"]
+    assert all(u["status"] != "covered" or not u["out_of_stock"] for u in out["units"])
+    assert not any(u["status"] == "covered" and u["parts"] == 0 for u in out["units"])  # no BOM is never covered
+    pumps = calcs.run(conn, "spares_coverage", fid(conn, "ISO14224:PU.CE"))
+    assert (pumps["uncovered"], pumps["covered"], pumps["flag"]) == (2, 1, None)
+    assert [u["unit"] for u in pumps["units"]] == ["10-P-1001B", "10-P-1001C", "10-P-1001A"]
+    assert "not a reservation" in pumps["note"]

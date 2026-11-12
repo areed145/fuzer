@@ -28,3 +28,7 @@ arrive:
   round_finding: {round: {point: R-B1-03, value: 9.4}}
   # A stop in the next downtime delivery that neither the operator log nor a notification mentions
   records_gap: {deliver: deliveries/unlogged-stop, datasets: [ec_downtime], rebuild: true, detector: records_gaps}
+  # A revision of the smart P&ID export: train B1's alarm table disagrees with the DCS, and A1 sends a fuel gas line
+  # to B1 that B1's revision doesn't show
+  drawing_disagreement: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
+  drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}

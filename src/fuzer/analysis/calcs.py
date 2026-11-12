@@ -123,22 +123,34 @@ def rate(fit: dict, t: float) -> float:
     return fit["qi"] / (1 + fit["b"] * fit["D"] * t) ** (1 / fit["b"])
 
 
-def decline_fit(conn, well: str, model: str = "auto", until: str | None = None) -> dict:
-    """An Arps fit to a well's oil rate after its last step change: {tests, cuts, seg, t0, fit}."""
-    tests = [t for t in well_tests(conn, well, until) if t.get("oil_rate", 0) > 0]
-    qs = [t["oil_rate"] for t in tests]
+PRODUCTS = (("oil", "oil_rate", "Sm3/d"), ("gas", "gas_rate", "kSm3/d"))  # a well's product: oil if it makes any
+
+
+def decline_fit(conn, well: str, model: str = "auto", until: str | None = None, product: str | None = None) -> dict:
+    """An Arps fit to a well's rate after its last step change: {product, unit, tests, cuts, seg, t0, fit}. The rate is
+    the well's oil rate, or its gas rate when its tests carry no oil (a gas well); `product` asks for one. Each test
+    carries the fitted rate as `rate`."""
+    every = well_tests(conn, well, until)
+    for name, key, unit in PRODUCTS:
+        if product in (None, name) and (tests := [{**t, "rate": t[key]} for t in every if (t.get(key) or 0) > 0]):
+            break
+    else:
+        raise CalcError(f"no {product or 'oil or gas'} rate in that well's tests")
+    if len(tests) < 4:
+        raise CalcError(f"fewer than four well tests with a {name} rate on that well")
+    qs = [t["rate"] for t in tests]
     cuts = breaks(qs)
     start = cuts[-1] if cuts and len(qs) - cuts[-1] >= 4 else 0
     seg = tests[start:]
     t0 = seg[0]["at"]
-    fit = arps([(t["at"] - t0).days / YEAR for t in seg], [t["oil_rate"] for t in seg], model)
-    return {"tests": tests, "cuts": cuts, "start": start, "seg": seg, "t0": t0, "fit": fit}
+    fit = arps([(t["at"] - t0).days / YEAR for t in seg], [t["rate"] for t in seg], model)
+    return {"product": name, "unit": unit, "tests": tests, "cuts": cuts, "start": start, "seg": seg, "t0": t0, "fit": fit}
 
 
 def decline(conn, well: str, model: str = "auto", tolerance: float = 0.15, until: str | None = None) -> dict:
-    """The latest well test against the decline fitted through the tests before it. Flags `step_down` /
-    `step_up` when the latest test is a step change, else `below_decline` / `above_decline` beyond
-    `tolerance`."""
+    """The latest well test against the decline fitted through the tests before it, on the well's oil rate or, on a
+    gas well, its gas rate. Flags `step_down` / `step_up` when the latest test is a step change, else
+    `below_decline` / `above_decline` beyond `tolerance`."""
     d = decline_fit(conn, well, model, until)
     fit, seg, t0 = d["fit"], d["seg"], d["t0"]
     last = seg[-1]
@@ -146,15 +158,16 @@ def decline(conn, well: str, model: str = "auto", tolerance: float = 0.15, until
     n = len(d["tests"])
     step = d["cuts"] and d["cuts"][-1] == n - 1
     if step:
-        expected = d["tests"][-2]["oil_rate"]
-        flag = "step_down" if last["oil_rate"] < expected else "step_up"
+        expected = d["tests"][-2]["rate"]
+        flag = "step_down" if last["rate"] < expected else "step_up"
     else:
-        flag = ("below_decline" if last["oil_rate"] < (1 - tolerance) * expected else
-                "above_decline" if last["oil_rate"] > (1 + tolerance) * expected else None)
+        flag = ("below_decline" if last["rate"] < (1 - tolerance) * expected else
+                "above_decline" if last["rate"] > (1 + tolerance) * expected else None)
     basis = (f"step from the test before ({d['tests'][-2]['at']:%Y-%m-%d})" if step else
-             f"Arps {fit['model']} fit through {len(seg)} well tests since {t0:%Y-%m-%d}")
-    return result(_r(last["oil_rate"], 1), _r(expected, 1), flag, basis, [well, last["record"]],
-                  unit="Sm3/d", at=last["at"].isoformat()[:10], model=fit["model"], qi=_r(fit["qi"], 1), b=_r(fit["b"], 2),
+             f"Arps {fit['model']} fit through {len(seg)} well tests since {t0:%Y-%m-%d}") + f", on {d['product']} rate"
+    return result(_r(last["rate"], 1), _r(expected, 1), flag, basis, [well, last["record"]],
+                  unit=d["unit"], product=d["product"], at=last["at"].isoformat()[:10], model=fit["model"],
+                  qi=_r(fit["qi"], 1), b=_r(fit["b"], 2),
                   decline_per_year=_r(fit["D"], 3), effective_decline_pct_per_year=_r((1 - rate(fit, 1) / rate(fit, 0)) * 100, 1),
                   r2_log=_r(fit["r2"]), step_changes=[d["tests"][i]["at"].isoformat()[:10] for i in d["cuts"]])
 
@@ -536,6 +549,89 @@ def reliability(conn, fid: str, method: str = "weibull", until: str | None = Non
                   [fid], unit="beta", reading=f["reading"], eta_days=_r(f["eta"], 0), median_days=_r(f["median"], 0))
 
 
+def _class_of(conn, fid: str) -> str:
+    """The equipment class itself, or the class a unit or tag is classified as."""
+    e = conn.execute("select kind from entity where fuzer_id = %s", (fid,)).fetchone()
+    if e is None:
+        raise CalcError("unknown entity")
+    if e["kind"] == "equipment_class":
+        return fid
+    c = conn.execute("select dst from edge where rel = 'classified_as' and src = %s limit 1", (fid,)).fetchone()
+    if c is None:
+        raise CalcError("that unit has no equipment class to read a failure pattern from")
+    return c["dst"]
+
+
+def pm_plans(conn, cls: str) -> list[dict]:
+    """The maintenance plans on the units and tags of a class: {id, kind, interval_days, task}."""
+    return [{"id": r["fuzer_id"], "kind": r["f"].get("kind"), "task": r["f"].get("task"),
+             "interval_days": _num(r["f"].get("interval_days"))} for r in conn.execute(
+        """
+        select distinct p.fuzer_id, (select jsonb_object_agg(g.field, g.value) from golden g
+                                     where g.fuzer_id = p.fuzer_id) as f
+        from edge u join edge c on c.dst = u.src and c.rel = 'concerns'
+        join entity p on p.fuzer_id = c.src and p.kind = 'maintenance_plan'
+        where u.rel = 'classified_as' and u.dst = %s
+        """, (cls,))]
+
+
+def _num(v) -> float | None:
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def pm_pattern(intervals: list[float], beta: float, eta: float) -> dict:
+    """What a PM interval does against a Weibull failure pattern: {interval_days, fails_first_pct, flag}. A
+    fixed interval cannot help random or early-life failures; on wear-out an interval past eta means most units
+    fail before their PM."""
+    interval = sorted(intervals)[len(intervals) // 2]
+    fails_first = 1 - math.exp(-((interval / eta) ** beta))
+    flag = ("early_life" if beta < 0.85 else "random_failures" if beta < 1.2 else
+            "interval_too_long" if interval > eta else None)
+    return {"interval_days": interval, "fails_first_pct": fails_first * 100, "flag": flag}
+
+
+PM_READING = {
+    "early_life": "failures come early in life (installation or repair quality): a shorter PM adds more early "
+                  "failures, fix how the work is done",
+    "random_failures": "failures are random in time: a fixed interval won't prevent them; condition monitoring will",
+    "interval_too_long": "wear-out, but the interval is past the characteristic life: most units fail before the PM",
+    None: "wear-out, with the interval inside the characteristic life: time-based PM suits this pattern",
+}
+
+
+def pm_interval(conn, fid: str, until: str | None = None) -> dict:
+    """A class's preventive maintenance interval against how its units fail (Weibull on times between failure
+    notifications): `early_life` or `random_failures` mean a fixed interval won't help, `interval_too_long` that
+    wear-out failures come before the PM. Inspection plans are left out: their interval is set by the inspection
+    code, not the failure pattern. A recommendation for the reliability engineer; a statutory interval is never
+    proposed for change."""
+    cls = _class_of(conn, fid)
+    label, per = failures(conn, cls, until)
+    plans = pm_plans(conn, cls)
+    pm = [p for p in plans if p["kind"] == "PM" and p["interval_days"]]
+    left_out = sum(1 for p in plans if p["kind"] != "PM")
+    common = {"class": label, "pm_plans": len(pm), "inspection_plans_left_out": left_out,
+              "failures": sum(len(d) for d in per.values())}
+    try:
+        f = weibull(times_between(per))
+    except CalcError as e:
+        return result(None, None, "insufficient_failures", f"too few failures on {label} to read a pattern: {e}",
+                      [cls, *[p["id"] for p in pm[:3]]], unit="days", **common)
+    if not pm:
+        return result(None, _r(f["eta"], 0), "no_pm_plan", f"Weibull on {f['n']} times between failures on {label}; "
+                      "no preventive plan with an interval on its units", [cls], unit="days", beta=_r(f["beta"], 2),
+                      reading=f["reading"], **common)
+    p = pm_pattern([x["interval_days"] for x in pm], f["beta"], f["eta"])
+    return result(_r(p["interval_days"], 0), _r(f["eta"], 0), p["flag"],
+                  f"median interval of {len(pm)} preventive plans against the Weibull characteristic life (eta) of "
+                  f"{f['n']} times between failures on {label} (IEC 61649)", [cls, *[x["id"] for x in pm[:5]]],
+                  unit="days", beta=_r(f["beta"], 2), fails_before_pm_pct=_r(p["fails_first_pct"], 1),
+                  reading=PM_READING[p["flag"]], **common)
+
+
 # ---- inspection -----------------------------------------------------------------------------------
 
 def remaining_life(latest_mm: float, per_year: float | None, min_required_mm: float | None) -> float | None:
@@ -588,6 +684,7 @@ CHECKS = {
     "choke": {"fn": choke, "ref": "well or its choke tag", "used_by": {"person": "plot_choke", "agent": "calc"}},
     "reliability": {"fn": reliability, "ref": "tag, equipment or equipment class",
                     "used_by": {"person": "plot_reliability", "agent": "calc"}},
+    "pm_interval": {"fn": pm_interval, "ref": "equipment class, or a unit or tag in it", "used_by": {"agent": "calc"}},
     "wall_loss": {"fn": wall_loss, "ref": "vessel, piping or pipeline",
                   "used_by": {"person": "plot_wall_thickness", "agent": "calc"}},
 }
@@ -715,9 +812,9 @@ CHECKS |= {
 def _module(module, name):
     """A check that lives in one of the specialist modules (#515), imported when it runs."""
     def fn(conn, fid, **kw):
-        from . import facilities, integrity, surveillance
+        from . import facilities, integrity, spares, surveillance
 
-        mod = {"facilities": facilities, "integrity": integrity, "surveillance": surveillance}[module]
+        mod = {"facilities": facilities, "integrity": integrity, "spares": spares, "surveillance": surveillance}[module]
         return getattr(mod, name)(conn, fid, **kw)
     return fn
 
@@ -733,6 +830,9 @@ CHECKS |= {
     "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
         conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
         "used_by": {"agent": "calc", "detector": None}},
+    "spares_coverage": {"fn": lambda conn, fid, until=None: _module("spares", "coverage")(conn, fid, until=until),
+                        "ref": "tag or equipment, equipment class or model, area or facility",
+                        "used_by": {"agent": "calc"}},
     "inspection_plan": {"fn": lambda conn, fid, until=None: _module("integrity", "inspection_plan")(conn, fid, until=until),
                         "ref": "vessel, exchanger or piping tag with an inspection plan",
                         "used_by": {"agent": "calc", "detector": None}},

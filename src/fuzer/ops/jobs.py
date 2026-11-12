@@ -540,9 +540,23 @@ def per_project(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.Schedule
                  default_status=status, required_resource_keys={"fuzer"})
     def schedule(context: dg.ScheduleEvaluationContext):
         at = context.scheduled_execution_time.isoformat()
-        return [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
-                for project, _ in context.resources.fuzer.targets()]
+        requests = [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
+                    for project, _ in context.resources.fuzer.targets()
+                    if not pending(context.instance, job.name, project)]
+        return requests or dg.SkipReason("the previous run for each project is still queued or running")
     return schedule
+
+
+PENDING = [dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.STARTING,
+           dg.DagsterRunStatus.STARTED, dg.DagsterRunStatus.CANCELING]
+
+
+def pending(instance: dg.DagsterInstance, job_name: str, project: str) -> bool:
+    """A run of this job for this project is still queued or running. Its schedule skips a tick rather than queue
+    another behind it: every run picks up all the work pending when it starts, so a backlog of the same run only
+    holds the instance's few run slots and its database."""
+    return instance.get_runs_count(dg.RunsFilter(job_name=job_name, statuses=PENDING,
+                                                 tags=project_tags(project))) > 0
 
 
 RUNNING, STOPPED = dg.DefaultScheduleStatus.RUNNING, dg.DefaultScheduleStatus.STOPPED
@@ -631,14 +645,18 @@ def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
 
 
 @dg.run_failure_sensor(default_status=dg.DefaultSensorStatus.RUNNING,
-                       description="Posts failed runs to FUZER_ALERT_WEBHOOK when it is set.")
+                       description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set.")
 def alert_on_failure(context: dg.RunFailureSensorContext):
     message = f"Fuzer job '{context.dagster_run.job_name}' failed (run {context.dagster_run.run_id[:8]}): " \
               f"{context.failure_event.message}"
     context.log.error(message)
+    from ..core import bugreports
     from ..sources import alerts
 
     alerts.post(message)
+    job = context.dagster_run.job_name
+    bugreports.reporter.report(bugreports.Reported(message, f"dagster-run:{job}", kind=f"Dagster job {job} failed"),
+                               "alert_on_failure", wait=True)
 
 
 defs = dg.Definitions(
@@ -649,4 +667,8 @@ defs = dg.Definitions(
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
+    # Each run executes its steps in its own process. The default multiprocess executor adds a second Python
+    # process per step on top of the run's, which doubled every run's memory on the 2 GB instance (OOM kills,
+    # 12 Nov); the instance has one CPU, so steps in parallel gained nothing.
+    executor=dg.in_process_executor,
 )

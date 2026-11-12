@@ -1,0 +1,78 @@
+{
+ "OKAN-10-PID-002": {
+  "title_block": {
+   "drawing_number": "OKAN-10-PID-002",
+   "revision": null,
+   "title": "AREA 10 - OKA_PP OIL EXPORT",
+   "date": null
+  },
+  "mentions": [
+   {
+    "text": "10-P-1001A",
+    "kind": "tag",
+    "key": "10-P-1001A",
+    "confidence": 0.95,
+    "x": 507,
+    "y": 880
+   },
+   {
+    "text": "10-P-1001B",
+    "kind": "tag",
+    "key": "10-P-1001B",
+    "confidence": 0.95,
+    "x": 1080,
+    "y": 874
+   },
+   {
+    "text": "10-P-1001C",
+    "kind": "tag",
+    "key": "10-P-1001C",
+    "confidence": 0.95,
+    "x": 1653,
+    "y": 864
+   }
+  ],
+  "findings": [],
+  "lines": [
+   {
+    "text": "6\"-P-10110-A1",
+    "x": 893,
+    "y": 756
+   },
+   {
+    "text": "8\"-P-10111-A1",
+    "x": 1466,
+    "y": 746
+   }
+  ],
+  "connections": [
+   {
+    "from": "10-P-1001A",
+    "to": "10-P-1001B",
+    "line": "6\"-P-10110-A1",
+    "via": [
+     "globe",
+     "10-FV-1001A",
+     "reducer"
+    ]
+   },
+   {
+    "from": "10-P-1001B",
+    "to": "10-P-1001C",
+    "line": "8\"-P-10111-A1",
+    "via": [
+     "ball",
+     "10-FV-1001B",
+     "reducer"
+    ]
+   }
+  ],
+  "offpage": [],
+  "loops": [],
+  "tables": [],
+  "setpoints": [],
+  "equipment_data": [],
+  "notes": [],
+  "streams": []
+ }
+}

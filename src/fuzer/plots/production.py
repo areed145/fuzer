@@ -15,7 +15,10 @@ DECLINE_MIN_TESTS = 4  # well tests a decline forecast rests on, as calcs.well_t
 
 def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> Figure:
     """Oil rate from well tests (log scale) with an Arps fit after the last step change, and a forecast."""
-    d = calcs.decline_fit(conn, well, model)
+    try:
+        d = calcs.decline_fit(conn, well, model, product="oil")
+    except calcs.CalcError as e:
+        raise ChartError(f"{e}; the chart is of oil rate, and calc('decline') fits a gas well's gas rate") from e
     tests, cuts, start, seg, t0, fit = d["tests"], d["cuts"], d["start"], d["seg"], d["t0"], d["fit"]
     qs = [t["oil_rate"] for t in tests]
     last = seg[-1]["at"]
@@ -355,3 +358,83 @@ def debottleneck(conn, scope: str = "facility", at: str | None = None, pack=None
         "at": out["at"], "considered": out["considered"],
         "options": [{k: o[k] for k in ("rank", "action", "gain_sm3d", "confidence", "next_constraint", "confirm_by")} for o in opts[:8]],
         "note": "proposals for people, not operating instructions"}, [o["target"] for o in opts if o.get("target")][:10])
+
+
+def forecast_vs_actual(conn, well: str | None = None, since: str | None = None, until: str | None = None,
+                       days: int = 365) -> Figure:
+    """A well's decline forecast with its 90 % range against its tests in the window, its downtime marked; without a
+    well, the wells ranked by their latest gap to forecast (P7.3b, #336)."""
+    from ..analysis import forecast_actual as fa
+
+    out = fa.forecast_vs_actual(conn, well, since, until, days)
+    if well:
+        w = out["wells"][0] if out["wells"] else None
+        if not w:
+            nf = out["not_fitted"][0] if out["not_fitted"] else None
+            raise ChartError(f"too little data to forecast: {nf['reason']}" if nf else "no well tests on that well")
+        pts = w.get("points") or []
+        if not pts:
+            raise ChartError("no well test in the window to compare")
+        xs = [p["at"] for p in pts]
+        data = [
+            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["high_sm3d"] for p in pts],
+             "line": {"width": 0}, "showlegend": False, "hoverinfo": "skip"},
+            {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [p["low_sm3d"] for p in pts],
+             "line": {"width": 0}, "fill": "tonexty", "fillcolor": "rgba(120,120,120,0.18)"},
+            {"type": "scatter", "mode": "lines", "name": "forecast (its own decline)", "x": xs,
+             "y": [p["forecast_sm3d"] for p in pts], "line": {"dash": "dash"}},
+            {"type": "scatter", "mode": "markers", "name": "well tests", "x": xs, "y": [p["actual_sm3d"] for p in pts],
+             "customdata": [p["record"] for p in pts], "marker": {"size": 8, "color": [
+                 "rgba(210,60,50,0.9)" if p["outside"] == "below" else "rgba(40,110,180,0.9)" for p in pts]}},
+        ]
+        lay = layout(f"{w['well']} forecast against tests {out['since']} to {out['until']}", None, "oil rate (Sm3/d)")
+        lay["shapes"] = [{"type": "rect", "xref": "x", "yref": "paper", "x0": d["start"], "x1": d["end"] or d["start"],
+                          "y0": 0, "y1": 1, "fillcolor": "rgba(230,150,40,0.25)", "line": {"width": 0}}
+                         for d in w["downtime"] if d["start"]]
+        return Figure("forecast_vs_actual", lay["title"]["text"], data, lay, {
+            "well": w["well"], "verdict": w["verdict"], "gap_sm3d": w.get("gap_sm3d"), "below_since": w.get("below_since"),
+            "fit": w.get("fit"), "downtime": w["downtime"], "since": out["since"], "until": out["until"],
+            "source": out["source"], "note": out["note"]}, [w["id"]] + [p["record"] for p in pts][-3:])
+    ranked = [w for w in out["wells"] if w.get("gap_sm3d") is not None]
+    ranked = sorted(ranked, key=lambda w: w["gap_sm3d"])[:15]
+    if not ranked:
+        raise ChartError("no well has a forecast and a test in the window")
+    data = [{"type": "bar", "orientation": "h", "name": "latest gap to forecast", "x": [w["gap_sm3d"] for w in ranked],
+             "y": [w["well"] for w in ranked], "meta": {"entity": [w["id"] for w in ranked]},
+             "marker": {"color": ["rgba(210,60,50,0.85)" if w["verdict"] == "below_forecast" else "rgba(140,140,140,0.6)"
+                                  for w in ranked]},
+             "hovertemplate": "%{y}: %{x} Sm3/d against its forecast<extra></extra>"}]
+    lay = layout(f"Wells furthest under their forecast, {out['since']} to {out['until']}",
+                 "latest test less forecast (Sm3/d)", None)
+    lay["yaxis"] = {"autorange": "reversed"}
+    return Figure("forecast_vs_actual", lay["title"]["text"], data, lay, {
+        "field": out["field"], "not_fitted": len(out["not_fitted"]), "since": out["since"], "until": out["until"],
+        "source": out["source"], "note": out["note"]}, [w["id"] for w in ranked])
+
+
+def intervention_gains(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """Each well intervention's oil gain net of the decline before it (P7.5a, #340), with its 90 % range; the ones that
+    can't be said are listed in the summary as unknown, not drawn as zero."""
+    from ..analysis import interventions as iv
+
+    out = iv.gains(conn, since, until, None, days)
+    said = [i for i in out["interventions"] if i["verdict"] != "unknown"]
+    if not said:
+        raise ChartError("no intervention in that window has tests before and after it")
+    said.sort(key=lambda i: i["start"])
+    names = [f"{i['well']} {i['start'][:10]}" for i in said]
+    colour = {"gained": "rgba(40,150,90,0.85)", "lost": "rgba(210,60,50,0.85)", "no_clear_change": "rgba(140,140,140,0.7)"}
+    err = [(i["oil_range_sm3d"][1] - i["oil_expected_sm3d"]) if i["oil_range_sm3d"] else 0 for i in said]
+    data = [{"type": "bar", "name": "oil gain net of decline", "x": names, "y": [i["gain_sm3d"] for i in said],
+             "meta": {"entity": [i["well_id"] for i in said]},
+             "error_y": {"type": "data", "array": [rnd(e, 1) for e in err], "visible": True},
+             "marker": {"color": [colour[i["verdict"]] for i in said]},
+             "text": [i["reason"] or "" for i in said],
+             "hovertemplate": "%{x}: %{y} Sm3/d against its decline<br>%{text}<extra></extra>"}]
+    lay = layout(f"Oil gain by well intervention, net of decline, {out['since']} to {out['until']}", None,
+                 "oil gain (Sm3/d)")
+    return Figure("intervention_gains", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "unknown": [{k: i[k] for k in ("well", "start", "why")} for i in out["interventions"]
+                                               if i["verdict"] == "unknown"],
+        "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
+        [i["id"] for i in said][:10])

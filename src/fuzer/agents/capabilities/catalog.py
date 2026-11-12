@@ -262,6 +262,14 @@ SKILL_CATALOG = (
         "A dated well history, what changed and when, and candidates with supporting and missing evidence.",
         "No reservoir certainty, completion design or intervention decision; those stay with accountable engineers."),
     SkillDefinition(
+        f"{_WELLS}/wells-and-lift", (_WELLS,),
+        (SUBSURFACE_ENGINEER, WELL_SPECIALIST),
+        "Well tests, wellhead pressure and temperature, choke position, lift gas rate and the manifold each well "
+        "flows into.",
+        "Each well's decline on its own product, whether a test can be trusted, what holds it back (choke or back "
+        "pressure), its lift response and flowline drift, with the measurements it could not read.",
+        "Advises; a choke, lift gas or intervention change is the accountable production engineer's call."),
+    SkillDefinition(
         f"{_FIELD}/troubleshooting", (_FIELD,),
         (FIELD_OPERATOR, FACILITIES_ENGINEER),
         "Incidents, events, process values, limits, past failures, lessons and manuals.",

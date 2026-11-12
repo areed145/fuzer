@@ -37,7 +37,7 @@ def _case(conn, type_: str, subject: str) -> int:
 
 @pytest.fixture
 def classes(monkeypatch):
-    known = {"unit-co": "CO", "unit-pu": "PU", "unit-ve": "VE"}
+    known = {"unit-co": "CO", "unit-co2": "CO", "unit-pu": "PU", "unit-ve": "VE"}
     monkeypatch.setattr(detectors, "classes_of", lambda conn, units: {u: known[u] for u in units if u in known})
 
 
@@ -168,3 +168,32 @@ def test_the_case_shows_its_brief_and_the_person_records_whether_they_followed_i
     assert v["verdict"]["disposition"] == "plan an anti-surge valve check" and v["verdict"]["confidence"] == 1.0
     other = _case(conn, "source_issue", "unit-co")
     assert client.get(f"/work/items/{other}").json()["brief"]["expected"] is False
+
+
+def test_an_approved_lesson_reaches_the_next_brief_on_any_asset_of_its_class(conn, classes):
+    """P6.2b: the approved lesson for the subject's equipment class goes to the specialist and is kept on the brief; a
+    rejected or unreviewed one never does."""
+    with conn.transaction():
+        conn.execute("insert into entity (fuzer_id, kind) values ('unit-co2', 'tag'), ('cls-co', 'equipment_class') "
+                     "on conflict do nothing")
+        conn.execute("insert into entity_key (fuzer_id, kind, key) values ('cls-co', 'equipment_class', 'ISO14224:CO') "
+                     "on conflict do nothing")
+        conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('unit-co2', 'classified_as', 'cls-co', "
+                     "'{test}', 1)")
+        ids = {status: conn.execute(
+            "insert into lesson (scope_kind, scope_key, failure_mode, title, draft, status, decided_by) values "
+            "('equipment_class', 'ISO14224:CO', %s, %s, %s, %s, 'user:ana') returning id",
+            (mode, f"{status} seal lesson", f"- {status}: replace the seal cartridge", status)).fetchone()["id"]
+            for status, mode in (("approved", "ELU"), ("rejected", "VIB"), ("suggested", "NOI"))}
+    item = _case(conn, "machine_health", "unit-co2")
+    asked = []
+
+    def ask(q):
+        asked.append(q)
+        return {"answer": BRIEFED, "usage": {"cost_usd": 0.1}}
+
+    out = brief.prepare(conn, item, ask)
+    assert f"lesson:{ids['approved']} approved seal lesson" in asked[0] and "approved: replace the seal" in asked[0]
+    assert "rejected" not in asked[0] and "suggested seal" not in asked[0]
+    assert out["lessons"] == [{"id": ids["approved"], "title": "approved seal lesson", "failure_mode": "ELU",
+                               "by": "user:ana", "review_overdue": True}]  # approved with no review date

@@ -18,7 +18,10 @@ Separate what the records show from what they only suggest. Each finding carries
 4. **Lift.** On a gas lifted well, `calc("gas_lift", well)` and `plot_gas_lift_curve(well)`.
 5. **Interventions.** Fuzer has no well file. Recorded work comes from `maintenance_history(ref)`, `downtime(ref)`
    and `get_events(ref)`: slickline, shut-ins, choke changes, valve work. Give the dates and what changed in the
-   next test. No test before and after means the effect is unknown.
+   next test. No test before and after means the effect is unknown. `intervention_gains(well)` does this for every
+   recorded intervention: the oil rate after against the decline fitted before (gain net of decline, with its 90 %
+   range), and water cut and GOR before and after. Quote `gained`, `lost` or `no_clear_change` with the range, and
+   report `unknown` as unknown. `plot_intervention_gains` shows them side by side.
 6. **Candidates.** `opportunities()` lists scanned gains. Give each candidate its gain, supporting evidence and the
    evidence that is missing. `cluster_entities("wells")` finds peers to compare with.
 

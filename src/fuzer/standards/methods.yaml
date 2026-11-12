@@ -13,8 +13,8 @@
 decline:
   title: Latest well test against the Arps decline
   standard: "Arps, Analysis of Decline Curves (1945)"
-  inputs: [{name: Well tests (oil rate), unit: Sm³/d}]
-  valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change.
+  inputs: [{name: Well tests (oil rate, or gas rate on a gas well), unit: Sm³/d or kSm³/d}]
+  valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change. A well whose tests carry no oil is fitted on its gas rate.
   needs: At least four well tests.
   vectors:
     - kernel: fuzer.analysis.calcs:arps
@@ -65,6 +65,38 @@ reliability:
       args: [[2000-01-01, 2001-02-04, 2002-06-19, 2004-05-19, 2006-11-05]]
       expect: {beta: 0.5, lam: 0.1}
       says: Failures at 400, 900, 1600 and 2500 days after the first follow N = 0.1 t^0.5 exactly.
+
+pm_interval:
+  title: Preventive maintenance interval against the class's failure pattern
+  standard: "IEC 61649 (Weibull analysis); IEC 60300-3-11 (reliability centred maintenance)"
+  inputs: [{name: Failure notifications on the class's units, unit: dates}, {name: Preventive plan intervals, unit: days}]
+  valid: Equipment classes with preventive plans and repeat failures. Inspection plans are left out; a statutory interval is never proposed for change.
+  needs: Three times between failures in the class, else the class is reported as insufficient.
+  vectors:
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[100, 200, 300], 2.0, 200.0]
+      expect: {interval_days: 200, fails_first_pct: 63.2121, flag: null}
+      says: A wear-out class (beta 2) on a 200-day median interval at its characteristic life loses 1 - e^-1 of its units first.
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[365], 1.0, 400.0]
+      expect: {interval_days: 365, flag: random_failures}
+      says: With beta 1 failures are random in time, so a fixed interval cannot prevent them.
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[180, 400, 420], 3.0, 300.0]
+      expect: {interval_days: 400, flag: interval_too_long}
+      says: A wear-out class serviced past its characteristic life fails before its PM.
+
+spares_coverage:
+  title: Critical spares coverage, ranked by criticality and failure history
+  standard: "ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management)"
+  inputs: [{name: Bill of materials of each unit's installed equipment, unit: materials}, {name: Stock on hand, unit: each}, {name: Criticality (A, B, C), unit: class}, {name: Failure notifications, unit: count}]
+  valid: Tagged units whose equipment carries a bill of materials. A unit with none is unknown, never covered; minimum stock and lead times are not in the records, so covered means one or more on the shelf.
+  needs: A bill of materials on the unit's installed equipment.
+  vectors:
+    - kernel: fuzer.analysis.spares:rank
+      args: [[{unit: P-2, status: covered, criticality: A, failures: 9}, {unit: P-1, status: uncovered, criticality: B, failures: 1}, {unit: K-1, status: uncovered, criticality: A, failures: 2}, {unit: V-1, status: unknown, criticality: A, failures: 0}]]
+      expect: [{unit: K-1, status: uncovered, criticality: A, failures: 2}, {unit: P-1, status: uncovered, criticality: B, failures: 1}, {unit: V-1, status: unknown, criticality: A, failures: 0}, {unit: P-2, status: covered, criticality: A, failures: 9}]
+      says: A-critical stock-outs come first, then other stock-outs, then units nobody can check, then covered ones.
 
 wall_loss:
   title: Wall loss rate and remaining life per CML

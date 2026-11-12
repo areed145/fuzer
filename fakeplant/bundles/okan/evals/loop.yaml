@@ -5,6 +5,17 @@
 #   scan: sre   the window detectors through the SRE scan and its hand-off (upsets)
 #   source:     a source's sync that raises its own work
 #   build: true the register build's own questions, already open
+#   deliver:    the next delivery in deliveries/ lands as the source's load takes it (`incremental` when the source
+#               sends only the rows that changed); `rebuild` then runs the build that follows every load
+#   suggest:    a new export reaches the mapping suggester
+#   round:      an operator's reading on a round
+#   readings:   Claude's recorded readings land in the readers' cache as a reader run leaves them (no model call)
+#   about: source  work about a source rather than an asset
+#   deliver:    the next delivery in deliveries/ lands as the source's load takes it (`incremental` when the source
+#               sends only the rows that changed), `rebuild` then runs the build that follows every load
+#   suggest:    a new export reaches the mapping suggester
+#   round:      an operator's reading on a round
+#   readings:   Claude's recorded readings land in the readers' cache, as a reader run leaves them (no model call)
 #
 # A routed type not listed here is raised by the loop itself and reported as synthetic.
 arrive:
@@ -32,3 +43,9 @@ arrive:
   mapping_to_approve: {suggest: deliveries/new-export, about: source}  # a new export: a suggested mapping
   # An operator's reading on a round, outside its limits: a bearing running hot on the export cooler
   round_finding: {round: {point: R-10-01, value: 97}}
+  # A historian point's descriptor edited in PI: the build can't tell any more which temperature it is
+  measurement_role_to_confirm: {deliver: deliveries/descriptor-edit, datasets: [pi_points], incremental: true, rebuild: true}
+  # Claude's readings, as a reader run leaves them in its cache (deliveries/*/<cache>.json): a datasheet curve waits
+  # for an engineer, and a scanned drawing that doesn't show a line its neighbour sends it waits for a steward
+  curve_to_confirm: {readings: deliveries/datasheet-read}
+  drawing_line_to_confirm: {readings: deliveries/drawing-read, rebuild: true}

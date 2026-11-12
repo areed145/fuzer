@@ -278,6 +278,22 @@ def case_recheck(item_id: int, r: Recheck, conn=Depends(get_conn)):
     return row
 
 
+@router.get("/plant/scorecard/fleet")
+def plant_scorecard_fleet(days: int = 30):
+    """Across assets (P7.5b): the scorecard for every project the signed-in person may open, the rest named as left
+    out (D6). Without sign-in (a local instance) every project is read."""
+    from ..core import access, db
+    from ..ops import fleet
+    from .security import current
+    if days < 1 or days > 366:
+        raise HTTPException(400, "a period is 1 to 366 days")
+    allowed = None
+    if (who := current.get()) is not None:
+        with db.connect() as conn:
+            allowed = access.projects_for(conn, who)
+    return fleet.scorecards(allowed, days)
+
+
 @router.get("/plant/scorecard")
 def plant_scorecard(until: date | None = None, days: int = 30, conn=Depends(get_conn)):
     """How the plant is running (P7.3a, #353): the KPIs for the period against the one before, each citing its window,
@@ -287,6 +303,33 @@ def plant_scorecard(until: date | None = None, days: int = 30, conn=Depends(get_
         return kpis.scorecard(conn, until.isoformat() if until else None, days)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+
+
+@router.get("/plant/forecast-vs-actual")
+def plant_forecast_vs_actual(well: str | None = None, days: int = 365, conn=Depends(get_conn)):
+    """Each producing well's own decline forecast against its tests in the window, ranked by the gap, with a field
+    line and the wells too thin to fit (P7.3b, #336)."""
+    from ..analysis import forecast_actual as fa
+    out = fa.forecast_vs_actual(conn, well, days=max(30, min(days, 1095)))
+    for w in out["wells"]:
+        w.pop("sufficiency", None)
+    return out
+
+
+@router.get("/plant/cost-of-unreliability")
+def plant_cost_of_unreliability(days: int = 365, conn=Depends(get_conn)):
+    """Per unit, oil lost to the downtime it caused at the pack's price beside its corrective order cost, each in its
+    currency, ranked; never summed across currencies (P7.3c, #352)."""
+    from ..analysis import costs
+    return costs.unreliability(conn, deps.pack(), days=max(30, min(days, 1095)))
+
+
+@router.get("/plant/intervention-gains")
+def plant_intervention_gains(days: int = 730, conn=Depends(get_conn)):
+    """Every recorded well intervention with its oil gain net of the decline before it; unknown where a side has no
+    test (P7.5a, #340)."""
+    from ..analysis import interventions as iv
+    return iv.gains(conn, days=max(30, min(days, 1825)))
 
 
 @router.get("/work/performance")

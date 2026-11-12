@@ -207,6 +207,19 @@ export interface Lesson {
   stats: { incidents: number; fixed: number; fix_rate: number };
   evidence: { id: string; label: string; start: string; unit: string; recurred: boolean }[];
   decided_by: string | null;
+  version: number;
+  owner: string | null;
+  review_by: string | null;
+  review_overdue: boolean | null;
+}
+
+export interface LessonVersion {
+  version: number;
+  action: "approve" | "reject" | "edit";
+  status: string;
+  text: string;
+  by: string;
+  at: string;
 }
 
 export interface LeadIn {
@@ -467,6 +480,7 @@ export const investigateApi = {
     request<Study>("POST", "/studies", undefined, { kind, params, by }),
   rerunStudy: (id: number, by: string) => request<Study>("POST", `/studies/${id}/rerun`, { by }),
   lessons: (status: string) => request<Lesson[]>("GET", "/lessons", { status }),
+  lessonHistory: (id: number) => request<LessonVersion[]>("GET", `/lessons/${id}/history`),
   values: (id: string, at?: string, hoursBefore?: number, hoursAfter?: number, direct?: boolean) =>
     request<Values>("GET", `/entities/${encodeURIComponent(id)}/values`,
                     { at, hours_before: hoursBefore, hours_after: hoursAfter, direct: direct ? "true" : undefined }),

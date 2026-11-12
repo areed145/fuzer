@@ -99,6 +99,7 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
     monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
     monkeypatch.setattr(deploy, "configure_dagster", lambda home, url: calls.append("dagster"))
+    monkeypatch.setattr(deploy, "end_orphaned_runs", lambda: calls.append("end orphans"))
     monkeypatch.setattr(deploy, "seed", lambda conn, bundle: calls.append("seed") or {"name": "first"})
     monkeypatch.setattr(deploy, "register_projects", lambda conn, first: first == "first" and ["kestrel"])
     monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
@@ -117,7 +118,7 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
     monkeypatch.setattr(deploy, "supervise", lambda tasks, stop: calls.append("serve"))
     deploy.main(["--bundle", str(tmp_path)])
-    assert calls == ["dagster", "seed", "background readers", "serve"]
+    assert calls == ["dagster", "end orphans", "seed", "background readers", "serve"]
 
 
 def test_dagster_url_searches_only_the_dagster_schema():
@@ -159,6 +160,11 @@ def test_configure_dagster_keeps_dagster_storage_in_postgres(monkeypatch, tmp_pa
         assert not (tmp_path / "history" / "runs.db").exists()
         with DagsterInstance.from_config(str(tmp_path)) as instance:
             assert type(instance.run_storage).__name__ == "PostgresRunStorage"
+            assert type(instance.run_coordinator).__name__ == "QueuedRunCoordinator"
+            assert instance.run_coordinator.get_run_queue_config().max_concurrent_runs == deploy.MAX_CONCURRENT_RUNS
+            assert instance.run_monitoring_enabled
+            assert instance.run_monitoring_max_runtime_seconds == deploy.MAX_RUNTIME_SECONDS
+            assert {"AssetDaemon", "FreshnessDaemon"}.isdisjoint(instance.get_required_daemon_types())
             assert instance.get_runs() == []
             instance.event_log_storage.store_event(_event())  # NOTIFY on write: fails under psycopg 3
         with db.connect(url=url) as conn:
@@ -167,6 +173,44 @@ def test_configure_dagster_keeps_dagster_storage_in_postgres(monkeypatch, tmp_pa
     finally:
         with db.connect(autocommit=True, url=url) as conn:
             conn.execute(f"drop schema if exists {deploy.DAGSTER_SCHEMA} cascade")
+
+
+def test_startup_ends_the_previous_instances_runs(monkeypatch, tmp_path):
+    """Runs left starting or running, and scheduled runs left queued, are ended; a run queued by hand stays."""
+    from dagster import DagsterInstance
+    from dagster import DagsterRunStatus as S
+
+    monkeypatch.delenv(deploy.DAGSTER_URL_ENV, raising=False)
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    url = db.database_url()
+    try:
+        deploy.configure_dagster(tmp_path, url)
+        with DagsterInstance.get() as instance:
+            def run(status, **tags):
+                return instance.add_run(_run(status, tags)).run_id
+            ids = {"started": run(S.STARTED), "starting": run(S.STARTING),
+                   "scheduled": run(S.QUEUED, **{"dagster/schedule_name": "work_tick_schedule"}),
+                   "manual": run(S.QUEUED), "done": run(S.SUCCESS)}
+        deploy._end_orphaned_runs()
+        with DagsterInstance.get() as instance:
+            status = {name: instance.get_run_by_id(i).status for name, i in ids.items()}
+        assert status == {"started": S.CANCELED, "starting": S.CANCELED, "scheduled": S.CANCELED,
+                          "manual": S.QUEUED, "done": S.SUCCESS}
+    finally:
+        with db.connect(autocommit=True, url=url) as conn:
+            conn.execute(f"drop schema if exists {deploy.DAGSTER_SCHEMA} cascade")
+
+
+def _run(status, tags):
+    import uuid
+
+    from dagster import DagsterRun
+    from dagster._core.remote_origin import RegisteredCodeLocationOrigin, RemoteJobOrigin, RemoteRepositoryOrigin
+
+    origin = RemoteJobOrigin(RemoteRepositoryOrigin(RegisteredCodeLocationOrigin("fuzer.ops.jobs"), "__repository__"),
+                             "work_tick")  # a queued run needs one
+    return DagsterRun(job_name="work_tick", run_id=str(uuid.uuid4()), status=status, tags=tags,
+                      remote_job_origin=origin)
 
 
 def _event():

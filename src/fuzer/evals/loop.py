@@ -158,12 +158,27 @@ def _bring(conn, how: dict) -> str:
         from ..sources import ingest
 
         names = list(how.get("datasets") or [])
-        ingest.ingest(conn, _bundle(conn) / how["deliver"], names or None, trigger="sensor")
+        # `incremental`: the source sends only the rows that changed, so the rest of the dataset stays
+        ingest.ingest(conn, _bundle(conn) / how["deliver"], names or None, snapshot=not how.get("incremental"),
+                      trigger="sensor")
         conn.commit()
         if how.get("rebuild"):  # the register build that follows every load (the stewards' questions, the scorecard)
             pipeline.rebuild(conn, pack)
             conn.commit()
         return f"a delivery of {', '.join(names) or how['deliver']}" + (" and the rebuild after it" if how.get("rebuild") else "")
+    if "readings" in how:  # Claude's readings of drawings or datasheets, as a reader run left them in its cache
+        from ..graph import data_work
+        from ..ops import pipeline
+        from ..sources import llm_curves
+
+        n = _recorded(conn, _bundle(conn) / how["readings"])
+        llm_curves.queue_reviews(conn, pack)  # what the curve reader does once every datasheet has a current reading
+        if how.get("rebuild"):  # the build after a reader run lands what the drawings show, and its questions
+            pipeline.rebuild(conn, pack)
+        data_work.sync(conn)
+        conn.commit()
+        return f"{n} cached reading{'s' if n != 1 else ''}, then the reader's review queue" + (
+            " and the rebuild after it" if how.get("rebuild") else "")
     if "suggest" in how:  # a new export lands: the mapping suggester proposes one, the stewards' queue picks it up
         from ..graph import data_work
         from ..sources import suggest
@@ -178,6 +193,42 @@ def _bring(conn, how: dict) -> str:
         SYNCS[how["sync"]](conn)
         return f"the {how['sync']} check"
     raise Step(f"evals/loop.yaml says neither a detector, a scan, a source nor the build: {how}")
+
+
+def _recorded(conn, folder: Path) -> int:
+    """Load a bundle's recorded readings into the readers' cache, as a reader run stores them: `<cache>.json` holds
+    {source_key: result} for one reader (`datasheet`, `pid`), keyed to the content the record has now, so the reader
+    takes them as current and never calls a model. Returns how many were loaded."""
+    import json
+
+    from psycopg.types.json import Jsonb
+
+    from ..sources import llm_curves, llm_pids
+
+    readers = {  # cache -> (prompt version, the content fingerprint a current reading carries)
+        llm_curves.CACHE: (llm_curves.PROMPT_VERSION, "select payload->>'file_sha256' as h from source_record "
+                           "where source = 'edms' and record_type = 'document' and source_key = %s", 16),
+        "pid": (llm_pids.PROMPT_VERSION, "select payload->>'image_sha256' as h from source_record "
+                "where source = 'pid' and record_type = 'sheet' and source_key = %s", None),
+    }
+    n = 0
+    for path in sorted(folder.glob("*.json")):
+        if path.stem not in readers:
+            raise Step(f"no reader caches readings as {path.stem}")
+        version, query, cut = readers[path.stem]
+        for key, result in json.loads(path.read_text()).items():
+            row = conn.execute(query, (key,)).fetchone()
+            if not (row and row["h"]):
+                raise Step(f"{path.stem} reading of {key}: no such record with content to read")
+            conn.execute(
+                """
+                insert into llm_extraction (source, source_key, text_hash, model, prompt_version, result)
+                values (%s, %s, %s, 'recorded', %s, %s)
+                on conflict (source, source_key) do update set text_hash = excluded.text_hash, model = excluded.model,
+                    prompt_version = excluded.prompt_version, result = excluded.result, created_at = now()
+                """, (path.stem, key, row["h"][:cut], version, Jsonb(result)))
+            n += 1
+    return n
 
 
 def _arrived(conn, kind: str, since, build: bool, about: str = "asset") -> dict | None:
@@ -461,7 +512,7 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     arrive = arrivals(conn) if arrive is None else arrive
     # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
     # the work another type's own detector is about to raise
-    routes.sort(key=lambda r: bool({"deliver", "suggest", "round"} & set(arrive.get(r["type"], {}))))
+    routes.sort(key=lambda r: bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {}))))
     results = [run_type(conn, r, ref, run_id, arrive.get(r["type"])) for r, ref in zip(routes, refs, strict=True)]
     return {"types": results, "passed": sum(not r["failed"] for r in results),
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [

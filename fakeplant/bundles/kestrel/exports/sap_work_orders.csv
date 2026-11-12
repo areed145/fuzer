@@ -11,7 +11,7 @@ aufnr,order_type,qmnum,equnr,floc,start,finish,basic_finish,status,priority,revi
 40007009,PM03,,50000001,KRGP-A1-V1001,,,today+160d,CRTD,2,KR-TAR-2027,AC-INSP,38000,Internal inspection inlet separator (turnaround),MECH
 40007010,PM03,,50000002,KRGP-B1-K2001,,,today+165d,CRTD,2,KR-TAR-2027,AC-OVH,145000,"Compressor overhaul: valves, rings and rod packing (turnaround)",MECH
 40007011,PM03,,50000004,KRGP-C1-V3001,,,today+165d,CRTD,3,KR-TAR-2027,AC-INSP,22000,Internal inspection glycol contactor (turnaround),MECH
-40007014,PM01,10004009,50000015,KRGP-C1-H3008,today-4d,,today+2d,REL,2,,AC-SVC,3200,Clean TEG reboiler burner and inspect fire tube C1-H-3008,MECH
+40007014,PM01,10004009,50000015,KRGP-C1-H3008,today-4d,,today+1d,REL,2,,AC-SVC,3200,Clean TEG reboiler burner and inspect fire tube C1-H-3008,MECH
 40007015,PM01,10004010,50000007,KRGP-A1-V1004,,,today+5d,REL,3,,AC-REPL,4100,Replace inlet filter coalescer elements A1-V-1004,MECH
 40007016,PM01,10004011,50000043,KRGP-G1-K7004B,today-30d,today-30d,today-29d,TECO,3,,AC-SVC,700,Clean instrument air compressor B oil cooler,MECH
 40007017,PM01,10004012,50000045,KRGP-G1-G7006,today-95d,today-95d,today-94d,TECO,2,,AC-REPL,1900,Replace standby generator starting batteries and test transfer switch,ELEC

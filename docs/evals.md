@@ -19,18 +19,21 @@ type in and the window of the bundle's history where it does: a registered detec
 hand-off (upsets), a source's sync (SAP notifications), a scheduled data check (`sync: source_health`,
 `sync: scorecard`), the next delivery in the bundle's history (`deliver: deliveries/<folder>`, loaded as a source's
 load job takes it, with `rebuild: true` for the register build that follows: a delivery with duplicate keys, one whose
-columns drifted, one whose fill dropped), a new export the mapping suggester proposes a mapping for (`suggest:`), an operator's reading on a round
-(`round: {point, value}`), a delivery followed by the detector that reads it (`deliver` with `detector`), or
+columns drifted, one whose fill dropped; `incremental: true` when the source sends only the rows that changed, like a
+point descriptor edited in PI; a revision of a smart P&ID export), a new export the mapping suggester proposes a mapping for (`suggest:`), an operator's reading on a round
+(`round: {point, value}`), a delivery followed by the detector that reads it (`deliver` with `detector`), Claude's
+recorded readings of a datasheet or a scanned drawing loaded into the readers' cache as a reader run leaves them
+(`readings: deliveries/<folder>`, one `<cache>.json` per reader, keyed to each record's current content, so nothing
+calls a model; then the curve reader's review queue and, with `rebuild: true`, the build that lands the drawing), or
 the register build's own questions (`build: true`: the stewards' questions, which run their
 queue process once the processes load, as on the API's start). Work about a source rather than an asset (records that
 match nothing, links that name nothing) says `about: source`, and its match step checks it names one of the project's
 sources. Kestrel's windows are relative (`today-1d 03:10`) like its
 process model. The arrive step takes the exception that came in, about an asset and with its own case; whatever else
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
-raised by the loop and listed as `synthetic`: today the questions a bundle's build doesn't produce (curves and drawing
-lines to confirm, which come from Claude's readings, and on one bundle a measurement role or a drawing disagreement),
-which #747 seeds next (Gate A passed with this gap logged). Arrivals that change the data (deliveries, suggestions,
-rounds) run after the other types, since the rebuild after a load runs the detectors too and a round finding would
+raised by the loop and listed as `synthetic`: on Okan none; on Kestrel only a curve to confirm, since none of its
+datasheets has a pump or choke curve for the reader to read (#747). Arrivals that change the data (deliveries,
+suggestions, rounds, readings) run after the other types, since the rebuild after a load runs the detectors too and a round finding would
 host the next detector's work on the same machine.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
