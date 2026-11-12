@@ -77,7 +77,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
              "lube_oil": fid(conn, "20-GT-2000A"), "surge_events": fid(conn, "20-K-2100C"),
              "gas_performance": fid(conn, "20-K-2200A"), "power_balance": fid(conn, "20-GT-2000A"),
              "exhaust_spread": fid(conn, "20-GT-2000C"), "hot_section": fid(conn, "20-GT-2000B"),
-             "remaining_life": fid(conn, "20-K-2300B"), "failed_starts": k}
+             "remaining_life": fid(conn, "20-K-2300B"), "failed_starts": k, "loop_oscillation": fid(conn, "10-V-2003")}
     # Okan has no reciprocating compressor or gas engine: tests/analysis/test_recip.py (Kestrel)
     recip = {"rod_load", "valve_health", "engine_cylinders"}
     assert set(refs) | recip == set(calcs.CHECKS)
