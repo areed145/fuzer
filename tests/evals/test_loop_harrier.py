@@ -28,4 +28,4 @@ def test_every_type_of_work_on_harrier_completes_the_loop(harrier_db):
     # tank A's high-high level shutdown, still bypassed past its expiry in the bypass register
     assert arrived["bypass_overdue"] == "bypass_overdue" and "E1-T-5001A" in done["bypass_overdue"]["steps"]["arrive"]
     assert res["synthetic"] == ["curve_to_confirm"], res["synthetic"]  # no Harrier datasheet has a curve to read
-    assert list(res["not_here"]) == ["well_test_review"], res["not_here"]  # a pipeline has no wells to test
+    assert sorted(res["not_here"]) == ["gas_lift_instability", "well_test_review"], res["not_here"]  # no wells

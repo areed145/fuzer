@@ -56,6 +56,8 @@ arrive:
   loop_candidate: {detector: loop_oscillation, until: "2025-02-14T00:00"}
   # OK-J03-02's water breakthrough on its June 2025 test
   well_test_review: {detector: well_tests, until: "2025-06-20T00:00"}
+  # A gas-lifted well heading in late December 2025: its casing pressure surging every 75 minutes
+  gas_lift_instability: {detector: gas_lift_instability, until: "2025-12-20T00:00"}
   # The next alarm export: train B's 2nd stage vibration high-high moved two days ago, and the only change record
   # about the probe (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
