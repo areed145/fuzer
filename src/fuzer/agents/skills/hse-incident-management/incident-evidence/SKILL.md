@@ -20,7 +20,11 @@ Use only recorded evidence:
 5. Track corrective work: `maintenance_history(ref)` for notifications and orders on the unit and their status,
    `compare_periods(ref, before_since, before_until, after_since, after_until)` for whether readings changed afterwards, and `lessons_learned()` for
    past fixes. Order status says what was recorded, not that the corrective action worked. `record_history(ref)`
-   shows whether a source record was later edited.
+   shows whether a source record was later edited. For whether problems come back and whether the work raised for
+   them closes, use `incident_repeats` (and `plot_incident_repeats`): repeats per unit, the days between them, any
+   incident that came back after linked work was recorded closed, and the age of open linked orders. Say that linked
+   work is a proxy (an order raised for the incident's notification, or a corrective order on the unit soon after),
+   not an action register, and that a repeat after closed work is a lead for review, not a failed action.
 6. `plot_flare(since, until)` shows recorded daily flare from DAY001 with an estimated CO2 per barrel. It is
    evidence for a review, not an emissions inventory or a compliance figure.
 
