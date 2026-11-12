@@ -16,6 +16,7 @@ from fuzer.sources import ingest
 pytestmark = pytest.mark.integration
 
 COMPRESSION, PUMPS = "maintenance-integrity/compression", "maintenance-integrity/pumps-and-drivers"
+ALARMS = "field-operations-facilities/alarms-and-instruments"
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
 
 
@@ -54,7 +55,7 @@ def _by_label(site: dict) -> dict:
     return {a["label"]: a for a in site["assets"]}
 
 
-@pytest.mark.parametrize("path", [COMPRESSION, PUMPS])
+@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS])
 def test_each_pack_works_on_okan(okan_db, path):
     site = packs.on_site(okan_db.conn, path)
     assert site["problems"] == [] and site["assets"]
@@ -72,7 +73,7 @@ def test_on_okan_the_pumps_have_what_their_curve_needs(okan_db):
     assert "heat_rate" in site["20-GT-2000B"]["can"]
 
 
-@pytest.mark.parametrize("path", [COMPRESSION, PUMPS])
+@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS])
 def test_each_pack_works_on_kestrel(kestrel, path):
     site = packs.on_site(kestrel, path)
     assert site["problems"] == [] and site["assets"]

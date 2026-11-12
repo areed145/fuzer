@@ -83,6 +83,17 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 
 A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4.1, `agents/packs.py`); each pack passes the pack conformance test. Each shipped bundle holds its answer keys in `evals/<pack>.yaml`.
 
+### Alarms and instruments
+
+- **Skill:** `field-operations-facilities/alarms-and-instruments`, loaded by Field Operations & Facilities
+- **Equipment classes (ISO 14224):** IP, VA, CL
+- **Methods:** `alarm_performance` (ANSI/ISA-18.2 and EEMUA 191), `instrument_health` (Engineering practice)
+- **Detectors:** `instruments`, `excursions`, `steps`
+- **Briefs:** none
+- **Measurement roles:** `pressure`, `differential_pressure`, `temperature`, `flow`, `level`, `valve_position`, `composition`
+- **Charts:** `plot_instrument_health`, `plot_alarms`, `plot_changes`, `plot_operating_window`
+- **Eval:** 3 questions with answer keys across 2 bundles
+
 ### Compression
 
 - **Skill:** `maintenance-integrity/compression`, loaded by Maintenance & Integrity
