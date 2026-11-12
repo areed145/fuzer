@@ -29,6 +29,10 @@ services:
         value: /var/lib/fuzer/dagster
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: FUZER_GITHUB_ISSUES_TOKEN
+        sync: false
+      - key: FUZER_GITHUB_ISSUES_REPO
+        sync: false
 
 databases:
   - name: fuzer-db
