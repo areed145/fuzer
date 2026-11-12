@@ -90,18 +90,6 @@ def fresh(request):
         conn.commit()
 
 
-@pytest.fixture(autouse=True)
-def fresh(request):
-    """Each test starts with nothing in the field or on the plan (tests run in random order)."""
-    yield
-    if "kestrel" in request.fixturenames:
-        conn = request.getfixturevalue("kestrel")[0]
-        conn.rollback()
-        conn.execute("update exception_record set state = 'closed' where state = 'open'")
-        conn.execute("update plan_item set status = 'cancelled' where status in ('proposed', 'scheduled', 'in_progress')")
-        conn.commit()
-
-
 @pytest.fixture
 def client(kestrel, monkeypatch):
     from fastapi import FastAPI
