@@ -118,3 +118,15 @@ def test_secrets_are_references_and_sources_read_settings(monkeypatch):
         assert pi_web_api.Client().url == "http://pi.example/piwebapi"
     monkeypatch.setenv("FUZER_ADX_URL", "http://old.example")  # the old variable, read fresh each time
     assert adx.Client().url == "http://old.example"
+
+
+def test_a_value_for_one_qualifier_beats_the_usual_one_only_for_it():
+    assert settings.split("sre.drift_rise@CO") == ("sre.drift_rise", "CO") and settings.split("sre.drift_rise")[1] is None
+    with pytest.raises(settings.SettingError, match="after @"):
+        settings.split("sre.drift_rise@")
+    with settings.Overrides({"sre.drift_rise@CO": 0.2}):
+        assert settings.get(None, "sre.drift_rise", qualifier="CO") == 0.2
+        assert settings.get(None, "sre.drift_rise", qualifier="PU") == settings.get(None, "sre.drift_rise") == 0.05
+    with pytest.raises(settings.SettingError, match="at most"):
+        settings.Overrides({"sre.drift_rise@CO": 2}).__enter__()  # checked as the setting it qualifies
+    settings._cache.clear()

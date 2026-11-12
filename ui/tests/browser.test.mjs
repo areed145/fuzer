@@ -489,6 +489,57 @@ test("Source readiness belongs in Sources and Settings remains application-wide 
   assert.deepEqual(mutations, []);
 });
 
+test("Detection under Settings switches a detector and sets a threshold for one equipment class", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  const param = { key: "sre.drift_rise", description: "Share of its starting value a drift must climb", type: "float",
+    value: 0.05, default: 0.05, from: "default", updated_by: null, updated_at: null, min: 0, max: 1, by_class: true,
+    classes: [{ qualifier: "CO", value: 0.3, updated_by: "ana", updated_at: "2026-11-12T00:00:00" }] };
+  const detectors = { project: "okan", classes: [{ code: "CO", name: "Compressors", units: 12 }, { code: "PU", name: "Pumps", units: 30 }],
+    detectors: [
+      { name: "drifts", title: "A slow climb in what wears and fouls", kind_label: "Statistical", cadence_label: "Once a day",
+        raises: ["upset"], about: "Vibration climbing.", on: true, switched: null, applicable: true, note: null,
+        last_run: { status: "ran", note: null, found: 3, at: "2026-11-12T00:00:00" },
+        score: { recall: 0.8, precision: 0.9, false_alarms_per_week: 1, since: "2024-11-01", until: "2024-11-08" },
+        eval: "replay:sre:drifts", settings: [param] },
+      { name: "hydraulics", title: "A flowline pressure drop still rising", kind_label: "Model", cadence_label: "Once a day",
+        raises: ["upset"], about: "", on: true, switched: null, applicable: false, note: "not applicable: missing a well with a choke",
+        last_run: null, score: null, eval: "replay:sre:hydraulics", settings: [] },
+    ] };
+  const writes = [];
+  await page.route("**/settings/detectors**", (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: detectors });
+    writes.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${url}/#/settings?view=detection`);
+  await page.getByText("A slow climb in what wears and fouls", { exact: false }).waitFor();
+  await page.getByText("Recall 80%, precision 90%", { exact: false }).waitFor();
+  await page.getByText("not applicable: missing a well with a choke", { exact: false }).first().waitFor();
+  await page.getByRole("button", { name: "Change" }).first().click();
+  await page.getByText("Compressors: 0.3 (ana)", { exact: false }).waitFor();
+  await page.getByLabel("Equipment class").selectOption("PU");
+  await page.getByLabel("Value", { exact: true }).fill("0.2");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByText("Give a short reason", { exact: false }).waitFor();
+  assert.deepEqual(writes, []);
+  await page.getByLabel("Reason for Share of its starting value a drift must climb").fill("pumps foul quickly");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByText("Applies from the detector's next run", { exact: false }).waitFor();
+  assert.equal(writes[0].path, "/settings/detectors/drifts/params/sre.drift_rise");
+  assert.equal(writes[0].body.class, "PU");
+  assert.equal(writes[0].body.value, "0.2");
+  assert.equal(writes[0].body.reason, "pumps foul quickly");
+  await page.getByLabel("Reason to switch A slow climb in what wears and fouls").fill("under review");
+  await page.getByRole("button", { name: "Switch off" }).click();
+  await page.getByText("Switched off from its next run", { exact: false }).waitFor();
+  assert.deepEqual(writes[1], { path: "/settings/detectors/drifts/on", body: { on: false, by: writes[1].body.by, reason: "under review" } });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test("reader Settings and Sources do not request protected configuration or connection details", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
   const administrative = [];

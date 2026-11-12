@@ -212,7 +212,8 @@ def _daily(since, until) -> bool:
                     raises=("upset",), window=True, eval="replay:sre:drifts",
                     roles=("vibration", "bearing temperature", "discharge temperature", "outlet temperature",
                            "differential pressure"),
-                    needs={"historian points": POINTS}, params=("sre.drift_rise", "signals.drift_z"))
+                    needs={"historian points": POINTS}, params=("sre.drift_rise", "signals.drift_z"),
+                    by_class=("sre.drift_rise",))
 def drifts(conn, pack, since, until, src) -> list[dict]:
     """Vibration, bearing and discharge temperatures, cooler outlets and differential pressures climbing over the
     last month and still climbing."""
@@ -221,8 +222,12 @@ def drifts(conn, pack, since, until, src) -> list[dict]:
     pts = [p for p in _points(conn) if DRIFTING.search(p["description"] or "")]
     a = until - timedelta(days=DRIFT_DAYS)
     times = _grid(a, until, DRIFT_STEP)
-    out, rise, th = [], settings.get(conn, "sre.drift_rise"), signals.thresholds(conn)
+    out, th = [], signals.thresholds(conn)
+    unit = limits.units(conn, [p["id"] for p in pts])
+    cls = detectors.classes_of(conn, unit.values())
+    rises = {c: detectors.param(conn, "sre.drift_rise", c) for c in {*cls.values(), None}}  # the asset's, per class
     for p in pts:
+        rise = rises[cls.get(unit.get(p["id"]))]
         try:
             v = signals._read(src, p, a, until, DRIFT_STEP)
         except Exception:
@@ -233,7 +238,6 @@ def drifts(conn, pack, since, until, src) -> list[dict]:
                 continue  # climbing, by enough, and still at the end of the window
             out.append(_det(p, None, since, None, "drift_up", "drifts", c["per_day"],
                             {"from": c["start"], "before": c["before"], "now": c["after"], "per_day": c["per_day"]}))
-    unit = limits.units(conn, [d["point_id"] for d in out])
     return [d | {"unit_id": unit.get(d["point_id"])} for d in out]
 
 
@@ -405,7 +409,8 @@ def _point_name(conn, pid: str) -> str:
 
 def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None,
            skip=()) -> list[dict]:
-    """Every registered window detector over one window, less the ones in `skip` (not applicable on this asset)."""
+    """Every registered window detector over one window, less the ones in `skip` (off or not applicable on this
+    asset)."""
     from ..sources.timeseries import provider
 
     src = src or provider()
@@ -475,19 +480,22 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
                           (start, end)).fetchone()["id"]
     conn.commit()
     t0, totals, windows = time.perf_counter(), {"new": 0, "extended": 0}, 0
-    lacking = {d.name: m for d in detectors.window() if (m := detectors.missing(conn, pack, d))}
+    off = {d.name for d in detectors.window() if not detectors.on(conn, d.name)}
+    lacking = {d.name: m for d in detectors.window() if d.name not in off and (m := detectors.missing(conn, pack, d))}
     raised: dict[str, int] = {}  # new detections per detector; an extended one was already counted
     try:
         a = start
         while a < end:
             b = min(a + timedelta(hours=6), end)
-            for k, v in store(conn, detect(conn, pack, a, b, src, skip=lacking), run_id, (a, b), raised).items():
+            for k, v in store(conn, detect(conn, pack, a, b, src, skip=off | set(lacking)), run_id, (a, b), raised).items():
                 totals[k] += v
             windows += 1
             a = b
         totals["upsets"] = regroup(conn, start)["upsets"]
-        for d in detectors.window():  # each detector's run, or why it did not apply here
-            if d.name in lacking:
+        for d in detectors.window():  # each detector's run, or why it did not run here
+            if d.name in off:
+                detectors.record(conn, d.name, detectors.OFF, "switched off", since=start, until=end)
+            elif d.name in lacking:
                 detectors.record(conn, d.name, detectors.NOT_APPLICABLE, detectors.note(lacking[d.name]), since=start, until=end)
             else:
                 detectors.record(conn, d.name, detectors.RAN, found=raised.get(d.name, 0), since=start, until=end)
@@ -501,7 +509,7 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
         raise
     return {"run": run_id, "since": start.isoformat(timespec="minutes"), "until": end.isoformat(timespec="minutes"),
             "windows": windows, **totals, "seconds": round(time.perf_counter() - t0, 1),
-            "not_applicable": {k: detectors.note(v) for k, v in lacking.items()}}
+            "not_applicable": {k: detectors.note(v) for k, v in lacking.items()}, "off": sorted(off)}
 
 
 def recent(conn, since: str | None = None, detector: str | None = None, limit: int = 200) -> list[dict]:

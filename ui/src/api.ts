@@ -4,7 +4,7 @@ import { exploreApi } from "./api/explore";
 import { investigateApi } from "./api/investigate";
 import { workApi } from "./api/work";
 import { sourcesApi } from "./api/sources";
-import { settingsApi } from "./api/settings";
+import { detectionApi, settingsApi } from "./api/settings";
 import { jobsApi } from "./api/jobs";
 import { stewardshipApi } from "./api/stewardship";
 
@@ -25,6 +25,7 @@ export const api = {
   ...workApi,
   ...sourcesApi,
   ...settingsApi,
+  ...detectionApi,
   ...jobsApi,
   ...stewardshipApi,
 };

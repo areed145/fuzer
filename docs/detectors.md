@@ -1,7 +1,7 @@
 # Detectors
 
 Generated from the detector registry (`core/detectors.py`); don't edit by hand (`uv run python -m fuzer.reference`).
-Everything that looks for trouble in the data is declared once, where it is written. A detector whose needs are missing on an asset reports "not applicable: missing X" and does not run.
+Everything that looks for trouble in the data is declared once, where it is written. A detector whose needs are missing on an asset reports "not applicable: missing X" and does not run. Each detector is switched on or off per asset, and a setting marked *per class* takes a value for one equipment class on one asset, on the Detection page under Settings; both changes are kept in the settings history.
 
 | Detector | Kind | Runs | Raises | Applies to |
 |---|---|---|---|---|
@@ -76,7 +76,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `upset`
 - **Measurement roles:** vibration, bearing temperature, discharge temperature, outlet temperature, differential pressure
 - **Needs:** historian points
-- **Setting `sre.drift_rise`:** Share of its starting value a drift must climb before it is raised (default 0.05)
+- **Setting `sre.drift_rise`:** Share of its starting value a drift must climb before it is raised (default 0.05), *per class*
 - **Setting `signals.drift_z`:** A drift: the fitted trend moves this many times the spread around it (default 4.0)
 - **Scored by:** the replay harness, `fuzer eval --ops --detector sre:drifts`
 

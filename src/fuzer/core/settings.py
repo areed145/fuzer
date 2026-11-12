@@ -5,6 +5,10 @@ and why.
     settings.get(conn, "sre.handoff.max_usd")             # this project's value, else the global one, else the default
     settings.set(conn, "sre.handoff.max_usd", 8, by="ana", reason="more diagnoses during the turnaround")
 
+A value can also be set for one qualifier, written `key@qualifier`: one equipment class on one asset
+(`sre.drift_rise@CO`), or one detector (`detectors.on@drifts`). A qualified value beats the unqualified one at the
+same scope, and `get(conn, key, qualifier=...)` reads it.
+
 The project is the request's or job's, else FUZER_PROJECT, else the database's first project. Values are cached for a few seconds, so
 calling get in a loop doesn't hit the database each time.
 """
@@ -21,6 +25,7 @@ from . import models
 CACHE_SECONDS = 5.0
 OVERRIDE = "override"  # a cache entry set by Overrides (tests), not read from the database
 GLOBAL = "global"
+QUALIFIER = "@"  # sre.drift_rise@CO: the value for one equipment class (or detector) only
 
 
 class SettingError(ValueError):
@@ -250,6 +255,8 @@ register(
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
             "bounds memory pressure on the single-instance demo, not a commercial quota", "Access",
             min=1, max=32, scopes=(GLOBAL,)),
+    Setting("detectors.on", "bool", True, "Run the detectors; set for one detector as detectors.on@<name> on the "
+            "Detection page", "Detection"),
     Setting("demo.enabled", "bool", True, "Show the Demo tab and guided onboarding for all approved users. "
             "Hiding Demo does not change permissions or disable the underlying tools.", "Demo", scopes=(GLOBAL,)),
 )
@@ -288,10 +295,19 @@ def scope_of(project_name: str | None) -> str:
     return f"project:{project_name}" if project_name else GLOBAL
 
 
+def split(key: str) -> tuple[str, str | None]:
+    """`sre.drift_rise@CO` as ("sre.drift_rise", "CO"); an unqualified key as (key, None)."""
+    base, at, q = key.partition(QUALIFIER)
+    if at and not q.strip():
+        raise SettingError(f"{key!r}: say what the value is for after {QUALIFIER}")
+    return base, (q if at else None)
+
+
 def _setting(key: str) -> Setting:
-    if key not in REGISTRY:
-        raise SettingError(f"no setting {key!r}")
-    return REGISTRY[key]
+    base = split(key)[0]
+    if base not in REGISTRY:
+        raise SettingError(f"no setting {base!r}")
+    return REGISTRY[base]
 
 
 _cache: dict[tuple, tuple[float, Any]] = {}
@@ -327,9 +343,30 @@ def secret(conn, key: str) -> str | None:
     return os.environ.get(ref[4:]) or None if ref.startswith("env:") else None
 
 
-def get(conn, key: str, project_name: str | None = None) -> Any:
+def _rows(conn, key: str, p: str | None) -> dict:
+    hit = _cache.get((key, p))  # the stored rows, not the value: the environment and defaults are read fresh
+    if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    rows = _stored(conn, key, p)
+    _cache[(key, p)] = (time.monotonic(), rows)
+    return rows
+
+
+def get(conn, key: str, project_name: str | None = None, qualifier: str | None = None) -> Any:
     """The project's value, else the global value, else the old environment variable (for one release),
-    else the default. `conn` None opens a short connection."""
+    else the default. With a `qualifier` (an equipment class, a detector), a value set for it beats the
+    unqualified one at the same scope. `conn` None opens a short connection."""
+    if qualifier:
+        p = project_name or project()
+        q = _rows(conn, f"{key}{QUALIFIER}{qualifier}", p)
+        if OVERRIDE in q:
+            return q[OVERRIDE]
+        if p and scope_of(p) in q:
+            return q[scope_of(p)]
+        base = _rows(conn, key, p)
+        if GLOBAL in q and not (OVERRIDE in base or (p and scope_of(p) in base)):
+            return q[GLOBAL]
+        return get(conn, key, project_name)
     s = _setting(key)
     p = project_name or project()
     hit = _cache.get((key, p))  # the stored rows, not the value: the environment and defaults are read fresh
@@ -358,7 +395,8 @@ def get(conn, key: str, project_name: str | None = None) -> Any:
 
 
 def set(conn, key: str, value: Any, *, by: str, reason: str | None = None, project_name: str | None = None) -> dict:
-    """Set a value (for one project, or globally without a project), checked against the registry."""
+    """Set a value (for one project, or globally without a project), checked against the registry. `key` may be
+    qualified (`sre.drift_rise@CO`)."""
     s = _setting(key)
     scope = scope_of(project_name)
     if scope != GLOBAL and "project" not in s.scopes:
@@ -419,6 +457,18 @@ def listing(conn, group: str | None = None, project_name: str | None = None) -> 
     return out
 
 
+def qualified(conn, key: str, project_name: str | None = None) -> list[dict]:
+    """The values set for one qualifier of `key` (an equipment class, a detector), project and global, with who
+    set them."""
+    _setting(key)
+    p = project_name or project()
+    return [{"qualifier": split(r["key"])[1], "scope": "project" if r["scope"] != GLOBAL else GLOBAL,
+             "value": r["value"], "updated_by": r["updated_by"],
+             "updated_at": r["updated_at"].isoformat(timespec="seconds")} for r in conn.execute(
+        "select key, scope, value, updated_by, updated_at from setting where key like %s and scope = any(%s) "
+        "order by key, scope", (key.replace("_", r"\_") + QUALIFIER + "%", [GLOBAL, scope_of(p)]))]
+
+
 def history(conn, key: str, limit: int = 50) -> list[dict]:
     _setting(key)
     return [{**r, "at": r["at"].isoformat(timespec="seconds")} for r in conn.execute(
@@ -434,7 +484,7 @@ class Overrides:
 
     def __enter__(self):
         for k, v in self.values.items():
-            _cache[(k, project())] = (float("inf"), {OVERRIDE: _setting(k).parse(v)})
+            _cache[(k, project())] = (float("inf"), {OVERRIDE: _setting(k).parse(v)})  # k may be qualified
         return self
 
     def __exit__(self, *exc):

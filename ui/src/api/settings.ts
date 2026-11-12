@@ -42,3 +42,47 @@ export const settingsApi = {
     request<unknown>("POST", `/settings/${encodeURIComponent(key)}/reset`, undefined, { scope, project, by, reason }),
   settingHistory: (key: string) => request<SettingChange[]>("GET", `/settings/${encodeURIComponent(key)}/history`),
 };
+
+export interface DetectorParam {
+  key: string;
+  description: string;
+  type: SettingRow["type"];
+  value: unknown;
+  default: unknown;
+  from: SettingRow["from"];
+  updated_by: string | null;
+  updated_at: string | null;
+  min?: number;
+  max?: number;
+  by_class: boolean;
+  classes: { qualifier: string; value: unknown; updated_by: string; updated_at: string }[];
+}
+
+export interface DetectorRow {
+  name: string;
+  title: string;
+  kind_label: string;
+  cadence_label: string;
+  raises: string[];
+  about: string;
+  on: boolean;
+  switched: { value: unknown; updated_by: string; updated_at: string } | null;
+  applicable: boolean;
+  note: string | null;
+  last_run: { status: "ran" | "not_applicable" | "failed" | "off"; note: string | null; found: number | null; at: string } | null;
+  score: { recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string } | null;
+  eval: string | null;
+  settings: DetectorParam[];
+}
+
+export interface EquipmentClass { code: string; name: string; units: number }
+
+export const detectionApi = {
+  detectors: () =>
+    request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[] }>("GET", "/settings/detectors"),
+  switchDetector: (name: string, on: boolean, by: string, reason: string) =>
+    request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/on`, undefined, { on, by, reason }),
+  tuneDetector: (name: string, key: string, change: { value?: unknown; class?: string | null; reset?: boolean }, by: string, reason: string) =>
+    request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/params/${encodeURIComponent(key)}`, undefined,
+      { ...change, by, reason }),
+};

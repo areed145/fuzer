@@ -7,6 +7,7 @@ import { loadPerson } from "../work";
 import { Appearance } from "../theme";
 import { usePermission } from "../Auth";
 import { ApplicationReadiness } from "./ApplicationReadiness";
+import { Detection } from "./Detection";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -36,19 +37,21 @@ function Configuration({ query }: { query: URLSearchParams }) {
   const person = loadPerson() || "anonymous";
   const f = filter.trim().toLowerCase();
   const rows = (list.data?.settings ?? []).filter(
-    (s) => s.group !== "Sources" && (!f || s.key.toLowerCase().includes(f) || s.description.toLowerCase().includes(f)),
+    (s) => s.group !== "Sources" && s.group !== "Detection" && (!f || s.key.toLowerCase().includes(f) || s.description.toLowerCase().includes(f)),
   );
   const groups = [...new Set(rows.map((s) => s.group))];
-  const configuration = query.get("view") === "configuration" || query.has("filter");
+  const detection = query.get("view") === "detection";
+  const configuration = !detection && (query.get("view") === "configuration" || query.has("filter"));
   return (
     <section>
       <PageHeader subtitle="Preferences and configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
-        <a className={!configuration ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration ? "page" : undefined}>Readiness</a>
+        <a className={!configuration && !detection ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration && !detection ? "page" : undefined}>Readiness</a>
         <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
+        <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
       </nav>
-      {!configuration ? <ApplicationReadiness list={list} /> : <>
+      {detection ? <Detection /> : !configuration ? <ApplicationReadiness list={list} /> : <>
       <p className="muted">
         Thresholds, caps, models and schedules. Project values override global values, then legacy environment values,
         then defaults. Each

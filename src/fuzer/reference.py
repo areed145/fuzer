@@ -179,7 +179,7 @@ def architecture_md() -> str:
     out.append("")
 
     # each component
-    reads = {p: sorted(set(re.findall(r'(?:settings\.get\([^,()]+,\s*|due_hours=)"([\w.]+)"', _source(p)))) for p in COMPONENTS}
+    reads = {p: sorted(set(re.findall(r'(?:(?:settings\.get|detectors\.param)\([^,()]+,\s*|due_hours=)"([\w.]+)"', _source(p)))) for p in COMPONENTS}
     writes = {p: sorted({t for t in tables if re.search(rf"(insert into|update|delete from) {t}\b", _source(p))})
               for p in COMPONENTS}
     by_agent = {a: len(names) for a, names in capabilities.tools_by_agent().items() if names}  # loads the tools
@@ -310,7 +310,9 @@ def detectors_md() -> str:
     reg = detectors.registry()
     out = ["# Detectors", "", HEADER.format(what="the detector registry (`core/detectors.py`)"),
            "Everything that looks for trouble in the data is declared once, where it is written. A detector whose "
-           "needs are missing on an asset reports \"not applicable: missing X\" and does not run.", "",
+           "needs are missing on an asset reports \"not applicable: missing X\" and does not run. Each detector is "
+           "switched on or off per asset, and a setting marked *per class* takes a value for one equipment class on one "
+           "asset, on the Detection page under Settings; both changes are kept in the settings history.", "",
            "| Detector | Kind | Runs | Raises | Applies to |", "|---|---|---|---|---|"]
     for d in reg.values():
         out.append(f"| [`{d.name}`](#{d.name}) {d.title} | {detectors.KINDS[d.kind]} | {detectors.CADENCES[d.cadence]} | "
@@ -323,7 +325,7 @@ def detectors_md() -> str:
         out += [f"- **Measurement roles:** {', '.join(d.roles)}"] if d.roles else []
         out += [f"- **Needs:** {', '.join(d.needs)}"] if d.needs else []
         out += [f"- **Setting `{k}`:** {settings.REGISTRY[k].description} (default {settings.REGISTRY[k].default})"
-                for k in d.params]
+                + (", *per class*" if k in d.by_class else "") for k in d.params]
         kind, _, where = (d.eval or "").partition(":")
         out += [f"- **Scored by:** the replay harness, `fuzer eval --ops --detector {where}`" if kind == "replay" else
                 f"- **Scored by:** `{where}`, on the fake plant"] if d.eval else []
