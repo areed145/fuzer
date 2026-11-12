@@ -293,6 +293,14 @@ SKILL_CATALOG = (
         "Bad actors, MTBF, failure modes, compliance and root-cause leads with data dates.",
         "Root causes stay leads until an accountable engineer confirms them."),
     SkillDefinition(
+        f"{_MAINT}/compression", (_MAINT,),
+        (RELIABILITY_ENGINEER, MAINTENANCE_COORDINATOR),
+        "Compressor process and protection points (flows, pressures, temperatures, vibration, axial position, seal "
+        "vent, lube oil), the machine's OEM map, cylinder data and frame rating, and the latest gas analysis.",
+        "Each compressor's status with the checks that drive it (surge margin, rod load, valves, protection "
+        "channels, seals, lube oil, performance), their basis and data dates.",
+        "Advises; stopping, unloading or re-staging a machine is the operator's and machinery engineer's call."),
+    SkillDefinition(
         f"{_MAINT}/integrity", (_MAINT,),
         (INTEGRITY_ENGINEER, INSPECTION_SPECIALIST),
         "Wall thickness at CMLs, inspection plans, integrity operating windows and excursions.",

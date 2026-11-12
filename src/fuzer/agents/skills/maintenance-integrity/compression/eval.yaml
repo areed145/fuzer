@@ -1,0 +1,17 @@
+# The compression pack's eval (P4.1): questions an IOC lead or machinery engineer asks, with answer keys per
+# shipped bundle, in the shape of the assistant eval (fuzer.evals.evaluate: must_mention, specialists, charts).
+# A must_mention entry that is a list is met by any one of its terms.
+okan:
+  - question: Which of our pumps and compressors needed attention in early March 2024, and why?
+    must_mention: [20-K-2200B, [vibration, zone D]]
+    specialists: [maintenance-integrity]
+  - question: Are any of our compressors at risk at the end of December 2025, and what should the IOC do about it?
+    must_mention: [20-K-2100C, surge, [anti-surge, recycl]]
+    specialists: [maintenance-integrity]
+kestrel:
+  - question: How is compressor B1-K-2001 today, and what should we do about it?
+    must_mention: [B1-K-2001, rod load, [valve, cylinder 3]]
+    specialists: [maintenance-integrity]
+  - question: Which stage of B1-K-2001 lost capacity, and how do you know?
+    must_mention: [B1-K-2001, [2nd stage, second stage, stage 2], [ratio, discharge temperature]]
+    specialists: [maintenance-integrity]
