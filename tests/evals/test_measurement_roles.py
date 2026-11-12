@@ -64,3 +64,52 @@ def test_at_least_90_percent_of_okan_roles_are_right_and_the_rest_go_to_a_stewar
 
 def test_at_least_90_percent_of_kestrel_roles_are_right_and_the_rest_go_to_a_steward(kestrel_db):
     _check(roles_eval.score(kestrel_db, KESTREL / "exports"))
+
+
+def test_uncertain_roles_are_steward_work_and_a_stewards_role_survives_rebuilds(kestrel_db):
+    """P1.4b: each uncertain proposal is a Review item; confirming or choosing a role pins it for every rebuild."""
+    from fastapi import HTTPException
+
+    from fuzer.api.graph import Decision, review_decide
+    from fuzer.core.pack import current_pack
+    from fuzer.graph import roles as graph_roles
+
+    conn = kestrel_db
+    asked = conn.execute("select * from review_item where kind = 'role' and status = 'open' order by subject").fetchall()
+    unsure = conn.execute("select count(*) as n from measurement_role where confidence < %s",
+                          (roles.CONFIDENT,)).fetchone()["n"]
+    assert asked and len(asked) == unsure
+    first, second = asked[0], asked[1]
+    p = first["payload"]
+    assert p["point"] and p["proposed"] and p["basis"] and p["asset_label"]
+    assert p["choices"][0]["key"] in {r.key for r in roles.ROLES.values()
+                                      if r.quantity == roles.ROLES[p["proposed"]].quantity}  # its kind first
+    case = conn.execute("select title from exception_record where type = 'measurement_role_to_confirm' "
+                        "and key = %s and state = 'open'", (f"role:{first['subject']}",)).fetchone()
+    assert case and case["title"].startswith(f"Is {p['point']} on ")  # a case in the data steward's queue
+
+    try:
+        with pytest.raises(HTTPException):
+            review_decide(first["id"], Decision(decision="reject", by="sam"), conn=conn)
+        with pytest.raises(HTTPException):
+            review_decide(first["id"], Decision(decision="choose", value="suction psi", by="sam"), conn=conn)
+        review_decide(first["id"], Decision(decision="choose", value="temperature", by="sam"), conn=conn)
+        review_decide(second["id"], Decision(decision="accept", by="sam"), conn=conn)
+        live = conn.execute("select role, confidence from measurement_role where point_id = %s",
+                            (first["subject"],)).fetchone()
+        assert (live["role"], live["confidence"]) == ("temperature", 1.0)  # live before any rebuild
+
+        stats = graph_roles.build(conn, current_pack(conn))
+        conn.commit()
+        assert stats["roles_confirmed"] == 2 and stats["roles_unsure"] == unsure - 2
+        after = {r["point_id"]: r for r in conn.execute("select * from measurement_role where point_id = any(%s)",
+                                                         ([first["subject"], second["subject"]],))}
+        assert after[first["subject"]]["role"] == "temperature"
+        assert after[second["subject"]]["role"] == second["payload"]["proposed"]
+        assert after[first["subject"]]["basis"] == ["confirmed by sam"]
+        still = {r["subject"] for r in conn.execute("select subject from review_item where kind = 'role' and status = 'open'")}
+        assert not still & {first["subject"], second["subject"]}
+    finally:  # the scores on this bundle are of the proposer, not of a steward's answers
+        conn.execute("delete from measurement_role_pin")
+        graph_roles.build(conn, current_pack(conn))
+        conn.commit()

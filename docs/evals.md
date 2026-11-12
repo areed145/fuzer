@@ -32,6 +32,10 @@ the proposals against the fake plant's `process_model.json`, which says which un
 that holds one value names its role there (`"role": "differential_pressure"`). It fails under 90% right, or when a
 wrong role was confident enough not to go to a steward. `tests/evals/test_measurement_roles.py` runs it on Okan and Kestrel.
 
+A proposal below the confidence threshold is steward work: it opens a Review item (Data review > Measurement roles)
+with the point's evidence and the proposed role. Confirming it or choosing another role pins it in
+`measurement_role_pin`, live at once and kept by every rebuild.
+
 ## Replaying history to score the detectors
 
 The SRE runs unattended, so nobody checks each thing it raises. Before trusting it, and after

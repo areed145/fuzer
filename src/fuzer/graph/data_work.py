@@ -38,6 +38,8 @@ KINDS: dict[str, tuple[str, str, str]] = {
                 "A suggested mapping for a new dataset; approve it, or leave the dataset unmapped."),
     "check": ("failed_quality_check", "Load failed a quality check",
               "A blocking check held a load; fix the export and load it again."),
+    "role": ("measurement_role_to_confirm", "Measurement role to confirm",
+             "What a historian point measures on its asset is uncertain; confirm it before detectors read it."),
 }
 TYPES = {kind: exception_type(name, label, role=ROLE, joins=False, description=what)
          for kind, (name, label, what) in KINDS.items()}
@@ -64,6 +66,9 @@ def title(kind: str, subject: str, p: dict) -> str:
         return f"Approve the suggested mapping for {p.get('dataset', subject)}"
     if kind == "check":
         return f"{p.get('dataset', subject)} failed a blocking check"
+    if kind == "role" and p.get("point"):
+        on = f" on {p['asset_label']}" if p.get("asset_label") else ""
+        return f"Is {p['point']}{on} the {(p.get('proposed_label') or 'proposed role').lower()}?"
     if kind == "pid_connection" and p.get("from") and p.get("to"):
         return f"Does {p['from']} pipe to {p['to']}{' on ' + p['sheet'] if p.get('sheet') else ''}?"
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
@@ -77,6 +82,8 @@ def refs(kind: str, p: dict) -> list[str]:
         source, _, rest = ref.partition(":")
         if rest:
             out.append(f"{source}/{rest.partition(':')[2]}")
+    if kind == "role":
+        out += [x for x in (p.get("point_id"), p.get("asset")) if isinstance(x, str)]
     if kind == "pid_mismatch" and p.get("tag"):
         out.append(f"tag:{p['tag']}")
     return list(dict.fromkeys(out))

@@ -66,6 +66,16 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
         elif decision == "accept" or (decision == "choose" and value not in ("drawing", "system")):
             raise ReviewError("drawing disagreements take choose with drawing (the system needs changing) or "
                               "system (the drawing needs a redline), or reject (not a real disagreement)")
+    elif item["kind"] == "role":  # an uncertain measurement role (P1.4b): confirm it, or choose another from the list
+        from . import roles
+
+        role = p.get("proposed") if decision == "accept" else value
+        if decision not in ("accept", "choose") or not role:
+            raise ReviewError("measurement roles take accept (the proposed role) or choose with a role")
+        try:
+            roles.confirm(conn, item["subject"], role, by)
+        except ValueError as e:
+            raise ReviewError(str(e)) from e
     elif item["kind"] == "match":
         if decision == "choose":
             raise ReviewError("match items take accept or reject")
