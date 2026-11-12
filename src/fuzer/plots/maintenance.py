@@ -367,3 +367,24 @@ def backlog_burn(conn, since: str | None = None, until: str | None = None, days:
                                            if k not in ("longest", "before", "without_refs")},
         "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
         [r for m in months for r in m["refs"]["created"]][:10])
+
+
+def work_execution(conn, since: str | None = None, until: str | None = None, days: int = 730, by: str = "quarter") -> Figure:
+    """Schedule compliance and repeat repair rate per quarter (#373); a period below the sample floor has no point."""
+    from ..analysis import work_execution as we
+
+    out = we.trend(conn, since, until, days, by)
+    ps = out["periods"]
+    if not ps:
+        raise ChartError("no work order finished or started in that window")
+    x = [p["period"] for p in ps]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "schedule compliance (%)", "x": x,
+             "y": [p["schedule_compliance_pct"] for p in ps], "line": {"color": "rgba(40,150,90,0.9)"}},
+            {"type": "scatter", "mode": "lines+markers", "name": f"repeat repairs within {we.REPEAT_DAYS} days (%)",
+             "x": x, "y": [p["repeat_rate_pct"] for p in ps], "yaxis": "y2", "line": {"color": "rgba(210,60,50,0.9)"}}]
+    lay = layout(f"Schedule compliance and repeat repairs, {out['since']} to {out['until']}", None, "compliance (%)")
+    lay["yaxis2"] = {"title": {"text": "repeats (%)"}, "overlaying": "y", "side": "right", "showgrid": False}
+    return Figure("work_execution", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "thresholds": out["thresholds"], "by": by, "since": out["since"],
+        "until": out["until"], "note": out["note"]},
+        [r["id"] for p in ps for r in p["late"] + p["repeats"]][:10])
