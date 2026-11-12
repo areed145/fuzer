@@ -2,8 +2,11 @@
 the records behind it.
 
     GET /metrics            every metric's declaration
-    GET /metrics/{key}      its value now (?grain= one of its grains), rows by that grain and the refs behind it
+    GET /metrics/{key}      its value now (?grain= one of its grains), rows by that grain and the refs behind it;
+                            a dated metric takes ?at=YYYY-MM-DD, the day its period ends
 """
+
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -22,11 +25,11 @@ def listing():
 
 
 @router.get("/metrics/{key}")
-def one(key: str, grain: str | None = None, conn=Depends(get_conn)):
+def one(key: str, grain: str | None = None, at: date | None = None, conn=Depends(get_conn)):
     """One metric now, the same value a page, the daily report or an agent reads."""
     from ..core.jsonsafe import plain
 
     try:
-        return plain(metrics.value(conn, deps.pack(), key, grain))
+        return plain(metrics.value(conn, deps.pack(), key, grain, at))
     except metrics.MetricError as e:
         raise HTTPException(404 if "no metric" in str(e) else 400, str(e)) from e

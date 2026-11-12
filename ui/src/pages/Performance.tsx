@@ -41,14 +41,12 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
           <tbody>{rows.map((r) => {
             const name = (r.queue ?? r.type ?? "").replace(/_/g, " ");
             const w = r.weeks[r.weeks.length - 1];
-            const before = r.weeks.slice(0, -1);
-            const avg = (k: "arrivals" | "closed") => Math.round(before.reduce((s, c) => s + c[k].n, 0) / (before.length || 1) * 10) / 10;
             return (
               <tr key={name}>
                 <td><strong>{name}</strong></td>
                 <td><Badge className={`badge ${VERDICT[r.keeping_up].tone}`}>{VERDICT[r.keeping_up].text}</Badge></td>
-                <td>{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {avg("arrivals")}</span></td>
-                <td>{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {avg("closed")}</span></td>
+                <td>{n(`${name}: arrived this week`, w.arrivals)} <span className="small muted">avg {r.arrivals_avg4}</span></td>
+                <td>{n(`${name}: closed this week`, w.closed)} <span className="small muted">avg {r.closed_avg4}</span></td>
                 <td>{n(`${name}: open now`, w.backlog)} <span className="small muted">avg {r.backlog_avg4}</span>
                   <div className="small muted" title="open at the end of each of the last five weeks, oldest first">
                     {r.weeks.map((c) => c.backlog.n).join(" · ")}</div></td>

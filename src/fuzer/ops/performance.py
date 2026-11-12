@@ -159,7 +159,11 @@ def verdict(cells: list[dict]) -> dict:
     closing = now["closed"]["n"] >= now["arrivals"]["n"]
     backlog_ok = now["backlog"]["n"] <= avg * 1.1 or now["backlog"]["n"] == 0
     state = "keeping_up" if closing and backlog_ok else "falling_behind" if not closing and not backlog_ok else "holding"
-    return {"keeping_up": state, "backlog_avg4": round(avg, 1)}
+    def mean(k: str) -> float:
+        return round(sum(c[k]["n"] for c in before) / len(before), 1) if before else 0.0
+
+    return {"keeping_up": state, "backlog_avg4": round(avg, 1), "arrivals_avg4": mean("arrivals"),
+            "closed_avg4": mean("closed")}
 
 
 def _compliance(conn) -> dict | None:

@@ -372,6 +372,26 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("Metrics lists every registered KPI with its value and drills by a grain to its records (P7.1b)", async () => {
+  const decl = { key: "context.completeness", label: "Asset context completeness", group: "Context", unit: "%",
+    definition: "Of what an asset's class usually has, the share it has.", formula: "mean over assets", standard: null,
+    grains: ["area", "class"], period: "now", better: "higher", records: "assets", dated: false };
+  await page.route("**/metrics", route => route.fulfill({ json: [decl] }));
+  await page.route("**/metrics/context.completeness*", route => {
+    const grain = new URL(route.request().url()).searchParams.get("grain");
+    return route.fulfill({ json: { ...decl, value: 71.4, as_of: null, note: null, grain, refs: ["E-1"],
+      rows: grain ? [{ key: "B1", label: "Train B1", value: 64.2, refs: ["E-1", "E-2"] }] : [] } });
+  });
+  await page.goto(`${url}/#/metrics`);
+  await page.getByRole("heading", { name: "Metrics" }).waitFor();
+  await page.getByText("71.4%").waitFor();
+  await page.getByRole("link", { name: "area" }).click();
+  await page.getByRole("heading", { name: "Asset context completeness" }).waitFor();
+  await page.getByRole("cell", { name: "Train B1" }).waitFor();
+  await page.getByRole("button", { name: "2 records" }).click();
+  assert.equal(await page.getByRole("link", { name: "E-2" }).getAttribute("href"), "#/e/E-2");
+});
+
 test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
   await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
     windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",
@@ -1251,6 +1271,34 @@ test("Data review is the Questions tab of Master data, old links land on the sam
   }
 });
 
+test("ten like answers become a rule a steward accepts, and it answers the rest (P6.5)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  const rule = { source: "ptw", kind: "sap:equipment", prefix: "eq", suffix: "",
+    rule: "A PTW value that is a SAP equipment key with 'EQ' before names that item" };
+  let learned = { proposals: [{ ...rule, taught: 10, would_answer: 2, rows: 2,
+    examples: [{ id: 1, value: "EQ-30000003", kind: "tag", key: "20-K-2100B" }],
+    values: [{ value: "EQ-30000011", rows: 1, rel: "covers", fuzer_id: "fz-1", key: "20-P-2101A" },
+             { value: "EQ-30000019", rows: 1, rel: "covers", fuzer_id: "fz-2", key: "20-V-2001" }] }], rules: [] };
+  let sent = null;
+  await page.route("**/stewardship/unresolved", (route) => route.fulfill({ json: [
+    { source: "ptw", rel: "covers", value: "EQ-30000011", rows: 1, aliased: false, built_at: "2026-11-12T00:00:00Z" }] }));
+  await page.route("**/stewardship/learned", (route) => route.fulfill({ json: learned }));
+  await page.route("**/stewardship/learned/accept", (route) => {
+    sent = route.request().postDataJSON();
+    learned = { proposals: [], rules: [{ ...rule, id: 4, status: "accepted", decided_by: "ana", decided_at: "2026-11-12T08:00:00Z",
+      reason: null, answers: 2 }] };
+    return route.fulfill({ json: { recorded: 2 } });
+  });
+  await page.goto(`${url}/#/masterdata?tab=unresolved`);
+  await page.getByText("A PTW value that is a SAP equipment key with 'EQ' before names that item.").waitFor();
+  await page.getByRole("button", { name: "It would answer 2 more values on 2 rows" }).click();
+  assert.equal(await page.getByRole("link", { name: "20-V-2001" }).getAttribute("href"), "#/e/fz-2");
+  await page.getByRole("button", { name: "Accept rule" }).click();
+  await page.getByRole("button", { name: "Confirm Accept rule" }).click();
+  await page.getByRole("cell", { name: rule.rule }).waitFor();
+  assert.deepEqual(sent, { source: "ptw", kind: "sap:equipment", prefix: "eq", suffix: "", by: "ana", reason: "10 like answers" });
+});
+
 test("like questions are answered once, for new ones too when asked (P2.3c)", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   let groups = [{ kind: "match", key: "match|jde+maximo|the maker is unknown on one side", count: 6, items: [1, 2, 3, 4, 5, 6],
@@ -1403,7 +1451,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
   assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/lessons", "#/studies"]);
+    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
@@ -3751,10 +3799,10 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   await page.route("**/work/performance", (route) => route.fulfill({ json: {
     weeks: [0, 1, 2, 3, 4].map((k) => ({ start: `2026-10-${12 + 7 * k}T00:00:00Z`, end: "" })),
     queues: [
-      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0,
+      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0, arrivals_avg4: 1, closed_avg4: 0.8,
         weeks: [cell(), cell(), cell(), cell(), cell({ arrivals: { n: 3, ids: [11, 12, 13] }, closed: { n: 0, ids: [] },
           backlog: { n: 3, ids: [11, 12, 13] }, hand_backs: { n: 1, ids: [11] } })] },
-      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, weeks: [cell(), cell(), cell(), cell(), cell()] },
+      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, arrivals_avg4: 1, closed_avg4: 1, weeks: [cell(), cell(), cell(), cell(), cell()] },
     ],
     types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
   } }));
@@ -3763,6 +3811,7 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   await page.getByRole("heading", { name: "Work performance" }).waitFor();
   const row = page.getByRole("row").filter({ hasText: "operator" });
   await row.getByText("falling behind").waitFor();
+  await row.getByText("avg 0.8").waitFor();  // the server's four-week mean, not one worked out on the page
   await page.getByRole("row").filter({ hasText: "maintenance planner" }).getByText("keeping up").waitFor();
   await row.getByRole("button", { name: "3" }).first().click();
   const cases = page.locator(".perf-cases");

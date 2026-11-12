@@ -11,6 +11,8 @@
     GET  /stewardship/context       asset context completeness by area and class, and the top gaps as cases (P2.5)
     POST /stewardship/fixes, POST /stewardship/fixes/{batch}/undo   one value for many entities, and back
     POST /exceptions/{id}/resolve   (api/ops.py) pick the asset an exception's unmatched ref meant
+    GET  /stewardship/learned       rules the stewards' answers support (P6.5), and the ones decided
+    POST /stewardship/learned/accept, /learned/reject, /learned/{id}/withdraw   decide one
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -172,6 +174,47 @@ def add_alias(body: AliasIn, conn=Depends(get_conn)):
     from ..sources import aliases
 
     return _do(conn, aliases.add, conn, body.value, body.fuzer_id, body.by, source=body.source, reason=body.reason)
+
+
+class LearnedIn(Reason):
+    source: str
+    kind: str
+    prefix: str = ""
+    suffix: str = ""
+
+
+@router.get("/learned")
+def learned_rules(conn=Depends(get_conn)):
+    """Rules the register learned from stewards (P6.5): proposed (enough like answers, nobody has decided), each with
+    the answers that taught it and the values it would answer now; and the decided ones."""
+    from ..core.jsonsafe import plain
+    from ..sources import learned
+
+    return plain({"proposals": learned.proposals(conn), "rules": learned.listing(conn)})
+
+
+@router.post("/learned/accept")
+def accept_learned(body: LearnedIn, conn=Depends(get_conn)):
+    """Accept a learned rule: it records an alias for each like value now and after each rebuild."""
+    from ..sources import learned
+
+    return _do(conn, learned.accept, conn, body.source, body.kind, body.prefix, body.suffix, body.by, body.reason)
+
+
+@router.post("/learned/reject")
+def reject_learned(body: LearnedIn, conn=Depends(get_conn)):
+    """Reject a learned rule; it isn't proposed again."""
+    from ..sources import learned
+
+    return _do(conn, learned.reject, conn, body.source, body.kind, body.prefix, body.suffix, body.by, body.reason)
+
+
+@router.post("/learned/{rule_id}/withdraw")
+def withdraw_learned(rule_id: int, body: Reason, conn=Depends(get_conn)):
+    """Stop an accepted rule and retire the aliases it recorded."""
+    from ..sources import learned
+
+    return _do(conn, learned.withdraw, conn, rule_id, body.by, body.reason)
 
 
 @router.post("/aliases/{alias_id}/retire")

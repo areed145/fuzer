@@ -26,7 +26,7 @@ from ..graph import (
     spatial,
 )
 from ..graph.resolve import replace_open_reviews, resolve, resolve_keyed, retire_unused, sync_labels
-from ..sources import curves, llm_docs, llm_pids, mappings, quality, rules
+from ..sources import curves, learned, llm_docs, llm_pids, mappings, quality, rules
 from ..sources.extract import extract, link_part_numbers
 
 REBUILD_LOCK = 0x46555A  # "FUZ"
@@ -93,6 +93,8 @@ def rebuild(conn, pack: Pack) -> dict:
     # them instead of sorting on disk (the server default is a few MB).
     conn.execute(f"set local work_mem = '{settings.get(conn, 'db.work_mem')}'")
     lap("wait_for_lock")
+    # rules learned from stewards answer what the last rebuild left unresolved, before the aliases are read (P6.5)
+    learned_rules = learned.sync(conn)
     pack = rules.apply(conn, pack)  # survivorship and matching rules from the source catalog (#225)
 
     cands, extra, pid_sheets = [], [], {}
@@ -131,6 +133,7 @@ def rebuild(conn, pack: Pack) -> dict:
     lap("extract")
 
     assigned, key_index, stats = resolve(conn, cands, pack)
+    stats["learned_rules"] = learned_rules
     lap("resolve")
     # Off-page lines only one drawing shows are questions for a person, not links (#475).
     replace_open_reviews(conn, "pid_connection", llm_pids.reviews(conn, pid_sheets))
