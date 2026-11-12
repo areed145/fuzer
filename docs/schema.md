@@ -1112,6 +1112,19 @@ Lessons learned: drafted from incidents and their corrective work orders, owned 
 | `decided_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `lesson_history`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `lesson_id` | bigint |  |
+| `version` | int |  |
+| `action` | text |  |
+| `status` | text |  |
+| `text` | text |  |
+| `by_user` | text |  |
+| `at` | timestamptz |  |
+
 ### `value_ranking`
 
 Engineers' own ordering of a sample of work (fuzer ids, most valuable first), to calibrate the value score (#100) against: value.calibrate reports how well the score's ranking agrees.

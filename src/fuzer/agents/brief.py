@@ -74,7 +74,8 @@ def prompt(item: dict, pack: dict, gaps: list[str] = (), lessons: list[dict] = (
               + "; ".join(gaps) + ".\n") if gaps else ""
     learned = ("Reviewed lessons for this equipment, approved by its engineer; when one applies, cite it as "
                "lesson:<id> under similar with what it says fixed the problem:\n"
-               + "".join(f"- lesson:{x['id']} {x['title']}: {' '.join(str(x['text'] or '').split())[:600]}\n"
+               + "".join(f"- lesson:{x['id']} {x['title']}{' (past its review date)' if x.get('review_overdue') else ''}: "
+                         f"{' '.join(str(x['text'] or '').split())[:600]}\n"
                          for x in lessons)) if lessons else ""
     return (
         f"Brief case {item['id']} ({item['type']}): {item['title']}. Subjects: {', '.join(item['subjects']) or 'none'}.\n"
@@ -166,7 +167,8 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
         "pack": pack["path"], "brief": with_gaps(parse(answer["answer"]), gaps), "answer": answer["answer"],
         "usage": answer.get("usage") or {}, "ledger": led, "budget_usd": budget,
         "over_budget": bool(budget) and led["cost_usd"] > budget, "late": now > due(item),
-        "lessons": [{"id": x["id"], "title": x["title"], "failure_mode": x["failure_mode"], "by": x["decided_by"]}
+        "lessons": [{"id": x["id"], "title": x["title"], "failure_mode": x["failure_mode"], "by": x["decided_by"],
+                     "review_overdue": x["review_overdue"]}
                     for x in learned], **when})
 
 
