@@ -161,6 +161,8 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
         ("POST", "/rebuild", {}),
         ("PUT", "/settings/agents.model", {"value": "changed"}),
         ("PUT", "/settings/demo.enabled", {"value": False, "scope": "global", "reason": "hide onboarding"}),
+        ("PUT", "/settings/detectors/drifts/on", {"on": False, "reason": "quiet the board"}),
+        ("PUT", "/settings/detectors/drifts/params/sre.drift_rise", {"value": 0.5, "class": "CO", "reason": "x"}),
         ("PUT", "/work/people/attacker", {"roles": ["workflow_admin"], "by": "system"}),
         ("POST", "/assistant/ask", {"question": "charge", "by": "system"}),
         ("POST", "/work/tasks/1/complete", {"by": "system", "data": {}}),
@@ -168,6 +170,7 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
     ]:
         assert runtime.request(method, path, json=body).status_code == 403, path
     assert runtime.get("/settings").status_code == 403
+    assert runtime.get("/settings/detectors").status_code == 403
     assert runtime.get("/auth/access").status_code == 403
 
 

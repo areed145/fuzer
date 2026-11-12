@@ -147,6 +147,12 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `access.session_hours` | int | `8` | 1 to 24 | Absolute signed-in session lifetime in hours. |
 | `access.api_concurrency` | int | `4` | 1 to 32 | Maximum simultaneous authenticated API requests per server process; bounds memory pressure on the single-instance demo, not a commercial quota. |
 
+## Detection
+
+| Setting | Type | Default | Range | What it is |
+|---|---|---|---|---|
+| `detectors.on` | bool | `True` |  | Run the detectors; set for one detector as detectors.on@<name> on the Detection page. |
+
 ## Demo
 
 | Setting | Type | Default | Range | What it is |
