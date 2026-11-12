@@ -1348,6 +1348,20 @@ Each run of a registered detector (core/detectors.py): what it found, or why it 
 | `until` | timestamp |  |
 | `at` | timestamptz |  |
 
+### `detector_tier_run`
+
+One run of a detector tier's job (P3.2): what it cost, for the Jobs page.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `tier` | text | 5min \| 30min \| hourly \| 6h \| daily (ops/cadence.py) |
+| `until` | timestamp |  |
+| `seconds` | double precision |  |
+| `ran` | integer |  |
+| `failed` | integer |  |
+| `at` | timestamptz |  |
+
 ### `detection`
 
 What the SRE's detectors found in the process data (sre.py): an ongoing one is extended, not raised again.

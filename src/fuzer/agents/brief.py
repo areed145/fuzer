@@ -11,8 +11,8 @@ A brief is kept on the case as an `agent_result` event for the step `brief`, wit
 counts toward the case's agent spend and it shows in the agent work card. A case that gets no brief records why in
 the same place: no pack owns it, the case's agent spend reached its cap, or the specialist could not be reached.
 
-It is due within the case's cadence tier: the cadence of the detector that raises its work type (30 minutes,
-6 hours or a day), 6 hours when no detector raises it. A brief may cost up to `agents.brief_cap_usd`; one that costs
+It is due within the case's cadence tier: the cadence of the detector that raises its work type (30 minutes for
+one that runs every 5 or 30 minutes, an hour, 6 hours or a day), 6 hours when no detector raises it. A brief may cost up to `agents.brief_cap_usd`; one that costs
 more is kept and says so.
 
     owner(conn, item)            the pack that briefs this case, or None
@@ -41,7 +41,8 @@ from . import ledger, packs
 
 STEP = "brief"
 SECTIONS = ("what_happened", "evidence", "analysis", "similar", "proposal", "could_not_check")
-TIERS = {"30min": timedelta(minutes=30), "6h": timedelta(hours=6), "daily": timedelta(days=1)}
+TIERS = {"5min": timedelta(minutes=30), "30min": timedelta(minutes=30), "hourly": timedelta(hours=1),
+         "6h": timedelta(hours=6), "daily": timedelta(days=1)}
 DEFAULT_TIER = timedelta(hours=6)
 _JSON = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
