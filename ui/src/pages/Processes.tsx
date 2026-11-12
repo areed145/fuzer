@@ -14,6 +14,7 @@ import { blankProcess, focusElement } from "../bpmnSubset";
 const BpmnModeler = lazy(() => import("../BpmnModeler"));
 const BpmnView = lazy(() => import("../BpmnView"));
 const FormEditor = lazy(() => import("../FormEditor"));
+const TaskForm = lazy(() => import("../TaskForm"));
 
 const ADMIN = "workflow_admin";
 const isOpenDraft = (d: WorkDefinition, defs: WorkDefinition[]) =>
@@ -611,21 +612,36 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
 
 const BLANK_FORM = (key: string) => ({ id: key, type: "default", schemaVersion: 19, components: [] });
 
+/** Bulk actions are JSON; say what is wrong with them before a save is tried. */
+function bulkProblem(text: string): string | null {
+  if (!text.trim()) return null;
+  try {
+    const v = JSON.parse(text);
+    return v && typeof v === "object" ? null : "Bulk actions must be a JSON object or list.";
+  } catch (e) {
+    return `Bulk actions aren't valid JSON: ${(e as Error).message}`;
+  }
+}
+
 export function FormPage({ formKey, query }: { formKey: string; query: URLSearchParams }) {
   const isNew = formKey === "new";
   const [person] = usePerson();
   const [newKey, setNewKey] = useState(query.get("key") ?? "");
   const [schema, setSchema] = useState<Record<string, unknown>>();
-  const [loadError, setLoadError] = useState<string>();
+  const [loadError, setLoadError] = useState<{ text: string; missing: boolean }>();
+  const [tries, setTries] = useState(0);
   const [version, setVersion] = useState<number>();
   const [bulk, setBulk] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<Record<string, unknown>>();
   const [msg, setMsg] = useState<{ text: string; error?: boolean }>();
   const saver = useRef<(() => Record<string, unknown>) | undefined>(undefined);
 
   useEffect(() => {
     setLoadError(undefined);
     setDirty(false);
+    setPreview(undefined);
     if (isNew) {
       setSchema(BLANK_FORM("new"));
       setBulk("");
@@ -636,13 +652,23 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       setVersion(f.version);
       const b = (f.schema as any).fuzer?.bulk;
       setBulk(b ? JSON.stringify(b, null, 2) : "");
-    }, (e: Error) => setLoadError(e.message));
-  }, [formKey, isNew]);
+    }, (e: Error & { status?: number }) => setLoadError({ text: e.message, missing: e.status === 404 }));
+  }, [formKey, isNew, tries]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const key = isNew ? newKey : formKey;
   const keyOk = /^[a-z0-9][a-z0-9_-]*$/.test(key);
+  const keyProblem = isNew && newKey && !keyOk ? "Use lower case letters, digits, - and _, starting with a letter or digit." : null;
+  const badBulk = bulkProblem(bulk);
   const save = async () => {
     setMsg(undefined);
+    setSaving(true);
     try {
       const out = { ...saver.current!(), id: key } as Record<string, any>;
       const fuzer = { ...(out.fuzer ?? {}) };
@@ -655,41 +681,70 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       if (isNew) location.hash = href(`/processes/forms/${r.key}`);
       else {
         setVersion(r.version);
-        setMsg({ text: `Saved v${r.version}. Tasks use the latest version from now on.` });
+        setMsg({ text: `Saved v${r.version}. Steps that use this form show v${r.version} from now on; steps already filled in keep what was entered.` });
       }
     } catch (e) {
-      setMsg({ text: e instanceof SyntaxError ? `Bulk actions aren't valid JSON: ${e.message}` : (e as Error).message, error: true });
+      setMsg({ text: `Couldn't save: ${(e as Error).message}. Your changes are still here; try again.`, error: true });
+    } finally {
+      setSaving(false);
     }
   };
+  const showPreview = () => {
+    if (preview) return setPreview(undefined);
+    if (saver.current) setPreview(saver.current());
+  };
   const onReady = useCallback((s: (() => Record<string, unknown>) | undefined) => (saver.current = s), []);
-  const onDirty = useCallback(() => setDirty(true), []);
+  const onDirty = useCallback(() => { setDirty(true); setPreview(undefined); }, []);
 
   return (
     <section>
-      <div className="row spread">
-        <PageHeader>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</PageHeader>
-        <div className="actions">
-          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
-          <Button variant="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</Button>
-        </div>
-      </div>
+      <PageHeader actions={<a href={href("/processes")}>All processes and forms</a>}
+        subtitle={isNew ? "A form is what a person fills in on a process step. Name it, add fields, then create it."
+          : version != null ? `v${version}. Saving makes a new version; earlier versions stay with the steps that used them.` : undefined}>
+        {isNew ? "New form" : <>Form <span className="mono">{formKey}</span></>}</PageHeader>
       <NeedName person={person} />
       {isNew && (
         <div className="actions">
-          <Input placeholder="form key, e.g. lesson-review" value={newKey} onChange={(e) => setNewKey(e.target.value.trim())} />
-          {newKey && !keyOk && <span className="small error">Lower case letters, digits, - and _.</span>}
+          <Field label="Form key" hint="what a process step names, e.g. lesson-review">
+            <Input value={newKey} aria-invalid={!!keyProblem} onChange={(e) => setNewKey(e.target.value.trim())} />
+          </Field>
         </div>
       )}
-      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
-      {loadError && <div className="status error">Couldn't load the form: {loadError}</div>}
-      {schema && (
-        <Suspense fallback={<div className="status">Loading form editor…</div>}>
-          <FormEditor schema={schema} onReady={onReady} onDirty={onDirty} />
-        </Suspense>
-      )}
-      <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
-        <textarea className="mono" rows={5} value={bulk} onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
-      </Disclosure>
+      {keyProblem && <p className="small error" role="alert">{keyProblem}</p>}
+      {loadError && (loadError.missing
+        ? <div className="status error" role="alert">There is no form “{formKey}”.{" "}
+            <a href={href("/processes/forms/new", { key: formKey })}>Create it</a></div>
+        : <div className="status error" role="alert">Couldn't load the form: {loadError.text}{" "}
+            <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></div>)}
+      {schema && <>
+        <div className="work-toolbar">
+          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
+          <span className="spacer" />
+          <Button aria-pressed={!!preview} onClick={showPreview}>{preview ? "Back to editing" : "Preview"}</Button>
+          <Button variant="primary" disabled={!person || !keyOk || !!badBulk || saving} onClick={save}>
+            {saving ? "Saving…" : isNew ? "Create form" : "Save new version"}</Button>
+        </div>
+        {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
+        {preview && <UICard title="Preview" className="form-preview">
+          <p className="small muted">How a person sees it on their step. Nothing you enter here is kept.</p>
+          <Suspense fallback={<div className="status">Loading preview…</div>}>
+            <TaskForm schema={preview} data={{}} onSubmit={() => undefined} />
+          </Suspense>
+        </UICard>}
+        <div hidden={!!preview}>
+          <Suspense fallback={<div className="status">Loading form editor…</div>}>
+            <FormEditor schema={schema} onReady={onReady} onDirty={onDirty} />
+          </Suspense>
+        </div>
+        <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
+          <label className="prop">
+            <span>Bulk actions (JSON): the decisions a lead can apply to many tasks at once</span>
+            <textarea className="mono" rows={5} value={bulk} aria-invalid={!!badBulk}
+              onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
+          </label>
+          {badBulk && <p className="small error" role="alert">{badBulk}</p>}
+        </Disclosure>
+      </>}
     </section>
   );
 }

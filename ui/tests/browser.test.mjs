@@ -4084,3 +4084,51 @@ test("a process page says where you are, what each step of a change does, and re
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.6c (#319): the task form editor opens a valid form without runtime errors, previews it as a person sees it,
+// keeps changes after a failed save, checks the bulk actions and the new key, and turns a missing form into a way
+// to create it.
+test("the task form editor previews, survives a failed save, and recovers a missing form (#319)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  const schema = { type: "default", id: "lesson-review", schemaVersion: 16,
+    components: [{ type: "textfield", key: "lesson", label: "What was learned", id: "f1" }] };
+  await page.route("**/work/forms/lesson-review", (route) => route.fulfill({ json: { key: "lesson-review", version: 2, schema } }));
+  await page.route("**/work/forms/gone", (route) => route.fulfill({ status: 404, json: { detail: "no form gone" } }));
+  const saves = [];
+  await page.route("**/work/forms?*", (route) => { saves.push(route.request().postDataJSON());
+    return route.fulfill({ status: 503, json: { detail: "Database restarting" } }); });
+  await page.goto(`${url}/#/processes/forms/lesson-review`);
+  await page.getByText("v2. Saving makes a new version", { exact: false }).waitFor();
+  await page.locator(".form-editor .fjs-editor-container").waitFor();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const preview = page.locator(".form-preview");
+  await preview.getByLabel("What was learned").waitFor();
+  await page.getByRole("button", { name: "Back to editing" }).click();
+
+  await page.getByText("Bulk actions", { exact: false }).first().click();
+  const bulk = page.getByLabel("Bulk actions (JSON)", { exact: false });
+  await bulk.fill("{ not json");
+  await page.getByRole("alert").filter({ hasText: "Bulk actions aren't valid JSON" }).waitFor();
+  const save = page.getByRole("button", { name: "Save new version" });
+  assert.equal(await save.isDisabled(), true);
+  await bulk.fill('[{ "label": "Accept all", "data": { "accepted": true } }]');
+  await save.click();
+  await page.getByRole("alert").filter({ hasText: "Couldn't save: Database restarting. Your changes are still here" }).waitFor();
+  assert.equal(saves.length, 1);
+  assert.deepEqual(saves[0].fuzer.bulk, [{ label: "Accept all", data: { accepted: true } }]);
+  await page.getByText("unsaved changes").waitFor();
+
+  await page.goto(`${url}/#/processes/forms/gone`);
+  const missing = page.getByRole("alert").filter({ hasText: "There is no form “gone”." });
+  await missing.waitFor();
+  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/processes/forms/new?key=gone");
+  await missing.getByRole("link", { name: "Create it" }).click();
+  const key = page.getByLabel("Form key");
+  assert.equal(await key.inputValue(), "gone");
+  await key.fill("Bad Key");
+  await page.getByRole("alert").filter({ hasText: "Use lower case letters" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Create form" }).isDisabled(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
