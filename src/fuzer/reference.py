@@ -294,7 +294,8 @@ def methods_md() -> str:
     for m in reg.values():
         out += ["", f"## {m.id}", "", f"**{m.title}.** {m.cites}." + (f" {m.practice}" if m.practice else ""), "",
                 f"- **Valid for:** {m.valid}", f"- **Needs:** {m.needs}"]
-        out += [f"- **Flags `{k}`:** {t['means']} ({t['value']:g}{' ' + t['unit'] if t.get('unit') else ''})"
+        out += [f"- **Run by:** `{m.tool}`"] if m.tool else []
+        out += [f"- **Threshold `{k}`:** {t['means']} ({t['value']:g}{' ' + t['unit'] if t.get('unit') else ''})"
                 for k, t in m.thresholds.items()]
         for v in m.vectors:
             out.append(f"- **Test vector:** {v['says']} (`{v['kernel'].split(':')[1]}`)" if "kernel" in v else

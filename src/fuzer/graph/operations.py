@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from . import queries
 from .queries import _DOWNTIME
 
+MOSTLY_WATER = 70  # % water cut at which lift gas is mostly lifting water
 OPEN = ("CRTD", "REL", "OSNO", "OSTS")  # SAP: created, released, outstanding notification / task
 
 
@@ -585,7 +586,7 @@ def gas_lift_network(conn, ref_id: str | None = None, since: str | None = None, 
            "lift_gas_ksm3d": round(sum(w["lift_gas_ksm3d"] for w in per_well), 1),
            "least_response": sorted(rated, key=lambda w: w["response_oil_per_extra_gas"])[:limit],
            "most_response": sorted(rated, key=lambda w: -w["response_oil_per_extra_gas"])[:limit],
-           "lifting_mostly_water": sorted((w for w in per_well if (w["water_cut_pct"] or 0) >= 70),
+           "lifting_mostly_water": sorted((w for w in per_well if (w["water_cut_pct"] or 0) >= MOSTLY_WATER),
                                           key=lambda w: -(w["water_cut_pct"] or 0))[:limit]}
     if ref_id:
         out["supply_path"] = [{"id": n, "label": info[n]["label"], "description": info[n]["description"],

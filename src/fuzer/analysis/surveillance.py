@@ -28,6 +28,7 @@ OFF_CURVE = 0.25  # fractional shortfall below the gas lift curve at the test's 
 INFLOW_ONLY = 0.40  # departure from the inflow alone, when the choke can't be checked, that makes a test suspect
 NOISE = 0.05  # a shortfall under this share of potential (or twice the tests' scatter) is within their noise
 WATER_RISE = 8.0  # points of water cut on the test before that make the shortfall water
+UNEXPLAINED = 0.30  # share of a shortfall with no cause on record that is flagged
 BACK_RISE = 1.0  # bar the header must sit above its level of the previous months to hold a well back
 
 
@@ -238,7 +239,7 @@ def deferment_attribution(conn, fid: str | None = None, at: str | None = None, d
     by_cause.sort(key=lambda b: -(b["gap_sm3d"] or 0))
     unexplained = by["nothing on record"]["gap_sm3d"]
     rows.sort(key=lambda r: -(r["gap_sm3d"] or 0))
-    return result(_r(total, 1), 0.0, "unexplained_shortfall" if total and unexplained / total >= 0.3 else None,
+    return result(_r(total, 1), 0.0, "unexplained_shortfall" if total and unexplained / total >= UNEXPLAINED else None,
                   f"per oil well, its latest test before {at[:10]} against the Arps decline fitted through the tests before it "
                   "(Sm3/d oil), one cause "
                   f"each: EC deferment against the well in the {days} days before, else a suspect test (inflow check), "

@@ -44,6 +44,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`test_check`](#test_check) Latest well test against inflow and the lift curve | Engineering practice | Well tests with water cut (Sm³/d); Flowing and shut-in wellhead pressure (barg) | At least four oil well tests with a water cut, and a shut-in wellhead pressure. |
 | [`deferment_attribution`](#deferment_attribution) Shortfall against decline, by cause | Engineering practice | Well tests (oil rate) (Sm³/d); Deferment records (Sm³) | At least one oil well in scope with enough tests for a decline fit. |
 | [`vessel_loading`](#vessel_loading) Offered load against a rating | Engineering practice | Well test rates of the wells upstream (Sm³/d); Rating (the rating's own) | A rating on record and wells upstream of the item. |
+| [`backlog_health`](#backlog_health) Open maintenance backlog by age, urgency and criticality | Engineering practice | Open work orders (created (orders) | At least one open order. |
+| [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 
 ## Refusals
 
@@ -68,6 +70,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Gas lifted wells with tests at three or more distinct gas rates.
 - **Needs:** At least four well tests with a lift gas rate.
+- **Threshold `lifting_mostly_water`:** Water cut at which lift gas is mostly lifting water. (70 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then`, on the fake plant
 
 ## pump_curve
@@ -76,6 +79,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Centrifugal pumps with an accepted OEM curve, while running.
 - **Needs:** A minimum count of running readings in the recent window.
+- **Threshold `head_loss`:** Head this far below the OEM curve at the same flow. (5 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then`, on the fake plant
 
 ## choke
@@ -109,6 +113,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** In-service lines of one service. The retirement thickness is the Barlow pressure design thickness (ASME B31.4 / B31.8) on an assumed API 5L X52 grade unless one is given.
 - **Needs:** Wall thickness readings on a line of the circuit.
+- **Threshold `retire_soon`:** Remaining life under this goes to the integrity engineer now. (5 years)
+- **Threshold `longest_interval`:** The next inspection is at half the remaining life, at most this long after the last survey. (10 years)
 - **Test vector:** 1.4 mm lost over six years is 0.233 mm/year long term; 0.4 mm in the last year governs. (`cml_rate`)
 - **Test vector:** Barlow at 100 barg on 323.9 mm OD, X52 at a 0.72 design factor: 10 x 323.9 / (2 x 359 x 0.72). (`design_thickness`)
 
@@ -166,6 +172,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Centrifugal pumps whose OEM curve gives a best efficiency point.
 - **Needs:** An OEM curve with a best efficiency point.
+- **Threshold `off_bep_low`:** Below this share of best efficiency flow is outside the preferred region. (70 %)
+- **Threshold `off_bep_high`:** Above this share of best efficiency flow is outside the preferred region. (120 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
 
 ## surge
@@ -174,6 +182,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Centrifugal stages with an OEM map that gives a rated speed and design point.
 - **Needs:** An OEM map for the stage and enough running time in the window.
+- **Threshold `near_surge`:** A fifth percentile surge margin under this is a surge risk. (5 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
 
 ## surge_events
@@ -230,6 +239,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Compression trains with a run signal. Each point is judged against its own hours before the trip.
 - **Needs:** A trip of the train in the two days before the time asked about.
+- **Threshold `inspect_first`:** A second trip of the same family on the train within this: inspect, don't restart. (30 days)
+- **Threshold `review`:** Any earlier trip on the train within this: ask reliability to review. (45 days)
 - **Worked example:** `tests/analysis/test_trips.py::test_train_b_tripped_on_the_bearing_vibration_it_showed_for_hours`, on the fake plant
 
 ## failed_starts
@@ -246,6 +257,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Machines with protection channels and their alarm and trip settings on record, while running.
 - **Needs:** Protection channels on the machine and enough running time in the window.
+- **Threshold `trip_range`:** The range given around the date a channel reaches its trip. (90 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
 
 ## seal_gas
@@ -318,6 +330,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Oil wells with a shut-in wellhead pressure in the last two years.
 - **Needs:** At least four oil well tests with a water cut, and a shut-in wellhead pressure.
+- **Threshold `test_suspect`:** The test departs this far from the well's own inflow and choke: don't use it. (25 %)
+- **Threshold `off_lift_curve`:** Oil this far below the lift curve at the test's lift gas. (25 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
 
 ## deferment_attribution
@@ -326,6 +340,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** A jacket, area or facility with oil wells that have enough tests for a decline fit.
 - **Needs:** At least one oil well in scope with enough tests for a decline fit.
+- **Threshold `unexplained_shortfall`:** This share of the shortfall has no cause on record. (30 %)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
 
 ## vessel_loading
@@ -334,4 +349,28 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 - **Valid for:** Separators, scrubbers and meters with a liquid, oil or gas rating and wells upstream on the flow network.
 - **Needs:** A rating on record and wells upstream of the item.
+- **Threshold `overloaded`:** Loading at or over the standing rating. (100 %)
+- **Threshold `near_capacity`:** Loading close to the standing rating. (90 %)
+- **Threshold `compared_with`:** How far back the loading is compared with. (90 days)
 - **Worked example:** `tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users`, on the fake plant
+
+## backlog_health
+
+**Open maintenance backlog by age, urgency and criticality.** Engineering practice. Backlog ageing as maintenance planners read it; the shares are this registry's own.
+
+- **Valid for:** Preventive and corrective orders in the work management system of record.
+- **Needs:** At least one open order.
+- **Run by:** `backlog_health`
+- **Threshold `ageing`:** This share of open orders older than the ageing age: the backlog isn't being worked down. (25 %)
+- **Threshold `ageing_age`:** The age past which an open order counts as ageing. (90 days)
+- **Worked example:** `tests/analysis/test_backlog.py::test_backlog_health_flags_and_ranks`, on the fake plant
+
+## lead_in
+
+**Process values in the hours before an event against the hours before that.** Engineering practice. A before and after comparison of each measurement's mean and extreme around the event.
+
+- **Valid for:** Any measured point with readings either side of the lead-in.
+- **Needs:** Readings both before and inside the lead-in.
+- **Run by:** `process_values`
+- **Threshold `lead_in`:** The stretch before the event that is compared with what came before it. (12 h)
+- **Worked example:** `tests/sources/test_historian.py::test_live_ingest_loads_pi_and_adx_and_values_come_from_them`, on the fake plant

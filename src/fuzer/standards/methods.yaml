@@ -7,7 +7,8 @@
 #   worked: a test that runs the method on the fake plant's injected story
 # Standards are cited as the code applies them; verify clauses against your licensed copy before relying on one.
 # `thresholds` carry `code` (module:CONSTANT) where the calculation reads the same number, so a test keeps the two
-# equal. docs/methods.md is generated from this file; tests/analysis/test_methods.py checks every entry.
+# equal (`scale` and `index` where the code holds a fraction or a pair). A method the agents reach through a tool
+# of its own, not `calc`, names it under `tool`. docs/methods.md is generated from this file; tests/analysis/test_methods.py checks every entry.
 
 decline:
   title: Latest well test against the Arps decline
@@ -27,6 +28,8 @@ gas_lift:
   inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Lift gas rate, unit: kSm³/d}]
   valid: Gas lifted wells with tests at three or more distinct gas rates.
   needs: At least four well tests with a lift gas rate.
+  thresholds:
+    lifting_mostly_water: {value: 70, unit: "%", means: "Water cut at which lift gas is mostly lifting water.", code: "fuzer.graph.operations:MOSTLY_WATER"}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
 
 pump_curve:
@@ -35,6 +38,8 @@ pump_curve:
   inputs: [{name: Flow, unit: m³/h}, {name: Suction and discharge pressure, unit: barg}, {name: OEM head curve, unit: m}]
   valid: Centrifugal pumps with an accepted OEM curve, while running.
   needs: A minimum count of running readings in the recent window.
+  thresholds:
+    head_loss: {value: 5, unit: "%", means: "Head this far below the OEM curve at the same flow.", code: "fuzer.analysis.calcs:HEAD_LOSS_PCT"}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
 
 choke:
@@ -80,6 +85,9 @@ corrosion_circuit:
   inputs: [{name: Wall thickness readings per CML, unit: mm}, {name: Maximum operating pressure, unit: barg}, {name: Nominal diameter, unit: in}]
   valid: In-service lines of one service. The retirement thickness is the Barlow pressure design thickness (ASME B31.4 / B31.8) on an assumed API 5L X52 grade unless one is given.
   needs: Wall thickness readings on a line of the circuit.
+  thresholds:
+    retire_soon: {value: 5, unit: "years", means: "Remaining life under this goes to the integrity engineer now.", code: "fuzer.analysis.integrity:RETIRE_YEARS"}
+    longest_interval: {value: 10, unit: "years", means: "The next inspection is at half the remaining life, at most this long after the last survey.", code: "fuzer.analysis.integrity:MAX_INTERVAL"}
   vectors:
     - kernel: fuzer.analysis.integrity:cml_rate
       args: [[{at: "2015-01-01", value: 10.0}, {at: "2020-01-01", value: 9.0}, {at: "2021-01-01", value: 8.6}]]
@@ -148,6 +156,9 @@ pump_bep:
   inputs: [{name: Flow, unit: m³/h}, {name: OEM curve with best efficiency point, unit: m³/h}]
   valid: Centrifugal pumps whose OEM curve gives a best efficiency point.
   needs: An OEM curve with a best efficiency point.
+  thresholds:
+    off_bep_low: {value: 70, unit: "%", means: "Below this share of best efficiency flow is outside the preferred region.", code: "fuzer.analysis.rotating:POR", scale: 100, index: 0}
+    off_bep_high: {value: 120, unit: "%", means: "Above this share of best efficiency flow is outside the preferred region.", code: "fuzer.analysis.rotating:POR", scale: 100, index: 1}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
 
 surge:
@@ -156,6 +167,8 @@ surge:
   inputs: [{name: Suction flow, unit: m³/h}, {name: Speed, unit: rpm}, {name: Anti-surge valve opening, unit: "%"}]
   valid: Centrifugal stages with an OEM map that gives a rated speed and design point.
   needs: An OEM map for the stage and enough running time in the window.
+  thresholds:
+    near_surge: {value: 5, unit: "%", means: "A fifth percentile surge margin under this is a surge risk.", code: "fuzer.analysis.rotating:NEAR_SURGE"}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
 
 surge_events:
@@ -212,6 +225,9 @@ compressor_trip:
   inputs: [{name: Run signal, unit: kW or rpm}, {name: Every point on the train, unit: various}, {name: Alarm and trip settings, unit: various}]
   valid: Compression trains with a run signal. Each point is judged against its own hours before the trip.
   needs: A trip of the train in the two days before the time asked about.
+  thresholds:
+    inspect_first: {value: 30, unit: "days", means: "A second trip of the same family on the train within this: inspect, don't restart.", code: "fuzer.analysis.trips:REPEAT_DAYS"}
+    review: {value: 45, unit: "days", means: "Any earlier trip on the train within this: ask reliability to review.", code: "fuzer.analysis.trips:REVIEW_DAYS"}
   vectors: [{worked: "tests/analysis/test_trips.py::test_train_b_tripped_on_the_bearing_vibration_it_showed_for_hours"}]
 
 failed_starts:
@@ -228,6 +244,8 @@ protection:
   inputs: [{name: Shaft vibration, unit: µm}, {name: Axial position, unit: mm}, {name: Bearing temperature, unit: "°C"}]
   valid: Machines with protection channels and their alarm and trip settings on record, while running.
   needs: Protection channels on the machine and enough running time in the window.
+  thresholds:
+    trip_range: {value: 90, unit: "%", means: "The range given around the date a channel reaches its trip."}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
 
 seal_gas:
@@ -300,6 +318,9 @@ test_check:
   inputs: [{name: Well tests with water cut, unit: Sm³/d}, {name: Flowing and shut-in wellhead pressure, unit: barg}]
   valid: Oil wells with a shut-in wellhead pressure in the last two years.
   needs: At least four oil well tests with a water cut, and a shut-in wellhead pressure.
+  thresholds:
+    test_suspect: {value: 25, unit: "%", means: "The test departs this far from the well's own inflow and choke: don't use it.", code: "fuzer.analysis.surveillance:SUSPECT", scale: 100}
+    off_lift_curve: {value: 25, unit: "%", means: "Oil this far below the lift curve at the test's lift gas.", code: "fuzer.analysis.surveillance:OFF_CURVE", scale: 100}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
 
 deferment_attribution:
@@ -308,6 +329,8 @@ deferment_attribution:
   inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Deferment records, unit: Sm³}]
   valid: A jacket, area or facility with oil wells that have enough tests for a decline fit.
   needs: At least one oil well in scope with enough tests for a decline fit.
+  thresholds:
+    unexplained_shortfall: {value: 30, unit: "%", means: "This share of the shortfall has no cause on record.", code: "fuzer.analysis.surveillance:UNEXPLAINED", scale: 100}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
 
 vessel_loading:
@@ -316,4 +339,31 @@ vessel_loading:
   inputs: [{name: Well test rates of the wells upstream, unit: Sm³/d}, {name: Rating, unit: the rating's own}]
   valid: Separators, scrubbers and meters with a liquid, oil or gas rating and wells upstream on the flow network.
   needs: A rating on record and wells upstream of the item.
+  thresholds:
+    overloaded: {value: 100, unit: "%", means: "Loading at or over the standing rating.", code: "fuzer.analysis.facilities:OVERLOADED"}
+    near_capacity: {value: 90, unit: "%", means: "Loading close to the standing rating.", code: "fuzer.analysis.facilities:NEAR"}
+    compared_with: {value: 90, unit: "days", means: "How far back the loading is compared with.", code: "fuzer.analysis.facilities:BACK_DAYS"}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+backlog_health:
+  title: Open maintenance backlog by age, urgency and criticality
+  practice: Backlog ageing as maintenance planners read it; the shares are this registry's own.
+  tool: backlog_health
+  inputs: [{name: Open work orders (created, priority, basic finish), unit: orders}]
+  valid: Preventive and corrective orders in the work management system of record.
+  needs: At least one open order.
+  thresholds:
+    ageing: {value: 25, unit: "%", means: "This share of open orders older than the ageing age: the backlog isn't being worked down.", code: "fuzer.analysis.backlog:AGEING_SHARE", scale: 100}
+    ageing_age: {value: 90, unit: "days", means: "The age past which an open order counts as ageing.", code: "fuzer.analysis.backlog:AGEING_DAYS"}
+  vectors: [{worked: "tests/analysis/test_backlog.py::test_backlog_health_flags_and_ranks"}]
+
+lead_in:
+  title: Process values in the hours before an event against the hours before that
+  practice: A before and after comparison of each measurement's mean and extreme around the event.
+  tool: process_values
+  inputs: [{name: Historian readings on the asset's points, unit: each point's own}]
+  valid: Any measured point with readings either side of the lead-in.
+  needs: Readings both before and inside the lead-in.
+  thresholds:
+    lead_in: {value: 12, unit: "h", means: "The stretch before the event that is compared with what came before it.", code: "fuzer.sources.timeseries:LEAD_IN_HOURS"}
+  vectors: [{worked: "tests/sources/test_historian.py::test_live_ingest_loads_pi_and_adx_and_values_come_from_them"}]
