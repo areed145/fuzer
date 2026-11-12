@@ -187,6 +187,9 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   to follow work from triage to the field. A real deployment's roster is never touched.
 - **Agent steps nobody will run.** Without an agents provider no agent worker runs; the case says so straight away
   (not after 10 minutes) and offers **Take it over**, which hands the agent's step to you as a person step.
+  If nobody takes it over and no worker picks it up within `work.agent_fallback_minutes` (30 by default), the
+  work tick hands it to the step's `fuzer:fallbackRole` queue (or the process owner's) with the reason on the case
+  history, so it never waits silently. The case says when that will happen. Set the minutes to 0 to wait forever.
 - **SAP notifications done in the field** close with their case and are held, not raised again, while SAP shows the
   status they had when the field closed them.
 - **Close-out goes back to the source** (#466, `ops/closeout.py`). When the field reports *done* or *could not do*

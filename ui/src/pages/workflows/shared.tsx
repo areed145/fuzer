@@ -14,9 +14,10 @@ export const processHref = (key: string, tab?: string) => href(`/processes/${key
 const IDLE_MINUTES = 10;
 
 /** An agent step no worker has claimed for a while (#393). Agents only run when an agent worker is running, which
- * `fuzer up` skips without an AI provider; say so instead of letting the step look busy. */
+ * `fuzer up` skips without an AI provider; say so instead of letting the step look busy, and say when it goes to a
+ * person queue if nobody picks it up (P0.3). */
 export function AgentIdle({ step, configured, onTakeOver }: {
-  step: { kind: string; unclaimed?: boolean; created_at?: string | null } | null | undefined;
+  step: { kind: string; unclaimed?: boolean; created_at?: string | null; fallback_at?: string | null } | null | undefined;
   /** False: no agents provider, so no worker will ever pick it up; say so straight away. */
   configured?: boolean;
   /** Offered with the note: hand the agent's step to yourself and do it as a person step. */
@@ -24,16 +25,19 @@ export function AgentIdle({ step, configured, onTakeOver }: {
 }) {
   if (!step || step.kind !== "agent" || !step.unclaimed || !step.created_at) return null;
   const take = onTakeOver && <> <Button size="sm" onClick={onTakeOver}>Take it over</Button></>;
+  const fallback = step.fallback_at
+    ? ` It goes to a person queue at ${new Date(step.fallback_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} unless one does.`
+    : " It waits until one does.";
   if (configured === false) return <span className="small agent-idle" role="note">
-    No AI provider is configured for agents, so no agent worker runs and this step will wait. Take it over to do it
-    yourself, or configure a provider in <a href={href("/settings")}>application settings</a>.{take}
+    No AI provider is configured for agents, so no agent worker will pick this step up.{fallback} Take it over to do
+    it yourself, or configure a provider in <a href={href("/settings")}>application settings</a>.{take}
   </span>;
   const minutes = (Date.now() - new Date(step.created_at).getTime()) / 60_000;
   if (!(minutes >= IDLE_MINUTES)) return null;
   const waited = minutes < 120 ? `${Math.round(minutes)} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} d`;
   return <span className="small agent-idle" role="note">
-    Waiting for an agent worker: none has picked this step up in {waited}. The agent worker may not be running; it
-    needs an AI provider, which <a href={href("/settings")}>application settings</a> show.{take}
+    Waiting for an agent worker: none has picked this step up in {waited}.{fallback} The agent worker may not be
+    running; it needs an AI provider, which <a href={href("/settings")}>application settings</a> show.{take}
   </span>;
 }
 

@@ -329,6 +329,8 @@ export interface WorkStep {
   finished_by: string | null;
   /** An agent step no worker holds (#393). */
   unclaimed?: boolean;
+  /** When an unclaimed agent step goes to its fallback role's person queue (work.agent_fallback_minutes). */
+  fallback_at?: string | null;
 }
 
 export interface WorkProcess {
