@@ -1,0 +1,4 @@
+moc_no,title,change_type,state,tag,opened,closes
+MOC-HR-0081,Lower the VRU compressor discharge temperature high alarm to 135 degC for warning ahead of the trip,limit,implemented,G1-TT-7006,today-32d 09:00,today+60d 17:00
+MOC-HR-0087,Midline pump A out of service for its seal repair; its low suction pressure trip bypassed,bypass,approved,B1-PT-2003,today 06:30,today+2d 17:00
+MOC-HR-0064,Replace the tank A radar level gauge,equipment,closed,E1-LT-5001A,today-120d 09:00,today-90d 17:00

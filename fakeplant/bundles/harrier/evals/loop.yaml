@@ -32,3 +32,5 @@ arrive:
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   # Crude tank A's high-high level shutdown, still bypassed past its expiry (the bypass register)
   bypass_overdue: {detector: bypass_overdue}
+  # The midline pump A low-low suction pressure trip, lowered five days ago with no change record on file around it
+  unrecorded_change: {detector: unrecorded_changes}
