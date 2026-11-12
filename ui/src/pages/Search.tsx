@@ -62,7 +62,7 @@ export function Search({ query, stats }: { query: URLSearchParams; stats?: Stats
           </tbody>
         </Table>
       )}
-      {hits.data?.length === 200 && <p className="muted small">Showing the first 200. Narrow your search.</p>}
+      {hits.data?.length === 200 && <p className="small">Showing the first 200. Narrow your search.</p>}
     </section>
   );
 }

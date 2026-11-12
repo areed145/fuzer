@@ -1,4 +1,4 @@
-import { Button , Card as UICard} from "../ui";
+import { Button, Card as UICard, Empty } from "../ui";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, Legend, subgraphElements, type LayoutName } from "../graph";
@@ -81,14 +81,10 @@ export function EntityGraph({ id, asOf }: { id: string; asOf?: string }) {
               {node ? (
                 <NodePanel node={node} onExpand={node.id === id ? undefined : () => expand(node.id)} />
               ) : (
-                <p className="muted small">
-                  Click a node to see what it is. Double-click to pull in its own links.
-                  {graph.data.nodes.length > 1 &&
-                    ` Showing ${graph.data.nodes.length} entities and ${graph.data.edges.length} links.`}
-                </p>
+                <Empty className="small">Click a node to see what it is. Double-click to pull in its own links.</Empty>
               )}
               {graph.data.truncated && (
-                <p className="muted small">Too many neighbours to draw them all; showing the first 250.</p>
+                <p className="small">Too many neighbours to draw them all; showing the first 250.</p>
               )}
             </UICard>
           </div>

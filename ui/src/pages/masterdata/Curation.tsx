@@ -3,7 +3,7 @@
  * the decision log on the Master data page. */
 import { useState } from "react";
 import { api, type MergePreview, type SearchHit, type SplitPreview } from "../../api";
-import { Button, Input } from "../../ui";
+import { Button, Input, Empty } from "../../ui";
 import { entityHref, fmt, href } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -30,7 +30,7 @@ export function NotThisRecord({ fuzerId, refId, onDone }: { fuzerId: string; ref
     <div className="curation small">
       <p>Split <span className="mono">{p.ref}</span> off. {p.stays.length} record{p.stays.length === 1 ? "" : "s"} stay.
         {p.brings.length > 0 && <> It takes its values with it: {p.brings.map((b) => `${b.field} ${fmt(b.value)}`).join("; ")}.</>}</p>
-      <p className="muted">{p.note}</p>
+      <p className="small">{p.note}</p>
       <div className="row">
         <Input placeholder="why (kept on the decision)" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button size="sm" variant="primary" disabled={!!a.busy}
@@ -68,7 +68,7 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
           <Button size="sm" onClick={search}>Search</Button>
           <Button size="sm" variant="link" onClick={() => { setOpen(false); setHits(null); }}>Cancel</Button>
         </div>
-        {hits && hits.length === 0 && <p className="muted">No other {kind} matches “{q}”.</p>}
+        {hits && hits.length === 0 && <Empty>No other {kind} matches “{q}”.</Empty>}
         {hits && hits.length > 0 && <ul className="plain">{hits.map((h) => (
           <li key={h.fuzer_id}><Button size="sm" variant="link" disabled={!!a.busy}
             onClick={() => void a.run("preview", () => api.mergePreview(fuzerId, h.fuzer_id), setP)}>
@@ -80,7 +80,7 @@ export function SameAs({ fuzerId, kind, onDone }: { fuzerId: string; kind: strin
           {" "}{p.records} records, keys {p.keys.map((k) => k.key).join(", ")}.</p>
         {p.differ.length > 0 && <p>Where they disagree: {p.differ.map((d) => `${d.field} ${fmt(d.a)} vs ${fmt(d.b)}`).join("; ")}.</p>}
         {p.replaces.length > 0 && <p>This reverses an earlier decision that they differ: {p.replaces.join("; ")}.</p>}
-        <p className="muted">{p.note}</p>
+        <p className="small">{p.note}</p>
         <div className="row">
           <Input placeholder="why (kept on the decision)" value={reason} onChange={(e) => setReason(e.target.value)} />
           <Button size="sm" variant="primary" disabled={!!a.busy}

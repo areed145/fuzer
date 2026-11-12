@@ -3,7 +3,7 @@
  * is kept with who and when. Past handovers stay readable. */
 import { useState } from "react";
 import { api, type Handover } from "../api";
-import { Badge, Button, Card, PageHeader, Table } from "../ui";
+import { Badge, Button, Card, PageHeader, Table, Empty } from "../ui";
 import { Status, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { caseHref, useAct } from "./workflows/shared";
@@ -31,8 +31,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
         a.run("draft", () => api.draftHandover(person), reload)}>Draft (or refresh) the handover for the last shift change</Button>
         {a.error && <span className="error"> {a.error}</span>}</p>}
       <Status loading={list.loading && !list.data} error={list.error} />
-      {list.data?.length === 0 && <p className="muted">No handover yet: one is drafted at each shift change (the
-        <code> handover.shift_times</code> setting).</p>}
+      {list.data?.length === 0 && <Empty>No handover yet. One is drafted at each shift change.</Empty>}
       {h.data && <HandoverView h={h.data} person={person} canAct={operate} reload={reload} />}
       {(list.data?.length ?? 0) > 0 && (
         <Card title="Past handovers">
@@ -64,7 +63,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       {Object.entries(h.facts.sections).map(([name, lines]) => (
         <div key={name}>
           <h3>{name} <span className="muted small">{lines.length + (h.facts.more?.[name] ?? 0)}</span></h3>
-          {lines.length === 0 ? <p className="muted small">Nothing.</p> : (
+          {lines.length === 0 ? <Empty className="small">Nothing.</Empty> : (
             <ul className="small">
               {lines.map((l, i) => (
                 <li key={i}>{l.text}{" "}

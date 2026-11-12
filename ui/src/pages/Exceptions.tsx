@@ -2,7 +2,7 @@
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useState } from "react";
 import { api, type ExceptionRow } from "../api";
-import { Badge, Button, Card, Input, Select, Table } from "../ui";
+import { Badge, Button, Card, Input, Select, Table, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -51,7 +51,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
         <span className="small muted">{shown.length} {shown.length === 1 ? "event" : "events"}</span>
       </div>
       <Card>
-        {!shown.length ? <p className="muted">{EMPTY[view]}</p> : <Table variant="results">
+        {!shown.length ? <Empty>{EMPTY[view]}</Empty> : <Table variant="results">
           <thead><tr><th>Exception</th><th>Assets</th><th>Seen</th><th>With</th><th /></tr></thead>
           <tbody>{shown.map((r) => <Row key={r.id} r={r} person={person}
             people={people.data ?? []} queues={queues} onChange={rows.reload} />)}</tbody>

@@ -2,7 +2,7 @@
  * so the next record or exception with that value matches on its own). */
 import { useState } from "react";
 import { api, type SearchHit } from "../../api";
-import { Button, Input } from "../../ui";
+import { Button, Input, Empty } from "../../ui";
 
 export function MatchRef({ value, onPick, busy, remember: rememberDefault = true, label = "Match" }: {
   value: string; busy?: boolean; remember?: boolean; label?: string;
@@ -29,7 +29,7 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
         <Button size="sm" onClick={() => void search()}>Search</Button>
         <Button size="sm" variant="link" onClick={() => setOpen(false)}>Cancel</Button>
       </div>
-      {hits && hits.length === 0 && <p className="muted">Nothing in the register matches “{q}”. Try part of a tag or name.</p>}
+      {hits && hits.length === 0 && <Empty>Nothing in the register matches “{q}”. Try part of a tag or name.</Empty>}
       {hits && hits.length > 0 && (
         <ul className="plain">{hits.map((h) => (
           <li key={h.fuzer_id}><label>
