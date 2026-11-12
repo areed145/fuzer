@@ -168,20 +168,29 @@ def anchors(conn, ids: list[str]) -> set[str]:
     """What an exception's subjects stand for on the plant: each subject, the tag a point is the series of, the tag
     equipment is installed at, and what those are part of (a transmitter's compressor, a choke's well), up to three
     links. Areas and the facility are left out, or everything in one area would be one event."""
+    return set().union(*anchor_map(conn, ids).values()) if ids else set()
+
+
+def anchor_map(conn, ids: list[str]) -> dict[str, set[str]]:
+    """`anchors` for each of `ids` on its own, in one query: what a point or a log entry's mention stands for, to
+    compare with an event's (`around`)."""
     if not ids:
-        return set()
-    return {r["id"] for r in conn.execute(
+        return {}
+    out: dict[str, set[str]] = {i: set() for i in ids}
+    for r in conn.execute(
         """
-        with recursive up (id, depth) as (
-            select s, 0 from unnest(%s::text[]) s
+        with recursive up (seed, id, depth) as (
+            select s, s, 0 from unnest(%s::text[]) s
             union
-            select case when e.rel = 'has_timeseries' then e.src else e.dst end, up.depth + 1
+            select up.seed, case when e.rel = 'has_timeseries' then e.src else e.dst end, up.depth + 1
             from up join edge e on (e.rel = 'has_timeseries' and e.dst = up.id)
                                 or (e.rel in ('part_of', 'installed_at') and e.src = up.id and e.valid_to is null)
             where up.depth < 3)
-        select distinct up.id from up join entity x on x.fuzer_id = up.id
+        select distinct up.seed, up.id from up join entity x on x.fuzer_id = up.id
         where x.kind not in ('area', 'facility', 'site', 'field')
-        """, (list(ids),))}
+        """, (list(ids),)):
+        out[r["seed"]].add(r["id"])
+    return out
 
 
 def _host(conn, t: ExceptionType, type: str, key: str, subjects: list[str]) -> dict | None:
@@ -365,6 +374,11 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         if t.process and not row["joined_to"]:  # new evidence for the process already working it
             _case(conn, t, {**row, "evidence": evidence}, by, assignee, role)
         return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}
+    if not (assignee or role):  # planned work or a shutdown on the asset explains it: counted, no case (P3.5b)
+        from . import suppression
+
+        if suppression.applies(conn, t) and (w := suppression.covering(conn, subjects, suppression._at(evidence))):
+            return suppression.record(conn, w, type, key, title, source or by, subjects, evidence, value_usd)
     host = _host(conn, t, type, key, subjects) if not (assignee or role) else None
     row = conn.execute(
         """

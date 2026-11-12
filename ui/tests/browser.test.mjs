@@ -372,6 +372,37 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
+  await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
+    windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",
+      end_at: "2026-11-14T00:00:00Z", created_by: "sap", raised: 3, findings: 1 }],
+    items: [{ id: 1, type: "machine_trip", key: "B1@1", title: "Train B1 tripped", source: "trips", subjects: [],
+      value_usd: null, window_kind: "shutdown", window_id: 4, reason: "Train B1 shutdown", raised: 3,
+      first_seen: "2026-11-11T03:20:00Z", last_seen: "2026-11-11T05:20:00Z" }] } }));
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.getByRole("heading", { name: "Suppressed: 1 finding, raised 3 times" }).waitFor();
+  await page.getByText("Train B1 shutdown", { exact: false }).first().waitFor();
+  await page.getByRole("button", { name: "What was held back" }).click();
+  await page.getByRole("cell", { name: "Train B1 tripped" }).waitFor();
+});
+
+test("a case shows the alarms and operator log entries around its event (P3.5a)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Train B1 tripped", type: "machine_trip",
+    state: "open", subjects: [], created_by: "trips", created_at: "2026-11-11T03:20:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/8/around", route => route.fulfill({ json: {
+    window: { start: "2026-11-10T23:10", end: "2026-11-11T09:10" },
+    alarms: [{ point_id: "fz-timeseries-1", point: "KRGP:B1.VT2003.PV", type: "hihi", level: "1", limit: 11.2, peak: 11.956,
+      start: "2026-11-11T02:55", end: "2026-11-11T03:10" }],
+    log: [{ id: "fz-log_entry-1", at: "2026-11-11 03:12", author: "Control Room Operator",
+      text: "B1-K-2001 tripped on high vibration (B1-VT-2003). Sales gas to zero." }],
+    basis: "Alarms on points of the assets this event is on" } }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.getByRole("heading", { name: "Around the event" }).waitFor();
+  await page.getByRole("link", { name: "KRGP:B1.VT2003.PV" }).waitFor();
+  await page.getByText("High-high", { exact: true }).waitFor();
+  await page.getByRole("link", { name: /tripped on high vibration/ }).waitFor();
+});
+
 test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));

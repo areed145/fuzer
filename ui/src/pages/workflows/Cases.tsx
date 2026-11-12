@@ -8,6 +8,7 @@ import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, use
 import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
+import { CaseAround } from "./Around";
 import { AgentWork } from "../../AgentWork";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseGates } from "../Gates";
@@ -190,6 +191,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         reload={item.reload} />}
       <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
       <CaseFindings sources={it.sources} />
+      <CaseAround id={it.id} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}

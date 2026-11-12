@@ -321,6 +321,48 @@ def exception_list(state: str | None = "open", type: str | None = None, subject:
     return exceptions.listing(conn, state=None if state in (None, "", "any") else state, type=type, subject=subject, audience=audience, limit=limit)
 
 
+class SuppressionIn(BaseModel):
+    refs: list[str]
+    start: str
+    end: str
+    reason: str
+    by: str
+
+
+class SuppressionEnd(BaseModel):
+    by: str
+
+
+@router.get("/exceptions/suppressed")
+def exception_suppressed(conn=Depends(get_conn)):
+    """What planned work, shutdowns and people's windows are holding back now, and every finding they held back,
+    counted (P3.5b)."""
+    from ..ops import suppression
+    return {"windows": suppression.windows(conn), **suppression.found(conn)}
+
+
+@router.post("/exceptions/suppressions")
+def exception_suppress(s: SuppressionIn, conn=Depends(get_conn)):
+    """A person's window: a machine's detections about these assets from `start` to `end` are counted, not opened."""
+    from ..core.exceptions import ExceptionError
+    from ..ops import suppression
+    try:
+        return suppression.add(conn, s.refs, s.start, s.end, s.reason, s.by)
+    except (ExceptionError, ValueError) as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.post("/exceptions/suppressions/{suppression_id}/end")
+def exception_suppression_end(suppression_id: int, m: SuppressionEnd, conn=Depends(get_conn)):
+    """End a person's window now; what it held back stays recorded."""
+    from ..core.exceptions import ExceptionError
+    from ..ops import suppression
+    try:
+        return suppression.end(conn, suppression_id, m.by)
+    except ExceptionError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 @router.get("/exceptions/field")
 def exception_field_jobs(person: str, conn=Depends(get_conn)):
     """A field operator's dispatched jobs (where to go, what was seen, the asset's recent history, the field log)

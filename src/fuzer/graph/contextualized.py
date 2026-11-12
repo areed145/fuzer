@@ -27,6 +27,8 @@ same way, with how it was resolved; "Not this link" leaves the source's statemen
 
     report(conn, source)     the summary and the automatic decisions
     sync(conn)               records that matched nothing, one `unmatched_records` case per source
+    sync_links(conn)         link values that named nothing (a missing parent), one `unresolved_links` case per
+                             source and link type
     accept_new(conn, source, by, refs=None)   one answer for the group: they are new items (remembered)
     unlink(conn, source, src, rel, dst, by)   "Not this link": the source's statement of it is left out (remembered)
     TARGET                   the share needing a steward a new source should stay under (P2.1: 10%)
@@ -220,3 +222,57 @@ def relink(conn, source: str, src: str, rel: str, dst: str, by: str) -> dict:
         _audit(conn, by, "link", {"name": f"{source}: {src} {rel} {dst}"}, "relink",
                old={"source": source, "src": src, "rel": rel, "dst": dst})
     return {"relinked": n}
+
+
+# ---- link values that name nothing, one case per source and link type (a missing parent, an unknown location) -----
+
+LINKS_TYPE = exception_type("unresolved_links", "Links that name nothing", role="role:data_steward", joins=False,
+                            description="A source's rows name a parent, location or other item the register doesn't "
+                                        "have; make each value an alias of the item it means, or fix the source.")
+LINK_WORDS = {"part_of": "a parent", "located_at": "a location", "installed_at": "an install position",
+              "has_timeseries": "a historian point"}
+
+
+def _unresolved(conn) -> dict[tuple[str, str], dict]:
+    """(source, link type) -> {rows, values} from each source's latest rebuild statistics."""
+    out = {}
+    for r in conn.execute("select distinct on (source) source, stats->'coverage'->'unresolved' as u "
+                          "from source_match_stat order by source, id desc"):
+        for rel, v in (r["u"] or {}).items():
+            if v.get("rows"):
+                out[(r["source"], rel)] = v
+    return out
+
+
+def links_title(source: str, rel: str, v: dict) -> str:
+    n = v["rows"]
+    what = LINK_WORDS.get(rel, f"a {rel.replace('_', ' ')} link to something")
+    return f"{n} {source.upper()} row{'s' if n != 1 else ''} name{'s' if n == 1 else ''} {what} the register doesn't have"
+
+
+def links_finding(source: str, rel: str, v: dict) -> Finding:
+    values = ", ".join(f"{x['value']} ({x['rows']})" for x in (v.get("values") or [])[:10])
+    return Finding("stewardship.unresolved_links", EXTERNAL, method=LINKS_TYPE.description, items=(
+        fact("Source", source.upper()),
+        fact("Link", rel.replace("_", " ")),
+        fact("Rows", v["rows"]),
+        fact("Values", values),
+        page("Answer", "#/masterdata?tab=unresolved", "Make each an alias on Master data"),
+    ), data={"source": source, "rel": rel, "values": [x["value"] for x in v.get("values") or []]})
+
+
+def sync_links(conn, by: str = BY) -> dict:
+    """One open case per source and link type whose values named nothing on the last rebuild; cleared once they all
+    resolve (an alias, or the source fixed)."""
+    out = {"raised": 0, "refreshed": 0, "cleared": 0}
+    live = set()
+    for (source, rel), v in sorted(_unresolved(conn).items()):
+        key = f"{source}:{rel}"
+        live.add(key)
+        row = raise_exception(conn, LINKS_TYPE.name, key, links_title(source, rel, v), by, source=BY,
+                              finding=links_finding(source, rel, v))
+        out["raised" if row.get("raised") else "refreshed"] += 1
+    for key in open_keys(conn, LINKS_TYPE.name) - live:
+        clear_exception(conn, LINKS_TYPE.name, key, by, reason="every value it named now resolves")
+        out["cleared"] += 1
+    return out

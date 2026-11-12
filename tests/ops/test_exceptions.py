@@ -580,6 +580,70 @@ def test_another_asset_or_a_type_that_does_not_join_gets_its_own_case(conn, comp
     conn.commit()
 
 
+def test_a_case_shows_the_log_entries_about_its_event_around_its_window(conn, compressor, three_sources):
+    """P3.5a: an entry mentioning the compressor's transmitter in the event's window is shown; one about another asset
+    in the same area, or about the compressor a day later, is not."""
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around
+
+    entries = [("fz-log-a", "2026-11-11 03:12", "fz-pt-2001", "Tripped on high vibration"),
+               ("fz-log-b", "2026-11-11 03:20", "fz-v-1001", "Separator level steady"),
+               ("fz-log-c", "2026-11-12 09:00", "fz-k-2001", "Running steady")]
+    for fid, at, about, words in entries:
+        conn.execute("insert into entity (fuzer_id, kind) values (%s, 'log_entry') on conflict do nothing", (fid,))
+        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'timestamp', to_jsonb(%s::text), "
+                     "'test', 'test'), (%s, 'text', to_jsonb(%s::text), 'test', 'test') on conflict do nothing",
+                     (fid, at, fid, words))
+        conn.execute("insert into edge (src, rel, dst, sources, confidence) values (%s, 'mentions', %s, '{test}', 1) "
+                     "on conflict do nothing", (fid, about))
+    trip = raise_exception(conn, "iow_hi", "IOW-AROUND", "Trip", "limits", refs=[compressor["equipment"]],
+                           finding=Finding("test", "deterministic", start="2026-11-11T03:10"))
+    ctx = around.context(conn, trip["item_id"])
+    assert ctx["window"] == {"start": "2026-11-10T23:10", "end": "2026-11-11T09:10"}
+    assert [x["id"] for x in ctx["log"]] == ["fz-log-a"]
+    assert impl.anchor_map(conn, ["fz-pt-2001"])["fz-pt-2001"] == impl.anchors(conn, ["fz-pt-2001"])
+    conn.commit()
+
+
+def test_planned_work_and_a_shutdown_suppress_a_machines_detections_and_count_them(conn, compressor, types):
+    """P3.5b: a trip on the compressor while a shutdown of it runs is counted under the shutdown, not opened; a
+    safety type, a type that doesn't declare it, and another asset still open cases. A person's window ended early
+    stops suppressing, and what it held back stays counted."""
+    from fuzer.core import gates, plan
+    from fuzer.core.findings import Finding
+    from fuzer.ops import suppression
+
+    types("trip_x", role="role:engineer", suppress=True)
+    types("safety_x", role="role:engineer", suppress=True)
+    gates.set_safety_case_types(conn, ["safety_x"], by="test")  # a safety case type: never suppressed
+    types("report_x", role="role:engineer")
+    shut = plan.propose(conn, "shutdown", "B1 shutdown", "test", "2026-11-10T00:00", "2026-11-12T00:00",
+                        refs=[compressor["tag"]], status="scheduled")
+    during = Finding("test", "deterministic", start="2026-11-11T03:10")
+    a = raise_exception(conn, "trip_x", "T-1", "Train tripped", "trips", refs=[compressor["pt"]], finding=during)
+    again = raise_exception(conn, "trip_x", "T-1", "Train tripped", "trips", refs=[compressor["pt"]], finding=during)
+    assert a["state"] == again["state"] == "suppressed" and not a["item_id"]
+    assert again["suppressed"]["kind"] == "shutdown" and again["suppressed"]["count"] == 2
+    assert not conn.execute("select 1 from exception_record where type = 'trip_x'").fetchone()
+    safety = raise_exception(conn, "safety_x", "I-1", "IOW", "limits", refs=[compressor["pt"]], finding=during)
+    plain = raise_exception(conn, "report_x", "R-1", "Report", "sap", refs=[compressor["pt"]], finding=during)
+    other = raise_exception(conn, "trip_x", "T-2", "Separator", "trips", refs=[compressor["elsewhere"]], finding=during)
+    after = raise_exception(conn, "trip_x", "T-3", "Tripped again", "trips", refs=[compressor["pt"]],
+                            finding=Finding("test", "deterministic", start="2026-11-12T08:00"))
+    assert all(x["state"] == "open" for x in (safety, plain, other, after))
+    found = suppression.found(conn)
+    assert (found["findings"], found["raised"]) == (1, 2) and found["items"][0]["window_id"] == shut["id"]
+
+    mine = suppression.add(conn, [compressor["tag"]], "2020-01-01T00:00", "2099-01-01T00:00", "Valve work", "ann")
+    held = raise_exception(conn, "trip_x", "T-4", "Tripped", "trips", refs=[compressor["equipment"]])
+    assert held["suppressed"]["kind"] == "person"
+    assert any(w["kind"] == "person" and w["findings"] == 1 for w in suppression.windows(conn))
+    suppression.end(conn, mine["id"], "ann")
+    opened = raise_exception(conn, "trip_x", "T-5", "Tripped", "trips", refs=[compressor["equipment"]])
+    assert opened["state"] == "open" and suppression.found(conn)["findings"] == 2
+    conn.rollback()
+
+
 def test_joining_can_be_turned_off(conn, compressor, three_sources):
     from fuzer.core import settings
 

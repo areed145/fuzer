@@ -491,6 +491,11 @@ The card also lists every link the source states, as the last rebuild resolved i
 a confidence). **Not this link** leaves that source's statement of it out of every later build (`unlinked`, in the
 source audit log); another source stating the same link keeps it, and **Take back** restores it.
 
+Rows whose links named nothing (a parent, location, install position or historian point the register doesn't have)
+are one `unresolved_links` case per source and link type in the data steward's queue, saying how many rows and which
+values. Making each value an alias of the item it means on Master data, or fixing the source, resolves them, and the
+case clears on the next rebuild.
+
 ## Corrections flow back to the source
 An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
 choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back

@@ -5,6 +5,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseFindings } from "../../Finding";
+import { CaseAround } from "./Around";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
@@ -58,6 +59,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
           <FromField v={v} />
           {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
           <CaseFindings sources={v.sources} />
+          <CaseAround id={v.item.id} />
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (

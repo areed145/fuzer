@@ -537,7 +537,7 @@ def _type():
     from ..core.exceptions import TYPES, exception_type
 
     return TYPES.get("machine_trip") or exception_type(
-        "machine_trip", "Compressor trip", role="role:engineer", audience=("ioc", "field"),
+        "machine_trip", "Compressor trip", role="role:engineer", audience=("ioc", "field"), suppress=True,
         description="A compression train tripped: the likely cause from what moved first, and the checks before "
                     "it restarts.")
 

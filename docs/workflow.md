@@ -158,6 +158,24 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   shared case, and finishing the case closes every source. A source that clears drops off and the case stays open
   while another holds. **Split out** gives a source that turns out to be a different event a case of its own
   (`POST /exceptions/{id}/split`). A type declared with `joins=False`, such as source problems, never joins.
+- **Around the event.** Alarms and operator log entries aren't exceptions, so they don't join a case: the case and
+  task pages show them beside what did, in an **Around the event** card (`GET /work/items/{id}/around`). It lists
+  the alarms that sounded (a point past an enabled alarm limit while its unit ran) on points of the event's assets,
+  and the log entries that mention those assets, read the same way the join reads "the same asset". The window runs
+  from the earliest finding on the case to the latest, widened by `exceptions.around_before_hours` (4) and
+  `exceptions.around_after_hours` (6). A finding that gives only a day (an SAP notification's) sets the window only
+  when nothing on the case gives a time. Replaying Kestrel's compressor trip gives one case with the trip, the
+  machine health finding and SAP notification 10004001 on it, B1-VT-2003's high and high-high alarms, and the
+  control room's entries from the trip to the restart (`tests/evals/test_one_case_kestrel.py`).
+- **Suppression.** Planned work and shutdowns explain what a machine's detectors see while they run. A trip, a
+  machine health finding or a process upset (types that declare `suppress=True`) about an asset with a shutdown or
+  turnaround, or other planned work, scheduled or in progress on the plan at the finding's time is recorded under
+  that window instead of opening a case. It is counted, not lost: All work shows **Suppressed: N findings, raised M
+  times**, the windows holding them and what each held back (`GET /exceptions/suppressed`). A safety case type (an IOW
+  breach) and another system's report are never suppressed. `exceptions.suppress_planned_work` (on) turns off
+  suppression for planned work other than shutdowns. A person can set a window of their own on some assets with a
+  reason (`POST /exceptions/suppressions`) and end it early (`POST /exceptions/suppressions/{id}/end`). A condition
+  still holding when its window ends opens as usual on its next raise.
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
 - **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues
