@@ -125,6 +125,15 @@ matches the questions. Steward cases don't join the IOC's cases about the same a
 the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
 there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
 
+**Missing criticality is the steward's to fill** (`graph/criticality.py`). An asset's criticality ranks its work by
+consequence and decides where the human gates always stop for a person, so an asset without one is neither treated
+as the most nor the least critical. Each asset (a tag not part of another, or a well) with no criticality is one open
+`criticality_not_assessed` case in the data steward's queue, keyed by the asset, so rebuilds never duplicate it.
+Setting a criticality, by a fix on Master data or the source's next load, clears it at the next rebuild. Until
+then, the value score and the matching gate say "not assessed": compliance still counts the overdue days at the
+lowest factor, saying so, and risk is left unknown rather than guessed. A register that rates no asset at all
+raises nothing, since its source is the gap.
+
 **Like questions answered once** (P2.3c, `graph/review.py`). Questions are like each other when the same answer
 is right for all of them for the same reason. That covers conflicts on one field between the same systems (written
 differently, or genuinely different), possible matches between the same two registers on the same evidence, and

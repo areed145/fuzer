@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from ..graph import operations
+from ..graph.criticality import NOT_ASSESSED
 from ..graph.operations import _num, _rows, _tags_of
 
 DEFAULTS = {
@@ -117,9 +118,10 @@ def risk(item: Item, cfg: dict) -> dict:
     levels = cfg["criticality"].get(item.criticality) if item.criticality else None
     missing = [n for n, v in (("criticality", levels), ("failures_per_year", item.failures_per_year)) if v is None]
     if missing:
-        return {"status": "unknown", "value_usd": None, "criticality": item.criticality or "unknown",
-                "failures_per_year": item.failures_per_year,
-                "note": " and ".join(missing).replace("_", " ") + " unknown"}
+        said = [f"criticality {NOT_ASSESSED}" if n == "criticality" and not item.criticality
+                else n.replace("_", " ") + " unknown" for n in missing]
+        return {"status": "unknown", "value_usd": None, "criticality": item.criticality or NOT_ASSESSED,
+                "failures_per_year": item.failures_per_year, "note": " and ".join(said)}
     c = max(levels.values())
     likelihood = _likelihood(item.failures_per_year, m["likelihood_per_year"])
     years = cfg["horizon_days"] / 365.25
@@ -140,12 +142,13 @@ def compliance(item: Item, cfg: dict) -> dict:
         return {"status": "unknown", "value_usd": None, "note": f"no rate for {item.compliance_kind} in the pack"}
     factor = c["criticality_factor"].get(item.criticality) if item.criticality else None
     out = {"status": "ok", "kind": item.compliance_kind, "overdue_days": item.overdue_days,
-           "usd_per_day": rate, "criticality": item.criticality or "unknown",
+           "usd_per_day": rate, "criticality": item.criticality or NOT_ASSESSED,
            "sources": {k: item.sources[k] for k in ("overdue_days", "criticality") if k in item.sources}
            | {"rates": cfg["source"]}}
     if factor is None:  # still counts the overdue days, at the lowest factor, and says so
         factor = min(c["criticality_factor"].values())
-        out["note"] = f"criticality unknown: lowest factor ({factor}) used"
+        out["note"] = (f"criticality {NOT_ASSESSED}: counted at the lowest factor ({factor}) until a data steward "
+                       "rates it")
     out["criticality_factor"] = factor
     days = min(item.overdue_days, c["max_days"])
     if days < item.overdue_days:
@@ -191,7 +194,7 @@ def score(item: Item, cfg: dict) -> dict:
     return {"kind": item.kind, "id": item.id, "label": item.label, "text": item.text, "tag": item.tag,
             "tag_id": item.tag_id, "value_usd": total, "at_stake_usd": round(at_stake),
             "value_per_effort": round(total / cost, 2) if cost else None,
-            "criticality": item.criticality or "unknown", "components": parts, "urgency": u, "effort": e,
+            "criticality": item.criticality or NOT_ASSESSED, "components": parts, "urgency": u, "effort": e,
             "unknown": unknown, "notes": item.notes, "reason": reason(item, parts, u, e, total),
             "currency": cfg["currency"], "horizon_days": cfg["horizon_days"]}
 
@@ -217,7 +220,7 @@ def reason(item: Item, parts: dict, u: dict, e: dict, total: float) -> str:
     if e["value_usd"]:
         tail += f", effort {_money(e['value_usd'])}{' (assumed)' if e['status'] == 'assumed' else ''}"
     if item.risk_applies and not item.criticality:
-        tail += ", criticality unknown"
+        tail += f", criticality {NOT_ASSESSED}"
     return f"{item.label}: {text}. {tail}."
 
 
