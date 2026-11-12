@@ -165,3 +165,51 @@ def plot_score_breakdown(ref: str) -> dict[str, Any]:
     effort, to show why one card ranks above another. ref: a work order, plan, incident or tag."""
     from ...plots import general
     return _chart(lambda conn, **kw: general.score_breakdown(conn, pack=mcp_server.PACK, **kw), {}, {"ref": ref})
+
+
+@capability("maintenance-integrity", "asset-performance-reporting", kind="calc")
+def maintenance_spend(by: Literal["unit", "class", "type"] = "unit", since: str | None = None,
+                      until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Work order cost (#335) by unit, ISO 14224 class or order type for a window (default the last year), totalled
+    per currency and never across them; an order whose source states no currency is in `unknown`. Orders without a
+    cost are counted (`orders_without_cost`). Recorded maintenance cost, not accounting truth."""
+    from ...analysis import costs
+    with db.connect() as conn:
+        try:
+            out = costs.spend(conn, since, until, by, days)
+        except ValueError as e:
+            return {"error": str(e)}
+    for r in out["rows"]:
+        r["refs"] = r["refs"][:5]
+    return _plain(out)
+
+
+@capability("maintenance-integrity", "production-surveillance", "asset-performance-reporting", kind="calc")
+def cost_of_unreliability(since: str | None = None, until: str | None = None, days: int = 365,
+                          limit: int = 15) -> dict[str, Any]:
+    """The cost of unreliability by unit (#352): oil lost to the downtime each unit caused, at the pack's oil price and
+    currency, beside its corrective orders' cost in their own currency, ranked. A unit's total is given only when
+    both parts share a currency; quote the price and currency with every number. An operational estimate, not a
+    financial figure."""
+    from ...analysis import costs
+    with db.connect() as conn:
+        out = costs.unreliability(conn, mcp_server.PACK, since, until, days, min(limit, 50))
+    for r in out["units"]:
+        r["refs"] = r["refs"][:5]
+    return _plain(out)
+
+
+@capability("maintenance-integrity", "asset-performance-reporting", kind="plot")
+def plot_maintenance_spend(by: Literal["unit", "class", "type"] = "unit", since: str | None = None,
+                           until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart work order cost ranked by unit, class or order type, one series per currency (unknown labelled)."""
+    from ...plots import maintenance
+    return _chart(maintenance.spend, {"since": since, "until": until, "by": by, "days": days})
+
+
+@capability("maintenance-integrity", "asset-performance-reporting", kind="plot")
+def plot_cost_of_unreliability(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart each unit's lost oil value beside its corrective order cost, each with its currency."""
+    from ...plots import maintenance
+    return _chart(lambda conn, **kw: maintenance.unreliability(conn, mcp_server.PACK, **kw),
+                  {"since": since, "until": until, "days": days})

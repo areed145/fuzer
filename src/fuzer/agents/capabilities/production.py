@@ -179,3 +179,33 @@ def plot_flare(since: str, until: str) -> dict[str, Any]:
     """Chart daily flare from DAY001 and its CO2 per barrel of oil (an estimate)."""
     from ...plots import general
     return _chart(general.flare, {"since": since, "until": until})
+
+
+@capability("production-surveillance", "wells-subsurface", "asset-performance-reporting", kind="calc")
+def forecast_vs_actual(well: str | None = None, since: str | None = None, until: str | None = None,
+                       days: int = 365) -> dict[str, Any]:
+    """Each producing well's own decline forecast (fitted before the window, 90 % range) against its tests in the
+    window (default the last year), ranked by the gap, with a field line. Separates a new loss (below_forecast,
+    and since which test) from natural decline; wells with too few tests are listed under not_fitted, never fitted.
+    The actual is the well test rate. A gap is a lead for review: the reservoir cause stays unknown."""
+    from ...analysis import forecast_actual as fa
+    with db.connect() as conn:
+        fid = None
+        if well:
+            fid, err = _resolve(conn, well)
+            if err:
+                return err
+        out = fa.forecast_vs_actual(conn, fid, since, until, days)
+    if not well:  # a compact answer: the leads and the field line, every well's points stay behind the chart
+        out["wells"] = [{k: v for k, v in w.items() if k not in ("points", "sufficiency")}
+                        for w in out["wells"] if w["verdict"] != "on_forecast"]
+    return _plain(out)
+
+
+@capability("production-surveillance", "asset-performance-reporting", kind="plot")
+def plot_forecast_vs_actual(well: str | None = None, since: str | None = None, until: str | None = None,
+                            days: int = 365) -> dict[str, Any]:
+    """Chart a well's forecast band against its tests with its downtime marked; without a well, the wells furthest
+    under their forecast."""
+    from ...plots import production
+    return _chart(production.forecast_vs_actual, {"since": since, "until": until, "days": days}, {"well": well})

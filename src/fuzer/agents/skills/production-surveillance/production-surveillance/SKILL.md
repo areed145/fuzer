@@ -21,6 +21,11 @@ description: Production surveillance and optimisation - how production is trendi
    choke, or nothing on record, summed by cause. `unexplained_shortfall` (30 % or more with nothing on record) is
    the finding: losses the deferment Pareto never sees. Shortfalls within the tests' own scatter don't count, so a
    small "nothing on record" total is noise, not a cause.
+6. **New loss or natural decline, over a period?** `forecast_vs_actual(since, until)` sets each well's tests in the
+   window against its own decline, fitted before the window with a 90 % range, and gives the field line. A well
+   `below_forecast` (and `below_since` which test) is a new loss; `on_forecast` is decline. Wells in `not_fitted` had
+   too few tests: list them, don't guess a rate. `plot_forecast_vs_actual(well)` shows the band, the tests and the
+   well's downtime. The gap is a lead for review, never a reservoir cause.
 
 **Escalate** a suspect test before it reaches a decline, an allocation or a lift change; a cause that cascades
 (a compressor trip showing as lift losses on several jackets); and any shortfall growing month on month with
