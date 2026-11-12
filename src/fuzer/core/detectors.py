@@ -96,13 +96,16 @@ def unregister(name: str) -> None:
 
 
 def registry() -> dict[str, Detector]:
-    """Every detector, in the order declared."""
+    """Every detector, by module in MODULES order and then in the order declared, however the modules came to be
+    imported."""
     global _loaded
     if not _loaded:
         for m in MODULES:
             importlib.import_module(m)
         _loaded = True
-    return _registry
+    at = {m: i for i, m in enumerate(MODULES)}
+    order = sorted(enumerate(_registry.items()), key=lambda x: (at.get(x[1][1].fn.__module__, len(at)), x[0]))
+    return {name: d for _, (name, d) in order}
 
 
 def get(name: str) -> Detector:
