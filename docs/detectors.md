@@ -28,6 +28,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
 | [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
 | [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
+| [`deviation_reviews`](#deviation_reviews) A named deviation from the operating model past its review date | Rule | Once a day | `deviation_review_due` | Any asset with the inputs |
 
 ## excursions
 
@@ -294,3 +295,13 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `alarm_flood`, `alarm_bad_actor`
 - **Needs:** historian points, alarm limits
 - **Scored by:** `tests/analysis/test_alarm_performance.py::test_a_flood_is_one_case_and_a_bad_actor_is_raised_once`, on the fake plant
+
+## deviation_reviews
+
+**A named deviation from the operating model past its review date.** Each named deviation past its review date raised as `deviation_review_due` for its owner (keyed by part and key); open ones whose deviation was reviewed (a later date) or unnamed are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `deviation_review_due`
+- **Needs:** a named deviation
+- **Scored by:** `tests/evals/test_conformance.py::test_a_deviation_past_its_review_is_work_for_its_owner_until_it_is_reviewed`, on the fake plant

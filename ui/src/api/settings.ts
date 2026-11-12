@@ -62,8 +62,49 @@ export interface Onboarding {
   to_do: number;
 }
 
+/** Conformance (P8.2): each asset against its operating model, and its work in practice. */
+export interface StandingDeviation {
+  part: string;
+  key: string;
+  change: "changed" | "added" | "missing";
+  reason: string | null;
+  owner: string | null;
+  review_by: string | null;
+  overdue: boolean;
+  named: boolean;
+}
+
+export interface Standing {
+  project: string;
+  error?: string;
+  note?: string;
+  model?: string | null;
+  version?: number;
+  current?: boolean | null;
+  applied?: boolean;
+  deviations?: StandingDeviation[];
+  unnamed?: number;
+  overdue?: number;
+  verdict?: "standard" | "justified" | "drifted" | "no_model";
+  practice?: {
+    days: number;
+    sla: { on_time: number; late: number; open_past_due: number; due: number; met_pct: number | null };
+    overrides: { sent_not_ready: number; started_without_permit: number; total: number };
+    skipped: number;
+    rounds: { rounds: number; done: number; partly_done: number; missed: number; done_pct: number | null };
+  };
+}
+
+export interface Conformance {
+  days: number;
+  projects: Standing[];
+  left_out: string[];
+  current: { model: string; version: number };
+}
+
 export const settingsApi = {
   onboarding: () => request<Onboarding>("GET", "/onboarding"),
+  conformance: (days = 28) => request<Conformance>("GET", `/standards/conformance?days=${days}`),
   gatePolicy: () => request<GatePolicy>("GET", "/settings/gates"),
   setGate: (kind: string, by: string, def: number | null, byCriticality: Record<string, number | null>) =>
     request<GatePolicy["confidence"][number]>("PUT", `/settings/gates/${kind}`, undefined,

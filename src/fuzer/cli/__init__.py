@@ -118,7 +118,7 @@ def parser() -> argparse.ArgumentParser:
     om = sub.add_parser("operating-model", help="the operating model as a package (P8.1): export, apply, adopt, "
                         "deviations, conformance, name a deviation")
     om.add_argument("action", choices=["export", "apply", "adopt", "deviations", "conformance", "name", "unname",
-                                       "applied"])
+                                       "applied", "standing", "fleet"])
     om.add_argument("package", nargs="?", default=None,
                     help="a package folder, or `standard` (export: the folder to write; deviations and conformance: "
                     "default the model the project's bundle follows, apply: default `standard`)")
@@ -126,6 +126,8 @@ def parser() -> argparse.ArgumentParser:
     om.add_argument("--key", help="with name and unname: the role, work type, setting, process or form")
     om.add_argument("--reason", help="with name: why this project differs there")
     om.add_argument("--owner", help="with name: the role or person who owns the difference")
+    om.add_argument("--review-by", default=None, help="with name: when it is next reviewed (YYYY-MM-DD; default a year)")
+    om.add_argument("--days", type=int, default=28, help="with standing and fleet: the days of work to read (P8.2)")
     om.add_argument("--name", default="standard", help="with export: the model's name")
     om.add_argument("--version", type=int, default=1, help="with export: the model's version")
     om.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is applying it (default: $USER)")
@@ -408,9 +410,14 @@ def main(argv=None):
                 elif args.action == "conformance":
                     _print(om.conformance(conn, args.package))
                 elif args.action == "name":
-                    _print(om.name(conn, args.part, args.key, args.reason, args.owner, args.by))
+                    _print(om.name(conn, args.part, args.key, args.reason, args.owner, args.by, args.review_by))
                 elif args.action == "unname":
                     _print({"unnamed": om.unname(conn, args.part, args.key)})
+                elif args.action in ("standing", "fleet"):
+                    from ..ops import conformance as standards
+
+                    _print(standards.standing(conn, args.days) if args.action == "standing"
+                           else standards.fleet(None, args.days))
                 else:
                     _print(om.applied(conn))
             elif args.cmd == "onboarding":
