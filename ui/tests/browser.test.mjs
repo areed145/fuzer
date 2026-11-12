@@ -920,6 +920,37 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
   assert.equal(await page.locator("input[value='incoming']").count() >= 2, true);  // the name and the path
 });
 
+test("installing a source pack says what it added on Sources, Routing and Detection, linked there (P1.5)", async () => {
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [],
+    types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
+    check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } } }));
+  let posted = null;
+  await page.route("**/sources/packs", (route) => {
+    posted = route.request().postDataJSON();
+    return route.fulfill({ json: { system: ["system measurement"], connections: ["export"],
+      datasets: ["measurement_meters", "measurement_daily_volumes_with_a_very_long_name"],
+      mappings: ["measurement/meter"], checks: ["measurement_meters: not_null meter_id"],
+      exception_types: ["short_gas_day"], exception_rules: ["short day"], detectors: ["source_health"],
+      unchanged: ["mapping measurement/day"] } });
+  });
+  await page.goto(`${url}/#/sources?view=systems`);
+  await page.getByRole("button", { name: "Import a source pack…" }).click();
+  await page.getByPlaceholder("fuzer_source_pack: 1 …").fill("fuzer_source_pack: 1\nsystem: {name: measurement}\n");
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByRole("heading", { name: "On Detection" }).waitFor();
+  assert.equal(posted.yaml.startsWith("fuzer_source_pack: 1"), true);
+  for (const [name, target] of [["measurement_meters", "#/sources?view=dataset&name=measurement_meters"],
+    ["short_gas_day", "#/routing?type=short_gas_day"], ["source_health", "#/settings?view=detection"]]) {
+    assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), target);
+  }
+  await page.getByRole("button", { name: "1 already in place" }).waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`pack-installed-${width}`);
+  }
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
