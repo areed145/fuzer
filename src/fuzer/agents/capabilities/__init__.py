@@ -87,6 +87,7 @@ def catalogue() -> str:
     """docs/capabilities.md: personas, skills, prerequisites, boundaries and tools, all from the registry
     (`uv run python -m fuzer.agents.capabilities > docs/capabilities.md`; a test keeps it current)."""
     from ...analysis import calcs
+    from ...core import methods
 
     by_agent = tools_by_agent()
     shared = [c for c in REGISTRY.values() if len([a for a in c.agents if a != "orchestrator"]) > 1]
@@ -139,9 +140,10 @@ def catalogue() -> str:
     out += ["", f"## MCP only ({len(mcp_only)})", "", "Called by agents as themselves through the workflow engine.", "",
             *rows(mcp_only)]
     out += ["", "## Calc checks", "", "`calc(check, ref)` runs one; each returns {value, expected, deviation, flag, "
-            "basis, sources}.", "", "| Check | On | Also used by |", "|---|---|---|"]
+            "basis, sources, method}. [Methods](methods.md) has each one's standard, inputs and test vectors.", "",
+            "| Check | On | Method | Also used by |", "|---|---|---|---|"]
     label = {"person": "chart", "detector": "SRE detector"}
-    out += [f"| `{k}` | {v['ref']} | " + ", ".join(f"{label[w]} `{x}`" for w, x in v["used_by"].items() if x and w in label)
+    out += [f"| `{k}` | {v['ref']} | {methods.get(k).cites} | " + ", ".join(f"{label[w]} `{x}`" for w, x in v["used_by"].items() if x and w in label)
             + " |" for k, v in calcs.CHECKS.items()]
     return "\n".join(out) + "\n"
 

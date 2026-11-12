@@ -587,8 +587,7 @@ def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") ->
             out["trips"] += 1
             sp = d["spurious"]
             found = Finding(
-                "trips.diagnosis", DETERMINISTIC, method="The first point to move before the trip names the cause family",
-                standard="ISO 13379-1 symptom-to-cause",
+                "trips.diagnosis", DETERMINISTIC, method="compressor_trip",
                 start=d["tripped_at"], checks=d["checklist"],
                 data={"verdict": d["verdict"], "tripped_at": d["tripped_at"], "sequence": d["sequence"][:6]},
                 items=(at("Tripped", d["tripped_at"]), fact("Train", d["train"]), asset("Likely source", d["culprit_id"]),

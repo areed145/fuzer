@@ -86,9 +86,14 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
         out = calcs.run(conn, check, ref, **options.get(check, {}))
         assert EVIDENCE <= set(out) and out["sources"] and out["basis"], check
         assert out["of"]["id"] == ref and json.dumps(out, default=str)
+        assert out["method"]["id"] == check and out["method"]["label"]  # a result names its method (P1.3)
         assert calcs.CHECKS[check]["used_by"].get("person", "plot_").startswith("plot_")
     with pytest.raises(calcs.CalcError, match="unknown check"):
         calcs.run(conn, "nope", ref)
+    with pytest.raises(calcs.CalcError) as refused:  # a well is not a pump: a named refusal, not a number
+        calcs.run(conn, "wall_loss", refs["decline"])
+    assert refused.value.refusal() == {"refused": "missing_input", "reason": "no wall thickness readings on that item",
+                                       "method": calcs.run(conn, "wall_loss", refs["wall_loss"])["method"]}
 
 
 def test_checks_flag_the_okan_stories_as_of_then(conn):

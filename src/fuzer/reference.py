@@ -3,8 +3,8 @@ the database schema from each module's schema.sql, and the architecture (compone
 tests; what feeds which entity kinds; the scheduled jobs and the scan's path) and the recorded eval runs. A test fails when a committed
 page is out of date.
 
-    uv run python -m fuzer.reference      # writes docs/settings.md, cli.md, schema.md, architecture.md,
-                                          # eval-results.md
+    uv run python -m fuzer.reference      # writes docs/methods.md, settings.md, cli.md, schema.md,
+                                          # architecture.md, eval-results.md
 """
 
 import argparse
@@ -274,7 +274,35 @@ def eval_results_md() -> str:
     return "\n".join(out)
 
 
-PAGES = {"settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
+def methods_md() -> str:
+    """docs/methods.md: every registered method with its standard, inputs, validity and test vectors (P1.3)."""
+    from .core import methods
+
+    out = ["---", "title: Methods", "description: Every calculation an agent or a detector can call, with the "
+           "standard behind it.", "---", "",
+           "Generated from the method registry (`src/fuzer/standards/methods.yaml`); don't edit by hand "
+           "(`uv run python -m fuzer.reference`).", "",
+           "A result names its method, and a method that cannot answer refuses by name instead of estimating. "
+           "Standards are cited as the calculation applies them: check clauses against your licensed copy.", "",
+           "| Method | Standard or practice | Inputs | Needs |", "|---|---|---|---|"]
+    reg = methods.registry()
+    for m in reg.values():
+        inputs = "; ".join(f"{i['name']} ({i['unit']})" for i in m.inputs)
+        out.append(f"| [`{m.id}`](#{m.id}) {m.title} | {m.cites} | {inputs} | {m.needs} |")
+    out += ["", "## Refusals", "", "| Name | Meaning |", "|---|---|"]
+    out += [f"| `{k}` | {v} |" for k, v in methods.REFUSALS.items()]
+    for m in reg.values():
+        out += ["", f"## {m.id}", "", f"**{m.title}.** {m.cites}." + (f" {m.practice}" if m.practice else ""), "",
+                f"- **Valid for:** {m.valid}", f"- **Needs:** {m.needs}"]
+        out += [f"- **Flags `{k}`:** {t['means']} ({t['value']:g}{' ' + t['unit'] if t.get('unit') else ''})"
+                for k, t in m.thresholds.items()]
+        for v in m.vectors:
+            out.append(f"- **Test vector:** {v['says']} (`{v['kernel'].split(':')[1]}`)" if "kernel" in v else
+                       f"- **Worked example:** `{v['worked']}`, on the fake plant")
+    return "\n".join(out) + "\n"
+
+
+PAGES = {"methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
          "eval-results.md": eval_results_md}
 
 

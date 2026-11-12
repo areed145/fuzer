@@ -121,8 +121,8 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
         try:
             return _plain(calcs.run(conn, check, fid, method=method, model=model, days=days, breakeven=breakeven,
                                     min_required_mm=min_required_mm, until=until))
-        except calcs.CalcError as e:
-            return {"error": str(e)}
+        except calcs.CalcError as e:  # a named refusal: say why, and never estimate in its place
+            return {"error": str(e), **e.refusal()}
 
 
 @capability(

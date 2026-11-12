@@ -40,6 +40,9 @@ def test_a_finding_is_one_record_whoever_raised_it():
     assert read["subjects"] == ["fz-point-0123456789ab"] and read["value_usd"] == 25000.0 and read["confidence"] == 0.9
     assert [text(i) for i in read["items"]] == ["85 barg", "yes", "2025-12-30 04:00", "30-PT-2002 suction"]
     assert read["checks"] == ["Check the PSV"] and "iow" not in read
+    # A registered method reads as its title, with the standard the registry names (P1.3)
+    by_id = shown(Finding("trips.diagnosis", DETERMINISTIC, method="compressor_trip").evidence())
+    assert by_id["method"] == "Trip diagnosis from the first point to move" and by_id["standard"].startswith("ISO 13379-1")
     # An asset nobody can name is left out, never shown as its id
     assert [i["label"] for i in shown(stored)["items"]] == ["Limit", "Still going", "First outside"]
 
