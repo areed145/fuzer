@@ -127,3 +127,17 @@ def test_on_kestrel_well_hydraulics_find_their_points_by_role(kestrel):
     c = calcs.run(kestrel, "well_constraint", w)
     assert c["flag"] in ("choke", "back_pressure") and 0 < c["back_barg"] < c["whp_barg"]
     assert calcs.run(kestrel, "dp_drift", w)["value"] > 0
+
+
+def test_on_okan_the_wells_pack_nets_an_intervention_against_the_decline_before_it(okan_db):
+    """P4.2f-4: after April 2025's slickline valve change OK-J07-05 tested about 10 Sm3/d below its decline, but five
+    scattered tests before leave a range too wide to call it lost; the pack says no clear change rather than a loss,
+    and the lift curve is what shows the leaking valve."""
+    from fuzer.analysis import interventions
+
+    c = okan_db.conn
+    w = c.execute("select fuzer_id from entity_label where label = 'OK-J07-05'").fetchone()["fuzer_id"]
+    (i,) = interventions.gains(c, "2025-04-01", "2025-05-01", well=w)["interventions"]
+    assert (i["tests_before"], i["tests_after"], i["verdict"]) == (5, 4, "no_clear_change")
+    low, high = i["oil_range_sm3d"]
+    assert i["gain_sm3d"] < 0 and low < i["oil_after_sm3d"] < i["oil_expected_sm3d"] < high
