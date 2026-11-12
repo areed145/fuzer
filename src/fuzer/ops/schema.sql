@@ -10,6 +10,20 @@ create table if not exists sre_run (
     finished_at timestamptz
 );
 
+-- Each run of a registered detector (core/detectors.py): what it found, or why it did not apply on this asset.
+create table if not exists detector_run (
+    id       bigserial primary key,
+    detector text not null,
+    status   text not null,                     -- ran | not_applicable | failed
+    note     text,                              -- "not applicable: missing X", or the failure
+    found    integer,
+    seconds  double precision,
+    since    timestamp,
+    until    timestamp,
+    at       timestamptz not null default now()
+);
+create index if not exists detector_run_of on detector_run (detector, id desc);
+
 -- What the SRE's detectors found in the process data (sre.py): an ongoing one is extended, not raised again.
 create table if not exists detection (
     id          bigserial primary key,

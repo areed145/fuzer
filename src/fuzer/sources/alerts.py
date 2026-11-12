@@ -8,7 +8,7 @@ and by the scheduled health check.
 import json
 import urllib.request
 
-from ..core import events, settings
+from ..core import detectors, events, settings
 from ..core.exceptions import clear_exception, exception_type, raise_exception
 from ..core.findings import DETERMINISTIC, Finding, fact
 
@@ -34,6 +34,9 @@ def post(text: str) -> bool:
     return True
 
 
+@detectors.register("source_health", title="A dataset that failed, is held, is stale or fails its checks",
+                    kind=detectors.RULE, cadence="30min", raises=(TYPE,),
+                    eval="test:tests/api/test_catalog_api.py::test_rules_health_alerts_and_lineage", found=lambda out: len(out.get("opened") or []))
 def check(conn, names: list[str] | None = None, by: str = "fuzer") -> dict:
     """Raise exceptions for new problems and clear the ones that went away. Returns what was opened and closed."""
     from . import catalog, quality

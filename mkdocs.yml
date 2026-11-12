@@ -65,6 +65,7 @@ nav:
   - Reference:
       - capabilities.md
       - methods.md
+      - detectors.md
       - settings.md
       - cli.md
       - schema.md
