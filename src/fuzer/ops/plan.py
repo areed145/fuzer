@@ -169,6 +169,10 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         order by p.start_at, p.id
         """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject}).fetchall()
     clashes = _clashes(rows)
+    from . import simops
+
+    for item_id, found in simops.on_plan(conn, rows).items():  # hazards side by side in one area (P5.11b)
+        clashes[item_id].extend(found)
     shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
              and (crew is None or r["crew"] == crew)]
     short = _parts_short(conn, shown, now)

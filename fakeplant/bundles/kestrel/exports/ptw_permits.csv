@@ -3,6 +3,8 @@ PTW-24101,KRGP-B1-K2001,cold work,issued,today-1d 06:00,today+2d 18:00,Mechanica
 PTW-24102,KRGP-C1-P3002B,cold work,expired,today-10d 06:00,today-3d 18:00,Mechanical maintenance crew,Glycol pump B quarterly service
 PTW-24103,KRGP-G1-G7006,electrical,issued,today-1d 06:00,today+1d 18:00,Electrical technicians,Standby generator monthly load test
 PTW-24104,KRGP-A1-V1001,confined space entry,requested,today+150d 06:00,today+170d 18:00,Mechanical maintenance crew,Internal inspection inlet separator (turnaround)
+PTW-24105,KRGP-C1-H3008,hot work,issued,today-1d 06:00,today+2d 18:00,Mechanical maintenance crew,Clean TEG reboiler burner and weld fire tube support
+PTW-24106,KRGP-C1-V3001,line break,approved,today-1d 06:00,today+2d 18:00,Mechanical maintenance crew,Open glycol contactor manway for tray check
 MP-5100,50000003-LEG,cold work,closed,today-400d 06:00,today-398d 18:00,Mechanical maintenance crew,Compressor Aftercooler service (old permit system)
 MP-5101,50000006-LEG,cold work,closed,today-409d 06:00,today-407d 18:00,Mechanical maintenance crew,Glycol Circulation Pump B service (old permit system)
 MP-5102,50000009-LEG,cold work,closed,today-418d 06:00,today-416d 18:00,Mechanical maintenance crew,Condensate Transfer Pump A service (old permit system)
