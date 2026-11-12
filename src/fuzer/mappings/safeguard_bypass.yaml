@@ -1,0 +1,20 @@
+# Safeguard bypasses (P3.9a, #763): each bypass of a safeguard, its state (requested, active, removed), when it went
+# in, when it must come out (expires), why, who authorised it and the change record (moc) it runs under, if any.
+# A bypass still active past its expiry is overdue.
+source: safeguards
+record_type: bypass
+shape: records
+dataset: safeguard_bypasses
+key: bypass_id
+entity:
+  kind: bypass
+  fields:
+    - state
+    - bypassed_from
+    - expires
+    - reason
+    - authorised_by
+    - [moc, {from: moc, default: "", keep: true}]
+links:
+  - rel: bypasses
+    to: {kind: safeguard, from: safeguard_id}

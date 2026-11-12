@@ -1,0 +1,2 @@
+bypass_id,safeguard_id,state,bypassed_from,expires,reason,authorised_by,moc
+BYP-OK-014,SG-OK-201,active,2024-02-26T10:00,2024-02-27T10:00,Vibration probe on 20-VT-2200B suspected faulty; trip bypassed pending the instrument technician,GGCP shift supervisor,
