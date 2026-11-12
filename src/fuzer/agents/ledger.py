@@ -17,25 +17,34 @@ and over the cap the step goes to a person with the spend and the cap on the cas
 import functools
 import hashlib
 from datetime import datetime
+from pathlib import Path
 
 from . import SKILLS
 from .capabilities import AGENT_BY_ID
 
 
 @functools.cache
-def _skill_hash(path: str) -> str:
-    """A short hash of every file in one skill's folder, in name order."""
+def _hash(root: str) -> str:
+    """A short hash of every file in one skill folder, in name order."""
     h = hashlib.sha256()
-    root = SKILLS / path
-    for f in sorted(p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
-        h.update(f.relative_to(root).as_posix().encode() + b"\0" + f.read_bytes())
+    base = Path(root)
+    for f in sorted(p for p in base.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
+        h.update(f.relative_to(base).as_posix().encode() + b"\0" + f.read_bytes())
     return h.hexdigest()[:12]
+
+
+def _skill_hash(path: str, live: dict | None = None) -> str:
+    """The version hash of the skill the agents load: its live published version (P6.4b) or the shipped folder."""
+    return _hash(str((live or {}).get(path, SKILLS / path)))
 
 
 def skill_versions(agents: list[str]) -> dict[str, str]:
     """The skills the named agents hold, each with its version hash."""
+    from .skill_versions import roots
+
     paths = {p for a in agents if a in AGENT_BY_ID for p in AGENT_BY_ID[a].skill_paths}
-    return {p: _skill_hash(p) for p in sorted(paths)}
+    live = roots() if paths else {}
+    return {p: _skill_hash(p, live) for p in sorted(paths)}
 
 
 def record(role: str, answer: dict) -> dict:
