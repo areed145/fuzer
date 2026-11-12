@@ -14,7 +14,6 @@ basis, sources}) for detectors, agents and charts.
 """
 
 import math
-import re
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -26,14 +25,13 @@ K = 1.3  # ratio of specific heats for the lift gas
 R_GAS = 0.5  # kJ/kg K (natural gas, molar mass about 16.6)
 
 
-def _tag_point(conn, label: str, ending: str = "") -> dict | None:
+def _unit_point(conn, fid: str | None, ending: str) -> dict | None:
+    """The first point on a unit (or its instruments) whose description says `ending` (Pressure, Temperature)."""
     from ..sources.timeseries import _unit_points
 
-    t = conn.execute("select fuzer_id from entity_label where label = %s", (label,)).fetchone()
-    if not t:
+    if not fid:
         return None
-    pts = _unit_points(conn, t["fuzer_id"], 10)
-    return next((p for p in pts if ending.lower() in (p["description"] or "").lower()), pts[0] if pts and not ending else None)
+    return next((p for p in _unit_points(conn, fid, 10) if ending.lower() in (p["description"] or "").lower()), None)
 
 
 def role_point(conn, fid: str, *wanted: str) -> dict | None:
@@ -46,28 +44,19 @@ def role_point(conn, fid: str, *wanted: str) -> dict | None:
     return next((p for w in wanted for p in pts if of.get(p["id"]) == w), None)
 
 
-def driver_of(conn, tag: str) -> str | None:
-    """The machine driving a compressor: the driver (gas or steam turbine, engine or motor) in its train."""
-    from ..graph import roles
-    from .trips import DRIVERS, train
+def _stage_points(conn, stage: str) -> dict:
+    """Suction and discharge pressure and temperature points for a compressor stage, from piping
+    (`graph.structure.stage`, never its name): discharge on the stage itself, suction pressure on the scrubber before
+    it, suction temperature at the outlet of the cooler before that (none for a first stage)."""
+    from ..graph import structure
 
-    return next((m for m in train(conn, tag)["members"] if roles.classes(conn, m) & DRIVERS), None)
-
-
-def _stage_points(conn, stage_label: str) -> dict:
-    """Suction and discharge pressure and temperature points for a compressor stage named like 20-K-2300A:
-    discharge on the stage itself, suction pressure on its scrubber (20-V-2301A), suction temperature at the
-    outlet of the cooler before it (20-E-2250A)."""
-    m = re.match(r"^(\d\d)-K-(\d)(\d)00([A-Z])$", stage_label)
-    if not m:
-        raise CalcError("not a compressor stage tag (NN-K-N?00X)")
-    area, series, n, train = m.groups()  # 20-K-2300A: series 2, stage 3, train A
-    s = int(n)
-    stage = conn.execute("select fuzer_id from entity_label where label = %s", (stage_label,)).fetchone()["fuzer_id"]
+    s = structure.stage(conn, stage)
+    if not s["known"]:
+        raise CalcError(f"not a compressor stage the piping places: {s['basis']}")
     out = {"pd": role_point(conn, stage, "discharge_pressure"),
            "td": role_point(conn, stage, "discharge_temperature"),
-           "ps": _tag_point(conn, f"{area}-V-{series}{s}01{train}", "Pressure"),
-           "ts": _tag_point(conn, f"{area}-E-{series}{s - 1}50{train}", "Temperature") if s > 1 else None}
+           "ps": _unit_point(conn, s["scrubber"], "Pressure"),
+           "ts": _unit_point(conn, s["cooler_before"], "Temperature")}
     for k in ("pd", "td", "ps"):
         if not out[k]:
             raise CalcError(f"no {k} point for that stage")
@@ -78,8 +67,7 @@ def compressor_performance(conn, fid: str, days: int = 30, until: str | None = N
                            drop: float = 0.03) -> dict:
     """Polytropic efficiency (and head) of a compressor stage: the last 3 days against its first week in
     the window. Flags `efficiency_drop` when it is `drop` or more lower."""
-    label = _label(conn, fid)
-    pts = _stage_points(conn, label)
+    pts = _stage_points(conn, fid)
     start, end = window_of(conn, days, until)
     v = read({k: p for k, p in pts.items() if p}, start, end, 60, src)
     rows = []

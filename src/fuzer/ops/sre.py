@@ -35,7 +35,6 @@ from ..core.jsonsafe import plain as _plain
 from ..graph.topology import (  # noqa: F401  (sre.topology, as before)
     HOPS,
     LINKS,
-    TRAIN,
     _near,
     topology,
 )

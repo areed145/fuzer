@@ -242,14 +242,14 @@ def _map_head(c: dict, q: float, speed_pct: float) -> float | None:
 
 
 def _stage_parts(conn, tag: str) -> dict:
-    """A compressor stage's suction flow and anti-surge valve points, and its driver's speed (the driver in its
-    train), by their measurement roles."""
-    from ..graph import roles
-    from .equipment import driver_of, role_point
+    """A compressor stage's suction flow and anti-surge valve points, and its driver's speed (what drives it, from the
+    drives link), by their measurement roles."""
+    from ..graph import roles, structure
+    from .equipment import role_point
 
     if "CO" not in roles.classes(conn, tag):
         raise CalcError("not a compressor stage")
-    driver = driver_of(conn, tag)
+    driver = structure.driver(conn, tag)
     parts = {"flow": role_point(conn, tag, "suction_flow"), "asv": role_point(conn, tag, "anti_surge_valve_position"),
              "speed": role_point(conn, driver, "speed") if driver else None}
     missing = [k for k, v in parts.items() if not v]
@@ -301,15 +301,16 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
     except CalcError:
         pass
     siblings = []
-    label = _label(conn, tag)  # the same stage on the other trains: needs the stage order the register lacks (P2.7)
-    for other in conn.execute("select fuzer_id, label from entity_label where label ~ %s and label <> %s order by label",
-                              (f"^{label[:-1]}[A-Z]$", label)).fetchall():
+    from ..graph import structure
+
+    st = structure.stage(conn, tag)  # the same stage on each parallel train, from piping (P2.7)
+    for other in st.get("siblings") or []:
         try:
-            o = _stage_parts(conn, other["fuzer_id"])
+            o = _stage_parts(conn, other)
             ov = read({"flow": o["flow"]}, end - timedelta(days=recent_days), end, 60, src)["flow"]
             run = [x for x in ov.values() if x > 0.2 * design[0]]
             if run:
-                siblings.append({"machine": other["label"], "flow": round(float(np.median(run)), 0)})
+                siblings.append({"machine": _label(conn, other), "flow": round(float(np.median(run)), 0)})
         except CalcError:
             continue
     flag = "near_surge" if p5 < NEAR_SURGE else "recycling" if open_share > RECYCLING else None

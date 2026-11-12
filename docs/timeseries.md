@@ -59,7 +59,7 @@ point, dated and with their source record, in `point_limit`:
 runs when its run signal, the first of its points matching the pack's `limits.run_signals` (Okan:
 motor power, turbine speed, vibration, choke opening), is above a level; it is in `startup` for
 `settle_minutes` after it starts. Units without a signal (scrubbers, coolers) follow the units in the
-same area and train (the trailing letter of the tag), else the area. Excursions count only while
+same area and train (the train `graph.structure` reads from piping and drives), else the area. Excursions count only while
 running, so a stopped pump's low flow, or a standby pump, raises nothing.
 
 **Checks** (`limits.issues`, `fuzer limits issues`, `/limits/issues`): sources disagreeing (AF not

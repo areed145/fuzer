@@ -1,18 +1,18 @@
-"""The plant as a graph of units: what is next to what (part_of, flows_to, lift gas, P&ID piping, the machines of
-one train), and whether two units are within a few hops. Upsets (#96) and correlation studies (#106) use it to
-decide what can be connected."""
-
-import re
+"""The plant as a graph of units: what is next to what (part_of, flows_to, lift gas, P&ID piping, the members of
+one train as `graph.structure` reads it from piping), and whether two units are within a few hops. Upsets (#96) and
+correlation studies (#106) use it to decide what can be connected."""
 
 HOPS = 4  # default for the setting sre.hops (#131); and on a unit this close in the plant model (compressor -> header -> manifold -> well)
 LINKS = ("part_of", "flows_to", "lift_gas_to", "pipes_to")
-TRAIN = re.compile(r"^(\d\d)-[A-Z]+-\d+([A-Z])$")
 
 
 def topology(conn) -> dict[str, set[str]]:
     """Units next to each other in the plant model: part_of (instrument -> equipment, choke -> well),
-    flows_to, lift_gas_to and P&ID piping, both ways; and the machines of one compression train (same
-    area, same trailing letter). Areas and the facility are left out, or everything would touch."""
+    flows_to, lift_gas_to and P&ID piping, both ways; and the members of one compression train with what drives
+    them (`graph.structure`, from piping, never tag names). Areas and the facility are left out, or everything would
+    touch."""
+    from . import structure
+
     adj: dict[str, set[str]] = {}
     for r in conn.execute(
         """
@@ -29,12 +29,12 @@ def topology(conn) -> dict[str, set[str]]:
                        where p.src = l.fuzer_id and p.rel = 'part_of') as instrument
         from entity_label l join entity e using (fuzer_id) where e.kind = 'tag'
         """).fetchall()
-    trains: dict[tuple, list[str]] = {}
-    for r in tags:
-        if not r["instrument"] and (m := TRAIN.match(r["label"] or "")):
-            trains.setdefault(m.groups(), []).append(r["fuzer_id"])
-    for members in trains.values():
-        if len(members) <= 20:  # a train's machines and vessels, not a whole lettered area
+    plant = structure.load(conn)
+    for piped in set(plant.trains.values()):
+        if not any(structure.COMPRESSOR in plant.classes.get(m, set()) for m in piped):
+            continue  # a machine train (its stages, scrubbers, coolers and driver), not every piped run in an area
+        members = set(piped) | {plant.drives[m] for m in piped if m in plant.drives}
+        if len(members) <= 20:  # a train's machines and vessels, not a whole area
             for u in members:
                 adj.setdefault(u, set()).update(x for x in members if x != u)
     # A tag on its own (a header pressure, a jacket's gas lift meter) belongs with the manifolds in its area
