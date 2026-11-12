@@ -214,12 +214,14 @@ the operating model as a package (P8.1): export, apply, adopt, deviations, confo
 
 | Argument | What it does |
 |---|---|
-| `action` (export / apply / adopt / deviations / conformance / name / unname / applied) |  |
+| `action` (export / apply / adopt / deviations / conformance / name / unname / applied / standing / fleet) |  |
 | `package` | a package folder, or `standard` (export: the folder to write; deviations and conformance: default the model the project's bundle follows, apply: default `standard`) |
 | `--part` | with name and unname: roles, work_types, settings, processes or forms |
 | `--key` | with name and unname: the role, work type, setting, process or form |
 | `--reason` | with name: why this project differs there |
 | `--owner` | with name: the role or person who owns the difference |
+| `--review-by` | with name: when it is next reviewed (YYYY-MM-DD; default a year) |
+| `--days` | with standing and fleet: the days of work to read (P8.2) |
 | `--name` | with export: the model's name |
 | `--version` | with export: the model's version |
 | `--by` | who is applying it (default: $USER) |

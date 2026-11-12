@@ -49,3 +49,7 @@ arrive:
   alarm_flood: {not_here: "the terminal's 36 alarmed tags never reach 10 alarms in 10 minutes in the replay"}
   # Crude tank C's level low alarm coming back every few hours, and alarms standing for days
   alarm_bad_actor: {detector: alarm_performance}
+  # A difference from the standard the terminal superintendent's ops lead named, whose review date has passed (P8.2)
+  deviation_review_due: {deviation: {part: settings, key: handover.shift_times, owner: ops_lead, review_by: "today-1d",
+                                     reason: "Ship loading crews hand over at 19:00, after the evening berthing window"},
+                         detector: deviation_reviews, about: model}
