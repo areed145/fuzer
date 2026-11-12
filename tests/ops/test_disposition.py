@@ -70,3 +70,40 @@ def test_an_agents_suggestion_pre_fills_the_form(conn):
     assert disposition.suggest(conn, PACK, case) == {"disposition": "real", "failure_mode": "UST", "cause": "3",
                                                      "activity": "4", "from": "agent"}
     conn.commit()
+
+
+def test_a_due_recheck_asks_whoever_closed_it_and_a_no_reopens_the_case_as_a_repeat(conn):
+    case = work.open_case(conn, "manual", "P-301 leaking at the seal", by="ioc-ann", subjects=["fz-p301"])["id"]
+    row = disposition.record(conn, PACK, case, "fred", "real", failure_mode="ELP", cause="3", activity="1")
+    assert row["recheck_at"] is not None
+    assert disposition.sweep(conn, PACK)["rechecks"] == []  # not due yet
+    conn.execute("update case_disposition set recheck_at = now() - interval '1 minute' where item_id = %s", (case,))
+    [check] = disposition.sweep(conn, PACK)["rechecks"]
+    asked = conn.execute("select type, assignee, title, payload from work_item where id = %s", (check,)).fetchone()
+    assert (asked["type"], asked["assignee"], asked["payload"]["recheck_of"]) == ("recheck", "fred", case)
+    assert asked["title"] == "Did the fix hold? P-301 leaking at the seal"
+    assert disposition.sweep(conn, PACK)["rechecks"] == []  # asked once
+    out = disposition.answer_recheck(conn, case, "fred", held=False, note="weeping again")
+    assert out["held"] is False and out["held_note"] == "weeping again"
+    states = {r["id"]: r["state"] for r in conn.execute(
+        "select id, state from work_item where id = any(%s)", ([case, check],)).fetchall()}
+    assert states == {case: "open", check: "done"}  # the first case is open again, the re-check answered
+    assert [r["again"] for r in disposition.form(conn, PACK, case)["repeats"]] == [check]
+    conn.commit()
+
+
+def test_the_same_failure_on_the_same_asset_inside_the_window_reopens_the_first_case(conn):
+    first = work.open_case(conn, "manual", "K-100 vibration high", by="ioc-ann", subjects=["fz-k100"])["id"]
+    disposition.record(conn, PACK, first, "fred", "real", failure_mode="VIB", cause="3", activity="4")
+    conn.commit()
+    other_asset = work.open_case(conn, "manual", "K-200 vibration high", by="ioc-ann", subjects=["fz-k200"])["id"]
+    other_mode = work.open_case(conn, "manual", "K-100 seal leaking", by="ioc-ann", subjects=["fz-k100"])["id"]
+    again = work.open_case(conn, "manual", "K-100 vibrating again", by="ioc-ann", subjects=["fz-k100"])["id"]
+    found = disposition.sweep(conn, PACK)["repeats"]
+    assert found == [{"first": first, "again": again}]
+    rows = {r["id"]: r for r in conn.execute("select id, state from work_item where id = any(%s)",
+                                             ([first, other_asset, other_mode, again],)).fetchall()}
+    assert rows[first]["state"] == "open" and rows[again]["state"] == "cancelled"
+    assert rows[other_asset]["state"] == rows[other_mode]["state"] == "open"
+    assert disposition.sweep(conn, PACK)["repeats"] == []
+    conn.commit()

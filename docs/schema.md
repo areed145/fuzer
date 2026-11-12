@@ -1622,6 +1622,14 @@ Structured close-out (P6.1a, #655): what a closed case was, in controlled terms.
 | `by` | text |  |
 | `at` | timestamptz |  |
 
+### `case_repeat`
+
+| Column | Type | Note |
+|---|---|---|
+| `again` | bigint | the case (or re-check) that showed the problem came back |
+| `first` | bigint | the case reopened as a repeat |
+| `at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)

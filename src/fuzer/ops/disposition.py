@@ -8,13 +8,18 @@ what was done, in the ISO 14224 terms of `standards/iso14224.yaml`, so the close
 
 The form is pre-filled from an agent's suggestion on the case (`payload.closeout_suggestion`), else from the case's
 own words: the failure-mode keywords of the taxonomy and pack, and the action words below. The person confirms it.
+
+Re-check and repeats (P6.1b, #656): a real problem's close-out sets a re-check `closeout.recheck_days` later. When it
+is due, whoever closed it gets a "did the fix hold?" case; a no reopens the first case as a repeat. A new case on the
+same asset with the same failure mode inside the window does the same: the first case reopens, linked to the new one,
+and the new one is closed into it instead of starting fresh. `sweep` does both, every minute.
 """
 
 import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import work
+from ..core import settings, work
 from ..core.pack import Pack
 from ..core.taxonomy import failure_modes_in, load_standard
 
@@ -78,8 +83,9 @@ def get(conn, item_id: int) -> dict | None:
 def form(conn, pack: Pack, item_id: int) -> dict:
     """Everything the close-out form needs: the record if there is one, the pre-fill and the lists."""
     _text(conn, item_id)
+    repeats = conn.execute("select again, at from case_repeat where first = %s order by at", (item_id,)).fetchall()
     return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggest(conn, pack, item_id),
-            "vocabulary": vocabulary(pack)}
+            "vocabulary": vocabulary(pack), "repeats": repeats}
 
 
 def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure_mode: str | None = None,
@@ -112,17 +118,19 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     row = conn.execute(
         """
         insert into case_disposition (item_id, disposition, failure_mode, mechanism, cause, activity, outcome, note,
-                                      duplicate_of, suggested, by)
+                                      duplicate_of, suggested, by, recheck_at)
         values (%(item_id)s, %(disposition)s, %(failure_mode)s, %(mechanism)s, %(cause)s, %(activity)s, %(outcome)s,
-                %(note)s, %(duplicate_of)s, %(suggested)s, %(by)s)
-        on conflict (item_id) do update set disposition = excluded.disposition, failure_mode = excluded.failure_mode,
+                %(note)s, %(duplicate_of)s, %(suggested)s, %(by)s,
+                case when %(disposition)s = 'real' then now() + make_interval(days => %(days)s) end)
+        on conflict (item_id) do update set disposition = excluded.disposition, recheck_at = excluded.recheck_at, failure_mode = excluded.failure_mode,
             mechanism = excluded.mechanism, cause = excluded.cause, activity = excluded.activity,
             outcome = excluded.outcome, note = excluded.note, duplicate_of = excluded.duplicate_of,
             suggested = excluded.suggested, by = excluded.by, at = now()
         returning *
         """, {"item_id": item_id, "disposition": disposition, "failure_mode": failure_mode, "mechanism": mechanism,
               "cause": cause, "activity": activity, "outcome": outcome, "note": (note or "").strip() or None,
-              "duplicate_of": duplicate_of, "suggested": Jsonb(suggested or {}), "by": by}).fetchone()
+              "duplicate_of": duplicate_of, "suggested": Jsonb(suggested or {}), "by": by,
+              "days": int(settings.get(conn, "closeout.recheck_days"))}).fetchone()
     if item["closed_at"] is None:
         work.close_case(conn, item_id, "done", by, reason=summary(row, v))
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))
@@ -151,5 +159,81 @@ def missing(conn, limit: int = 200) -> list[dict]:
     """Closed cases with no close-out yet, newest first: the ones still to fill in."""
     return conn.execute("select i.id, i.title, i.type, i.closed_at from work_item i "
                         "left join case_disposition d on d.item_id = i.id "
-                        "where i.closed_at is not null and i.state = 'done' and d.item_id is null "
+                        "where i.closed_at is not null and i.state = 'done' and d.item_id is null and i.type <> 'recheck' "
                         "order by i.closed_at desc limit %s", (limit,)).fetchall()
+
+
+RECHECK = "recheck"  # the case type that asks whether a fix held
+
+
+def reopen_as_repeat(conn, first: int, again: int, by: str, why: str) -> dict:
+    """Reopen a closed case as a repeat of itself, linked to the case that showed the problem came back."""
+    conn.execute("insert into case_repeat (again, first) values (%s, %s) on conflict do nothing", (again, first))
+    state = conn.execute("select state from work_item where id = %s", (first,)).fetchone()["state"]
+    if state in ("done", "cancelled"):
+        work.close_case(conn, first, "open", by, reason=f"Repeat: {why} (case {again})")
+    work.comment(conn, first, by, f"Repeat: {why}. See case {again}.")
+    return {"first": first, "again": again}
+
+
+def answer_recheck(conn, item_id: int, by: str, held: bool, note: str | None = None) -> dict:
+    """Answer "did the fix hold?" for a closed-out case: kept on its close-out; a no reopens it as a repeat. The
+    re-check case closes either way."""
+    row = get(conn, item_id)
+    if not row or row["disposition"] != "real":
+        raise LookupError(f"case {item_id} has no real problem's close-out to re-check")
+    note = (note or "").strip() or None
+    row = conn.execute("update case_disposition set held = %s, held_note = %s, held_by = %s, held_at = now() "
+                       "where item_id = %s returning *", (held, note, by, item_id)).fetchone()
+    check = row["recheck_item"]
+    if check and conn.execute("select closed_at from work_item where id = %s", (check,)).fetchone()["closed_at"] is None:
+        work.close_case(conn, check, "done", by, reason=("The fix held" if held else "The fix did not hold")
+                        + (f": {note}" if note else ""))
+    if not held:
+        reopen_as_repeat(conn, item_id, check or item_id, by, "the fix did not hold" + (f": {note}" if note else ""))
+    return row
+
+
+def _due_rechecks(conn) -> list[int]:
+    opened = []
+    for d in conn.execute("select d.item_id, d.by, i.title, i.subjects from case_disposition d "
+                          "join work_item i on i.id = d.item_id where d.disposition = 'real' and d.recheck_item is null "
+                          "and d.held is null and d.recheck_at <= now() and i.state = 'done' "
+                          "order by d.recheck_at").fetchall():
+        check = work.open_case(conn, RECHECK, f"Did the fix hold? {d['title']}", by="fuzer", assignee=d["by"],
+                               subjects=d["subjects"], payload={"recheck_of": d["item_id"]})["id"]
+        conn.execute("update case_disposition set recheck_item = %s where item_id = %s", (check, d["item_id"]))
+        opened.append(check)
+    return opened
+
+
+def _repeats(conn, pack: Pack) -> list[dict]:
+    """New open cases on the same asset as a real problem closed inside its window, naming the same failure mode."""
+    found = []
+    rows = conn.execute(
+        """
+        select n.id as again, n.title, d.item_id as first, d.failure_mode from work_item n
+        join case_disposition d on d.disposition = 'real' and d.recheck_at > n.created_at and d.at < n.created_at
+        join work_item f on f.id = d.item_id and f.state = 'done' and f.subjects && n.subjects
+        where n.closed_at is null and n.type <> %s and n.id <> d.item_id
+          and not exists (select 1 from case_repeat r where r.again = n.id)
+        order by n.id, d.at desc
+        """, (RECHECK,)).fetchall()
+    seen: set[int] = set()
+    for r in rows:
+        if r["again"] in seen:
+            continue
+        _, text = _text(conn, r["again"])
+        if r["failure_mode"] in failure_modes_in(text, pack):
+            seen.add(r["again"])
+            reopen_as_repeat(conn, r["first"], r["again"], "fuzer",
+                             f"{vocabulary(pack)['failure_modes'].get(r['failure_mode'], r['failure_mode'])} again "
+                             "inside the re-check window")
+            work.cancel_case(conn, r["again"], "fuzer", reason=f"Repeat of case {r['first']}, reopened there")
+            found.append({"first": r["first"], "again": r["again"]})
+    return found
+
+
+def sweep(conn, pack: Pack) -> dict:
+    """Open the re-checks that are due and fold repeats back into the case they repeat."""
+    return {"rechecks": _due_rechecks(conn), "repeats": _repeats(conn, pack)}

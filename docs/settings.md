@@ -51,6 +51,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `work.due_soon_minutes` | int | `60` | 0 to 1440 | Tell the person holding a step this many minutes before it is due (0: never). |
 | `intake.sap_notifications` | bool | `True` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
 | `closeout.apply_to_exports` | bool | `False` |  | Demo: apply a close-out sent back to a source system (an SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it. |
+| `closeout.recheck_days` | int | `30` |  | Days after a real problem is closed out to ask whoever closed it whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat. |
 | `stewardship.bulk_accept_at` | float | `0.0` | 0 to 1 | Offer to accept, in one step, Claude's master data proposals at or above this confidence (0: never; set it once the proposal evals show they hold at that level). |
 | `handover.shift_times` | str | `06:00,18:00` |  | Shift changes, as local times in the project's timezone (comma separated). At each one a shift handover is drafted for the ops lead queue (empty: off). |
 | `exceptions.join_hours` | int | `48` | 0 to 720 | An exception about an asset (or the unit it is part of) whose open case another source's exception raised within this many hours joins that case, so one event reported by several systems is one case (0: never join). |

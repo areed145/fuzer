@@ -14,7 +14,7 @@ import { CaseWritebacks } from "../Writeback";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
-import { CaseCloseoutCard } from "../Disposition";
+import { CaseCloseoutCard, RecheckCard } from "../Disposition";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -191,7 +191,9 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
-      {(closed ? it.state === "done" : !it.processes.some((p) => p.state === "running")) &&
+      {typeof raised.recheck_of === "number" && <RecheckCard firstId={raised.recheck_of} person={person} closed={closed}
+        readOnly={demo} reload={item.reload} />}
+      {it.type !== "recheck" && (closed ? it.state === "done" : !it.processes.some((p) => p.state === "running")) &&
         <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">

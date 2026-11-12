@@ -434,3 +434,16 @@ create table if not exists case_disposition (
     by           text not null,
     at           timestamptz not null default now()
 );
+
+-- Re-check and repeats (P6.1b, #656): did the fix hold, and a problem that came back inside the window.
+alter table case_disposition add column if not exists recheck_at timestamptz;
+alter table case_disposition add column if not exists recheck_item bigint;      -- the "did the fix hold?" case
+alter table case_disposition add column if not exists held boolean;
+alter table case_disposition add column if not exists held_note text;
+alter table case_disposition add column if not exists held_by text;
+alter table case_disposition add column if not exists held_at timestamptz;
+create table if not exists case_repeat (
+    again      bigint primary key,      -- the case (or re-check) that showed the problem came back
+    first      bigint not null,         -- the case reopened as a repeat
+    at         timestamptz not null default now()
+);

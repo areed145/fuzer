@@ -259,6 +259,24 @@ def case_closeout_record(item_id: int, c: Closeout, conn=Depends(get_conn)):
     return row
 
 
+class Recheck(BaseModel):
+    by: str
+    held: bool
+    note: str | None = None
+
+
+@router.post("/work/items/{item_id}/recheck")
+def case_recheck(item_id: int, r: Recheck, conn=Depends(get_conn)):
+    """Did the fix hold (P6.1b)? A no reopens the case as a repeat."""
+    from ..ops import disposition
+    try:
+        row = disposition.answer_recheck(conn, item_id, r.by, r.held, r.note)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+    conn.commit()
+    return row
+
+
 @router.get("/closeout/missing")
 def closeout_missing(conn=Depends(get_conn)):
     """Closed cases with no close-out yet (P6.1a)."""

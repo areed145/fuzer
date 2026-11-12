@@ -3532,7 +3532,7 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
       item = { ...item, state: "done", closed_at: "2026-11-12T06:00:00Z" };
       return route.fulfill({ json: record });
     }
-    return route.fulfill({ json: { item_id: 7, record, vocabulary,
+    return route.fulfill({ json: { item_id: 7, record, vocabulary, repeats: [],
       suggestion: { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" } } });
   });
   await page.goto(`${url}/#/cases/7`);
@@ -3555,4 +3555,26 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
     ["fred", "real", "VIB", "3", "1", "fixed"]);
   assert.deepEqual(posts[0].suggested, { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" });
   await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P6.1b (#656): when the re-check is due, whoever closed the problem out answers "did the fix hold?" on its case.
+test("whoever closed a problem out answers whether the fix held, and a no reopens the case (#656)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let item = { ...demoTask.item, id: 7, type: "recheck", title: "Did the fix hold? P-301 leaking at the seal", state: "open",
+    closed_at: null, processes: [], events: [], payload: { recheck_of: 3 } };
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+  const answers = [];
+  await page.route("**/work/items/3/recheck", (route) => {
+    answers.push(route.request().postDataJSON());
+    item = { ...item, state: "done", closed_at: "2026-12-12T06:00:00Z" };
+    return route.fulfill({ json: { item_id: 3, held: false } });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  const card = page.locator(".recheck");
+  await card.getByRole("link", { name: "case 3" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Close out", exact: true }).count(), 0);  // a re-check isn't closed out itself
+  await card.getByLabel("Note").fill("weeping again");
+  await card.getByRole("button", { name: "No, it came back" }).click();
+  await card.getByRole("button", { name: "No, it came back" }).waitFor({ state: "detached" });
+  assert.deepEqual(answers, [{ by: "fred", held: false, note: "weeping again" }]);
 });
