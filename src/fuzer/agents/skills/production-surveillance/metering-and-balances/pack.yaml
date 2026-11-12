@@ -1,0 +1,18 @@
+# The metering and balances specialist pack (P4.2, pack 8): how far each meter's reading can be trusted, from the
+# allocation network around it - its allocation factor against the well tests upstream, and its agreement with the
+# other meter on its stream - on API MPMS (Chapters 20 and 21, by name). SKILL.md is its playbook; this file names
+# what the playbook relies on, so a missing or renamed piece fails the pack conformance test
+# (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Metering and balances
+owner: production-surveillance        # the agent that loads this pack
+classes: [IP]                         # ISO 14224: input devices (flow meters)
+tools: [calc, measurements, plot_trend, trace_flow]
+charts: [plot_trend]
+methods: [allocation_factor, meter_agreement]
+detectors: [instruments]
+roles: [flow]
+eval: metering-and-balances           # each bundle's answer keys: evals/metering-and-balances.yaml in the bundle
+# Each method that reads the asset's own measurements, and the roles it needs there (P4.1b).
+needs:
+  allocation_factor: [flow]
+  meter_agreement: [flow]
