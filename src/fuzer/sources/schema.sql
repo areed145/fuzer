@@ -348,3 +348,17 @@ create table if not exists learned_rule (
 -- What a system takes back from Fuzer (P5.7, ops/writeback.py), from its source pack: accepts (kinds), approvers,
 -- kinds.<kind>.{approvers, cadence}, adapter (export | demo_csv) and limit per run. Unset: the queue's defaults.
 alter table source_system add column if not exists writeback jsonb;
+
+-- Detection providers (P3.8, sources/providers.py): an outside tool's alerts (condition monitoring, a predictive model,
+-- leak detection), mapped to the finding contract and raised as the work type it names.
+create table if not exists detection_provider (
+    system     text not null,
+    name       text not null,
+    label      text not null,
+    type       text not null,                 -- the exception type its alerts raise
+    mapping    jsonb not null,                -- key, refs, title, severity, confidence, link, start, items, clear_when
+    enabled    boolean not null default true,
+    updated_by text not null,
+    updated_at timestamptz not null default now(),
+    primary key (system, name)
+);

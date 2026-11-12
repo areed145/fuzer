@@ -29,7 +29,7 @@ from . import methods
 
 DETERMINISTIC, AGENTIC, EXTERNAL = "deterministic", "agentic", "external"
 ORIGINS = (DETERMINISTIC, AGENTIC, EXTERNAL)
-KINDS = ("text", "number", "flag", "time", "asset", "page")
+KINDS = ("text", "number", "flag", "time", "asset", "page", "link")
 VERSION = 1
 KEY = "finding"  # where an exception's stored evidence holds the record
 MAX_ITEMS = 12  # what fits a phone before it stops being read
@@ -91,6 +91,15 @@ def page(label: str, route: str | None, text: str) -> Item | None:
     if not route.startswith("#/"):
         raise FindingError(f"a page link is a route in Fuzer (#/...), not {route!r}")
     return Item(label, route, None, "page", text)
+
+
+def link(label: str, url: str | None, text: str | None = None) -> Item | None:
+    """Evidence another system keeps (a provider's own alert page), shown as a link out: http(s) only."""
+    if not url:
+        return None
+    if not re.match(r"https?://[^\s]+$", url):
+        raise FindingError(f"an evidence link is an http(s) address, not {url!r}")
+    return Item(label, url, None, "link", text)
 
 
 @dataclass(frozen=True)
