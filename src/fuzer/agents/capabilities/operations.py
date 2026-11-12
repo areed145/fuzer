@@ -190,3 +190,33 @@ def plot_kpi_scorecard(until: str | None = None, days: int = 30) -> dict[str, An
     """Chart each KPI's change against the period before, coloured better or worse, unknown ones left as gaps."""
     from ...plots import general
     return _chart(general.scorecard, {"until": until, "days": days})
+
+
+@capability("asset-performance-reporting", "production-surveillance", kind="calc")
+def accounting_reconciliation(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Operational against accounting volumes (#372): each month's daily allocated oil and gas (EC DAY001) summed over
+    the accounting period, against what production accounting closed on the custody meters. Each month cites both
+    sources, both periods and the records: agrees (within 1 %), differs, preliminary (not closed), incomplete (daily
+    reports miss days), no_accounting or no_operational. The accounted volume is the authority; a difference is for
+    production accounting to resolve and nothing is restated."""
+    from ...analysis import accounting
+    with db.connect() as conn:
+        return _plain(accounting.reconcile(conn, since, until, days))
+
+
+@capability("asset-performance-reporting", kind="calc")
+def unit_cost(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Operating cost per accounted Sm3 of oil (#372): the cost ledger's booked cost by month and cost element over
+    that month's closed accounted oil, each currency apart and never converted or summed. A month whose oil isn't
+    closed has no unit cost (unknown, never zero)."""
+    from ...analysis import accounting
+    with db.connect() as conn:
+        return _plain(accounting.unit_cost(conn, since, until, days))
+
+
+@capability("asset-performance-reporting", kind="plot")
+def plot_accounting_reconciliation(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart each month's daily allocated oil against production accounting, in % of the accounted volume, with the
+    1 % tolerance; months that can't be compared are listed, not drawn."""
+    from ...plots import general
+    return _chart(general.reconciliation, {"since": since, "until": until, "days": days})

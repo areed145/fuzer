@@ -485,6 +485,7 @@ identities, history, review and the graph stay as they are.
 | DCS alarms, IOW registers | CSV exports landed as point limits | DCS and AF limit traits read live |
 | Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements | |
 | GIS | GeoJSON wells, facilities, pipelines | Feature services |
+| Production accounting, cost ledger | CSV of monthly accounted volumes (`acct_volumes`) and booked cost by element and currency (`acct_cost_ledger`); reconciled against DAY001 (analysis/accounting.py) | Accounting system views; sales and nominations |
 | Manuals, guides, procedures | EDMS manifest (JSON) of PDFs; sections linked to models, classes, tags | SharePoint / EDMS live |
 | Teams channels | (planned) | Selected channels via Microsoft Graph; thread summaries and links |
 

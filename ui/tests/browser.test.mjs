@@ -4451,6 +4451,10 @@ test("a turnaround with a schedule shows its progress against the baseline and t
   assert.ok(asked.some((u) => u.includes("revision=TA26")));
 });
 
+const ACCOUNTS_NONE = { reconciliation: { since: "", until: "", tolerance_pct: 1, months: [], summary: { agrees: 0,
+  differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0 }, sources: { operational: "", accounting: "" },
+  note: "" }, unit_cost: { since: "", until: "", currencies: [], months: [], window: {}, sources: { cost: "", volume: "" }, note: "" } };
+
 // P7.3a (#353): from Metrics, how the plant is running: each KPI this period against the one before, with its window,
 // unit and source; a KPI the records can't say reads unknown, never zero, and every value opens its records.
 test("How the plant is running compares each KPI with the period before and shows unknown, not zero (#353)", async () => {
@@ -4474,6 +4478,7 @@ test("How the plant is running compares each KPI with the period before and show
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
       net_gain_sm3d: null } } }));
@@ -4522,6 +4527,7 @@ test("Wells under their own forecast are listed with the field line, and thin we
   } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
       net_gain_sm3d: null } } }));
@@ -4553,6 +4559,7 @@ test("Cost of unreliability shows each part with its currency and never adds an 
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
       net_gain_sm3d: null } } }));
@@ -4595,6 +4602,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
     price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: {
     since: "2024-01-01", until: "2025-12-31", source: "downtime records and well tests",
     note: "Attribution is not proof.",
@@ -4640,6 +4648,7 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
     price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
       net_gain_sm3d: null } } }));
@@ -4650,6 +4659,71 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
   await row.locator('td[data-project="okan"]').getByText("99.5%").waitFor();
   assert.equal(await row.locator('td[data-project="ridge"] .kpi-unknown').innerText(), "unknown");  // not 0
   await fleet.locator(".fleet-left-out").getByText("Not shown, because you aren't granted them: delta.").waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P7.5c (#372): against the accounts. A month's daily reports against what production accounting closed, both
+// sources and both periods cited; a month accounting hasn't closed concludes nothing; cost per Sm3 stays per currency.
+test("Against the accounts cites both sources and periods, and keeps currencies apart (#372)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
+    left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
+    note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
+      net_gain_sm3d: null } } }));
+  const op = (since, through, days, value) => ({ value, days, days_expected: 31, since, through,
+    refs: ["fz-production_day-1", "fz-production_day-2"], source: "daily allocated production" });
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: {
+    reconciliation: { since: "2024-12-31", until: "2025-12-31", tolerance_pct: 1, sources: {
+      operational: "daily allocated production (EC DAY001 daily reports)", accounting: "production accounting" },
+      note: "The accounted volume is the authority.",
+      summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0 },
+      months: [
+        { period: "2025-12", product: "oil", unit: "Sm3", difference: 1300, difference_pct: 0.59, verdict: "preliminary",
+          why: "accounting hasn't closed 2025-12 (preliminary); daily reports cover 30 of its 31 days",
+          operational: op("2025-12-01", "2025-12-30", 30, 222000), accounting: { value: 220700, status: "preliminary",
+            since: "2025-12-01", through: "2025-12-31", comment: null, record: "fz-accounting_volume-12", source: "" } },
+        { period: "2025-08", product: "oil", unit: "Sm3", difference: 7400, difference_pct: 3.3, verdict: "differs",
+          why: "the daily reports sum +3.3 % against the accounted volume; for production accounting to resolve",
+          operational: op("2025-08-01", "2025-08-31", 31, 231400), accounting: { value: 224000, status: "final",
+            since: "2025-08-01", through: "2025-08-31", comment: "Export meter proved 2025-08-14; new factor applied to the month.",
+            record: "fz-accounting_volume-8", source: "" } },
+        { period: "2025-07", product: "oil", unit: "Sm3", difference: 900, difference_pct: 0.4, verdict: "agrees",
+          why: "within 1 % of the accounted volume", operational: op("2025-07-01", "2025-07-31", 31, 230000),
+          accounting: { value: 229100, status: "final", since: "2025-07-01", through: "2025-07-31", comment: null,
+            record: "fz-accounting_volume-7", source: "" } },
+      ] },
+    unit_cost: { since: "2024-12-31", until: "2025-12-31", currencies: ["NGN", "USD"], sources: { cost: "cost ledger",
+      volume: "production accounting" }, note: "Each currency apart.",
+      window: { USD: { cost: 4762829, oil_sm3: 226142, per_sm3: 21.06 }, NGN: { cost: 382107919, oil_sm3: 226142, per_sm3: 1689.68 } },
+      months: [
+        { period: "2025-11", currency: "USD", cost: 4762829, by_element: { Maintenance: 1635550 }, oil_sm3: 226142,
+          oil_status: "final", per_sm3: 21.06, why_unknown: null, refs: [] },
+        { period: "2025-11", currency: "NGN", cost: 382107919, by_element: { Logistics: 382107919 }, oil_sm3: 226142,
+          oil_status: "final", per_sm3: 1689.68, why_unknown: null, refs: [] },
+      ] } } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".against-accounts");
+  await card.getByText("1 months agree within 1%, 1 differ, 1 preliminary", { exact: false }).waitFor();
+  const aug = card.locator('tr[data-month="2025-08 oil"]');
+  await aug.locator(".accounts-verdict").getByText("differs").waitFor();
+  await aug.getByText("2025-08-01 to 2025-08-31, 31 days").waitFor();
+  await aug.getByText("2025-08-01 to 2025-08-31, final").waitFor();
+  await aug.getByText("Export meter proved", { exact: false }).waitFor();
+  const dec = card.locator('tr[data-month="2025-12 oil"]');
+  await dec.locator(".accounts-verdict").getByText("preliminary").waitFor();
+  await dec.getByText("30 of its 31 days", { exact: false }).waitFor();
+  await card.locator('[data-currency="USD"]').getByText("21.06 USD/Sm3").waitFor();
+  await card.locator('[data-currency="NGN"]').getByText("1,689.68 NGN/Sm3").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });

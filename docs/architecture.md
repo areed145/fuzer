@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 37 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 36 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 37 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 29 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
@@ -78,6 +78,7 @@ From the mapping files in `src/fuzer/mappings` (source → entity kind). Claude'
 
 ```mermaid
 flowchart LR
+  src_accounting[/"accounting"/]
   src_adx[/"adx"/]
   src_ec[/"ec"/]
   src_edms[/"edms"/]
@@ -92,12 +93,14 @@ flowchart LR
   src_rounds[/"rounds"/]
   src_sap[/"sap"/]
   src_teams[/"teams"/]
+  kind_accounting_volume(["accounting_volume"])
   kind_conversation(["conversation"])
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
   kind_equipment(["equipment"])
   kind_isolation(["isolation"])
+  kind_ledger_entry(["ledger_entry"])
   kind_log_entry(["log_entry"])
   kind_maintenance_plan(["maintenance_plan"])
   kind_material(["material"])
@@ -113,6 +116,8 @@ flowchart LR
   kind_well_test(["well_test"])
   kind_work_center(["work_center"])
   kind_work_order(["work_order"])
+  src_accounting --> kind_accounting_volume
+  src_accounting --> kind_ledger_entry
   src_adx --> kind_timeseries
   src_ec --> kind_downtime
   src_ec --> kind_plant_hierarchy__facility__area__tag__well
@@ -216,7 +221,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `spares`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `spares`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -264,7 +269,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 47, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 70, orchestrator 23, production-surveillance 69, wells-subsurface 57, work-management-supply-chain 32 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 50, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 70, orchestrator 23, production-surveillance 70, wells-subsurface 57, work-management-supply-chain 32 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

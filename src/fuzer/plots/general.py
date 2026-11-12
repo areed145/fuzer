@@ -418,3 +418,34 @@ def scorecard(conn, until: str | None = None, days: int = 30) -> Figure:
         "kpis": [{k2: k[k2] for k2 in ("label", "unit", "source", "verdict", "change")} |
                  {"now": k["now"]["value"], "before": k["before"]["value"]} for k in s["kpis"]]},
         [r for k in s["kpis"] for r in k["now"]["refs"][:3]])
+
+
+def reconciliation(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """Each month's daily allocated oil against what production accounting closed (P7.5c, #372), as the difference
+    in % of the accounted volume, with the tolerance marked. A month that can't be compared isn't drawn as zero."""
+    from ..analysis import accounting
+
+    out = accounting.reconcile(conn, since, until, days)
+    oil = sorted((m for m in out["months"] if m["product"] == "oil" and m["difference_pct"] is not None
+                  and m["verdict"] in ("agrees", "differs", "preliminary")), key=lambda m: m["period"])
+    if not oil:
+        raise ChartError("no month in that window has both daily reports and an accounted oil volume")
+    colour = {"agrees": "rgba(140,140,140,0.7)", "differs": "rgba(210,60,50,0.85)", "preliminary": "rgba(200,150,40,0.7)"}
+    tol = out["tolerance_pct"]
+    data = [{"type": "bar", "name": "daily reports against accounting", "x": [m["period"] for m in oil],
+             "y": [m["difference_pct"] for m in oil], "marker": {"color": [colour[m["verdict"]] for m in oil]},
+             "meta": {"entity": [m["accounting"]["record"] for m in oil]},
+             "text": [m["why"] for m in oil], "hovertemplate": "%{x}: %{y} %<br>%{text}<extra></extra>"},
+            {"type": "scatter", "mode": "lines", "name": f"±{tol:g} % tolerance", "x": [oil[0]["period"], oil[-1]["period"]],
+             "y": [tol, tol], "line": {"dash": "dot", "color": "rgba(120,120,120,0.8)"}},
+            {"type": "scatter", "mode": "lines", "showlegend": False, "x": [oil[0]["period"], oil[-1]["period"]],
+             "y": [-tol, -tol], "line": {"dash": "dot", "color": "rgba(120,120,120,0.8)"}}]
+    lay = layout(f"Daily allocated oil against production accounting, {out['since']} to {out['until']}", None,
+                 "difference (% of accounted)")
+    return Figure("reconciliation", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "differs": [{k: m[k] for k in ("period", "difference_pct", "why")} | {
+            "comment": m["accounting"]["comment"]} for m in oil if m["verdict"] == "differs"],
+        "not_compared": [{k: m[k] for k in ("period", "product", "verdict", "why")} for m in out["months"]
+                         if m["verdict"] in ("incomplete", "no_accounting", "no_operational")],
+        "since": out["since"], "until": out["until"], "sources": out["sources"], "note": out["note"]},
+        [m["accounting"]["record"] for m in oil][:10])
