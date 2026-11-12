@@ -12,7 +12,7 @@ STATUSES = ("draft", "active", "paused", "retired")
 SYSTEM_KINDS = {"sap": "erp", "jde": "erp", "maximo": "erp", "pi": "historian", "pi_af": "historian",
                 "adx": "historian", "dcs": "historian", "ec": "allocation", "edms": "documents", "pid": "documents",
                 "oem": "documents", "gis": "gis", "lims": "lab", "inspection": "integrity", "iow": "integrity",
-                "oplog": "logs"}
+                "oplog": "logs", "teams": "logs"}
 WHERE = ("location", "connector", "key", "watermark")
 CATALOG = ("load_mode", "drift_policy", "duplicates", "status", "schedule", "expected_hours", "owner", "notes")
 SYSTEM_FIELDS = ("kind", "description", "owner", "steward", "timezone", "encoding", "decimal", "date_format", "rank",

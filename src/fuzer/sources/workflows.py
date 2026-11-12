@@ -16,6 +16,9 @@ A source pack (or the Sources page) declares, per system:
         priority: 0.6
         value_usd: 12000                                      a number, or "{column}"
         clear_when: {flow_hours: {ge: 23.5}}                  optional: what clears it (default: no longer `when`)
+        items: [{label: Flow hours, from: flow_hours, unit: h}]  optional: the record's values as evidence
+        link: "{url}"                                         optional: the record in its own system (http or https)
+        skip_without_refs: true                               optional: a record whose refs name nothing raises nothing
 
 Types are defined through the exception contract (fuzer.core.exceptions), as data, marked with the system that
 brought them. Rules run after every load over the dataset's current records: a record that meets the rule raises
@@ -33,13 +36,14 @@ import re
 from psycopg.types.json import Jsonb
 
 from ..core import exceptions as xc
-from ..core.findings import EXTERNAL, Finding, external, fact
+from ..core.findings import EXTERNAL, Finding, external, fact, link
 from ._catalog_common import CatalogError
 
 OPS = ("eq", "ne", "in", "not_in", "gt", "ge", "lt", "le", "present", "absent", "contains")
 TYPE_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_on_clear", "description", "joins",
                "due_hours")
-RULE_FIELDS = ("dataset", "type", "when", "clear_when", "key", "refs", "title", "priority", "value_usd", "enabled")
+RULE_FIELDS = ("dataset", "type", "when", "clear_when", "key", "refs", "title", "priority", "value_usd", "items", "link",
+               "skip_without_refs", "enabled")
 BY = "source rules"
 _FIELD = re.compile(r"\{([^{}]+)\}")
 
@@ -145,9 +149,17 @@ def set_rule(conn, system: str, name: str, by: str, **values) -> dict:
         raise CatalogError(f"rule {name}: value_usd is a number or a column, as {{column}}")
     if not values.get("when"):
         raise CatalogError(f"rule {name}: when says which records raise it, e.g. {{flow_hours: {{lt: 23}}}}")
+    items = values.get("items") or []
+    if not isinstance(items, list) or not all(isinstance(i, dict) and i.get("label") and i.get("from") for i in items):
+        raise CatalogError(f"rule {name}: each of items is {{label, from, unit}}")
+    if values.get("link") is not None and not isinstance(values["link"], str):
+        raise CatalogError(f"rule {name}: link is a template such as \"{{url}}\"")
     config = {"when": _check_when(values.get("when")), "refs": _check_refs(values.get("refs")),
               **({"clear_when": _check_when(values["clear_when"])} if values.get("clear_when") else {}),
-              **{k: values[k] for k in ("key", "title", "priority", "value_usd") if values.get(k) is not None}}
+              **({"items": [{"label": i["label"], "from": i["from"], **({"unit": i["unit"]} if i.get("unit") else {})}
+                            for i in items]} if items else {}),
+              **{k: values[k] for k in ("key", "title", "priority", "value_usd", "link", "skip_without_refs")
+                 if values.get(k) is not None}}
     return dict(conn.execute(
         """
         insert into source_exception_rule (system, name, dataset, type, config, enabled, updated_by)
@@ -175,7 +187,7 @@ def as_pack(rule: dict) -> dict:
     """A rule as a pack entry."""
     c = rule["config"]
     out = {"name": rule["name"], "dataset": rule["dataset"], "type": rule["type"]}
-    for k in ("when", "clear_when", "key", "refs", "title", "priority", "value_usd"):
+    for k in ("when", "clear_when", "key", "refs", "title", "priority", "value_usd", "items", "link", "skip_without_refs"):
         if c.get(k) not in (None, {}, []):
             out[k] = c[k]
     if not rule["enabled"]:
@@ -184,6 +196,18 @@ def as_pack(rule: dict) -> dict:
 
 
 # ---- evaluation --------------------------------------------------------------------------------------------------
+
+def _said(v):
+    """A record's value as evidence: a list (what was tried) reads as one line."""
+    if isinstance(v, list):
+        return "; ".join(str(x) for x in v if x not in (None, "")) or None
+    return v
+
+
+def _link(url: str | None, system: str):
+    """The record in its own system, when it gives an http(s) address; another value is left out, not an error."""
+    return link(f"In {system}", url, f"Open in {system}") if url and re.match(r"https?://\S+$", url) else None
+
 
 def _num(v):
     if isinstance(v, bool):
@@ -285,16 +309,21 @@ def evaluate(conn, datasets: list[str] | None = None, by: str = BY) -> dict:
                 if c.get("clear_when") and key in before and not meets(c["clear_when"], p):
                     held.add(key)  # between the raise and the clear condition: stays open
                 continue
+            refs = _refs(c.get("refs"), p, pack)
+            if c.get("skip_without_refs") and not refs:
+                continue  # about nothing the register knows (a question in a chat channel): not work, and clears
             seen.add(key)
             value = c.get("value_usd")
             if isinstance(value, str):
                 value = _num(fill(value, p))
             title = fill(c["title"], p) if c.get("title") else f"{rule['name'].replace('_', ' ')}: {key}"
             row = xc.raise_exception(
-                conn, rule["type"], key, title, by, refs=_refs(c.get("refs"), p, pack), priority=c.get("priority"), value_usd=value,
+                conn, rule["type"], key, title, by, refs=refs, priority=c.get("priority"), value_usd=value,
                 source=rule["system"], finding=Finding(
                     f"{rule['system']}.{rule['name']}", EXTERNAL, method=f"Source rule {rule['name'].replace('_', ' ')}",
-                    items=(fact("Record", rec["source_key"]), fact("Dataset", d["name"]),
+                    items=(*(fact(i["label"], _said(p.get(i["from"])), i.get("unit")) for i in c.get("items") or []),
+                           _link(fill(c["link"], p) if c.get("link") else None, rule["system"]),
+                           fact("Record", rec["source_key"]), fact("Dataset", d["name"]),
                            fact("Rule", rule["name"].replace("_", " "))),
                     data={"rule": label, "dataset": d["name"], "record": rec["source_key"]}))
             counts["raised" if row.get("raised") else "refreshed"] += 1

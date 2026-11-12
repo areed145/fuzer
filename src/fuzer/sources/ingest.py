@@ -87,6 +87,14 @@ def _documents(path: Path):
                                                        "status": d.get("status", "current")}
 
 
+def _teams(path: Path):
+    """Teams threads in Microsoft Graph's shape (P5.8a): one record per thread, its summary only (sources/teams.py)."""
+    from .teams import threads
+
+    for t in threads(json.loads(path.read_text())):
+        yield "teams", "thread", t["thread_id"], t
+
+
 class Reader(NamedTuple):
     """A nested export read by its own loader: its file, the field naming files it references (fingerprints
     cover those too), the loader, and the source and record types its records land as."""
@@ -102,6 +110,7 @@ READERS = {
     "ec_network": Reader("ec_network.json", None, _ec_network, "ec", ("node", "edge")),
     "pid_sheets": Reader("pid_sheets.json", "image", _pid_sheets, "pid", ("sheet",)),
     "documents": Reader("documents.json", "file", _documents, "edms", ("document", "section")),
+    "teams_threads": Reader("teams_threads.json", None, _teams, "teams", ("thread",)),
 }
 FILES = READERS  # the name before #225
 

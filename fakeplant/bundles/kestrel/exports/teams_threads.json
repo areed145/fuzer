@@ -1,0 +1,78 @@
+{
+  "_comment": "Teams troubleshooting threads as Microsoft Graph returns them (GET /teams/{team}/channels/{channel}/messages?$expand=replies), for the P5.8 demo (#22). Fictional people; Fuzer keeps each thread's summary and link, with names replaced by job titles. Dates are relative to the day they are read.",
+  "channels": [
+    {"id": "19:kr-ops@thread.tacv2", "displayName": "KRGP Operations"},
+    {"id": "19:kr-rel@thread.tacv2", "displayName": "KRGP Reliability"}
+  ],
+  "users": [
+    {"id": "u-01", "jobTitle": "Field Operator"},
+    {"id": "u-02", "jobTitle": "Rotating Equipment Engineer"},
+    {"id": "u-03", "jobTitle": "Shift Supervisor"},
+    {"id": "u-04", "jobTitle": "Instrument Technician"},
+    {"id": "u-05", "jobTitle": "Process Engineer"}
+  ],
+  "value": [
+    {
+      "id": "1731000000001", "messageType": "message", "replyToId": null, "deletedDateTime": null,
+      "createdDateTime": "today-12d 06:40", "subject": "B1-K-2001 high vibration after restart",
+      "from": {"user": {"id": "u-01", "displayName": "Marta Quinn"}},
+      "body": {"contentType": "html", "content": "<p>Sales gas compressor B1-K-2001 came back up at 06:10 and the 2nd stage is reading 6.8 mm/s on the cooler end. It was 2.4 before the trip. Call me on +1 307 555 0142 if you want me to stay out there.</p>"},
+      "webUrl": "https://teams.microsoft.com/l/message/19:kr-ops@thread.tacv2/1731000000001",
+      "channelIdentity": {"teamId": "team-krgp", "channelId": "19:kr-ops@thread.tacv2"},
+      "mentions": [],
+      "replies": [
+        {"id": "1731000000002", "messageType": "message", "replyToId": "1731000000001", "createdDateTime": "today-12d 07:05",
+         "from": {"user": {"id": "u-02", "displayName": "Owen Achebe"}},
+         "body": {"contentType": "html", "content": "<p>Marta, can you check coupling alignment and the lube oil pressure? Send readings to owen.achebe@kestrel.example</p>"},
+         "mentions": [{"id": 0, "mentionText": "Marta", "mentioned": {"user": {"id": "u-01", "displayName": "Marta Quinn"}}}]},
+        {"id": "1731000000003", "messageType": "message", "replyToId": "1731000000001", "createdDateTime": "today-12d 08:20",
+         "from": {"user": {"id": "u-01", "displayName": "Marta Quinn"}},
+         "body": {"contentType": "html", "content": "<p>Alignment within spec, lube oil 3.1 barg. Vibration is not fixed, still 6.5 mm/s. The cooler fan feels rough.</p>"}},
+        {"id": "1731000000004", "messageType": "message", "replyToId": "1731000000001", "createdDateTime": "today-12d 10:45",
+         "from": {"user": {"id": "u-01", "displayName": "Marta Quinn"}},
+         "body": {"contentType": "html", "content": "<p>Found a loose mounting bolt on the 2nd stage cooler fan. Torqued all four, vibration back to 2.2 mm/s. That did it.</p>"}}
+      ]
+    },
+    {
+      "id": "1731000000101", "messageType": "message", "replyToId": null, "deletedDateTime": null,
+      "createdDateTime": "today-7d 14:10", "subject": "TEG reboiler C1-H3008 won't hold temperature",
+      "from": {"user": {"id": "u-03", "displayName": "Priya Lindqvist"}},
+      "body": {"contentType": "html", "content": "<p>Reboiler is sagging to 188 C on C1-H3008 and the dew point is drifting up. Burner looks lazy.</p>"},
+      "webUrl": "https://teams.microsoft.com/l/message/19:kr-ops@thread.tacv2/1731000000101",
+      "channelIdentity": {"teamId": "team-krgp", "channelId": "19:kr-ops@thread.tacv2"},
+      "replies": [
+        {"id": "1731000000102", "messageType": "message", "replyToId": "1731000000101", "createdDateTime": "today-7d 14:40",
+         "from": {"user": {"id": "u-05", "displayName": "Tomas Herrera"}},
+         "body": {"contentType": "html", "content": "<p>Fuel gas pressure at the burner?</p>"}},
+        {"id": "1731000000103", "messageType": "message", "replyToId": "1731000000101", "createdDateTime": "today-7d 15:30",
+         "from": {"user": {"id": "u-04", "displayName": "Ken Mbeki"}},
+         "body": {"contentType": "html", "content": "<p>Fuel gas regulator was hunting. Swapped it for the spare, reboiler back to 204 C and the dew point recovering. Resolved.</p>"}}
+      ]
+    },
+    {
+      "id": "1731000000201", "messageType": "message", "replyToId": null, "deletedDateTime": null,
+      "createdDateTime": "today-1d 21:15", "subject": "Glycol pump C1-P3002B won't prime after its service",
+      "from": {"user": {"id": "u-01", "displayName": "Marta Quinn"}},
+      "body": {"contentType": "html", "content": "<p>Pump B is back from its quarterly service but it won't prime. Running on A only.</p>"},
+      "webUrl": "https://teams.microsoft.com/l/message/19:kr-rel@thread.tacv2/1731000000201",
+      "channelIdentity": {"teamId": "team-krgp", "channelId": "19:kr-rel@thread.tacv2"},
+      "replies": [
+        {"id": "1731000000202", "messageType": "message", "replyToId": "1731000000201", "createdDateTime": "today-1d 21:40",
+         "from": {"user": {"id": "u-02", "displayName": "Owen Achebe"}},
+         "body": {"contentType": "html", "content": "<p>Bleed the suction and check the check valve went back the right way round.</p>"}},
+        {"id": "1731000000203", "messageType": "message", "replyToId": "1731000000201", "createdDateTime": "today-1d 22:30",
+         "from": {"user": {"id": "u-01", "displayName": "Marta Quinn"}},
+         "body": {"contentType": "html", "content": "<p>Bled it twice, check valve looks right. Still not fixed, I'll leave it isolated for days.</p>"}}
+      ]
+    },
+    {
+      "id": "1731000000301", "messageType": "message", "replyToId": null, "deletedDateTime": null,
+      "createdDateTime": "today-2d 09:00", "subject": "Gate code for the contractor lot",
+      "from": {"user": {"id": "u-03", "displayName": "Priya Lindqvist"}},
+      "body": {"contentType": "html", "content": "<p>Does anyone have the new gate code for the contractor lot?</p>"},
+      "webUrl": "https://teams.microsoft.com/l/message/19:kr-ops@thread.tacv2/1731000000301",
+      "channelIdentity": {"teamId": "team-krgp", "channelId": "19:kr-ops@thread.tacv2"},
+      "replies": []
+    }
+  ]
+}

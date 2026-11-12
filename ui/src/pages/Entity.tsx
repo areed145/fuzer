@@ -184,6 +184,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           {["tag", "equipment", "equipment_model", "equipment_class", "well", "facility"].includes(e.kind) && (
             <DowntimeCard id={e.fuzer_id} />
           )}
+          {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={e.fuzer_id} />}
           {["tag", "equipment", "well", "facility", "area"].includes(e.kind) && (
             <WorkHere id={e.fuzer_id} area={e.kind === "area"} />
           )}
@@ -562,6 +563,27 @@ function IncidentsCard({ id }: { id: string }) {
       </h2>
       <IncidentList items={d.data.items.slice(0, 8)} />
     </section>
+  );
+}
+
+/** How people worked a problem on this asset in Teams (P5.8b): each thread's problem, what was tried and the fix,
+ * with a link back to the thread. A summary only, with people named by their job title. */
+function ConversationsCard({ id }: { id: string }) {
+  const d = useAsync(() => api.assetThreads(id), [id]);
+  const list = Array.isArray(d.data) ? d.data : [];
+  if (!list.length) return d.error ? <Status error={d.error} onRetry={d.reload} /> : null;
+  return (
+    <UICard as="section" className="conversations" title="From Teams">
+      <ul className="plain">{list.map((c) => <li key={c.id} className="conversation">
+        <p><strong>{c.subject ?? c.problem ?? "Thread"}</strong>{" "}
+          <UIBadge tone={c.state === "open" ? "warn" : "ok"}>{c.state === "open" ? "still open" : "fixed"}</UIBadge></p>
+        <p className="small">{[c.channel, c.started_at ? timestamp(c.started_at) : null, c.participants.join(", ")].filter(Boolean).join(" · ")}</p>
+        {c.problem && <p className="small">Problem: {c.problem}</p>}
+        {c.tried.length > 0 && <p className="small">Tried: {c.tried.join(" · ")}</p>}
+        {c.fix && <p className="small">Fix: {c.fix}</p>}
+        {c.web_url && <a className="small" href={c.web_url} target="_blank" rel="noopener noreferrer">Open in Teams</a>}
+      </li>)}</ul>
+    </UICard>
   );
 }
 

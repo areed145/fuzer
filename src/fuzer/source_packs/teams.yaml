@@ -1,0 +1,31 @@
+# Microsoft Teams troubleshooting and upset-recovery threads (P5.8, #22): the channels the asset team chose, each
+# thread kept as a summary and a link back to Teams, never the chat (fuzer.sources.teams). A built-in source pack
+# (P1.5): the dataset names its reader. A thread still open about an asset raises a conversation report (P5.8c),
+# routed to the IOC, that clears when the thread says it was fixed. Demo only until #743's governance sign-off.
+fuzer_source_pack: 1
+system: {name: teams}
+datasets: [teams_threads]
+optional: [teams_threads]
+exception_types:
+- name: conversation_report
+  label: Reported in Teams
+  role: role:ops_lead
+  audience: [ioc, field]
+  description: A problem on an asset that people are working through in a Teams thread, not yet fixed.
+exception_rules:
+- name: open_thread
+  dataset: teams_threads
+  type: conversation_report
+  when: {state: {eq: open}}
+  key: "{thread_id}"
+  refs: [{from: summary, as: mentioned}]
+  title: "Reported in Teams: {subject}"
+  priority: 0.5
+  items:
+  - {label: Problem, from: problem}
+  - {label: Tried so far, from: tried}
+  - {label: Channel, from: channel}
+  - {label: People in the thread, from: participants}
+  link: "{web_url}"
+  skip_without_refs: true
+  clear_when: {state: {eq: resolved}}

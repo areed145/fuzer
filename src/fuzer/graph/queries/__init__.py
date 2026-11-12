@@ -31,6 +31,7 @@ from .network import (  # noqa: F401
 from .records import (  # noqa: F401
     SEARCH_FIELDS,
     AmbiguousRef,
+    conversations,
     entity,
     link_text,
     lookup_source,

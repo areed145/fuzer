@@ -4250,6 +4250,31 @@ test("the task form editor previews, survives a failed save, and recovers a miss
 
 // P5.9a (#337): Plan shows production at risk per shutdown window, with the hours each job is down and any assumed
 // duration said beside the number.
+test("an asset shows how people worked its problems in Teams, with a link back (#745)", async () => {
+  await page.route("**/entities/tag-k2001/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/tag-k2001", (route) => route.fulfill({ json: { fuzer_id: "tag-k2001", kind: "tag",
+    label: "B1-K-2001", golden: { description: { value: "Sales gas compressor" } }, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/entities/tag-k2001/conversations*", (route) => route.fulfill({ json: [
+    { id: "c1", subject: "B1-K-2001 high vibration after restart", channel: "KRGP Operations", state: "resolved",
+      started_at: "2026-10-31T06:40:00", last_post_at: "2026-10-31T10:45:00", participants: ["Field Operator", "Rotating Equipment Engineer"],
+      problem: "2nd stage reading 6.8 mm/s on the cooler end.", tried: ["Alignment within spec, lube oil 3.1 barg."],
+      fix: "Found a loose mounting bolt on the 2nd stage cooler fan. That did it.",
+      web_url: "https://teams.microsoft.com/l/message/19:kr-ops@thread.tacv2/1731000000001" },
+    { id: "c2", subject: "B1-K-2001 seal gas pressure low", channel: "KRGP Reliability", state: "open", started_at: "2026-11-11T21:15:00",
+      last_post_at: null, participants: ["Field Operator"], problem: "Seal gas low.", tried: [], fix: null, web_url: null }] }));
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${url}/#/e/tag-k2001`);
+    const card = page.locator("section.conversations");
+    await card.getByText("Fix: Found a loose mounting bolt on the 2nd stage cooler fan. That did it.").waitFor();
+    await card.getByText("still open").waitFor();
+    assert.equal(await card.getByRole("link", { name: "Open in Teams" }).getAttribute("href"),
+      "https://teams.microsoft.com/l/message/19:kr-ops@thread.tacv2/1731000000001");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 test("Plan shows production at risk per shutdown window with the durations used (#337)", async () => {
   await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
   await page.route("**/plan/at-risk?*", (route) => route.fulfill({ json: { start: "2026-11-12T00:00:00Z", end: "2027-02-10T00:00:00Z", days: 90,

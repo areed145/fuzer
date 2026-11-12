@@ -339,3 +339,30 @@ def names(conn, ids: list[str]) -> dict:
            where e.fuzer_id = any(%s)""", (ids,)).fetchall()
     return {r["id"]: {"label": r["label"], "description": r["description"], **({"at": r["at"]} if r["at"] else {})}
             for r in rows}
+
+
+def conversations(conn, fuzer_id: str, limit: int = 20) -> list[dict]:
+    """The chat threads about an asset (P5.8b, #745): each conversation whose summary names it, or names the tag it is
+    installed at or the equipment installed at it, newest first, with the problem, what was tried, the fix and the
+    link back to where it was said. A summary and a link, never the chat (sources/teams.py)."""
+    rows = conn.execute(
+        """
+        with targets as (
+            select %(id)s::text as id
+            union select dst from edge where rel = 'installed_at' and src = %(id)s and valid_to is null
+            union select src from edge where rel = 'installed_at' and dst = %(id)s and valid_to is null
+        )
+        select c.fuzer_id as id, (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = c.fuzer_id) as f
+        from entity c where c.kind = 'conversation' and c.retired_at is null and c.merged_into is null
+          and exists (select 1 from edge m where m.src = c.fuzer_id and m.rel = 'mentions' and m.dst in (select id from targets))
+        """, {"id": fuzer_id}).fetchall()
+    out = []
+    for r in rows:
+        f = r["f"] or {}
+        tried = f.get("tried")
+        out.append({"id": r["id"], "subject": f.get("subject"), "channel": f.get("channel"), "state": f.get("state"),
+                    "started_at": f.get("started_at"), "last_post_at": f.get("last_post_at"),
+                    "problem": f.get("problem"), "tried": tried if isinstance(tried, list) else [t for t in [tried] if t],
+                    "fix": f.get("fix"), "participants": f.get("participants") or [], "web_url": f.get("web_url")})
+    out.sort(key=lambda c: str(c["started_at"] or ""), reverse=True)
+    return out[:limit]
