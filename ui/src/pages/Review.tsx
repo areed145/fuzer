@@ -185,7 +185,7 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<string>();
   const [error, setError] = useState<string>();
-  if (!groups.data?.length) return null;
+  if (!groups.data?.length) return result ? <p role="status" className="small">{result}</p> : null;
   const answer = async (g: ReviewGroup, o: ReviewGroup["options"][number]) => {
     const forNew = !!standing[g.key];
     if (!confirm(`${o.label} for all ${g.count} questions${forNew ? ", and for new ones like them" : ""}?`)) return;
