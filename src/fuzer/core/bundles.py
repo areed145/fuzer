@@ -5,7 +5,7 @@
     <bundle>/exports/         its source exports (optional: a deployment can point the project elsewhere)
 
     bundle: 1                 # manifest version
-    name: kestrel             # the project this database will hold
+    name: plant               # the project this database will hold
     description: ...
     pack: pack.yaml           # relative to the bundle
     project:                  # project config (see core.projects): data, timeseries, timezone, ...

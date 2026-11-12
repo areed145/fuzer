@@ -508,7 +508,7 @@ def group_detections(found: list[dict], adj: dict[str, set[str]], gap: timedelta
 def _unchain_standing(g: dict, adj: dict[str, set[str]], cache: dict) -> list[dict]:
     """A new detection that joins alarms already on when scanning began (#142) brings along only the ones on its own
     point or unit, or next to it (#455): the rest stay `standing`. Otherwise one new low wellhead pressure chains
-    every standing alarm across the field (26 wells on Okan) into one upset, titled and valued after a well that
+    every standing alarm across the field (26 wells on the demo field) into one upset, titled and valued after a well that
     had nothing new."""
     ds = g["detections"]
     new = [d for d in ds if not d.get("standing")]

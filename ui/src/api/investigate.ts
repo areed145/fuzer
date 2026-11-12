@@ -404,7 +404,7 @@ export interface Study {
 }
 
 export const investigateApi = {
-  okanInvestigation: () => request<Investigation>("GET", "/demo/okan/investigation"),
+  guidedInvestigation: () => request<Investigation>("GET", "/demo/investigation"),
   liveFigure: (kind: string) => request<LiveFigureData>("GET", `/analytics/figures/${encodeURIComponent(kind)}`),
   events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
   maintenance: (id: string) =>

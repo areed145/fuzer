@@ -19,7 +19,7 @@ const kindLabel = (kind: string) => ({
 }[kind] ?? kind.replace(/_/g, " "));
 
 export function InvestigationPage({ query }: { query: URLSearchParams }) {
-  const result = useAsync(() => api.okanInvestigation(), []);
+  const result = useAsync(() => api.guidedInvestigation(), []);
   const selected = STEPS.findIndex((s) => s.key === query.get("step"));
   const index = selected < 0 ? 0 : selected;
   const step = STEPS[index];

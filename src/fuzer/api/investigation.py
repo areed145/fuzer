@@ -1,4 +1,4 @@
-"""Read-only HTTP adapter for the guided Okan investigation."""
+"""Read-only HTTP adapter for the facility's guided investigation (its bundle says what it looks at)."""
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -6,7 +6,7 @@ from ..core import settings
 from ..graph.investigation import (
     Investigation,
     InvestigationUnavailable,
-    okan_investigation,
+    guided_investigation,
 )
 from . import deps
 from .deps import get_conn
@@ -22,11 +22,24 @@ def demo_config(conn=Depends(get_conn)):
     return {"enabled": settings.get(conn, "demo.enabled")}
 
 
-@router.get("/demo/okan/investigation", response_model=Investigation)
+@router.get("/demo/investigation", response_model=Investigation)
 def investigation(conn=Depends(get_conn)):
     # Enforce the journey's read-only promise even if a future domain call starts writing.
     conn.read_only = True
     try:
-        return okan_investigation(conn, deps.pack())
+        return guided_investigation(conn, deps.pack())
+    except InvestigationUnavailable as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.get("/demo/{name}/investigation", response_model=Investigation)
+def named_investigation(name: str, conn=Depends(get_conn)):
+    """The earlier URL, which named the facility's pack: still served when it names the project's own."""
+    conn.read_only = True
+    pack = deps.pack()
+    if name != pack.name:
+        raise HTTPException(404, f"No guided investigation for {name!r} here; this project is {pack.name!r}.")
+    try:
+        return guided_investigation(conn, pack)
     except InvestigationUnavailable as e:
         raise HTTPException(404, str(e)) from e

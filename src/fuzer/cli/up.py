@@ -1,6 +1,7 @@
 """`fuzer up`: one command from nothing to the web UI.
 
-1. Data: the exports in $FUZER_DATA_DIR. With nothing configured, the Okan field demo (made if needed).
+1. Data: the exports in $FUZER_DATA_DIR. With nothing configured, the default demo: the first shipped seed bundle
+   whose exports fakeplant generates (made if needed).
 2. Load: ingest, and rebuild only when something changed, or when cached LLM readings are newer
    than the register (a read that stopped before its rebuild). A second start is quick.
 3. Readers: the configured LLM provider reads whatever it hasn't read yet (operator logs, P&ID
@@ -19,7 +20,7 @@
 
 `--fresh` starts over: empties the database and, for the fake plant, makes new data. LLM
 readings are kept (they are keyed by the text they read), so a fresh start doesn't pay to read the
-same logs and drawings again. `--demo okan` selects the Okan field and its pack.
+same logs and drawings again. `--demo <bundle>` selects a shipped bundle's facility, pack and exports.
 """
 
 import os
@@ -34,7 +35,21 @@ from ..resources import ROOT
 from ..sources import ingest
 
 UI = ROOT / "ui"
-DEFAULT_DEMO = "okan"
+
+
+def default_demo() -> str | None:
+    """The demo served when nothing is configured: the first shipped bundle whose exports fakeplant generates."""
+    from ..core import bundles
+
+    return next((n for n in bundles.shipped() if _generator(n)), None)
+
+
+def _generator(name: str | None) -> dict | None:
+    """A shipped bundle's fakeplant generator settings ({asset, seed}), when fakeplant makes its exports."""
+    from ..core import bundles
+
+    path = bundles.find(name) if name else None
+    return (bundles.read(path)["config"].get("fakeplant") or None) if path else None
 
 
 def say(msg: str) -> None:
@@ -53,14 +68,14 @@ def _fake_plant():
     return fake
 
 
-def data_folder(fresh: bool) -> Path:
+def data_folder(fresh: bool, demo: str | None = None) -> Path:
     folder = Path(os.environ["FUZER_DATA_DIR"]) if os.environ.get("FUZER_DATA_DIR") else None
     fake = _fake_plant()
     if folder and _has_exports(folder) and not (fresh and fake and folder.resolve().is_relative_to(fake.DATA)):
         return folder
     if fake is None:
         raise SystemExit(f"No source exports found in {folder or 'data'}. Put exports there, or set FUZER_DATA_DIR.")
-    asset = "okan"
+    asset = (_generator(demo or default_demo()) or {}).get("asset") or "demo"
     folder = folder or fake.DATA / asset
     say(f"Making the fake {asset} plant in {folder} ...")
     fake.make(folder)
@@ -188,16 +203,17 @@ def build_ui() -> None:
 
 
 def use_demo(name: str):
-    """Point everything at one fake plant: its asset pack and its data folder."""
-    from ..core.pack import load_pack
+    """Point everything at one shipped bundle: its asset pack and its exports folder."""
+    from ..core import bundles
 
-    fake = _fake_plant()
-    if fake is None or name not in fake.PACKS:
-        raise SystemExit(f"Unknown demo {name!r}" + (f"; one of {', '.join(fake.PACKS)}" if fake else
-                                                     " (the fakeplant package isn't installed)"))
+    path = bundles.find(name) if name in bundles.shipped() else None
+    if path is None:
+        raise SystemExit(f"Unknown demo {name!r}; one of {', '.join(bundles.shipped()) or 'none'}")
+    b = bundles.read(path)
     os.environ["FUZER_PROJECT"] = name  # this process and the jobs and worker it starts serve the demo's project
-    os.environ["FUZER_DATA_DIR"] = str(fake.DATA / name)
-    return load_pack(fake.PACKS[name])
+    if b["config"].get("data"):
+        os.environ["FUZER_DATA_DIR"] = b["config"]["data"]
+    return b["pack"]
 
 
 def other_asset(conn, pack) -> str | None:
@@ -260,7 +276,7 @@ def stop_process(proc: subprocess.Popen | None) -> None:
 def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, demo: str | None = None,
        jobs: bool = True, jobs_port: int = 3000, worker: bool = True) -> None:
     if not demo and not os.environ.get("FUZER_DATA_DIR") and not os.environ.get("FUZER_PROJECT") and _fake_plant():
-        demo = DEFAULT_DEMO  # nothing configured: the Okan field demo
+        demo = default_demo()  # nothing configured: the default demo bundle
     print("Starting Fuzer" + (f": {demo} demo" if demo else ""), flush=True)
     if demo:
         pack = use_demo(demo)
@@ -279,7 +295,7 @@ def up(pack, host: str = "127.0.0.1", port: int = 8000, fresh: bool = False, dem
             if loaded := other_asset(conn, pack):
                 raise SystemExit(f"The database holds another asset ({loaded}). Run with --fresh to replace it "
                                  f"with {pack.facility}.")
-    folder = data_folder(fresh)
+    folder = data_folder(fresh, demo)
     os.environ["FUZER_DATA_DIR"] = str(folder)
     with db.connect() as conn:
         load(conn, pack, folder, fresh)

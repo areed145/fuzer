@@ -6,6 +6,14 @@ name: okan
 facility: OKAN
 data_notice: Fictional, historical data, not a live operating update.
 
+# The guided investigation on Investigate (graph/investigation.py): train B's March 2024 trips and the April repair.
+investigation:
+  title: Why investigate train B's March trips?
+  asset: 20-K-2200B
+  since: "2024-03-01"
+  until: "2024-04-01"
+  followup_until: "2024-05-01"
+
 tag_grammar:
   area_digits: 2
   loop_digits: [3, 5]

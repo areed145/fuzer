@@ -118,6 +118,26 @@ def test_every_facility_is_a_shipped_bundle_and_fuzer_packages_none():
         projects.config(None, "nowhere")
 
 
+def test_nothing_facility_specific_remains_under_src_fuzer():
+    """P1.6b: no shipped bundle's name or facility code appears in Fuzer's own code, docs or data; what differs
+    between facilities comes from their bundles."""
+    from fuzer.resources import PACKAGE
+
+    words = set()
+    for name in bundles.shipped():
+        b = bundles.read(bundles.find(name))
+        words |= {name.lower(), b["pack"].facility.lower()}
+    assert {"okan", "kestrel", "krgp"} <= words
+    pattern = re.compile(r"\b(" + "|".join(sorted(map(re.escape, words))) + r")\b", re.IGNORECASE)
+    hits = []
+    for path in sorted(PACKAGE.rglob("*")):
+        if path.is_file() and path.suffix in {".py", ".yaml", ".yml", ".md", ".sql", ".json", ".txt"}:
+            for n, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+                if pattern.search(line):
+                    hits.append(f"{path.relative_to(PACKAGE)}:{n}: {line.strip()}")
+    assert not hits, "facility names under src/fuzer:\n" + "\n".join(hits)
+
+
 def test_a_missing_bundle_fails(tmp_path):
     with pytest.raises(bundles.BundleError, match="no bundle.yaml"):
         bundles.read(tmp_path)
@@ -308,6 +328,7 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
     assert (stats["pack"], stats["facility"]) == ("kestrel", "KRGP")
     assert stats["entities"]["tag"] == 82
     assert client.get("/demo/okan/investigation").status_code >= 400  # the Okan journey isn't Kestrel's
+    assert client.get("/demo/investigation").status_code == 404  # and Kestrel's bundle defines none
 
 
 def test_each_database_serves_its_own_pack(kestrel_url, serving):
