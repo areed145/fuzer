@@ -88,6 +88,11 @@ A repeat failure is the same failure mode on the same unit more than once in the
    findings that drive it with their numbers and dates, what is unknown, and the recommendation.
 8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
    stock is a production risk.
+9. **What it costs:** `maintenance_spend(by)` gives work order cost by unit, ISO 14224 class or order type, per
+   currency, with the orders that carry no cost counted. `cost_of_unreliability()` ranks units by the oil lost to the
+   downtime they caused (at the pack's price) beside their corrective order cost. Quote the price and currency with
+   every number. Never add an unknown currency to a known one: when the source states no currency, say the cost is
+   in an unknown currency. Both are operational estimates, not accounting figures.
 
 Report: the top bad actors with failures, MTBF, downtime and repeat modes; the likely root cause per
 unit with evidence; overdue inspections that carry risk; and recommended actions (redesign, condition

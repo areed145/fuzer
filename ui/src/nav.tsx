@@ -54,7 +54,7 @@ export const NAV: NavGroup[] = [
       { label: "Ask", section: "ask", permission: "ai" },
       { label: "Incidents", section: "incidents" },
       { label: "Daily reports", section: "reports" },
-      { label: "Metrics", section: "metrics" },
+      { label: "Metrics", section: "metrics", also: ["scorecard"] },
       { label: "Lessons learned", section: "lessons" },
       { label: "Studies", section: "studies" },
     ],

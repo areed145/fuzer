@@ -4450,3 +4450,119 @@ test("a turnaround with a schedule shows its progress against the baseline and t
   await card.getByRole("button", { name: "Slipped activities · 1" }).waitFor();
   assert.ok(asked.some((u) => u.includes("revision=TA26")));
 });
+
+// P7.3a (#353): from Metrics, how the plant is running: each KPI this period against the one before, with its window,
+// unit and source; a KPI the records can't say reads unknown, never zero, and every value opens its records.
+test("How the plant is running compares each KPI with the period before and shows unknown, not zero (#353)", async () => {
+  const side = (value, over = {}) => ({ since: "2025-12-01", through: "2025-12-30", value, records: value == null ? 0 : 2,
+    refs: value == null ? [] : ["fz-tag-1", "fz-tag-2"], note: null, ...over });
+  await page.route("**/metrics", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    unknown: ["Flare"], note: "Internal evidence from the loaded records, not an approved report.",
+    kpis: [
+      { key: "failures", label: "Failures", unit: "notifications", better: "lower", source: "SAP notifications on equipment",
+        definition: "Failure notifications raised on equipment in the period.", now: side(3), before: side(6),
+        change: -3, verdict: "better" },
+      { key: "flare", label: "Flare", unit: "kSm3", better: "lower", source: "daily production reports (EC DAY001)",
+        definition: "Gas flared.", now: side(null, { note: "no daily report in the period states flare" }), before: side(1200),
+        change: null, verdict: "unknown" },
+    ],
+  } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.goto(`${url}/#/metrics`);
+  await page.getByRole("link", { name: "How the plant is running" }).click();
+  await page.getByRole("heading", { name: "How the plant is running" }).waitFor();
+  await page.getByRole("columnheader", { name: "2025-12-01 to 2025-12-30" }).waitFor();
+  const failures = page.locator('tr[data-kpi="failures"]');
+  await failures.getByText("3 notifications", { exact: true }).waitFor();
+  await failures.getByText("-3 notifications", { exact: true }).waitFor();
+  await failures.locator(".kpi-verdict").getByText("better").waitFor();
+  await failures.getByText("SAP notifications on equipment").waitFor();
+  const flare = page.locator('tr[data-kpi="flare"]');
+  assert.equal(await flare.locator(".kpi-unknown").innerText(), "unknown");  // not 0
+  await flare.getByText("no daily report in the period states flare").waitFor();
+  await flare.locator(".kpi-verdict").getByText("unknown").waitFor();
+  await failures.getByRole("button", { name: "2 records" }).first().click();
+  assert.equal(await failures.getByRole("link", { name: "fz-tag-1" }).first().getAttribute("href"), "#/e/fz-tag-1");
+  await page.getByRole("link", { name: "90 days" }).click();
+  await page.waitForURL(/days=90/);
+  assert.equal(await page.getByRole("link", { name: "Metrics", exact: true }).first().getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P7.3b (#336): on How the plant is running, wells under their own forecast stand apart from natural decline, with the
+// field line, the test the loss started from and the downtime beside it; wells with too few tests are listed, not fitted.
+test("Wells under their own forecast are listed with the field line, and thin wells aren't fitted (#336)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: {
+    since: "2024-12-31", until: "2025-12-31", unit: "Sm3/d oil", source: "well tests (the actual)",
+    note: "A gap is a lead for review; the reservoir cause stays unknown.",
+    field: { wells_compared: 2, forecast_sm3d: 170, actual_sm3d: 135, gap_sm3d: -35, below_forecast: ["OK-J03-02"], above_forecast: [] },
+    wells: [
+      { id: "fz-well-1", well: "OK-J03-02", verdict: "below_forecast", gap_sm3d: -33.7, below_since: "2025-06-08",
+        latest: { at: "2025-12-21", actual_sm3d: 50.5, forecast_sm3d: 84.2, low_sm3d: 84.0, high_sm3d: 84.4 },
+        downtime: [{ id: "fz-downtime-1", start: "2025-07-13T08:00", reason: "Well intervention", lost_oil_sm3: 76 }] },
+      { id: "fz-well-2", well: "OK-J07-05", verdict: "on_forecast", gap_sm3d: 5.5, downtime: [] },
+    ],
+    not_fitted: [{ id: "fz-well-3", well: "OK-J01-01", tests_before: 3, reason: "3 readings, fewer than the 6 it needs" }],
+  } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".wells-forecast");
+  await card.getByText("Across 2 wells the latest tests make 135 Sm3/d against a forecast of 170 Sm3/d", { exact: false }).waitFor();
+  const row = card.locator('tr[data-well="OK-J03-02"]');
+  await row.getByText("-33.7 Sm3/d").waitFor();
+  await row.getByText("2025-06-08").waitFor();
+  await row.getByText("Well intervention").waitFor();
+  assert.equal(await card.locator('tr[data-well="OK-J07-05"]').count(), 0);  // on its decline: not a lead
+  await card.getByRole("button", { name: "1 wells with too few tests to forecast" }).click();
+  await card.getByText("OK-J01-01: 3 readings, fewer than the 6 it needs", { exact: false }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P7.3c (#352): the cost of unreliability by unit shows the price and currency with every number, adds the parts only
+// when they share a currency, and says why not otherwise.
+test("Cost of unreliability shows each part with its currency and never adds an unknown one (#352)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: {
+    since: "2024-12-31", until: "2025-12-31", price: { oil_sm3: 470, currency: "USD", source: "pack okan" },
+    order_currencies: ["USD", "unknown"], units_total: 2, source: "downtime and corrective orders",
+    note: "An operational estimate, not a financial figure.",
+    units: [
+      { id: "fz-tag-1", unit: "40-V-2002", description: "ST2 Production Separator", lost_oil_sm3: 300, lost_oil_value: 141000,
+        order_cost: { unknown: 55936 }, orders: 1, orders_without_cost: 0, total: null, total_currency: null,
+        why_no_total: "its order cost has no currency in the source, not USD, so the parts aren't added" },
+      { id: "fz-tag-2", unit: "20-K-2300A", description: null, lost_oil_sm3: 200, lost_oil_value: 94000,
+        order_cost: { USD: 6000 }, orders: 2, orders_without_cost: 1, total: 100000, total_currency: "USD", why_no_total: null },
+    ] } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".cost-unreliability");
+  await card.getByText("Lost oil at 470 USD per Sm3 (pack okan)", { exact: false }).waitFor();
+  const sep = card.locator('tr[data-unit="40-V-2002"]');
+  await sep.getByText("141,000 USD").waitFor();
+  await sep.getByText("55,936 (currency unknown)").waitFor();
+  await sep.locator(".unreliability-no-total").getByText("no currency in the source", { exact: false }).waitFor();
+  const k = card.locator('tr[data-unit="20-K-2300A"]');
+  await k.getByText("100,000 USD").waitFor();
+  await k.getByText("2 orders, 1 without a cost").waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

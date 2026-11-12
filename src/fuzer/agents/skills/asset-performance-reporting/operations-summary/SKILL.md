@@ -5,7 +5,11 @@ description: Produce cited cross-domain operational summaries from the linked pr
 
 # Cross-domain operations summary
 
-Start with `get_daily_ops_report` for its recorded production date and cited operational sections. For a requested
+Start with `get_daily_ops_report` for its recorded production date and cited operational sections. For "how did we
+do this month?" or any period against the one before, use `kpi_scorecard` (and `plot_kpi_scorecard` to show it): it
+reads production efficiency, deferred oil, flare, corrective backlog, preventive work on time, failures and repeat
+failures for two equal periods, and says unknown where the records can't. Quote a KPI with its window, unit and
+source as the scorecard gives them. For a requested
 time window, use `production_summary`, `deferment_pareto`, and `production_constraints`; add `well_performance`
 when the question concerns well tests or well-level production. For maintenance and work context, use
 `bad_actors`, `work_order_backlog`, `maintenance_compliance`, and `turnaround_scope` as applicable. `value_score`

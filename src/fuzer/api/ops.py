@@ -278,6 +278,36 @@ def case_recheck(item_id: int, r: Recheck, conn=Depends(get_conn)):
     return row
 
 
+@router.get("/plant/scorecard")
+def plant_scorecard(until: date | None = None, days: int = 30, conn=Depends(get_conn)):
+    """How the plant is running (P7.3a, #353): the KPIs for the period against the one before, each citing its window,
+    unit, source and records; unknown where the records can't say."""
+    from ..analysis import kpis
+    try:
+        return kpis.scorecard(conn, until.isoformat() if until else None, days)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/plant/forecast-vs-actual")
+def plant_forecast_vs_actual(well: str | None = None, days: int = 365, conn=Depends(get_conn)):
+    """Each producing well's own decline forecast against its tests in the window, ranked by the gap, with a field
+    line and the wells too thin to fit (P7.3b, #336)."""
+    from ..analysis import forecast_actual as fa
+    out = fa.forecast_vs_actual(conn, well, days=max(30, min(days, 1095)))
+    for w in out["wells"]:
+        w.pop("sufficiency", None)
+    return out
+
+
+@router.get("/plant/cost-of-unreliability")
+def plant_cost_of_unreliability(days: int = 365, conn=Depends(get_conn)):
+    """Per unit, oil lost to the downtime it caused at the pack's price beside its corrective order cost, each in its
+    currency, ranked; never summed across currencies (P7.3c, #352)."""
+    from ..analysis import costs
+    return costs.unreliability(conn, deps.pack(), days=max(30, min(days, 1095)))
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids
