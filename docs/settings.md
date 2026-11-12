@@ -39,16 +39,11 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `work.agent_fallback_minutes` | int | `30` | ≥ 0 | Minutes an agent step may wait with no agent worker picking it up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever). |
 | `alerts.webhook` | secret | `env:FUZER_ALERT_WEBHOOK` |  | Where the URL failed scheduled runs are posted to (Teams, Slack or any JSON webhook) is kept. |
 
-## Database
-
-| Setting | Type | Default | Range | What it is |
-|---|---|---|---|---|
-| `db.work_mem` | str | `256MB` |  | Postgres work_mem for the rebuild's big queries. Replaces `FUZER_WORK_MEM`. |
-
 ## Work
 
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
+| `work.due_soon_minutes` | int | `60` | 0 to 1440 | Tell the person holding a step this many minutes before it is due (0: never). |
 | `intake.sap_notifications` | bool | `True` |  | Raise open SAP notifications with no work order as exceptions for the IOC to dispatch, on each register refresh. |
 | `closeout.apply_to_exports` | bool | `False` |  | Demo: apply a close-out sent back to a source system (an SAP completion or follow-up) to that system's export file, as the system would, so the next load sees it. |
 | `stewardship.bulk_accept_at` | float | `0.0` | 0 to 1 | Offer to accept, in one step, Claude's master data proposals at or above this confidence (0: never; set it once the proposal evals show they hold at that level). |
@@ -60,6 +55,12 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `records.lookback_days` | int | `7` | 1 to 90 | Records mismatch: days before the latest log entry whose mismatches are raised for the shift (older ones stay in the calc). |
 | `intake.sap_notifications.max_age_days` | int | `60` | 1 to 3650 | Only raise notifications created this many days before the latest data (an older backlog is a planning question). |
 | `intake.sap_notifications.due_hours` | str | `1:24,2:72,3:336,4:720` |  | When a dispatched SAP notification is due, by its SAP priority: priority:hours, comma separated, counted from when Fuzer raised it (empty: no due date). |
+
+## Database
+
+| Setting | Type | Default | Range | What it is |
+|---|---|---|---|---|
+| `db.work_mem` | str | `256MB` |  | Postgres work_mem for the rebuild's big queries. Replaces `FUZER_WORK_MEM`. |
 
 ## SRE
 

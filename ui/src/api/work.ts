@@ -289,6 +289,20 @@ export interface CaseRow {
   process_key: string | null; escalated: boolean;
 }
 
+/** Something a person was told (P5.2, #604): work sent, handed back, escalated or assigned to them, or coming due. */
+export interface WorkNotification {
+  id: number;
+  kind: "dispatched" | "handed_back" | "escalated" | "assigned" | "due_soon";
+  item_id: number | null;
+  token_id: number | null;
+  text: string;
+  link: string;
+  channel: string;
+  delivery: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -580,6 +594,10 @@ export const workApi = {
       "DELETE", `/work/people/${encodeURIComponent(name)}`, { by }),
   workRoleSummary: () => request<WorkRoleSummary[]>("GET", "/work/roles/summary"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
+  notifications: (person: string) =>
+    request<{ notifications: WorkNotification[]; unread: number }>("GET", "/work/notifications", { person }),
+  markNotificationsRead: (person: string, ids?: number[]) =>
+    request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),

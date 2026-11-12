@@ -210,6 +210,28 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
     return work.my_work(conn, person, role)
 
 
+class NotificationsRead(BaseModel):
+    person: str
+    ids: list[int] | None = None   # None: all of theirs
+
+
+@router.get("/work/notifications")
+def work_notifications(person: str, conn=Depends(get_conn)):
+    """What a person has been told (P5.2, #604): work sent, handed back, escalated or assigned to them, and steps
+    coming due, newest first, each with a link to the case. Makes any that are due first."""
+    from ..workflow import notify
+
+    notify.scan(conn)
+    return notify.mine(conn, person)
+
+
+@router.post("/work/notifications/read")
+def work_notifications_read(r: NotificationsRead, conn=Depends(get_conn)):
+    from ..workflow import notify
+
+    return notify.mark_read(conn, r.person, r.ids)
+
+
 @router.get("/work/inbox/fields")
 def work_inbox_fields(person: str):
     """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for

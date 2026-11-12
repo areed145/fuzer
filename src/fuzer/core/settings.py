@@ -132,6 +132,8 @@ register(
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",
             "Schedule", min=30, env="FUZER_WORK_LEASE_SECONDS"),
+    Setting("work.due_soon_minutes", "int", 60, "Tell the person holding a step this many minutes before it is "
+            "due (0: never)", "Work", min=0, max=1440),
     Setting("work.agent_fallback_minutes", "int", 30, "Minutes an agent step may wait with no agent worker picking it "
             "up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever)",
             "Schedule", min=0),

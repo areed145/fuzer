@@ -21,6 +21,7 @@ from .definitions import *
 from .runtime import *
 from .assignment import *
 from .work_items import *
+from .notify import scan as notify_scan  # the scheduler's one-minute notify job (P5.2)
 
 # Keep historical internal helpers available to package callers and existing tests.
 from .definitions import (
