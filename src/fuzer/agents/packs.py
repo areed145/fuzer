@@ -4,7 +4,8 @@ A pack is a skill folder whose SKILL.md (the playbook) sits beside a `pack.yaml`
 on, and an eval of questions with answer keys:
 
     title, owner      what it is called and the agent that loads it
-    classes           the ISO 14224 equipment classes it covers (standards/iso14224.yaml)
+    classes           the ISO 14224 equipment classes it covers (standards/iso14224.yaml), or a unit kind that has
+                      no equipment class (`well`: a well is its own unit, as the detectors class it)
     tools             the registered tools the playbook tells the agent to call
     charts            the plot tools whose charts it shows (a subset of tools)
     methods           the registered methods (standards/methods.yaml) the playbook runs, through `calc` or, for a
@@ -41,6 +42,7 @@ from . import SKILLS
 
 MANIFEST = "pack.yaml"
 REQUIRED = ("title", "owner", "classes", "tools", "charts", "methods", "detectors", "roles", "eval")
+UNIT_KINDS = ("well",)  # units classed by their own kind rather than an ISO 14224 class (core/detectors.classes_of)
 
 
 def shipped() -> list[str]:
@@ -92,7 +94,7 @@ def conformance(path: str) -> list[str]:
         problems.append(f"owner {owner} is not an agent")
     elif skill is None or skill.owner != owner:
         problems.append(f"the skill {path} is not in the catalogue owned by {owner}")
-    if bad := sorted(set(pack["classes"]) - set(load_standard("iso14224").get("classes", {}))):
+    if bad := sorted(set(pack["classes"]) - set(load_standard("iso14224").get("classes", {})) - set(UNIT_KINDS)):
         problems.append(f"classes not in ISO 14224: {', '.join(bad)}")
 
     given = set(tools_by_agent().get(owner, ()))
@@ -191,6 +193,9 @@ def on_site(conn, path: str) -> dict:
     tags = [r["src"] for r in conn.execute(
         "select distinct c.src from edge c join entity s on s.fuzer_id = c.src and s.kind = 'tag' "
         "where c.rel = 'classified_as'")]
+    if kinds := [k for k in pack["classes"] if k in UNIT_KINDS]:  # wells are units of their own, not classed tags
+        tags += [r["fuzer_id"] for r in conn.execute(
+            "select fuzer_id from entity where kind = any(%s) and merged_into is null and retired_at is null", (kinds,))]
     assets = sorted(a for a, c in detectors.classes_of(conn, tags).items() if c in set(pack["classes"]))
     covered = [{**cov, "label": _label(conn, a)} for a in assets if (cov := coverage(conn, pack, a))["roles"]]
     problems = []
