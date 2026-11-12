@@ -897,6 +897,18 @@ Sparse, manual measurements landed from sources (well tests, lab samples, inspec
 | `method` | text |  |
 | `location` | text, | where on it: a CML, a sample point |
 
+### `measurement_role`
+
+What each historian point means for the asset it measures (P1.4, graph/roles.py): one role from core/roles.py, proposed with every rebuild from the point's description, instrument letters, units and the equipment it is on.
+
+| Column | Type | Note |
+|---|---|---|
+| `point_id` | text | the timeseries entity |
+| `role` | text |  |
+| `asset` | text, | the equipment or well it is a role of (not the instrument) |
+| `confidence` | double precision | 0-1; below core.roles.CONFIDENT a steward confirms it |
+| `basis` | jsonb | what said so, in words |
+
 ### `steward_fix`
 
 Values a steward set across many entities at once (#476: one spelling for a manufacturer, say). Each row keeps what the golden value was, so the batch can be undone; the value itself is held as a 'review' assertion, which wins on every rebuild.

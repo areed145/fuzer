@@ -23,6 +23,15 @@ raises one from `ARRIVE`; a new process or work type adds its entries there. Age
 nothing calls a model. Work arrives through the front door every source uses; later epics make each type arrive from
 its own source or detector.
 
+## Measurement roles against the process model
+
+Every historian point gets a role from the controlled list in `core/roles.py` with each rebuild (`graph/roles.py`,
+the `measurement_role` table): what it means for the equipment or well it is on, proposed from its description, its
+instrument letters, its units and that equipment's class. `fuzer eval --roles` (`src/fuzer/evals/roles.py`) scores
+the proposals against the fake plant's `process_model.json`, which says which unit variable each point is; a unit
+that holds one value names its role there (`"role": "differential_pressure"`). It fails under 90% right, or when a
+wrong role was confident enough not to go to a steward. `tests/evals/test_roles.py` runs it on Okan and Kestrel.
+
 ## Replaying history to score the detectors
 
 The SRE runs unattended, so nobody checks each thing it raises. Before trusting it, and after

@@ -22,6 +22,7 @@ from ..graph import (
     llm_links,
     measurements,
     queries,
+    roles,
     spatial,
 )
 from ..graph.resolve import replace_open_reviews, resolve, resolve_keyed, retire_unused, sync_labels
@@ -168,6 +169,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
     # where a drawing and the DCS, AF or SAP disagree: questions for a person, never a change to either (#475)
     replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack)))
+    stats |= roles.build(conn, pack)  # what each historian point means for its asset (P1.4)
     lap("measurements")
 
     stats["located"] = spatial.index(conn)

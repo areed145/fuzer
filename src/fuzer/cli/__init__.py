@@ -147,6 +147,9 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--loop", action="store_true",
                     help="drive every type of work arrive to counted and say which step failed for which type "
                          "(P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails)")
+    ev.add_argument("--roles", action="store_true",
+                    help="score the measurement roles proposed for each point against the fake plant's process model "
+                         "(P1.4; exits 1 under 90%% right or if a wrong role was confident)")
     ev.add_argument("--since", default=None, help="with --ops: start (default: 28 days before --until)")
     ev.add_argument("--until", default=None, help="with --ops: end (default: the latest daily report)")
 
@@ -304,6 +307,18 @@ def main(argv=None):
                     _say(f"{r['type']}: " + (f"failed at {r['failed']}: {r['why']}" if r["failed"] else "completed"))
                 if res["failed"]:
                     raise SystemExit("loop eval failed: " + "; ".join(res["failed"]))
+            elif args.cmd == "eval" and args.roles:
+                from ..evals import roles as roles_eval
+
+                if not (data / "process_model.json").is_file():
+                    raise SystemExit(f"No process_model.json in {data}: the roles eval needs a fake plant's data folder")
+                res = roles_eval.score(conn, data)
+                for m in res["misses"]:
+                    _say(f"{m['point']}: {m['got']} ({m['confidence']}), should be {m['want']}")
+                _say(f"{res['right']} of {res['points']} roles right ({res['accuracy']:.1%}), "
+                     f"{res['confident_misses']} wrong and confident")
+                if (res["accuracy"] or 0) < 0.9 or res["confident_misses"]:
+                    raise SystemExit("roles eval failed")
             elif args.cmd == "eval":
                 from ..evals import evaluate
                 keys = Path(args.keys or data / "answer_keys")

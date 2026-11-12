@@ -1,7 +1,7 @@
 """The detector registry (P1.2): everything that looks for trouble in the data, declared once where it is written.
 
     @detectors.register("drifts", title="A slow climb in what wears and fouls", kind=detectors.STATISTICAL,
-                        roles=("vibration", "bearing temperature"), needs={"historian points": POINTS},
+                        roles=("vibration", "bearing_temperature"), needs={"historian points": POINTS},
                         cadence="daily", raises=("upset",), params=("sre.drift_rise",), eval="replay:sre:drifts",
                         window=True)
     def drifts(conn, pack, since, until, src): ...
@@ -26,6 +26,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from . import roles as measurement_roles
 from . import settings
 
 RULE, STATISTICAL, MODEL, AGENTIC = "rule", "statistical", "model", "agentic"
@@ -54,7 +55,7 @@ class Detector:
     cadence: str                   # a key of CADENCES
     raises: tuple = ()             # the work types it raises
     classes: tuple = ()            # the equipment classes it applies to; none means any asset with the inputs
-    roles: tuple = ()              # the measurement roles it reads
+    roles: tuple = ()              # the measurement roles it reads (keys of core/roles.py)
     needs: dict = field(default_factory=dict)  # name -> query returning a row when present, or fn(conn, pack)
     params: tuple = ()             # the settings that tune it
     eval: str | None = None        # replay:<detector> or test:<node>
@@ -79,6 +80,8 @@ def register(name: str, *, title: str, kind: str, cadence: str, **kw):
         raise DetectorError(f"{name}: a detector's cadence is one of {', '.join(CADENCES)}, not {cadence!r}")
     if not title.strip():
         raise DetectorError(f"{name}: a detector says what it looks for")
+    if unknown := set(kw.get("roles", ())) - set(measurement_roles.ROLES):
+        raise DetectorError(f"{name}: {', '.join(sorted(unknown))} isn't a measurement role (core/roles.py)")
     if not set(kw.get("by_class", ())) <= set(kw.get("params", ())):
         raise DetectorError(f"{name}: a parameter read per equipment class is one of its params")
 
