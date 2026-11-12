@@ -152,6 +152,17 @@ export interface ImpactResult {
 export interface RulesList {
   ranks: { name: string; rank: number | null; enabled: boolean }[];
   rules: { id: number; scope: string; name: string; config: Json; updated_by: string; updated_at: string }[];
+  calibration?: MatchCalibration[];
+}
+
+export interface MatchThresholds { auto_accept: number; review_min: number }
+
+/** What a source's match scores were worth when last measured (P2.2). */
+export interface MatchCalibration {
+  kind: string; source: string; labels: string; measured_at: string; measured_by: string | null;
+  pairs: number; same: number; ambiguous: number; target: number;
+  recommended: MatchThresholds | null; in_use: MatchThresholds | null;
+  at_auto_accept: { threshold: number; precision: number | null; lower: number | null; pairs: number; recall: number | null } | null;
 }
 
 export interface WhyValue {
@@ -256,6 +267,8 @@ export const sourcesApi = {
   setRank: (system: string, rank: number | null, by: string) =>
     request<Json>("PUT", `/sources/systems/${encodeURIComponent(system)}/rank`, undefined, { rank, by }),
   rematch: () => request<Json>("POST", "/sources/rematch"),
+  calibrate: (by: string) => request<Json>("POST", "/sources/calibration", undefined, { by }),
+  adoptCalibration: (by: string) => request<Json>("POST", "/sources/calibration/adopt", undefined, { by }),
   mapperForm: (yaml: string, opts: { columns?: string[]; dataset?: string } = {}) =>
     request<MapperForm>("POST", "/sources/mapper/form", undefined, { yaml, ...opts }),
   mapperYaml: (form: MapperForm, yaml: string) => request<{ yaml: string; warnings: string[] }>("POST", "/sources/mapper/yaml", undefined, { form, yaml }),

@@ -307,6 +307,28 @@ test("a case's process diagram opens on the waiting step at a readable size, the
   assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
 });
 
+test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
+  const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-test"],
+    skills: { "maintenance-integrity/rotating": "3f9c0a1b2c4d" }, cost_usd: 0.42, seconds: 9,
+    tools: [{ agent: "maintenance-integrity", tool: "calc", args: { check: "vibration", ref: "20-K-2200B" } }] };
+  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Agent case", type: "upset", state: "open",
+    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
+    agent_spend: { usd: 2.1, cap_usd: 2 },
+    events: [{ id: 1, kind: "agent_result", actor: "agent:maintenance-integrity", element: "diagnose", at: "2026-11-09T09:05:00Z",
+      data: { step: "Diagnose", data: { diagnose: { answer: "Bearing wear on the drive end.", ledger } } } }] } }));
+  await page.goto(`${url}/#/cases/7`);
+  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Agent work", { exact: true }) }).first();
+  await card.waitFor();
+  await card.getByText("$2.10 of $2.00 cap", { exact: false }).waitFor();
+  await card.getByText("cap reached", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "claude-test" }).waitFor();
+  await card.getByRole("cell", { name: "$0.42" }).waitFor();
+  await card.getByRole("button", { name: "What Diagnose did" }).click();
+  await card.getByText("Bearing wear on the drive end.", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "calc", exact: true }).waitFor();
+  await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });
@@ -949,6 +971,36 @@ test("installing a source pack says what it added on Sources, Routing and Detect
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
     await waveScreenshot(`pack-installed-${width}`);
   }
+});
+
+test("Rules shows each source's match thresholds with the precision measured at them, and adopts them (P2.2)", async () => {
+  const row = (source, inUse, recommended, at) => ({ kind: "equipment", source, labels: "answer key and steward decisions",
+    measured_at: "2026-11-12T02:00:00Z", measured_by: "ana", pairs: 5, same: 3, ambiguous: 0, target: 0.99,
+    recommended, in_use: inUse, at_auto_accept: at });
+  let rules = { ranks: [{ name: "sap", rank: 10, enabled: true }], rules: [],
+    calibration: [row("maximo", { auto_accept: 0.9, review_min: 0.6 }, { auto_accept: 1.0, review_min: 0.6 },
+      { threshold: 0.92, precision: 0.75, lower: 0.3, pairs: 4, recall: 1 })] };
+  let adopted = 0;
+  await page.route("**/sources/rules", (route) => route.fulfill({ json: rules }));
+  await page.route("**/sources/calibration/adopt", (route) => {
+    adopted++;
+    rules = { ...rules, calibration: [row("maximo", { auto_accept: 1.0, review_min: 0.6 }, { auto_accept: 1.0, review_min: 0.6 },
+      { threshold: 1.0, precision: 1, lower: 0.44, pairs: 3, recall: 0.67 })] };
+    return route.fulfill({ json: { maximo: { auto_accept: 1.0, review_min: 0.6 } } });
+  });
+  await page.goto(`${url}/#/sources?view=rules`);
+  const card = page.locator(".match-confidence");
+  await card.getByText("75% correct of 4 pairs").waitFor();
+  await card.getByText("measured: 1.00").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`match-confidence-${width}`);
+  }
+  await card.getByRole("button", { name: /Use the measured thresholds for maximo/ }).click();
+  await card.getByText("100% correct of 3 pairs").waitFor();
+  assert.equal(adopted, 1);
+  assert.equal(await card.getByRole("button", { name: /Use the measured thresholds/ }).count(), 0);
 });
 
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {

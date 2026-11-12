@@ -123,6 +123,29 @@ create table if not exists pinned_link (
 alter table pinned_link add column if not exists batch text;
 alter table pinned_link add column if not exists reason text;
 
+-- Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
+create table if not exists match_score (
+    kind        text not null,
+    left_ref    text not null,
+    right_ref   text not null,
+    sources     text[] not null,
+    score       double precision not null,
+    outcome     text not null check (outcome in ('merged', 'review', 'ambiguous', 'rejected')),
+    primary key (kind, left_ref, right_ref)
+);
+
+-- The last calibration per entity kind and source (P2.2): measured precision at each threshold, the calibrated
+-- probability for a score, and the thresholds it recommends.
+create table if not exists match_calibration (
+    kind        text not null,
+    source      text not null,
+    result      jsonb not null,
+    labels      text not null,
+    measured_at timestamptz not null default now(),
+    measured_by text,
+    primary key (kind, source)
+);
+
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
 do $$
