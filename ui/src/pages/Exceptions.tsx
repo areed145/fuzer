@@ -1,7 +1,7 @@
 /** Exceptions: everything the IOC should work, from every source, in one list. Each is one open condition matched
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
-import { useState } from "react";
-import { api, type ExceptionRow } from "../api";
+import { useEffect, useState } from "react";
+import { api, type ExceptionRow, type Readiness } from "../api";
 import { Badge, Button, Card, Input, Select, Table, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
@@ -161,6 +161,9 @@ function Row({ r, person, people, queues, onChange }: {
   const [to, setTo] = useState("");
   const [ask, setAsk] = useState("");
   const [planOn, setPlanOn] = useState("");
+  const [why, setWhy] = useState("");
+  const [ready, setReady] = useState<Readiness | null>(null);
+  const blocked = !!ready && !ready.ready;
   const fieldSaid = r.evidence?.field?.[r.evidence.field.length - 1];
   return (
     <tr>
@@ -189,14 +192,18 @@ function Row({ r, person, people, queues, onChange }: {
             {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ""}</option>)}</optgroup>}
           <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{q.replace(/_/g, " ")} queue</option>)}</optgroup>
         </Select>
-        <Button size="sm" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim())}
-          title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
-          onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined),
-            () => { setTo(""); setAsk(""); onChange(); })}>
+        <Button size="sm" disabled={!to.trim() || !!busy || (!r.item_id && !ask.trim()) || (blocked && !why.trim())}
+          title={!r.item_id && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
+            : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
+          onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
+            blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onChange(); })}>
           {r.item_id ? "Hand to" : "Dispatch"}</Button>
       </div>}
       {r.state === "open" && person && to.trim() && <Input aria-label="What to do" placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => setAsk(e.target.value)} style={{ width: "100%" }} />}
+      {r.state === "open" && person && to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
+      {r.state === "open" && person && to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
+        placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
       {r.state === "open" && person && <div className="row">
         <Input type="date" aria-label="Plan for" value={planOn} onChange={(e) => setPlanOn(e.target.value)} style={{ width: "9rem" }} />
         <Button size="sm" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"
@@ -205,4 +212,17 @@ function Row({ r, person, people, queues, onChange }: {
       </div>}{error && <p role="alert" className="error">{error}</p>}</td>
     </tr>
   );
+}
+
+/** Ready to dispatch (P5.5, #684): ready, or each blocker by name, read from the job's equipment records. */
+function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness | null) => void }) {
+  const check = useAsync(() => api.exceptionReadiness(id), [id]);
+  const r = check.data && Array.isArray(check.data.blockers) ? check.data : null;
+  useEffect(() => { onResult(r); }, [r]);  // eslint-disable-line react-hooks/exhaustive-deps
+  if (!r) return check.error ? <p className="small error">Readiness not checked: {check.error}</p> : null;
+  return r.ready
+    ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
+      {r.checks.filter((c) => !c.checked).map((c) => c.note).filter(Boolean).join(" ")}</p>
+    : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
+      <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>;
 }

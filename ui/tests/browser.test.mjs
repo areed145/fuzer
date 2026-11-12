@@ -3710,3 +3710,31 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.5 (#684): the dispatch card says whether the job is ready, names each blocker, and a blocked job goes only
+// with a reason.
+test("the dispatch card shows what blocks a job and sends a blocked one only with a reason (#684)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 7, type: "leak", key: "walk-9", title: "Compressor B1-K-2001 valve noise", state: "open", source: "olga",
+    priority: 2, value_usd: null, subjects: ["fz-k2001"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
+    raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }, { name: "ines", roles: ["ops_lead"] }] }));
+  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
+    blockers: ["Spares: Compressor valve assembly: 2 in stock, 4 needed; on order (4500007101), due 2026-11-15",
+      "Spares: Rod packing set: 0 in stock, 2 needed; nothing on order"],
+    checks: [{ check: "spares", label: "Spares", ready: false, checked: true, note: null, blockers: [] }] } }));
+  const sent = [];
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByLabel("Dispatch to").selectOption("fred");
+  await page.getByText("Rod packing set: 0 in stock, 2 needed; nothing on order", { exact: false }).waitFor();
+  await page.getByText("not ready", { exact: true }).waitFor();
+  await page.getByLabel("What to do").fill("check the discharge valves");
+  const send = page.getByRole("button", { name: "Dispatch", exact: true });
+  assert.equal(await send.isDisabled(), true);  // blocked: a reason first
+  await page.getByLabel("Why send it anyway").fill("valves can be changed on the 15th, inspect now");
+  await send.click();
+  await expectReports(sent, 1);
+  assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
+});

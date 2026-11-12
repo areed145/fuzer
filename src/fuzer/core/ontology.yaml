@@ -68,6 +68,11 @@ kinds:
     group: Equipment
     colour: "#9c7a54"
     description: A spare part or material master record.
+  purchase_order:
+    label: Purchase order
+    group: Equipment
+    colour: "#b08d62"
+    description: A purchase order line for a material, with its quantity and delivery date.
   allocation_node:
     label: Allocation node
     group: Production
@@ -202,6 +207,12 @@ relations:
     view: classes
     description: Equipment and the spare parts it takes.
     from: [equipment]
+    to: [material]
+  orders:
+    label: orders
+    view: classes
+    description: A purchase order and the material it is for.
+    from: [purchase_order]
     to: [material]
   flows_to:
     label: flows to

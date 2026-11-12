@@ -1,0 +1,4 @@
+ebeln,matnr,quantity,delivery_date,status,vendor
+4500007101,MAT-K2001-VLV,2,today+3d,open,Ariel Corporation
+4500007102,MAT-V1004-ELM,6,today+20d,open,Pall Corporation
+4500007103,MAT-P3002-PKG,2,today-12d,delivered,Kimray Inc
