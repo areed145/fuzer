@@ -33,7 +33,7 @@ DECLARED_IN = ("fuzer.ops.intake", "fuzer.ops.sre_handoff", "fuzer.sources.alert
                "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating", "fuzer.graph.data_work",
                "fuzer.graph.criticality", "fuzer.analysis.completeness",
                "fuzer.graph.contextualized", "fuzer.sources.scorecard", "fuzer.ops.rounds",
-               "fuzer.ops.safeguards")
+               "fuzer.ops.safeguards", "fuzer.analysis.loops")
 _impl: ModuleType | None = None
 
 

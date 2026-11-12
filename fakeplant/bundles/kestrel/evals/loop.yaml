@@ -34,5 +34,7 @@ arrive:
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   # The suction scrubber's high-high level trip, still bypassed past its expiry (the bypass register)
   bypass_overdue: {detector: bypass_overdue}
+  # D1-E-4006's temperature cycling every two hours: a loop candidate for the engineer
+  loop_candidate: {detector: loop_oscillation}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}
