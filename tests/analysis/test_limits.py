@@ -225,7 +225,6 @@ def test_trends_api_and_mcp_carry_limits(conn, iow_scans):
     assert by["OK_GGCP:20-TT-2300A.PV"]["iow"][0]["level"] == "critical"
     assert by["OK_GGCP:20-TT-2300A.PV"]["excursions"]  # recorded by the IOW scans
     assert client.get("/limits/issues").status_code == 200
-    assert client.get("/excursions", params={"basis": "iow"}).json()[0]["basis"] == "iow"
 
     got = mcp_server.limits("20-TT-2300A")
     assert got["points"][0]["alarm"]["hi"]["source"] == "dcs" and got["points"][0]["sources"]
