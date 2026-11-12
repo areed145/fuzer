@@ -3,8 +3,8 @@
  * decisions stewards made (aliases and pinned matches), each reversible. */
 import { useState } from "react";
 import { api } from "../../api";
-import { Badge, Button, Card, Input, PageHeader, Table } from "../../ui";
-import { Status, entityHref, useAsync } from "../../lib";
+import { Badge, Button, ButtonLink, Card, Input, PageHeader, Table } from "../../ui";
+import { Status, entityHref, href, useAsync } from "../../lib";
 import { usePerson, when } from "../../work";
 import { caseHref, useAct } from "../workflows/shared";
 import { usePermission } from "../../Auth";
@@ -17,9 +17,13 @@ const TABS = [["unmatched", "Unmatched on open work"], ["unresolved", "Unresolve
 
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
   const [tab, setTab] = useState<string>(query.get("tab") ?? "unmatched");
+  // Possible matches and conflicts are decided on Data review, reached from here (#554); P2.3 folds it in (#505).
+  const stats = useAsync(() => api.stats(), []);
+  const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
   return (
     <section>
-      <PageHeader subtitle="Records that did not match the register.">
+      <PageHeader subtitle="Records that did not match the register."
+        actions={<ButtonLink href={href("/review")}>Data review{reviews ? ` (${reviews})` : ""}</ButtonLink>}>
         Master data</PageHeader>
       <div className="tabs" role="tablist">
         {TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}

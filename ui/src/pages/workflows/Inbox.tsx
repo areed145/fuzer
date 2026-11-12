@@ -1,4 +1,4 @@
-import { Button, ButtonLink, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
+import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../../ui";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
@@ -6,7 +6,7 @@ import { Button, ButtonLink, PageHeader, Table, Card as UICard, Input, Select , 
 import { useEffect, useState } from "react";
 import { api, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
-import { Due, ScenarioClock, holder, usePerson } from "../../work";
+import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
@@ -20,6 +20,8 @@ export function InboxPage() {
   const stats = useAsync(() => api.stats(), []);
   // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
+  // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
+  const handovers = useAsync(() => api.handovers(), []);
   const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -49,12 +51,20 @@ export function InboxPage() {
   const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
+  const lead = d.roles.includes("ops_lead");
+  const handover = lead ? handovers.data?.[0] : undefined;
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
       <PageHeader subtitle="Everything waiting on you." help="workflow"
-        actions={d.roles.includes("ops_lead") ? <ButtonLink href={href("/teams")}>Team workload</ButtonLink> : undefined}>
+        actions={lead ? <><ButtonLink href={href("/handover")}>Shift handover</ButtonLink>
+          <ButtonLink href={href("/teams")}>Team workload</ButtonLink></> : undefined}>
         My work</PageHeader>
+      {handover && handover.state !== "acknowledged" && <Notice tone="warn" className="row">
+        <strong>Shift handover ready, {when(handover.shift_end)}.</strong>
+        <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
+        <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
+      </Notice>}
       <p className="row small">
         {sent.length > 0 && <UIBadge className="badge">{sent.length} sent to you</UIBadge>}
         <UIBadge className="badge">{d.mine.length} assigned to you</UIBadge>
