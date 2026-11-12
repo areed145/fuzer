@@ -11,6 +11,9 @@ on, and an eval of questions with answer keys:
     detectors         the registered detectors that raise its work
     briefs            the work types it briefs when a case opens on a subject of its classes (P4.3; optional)
     roles             the measurement roles it reads (core/roles.py), including every role its detectors read
+    needs             for each method that reads the asset itself, the roles it needs measured there (P4.1b;
+                      optional); a method that reads a neighbour (the scrubber's pressure, the driver's lube oil) or
+                      a record (a curve, a plan) is left out rather than reported as blocked
     eval              the eval's name: each bundle holds its answer keys in evals/<name>.yaml (questions with
                       must_mention, specialists and charts keys), so nothing facility specific sits in the pack
 
@@ -19,6 +22,14 @@ Because the pack is a skill folder, the agent ledger's skill version (P4.4) cove
     shipped()          every pack under agents/skills, by skill path
     load(path)         one pack's manifest, with its playbook and each shipped bundle's eval questions read
     conformance(path)  what is wrong with it: [] when every name resolves and the playbook and manifest agree
+    coverage(conn, pack, asset)
+                       what it can and cannot run on one asset, from the measurement roles there (P1.4)
+    cannot_do(conn, pack, assets)
+                       a plain line for each method it cannot run on each of those assets of its classes, naming
+                       the measurements that are missing (the brief puts these under could not check)
+    on_site(conn, path)
+                       every measured asset of its classes on this site with its coverage, and what keeps it from
+                       working here: [] when it covers an asset and at least one of its methods runs
 """
 
 import re
@@ -108,6 +119,12 @@ def conformance(path: str) -> list[str]:
     if bad := sorted(read - set(pack["roles"])):
         problems.append(f"roles its detectors read but it does not declare: {', '.join(bad)}")
 
+    needs = pack.get("needs") or {}
+    if bad := sorted(set(needs) - set(pack["methods"])):
+        problems.append(f"needs for methods it does not list: {', '.join(bad)}")
+    if bad := sorted({r for rs in needs.values() for r in rs or ()} - set(pack["roles"])):
+        problems.append(f"needs roles it does not declare: {', '.join(bad)}")
+
     raised = {t for d in pack["detectors"] if d in found for t in found[d].raises}
     if bad := sorted(set(pack.get("briefs") or ()) - raised):
         problems.append(f"briefs work types none of its detectors raise: {', '.join(bad)}")
@@ -123,3 +140,56 @@ def conformance(path: str) -> list[str]:
             if owner not in (q.get("specialists") or []):
                 problems.append(f"{b} question {i} does not expect {owner} to answer")
     return problems
+
+
+def coverage(conn, pack: dict, asset: str) -> dict:
+    """What `pack` can and cannot run on `asset`: each method in its `needs` whose roles are all measured on the asset
+    (or its instruments), and each one that is missing some, with the roles it lacks."""
+    from ..graph import roles
+    from ..sources.timeseries import _unit_points
+
+    on = set(roles.of(conn, [p["id"] for p in _unit_points(conn, asset, 100)]).values())
+    can, cannot = [], []
+    for method, need in (pack.get("needs") or {}).items():
+        if missing := [r for r in need or () if r not in on]:
+            cannot.append({"method": method, "missing": missing})
+        else:
+            can.append(method)
+    return {"asset": asset, "roles": sorted(on), "can": can, "cannot": cannot}
+
+
+def _label(conn, fid: str) -> str:
+    r = conn.execute("select label from entity_label where fuzer_id = %s order by label limit 1", (fid,)).fetchone()
+    return r["label"] if r else fid
+
+
+def cannot_do(conn, pack: dict, assets) -> list[str]:
+    """One line per method `pack` cannot run on each of `assets` that is of its classes."""
+    from ..core import detectors, roles
+
+    of_class = [a for a, c in detectors.classes_of(conn, assets).items() if c in set(pack["classes"])]
+    out = []
+    for a in of_class:
+        for c in coverage(conn, pack, a)["cannot"]:
+            what = " or ".join(roles.ROLES[r].label.lower() if r in roles.ROLES else r for r in c["missing"])
+            out.append(f"{c['method']} on {_label(conn, a)}: no {what} measured there")
+    return out
+
+
+def on_site(conn, path: str) -> dict:
+    """The pack against this site's register: each measured asset of its classes with its coverage, and what keeps
+    the pack from working here."""
+    from ..core import detectors
+
+    pack = load(path)
+    tags = [r["src"] for r in conn.execute(
+        "select distinct c.src from edge c join entity s on s.fuzer_id = c.src and s.kind = 'tag' "
+        "where c.rel = 'classified_as'")]
+    assets = sorted(a for a, c in detectors.classes_of(conn, tags).items() if c in set(pack["classes"]))
+    covered = [{**cov, "label": _label(conn, a)} for a in assets if (cov := coverage(conn, pack, a))["roles"]]
+    problems = []
+    if not covered:
+        problems.append(f"no measured asset of its classes ({', '.join(pack['classes'])}) on this site")
+    elif pack.get("needs") and not any(c["can"] for c in covered):
+        problems.append("none of its methods can run on any asset here")
+    return {"assets": covered, "problems": problems}
