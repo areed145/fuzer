@@ -24,3 +24,6 @@ def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
     assert arrived["records_gap"] == "a delivery and the rebuild after it, then records_gaps"
     assert done["unmatched_records"]["steps"]["match"].startswith("matched the ") and \
         done["measurement_role_to_confirm"]["steps"]["route"] == "in the data_steward queue"
+    # a revised smart P&ID export: an alarm table that disagrees with the DCS, and a line only one side shows
+    assert not {"drawing_disagreement", "drawing_line_to_confirm"} & set(res["synthetic"]), arrived
+    assert res["synthetic"] == ["curve_to_confirm"], res["synthetic"]  # no Kestrel datasheet has a curve to read

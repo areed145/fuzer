@@ -69,3 +69,10 @@ def test_answering_closes_the_case_and_a_rebuild_does_not_bring_it_back(okan_db)
     assert key not in _open(conn)
     assert sum(1 for k in _open(conn) if k == key) == 0
     conn.commit()
+
+
+def test_a_drawing_line_question_is_about_the_two_items_it_would_join():
+    """A line only one drawing shows names its two ends, so the steward's case shows on both (#747)."""
+    p = {"sheet": "S-1", "from": "10-V-2004", "to": "10-P-1001A", "line": "16\"-P-10950-A1A"}
+    assert data_work.refs("pid_connection", p) == ["tag:10-V-2004", "tag:10-P-1001A"]
+    assert data_work.refs("pid_connection", {**p, "from": None}) == ["tag:10-P-1001A"]  # the other end unread
