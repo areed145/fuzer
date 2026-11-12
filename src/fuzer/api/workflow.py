@@ -171,11 +171,21 @@ def work_item(item_id: int, conn=Depends(get_conn)):
     """An item with its processes (path taken, open steps), every event in its history, the finding of every
     exception it works (`sources`, P1.1), and whether an agents
     provider is configured: without one no agent worker runs, so an agent step will wait until a person takes it."""
-    from ..core import llm
+    from ..agents import ledger
+    from ..core import llm, settings
     from ..ops import exceptions
 
     return {**work.item(conn, item_id), "agents_configured": llm.configured("agents"),
-            "sources": exceptions.on_case(conn, item_id)}
+            "sources": exceptions.on_case(conn, item_id),
+            "agent_spend": {"usd": ledger.case_spend(conn, item_id), "cap_usd": settings.get(conn, "agents.case_cap_usd")}}
+
+
+@router.get("/work/agent-spend")
+def work_agent_spend(since: datetime | None = None, until: datetime | None = None, conn=Depends(get_conn)):
+    """Agent spend in a window (P4.4), by agent, by work type and by asset, from each agent step's ledger."""
+    from ..agents import ledger
+
+    return ledger.spend(conn, since, until)
 
 
 @router.post("/work/items/{item_id}/comment")

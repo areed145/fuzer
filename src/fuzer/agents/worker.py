@@ -109,6 +109,9 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     t = claim(conn, worker, sorted(agents), now, lease)
     if t is None:
         return None
+    over = _over_cap(conn, t["item_id"])
+    if over:
+        return engine.agent_failed(conn, t["id"], worker, over, now, max_attempts=0)
     call = _call(conn, t, worker, now, lease)
     try:
         result = agents[t["role"]](call) or {}
@@ -123,6 +126,19 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     except engine.Forbidden as e:  # the result crossed the human-decision boundary (P4.4): a person takes the step
         log.warning("refused result of step %s: %s", t["id"], e)
         return engine.agent_failed(conn, t["id"], worker, f"refused: {e}", now, max_attempts=0)
+
+
+def _over_cap(conn, item_id: int) -> str | None:
+    """Why the case's agent budget stops this step (P4.4), or None while it is under its cap."""
+    from .ledger import case_spend
+
+    cap = settings.get(conn, "agents.case_cap_usd")
+    spent = case_spend(conn, item_id) if cap else 0.0
+    conn.commit()
+    if cap and spent >= cap:
+        return (f"agent spend on this case reached its cap: ${spent:.2f} of ${cap:.2f} "
+                "(setting agents.case_cap_usd); a person takes this step")
+    return None
 
 
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
