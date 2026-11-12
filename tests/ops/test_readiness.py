@@ -129,8 +129,13 @@ def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kes
         "select data->>'text' as body from work_event where item_id = %s and kind = 'commented'", (item,))]
     assert any(s.startswith("Sent though not ready (Spares: ") and s.endswith("Why: inspect only, no parts needed today")
                for s in said), said
+    # the fan is on the same train, whose scrubber trip is bypassed (BYP-KR-031): with the valve job in the field, it
+    # waits for a reason too (P3.9 in the SIMOPS check, #707)
     fan = job(conn, "E-2010 belts", queries.resolve_ref(conn, pack, "B1-E-2010"))
-    assert client.post(f"/exceptions/{fan}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 200
+    r = client.post(f"/exceptions/{fan}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+    assert r.status_code == 409 and "where a safeguard is bypassed" in r.text and "BYP-KR-031" in r.text
+    assert client.post(f"/exceptions/{fan}/dispatch", json={
+        "by": "ioc-ann", "to": "fred", "override": "belts only, valve crew agreed, scrubber level watched"}).status_code == 200
 
 
 def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(kestrel, client):
@@ -255,7 +260,9 @@ def test_hot_work_beside_a_line_break_is_flagged_on_plan_and_at_dispatch(kestrel
     e = job(conn, "Reboiler burner flame-out", reboiler)
     ready = client.get(f"/exceptions/{e}/readiness").json()
     sim = next(c for c in ready["checks"] if c["check"] == "simops")
-    assert not sim["ready"] and {c["kind"] for c in sim["conflicts"]} == {"same_asset", "simops"}
+    # and the reboiler's own bypass (BYP-KR-032) is on the system both jobs share
+    assert not sim["ready"] and {c["kind"] for c in sim["conflicts"]} == {"same_asset", "simops", "bypass"}
+    assert any("where a safeguard is bypassed" in b and "BYP-KR-032" in b for b in sim["blockers"])
     assert any(b.startswith("Hot work near a line break in ") for b in sim["blockers"])
     assert any("“Weld reboiler fire tube support” is on" in b for b in sim["blockers"])
     r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
