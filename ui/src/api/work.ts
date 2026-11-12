@@ -740,6 +740,15 @@ export interface FieldJob extends ExceptionRow {
   sources: CaseSource[];
   /** Checks to make before the work, such as a compressor trip's restart checklist. */
   checklist?: string[];
+  /** The permit to work it runs under (P5.11a): null when no permit records are loaded. */
+  permit?: FieldPermit | null;
+}
+
+export interface FieldPermit {
+  needed: boolean; blocked: boolean; blocker: string | null;
+  permit: { label: string; type: string | null; state: string | null; valid_from: string | null; valid_to: string | null;
+    work: string | null; location_label: string | null; valid: boolean; why_not: string | null;
+    isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
 }
 
 export const workApi = {
@@ -794,9 +803,10 @@ export const workApi = {
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string,
-    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string } = {}) =>
+    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
-      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null }),
+      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
+      override: extra.override ?? null }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

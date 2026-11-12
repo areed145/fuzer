@@ -3832,3 +3832,38 @@ test("the dispatch card shows the crew's load, its permit, and a full crew block
   await page.getByText("Permit PTW-24103 (electrical) valid to 2026-11-13 18:00.", { exact: false }).waitFor();
   await page.getByText("all 1 busy on open jobs: #3 Look at the standby generator", { exact: false }).waitFor();
 });
+
+// P5.11a (#708): on the phone, a job whose work type needs a permit shows "blocked: no valid permit" with the permit
+// and its isolations, and On site needs a reason before it starts anyway.
+test("a job with no valid permit shows blocked on the phone and starts only with a reason (#708)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = { id: 21, type: "upset", key: "k-2001", title: "Compressor B1-K-2001 discharge valve", source: "olga", state: "open",
+    priority: null, value_usd: null, subjects: ["fz-k"], unmatched: [], item_id: 51, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, first_seen: "2026-11-12T06:00:00Z", last_seen: "2026-11-12T06:00:00Z", label: "Process upset", due: null,
+    task_id: null, task_name: null, assets: [{ fuzer_id: "fz-k", label: "B1-K-2001", kind: "equipment", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false,
+    sent: { by: "ann", at: "2026-11-12T06:05:00Z", reason: "change the valve" }, sources: [],
+    permit: { needed: true, blocked: true,
+      blocker: "blocked: no valid permit (upset work on B1-K-2001): PTW-24101 isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
+      permit: { label: "PTW-24101", type: "cold work", state: "issued", valid_from: "2026-11-11 06:00", valid_to: "2026-11-14 18:00",
+        work: "Change discharge valves on cylinder 3", location_label: "B1-K-2001", valid: false, why_not: "isolations not in place",
+        isolations: [{ isolation: "ISO-24101-1", point: "B1-XV-2001", method: "closed and locked", state: "applied" },
+          { isolation: "ISO-24101-3", point: "B1-K-2001 cylinders", method: "blown down and vented", state: "planned" }] } } };
+  const reports = [];
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/exceptions/21/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "B1-K-2001 discharge valve" });
+  await card.getByText("blocked: no valid permit", { exact: true }).waitFor();
+  await card.getByText("Change discharge valves on cylinder 3").waitFor();
+  await card.getByText("planned", { exact: true }).waitFor();
+  const start = card.getByRole("button", { name: "On site" });
+  assert.equal(await start.isDisabled(), true);
+  await card.getByLabel("Why start without a valid permit").fill("walk round only, nothing opened");
+  await start.click();
+  await expectReports(reports, 1);
+  assert.deepEqual([reports[0].status, reports[0].override], ["on_site", "walk round only, nothing opened"]);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
