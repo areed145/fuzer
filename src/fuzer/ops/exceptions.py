@@ -34,6 +34,9 @@ KIND_FIELDS = ("label", "role", "process", "case_type", "audience", "close_case_
 def types(conn) -> dict[str, ExceptionType]:
     """Every exception type: the ones a deployment defined as data (exception_kind, for other systems' exceptions)
     and the ones modules declare in code, which win on a clash."""
+    from ..core import exceptions as port
+
+    port.load()
     data = {r["name"]: ExceptionType(r["name"], r["label"], role=r["role"], process=r["process"],
                                      case_type=r["case_type"], audience=tuple(r["audience"]),
                                      close_case_on_clear=r["close_case_on_clear"], description=r["description"] or "",

@@ -244,6 +244,7 @@ score search, document links, section failure modes and log reading
 | `--detector` | with --ops: the detector to replay (default: limits) |
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
 | `--live` | with --full: diagnose with the real Claude (costs money) |
+| `--loop` | drive every type of work arrive to counted and say which step failed for which type (P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails) |
 | `--since` | with --ops: start (default: 28 days before --until) |
 | `--until` | with --ops: end (default: the latest daily report) |
 
