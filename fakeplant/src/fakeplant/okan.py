@@ -79,6 +79,7 @@ EQUIPMENT = {
     "50": [("V", 2001, [""], "NWP Production Separator", "Pressure Vessel"),
            ("V", 2002, [""], "NWP Test Separator", "Pressure Vessel")],
 }
+DRIVER_LOOP = 2000  # the gas turbine on each train (TRAIN's first item)
 TRAIN = [  # per train A/B/C on GGCP: 3 stages of scrubber, compressor and after-cooler, one gas turbine
     ("GT", 2000, "Gas Turbine Driver", "Gas Turbine"),
     ("V", 2101, "1st Stage Suction Scrubber", "Pressure Vessel"), ("K", 2100, "1st Stage Compressor", "Compressor"),
@@ -413,7 +414,9 @@ def generate(out, seed: int = 11) -> dict:
         motor = MOTORS.get(func, ("", ""))
         equipment.append({"equnr": str(30000000 + len(equipment)), "description": desc, "manufacturer": maker,
                           "model": model, "serial": f"SN{serial}", "floc": eq_floc, "valid_from": since, "valid_to": "",
-                          "motor_rated_kw": motor[0], "motor_service_factor": motor[1]})
+                          "motor_rated_kw": motor[0], "motor_service_factor": motor[1],
+                          # a train's compressors are driven by its gas turbine (P2.7): SAP's driver on the record
+                          "driver": eq.fmt(f"{FIELD}-{{a}}-GT{DRIVER_LOOP}{{s}}") if func == "K" else ""})
 
     for area, (code, name, ftype, _) in FACILITIES.items():
         floc.append({"floc": f"{FIELD}-{area}", "parent": FIELD, "description": f"{code} {name}"})
@@ -999,6 +1002,9 @@ def generate(out, seed: int = 11) -> dict:
         offpage.setdefault(b_key, []).append({"tag": b, "direction": "from", "sheet": sheet_no[a_key], "other": a,
                                               "line": line})
     drng3 = random.Random(seed + 2)
+    # The engineering line list (P2.7): every line on the P&IDs, from and to, whatever format its sheet is in.
+    line_list = [{"line": o["line"], "from_tag": o["tag"], "to_tag": o["other"], "sheet": sheet_no[k]}
+                 for k, os_ in offpage.items() for o in os_ if o["direction"] == "to"]
     for i, (key, tags) in enumerate(sheet_tags.items()):
         fmt, label = sheet_info[key]
         area = key.split("-")[0]
@@ -1007,6 +1013,7 @@ def generate(out, seed: int = 11) -> dict:
         eq = [t.canonical for t in tags if t.func in ("P", "K", "E", "V")]  # a turbine drives by shaft, not pipe
         conns = [{"from": a, "to": b, "line": f'{rng.choice([6, 8, 10])}"-P-{area}{100 + i * 10 + k}-A1'}
                  for k, (a, b) in enumerate(itertools.pairwise(eq))]
+        line_list += [{"line": c["line"], "from_tag": c["from"], "to_tag": c["to"], "sheet": sheet["sheet"]} for c in conns]
         if fmt == "smart":
             sheet["tags"] = [t.canonical for t in tags]
             sheet["connections"] = conns
@@ -1114,6 +1121,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys").mkdir(exist_ok=True)
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_equipment.csv", equipment)
+    _write_csv(out / "pid_line_list.csv", line_list)
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", orders)
     _write_csv(out / "sap_materials.csv", materials)

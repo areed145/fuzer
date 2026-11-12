@@ -445,6 +445,21 @@ drawing reader returns connections read off scans; both become directional
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
 
+An engineering line list (`pid_line_list`, optional in the P&ID source pack: line, from tag, to tag) gives the same
+`pipes_to` links for every line, whatever format its sheet is in, so a scanned sheet's piping is known before it is
+read. A driven machine's SAP equipment record can name its driver by functional location (`driver`), which becomes
+a `drives` link from the turbine, engine or motor to the machine.
+
+## Plant structure
+`graph.structure` reads trains, flow order and drivers from those links alone, never from tag names. A train is the
+piped equipment of one area once its headers are left out (an item feeding, or fed by, two or more items of one class
+in its area, such as an inlet separator feeding three compression trains), plus whatever drives it. A compressor
+stage's order is its place among the train's compressors in flow order; its scrubber is the nearest vessel upstream
+(the inlet scrubber for the first stage), its cooler the nearest heat exchanger before that, and its siblings the
+same position on each parallel train fed from the same header, ordered by train key. Where the data can't say (no
+piping in the area, an item on none of it, a machine no source names a driver for), the answer is "not known" with
+the reason, and nothing is guessed.
+
 ## Data tables and notes on P&IDs
 A sheet's foot carries an equipment data table (design pressure, temperature, capacity), an alarm and trip
 table (LL / L / H / HH per instrument) and numbered notes. Claude reads them off scans; smart sheets export
