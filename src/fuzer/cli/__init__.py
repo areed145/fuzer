@@ -144,6 +144,9 @@ def parser() -> argparse.ArgumentParser:
                     help="with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) "
                          "and fail if a score is under its floor or fell since the last run")
     ev.add_argument("--live", action="store_true", help="with --full: diagnose with the real Claude (costs money)")
+    ev.add_argument("--loop", action="store_true",
+                    help="drive every type of work arrive to counted and say which step failed for which type "
+                         "(P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails)")
     ev.add_argument("--since", default=None, help="with --ops: start (default: 28 days before --until)")
     ev.add_argument("--until", default=None, help="with --ops: end (default: the latest daily report)")
 
@@ -293,6 +296,14 @@ def main(argv=None):
                     raise SystemExit("P&ID benchmark failed: " + "; ".join(bad))
             elif args.cmd == "eval" and args.ops:
                 _ops_eval(conn, pack, args, data)
+            elif args.cmd == "eval" and args.loop:
+                from ..evals import loop
+
+                res = loop.run(conn)
+                for r in res["types"]:
+                    _say(f"{r['type']}: " + (f"failed at {r['failed']}: {r['why']}" if r["failed"] else "completed"))
+                if res["failed"]:
+                    raise SystemExit("loop eval failed: " + "; ".join(res["failed"]))
             elif args.cmd == "eval":
                 from ..evals import evaluate
                 keys = Path(args.keys or data / "answer_keys")

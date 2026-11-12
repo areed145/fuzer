@@ -27,6 +27,10 @@ from types import ModuleType
 
 DEFAULT = "fuzer.ops.exceptions"
 AUDIENCES = ("ioc", "field")
+# Where types are declared in code. `load()` imports them by name (core does not import the modules above it), so
+# the routing table holds every type before any has been raised; a module that declares one adds itself here.
+DECLARED_IN = ("fuzer.ops.intake", "fuzer.ops.sre_handoff", "fuzer.sources.alerts", "fuzer.analysis.records",
+               "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating")
 _impl: ModuleType | None = None
 
 
@@ -90,6 +94,12 @@ def clear_exception(conn, type: str, key: str, by: str, reason: str | None = Non
 def reconcile(conn) -> dict:
     """Close open exceptions whose case finished; the work tick runs it."""
     return _engine().reconcile(conn)
+
+
+def load() -> None:
+    """Import every module that declares a type in code."""
+    for module in DECLARED_IN:
+        import_module(module)
 
 
 def define_type(conn, name: str, by: str, label: str, **fields) -> dict:

@@ -76,7 +76,7 @@ def test_a_detector_missing_its_inputs_reports_not_applicable_and_the_run_is_kep
         assert not row["applicable"] and row["note"] == out["note"]
         assert row["last_run"]["status"] == "not_applicable" and row["last_run"]["note"] == out["note"]
 
-        REGISTRY["seal_pots"].needs.pop("a seal pot level")  # the input arrives
+        detectors.get("seal_pots").needs.pop("a seal pot level")  # the input arrives
         assert detectors.run(conn, pack, "seal_pots") == {"raised": ["P-101"]} and called == ["okan"]
         last = detectors.last_runs(conn)["seal_pots"]
         assert last["status"] == "ran" and last["found"] == 1

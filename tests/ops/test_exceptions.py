@@ -814,3 +814,14 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
     assert not routing.queue_case(conn, g["item_id"])
     assert routing.explain(conn, "gas_day_short", key="GD-3")["process"]["key"] == "queue_item"
     conn.commit()
+
+
+def test_every_module_that_declares_a_type_is_loaded_with_the_routing_table():
+    from fuzer.core import exceptions as port
+
+    declared = set()
+    for f in PACKAGE.rglob("*.py"):
+        if re.search(r"^\s+return TYPES\.get\(\"\w+\"\) or exception_type\(|^[A-Z_]+ = exception_type\(|^exception_type\(",
+                     f.read_text(), re.MULTILINE):
+            declared.add("fuzer." + ".".join(f.relative_to(PACKAGE).with_suffix("").parts))
+    assert declared == set(port.DECLARED_IN)
