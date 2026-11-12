@@ -219,6 +219,7 @@ class ExceptionDispatch(BaseModel):
     by: str
     to: str
     reason: str | None = None
+    override: str | None = None   # why it goes though it isn't ready (P5.5): required when it isn't
 
 
 class Closeout(BaseModel):
@@ -331,9 +332,30 @@ def exception_field_jobs(person: str, conn=Depends(get_conn)):
 
 @router.post("/exceptions/{exception_id}/dispatch")
 def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get_conn)):
-    """Send an exception to a person or `role:<role>`: its case opens for them, or is handed to them."""
-    from ..ops import exceptions
-    return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
+    """Send an exception to a person or `role:<role>`: its case opens for them, or is handed to them. A job that is
+    not ready to dispatch (P5.5) goes only with a reason, kept on its case's history."""
+    from ..ops import exceptions, readiness
+    try:
+        ready = readiness.for_exception(conn, exception_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+    override = (d.override or "").strip()
+    if not ready["ready"] and not override:
+        raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
+                            + ". Say why it should go anyway.")
+    return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason,
+                           override=override if not ready["ready"] else None,
+                           blockers=ready["blockers"])
+
+
+@router.get("/exceptions/{exception_id}/readiness")
+def exception_readiness(exception_id: int, conn=Depends(get_conn)):
+    """Is this job ready to dispatch (P5.5)? Ready, or each blocker by name, from its equipment's records."""
+    from ..ops import readiness
+    try:
+        return readiness.for_exception(conn, exception_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
 
 
 @router.post("/exceptions/{exception_id}/report")
