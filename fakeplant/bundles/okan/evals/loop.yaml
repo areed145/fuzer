@@ -62,6 +62,10 @@ arrive:
   quality_drift: {detector: quality_drift, until: "2025-07-26T00:00"}
   # A day of heavy flaring in November 2025 that no downtime, log entry or detection explains: its cause unknown
   flare_event: {detector: flare_events, until: "2025-11-09T00:00"}
+  # 20-K-2300A's trip of June 2025 floods the alarm system: one case with the points that drove it
+  alarm_flood: {detector: alarm_performance, until: "2025-06-25T00:00"}
+  # The PP test separator's level alarming over and over while its level valve sticks (February 2025)
+  alarm_bad_actor: {detector: alarm_performance, until: "2025-02-12T00:00"}
   # The next alarm export: train B's 2nd stage vibration high-high moved two days ago, and the only change record
   # about the probe (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,

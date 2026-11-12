@@ -11,6 +11,7 @@ import { WellScreen } from "./WellScreen";
 import { AllocationFactor } from "./AllocationFactor";
 import { GasLiftHeading } from "./GasLiftHeading";
 import { QualityTrend } from "./QualityTrend";
+import { AlarmPerformance } from "./AlarmPerformance";
 import { AcrossAssets } from "./AcrossAssets";
 import { Badge, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
@@ -74,6 +75,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <AllocationFactor />
       <GasLiftHeading />
       <QualityTrend />
+      <AlarmPerformance />
       <BacklogBurn />
       <CostOfUnreliability />
       <InterventionGains />

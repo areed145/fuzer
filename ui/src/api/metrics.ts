@@ -228,6 +228,17 @@ export interface GasLiftStability {
     r?: number }[];
 }
 
+/** The alarm system against ISA-18.2 and EEMUA 191: rate, floods and bad actors, with their cases (P3.10b, #840). */
+export interface AlarmPerformance {
+  window: [string, string]; days: number; alarms: number; per_hour: number; target_per_hour: number;
+  flood_per_10min: number; standing_hours: number; repeats: number; synthetic: boolean; note: string;
+  floods: { start: string; end: string; alarms: number; peak_10_min: number; top: { point: string; alarms: number }[];
+    case: number | null }[];
+  bad_actors: { point: string; point_id: string; kinds: ("standing" | "repeating")[]; limits: string[]; since: string;
+    alarms: number; case: number | null }[];
+  open_cases: { id: number; type: string; title: string; item_id: number | null }[];
+}
+
 /** Allocated oil against the wells' tested offer, month by month (#338). */
 export interface AllocationFactor {
   since: string; until: string; source?: string; note: string;
@@ -256,6 +267,7 @@ export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
+  alarmPerformance: () => request<AlarmPerformance>("GET", "/plant/alarm-performance"),
   allocationFactor: () => request<AllocationFactor>("GET", "/plant/allocation-factor"),
   wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
   backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
