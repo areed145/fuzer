@@ -144,3 +144,11 @@ def test_datasheets_are_the_same_bytes_every_build(tmp_path, scanned):
         path.parent.mkdir()
         fake.datasheet(c, path, scanned, "DS-1")
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_a_markdown_datasheet_is_its_own_text_layer(tmp_path):
+    """Kestrel ships its datasheets as Markdown; reading them as PDFs stopped its startup readings."""
+    sheet = tmp_path / "KR-DS-K2001.md"
+    sheet.write_text("# Compressor K-2001\n\n| flow | head |\n|---|---|\n| 10 | 50 |\n")
+    text, images = llm_curves.page_content(sheet)
+    assert "Compressor K-2001" in text and "| 10 | 50 |" in text and images == []
