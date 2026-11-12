@@ -3997,3 +3997,46 @@ test("Work performance counts rounds done, partly done and missed per shift (#71
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.6a (#317): the Processes catalog recovers from a failed read, says who can publish and where routing lives,
+// labels and checks the new-process key, and an import that fails says why and can be tried again.
+test("the Processes catalog recovers, explains who publishes, and validates new processes (#317)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  let failing = true;
+  const imports = [];
+  await page.route("**/work/definitions", (route) => route.request().method() === "POST"
+    ? (imports.push(route.request().postDataJSON()), route.fulfill({ status: 400, json: { detail: "line 3: a person's task needs an SLA" } }))
+    : route.fulfill(failing ? { status: 503, json: { detail: "Database restarting" } }
+    : { json: [{ id: 1, process_key: "upset", version: 2, name: "Upset", state: "published", published_at: "2026-11-01T00:00:00Z", running: 3 },
+      { id: 2, process_key: "upset", version: 3, name: "Upset", state: "draft", published_at: null, running: 0 }] }));
+  await page.route("**/work/stats?*", (route) => route.fulfill({ json: [{ process_key: "upset", waiting: 2, overdue: 1, median_h: 5, p90_h: 30, sla_breach_pct: 12 }] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "alice", roles: ["engineer"] }] }));
+  await page.route("**/work/forms", (route) => route.fulfill({ json: [] }));
+  await page.goto(`${url}/#/processes`);
+  await page.getByRole("alert").filter({ hasText: "Database restarting" }).waitFor();
+  failing = false;
+  await page.getByRole("button", { name: "Try again" }).first().click();
+  const row = page.getByRole("row").filter({ hasText: "Upset" });
+  await row.getByText("v3").waitFor();
+  await page.getByText("which you don't have", { exact: false }).waitFor();
+  assert.equal(await page.locator("#who-edits").getByRole("link", { name: "Routing" }).getAttribute("href"), "#/routing");
+  await page.getByText("No forms yet.", { exact: false }).waitFor();
+
+  const key = page.getByLabel("Key");
+  const create = page.getByRole("button", { name: "Create draft" });
+  await key.fill("upset");
+  await page.getByRole("alert").filter({ hasText: "That key is taken" }).waitFor();
+  assert.equal(await create.isDisabled(), true);
+  assert.equal(await key.getAttribute("aria-invalid"), "true");
+  await key.fill("Lesson Review");
+  await page.getByRole("alert").filter({ hasText: "lower case letters" }).waitFor();
+  await key.fill("lesson_review");
+  assert.equal(await create.isDisabled(), false);
+  await page.getByLabel("BPMN file to import").setInputFiles({ name: "broken.bpmn", mimeType: "application/xml",
+    buffer: Buffer.from("<definitions/>") });
+  await page.getByRole("alert").filter({ hasText: "Couldn't import broken.bpmn: line 3: a person's task needs an SLA" }).waitFor();
+  assert.deepEqual(imports, [{ xml: "<definitions/>", by: "alice" }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

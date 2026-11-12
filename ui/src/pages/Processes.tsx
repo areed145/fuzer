@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Field, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -53,9 +53,11 @@ export function ProcessesPage() {
   const statOf = (k: string): ProcessStats | undefined => stats.data?.find((x) => x.process_key === k);
   const forms = useAsync(() => api.workForms(), []);
   const [person] = usePerson();
+  const admin = useAdmin(person);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
   const groups = useMemo(() => {
@@ -65,49 +67,70 @@ export function ProcessesPage() {
   }, [defs.data]);
   const taken = groups.some(([k]) => k === key);
   const keyOk = /^[a-z][a-z0-9_]*$/.test(key) && !taken;
+  const keyProblem = !key ? null : taken ? "That key is taken. Open it in the list to change it."
+    : "Use lower case letters, digits and _, starting with a letter.";
 
   const create = async () => {
+    setError(undefined);
+    setBusy("Creating the draft…");
     try {
       await api.importDefinition(blankProcess(key, name || key), person);
       location.hash = href(`/processes/${key}`, { tab: "model" });
     } catch (e) {
-      setError((e as Error).message);
+      setError(`Couldn't create the draft: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
     }
   };
   const upload = async (f: File) => {
+    setError(undefined);
+    setBusy(`Importing ${f.name}…`);
     try {
       const rows = await api.importDefinition(await f.text(), person);
       location.hash = href(`/processes/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
     } catch (e) {
-      setError((e as Error).message);
+      setError(`Couldn't import ${f.name}: ${(e as Error).message}. Fix the file and import it again.`);
+    } finally {
+      setBusy(null);
+      if (file.current) file.current.value = "";
     }
   };
 
   return (
     <section>
       <PageHeader subtitle="How work moves between people and agents." help="workflow">Processes</PageHeader>
+      <p className="small muted" id="who-edits">Anyone who says who they are can draft a change and check it.
+        Publishing it needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
+        Which queue each type of work goes to is set on <a href={href("/routing")}>Routing</a>, not here.</p>
       <NeedName person={person} />
-      <Status loading={defs.loading} error={defs.error} />
+      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload}
+        empty={!defs.loading && !defs.error && !groups.length}>
+        No processes yet. {person ? "Create one below, or import a .bpmn file." : "Say who you are to create one."}
+      </Status>
+      {stats.error && <p className="small muted" role="status">Running counts are unavailable: {stats.error}{" "}
+        <Button size="sm" onClick={stats.reload}>Try again</Button></p>}
       {groups.length > 0 && (
-        <Table variant="list">
+        <Table variant="list" className="phone-rows" aria-label="Processes">
           <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
-            <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th /></tr></thead>
+            <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th>Open</th></tr></thead>
           <tbody>
             {groups.map(([k, vs]) => {
               const pub = vs.find((d) => d.state === "published");
               const draft = vs.find((d) => isOpenDraft(d, vs));
+              const st = statOf(k);
+              const label = pub?.name ?? vs[0].name ?? k;
               return (
                 <tr key={k}>
-                  <td><a href={href(`/processes/${k}`)}><strong>{pub?.name ?? vs[0].name ?? k}</strong></a> <span className="mono small muted">{k}</span></td>
-                  <td>{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
-                  <td>{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">—</span>}</td>
-                  <td><a href={href(`/processes/${k}`, { tab: "running" })}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
-                  <td>{statOf(k)?.waiting ?? ""}</td>
-                  <td>{statOf(k)?.overdue ? <UIBadge className="badge late">{statOf(k)!.overdue}</UIBadge> : ""}</td>
-                  <td className="small">{statOf(k) && `${hours(statOf(k)!.median_h)} / ${hours(statOf(k)!.p90_h)}`}</td>
-                  <td className="small">{statOf(k)?.sla_breach_pct != null ? `${statOf(k)!.sla_breach_pct}%` : "–"}</td>
-                  <td className="small">
-                    <a href={href(`/processes/${k}`, { tab: "model" })}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })}>Monitor</a>
+                  <td data-label="Process"><a href={href(`/processes/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
+                  <td data-label="Published">{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
+                  <td data-label="Draft">{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">none</span>}</td>
+                  <td data-label="Running"><a href={href(`/processes/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
+                  <td data-label="Steps waiting">{st?.waiting ?? "–"}</td>
+                  <td data-label="Overdue">{st?.overdue ? <UIBadge className="badge late">{st.overdue}</UIBadge> : st ? 0 : "–"}</td>
+                  <td data-label="Cycle time" className="small">{st ? `${hours(st.median_h)} / ${hours(st.p90_h)}` : "–"}</td>
+                  <td data-label="SLA missed" className="small">{st?.sla_breach_pct != null ? `${st.sla_breach_pct}%` : "–"}</td>
+                  <td data-label="Open" className="small">
+                    <a href={href(`/processes/${k}`, { tab: "model" })} aria-label={`${label}: model`}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })} aria-label={`${label}: monitor`}>Monitor</a>
                   </td>
                 </tr>
               );
@@ -117,27 +140,32 @@ export function ProcessesPage() {
       )}
 
       {person && (
-        <UICard className="">
-          <h3>New process</h3>
+        <UICard title="New process">
+          <p className="small muted">A new process starts as a draft. Nothing runs on it until it is checked and published.</p>
           <div className="actions">
-            <Input placeholder="key, e.g. lesson_review" value={key} onChange={(e) => setKey(e.target.value.trim())} />
-            <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-            <Button variant="primary" disabled={!keyOk} onClick={create}>Create draft</Button>
+            <Field label="Key" hint="lower case, e.g. lesson_review">
+              <Input value={key} aria-invalid={!!keyProblem} aria-describedby={keyProblem ? "new-key-problem" : undefined}
+                onChange={(e) => setKey(e.target.value.trim())} />
+            </Field>
+            <Field label="Name" hint="what people read, e.g. Lesson review">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Button variant="primary" disabled={!keyOk || !!busy} onClick={create}>Create draft</Button>
             <span className="muted small">or</span>
-            <Button onClick={() => file.current?.click()}>Import .bpmn</Button>
-            <Input ref={file} type="file" accept=".bpmn,.xml" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+            <Button disabled={!!busy} onClick={() => file.current?.click()}>Import .bpmn</Button>
+            <Input ref={file} type="file" accept=".bpmn,.xml" hidden aria-label="BPMN file to import"
+              onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </div>
-          {key && !keyOk && <p className="small error">{taken ? "That key is taken; open it above to edit." : "A key is lower case letters, digits and _."}</p>}
-          {error && <p className="small error">{error}</p>}
+          {keyProblem && <p className="small error" id="new-key-problem" role="alert">{keyProblem}</p>}
+          {busy && <p className="small" role="status">{busy}</p>}
+          {error && <p className="small error" role="alert">{error}</p>}
         </UICard>
       )}
 
-      <UICard className="">
-        <div className="row spread">
-          <h3>Task forms</h3>
-          {person && <a className="small" href={href("/processes/forms/new")}>New form</a>}
-        </div>
-        <Status loading={forms.loading} error={forms.error} empty={!forms.loading && !forms.data?.length}>No forms yet.</Status>
+      <UICard title="Task forms" actions={person ? <a className="small" href={href("/processes/forms/new")}>New form</a> : undefined}>
+        <Status loading={forms.loading && !forms.data} error={forms.error} onRetry={forms.reload}
+          empty={!forms.loading && !forms.error && !forms.data?.length}>
+          No forms yet. A person's step without a form asks only for a decision and a note.</Status>
         <ul className="plain">
           {forms.data?.map((f) => (
             <li key={f.key} className="row small">
