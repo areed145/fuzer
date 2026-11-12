@@ -20,6 +20,7 @@ ALARMS = "field-operations-facilities/alarms-and-instruments"
 TREATING = "field-operations-facilities/gas-treating"
 STATIC = "maintenance-integrity/static-equipment"
 WELLS = "wells-subsurface/wells-and-lift"
+RELIABILITY = "maintenance-integrity/reliability"
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
 
 
@@ -58,7 +59,7 @@ def _by_label(site: dict) -> dict:
     return {a["label"]: a for a in site["assets"]}
 
 
-@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS, STATIC, WELLS])
+@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS, STATIC, WELLS, RELIABILITY])
 def test_each_pack_works_on_okan(okan_db, path):
     site = packs.on_site(okan_db.conn, path)
     assert site["problems"] == [] and site["assets"]
@@ -82,7 +83,7 @@ def test_on_okan_the_treating_pack_says_its_glycol_contactor_is_not_instrumented
     assert {c["method"] for c in _by_label(site)["20-V-2400"]["cannot"]} == {"contactor_foaming", "treated_gas"}
 
 
-@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS, TREATING, STATIC, WELLS])
+@pytest.mark.parametrize("path", [COMPRESSION, PUMPS, ALARMS, TREATING, STATIC, WELLS, RELIABILITY])
 def test_each_pack_works_on_kestrel(kestrel, path):
     site = packs.on_site(kestrel, path)
     assert site["problems"] == [] and site["assets"]
@@ -141,3 +142,17 @@ def test_on_okan_the_wells_pack_nets_an_intervention_against_the_decline_before_
     assert (i["tests_before"], i["tests_after"], i["verdict"]) == (5, 4, "no_clear_change")
     low, high = i["oil_range_sm3d"]
     assert i["gain_sm3d"] < 0 and low < i["oil_after_sm3d"] < i["oil_expected_sm3d"] < high
+
+
+def test_on_kestrel_the_reliability_pack_finds_the_critical_compressor_without_its_packing(kestrel):
+    """P4.2g: B1-K-2001 is A-critical and its packing kit is out of stock, so its area flags a critical stock-out; two
+    years of history give no class enough repeat failures to judge a PM interval, and the pack says so."""
+    from fuzer.analysis import calcs
+
+    k = kestrel.execute("select fuzer_id from entity_label where label = 'B1-K-2001'").fetchone()["fuzer_id"]
+    s = calcs.run(kestrel, "spares_coverage", k)
+    (u,) = s["units"]
+    assert (s["flag"], u["criticality"], u["status"], u["out_of_stock"]) == ("critical_stock_out", "A", "uncovered",
+                                                                            ["MAT-K2001-PKG"])
+    pm = calcs.run(kestrel, "pm_interval", k)
+    assert (pm["value"], pm["flag"]) == (None, "insufficient_failures") and pm["pm_plans"] >= 1
