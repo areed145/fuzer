@@ -44,3 +44,6 @@ arrive:
   quality_drift: {deliver: deliveries/wet-crude, datasets: [lims_results], incremental: true, rebuild: true,
                   detector: quality_drift}
   flare_event: {not_here: "no flare flow is metered and no daily report states a flare volume"}
+  alarm_flood: {not_here: "the terminal's 36 alarmed tags never reach 10 alarms in 10 minutes in the replay"}
+  # Crude tank C's level low alarm coming back every few hours, and alarms standing for days
+  alarm_bad_actor: {detector: alarm_performance}

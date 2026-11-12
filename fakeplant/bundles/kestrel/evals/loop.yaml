@@ -44,5 +44,8 @@ arrive:
   quality_drift: {detector: quality_drift}
   # The flare during yesterday's compressor trip, matched to the downtime and the operator's log entries
   flare_event: {detector: flare_events}
+  alarm_flood: {not_here: "its 28 alarmed tags never reach 10 alarms in 10 minutes in the replay; yesterday's compressor trip peaks at 2"}
+  # The glycol reboiler's temperature low alarm, on for days as it drifts down over weeks: a bad actor for the alarm owner
+  alarm_bad_actor: {detector: alarm_performance}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}
