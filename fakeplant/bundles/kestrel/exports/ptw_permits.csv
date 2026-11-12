@@ -3,3 +3,17 @@ PTW-24101,KRGP-B1-K2001,cold work,issued,today-1d 06:00,today+2d 18:00,Mechanica
 PTW-24102,KRGP-C1-P3002B,cold work,expired,today-10d 06:00,today-3d 18:00,Mechanical maintenance crew,Glycol pump B quarterly service
 PTW-24103,KRGP-G1-G7006,electrical,issued,today-1d 06:00,today+1d 18:00,Electrical technicians,Standby generator monthly load test
 PTW-24104,KRGP-A1-V1001,confined space entry,requested,today+150d 06:00,today+170d 18:00,Mechanical maintenance crew,Internal inspection inlet separator (turnaround)
+MP-5100,50000003-LEG,cold work,closed,today-400d 06:00,today-398d 18:00,Mechanical maintenance crew,Compressor Aftercooler service (old permit system)
+MP-5101,50000006-LEG,cold work,closed,today-409d 06:00,today-407d 18:00,Mechanical maintenance crew,Glycol Circulation Pump B service (old permit system)
+MP-5102,50000009-LEG,cold work,closed,today-418d 06:00,today-416d 18:00,Mechanical maintenance crew,Condensate Transfer Pump A service (old permit system)
+MP-5103,50000012-LEG,cold work,closed,today-427d 06:00,today-425d 18:00,Mechanical maintenance crew,Compressor Discharge Scrubber service (old permit system)
+MP-5104,50000015-LEG,cold work,closed,today-436d 06:00,today-434d 18:00,Mechanical maintenance crew,TEG Reboiler service (old permit system)
+MP-5105,50000018-LEG,cold work,closed,today-445d 06:00,today-443d 18:00,Mechanical maintenance crew,Lean/Rich Amine Exchanger service (old permit system)
+MP-5106,50000021-LEG,cold work,closed,today-454d 06:00,today-452d 18:00,Mechanical maintenance crew,Lean Amine Cooler service (old permit system)
+MP-5107,50000024-LEG,cold work,closed,today-463d 06:00,today-461d 18:00,Mechanical maintenance crew,Amine Carbon Filter service (old permit system)
+MP-5108,50000027-LEG,cold work,closed,today-472d 06:00,today-470d 18:00,Mechanical maintenance crew,Low Temperature Separator service (old permit system)
+MP-5109,50000030-LEG,cold work,closed,today-481d 06:00,today-479d 18:00,Mechanical maintenance crew,Propane Accumulator service (old permit system)
+MP-5110,50000033-LEG,cold work,closed,today-490d 06:00,today-488d 18:00,Mechanical maintenance crew,Stabilizer Reboiler service (old permit system)
+MP-5111,50000036-LEG,cold work,closed,today-499d 06:00,today-497d 18:00,Mechanical maintenance crew,Condensate Storage Tank B service (old permit system)
+MP-5112,50000039-LEG,cold work,closed,today-508d 06:00,today-506d 18:00,Mechanical maintenance crew,Hot Oil Pump A service (old permit system)
+MP-5113,50000042-LEG,cold work,closed,today-517d 06:00,today-515d 18:00,Mechanical maintenance crew,Instrument Air Compressor A service (old permit system)

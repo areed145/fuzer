@@ -293,7 +293,9 @@ def clear_check_hold(conn, name: str) -> None:
 
 # ---- after a rebuild: coverage and matching ------------------------------------------------------
 
-UNRESOLVED_SHOWN = 20  # the values per link type that named nothing, most frequent first
+# the values per link type that named nothing, most frequent first: all a steward or a learned rule (P6.5) might
+# answer, bounded so a source that names nothing at all can't swell the statistics
+UNRESOLVED_KEPT = 500
 
 
 def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]], misses: dict[str, dict] | None = None) -> dict:
@@ -338,7 +340,7 @@ def after_rebuild(conn, coverage: dict[str, dict[str, list[int]]], misses: dict[
         if found := (misses or {}).get(source):
             per[source]["coverage"]["unresolved"] = {
                 rel: {"rows": sum(values.values()), "values": [{"value": v, "rows": n} for v, n in
-                                                                values.most_common(UNRESOLVED_SHOWN)]}
+                                                                values.most_common(UNRESOLVED_KEPT)]}
                 for rel, values in found.items()}
     conn.execute("delete from source_match_stat where built_at < now() - interval '90 days'")
     with conn.cursor() as cur:

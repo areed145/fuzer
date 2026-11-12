@@ -327,6 +327,24 @@ create table if not exists entity_alias (
 );
 create unique index if not exists entity_alias_current on entity_alias (norm) where retired_at is null;
 
+-- Rules the register learned from stewards (P6.5, sources/learned.py): when people have answered enough values from one
+-- source the same way (an alias whose value is the target's key with the same prefix or suffix around it), the rule
+-- is proposed; accepted, it records an alias for every like value now and after each rebuild (created_by rule:<id>).
+-- A rejected rule isn't proposed again; a withdrawn one retires the aliases it recorded.
+create table if not exists learned_rule (
+    id           bigserial primary key,
+    source       text not null,
+    kind         text not null,                  -- the key kind the core of the value is: equipment, tag, floc, ...
+    prefix       text not null default '',       -- lower case, letters and digits only
+    suffix       text not null default '',
+    status       text not null check (status in ('accepted', 'rejected', 'withdrawn')),
+    taught_by    bigint[] not null default '{}', -- the aliases it was learned from
+    decided_by   text not null,
+    decided_at   timestamptz not null default now(),
+    reason       text,
+    unique (source, kind, prefix, suffix)
+);
+
 -- What a system takes back from Fuzer (P5.7, ops/writeback.py), from its source pack: accepts (kinds), approvers,
 -- kinds.<kind>.{approvers, cadence}, adapter (export | demo_csv) and limit per run. Unset: the queue's defaults.
 alter table source_system add column if not exists writeback jsonb;
