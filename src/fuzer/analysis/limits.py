@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from ..core import db
+from ..core import db, detectors
 from ..core.exceptions import ExceptionError, exception_type, raise_exception
 from ..core.findings import DETERMINISTIC, Finding, asset, fact
 from ..core.findings import at as moment
@@ -610,6 +610,12 @@ def excursions(conn, pack, point_ids: list[str], start: datetime, end: datetime,
     return sorted(out, key=lambda x: x["start"])
 
 
+@detectors.register("iow_breaches", title="Time outside an integrity operating window past its allowed time",
+                    kind=detectors.RULE, cadence="request", raises=("iow_breach",), eval="replay:limits",
+                    needs={"historian points": detectors.POINTS,
+                           "alarm limits, IOWs or learned normal ranges":
+                               "select 1 from point_limit union all select 1 from point_normal limit 1"},
+                    found=lambda out: len(out.get("work") or []))
 def scan(conn, pack, start: str, end: str, step: int = 10, src=None, point_ids: list[str] | None = None,
          open_work: bool = True) -> dict:
     """Find excursions in [start, end] and keep them in the excursion table; one still open from the last

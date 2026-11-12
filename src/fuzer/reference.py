@@ -303,7 +303,34 @@ def methods_md() -> str:
     return "\n".join(out) + "\n"
 
 
-PAGES = {"methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
+def detectors_md() -> str:
+    """Every registered detector: what it looks for, where it applies, what it needs and what it raises."""
+    from .core import detectors, settings
+
+    reg = detectors.registry()
+    out = ["# Detectors", "", HEADER.format(what="the detector registry (`core/detectors.py`)"),
+           "Everything that looks for trouble in the data is declared once, where it is written. A detector whose "
+           "needs are missing on an asset reports \"not applicable: missing X\" and does not run.", "",
+           "| Detector | Kind | Runs | Raises | Applies to |", "|---|---|---|---|---|"]
+    for d in reg.values():
+        out.append(f"| [`{d.name}`](#{d.name}) {d.title} | {detectors.KINDS[d.kind]} | {detectors.CADENCES[d.cadence]} | "
+                   f"{', '.join(f'`{r}`' for r in d.raises)} | {', '.join(d.classes) or 'Any asset with the inputs'} |")
+    for d in reg.values():
+        out += ["", f"## {d.name}", "", f"**{d.title}.** {d.doc}".rstrip(), "",
+                f"- **Kind:** {detectors.KINDS[d.kind]}", f"- **Runs:** {detectors.CADENCES[d.cadence]}",
+                f"- **Raises:** {', '.join(f'`{r}`' for r in d.raises)}"]
+        out += [f"- **Equipment classes:** {', '.join(d.classes)}"] if d.classes else []
+        out += [f"- **Measurement roles:** {', '.join(d.roles)}"] if d.roles else []
+        out += [f"- **Needs:** {', '.join(d.needs)}"] if d.needs else []
+        out += [f"- **Setting `{k}`:** {settings.REGISTRY[k].description} (default {settings.REGISTRY[k].default})"
+                for k in d.params]
+        kind, _, where = (d.eval or "").partition(":")
+        out += [f"- **Scored by:** the replay harness, `fuzer eval --ops --detector {where}`" if kind == "replay" else
+                f"- **Scored by:** `{where}`, on the fake plant"] if d.eval else []
+    return "\n".join(out) + "\n"
+
+
+PAGES = {"detectors.md": detectors_md, "methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
          "eval-results.md": eval_results_md}
 
 

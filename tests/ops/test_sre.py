@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from fuzer.agents import mcp_server
+from fuzer.core import detectors
 from fuzer.core.pack import load_pack
 from fuzer.evals import replay
 from fuzer.ops import pipeline, sre
@@ -109,6 +110,11 @@ def test_scan_carries_on_from_the_last_run(conn):
     assert dupes == []  # still-open detections were extended, not raised again
     assert sre.scan(conn, PACK, until="2024-11-05T18:00")["windows"] == 1  # the overlap hour only
     assert [r["status"] for r in conn.execute("select status from sre_run order by id")] == ["done"] * 3
+    ran = {r["detector"]: r for r in conn.execute(  # each registered detector's run is kept, with what it found
+        "select distinct on (detector) detector, status, found from detector_run order by detector, id")}
+    assert set(ran) == {d.name for d in detectors.window()} and ran["stops"] == {
+        "detector": "stops", "status": "ran", "found": len(stop)}, ran
+    assert first["not_applicable"] == {}
 
     trip = [u for u in sre.upsets(conn, "2024-11-05T00:00") if u["start"] <= "2024-11-05T05:30"
             and "20-K-2100C" in (u["units"] or [])]

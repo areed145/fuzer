@@ -26,7 +26,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from ..core import settings
+from ..core import detectors, settings
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 
 # Words that say something stopped, in an operator's log entry (the reverse check reads these).
@@ -225,6 +225,14 @@ def title(row: dict) -> str:
     return f"Log says {about} stopped {at}: {gaps}"
 
 
+@detectors.register("records_gaps", title="Downtime, the operator log and notifications that do not agree",
+                    kind=detectors.RULE, cadence="daily", raises=("records_gap",),
+                    needs={"operator log entries": lambda conn, pack: _latest_log(conn) is not None},
+                    params=("records.lookback_days", "records.log_tolerance_hours",
+                            "records.notification_tolerance_days"),
+                    eval="test:tests/analysis/test_records.py::"
+                         "test_gaps_reach_the_ops_lead_queue_and_the_handover_and_clear",
+                    found=lambda out: len(out["raised"]))
 def watch(conn, by: str = "agent:records_check") -> dict:
     """The mismatches in the last `records.lookback_days` before the latest log entry, raised as `records_gap`
     exceptions on the ops lead queue (one per record, keyed by it); open ones whose gap has closed are cleared."""

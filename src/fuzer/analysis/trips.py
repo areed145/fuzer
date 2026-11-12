@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core import detectors
 from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
 from .calcs import CalcError, _label, read
 
@@ -557,6 +558,13 @@ def compressor_trains(conn) -> list[str]:
     return out
 
 
+@detectors.register("compressor_trips", title="A compression train tripping, with its first cause", kind=detectors.RULE,
+                    cadence="6h", raises=("machine_trip",), classes=("compressor",),
+                    roles=("running status", "vibration", "bearing temperature", "discharge temperature"),
+                    needs={"historian points": detectors.POINTS,
+                           "a compression train": lambda conn, pack: bool(compressor_trains(conn))},
+                    eval="test:tests/analysis/test_trips.py::test_trips_reach_the_ioc_with_the_restart_checklist",
+                    found=lambda out: len(out["raised"]))
 def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") -> dict:
     """Diagnose every compression train's trips in the window and raise each as a `machine_trip` exception."""
     from ..core import work

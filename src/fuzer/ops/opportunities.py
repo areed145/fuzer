@@ -26,7 +26,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings
+from ..core import detectors, settings
 
 # Defaults; the values in effect are settings (#131): opportunities.gas_lift_breakeven, .stale_days, .material
 BREAKEVEN = 0.5  # Sm3/d oil per kSm3/d lift gas: past this, more gas isn't worth it
@@ -177,6 +177,11 @@ def _material(old: dict, new: dict, share: float = MATERIAL) -> bool:
     return a is not None and b is not None and abs(b - a) > share * max(abs(a), 1e-9)
 
 
+@detectors.register("opportunities", title="Production that the day's data says is there to be had",
+                    kind=detectors.MODEL, cadence="daily", raises=("opportunity",), classes=("well",),
+                    params=("opportunities.gas_lift_breakeven", "opportunities.stale_days", "opportunities.material"),
+                    eval="test:tests/ops/test_opportunities.py::test_scan_board_and_rejection",
+                    found=lambda out: out["new"])
 def scan(conn, pack, at: str | None = None) -> dict:
     """Find the day's opportunities, keep them, open a work item for each new one, close the ones the data no
     longer supports, and leave decided ones alone unless the data changed materially."""

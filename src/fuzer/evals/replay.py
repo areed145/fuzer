@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from ..analysis import limits
-from ..core import db
+from ..core import db, detectors
 from ..sources import process_model
 
 STEP = timedelta(hours=6)
@@ -167,8 +167,7 @@ def _only(*names):
 
 
 DETECTORS = {"limits": limits_detector, "sre": sre_detector,
-             **{f"sre:{n}": _only(n) for n in ("excursions", "stops", "steps", "drifts", "instruments", "models",
-                                                       "hydraulics", "multivariate")}}
+             **{f"sre:{d.name}": _only(d.name) for d in detectors.window()}}  # every registered window detector
 
 
 def default_window(model: dict, lead_days: int = 90, days: int = 7) -> tuple[str, str]:
