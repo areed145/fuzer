@@ -1,0 +1,5 @@
+coupon_id,tag,installed,removed,weight_loss_g,rate_mm_y,pitting,analyst
+CC-KR-01,A1-V-1001,today-200d,today-110d,1.21,0.028,none,Lab B
+CC-KR-02,D1-V-4001,today-200d,today-110d,4.90,0.112,moderate,Lab B
+CC-KR-03,A1-V-1001,today-110d,today-20d,1.30,0.030,none,Lab B
+CC-KR-04,D1-V-4001,today-110d,today-20d,5.32,0.121,moderate,Lab B

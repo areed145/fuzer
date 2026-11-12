@@ -16,12 +16,19 @@ for each type and why, and the command exits 1 when any type fails. It writes ca
 Work **arrives** the way it does in production (P1.7c, Gate A). Each bundle's `evals/loop.yaml` names what brings each
 type in and the window of the bundle's history where it does: a registered detector run as a schedule runs it
 (`compressor_trips`, `machine_health`, `iow_breaches`, `records_gaps`), the window detectors through the SRE scan and
-hand-off (upsets), or a source's sync (SAP notifications). Kestrel's windows are relative (`today-1d 03:10`) like its
+hand-off (upsets), a source's sync (SAP notifications), a scheduled data check (`sync: source_health`,
+`sync: scorecard`), the next delivery in the bundle's history (`deliver: deliveries/<folder>`, loaded as a source's
+load job takes it, with `rebuild: true` for the register build that follows: a delivery with duplicate keys, one whose
+columns drifted, one whose fill dropped), a new export the mapping suggester proposes a mapping for (`suggest:`), or
+the register build's own questions (`build: true`: the stewards' questions, which run their
+queue process once the processes load, as on the API's start). Work about a source rather than an asset (records that
+match nothing, links that name nothing) says `about: source`, and its match step checks it names one of the project's
+sources. Kestrel's windows are relative (`today-1d 03:10`) like its
 process model. The arrive step takes the exception that came in, about an asset and with its own case; whatever else
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
-raised by the loop and listed as `synthetic`: today the steward questions the build raises (they open before the
-starting processes are loaded in the test fixtures) and the source and mapping types neither bundle produces. Gate A
-passed with this gap logged; #747 makes them arrive on their own.
+raised by the loop and listed as `synthetic`: today the questions a bundle's build doesn't produce (curves and drawing
+lines to confirm, round findings, and on one bundle a measurement role or a drawing disagreement), which #747 seeds
+next (Gate A passed with this gap logged). Deliveries run after the other types, since the rebuild after a load runs the detectors too.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser

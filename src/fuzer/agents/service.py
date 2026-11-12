@@ -42,19 +42,24 @@ def team():
 
 
 def start(question: str, conversation_id: str | None = None, by: str = "anonymous",
-          images: list[tuple[str, bytes]] | None = None) -> dict:
+          images: list[tuple[str, bytes]] | None = None, item_id: int | None = None, subject: str | None = None) -> dict:
     """Start answering in the background; returns the job id and conversation id at once. `images`
-    (media type, bytes) go to the configured provider with the question."""
-    from . import ask, history
+    (media type, bytes) go to the configured provider with the question. A new conversation opened from a case
+    (`item_id`) or an asset (`subject`) records it, and its first question carries that context (P4.5a); a follow-up
+    has it in the history. Raises context.Unknown for a case or asset that does not exist."""
+    from . import ask, context, history
 
     if sum(j["status"] == "running" for j in _jobs.values()) >= settings.get(None, "assistant.concurrent_questions"):
         raise Busy("The assistant is answering another question. Wait for it to finish and try again.")
     agent = team()
     with db.connect() as conn:
         _purge(conn)
+        sent = question
         if not history.exists(conn, conversation_id):
+            ctx = context.about(conn, item_id, subject)
+            sent = context.framed(question, ctx)
             conversation_id = uuid.uuid4().hex
-            history.ensure(conn, conversation_id, by, question)
+            history.ensure(conn, conversation_id, by, question, (ctx or {}).get("item_id"), (ctx or {}).get("subject"))
             conn.commit()
     session = agent.create_session(session_id=conversation_id)
     job_id = uuid.uuid4().hex[:16]
@@ -73,7 +78,7 @@ def start(question: str, conversation_id: str | None = None, by: str = "anonymou
         ASKER.set(by)  # this task's own context: what the assistant drafts belongs to who asked
         try:
             async with asyncio.timeout(settings.get(None, "assistant.timeout_seconds")):
-                out = await ask(question, agent, session, job["trace"], images)
+                out = await ask(sent, agent, session, job["trace"], images)
             job.update(status="done", answer=out["answer"], usage=out["usage"], seconds=out["seconds"],
                        specialists=out["specialists"], tools=out["tools"], recalled=out["recalled"])
         except TimeoutError:

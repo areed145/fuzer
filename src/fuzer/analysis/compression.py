@@ -107,8 +107,8 @@ def _stage(conn, label: str) -> dict:
     from ..graph import roles
     from .equipment import _stage_points, role_point
 
-    pts = dict(_stage_points(conn, label))
     stage = conn.execute("select fuzer_id from entity_label where label = %s", (label,)).fetchone()["fuzer_id"]
+    pts = dict(_stage_points(conn, stage))
     flow = role_point(conn, stage, "suction_flow")
     if flow:
         pts["q"] = flow

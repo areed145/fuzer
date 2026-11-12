@@ -241,7 +241,7 @@ def test_images_attached_to_a_question_reach_claude(monkeypatch):
     from fuzer.agents import service
 
     started = {}
-    monkeypatch.setattr(service, "start", lambda q, c, by, images: started.update(q=q, images=images) or {"job_id": "j"})
+    monkeypatch.setattr(service, "start", lambda q, c, by, images, **about: started.update(q=q, images=images, **about) or {"job_id": "j"})
     client = TestClient(api.app)
     png = plots.png({"data": [{"type": "scatter", "x": [1, 2], "y": [1, 2]}], "layout": {}})
     r = client.post("/assistant/ask", json={"question": "What does this spectrum show?",
