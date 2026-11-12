@@ -11,7 +11,13 @@ A source pack is one YAML file (`fuzer_source_pack: 1`, see `_catalog_packs` for
     fixture:          a folder of sample exports, relative to the pack file: the fake source the conformance
                       suite loads, and what a project without the real system can try it on
 
+    optional:         datasets not every site exports: loaded when the fixture has them
+
 Write-back adapters, where a system accepts one, join the contract with the write-back queue (P5.7).
+
+The built-in sources are packs too (`src/fuzer/source_packs/<system>.yaml`): each names its datasets, and `builtin`
+assembles the full pack from the built-in mapping files and readers, so a mapping lives in one place. Their
+fixtures are a bundle's exports: `conformance(..., fixture=<exports>)`.
 
 `install` puts a pack on a project in one step: its datasets on Sources, its work types on Routing and its
 detectors on Detection. `conformance` is the suite every pack must pass, against a database it may write to:
@@ -46,6 +52,56 @@ def read(path) -> tuple[str, dict, Path | None]:
         raise PackError(f"{path} is not a source pack (fuzer_source_pack: {VERSION})")
     fixture = pack.get("fixture")
     return text, pack, (path.parent / fixture).resolve() if fixture else None
+
+
+def builtin_names() -> list[str]:
+    from ..resources import SOURCE_PACKS
+
+    return sorted(p.stem for p in SOURCE_PACKS.glob("*.yaml"))
+
+
+def builtin(name: str) -> str:
+    """A built-in source pack, assembled from its manifest, the built-in mapping files and the readers."""
+    from ..resources import SOURCE_PACKS
+    from . import _catalog_io
+    from ._catalog_common import CATALOG, SYSTEM_KINDS, WHERE
+    from .ingest import READERS
+
+    path = SOURCE_PACKS / f"{name}.yaml"
+    if not path.is_file():
+        raise PackError(f"no built-in source pack {name!r} (built in: {', '.join(builtin_names())})")
+    manifest = yaml.safe_load(path.read_text())
+    system = manifest["system"]["name"]
+    files = _catalog_io.seed_files(lambda: [_catalog_io.DEFAULT_DIR])
+    by_dataset = {raw["dataset"]: (raw, text) for raw, text in files if raw.get("dataset")}
+    by_type = {(raw["source"], raw["record_type"]): text for raw, text in files}
+    datasets = []
+    for ds in manifest["datasets"]:
+        if ds in READERS:
+            r = READERS[ds]
+            datasets.append({"name": ds, "reader": ds, "mappings": [
+                {"source": r.source, "record_type": rt, "yaml": by_type[(r.source, rt)]}
+                for rt in r.record_types if (r.source, rt) in by_type]})
+            continue
+        if ds not in by_dataset:
+            raise PackError(f"built-in pack {name}: no built-in mapping or reader for dataset {ds!r}")
+        raw, text = by_dataset[ds]
+        item = {"name": ds, "record_type": raw["record_type"]}
+        for k in WHERE:
+            if raw.get(k) is not None:
+                item[k] = [raw[k]] if k == "key" and isinstance(raw[k], str) else raw[k]
+        item["load_mode"] = "append" if raw.get("watermark") else "snapshot"
+        item |= {k: v for k, v in (raw.get("catalog") or {}).items() if k in CATALOG}
+        item["mappings"] = [{"source": raw["source"], "record_type": raw["record_type"], "yaml": text}]
+        datasets.append(item)
+    pack = {"fuzer_source_pack": VERSION,
+            "system": {"name": system, **({"kind": SYSTEM_KINDS[system]} if system in SYSTEM_KINDS else {}),
+                       **{k: v for k, v in manifest["system"].items() if k != "name"}},
+            "datasets": datasets}
+    for k in ("optional", "detectors", "exception_types", "exception_rules"):
+        if manifest.get(k):
+            pack[k] = manifest[k]
+    return yaml.safe_dump(pack, sort_keys=False, allow_unicode=True, width=110)
 
 
 def detectors_of(pack: dict) -> list[str]:
@@ -85,18 +141,24 @@ def install(conn, text: str, by: str, reason: str | None = None, config: dict | 
     return report
 
 
-def conformance(conn, path, *, by: str = "conformance") -> dict:
-    """Run the conformance suite for the pack at `path` on this connection's project. Returns
-    {pack, system, problems, installed, loaded}; a pack conforms when `problems` is empty."""
+def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
+    """Run the conformance suite for a pack on this connection's project: the pack at `path`, or a built-in pack
+    by name, loading `fixture` (a folder of exports) instead of the pack's own. Returns
+    {pack, system, problems, installed, loaded, absent}; a pack conforms when `problems` is empty."""
     from . import ingest
 
     problems: list[str] = []
     try:
-        text, pack, fixture = read(path)
+        if isinstance(path, str) and path in builtin_names():
+            text = builtin(path)
+            pack, own = yaml.safe_load(text), None
+        else:
+            text, pack, own = read(path)
     except PackError as e:
         return {"pack": str(path), "system": None, "problems": [str(e)], "installed": {}, "loaded": {}}
+    fixture = Path(fixture).resolve() if fixture is not None else own
     system = (pack.get("system") or {}).get("name")
-    out = {"pack": str(path), "system": system, "problems": problems, "installed": {}, "loaded": {}}
+    out = {"pack": str(path), "system": system, "problems": problems, "installed": {}, "loaded": {}, "absent": []}
     datasets = [d for d in pack.get("datasets") or [] if isinstance(d, dict)]
     if not datasets:
         problems.append("the pack brings no datasets")
@@ -123,8 +185,14 @@ def conformance(conn, path, *, by: str = "conformance") -> dict:
         return out
     if set(again) - {"unchanged"}:
         problems.append(f"installing it again changed {sorted(set(again) - {'unchanged'})}")
+    optional = set(pack.get("optional") or [])
+    out["absent"] = sorted(n for n in optional & named if ingest.dataset(fixture, n, conn) is None)
+    wanted = sorted(named - set(out["absent"]))
+    if not wanted:
+        problems.append("its fixture has none of its datasets")
+        return out
     try:
-        loaded = ingest.ingest(conn, fixture, exports=sorted(named), trigger="api")
+        loaded = ingest.ingest(conn, fixture, exports=wanted, trigger="api")
     except Exception as e:  # a failed load is recorded on the dataset's runs; here it is a problem with the pack
         conn.rollback()
         problems.append(f"its fixture doesn't load: {type(e).__name__}: {e}")

@@ -100,3 +100,35 @@ def test_a_pack_that_breaks_the_contract_is_named_and_writes_nothing(project, tm
         report = packs.conformance(conn, _variant(tmp_path, **changes))
         assert any(problem in p for p in report["problems"]), report["problems"]
         assert conn.execute("select count(*) as n from source_system where name = 'measurement'").fetchone()["n"] == 0
+
+
+# ---- the built-in sources as packs (P1.5b) ------------------------------------------------------
+
+
+def test_every_built_in_mapping_and_reader_belongs_to_a_pack():
+    from fuzer.resources import MAPPINGS
+    from fuzer.sources.ingest import READERS
+
+    covered = set()
+    for name in packs.builtin_names():
+        for d in yaml.safe_load(packs.builtin(name))["datasets"]:
+            covered |= {(m["source"], m["record_type"]) for m in d["mappings"]}
+            assert d.get("reader") is None or d["name"] in READERS
+    every = {(r["source"], r["record_type"]) for r in map(yaml.safe_load, map(Path.read_text, MAPPINGS.glob("*.yaml")))}
+    assert every - covered == set()
+
+
+ROADMAP = ["sap", "pi", "pi_af", "ec", "dcs", "lims", "inspection", "pid", "oplog", "iow", "gis", "maximo", "oem", "edms"]
+
+
+@pytest.mark.parametrize("bundle", ["okan", "kestrel"])
+def test_the_built_in_packs_conform_on_both_bundles(project, okan_data, bundle):
+    exports = okan_data if bundle == "okan" else SHIPPED / "kestrel" / "exports"
+    results = {}
+    with project(bundle) as conn:
+        for name in packs.builtin_names():
+            results[name] = packs.conformance(conn, name, fixture=exports)
+    failing = {n: r["problems"] for n, r in results.items() if r["problems"]}
+    assert not {n: p for n, p in failing.items() if n in ROADMAP}, failing
+    for name in ROADMAP:
+        assert results[name]["loaded"]["records"] > 0, (name, results[name])
