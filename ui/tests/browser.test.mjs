@@ -913,7 +913,7 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
     type: "folder", tables: [{ table: "equipment", dataset: "contractor_equipment" }],
     subfolders: [{ name: "incoming", path: "incoming", tables: 6 }] } }));
   await page.goto(`${url}/#/sources?view=add&system=contractor&connection=4`);
-  await page.getByText("A folder connection reads only the tables directly in its folder", { exact: false }).waitFor();
+  await page.getByText("Only tables directly in its folder are read.", { exact: false }).waitFor();
   await page.getByRole("button", { name: "Add a connection for incoming/ (6 tables)" }).click();
   await page.getByRole("heading", { name: /Where is the data\?/ }).waitFor();
   assert.equal(await page.getByPlaceholder("name (default folder)").inputValue(), "incoming");
@@ -1045,7 +1045,7 @@ test("fresh Microsoft visitor gets a responsive sign-in entry without preloading
   await page.goto(url);
   await page.getByRole("heading", { name: "Investigate with evidence, not guesswork" }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Continue with Microsoft" }).getAttribute("href"), "/auth/login");
-  await page.getByText("Personal Microsoft and work/school accounts are supported.", { exact: false }).waitFor();
+  await page.getByText("Personal and work or school Microsoft accounts work.", { exact: false }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(protectedRequests, []);
 });

@@ -2,6 +2,22 @@
 
 How the detectors, the ops loop and the assistant are scored.
 
+## The loop, end to end
+
+`fuzer eval --loop` (`src/fuzer/evals/loop.py`) drives every type of work in the routing table through the loop
+with the same operations the API calls: it **arrives** about a tagged asset, is **matched** to it, **routed** where
+the routing table says, seen in someone's Inbox or on the board (**triage**), **dispatched** to a field operator
+with what to check, read on their job list with no raw ids and reported on site then done (**field**), every
+remaining decision taken until the case and the work **close**, and closed with a time and outcome a measure can
+**count**. A type the field never sees is worked at the desk instead. The report names the first step that failed
+for each type and why, and the command exits 1 when any type fails. It writes cases, so run it on a scratch copy;
+`tests/evals/test_loop.py` runs it on Okan.
+
+Decisions come from the eval's playbook, one entry per process step, and what each type's own source says when it
+raises one from `ARRIVE`; a new process or work type adds its entries there. Agent steps get a scripted answer and
+nothing calls a model. Work arrives through the front door every source uses; later epics make each type arrive from
+its own source or detector.
+
 ## Replaying history to score the detectors
 
 The SRE runs unattended, so nobody checks each thing it raises. Before trusting it, and after

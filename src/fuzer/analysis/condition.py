@@ -8,8 +8,11 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .calcs import CalcError, read
+from .forecast import LEVEL, sufficiency
 
 T90 = 1.645  # the 90 % two-sided band on a fitted slope
+TREND_MIN_DAYS = 7  # daily values a trend needs before it projects to a limit
+TREND_MAX_GAP_DAYS = 7  # a longer gap between daily values (a stop, a data outage) makes the trend thin
 
 
 def points_like(conn, tag: str, pattern: str, n: int = 60) -> list[dict]:
@@ -71,11 +74,14 @@ def daily(series: dict[str, float], keep: set[str] | None = None) -> tuple[list[
 def eta(days: list[str], ys: np.ndarray, limit: float | None, side: str = "hi", recent: int = 30) -> dict:
     """The trend of daily values over the last `recent` days (per day, r2) and, when it heads for `limit` (an upper
     one for side 'hi', a lower one for 'lo'), the day it gets there, with the earliest and latest days a 90 % band on
-    the slope allows. Already past it: `reaches` is 'now'."""
-    out = {"per_day": 0.0, "r2": 0.0, "reaches": None, "early": None, "late": None}
-    if len(days) < 7:
-        return out
+    the slope allows (`range`). Already past it: `reaches` is 'now'. `sufficiency` is the shared check (P4.6) on the
+    days the trend rests on: too few, and there is no trend and no date."""
     seg_d, seg_y = days[-recent:], ys[-recent:]
+    enough = sufficiency(seg_d, TREND_MIN_DAYS, max_gap_days=TREND_MAX_GAP_DAYS)
+    out = {"per_day": 0.0, "r2": 0.0, "reaches": None, "early": None, "late": None, "range": None, "level": LEVEL,
+           "window": enough["window"], "points": enough["points"], "sufficiency": enough}
+    if not enough["quotable"]:
+        return out
     xs = np.array([(datetime.fromisoformat(d) - datetime.fromisoformat(seg_d[0])).days for d in seg_d], float)
     slope, icpt = (float(x) for x in np.polyfit(xs, seg_y, 1))
     fit = slope * xs + icpt
@@ -100,7 +106,16 @@ def eta(days: list[str], ys: np.ndarray, limit: float | None, side: str = "hi", 
     out["reaches"] = day(slope)
     out["early"] = day(slope + (T90 * se if up else -T90 * se))
     out["late"] = day(slope - (T90 * se if up else -T90 * se))
+    out["range"] = [out["early"], out["late"]] if out["early"] else None
     return out
+
+
+def projection(what: str, point: str | None, e: dict) -> dict:
+    """One forecast entry, as every prognosis lists it: what reaches its limit, when, the range, and the shared
+    sufficiency verdict on the days behind it (P4.6)."""
+    return {"what": what, "point": point, "reaches": e["reaches"], "range": e.get("range"),
+            "level": e.get("level", LEVEL), "window": e.get("window"), "points": e.get("points"),
+            "sufficiency": e.get("sufficiency")}
 
 
 def crossed(now: float, lim: dict[str, float], side: str = "hi") -> str | None:

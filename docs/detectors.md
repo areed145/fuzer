@@ -5,7 +5,6 @@ Everything that looks for trouble in the data is declared once, where it is writ
 
 | Detector | Kind | Runs | Raises | Applies to |
 |---|---|---|---|---|
-| [`iow_breaches`](#iow_breaches) Time outside an integrity operating window past its allowed time | Rule | On request | `iow_breach` | Any asset with the inputs |
 | [`excursions`](#excursions) Outside an alarm limit, an IOW or the learned normal range while the unit runs | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 | [`stops`](#stops) A unit going from running to stopped | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 | [`steps`](#steps) A measurement stepping on a running unit | Statistical | Every 6 hours | `upset` | Any asset with the inputs |
@@ -14,21 +13,12 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`models`](#models) Equipment off its curve | Model | Once a day | `upset` | pump, well |
 | [`hydraulics`](#hydraulics) A flowline pressure drop still rising | Model | Once a day | `upset` | well |
 | [`multivariate`](#multivariate) A stretch a process area's own model cannot explain | Statistical | Once a day | `upset` | Any asset with the inputs |
+| [`iow_breaches`](#iow_breaches) Time outside an integrity operating window past its allowed time | Rule | On request | `iow_breach` | Any asset with the inputs |
 | [`compressor_trips`](#compressor_trips) A compression train tripping, with its first cause | Rule | Every 6 hours | `machine_trip` | compressor |
 | [`machine_health`](#machine_health) A rotating machine whose condition needs attention | Model | Once a day | `machine_health` | compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine |
 | [`records_gaps`](#records_gaps) Downtime, the operator log and notifications that do not agree | Rule | Once a day | `records_gap` | Any asset with the inputs |
 | [`source_health`](#source_health) A dataset that failed, is held, is stale or fails its checks | Rule | Every 30 minutes | `source_issue` | Any asset with the inputs |
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
-
-## iow_breaches
-
-**Time outside an integrity operating window past its allowed time.** Find excursions in [start, end] and keep them in the excursion table; one still open from the last scan is extended. IOW breaches past their allowed time (critical, standard) open an iow_breach work item, one per IOW while it is open (later breaches go to it as evidence).
-
-- **Kind:** Rule
-- **Runs:** On request
-- **Raises:** `iow_breach`
-- **Needs:** historian points, alarm limits, IOWs or learned normal ranges
-- **Scored by:** the replay harness, `fuzer eval --ops --detector limits`
 
 ## excursions
 
@@ -129,6 +119,16 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Needs:** historian points, a process area with 10 to 300 points
 - **Setting `sre.spe_minutes`:** Minutes a multivariate anomaly lasts before it is raised (default 120)
 - **Scored by:** the replay harness, `fuzer eval --ops --detector sre:multivariate`
+
+## iow_breaches
+
+**Time outside an integrity operating window past its allowed time.** Find excursions in [start, end] and keep them in the excursion table; one still open from the last scan is extended. IOW breaches past their allowed time (critical, standard) open an iow_breach work item, one per IOW while it is open (later breaches go to it as evidence).
+
+- **Kind:** Rule
+- **Runs:** On request
+- **Raises:** `iow_breach`
+- **Needs:** historian points, alarm limits, IOWs or learned normal ranges
+- **Scored by:** the replay harness, `fuzer eval --ops --detector limits`
 
 ## compressor_trips
 

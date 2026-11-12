@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Badge as UIBadge, Empty } from "../../ui";
 /** Shared by the Sources pages (#225): who is acting, small formatting helpers, async buttons, badges, a line diff
  * and the "rebuild needed" banner. */
 import { useState } from "react";
@@ -66,7 +66,7 @@ export function HealthBadge({ h }: { h: SourceHealth | null | undefined }) {
   if (!h) return <UIBadge>Health unknown</UIBadge>;
   return <UIBadge tone={h.state === "ok" ? "ok" : h.state === "failed" ? "danger"
     : ["stale", "held", "checks failing", "profile drift"].includes(h.state) ? "warn" : "muted"}
-    title={h.problems.join(", ") || "Recorded source health; not a live plant status"}>{h.state === "ok" ? "No reported problems" : h.state}</UIBadge>;
+    title={h.problems.join(", ") || "Recorded source health"}>{h.state === "ok" ? "No reported problems" : h.state}</UIBadge>;
 }
 
 export function Loaded({ r }: { r: SourceLoad }) {
@@ -114,7 +114,7 @@ export function lineDiff(a: string, b: string): { op: " " | "-" | "+"; line: str
 
 export function Diff({ from, to }: { from: string; to: string }) {
   const d = lineDiff(from, to);
-  if (!d.some((x) => x.op !== " ")) return <p className="muted small">No change.</p>;
+  if (!d.some((x) => x.op !== " ")) return <Empty className="small">No change.</Empty>;
   return (
     <pre className="diff mono small">
       {d.map((x, i) => <div key={i} className={x.op === "+" ? "add" : x.op === "-" ? "del" : "same"}>{x.op} {x.line}</div>)}

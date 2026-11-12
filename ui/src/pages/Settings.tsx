@@ -1,5 +1,5 @@
 import "../styles/settings.css";
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge} from "../ui";
+import { Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Empty } from "../ui";
 import { useState } from "react";
 import { api, type SettingRow, type SettingScope } from "../api";
 import { Status, href, notifyChanged, useAsync } from "../lib";
@@ -52,11 +52,6 @@ function Configuration({ query }: { query: URLSearchParams }) {
         <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
       </nav>
       {detection ? <Detection /> : !configuration ? <ApplicationReadiness list={list} /> : <>
-      <p className="muted">
-        Thresholds, caps, models and schedules. Project values override global values, then legacy environment values,
-        then defaults. Each
-        change needs a reason and is kept in the setting's history. Changes are recorded as <b>{person}</b>.
-      </p>
       <UICard className="row small">
         <label>
           Project{" "}
@@ -70,7 +65,7 @@ function Configuration({ query }: { query: URLSearchParams }) {
         </label>
         <Input aria-label="Filter settings" placeholder="filter settings" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </UICard>
-      <p className="muted small">Manage source endpoints and secret references in{" "}
+      <p className="small">Manage source endpoints and secret references in{" "}
         <a href={href("/sources", { view: "systems" })}>Systems &amp; connections</a>, not legacy source-seeding settings.</p>
       {!f && <p>Accounts, permissions and workflow assignments are managed in <a href={href("/users")}>Users</a>.</p>}
       <Status loading={list.loading && !list.data} error={list.error} empty={list.data && rows.length === 0}>
@@ -222,7 +217,7 @@ function History({ settingKey }: { settingKey: string }) {
   const h = useAsync(() => api.settingHistory(settingKey), [settingKey]);
   if (h.error) return <div className="error small">{h.error}</div>;
   if (!h.data) return null;
-  if (h.data.length === 0) return <p className="muted small">Never changed: it has always been the default.</p>;
+  if (h.data.length === 0) return <Empty className="small">Never changed: it has always been the default.</Empty>;
   return (
     <Table variant="list" density="compact">
       <tbody>

@@ -33,7 +33,7 @@ export function DemoPage({ query, stats }: {
         aria-current={s.key === step.key ? "step" : undefined}><span>{i + 1}</span>{s.label}</a></li>)}
     </ol></nav>
     <Card className="investigation-stage">
-      <p className="muted small">Step {index + 1} of {STEPS.length}</p>
+      <p className="small">Step {index + 1} of {STEPS.length}</p>
       <h2 ref={heading} tabIndex={-1} id="demo-step">{step.label}</h2>
       {step.key === "start" && <>
         <p>New to Fuzer? Start with one asset, inspect where its records came from, then compare

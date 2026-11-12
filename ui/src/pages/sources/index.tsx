@@ -25,11 +25,7 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
     return (
       <section>
         <p className="small"><a href={href("/sources")}>Sources</a> › Add a source</p>
-        <PageHeader>Add a source</PageHeader>
-        <p className="muted">
-          Five steps: the system the data comes from, where it is, which table, what its rows mean, and how it should load.
-          Nothing is loaded until the last step.
-        </p>
+        <PageHeader subtitle="Five steps. Nothing loads until the last one.">Add a source</PageHeader>
         <AddWizard system={query.get("system")} connection={query.get("connection")} table={query.get("table")} />
       </section>
     );
@@ -49,10 +45,6 @@ function SourceConfiguration({ query }: { query: URLSearchParams }) {
         <PageHeader>Sources</PageHeader>
         <ButtonLink variant="primary" href={href("/sources", { view: "add" })}>+ Add a source</ButtonLink>
       </div>
-      <p className="muted">
-        Every system of record, how Fuzer reaches it, and each dataset it delivers. Open a dataset for how it's doing and
-        to change it. Every change is kept with who made it and why.
-      </p>
       <RebuildBanner />
       {view === "datasets" && <Datasets />}
       {view === "systems" && <Systems />}
