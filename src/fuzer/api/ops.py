@@ -356,6 +356,13 @@ def plant_allocation_factor(days: int = 365, conn=Depends(get_conn)):
     return well_test_factor.trend(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/gas-lift-stability")
+def plant_gas_lift_stability(days: int = 3, conn=Depends(get_conn)):
+    """Gas lifted wells whose casing pressure heads, or whose lift gas or wellhead pressure cycles (#341)."""
+    from ..analysis import gas_lift_stability as gls
+    return gls.screen(conn, max(1, min(days, 14)))
+
+
 @router.get("/plant/well-screen")
 def plant_well_screen(conn=Depends(get_conn)):
     """Wells whose water cut stepped up or whose GOR climbed, and how old each well's latest test is (#339)."""

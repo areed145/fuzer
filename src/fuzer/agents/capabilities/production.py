@@ -134,6 +134,43 @@ def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
     return _chart(production.gas_lift_curve, {"breakeven": breakeven}, {"well": well})
 
 
+@capability("production-surveillance", "wells-subsurface", kind="calc")
+def gas_lift_stability(well: str | None = None, days: int = 3) -> dict[str, Any]:
+    """Gas lift casing heading and instability (#341). Without a well: every gas lifted well's casing pressure, lift
+    gas and wellhead pressure over the last `days` through a regularity test (Thornhill, Huang and Zhang 2003),
+    heading wells first: `heading` when the casing pressure cycles regularly with a swing of 2 % of its level or
+    more, `unstable` when lift gas or wellhead pressure does without it, with the period, the swing and which signals
+    cycle together. With a well: that well alone. Candidates for the engineer; never a gas or choke change."""
+    from ...analysis import gas_lift_stability as gls
+    days = max(1, min(days, 14))
+    with db.connect() as conn:
+        if well:
+            fid, err = _resolve(conn, well)
+            if err:
+                return err
+            try:
+                d = gls.well(conn, fid, days)
+            except gls.CalcError as e:
+                return {"error": str(e)}
+            return _plain({k: v for k, v in d.items() if k != "series"})
+        return _plain(gls.screen(conn, days))
+
+
+@capability("production-surveillance", "wells-subsurface", kind="plot")
+def plot_gas_lift_heading(well: str, days: int = 3) -> dict[str, Any]:
+    """Chart one gas lifted well's casing pressure, wellhead pressure and lift gas over the last `days`: a heading
+    well's three cycle together."""
+    from ...plots import production
+    return _chart(production.gas_lift_heading, {"days": max(1, min(days, 14))}, {"well": well})
+
+
+@capability("production-surveillance", "wells-subsurface", kind="plot")
+def plot_gas_lift_screen(days: int = 3) -> dict[str, Any]:
+    """Chart the gas lifted wells ranked by casing pressure swing over the last `days`, heading wells marked."""
+    from ...plots import production
+    return _chart(production.gas_lift_screen, {"days": max(1, min(days, 14))})
+
+
 @capability("production-surveillance", "wells-subsurface", kind="plot")
 def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
     """Chart every gas lifted well's marginal response (oil per extra lift gas) grouped by lift gas

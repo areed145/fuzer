@@ -54,6 +54,14 @@ differently.
      casing heading. The test history shows more lift gas with less oil, a negative response.
    - **Not unloading / injecting too shallow:** low rate despite injection, casing pressure high.
    - Fixes are slickline valve change-outs. Check the events and downtime for the well.
+   - **Heading and instability:** `gas_lift_stability()` screens every gas lifted well's casing pressure,
+     lift gas and wellhead pressure over the last 3 days; `heading` is the casing pressure cycling regularly
+     (with its period, swing and which signals cycle with it), `unstable` is lift gas or wellhead pressure
+     cycling without it. `plot_gas_lift_heading(well)` shows one well's three signals,
+     `plot_gas_lift_screen()` ranks the wells. Name the well, the period and the swing; the cause (a valve
+     failed open, multipointing, too little gas, a wide choke) is a question for the engineer, and say the
+     screen never proposes a gas or choke change. The `gas_lift_instability` detector already raises a heading
+     well for the production engineer: say when one is open, and pass `days` or look before it settled.
 5. **Shortfalls.** When a compression train trips, the GGCP header pressure (20-PT-3003) falls.
    - Wells furthest down the network lose lift first: satellite headers, then jackets fed through
      another jacket. Some die and need unloading to restart.

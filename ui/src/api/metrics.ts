@@ -207,6 +207,16 @@ export interface WellScreen {
       status: "current" | "stale" | "no_test_on_file" }[] };
 }
 
+/** Gas lift casing heading and instability (#341). */
+export interface GasLiftStability {
+  window: [string, string]; days: number; source: string; note: string; synthetic?: boolean;
+  thresholds: { swing_pct: number; same_period: number; step_minutes: number; min_readings: number };
+  summary: { heading: number; unstable: number; steady: number; too_little_data: number; wells: number };
+  wells: { well_id: string; well: string; verdict: "heading" | "unstable" | "steady" | "too_little_data";
+    period_min?: number | null; cycling_together?: string[]; casing_swing_bar?: number; casing_swing_pct?: number | null;
+    r?: number }[];
+}
+
 /** Allocated oil against the wells' tested offer, month by month (#338). */
 export interface AllocationFactor {
   since: string; until: string; source?: string; note: string;
@@ -233,6 +243,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
   allocationFactor: () => request<AllocationFactor>("GET", "/plant/allocation-factor"),
   wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
   backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
