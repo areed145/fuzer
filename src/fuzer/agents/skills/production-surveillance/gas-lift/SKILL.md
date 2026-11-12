@@ -55,7 +55,7 @@ differently.
    - **Not unloading / injecting too shallow:** low rate despite injection, casing pressure high.
    - Fixes are slickline valve change-outs. Check the events and downtime for the well.
    - **Heading and instability:** `gas_lift_stability()` screens every gas lifted well's casing pressure,
-     lift gas and wellhead pressure over the last 3 days; `heading` is the casing pressure cycling regularly
+     lift gas and wellhead pressure over the last `days`; `heading` is the casing pressure cycling regularly
      (with its period, swing and which signals cycle with it), `unstable` is lift gas or wellhead pressure
      cycling without it. `plot_gas_lift_heading(well)` shows one well's three signals,
      `plot_gas_lift_screen()` ranks the wells. Name the well, the period and the swing; the cause (a valve
