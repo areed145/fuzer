@@ -1,0 +1,7 @@
+iow_id,revision,tag,parameter,iow_class,low_limit,high_limit,unit,max_time_outside,damage_mechanism,response,effective_date,superseded_date
+IOW-HR-001,A,G1-TT-7006,VRU compressor discharge temperature,Critical,,150,degC,2 h,"Valve and packing damage, lube oil breakdown","Unload the compressor, check the aftercooler fan and belts",2024-01-15,
+IOW-HR-002,A,A1-PT-1005,Origin station discharge pressure,Critical,,92,barg,15 min,Overpressure of the mainline toward its MAOP (99 barg),"Cut pump speed, check block valve positions",2024-01-15,
+IOW-HR-003,A,E1-PT-5003,Tank vapour header pressure,Standard,,15,mbarg,1 h,"Floating roof seal and vent overpressure, vapour release",Start the VRU or line up the thermal oxidiser,2024-01-15,
+IOW-HR-004,A,D1-PT-4003,Terminal receipt pressure,Standard,3.0,12,barg,2 h,Column separation in the line below 3 barg; receiver overpressure above 12,Adjust D1-PV-4004 back pressure,2024-01-15,
+IOW-HR-005,A,A1-TT-1014A,Mainline pump A bearing temperature,Standard,,90,degC,4 h,"Bearing wear, lube oil breakdown","Check oil level and cooler, plan a bearing change",2024-01-15,
+IOW-HR-006,A,G1-VT-7007,VRU compressor frame vibration,Standard,,7.1,mm/s,4 h,Crosshead and foundation bolt loosening,"Reduce load, inspect frame bolts",2024-01-15,

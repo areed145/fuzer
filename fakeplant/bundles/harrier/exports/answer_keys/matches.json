@@ -1,0 +1,128 @@
+[
+ {
+  "source": "maximo",
+  "key": "MX-P1003A",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000005"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P1003B",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000006"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P1003C",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000007"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P2001A",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000012"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P2001B",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000013"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P6001A",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000024"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P6001B",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000025"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-K7001",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000029"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-K8001",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000031"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-P8003",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000032"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-G8004",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "60000033"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-7003",
+  "case": "score",
+  "same_as": {
+   "source": "sap",
+   "key": "60000030"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-6012",
+  "case": "review",
+  "same_as": {
+   "source": "sap",
+   "key": "60000027"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-1002A",
+  "case": "review",
+  "same_as": {
+   "source": "sap",
+   "key": "60000002"
+  }
+ }
+]

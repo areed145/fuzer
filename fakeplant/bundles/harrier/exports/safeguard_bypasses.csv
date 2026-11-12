@@ -1,0 +1,4 @@
+bypass_id,safeguard_id,state,bypassed_from,expires,reason,authorised_by,moc
+BYP-HR-014,SG-HR-003,removed,today-12d 08:00,today-11d 17:00,Vibration probe replaced on the VRU frame,Terminal superintendent,
+BYP-HR-017,SG-HR-001,active,today-4d 09:00,today-1d 18:00,Tank A radar gauge serviced; bypassed until the instrument technician recommissions it,Shift supervisor,
+BYP-HR-018,SG-HR-005,active,today 07:00,today+2d 07:00,Midline pump A out for its seal repair,Terminal superintendent,MOC-HR-0087

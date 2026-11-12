@@ -1,0 +1,6 @@
+aufnr,order_type,qmnum,equnr,floc,start,finish,basic_finish,status,priority,revision,activity_code,cost,text,arbpl
+40009001,PM01,10007003,60000012,HRPT-B1-P2001A,today-3d,,today+4d,REL,2,,AC-REPL,5200,"Replace mechanical seal, midline pump A",MECH
+40009002,PM01,10007004,60000004,HRPT-A1-F1007,today-2d,,today+2d,REL,3,,AC-SVC,900,Change over and clean mainline suction strainer,MECH
+40009003,PM01,,60000029,HRPT-G1-K7001,today-60d,today-59d,today-59d,TECO,3,,AC-SVC,3100,VRU compressor 4000 hour service,MECH
+40009004,PM02,,60000026,HRPT-F1-FT6010,today-9d,today-9d,today-9d,TECO,2,,AC-CHK,600,Prove custody transfer meter before loading,INST
+40009005,PM01,10007005,60000019,HRPT-D1-FT4002,today-6d,,today+8d,REL,3,,AC-ADJ,1400,Check receipt meter diagnostics and clean transducers,INST

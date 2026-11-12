@@ -1,0 +1,7 @@
+manufacturer,model,curve,series,x,y,x_unit,y_unit
+Flowserve,DVSH-10x12,pump,head,0,1050,m3/h,m
+Flowserve,DVSH-10x12,pump,head,200,1012,m3/h,m
+Flowserve,DVSH-10x12,pump,head,300,966,m3/h,m
+Flowserve,DVSH-10x12,pump,head,400,900,m3/h,m
+Flowserve,DVSH-10x12,pump,head,500,816,m3/h,m
+Flowserve,DVSH-10x12,pump,head,560,755,m3/h,m

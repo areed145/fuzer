@@ -113,6 +113,16 @@ def zone_of(v: float, bounds: tuple[float, float, float]) -> str:
     return "A" if v < bounds[0] else "B" if v < bounds[1] else "C" if v < bounds[2] else "D"
 
 
+def zone_d_date(last: str, now: float, per_week: float, trip: float) -> str | None:
+    """The day a rising vibration reaches zone D at its weekly rate, or None when it isn't rising or the day is further
+    off than HORIZON_DAYS: a rate that slow (a near-flat trend) says nothing about when, and would overflow the date."""
+    from .condition import HORIZON_DAYS
+
+    if per_week <= 0 or trip <= now or (trip - now) / per_week * 7 > HORIZON_DAYS:
+        return None
+    return (datetime.fromisoformat(last) + timedelta(weeks=(trip - now) / per_week)).date().isoformat()
+
+
 def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: str | None = None,
               foundation: str = "rigid", src=None) -> dict:
     from ..graph import roles
@@ -161,9 +171,7 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
         raise CalcError("the vibration points have too few readings in that window")
     zone = zone_of(worst["now"], bounds)
     rising = worst["per_week"] > 0.05 * bounds[1] and worst["r2"] >= 0.5
-    to_d = None
-    if worst["per_week"] > 0 and zone != "D":
-        to_d = (datetime.fromisoformat(worst["last"]) + timedelta(weeks=(bounds[2] - worst["now"]) / worst["per_week"]))
+    to_d = zone_d_date(worst["last"], worst["now"], worst["per_week"], bounds[2]) if rising and zone != "D" else None
     flag = "zone_d" if zone == "D" else "zone_c" if zone == "C" else "rising" if rising else None
     return result(round(worst["now"], 2), bounds[0], flag,
                   f"overall vibration, median of the last 3 days of daily medians, on the highest of {len(pts)} "
@@ -175,7 +183,7 @@ def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: s
                   [tag, worst["id"]], unit="mm/s RMS", zone=zone, zones={"A/B": bounds[0], "B/C": bounds[1],
                                                                         "C/D": bounds[2]},
                   group=group, foundation=foundation, point=worst["point"], trend_mm_s_per_week=round(worst["per_week"], 3),
-                  trend_r2=round(worst["r2"], 2), reaches_zone_d=to_d.date().isoformat() if to_d and rising else None,
+                  trend_r2=round(worst["r2"], 2), reaches_zone_d=to_d,
                   data_from=worst["first"], data_to=worst["last"], readings=worst["readings"], daily=worst["daily"][-60:])
 
 

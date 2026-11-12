@@ -1,0 +1,37 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -112.4,
+      47.62
+     ],
+     [
+      -111.72,
+      47.48
+     ],
+     [
+      -110.95,
+      47.31
+     ]
+    ]
+   },
+   "properties": {
+    "line_id": "HR-PL-001",
+    "name": "24\" crude mainline, Harrier origin to terminal",
+    "service": "crude oil",
+    "from_floc": "HRPT-A1",
+    "to_floc": "HRPT-D1",
+    "diameter_in": 24,
+    "length_km": 210,
+    "mop_barg": 99,
+    "install_year": 2018,
+    "status": "in service"
+   }
+  }
+ ]
+}

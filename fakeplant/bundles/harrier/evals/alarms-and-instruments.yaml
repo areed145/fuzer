@@ -1,0 +1,9 @@
+# Answer keys for the alarms-and-instruments specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): its alarms and instruments are the pump stations', the tanks' and the VRU's.
+- question: Over the last seven days, is the terminal's alarm rate within target, and which alarms are standing?
+  must_mention: [[alarm rate, per hour, per 10 minutes], [standing, none standing, no standing]]
+  specialists: [field-operations-facilities]
+- question: Can we trust the oxidiser firebox temperature H1-TT-8007?
+  must_mention: [H1-TT-8007, [barg, units, engineering unit]]
+  specialists: [field-operations-facilities]

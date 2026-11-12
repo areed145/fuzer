@@ -1,0 +1,6 @@
+event_id,object_code,start,end,reason_code,lost_oil_sm3,lost_gas_ksm3,comment
+HRDT-0001,HRPT,today-150d 06:00,today-149d 18:00,PLAN-MAINT,18000,0,Planned line shutdown for C1-XV-3001 valve repair and pig launcher work
+HRDT-0002,HRPT,today-77d 15:20,today-77d 16:30,VRU-TRIP,0,0,VRU G1-K-7001 tripped on high discharge temperature; vapours to oxidiser
+HRDT-0003,HRPT,today-4d 09:35,today+3d,PUMP-FAIL,0,0,Midline pump A seal leak; running on B only
+HRDT-0004,HRPT,today-1d 02:45,today-1d 06:20,VRU-TRIP,0,0,VRU tripped on high discharge temperature; aftercooler fan belt off
+HRDT-0005,HRPT,today-3d 22:10,today-3d 23:40,PUMP-FAIL,260,0,Origin station stopped; restarted by the night crew

@@ -1,0 +1,8 @@
+point_id,round,area,sort,floc,what,kind,unit,low,high
+R-G1-01,Terminal rounds,G1,1,HRPT-G1-K7001,Lube oil pressure,reading,barg,2.5,5.0
+R-G1-02,Terminal rounds,G1,2,HRPT-G1-K7001,Frame vibration,reading,mm/s,0,7.1
+R-G1-03,Terminal rounds,G1,3,HRPT-G1-E7003,Aftercooler fan turning,check,,,
+R-E1-01,Terminal rounds,E1,4,HRPT-E1-T5001A,Roof drain clear,check,,,
+R-A1-01,Origin station rounds,A1,1,HRPT-A1-P1003A,Seal pot level,reading,%,30,90
+R-A1-02,Origin station rounds,A1,2,HRPT-A1-F1007,Strainer local dP gauge,reading,bar,0,0.7
+R-B1-01,Midline rounds,B1,1,HRPT-B1-P2001B,Pump bearing temperature (gun),reading,degC,20,85

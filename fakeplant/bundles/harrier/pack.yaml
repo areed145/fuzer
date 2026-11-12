@@ -1,0 +1,108 @@
+# Asset pack for the Harrier crude pipeline and terminal (HRPT), a fictional pipeline system. Areas are named by a
+# letter and a digit along the oil's path: A1 origin pump station, B1 midline pump station (KP 110), C1 the mainline
+# and its block valves, D1 terminal receipt, E1 tank farm, F1 ship loading and custody transfer, G1 vapour recovery,
+# H1 utilities and the thermal oxidiser. Tags carry 4-digit loops: A1-PT-1005, written HRPT-A1-PT1005 (SAP),
+# HRPT:A1.PT1005.PV (PI), "PT1005 (A1 ORIGIN)" (Maximo).
+name: harrier
+facility: HRPT
+data_notice: Fictional, synthetic data for a third demonstration asset, not a live operating update.
+
+tag_grammar:
+  area: '[A-H]\d'
+  loop_digits: [4, 4]
+  function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, ST, PDT, XV, PV, PSV]
+
+# A pipeline has no wells. A pack still declares a well grammar (core/pack.py reads it unconditionally), so this one
+# names a pattern no Harrier source writes.
+well_grammar:
+  pattern: 'HRW[-_\s]?(?P<num>\d{3})'
+  key: 'HRW-{num}'
+
+aliases:
+  harrier: [facility, HRPT]
+  origin station: [area, HRPT-A1]
+  midline station: [area, HRPT-B1]
+  mainline: [area, HRPT-C1]
+  terminal: [area, HRPT-D1]
+  tank farm: [area, HRPT-E1]
+  jetty: [area, HRPT-F1]
+  vru: [tag, G1-K-7001]
+  vapour recovery compressor: [tag, G1-K-7001]
+  oxidiser: [tag, H1-H-8006]
+  origin meter: [tag, A1-FT-1010]
+  receipt meter: [tag, D1-FT-4002]
+  custody meter: [tag, F1-FT-6010]
+
+matching:
+  equipment:
+    auto_accept: 0.90
+    review_min: 0.60
+
+survivorship:
+  default:
+    priority: [review, sap, maximo, pi]
+    review_on_conflict: false
+  fields:
+    manufacturer: {priority: [review, sap, maximo], review_on_conflict: true}
+    description: {priority: [review, sap, maximo, pi]}
+    uom: {priority: [review, pi]}
+
+classification:
+  taxonomy: iso14224
+  tag_functions:
+    P: PU
+    K: CO
+    E: HE
+    H: HB
+    T: TA
+    F: FS
+    G: EG
+    V: VE
+    PT: IP.PR
+    TT: IP.TE
+    LT: IP.LE
+    FT: IP.FL
+    PDT: IP.DP
+    VT: IP.VI
+    XV: VA.ES
+    PV: VA.CO
+    PSV: VA.PS
+  templates:
+    Reciprocating Compressor: CO.RE
+    Air Compressor: CO
+    Centrifugal Pump: PU.CE
+    Air Cooler: HE.AC
+    Pressure Vessel: VE
+    Fired Heater: HB
+    Storage Tank: TA
+    Generator: EG
+    Strainer: FS
+  description_types:
+    scrubber: SC
+    cooler: AC
+    launcher: VE
+    receiver: VE
+    trap: VE
+    prover: VE
+  manufacturer_aliases:
+    ariel: Ariel Corporation
+    caterpillar: Caterpillar
+    cat: Caterpillar
+    atlas copco: Atlas Copco
+    flowserve: Flowserve
+    sulzer: Sulzer
+  extra_classes: {}
+
+# Harrier's own SAP catalog codes, mapped onto ISO 14224.
+maintenance_codes:
+  damage: {DM-VIB: VIB, DM-LEAK: ELP, DM-OHT: OHE, DM-PDE: PDE, DM-PLU: PLU, DM-SIG: AIR}
+  cause: {CA-WEAR: "2.4", CA-FOUL: "5.1", CA-FAN: "2.4", CA-WAX: "5.1"}
+  activity: {AC-REPL: "1", AC-REP: "2", AC-ADJ: "4", AC-CHK: "6", AC-SVC: "7", AC-INSP: "9"}
+
+# Energy Components downtime reasons at Harrier. "equipment" reasons are expected to name the equipment.
+downtime_reasons:
+  PLAN-MAINT: {name: Planned maintenance, category: planned}
+  VRU-TRIP: {name: Vapour recovery compressor trip, category: equipment}
+  PUMP-FAIL: {name: Pump failure, category: equipment}
+  POWER: {name: Utility power loss, category: external}
+  SHIP-DELAY: {name: Tanker delay, category: external}

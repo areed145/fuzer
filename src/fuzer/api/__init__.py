@@ -23,6 +23,7 @@ from . import (
     jobs,
     knowledge,
     metrics,
+    onboarding,
     ontology,
     ops,
     settings,
@@ -68,7 +69,7 @@ app.include_router(hooks.router)  # authenticated by each system's shared secret
 if (UI_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
 
-for module in (home, investigation, entities, knowledge, ops, metrics, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs):  # in this order: FastAPI matches routes in the order they were added
+for module in (home, investigation, entities, knowledge, ops, metrics, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs, onboarding):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)
 app.add_exception_handler(GateRefused, workflow.work_error)

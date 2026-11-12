@@ -18,7 +18,7 @@ flowchart LR
   c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 23 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
-  c_api["API<br><small>fuzer.api, 19 modules</small>"]
+  c_api["API<br><small>fuzer.api, 20 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 30 modules</small>"]
   c_sources --> c_graph
@@ -54,6 +54,7 @@ flowchart LR
   c_workflow --> c_api
   c_agents --> c_cli
   c_analysis --> c_cli
+  c_api --> c_cli
   c_evals --> c_cli
   c_graph --> c_cli
   c_ops --> c_cli
@@ -295,7 +296,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `onboarding`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `access_login`, `access_session`, `feedback`, `pinned_link`, `value_ranking` ([schema](schema.md))
 - **Settings:** `access.session_hours`, `agents.case_cap_usd`, `demo.enabled` ([settings](settings.md))
@@ -306,7 +307,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 - **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `demo_seed`, `deploy`, `sources`, `up`
-- **Uses:** agents, analysis, core, evals, graph, ops, sources, workflow
+- **Uses:** agents, analysis, api, core, evals, graph, ops, sources, workflow
 - **Writes:** `llm_extraction` ([schema](schema.md))
 - **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)
 

@@ -1,0 +1,40 @@
+tag,descriptor,engunits,pointsource
+HRPT:A1.LT1001.PV,Breakout Tank Level,%,OPC
+HRPT:A1.PT1004.PV,Mainline Suction Pressure,barg,OPC
+HRPT:A1.PT1005.PV,Station Discharge Pressure,barg,OPC
+HRPT:A1.VT1013A.PV,Mainline Pump A Vibration,mm/s,OPC
+HRPT:A1.VT1013B.PV,Mainline Pump B Vibration,mm/s,OPC
+HRPT:A1.VT1013C.PV,Mainline Pump C Vibration,mm/s,OPC
+HRPT:A1.TT1014A.PV,Mainline Pump A Bearing Temperature,degC,OPC
+HRPT:A1.TT1014B.PV,Mainline Pump B Bearing Temperature,degC,OPC
+HRPT:A1.TT1014C.PV,Mainline Pump C Bearing Temperature,degC,OPC
+HRPT:A1.PDT1007.PV,Mainline Suction Strainer Differential Pressure,bar,OPC
+HRPT:A1.FT1010.PV,Origin Meter Crude Flow,sm3/d,OPC
+HRPT:B1.PT2003.PV,Midline Suction Pressure,barg,OPC
+HRPT:B1.PT2004.PV,Midline Discharge Pressure,barg,OPC
+HRPT:B1.VT2013A.PV,Midline Pump A Vibration,mm/s,OPC
+HRPT:B1.VT2013B.PV,Midline Pump B Vibration,mm/s,OPC
+HRPT:C1.PT3011.PV,Mainline Pressure KP 42,barg,OPC
+HRPT:C1.PT3012.PV,Mainline Pressure KP 160,barg,OPC
+HRPT:D1.FT4002.PV,Terminal Receipt Meter Crude Flow,sm3/d,OPC
+HRPT:D1.PT4003.PV,Terminal Receipt Pressure,barg,OPC
+HRPT:E1.LT5001A.PV,Crude Tank A Level,%,OPC
+HRPT:E1.LT5001B.PV,Crude Tank B Level,%,OPC
+HRPT:E1.LT5001C.PV,Crude Tank C Level,%,OPC
+HRPT:E1.PT5003.PV,Tank Vapour Header Pressure,mbarg,OPC
+HRPT:F1.PT6003.PV,Loading Pump Discharge Pressure,barg,OPC
+HRPT:F1.FT6010.PV,Custody Transfer Meter Crude Flow,sm3/d,OPC
+HRPT:G1.LT7002.PV,Vapour Recovery Scrubber Level,%,OPC
+HRPT:G1.PT7004.PV,Vapour Recovery Compressor Suction Pressure,barg,OPC
+HRPT:G1.PT7005.PV,Vapour Recovery Compressor Discharge Pressure,barg,OPC
+HRPT:G1.PT7010.PV,Vapour Recovery Compressor Interstage Pressure,barg,OPC
+HRPT:G1.TT7006.PV,Vapour Recovery Compressor Discharge Temperature,degC,OPC
+HRPT:G1.VT7007.PV,Vapour Recovery Compressor Frame Vibration,mm/s,OPC
+HRPT:G1.ST7008.PV,Vapour Recovery Compressor Speed,rpm,OPC
+HRPT:G1.PT7009.PV,Vapour Recovery Compressor Lube Oil Pressure,barg,OPC
+HRPT:G1.TT7021.PV,Vapour Recovery Compressor Cylinder 1 Discharge Temperature,degC,OPC
+HRPT:G1.TT7022.PV,Vapour Recovery Compressor Cylinder 2 Discharge Temperature,degC,OPC
+HRPT:G1.TT7011.PV,Vapour Recovery Aftercooler Outlet Temperature,degC,OPC
+HRPT:H1.PT8002.PV,Instrument Air Header Pressure,barg,OPC
+HRPT:H1.TT8007.PV,Oxidiser Firebox Temperature,barg,OPC
+HRPT:H1.FT8005.PV,Thermal Oxidiser Vapour Flow,sm3/h,OPC

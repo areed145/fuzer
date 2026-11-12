@@ -1,0 +1,9 @@
+# Answer keys for the metering-and-balances specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): the line is metered at the origin (A1-FT-1010), the terminal receipt (D1-FT-4002) and custody transfer (F1-FT-6010).
+- question: The terminal receipts look high against the origin this week. Which meter is reading wrong?
+  must_mention: [D1-FT-4002, A1-FT-1010, [drift, drifting, reads high, reading high, 3], [prove, proving, calibrat, third meter, diagnos]]
+  specialists: [production-surveillance]
+- question: Can you give me an allocation factor for the terminal receipt meter?
+  must_mention: [D1-FT-4002, [no wells, no well tests, without well tests, cannot, can't]]
+  specialists: [production-surveillance]

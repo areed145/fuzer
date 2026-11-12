@@ -1,0 +1,21 @@
+# Harrier crude pipeline and terminal: a third, fictional asset of another type (P8.4, Gate C). Not a plant: a 210 km
+# 24 inch crude oil line from an origin pump station (A1) through a midline pump station at KP 110 (B1) to a coastal
+# terminal (D1 receipt, E1 tank farm, F1 ship loading and custody transfer, G1 vapour recovery, H1 utilities and the
+# thermal oxidiser). It has no wells. It shares no configuration with Okan or Kestrel, and runs the standard operating
+# model with no deviations. Its historian is the synthetic one driven by exports/process_model.json: yesterday the
+# vapour recovery compressor's aftercooler fan lost its belt and the compressor tripped on discharge temperature,
+# sending tank vapours to the oxidiser; the midline runs on one pump after a seal leak; the origin strainer is plugging
+# with wax; and the terminal's receipt meter has read high for a week. Dates are relative to the day they're read.
+#
+#   fuzer init --bundle fakeplant/bundles/harrier     # in a fresh database
+#   fuzer ingest && fuzer rebuild
+bundle: 1
+name: harrier
+description: "Harrier crude pipeline and terminal (fictional): origin and midline pump stations, 210 km mainline, terminal tank farm, ship loading, vapour recovery."
+pack: pack.yaml
+project:
+  data: exports
+  timeseries: synthetic
+  timezone: America/Edmonton
+roster: roster.yaml
+operating_model: {name: standard, version: 1}
