@@ -18,6 +18,10 @@ Fuzer properties are attributes in the `fuzer:` namespace:
   `fuzer:escalateTo` (the role that gets it once the SLA passes), `fuzer:form` (form-js form key),
   `fuzer:dispatch` (`triage=field_check`: the form data that completes it when the IOC dispatches the case to
   someone outside its role, so the process goes to its own field step and that step is handed to them).
+- gates (P5.10): `fuzer:gate` on a userTask names a fixed gate (`field_dispatch`, `close_safety_case`, ...): a gate
+  step, which no agent claims, completes or is handed; a userTask with `fuzer:dispatch` must be a `field_dispatch` gate. On a
+  serviceTask it names a confidence gate (`agent_disposition`, ...): the agent's result goes ahead only at or above
+  the policy's threshold, else the step stops at `fuzer:gateRole` (else its fallbackRole, else the owner).
 - serviceTask: `fuzer:agent`, `fuzer:fallbackRole` (who gets it when the agent keeps failing),
   `fuzer:component` (canvas preset) and `fuzer:instructions` (parameters passed to the agent worker).
 
@@ -87,6 +91,14 @@ class Node:
     @property
     def requires_human(self) -> bool:
         return str(self.attrs.get("requiresHuman", "")).lower() in ("true", "1", "yes")
+
+    @property
+    def fixed_gate(self) -> str | None:
+        """The fixed gate this person's step is (P5.10): no agent claims, completes or is handed it."""
+        from ..core.gates import FIXED
+
+        gate = self.attrs.get("gate")
+        return gate if self.type == "userTask" and gate in FIXED else None
 
     @property
     def role(self) -> str | None:
@@ -265,6 +277,7 @@ def _check_process(p: Process, known: set[str], person_roles: set[str], agent_ro
                 out.append(Problem(n.id, "a requiresHuman step can't be given to an agent; make it a user task"))
             if (fb := n.attrs.get("fallbackRole")) and fb not in person_roles:
                 out.append(Problem(n.id, f"unknown role '{fb}'"))
+            out += _check_gate(n, person_roles)
         elif n.type == "callActivity":
             if not n.called:
                 out.append(Problem(n.id, "a call activity needs calledElement"))
@@ -293,6 +306,25 @@ def _check_process(p: Process, known: set[str], person_roles: set[str], agent_ro
     return out
 
 
+def _check_gate(n: Node, person_roles: set[str]) -> list[Problem]:
+    """A gate names a fixed gate on a person's step, a confidence gate on an agent's (P5.10)."""
+    from ..core.gates import CONFIDENCE, FIXED
+
+    gate = n.attrs.get("gate")
+    if not gate:
+        return []
+    if n.type == "userTask" and gate not in FIXED:
+        return [Problem(n.id, f"'{gate}' isn't a fixed gate ({', '.join(FIXED)})")]
+    if n.type == "serviceTask":
+        if gate in FIXED:
+            return [Problem(n.id, f"{FIXED[gate].lower()} always needs a person: make it a person's task")]
+        if gate not in CONFIDENCE:
+            return [Problem(n.id, f"'{gate}' isn't a confidence gate ({', '.join(CONFIDENCE)})")]
+        if (role := n.attrs.get("gateRole")) and role not in person_roles:
+            return [Problem(n.id, f"unknown role '{role}' in gateRole")]
+    return []
+
+
 def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Problem]:
     out = []
     lane = n.lane or {}
@@ -305,6 +337,10 @@ def _check_user_task(p: Process, n: Node, person_roles: set[str]) -> list[Proble
         out += _syntax(n.id, n.role[1:])
     elif n.role not in person_roles:
         out.append(Problem(n.id, f"unknown role '{n.role}'"))
+    out += _check_gate(n, person_roles)
+    if via := n.attrs.get("dispatch"):
+        if n.attrs.get("gate") != "field_dispatch":
+            out.append(Problem(n.id, 'a step that dispatches to the field is a gate: set fuzer:gate="field_dispatch"'))
     if (via := n.attrs.get("dispatch")) is not None and not re.fullmatch(r"\s*\w+\s*=\s*[^,=]+(,\s*\w+\s*=\s*[^,=]+)*", via):
         out.append(Problem(n.id, f"dispatch '{via}' isn't key=value pairs (triage=field_check)"))
     if (esc := n.attrs.get("escalateTo")) and esc not in person_roles:

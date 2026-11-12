@@ -128,9 +128,10 @@ def test_agent_hands_a_step_to_a_person(conn):
     assert out["to"] == "role:engineer"
     queue = engine.my_work(conn, "alice")["queue"]
     assert diagnose in [t["task_id"] for t in queue]
+    # triage can send people to the field: a fixed gate (P5.10), so no agent claims it
     triage = step(conn, upset(conn, "inc-hand-2"), "triage")
-    mcp("claim_work", task_id=triage, agent="sre")
-    assert triage in [t["task_id"] for t in mcp("my_work", agent="sre")["tasks"]]
+    assert "needs a person" in mcp("claim_work", task_id=triage, agent="sre")["error"]
+    assert triage not in [t["task_id"] for t in mcp("my_work", agent="sre")["tasks"]]
 
 
 def test_inbox_api(conn):
