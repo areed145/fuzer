@@ -145,10 +145,10 @@ def conformance(path: str) -> list[str]:
 def coverage(conn, pack: dict, asset: str) -> dict:
     """What `pack` can and cannot run on `asset`: each method in its `needs` whose roles are all measured on the asset
     (or its instruments), and each one that is missing some, with the roles it lacks."""
-    from ..graph import roles
+    from ..graph import roles as measured
     from ..sources.timeseries import _unit_points
 
-    on = set(roles.of(conn, [p["id"] for p in _unit_points(conn, asset, 100)]).values())
+    on = set(measured.of(conn, [p["id"] for p in _unit_points(conn, asset, 100)]).values())
     can, cannot = [], []
     for method, need in (pack.get("needs") or {}).items():
         if missing := [r for r in need or () if r not in on]:
