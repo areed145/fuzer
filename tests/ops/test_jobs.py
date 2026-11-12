@@ -155,3 +155,9 @@ def test_source_asset_uses_shared_execution_once_and_propagates_failure(fuzer, m
     result = dg.materialize([jobs._source_asset("sap_equipment")], resources={"fuzer": fuzer}, raise_on_error=False)
     assert not result.success and result.get_asset_materialization_events() == []
     assert calls == [(["sap_equipment"], {"trigger": "manual", "allow_missing": True})]
+
+
+def test_runs_execute_in_one_process():
+    """A run's steps share its process: a step subprocess per run doubled memory on the deployed instance."""
+    for job in jobs.defs.resolve_all_job_defs():
+        assert job.executor_def.name == dg.in_process_executor.name, job.name
