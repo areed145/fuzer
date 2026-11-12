@@ -44,3 +44,13 @@ def test_conformance_names_what_is_wrong(monkeypatch):
 
 def test_the_pack_is_one_skill_so_its_version_covers_the_manifest_and_eval():
     assert COMPRESSION in ledger.skill_versions(["maintenance-integrity"])
+
+
+def test_the_capabilities_page_lists_each_pack_from_its_manifest():
+    from fuzer.agents import capabilities
+
+    page = capabilities.catalogue()
+    p = packs.load(COMPRESSION)
+    section = page.split(f"### {p['title']}", 1)[1].split("###", 1)[0].split("## ", 1)[0]
+    assert f"`{COMPRESSION}`" in section and "API 618" in section  # methods with the standards they cite
+    assert all(f"`{d}`" in section for d in p["detectors"]) and all(f"`{r}`" in section for r in p["roles"])

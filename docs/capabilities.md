@@ -78,6 +78,21 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `shared/charts` | Shared | every agent | all | When and how to put interactive charts in an answer - which plot tool fits which question, how to read and cite a chart's summary, and when (rarely) to look at the image. | `look_at_figure`, `plot_backlog`, `plot_bad_actors`, `plot_bar`, `plot_changes`, `plot_choke`, `plot_compliance`, `plot_correlation`, `plot_custom`, `plot_decline`, `plot_distribution`, `plot_gas_lift_allocation`, `plot_gas_lift_curve`, `plot_incident`, `plot_instrument_health`, `plot_measurements`, `plot_pump_curve`, `plot_reliability`, `plot_trend`, `plot_vibration`, `plot_wall_thickness`, `plot_water_diagnostic`, `plot_xy` | Whichever records each plot tool reads. | Interactive figures with their markers and a sentence on what each shows. | Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list. |
 | `shared/analysis` | Shared | every agent | Data Scientist / Operations Research Analyst | Reusable analysis methods - comparing periods, detecting changes, correlation, clustering and kept studies - with the assumptions, data sufficiency and uncertainty to state with each result. | `cluster_entities`, `cluster_events`, `cluster_modes`, `compare_periods`, `correlate`, `correlation_matrix`, `detect_changes`, `get_study`, `plot_correlation`, `start_study`, `trace_flow` | PI process values, detected upsets and well tests; results depend on the time-series source. | Correlations, clusters and period comparisons with assumptions, sample size and uncertainty. | Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics. |
 
+## Specialist packs
+
+A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4.1, `agents/packs.py`); each pack passes the pack conformance test. Each shipped bundle holds its answer keys in `evals/<pack>.yaml`.
+
+### Compression
+
+- **Skill:** `maintenance-integrity/compression`, loaded by Maintenance & Integrity
+- **Equipment classes (ISO 14224):** CO
+- **Methods:** `compressor_performance` (Engineering practice), `cooler_fouling` (Engineering practice), `gas_performance` (ASME PTC 10 (Schultz polytropic analysis); ISO 5389), `lube_oil` (API 614), `power_balance` (ASME PTC 10), `protection` (API 670), `rod_load` (API 618), `rotating_health` (ISO 14224 (rotating classes); each check that applies cites its own standard), `seal_gas` (API 692), `surge` (Engineering practice), `surge_events` (Engineering practice), `valve_health` (API 618)
+- **Detectors:** `machine_health`, `compressor_trips`
+- **Briefs:** `machine_health`, `machine_trip`
+- **Measurement roles:** `running_status`, `speed`, `suction_pressure`, `interstage_pressure`, `discharge_pressure`, `suction_temperature`, `discharge_temperature`, `cylinder_discharge_temperature`, `suction_flow`, `anti_surge_valve_position`, `vibration`, `shaft_vibration`, `axial_position`, `bearing_temperature`, `seal_vent_flow`, `lube_oil_pressure`, `lube_oil_temperature`
+- **Charts:** `plot_compressor_performance`, `plot_cooler_fouling`, `plot_vibration`
+- **Eval:** 4 questions with answer keys across 2 bundles
+
 ## Not available
 
 No agent can do these yet, whatever the question. A specialist asked for one says it is unavailable.
