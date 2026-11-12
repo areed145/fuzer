@@ -183,6 +183,27 @@ system's owner, else `role:data_steward`) and posts to the alert webhook; the it
 clears. Rules (`rules.py`): survivorship priority and match thresholds come from the catalog at each rebuild,
 seeded from the pack (a rule nobody edited follows the pack).
 
+**Calibrated match confidence** (P2.2, `graph/calibration.py`). Equipment that shares no serial with another
+system's record is scored on its tag, maker and description. Each rebuild keeps every scored pair with what it
+did (`match_score`): merged, sent to review, ambiguous or left apart. **Measure**, on the Rules page (or
+`fuzer sources calibrate`), labels those pairs from the stewards' match decisions and the project's answer key
+(`answer_keys/matches.json` in its data folder). It then gives each source what its scores are worth:
+
+- its precision and recall at each threshold, with the lower bound of the 95% interval,
+- a calibrated probability per score (isotonic),
+- a straight-through threshold at 99% measured precision,
+- a review floor that rejects no true match it saw.
+
+A pair belongs to the register being matched in, the less trusted of its two systems by rank, so a contractor
+register is measured on its own records. A record that fits two items always goes to a person, so it is counted
+but not measured. **Use the measured thresholds** sets each source's match rule (`equipment/<source>`, audited),
+and a pair is held to the stricter of its two sources' thresholds from the next rebuild. The cautious direction
+(a higher straight-through threshold, a lower review floor) is adopted on any evidence. The other direction
+needs at least 30 labelled pairs, since 100% of ten pairs is not 99%. On Kestrel, the glycol pump's driver
+(same maker, a close name, the pump's tag) goes straight into the pump at the pack's 0.90. Measuring puts
+Maximo's threshold above it, and the next rebuild sends it to a person. `tests/graph/test_calibration.py` holds
+straight-through at 99% or better on both bundles.
+
 **Before and after a change.** `fuzer sources impact` runs a proposed mapping beside the one in use over the
 stored records and diffs what they make: entities and links added or removed, fields changed, golden values that
 would flip. `fuzer sources why <id> <field>` (the entity page's *why?*, the `why_value` MCP tool) traces a value to
