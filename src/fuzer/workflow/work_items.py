@@ -198,6 +198,12 @@ def item(conn, item_id: int) -> dict:
         "(kind = 'agent' and state = 'waiting' and (lease_until is null or lease_until < now())) as unclaimed "
         "from work_token where item_id = %s order by id",
         (item_id,)).fetchall()
+    # an unclaimed agent step says when it goes to a person if no worker picks it up (P0.3)
+    from .runtime import agent_fallback
+
+    wait = agent_fallback(conn)
+    for s in steps:
+        s["fallback_at"] = s["created_at"] + wait if wait and s["unclaimed"] else None
     for p in procs:
         mine = [s for s in steps if s["process_id"] == p["id"]]
         p["path"] = [s for s in mine if s["state"] == "done"]
