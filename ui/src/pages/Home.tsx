@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { api, type FieldJob, type Stats, type Upset, type WorkInbox } from "../api";
-import { myWorkCounts } from "./workflows/Inbox";
-import { caseHref, taskHref } from "./workflows/shared";
+import { api, type Stats, type Upset } from "../api";
+import { caseHref } from "./workflows/shared";
 import { iocCounts, workHref } from "./AllWork";
 import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
 import { Button, PageHeader, Input, Card as UICard, Empty } from "../ui";
 import { usePermission } from "../Auth";
 import { LiveFigure } from "../analytics/LiveFigure";
+import { YourShift } from "./HomeShift";
 
 type HeadlineFact = { text: string; cites: string[] };
 const HOME_FIGURES = [
@@ -39,8 +39,8 @@ export function HomePage({ query, stats }: {
       </div>}
       {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}
       <div className="home-grid">
-        {!noRecords && <LatestReportCard />}
         <ShiftCards stats={stats} />
+        {!noRecords && <LatestReportCard />}
         {!noRecords && <IncidentsCard />}
         {configure && <HealthCard />}
       </div>
@@ -112,11 +112,9 @@ function ShiftCards({ stats }: { stats?: Stats }) {
   const [person] = usePerson();
   const configure = usePermission("configure");
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
-  const field = useAsync(() => person ? api.fieldJobs(person) : Promise.resolve(null), [person]);
   const roles = inbox.data?.roles ?? [];
   return <>
-    <MyWorkCard person={person} inbox={inbox.data} loading={inbox.loading} error={inbox.error} retry={inbox.reload}
-      jobs={field.data?.jobs ?? []} />
+    <YourShift />
     {roles.includes("ops_lead") && <AllWorkCard />}
     {(roles.includes("data_steward") || configure) && <MasterDataCard stats={stats} />}
   </>;
@@ -126,32 +124,6 @@ function ShiftCards({ stats }: { stats?: Stats }) {
 function Count({ n, to, children, late }: { n: number; to: string; children: string; late?: boolean }) {
   const [one, many = one] = children.split("|");
   return <li><a href={to} className={late && n > 0 ? "late" : undefined}><strong>{n}</strong> {n === 1 ? one : many}</a></li>;
-}
-
-function MyWorkCard({ person, inbox, loading, error, retry, jobs }: {
-  person: string | null; inbox?: WorkInbox | null; loading: boolean; error?: string; retry: () => void; jobs: FieldJob[];
-}) {
-  const c = inbox ? myWorkCounts(inbox, jobs) : null;
-  const my = href("/inbox");
-  return (
-    <UICard className="home-card" as="section">
-      <div className="row spread"><h2>My work</h2><a href={my}>Open My work</a></div>
-      {!person && <Empty className="small">Choose your name under “You are” in the menu.</Empty>}
-      <Status loading={loading && !inbox} error={error} onRetry={retry} />
-      {c && <>
-        <ul className="home-counts">
-          {c.escalated > 0 && <Count n={c.escalated} to={my} late>escalated to you</Count>}
-          {c.sent > 0 && <Count n={c.sent} to={my}>sent to you</Count>}
-          <Count n={c.mine} to={my}>assigned to you</Count>
-          <Count n={c.queue} to={my}>unclaimed in your roles</Count>
-          {c.overdue > 0 && <Count n={c.overdue} to={my} late>overdue</Count>}
-        </ul>
-        {c.top.length > 0 ? <ol className="home-list">{c.top.map((r) => <li key={`${r.task_id ?? "i"}-${r.item_id}`}>
-          <a href={r.task_id ? taskHref(r.task_id) : caseHref(r.item_id)}>{r.title}</a></li>)}</ol>
-          : <Empty className="small">Nothing waiting for you.</Empty>}
-      </>}
-    </UICard>
-  );
 }
 
 function AllWorkCard() {

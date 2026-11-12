@@ -210,6 +210,76 @@ def work_inbox(person: str, role: list[str] | None = Query(None), conn=Depends(g
     return work.my_work(conn, person, role)
 
 
+@router.get("/work/home")
+def work_home(person: str, mark: bool = False, conn=Depends(get_conn)):
+    """What changed on a person's work since they last looked at Home (P5.1); `mark` records this look."""
+    out = work.home(conn, person, mark)
+    conn.commit()
+    return out
+
+
+class Watch(BaseModel):
+    person: str
+    ref: str          # an asset's fuzer id, or case:<id>
+    on: bool = True
+
+
+@router.get("/work/watch")
+def work_watching(person: str, conn=Depends(get_conn)):
+    """What a person watches (P5.1b)."""
+    return work.watching(conn, person)
+
+
+@router.post("/work/watch")
+def work_watch(body: Watch, conn=Depends(get_conn)):
+    """Watch an asset or a case, or stop (P5.1b): its changes show on Home under Watching, never assigned."""
+    try:
+        out = work.watch(conn, body.person, body.ref, body.on)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return out
+
+
+class SavedView(BaseModel):
+    person: str
+    role: str
+    name: str
+    list: str
+    filters: dict[str, str] = {}
+
+
+@router.get("/work/views")
+def work_views(person: str, conn=Depends(get_conn)):
+    """All work views saved for the person's roles (P5.1c)."""
+    return work.views(conn, person)
+
+
+@router.post("/work/views")
+def work_save_view(body: SavedView, conn=Depends(get_conn)):
+    """Save All work's filters as a named view for a role the person holds (P5.1c)."""
+    try:
+        out = work.save_view(conn, body.person, body.role, body.name, body.list, body.filters)
+    except PermissionError as e:
+        raise HTTPException(403, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return out
+
+
+@router.delete("/work/views/{view_id}")
+def work_remove_view(view_id: int, person: str, conn=Depends(get_conn)):
+    try:
+        work.remove_view(conn, person, view_id)
+    except PermissionError as e:
+        raise HTTPException(403, str(e)) from e
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+    conn.commit()
+    return {"removed": view_id}
+
+
 class NotificationsRead(BaseModel):
     person: str
     ids: list[int] | None = None   # None: all of theirs

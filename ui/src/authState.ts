@@ -39,7 +39,8 @@ export const projectUrl = (path: string) =>
   project ? `${path}${path.includes("?") ? "&" : "?"}fuzer_project=${encodeURIComponent(project)}` : path;
 
 /** Switch project: every view, cache and session check starts again in the new one. */
-export function switchProject(next: string) {
+/** Work in another project; `to` is where to land there (its home by default). */
+export function switchProject(next: string, to = "#/") {
   project = next;
   try {
     if (next) localStorage.setItem(PROJECT_KEY, next);
@@ -47,6 +48,6 @@ export function switchProject(next: string) {
   } catch {
     console.warn("Fuzer project choice could not be saved in browser storage.");
   }
-  window.location.hash = "#/";
+  window.location.hash = to;
   window.location.reload();
 }

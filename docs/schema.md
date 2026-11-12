@@ -429,6 +429,39 @@ How each person wants to be told: in_app, email, teams or slack, at `address` (a
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `work_home_seen`
+
+Home is my shift (P5.1): when each person last looked at Home, so it can say what changed since.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `seen_at` | timestamptz |  |
+
+### `work_watch`
+
+A watch (P5.1b): a person follows an asset (its fuzer id) or a case ('case:<id>') without being assigned it.
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `ref` | text |  |
+| `created_at` | timestamptz |  |
+
+### `work_view`
+
+Saved views per role on All work (P5.1c, #651).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `role` | text |  |
+| `name` | text |  |
+| `list` | text |  |
+| `filters` | jsonb |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)

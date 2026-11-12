@@ -13,6 +13,7 @@ import { CaseGates } from "../Gates";
 import { CaseWritebacks } from "../Writeback";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
+import { WatchButton } from "../../Watch";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -169,6 +170,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
             <UIBadge className={`badge ${closed ? "ok" : ""}`}>{it.state}{it.outcome ? `: ${it.outcome}` : ""}</UIBadge>
             {priorityText(it.priority) && <span className="muted">priority {priorityText(it.priority)}</span>}
             <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
+            {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
           </div>
           {(it.subjects.length > 0 || dataset) && (
             <p className="small">About{" "}
