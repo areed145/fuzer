@@ -1148,6 +1148,77 @@ test("review custom-value confirmation and cancellation do not resubmit the cont
   assert.equal(writes[0].value, "corrected value");
 });
 
+test("a question that came back says why, and can be sent for a field check (P2.4)", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 9, kind: "conflict", label: "20-P-1001A", description: null, payload: { fuzer_id: "tag-1", field: "manufacturer",
+      chosen: "Flowserve", values: [{ value: "Flowserve", source: "sap", source_key: "1" }, { value: "Sulzer", source: "jde", source_key: "2" }],
+      returned: { kind: "master_data", system: "jde", why: "JDE's owner rejected the correction: the nameplate says Sulzer. Look at it again." } } },
+  ] }));
+  const writes = [];
+  await page.route("**/review/9", (route) => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { decided: 9 } });
+  });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict`);
+  await page.getByText("JDE's owner rejected the correction: the nameplate says Sulzer.").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`question-returned-${width}`);
+  }
+  await page.getByRole("button", { name: "Check it in the field", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #9" }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].decision, "field");
+});
+
+test("an asset says what is known, what is missing and what each gap holds back; Master data ranks the gaps (P2.5)", async () => {
+  await page.route("**/entities/tag-e5002/map", (route) => route.fulfill({ json: { features: [], focus: null } }));
+  await page.route("**/entities/tag-e5002", (route) => route.fulfill({ json: { fuzer_id: "tag-e5002", kind: "tag",
+    label: "E1-E-5002", golden: { description: { value: "Propane Chiller" } }, values: {}, records: [], keys: [], edges: [], edge_counts: {} } }));
+  await page.route("**/entities/tag-e5002/context", (route) => route.fulfill({ json: {
+    fuzer_id: "tag-e5002", label: "E1-E-5002", description: "Propane Chiller", class_name: "Heat exchangers", area: "Train E1",
+    criticality: null, score: 0.571, blocked: ["excursions", "iow_breaches"], of: null, item_id: 41,
+    known: [{ check: "class", label: "Equipment class", has: true, expected: true },
+      { check: "limits", label: "Limits", has: false, expected: true },
+      { check: "documents", label: "Documents", has: false, expected: false }],
+    gaps: [{ check: "limits", label: "Limits", missing: "no alarm limits, IOWs or normal ranges", prevents: "excursion and IOW cases",
+      usual: "89% of heat exchangers have it", detectors: [{ name: "excursions", title: "Process excursions" }, { name: "iow_breaches", title: "IOW breaches" }] }] } }));
+  await page.goto(`${url}/#/e/tag-e5002`);
+  const panel = page.locator(".asset-context");
+  await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
+  await panel.getByText("57% of what heat exchangers usually have").waitFor();
+  assert.equal(await panel.getByText("Missing", { exact: true }).count(), 1);
+  assert.equal(await panel.getByText("Not recorded", { exact: true }).count(), 1);
+  assert.equal(await panel.getByRole("link", { name: "Open case", exact: true }).getAttribute("href"), "#/cases/41");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `asset overflows at ${width}`);
+    await panel.scrollIntoViewIfNeeded();
+    await waveScreenshot(`asset-context-${width}`);
+  }
+  await page.route("**/stewardship/context", (route) => route.fulfill({ json: {
+    checks: [{ check: "limits", label: "Limits" }, { check: "measured", label: "Historian points" }],
+    top: [{ fuzer_id: "tag-e5002", label: "E1-E-5002", description: "Propane Chiller", class_name: "Heat exchangers", area: "Train E1",
+      criticality: null, score: 0.571, missing: ["measured", "limits"], blocked: ["excursions", "iow_breaches", "drifts"], value: 3, item_id: 41 }],
+    areas: [{ name: "Train E1", assets: 6, blocked: 2, score: 0.842, gaps: [{ check: "limits", label: "Limits", assets: 2 }] }],
+    classes: [{ name: "Wells", assets: 2, blocked: 0, score: null, gaps: [] }] } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${url}/#/masterdata?tab=context`);
+  const top = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Checks held back", exact: true }) });
+  await top.getByText("historian points, limits", { exact: true }).waitFor();
+  await top.getByText("Propane Chiller · Heat exchangers · criticality not assessed", { exact: true }).waitFor();
+  assert.equal(await top.getByRole("link", { name: "Open", exact: true }).getAttribute("href"), "#/cases/41");
+  await page.getByText("limits (2)", { exact: true }).waitFor();
+  await page.getByText("too few to say", { exact: true }).waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `master data overflows at ${width}`);
+    await waveScreenshot(`context-tab-${width}`);
+  }
+});
+
 test("optional Demo preserves existing primary destinations and specialist routes", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });

@@ -58,7 +58,7 @@ def review_list(status: str = "open", kind: str | None = None, limit: int = 100,
 
 
 class Decision(BaseModel):
-    decision: Literal["accept", "reject", "choose"]
+    decision: Literal["accept", "reject", "choose", "field"]
     value: Any = None
     by: str = "anonymous"
 
@@ -84,9 +84,11 @@ class GroupDecision(BaseModel):
 def review_group_decide(d: GroupDecision, conn=Depends(get_conn)):
     """Answer every question in a group the same way; `standing` answers new ones like them at each rebuild too."""
     from ..graph import review
+    from ..ops import corrections
 
     try:
         out = review.decide_group(conn, d.key, d.decision, d.by, source=d.source, value=d.value, standing=d.standing)
+        corrections.sync(conn, d.by)
     except LookupError as e:
         conn.rollback()
         raise HTTPException(404, str(e)) from e
@@ -111,9 +113,11 @@ def review_group_withdraw(key: str, by: str = "anonymous", conn=Depends(get_conn
 @router.post("/review/{item_id}")
 def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
     from ..graph import review
+    from ..ops import corrections
 
     try:
         out = review.decide(conn, item_id, d.decision, d.value, d.by)
+        corrections.sync(conn, d.by)  # an answer that says a source is wrong drafts its correction (P2.4)
     except LookupError as e:
         conn.rollback()
         raise HTTPException(404, str(e)) from e
@@ -126,6 +130,15 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
     return {"decided": item_id}
+
+
+@router.get("/review/{item_id}/corrections")
+def review_corrections(item_id: int, conn=Depends(get_conn)):
+    """What an answer drafted for the source it said was wrong, and how each came back (P2.4)."""
+    from ..core.jsonsafe import plain
+    from ..ops import corrections
+
+    return plain(corrections.listing(conn, item_id))
 
 
 @router.post("/rebuild")

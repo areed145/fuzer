@@ -464,6 +464,28 @@ SAP needs changing), **the system is right** (the drawing needs a redline), or *
 A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
 back with different values is a new question. Questions no longer raised go stale.
 
+## Corrections flow back to the source
+An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
+choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back
+queue (a system that takes no write-backs gets a case for its owner); "the system is right" drafts a redline for the
+drawing; "the drawing is right" drafts the register change, or a case for whoever owns the configured alarms; and
+**Check it in the field** opens a case for the operators. The question stays answered while its correction is out,
+so the next rebuild doesn't ask it again; each rebuild keeps what every source says on the fields a steward chose
+(`reviewed_value`). The correction is done when its write-back is confirmed or the source's next load says what was
+chosen. It comes back to the steward, reopened on the Questions tab and as a case in their queue with what
+happened, when the owner rejects it, the source changes to something else, or the field check is answered.
+
+## Asset context completeness
+Each asset (a tag that is not part of another, or a well) is scored on what Fuzer knows about it
+(`analysis.completeness`): an equipment class, a make and model, a maintenance record, historian points, measurement
+roles on them, limits, a drawing position, documents and a criticality. An asset is only asked for what its class
+usually has (at least half its assets of that class have it, in a class of three or more), so valves are not asked
+for maintenance plans because pumps have them. Each gap says what it holds back: the detectors that need it and
+apply to the asset's class, read from the detector registry. The 25 assets whose gaps hold back the most checks,
+weighted by criticality, are open `context_gap` cases for the data steward, refreshed at every rebuild; a case
+clears when its gaps are filled. The asset page shows its context in one panel, and Master data > Asset context
+shows completeness by area and class with the top gaps.
+
 ## Where an instrument sits
 Claude also says which item each instrument's process connection runs to. When the register has the instrument
 part of a different item (SAP's functional locations), the drawing view lists it: a field change the maintenance

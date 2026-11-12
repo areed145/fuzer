@@ -68,14 +68,23 @@ def _people(conn) -> None:
 
 
 def _assets(conn, n: int) -> list[str]:
-    """`n` tagged assets no open work is about, so each type's case is its own (none joins another's)."""
-    return [f"tag:{r['key']}" for r in conn.execute(
-        """
-        select k.key from entity_key k join entity e on e.fuzer_id = k.fuzer_id
-        where k.kind = 'tag' and not exists (select 1 from exception_record x where x.state = 'open'
-                                             and k.fuzer_id = any(x.subjects))
-        order by k.key limit %s
-        """, (n,))]
+    """`n` tagged assets no open work is about, none sharing what it stands for on the plant (`anchors`) with
+    another or with open work, so each type's case is its own (none joins another's)."""
+    from ..ops.exceptions import anchors
+
+    taken = anchors(conn, [s for r in conn.execute("select subjects from exception_record where state = 'open'")
+                           for s in r["subjects"] or []])
+    out = []
+    for r in conn.execute("select k.key, k.fuzer_id from entity_key k join entity e on e.fuzer_id = k.fuzer_id "
+                          "where k.kind = 'tag' order by k.key"):
+        mine = anchors(conn, [r["fuzer_id"]])
+        if mine & taken:
+            continue
+        out.append(f"tag:{r['key']}")
+        taken |= mine
+        if len(out) == n:
+            break
+    return out
 
 
 def _waiting(conn, item_id: int) -> list[dict]:

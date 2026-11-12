@@ -39,6 +39,22 @@ export interface ConflictGap {
   values: { source: string; source_key: string; value: unknown }[];
 }
 
+/** Asset context completeness (P2.5): what is known about an asset, what is missing and what each gap holds back. */
+export interface ContextGap {
+  check: string; label: string; missing: string; prevents: string; usual: string; detectors: { name: string; title: string }[];
+}
+export interface AssetContext {
+  fuzer_id: string; label: string; description: string | null; class_name: string; area: string | null;
+  criticality: string | null; score: number | null; blocked: string[]; gaps: ContextGap[]; of: string | null;
+  known: { check: string; label: string; has: boolean; expected: boolean }[]; item_id: number | null;
+}
+export interface ContextRollup { name: string; assets: number; blocked: number; score: number | null; gaps: { check: string; label: string; assets: number }[] }
+export interface ContextTop {
+  fuzer_id: string; label: string; description: string | null; class_name: string; area: string | null;
+  criticality: string | null; score: number | null; missing: string[]; blocked: string[]; value: number; item_id: number | null;
+}
+export interface ContextSummary { areas: ContextRollup[]; classes: ContextRollup[]; top: ContextTop[]; checks: { check: string; label: string }[] }
+
 export interface Proposal {
   id: number; kind: "unresolved" | "match" | "conflict" | "spelling"; subject: string; context: Record<string, unknown>;
   options: { id: string; text: string; fuzer_id?: string }[];
@@ -61,6 +77,8 @@ export const stewardshipApi = {
   undoDecision: (batch: string, by: string, reason?: string) =>
     request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { batch, by, reason: reason ?? null }),
   completenessGaps: () => request<CompletenessGap[]>("GET", "/stewardship/completeness"),
+  assetContext: (id: string) => request<AssetContext | null>("GET", `/entities/${encodeURIComponent(id)}/context`),
+  contextSummary: () => request<ContextSummary>("GET", "/stewardship/context"),
   spellingGroups: () => request<SpellingGroup[]>("GET", "/stewardship/consistency"),
   conflictGaps: () => request<ConflictGap[]>("GET", "/stewardship/conflicts"),
   setValues: (field: string, value: string, fuzer_ids: string[], by: string, reason?: string) =>

@@ -60,6 +60,21 @@ def entity_spares(fuzer_id: str, conn=Depends(get_conn)):
     return queries.spares(conn, fuzer_id)
 
 
+@router.get("/entities/{fuzer_id}/context")
+def entity_context(fuzer_id: str, conn=Depends(get_conn)):
+    """What is known about the asset this entity is or belongs to, what is missing and what each gap prevents
+    (P2.5); null for something that is not part of an asset."""
+    from ..analysis import completeness
+    from ..core.jsonsafe import plain
+
+    out = completeness.of_asset(conn, fuzer_id)
+    if out:
+        case = conn.execute("select item_id from exception_record where type = %s and key = %s and state = 'open'",
+                            (completeness.TYPE.name, out["fuzer_id"])).fetchone()
+        out["item_id"] = case["item_id"] if case else None
+    return plain(out)
+
+
 @router.get("/entities/{fuzer_id}/values")
 def entity_values(fuzer_id: str, at: str | None = None, hours_before: int = 48, hours_after: int = 24,
                   direct: bool = False, conn=Depends(get_conn)):
