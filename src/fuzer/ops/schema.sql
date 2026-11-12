@@ -310,8 +310,8 @@ create table if not exists suppressed_finding (
     subjects    text[] not null default '{}',
     evidence    jsonb not null default '{}',
     value_usd   double precision,
-    window_kind text not null,                    -- planned_work | shutdown | person
-    window_id   bigint not null,                  -- the plan_item or suppression it fell in
+    window_kind text not null,                    -- planned_work | shutdown | person | muted (a provider, P3.8b)
+    window_id   bigint not null,                  -- the plan_item or suppression it fell in (0 when muted)
     reason      text not null,
     raised      integer not null default 1,
     first_seen  timestamptz not null default now(),

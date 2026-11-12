@@ -719,6 +719,18 @@ export interface RoundPoint {
 }
 export interface RoundDetail extends Omit<RoundRun, "points"> { points: RoundPoint[] }
 
+/** Production at risk from planned shutdowns over a horizon (P5.9a), per window of overlapping outages. */
+export interface AtRisk {
+  start: string; end: string; days: number; basis: string;
+  windows: {
+    start: string; end: string; assumptions: string[]; untested: string[];
+    items: { id: number; title: string; kind: string; hours: number; assumed: string | null; start: string; end: string;
+      units: { id: string; label: string }[]; wells: number }[];
+    wells: { id: string; label: string; hours: number; rates: Record<string, { value: number; unit: string | null; at: string }> }[];
+    at_risk: { quantity: string; value: number; unit: string | null }[];
+  }[];
+}
+
 export interface PlanItem {
   id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
@@ -739,6 +751,8 @@ export interface TurnaroundScope {
   spares_out_of_stock: { for: string | null; material: string | null; id: string; description: string | null }[];
   window: { start: string; end: string } | null;
   on_plan: PlanItem[]; ride_along: PlanItem[]; shutdown_outside: PlanItem[];
+  /** The planning system's schedule for the revision, when one names it (its S-curve is a live figure). */
+  schedule?: { project: string; as_of: string; late: string[]; slipped: string[] } | null;
 }
 
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
@@ -840,6 +854,7 @@ export const workApi = {
   round: (id: number) => request<RoundDetail>("GET", `/rounds/${id}`),
   takeRound: (id: number, t: { point: string; by: string; value?: number; passed?: boolean; note?: string }) =>
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t),
+  planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

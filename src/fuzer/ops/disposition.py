@@ -239,3 +239,26 @@ def _repeats(conn, pack: Pack) -> list[dict]:
 def sweep(conn, pack: Pack) -> dict:
     """Open the re-checks that are due and fold repeats back into the case they repeat."""
     return {"rechecks": _due_rechecks(conn), "repeats": _repeats(conn, pack)}
+
+
+def rates(conn) -> dict[tuple[str, str], dict]:
+    """How what each work type raised was closed out, by (type, source) (P3.8b, #705): the cases its exceptions were
+    on, and how many of those closed as a real problem (confirmed) or a false alarm. A source joined to a case shares
+    that case's close-out: a provider's alert on a trip that was real was right."""
+    rows = conn.execute(
+        """
+        select r.type, r.source, count(distinct r.item_id)::int as cases, count(distinct d.item_id)::int as closed,
+               count(distinct d.item_id) filter (where d.disposition = 'real')::int as real,
+               count(distinct d.item_id) filter (where d.disposition = 'false_alarm')::int as false_alarm
+        from exception_record r left join case_disposition d on d.item_id = r.item_id
+        where r.item_id is not null group by r.type, r.source
+        """).fetchall()
+    return {(r["type"], r["source"]): dict(r) for r in rows}
+
+
+def quality(found: list[dict]) -> dict:
+    """Rows of `rates` together: cases, closed out, and the confirmed and false-alarm rates of those closed out."""
+    cases, closed = sum(r["cases"] for r in found), sum(r["closed"] for r in found)
+    real, false = sum(r["real"] for r in found), sum(r["false_alarm"] for r in found)
+    return {"cases": cases, "closed": closed, "real": real, "false_alarm": false,
+            "confirmed_rate": real / closed if closed else None, "false_alarm_rate": false / closed if closed else None}

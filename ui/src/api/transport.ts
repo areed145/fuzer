@@ -25,7 +25,7 @@ export async function request<T>(method: string, path: string, params?: Params, 
       const detail = await res.json().catch(() => null);
       // The project picked earlier is gone from this instance: go back to the server's own project.
       if (res.status === 404 && project && String(detail?.detail ?? "").startsWith("No project named")) switchProject("");
-      throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail });
+      throw Object.assign(new Error(detail?.detail ?? `${res.status} ${res.statusText}`), { body: detail, status: res.status });
     }
     return res.json();
   }, readOnly ? `${csrf}:${project}:${url}` : undefined);

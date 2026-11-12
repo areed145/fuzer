@@ -378,14 +378,14 @@ def schedule_progress(conn, project: str, today: str) -> dict | None:
     rows = conn.execute(
         """
         with recursive tree as (
-            select e.fuzer_id, 0 as depth from entity e join entity_label l using (fuzer_id)
+            select e.fuzer_id, 0 as depth, null::text as parent from entity e join entity_label l using (fuzer_id)
             where e.kind = 'activity' and e.retired_at is null and e.merged_into is null and l.label = %s
             union
-            select c.src, t.depth + 1 from edge c join tree t on c.dst = t.fuzer_id
+            select c.src, t.depth + 1, t.fuzer_id from edge c join tree t on c.dst = t.fuzer_id
             join entity e on e.fuzer_id = c.src
             where c.rel = 'part_of' and e.kind = 'activity' and e.retired_at is null and t.depth < 5
         )
-        select t.fuzer_id as id, min(t.depth) as depth, l.label,
+        select t.fuzer_id as id, min(t.depth) as depth, min(t.parent) as parent, l.label,
                (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = t.fuzer_id) as f,
                (select string_agg(wl.label, ', ' order by wl.label) from edge x join entity_label wl on wl.fuzer_id = x.dst
                 where x.src = t.fuzer_id and x.rel = 'executes') as work_order
@@ -399,17 +399,83 @@ def schedule_progress(conn, project: str, today: str) -> dict | None:
     for r in rows:
         f = r["f"] or {}
         finish, baseline = str(f.get("finish") or "")[:10] or None, str(f.get("baseline_finish") or "")[:10] or None
-        pct = _num(f.get("percent_complete"))
+        raw = f.get("percent_complete")
+        pct = _num(raw)
         done = pct >= 100 or str(f.get("status") or "").lower() in DONE or bool(f.get("actual_finish"))
-        slipped = (date.fromisoformat(finish) - date.fromisoformat(baseline)).days if finish and baseline else 0
+        f_day, b_day = _day(finish), _day(baseline)  # a date the source wrote in a format not set yet is no slip
+        slipped = (f_day - b_day).days if f_day and b_day else 0
         out.append({"id": r["id"], "activity": r["label"], "description": f.get("description") or f.get("name"),
                     "start": str(f.get("start") or "")[:10] or None, "finish": finish, "baseline_finish": baseline,
-                    "percent_complete": pct, "status": f.get("status"), "owner": f.get("owner"),
+                    "baseline_start": str(f.get("baseline_start") or "")[:10] or None, "parent": r["parent"],
+                    "percent_complete": pct, "percent_given": raw not in (None, ""), "status": f.get("status"), "owner": f.get("owner"),
                     "work_order": r["work_order"], "late": bool(finish and finish < today and not done),
                     "slipped_days": max(slipped, 0), "project": r["depth"] == 0})
     return {"project": project, "as_of": today, "source": "the planning system's schedule (activities)",
             "activities": out, "late": [a["activity"] for a in out if a["late"]],
-            "slipped": [a["activity"] for a in out if a["slipped_days"] > 0]}
+            "slipped": [a["activity"] for a in out if a["slipped_days"] > 0], "curve": schedule_curve(out, today)}
+
+
+def _day(v) -> date | None:
+    try:
+        return date.fromisoformat(str(v)[:10]) if v else None
+    except ValueError:
+        return None
+
+
+def _done_by(t: date, a: date, b: date) -> float:
+    """How much of an activity running a to b is done by day t, at an even pace."""
+    if t >= b:
+        return 1.0
+    return 0.0 if t <= a else (t - a).days / (b - a).days
+
+
+def schedule_curve(activities: list[dict], today: str) -> dict:
+    """The schedule's S-curve (#360): percent of the work planned done by each week from the baseline dates, the
+    same from today's dates (the forecast), and the percent earned today from each activity's percent complete.
+    The work is the lowest-level activities (a summary activity's own figures would count its children twice),
+    each weighted by its baseline duration. Rows whose figures can't be used are left out and listed, not plotted:
+    a percent complete outside 0 to 100, none given, or no readable baseline dates."""
+    parents = {a.get("parent") for a in activities if a.get("parent")}
+    used, bad = [], []
+    for a in activities:
+        if a.get("project") or a["id"] in parents:
+            continue
+        bs, bf = _day(a.get("baseline_start")), _day(a.get("baseline_finish"))
+        s, f = _day(a.get("start")) or bs, _day(a.get("finish")) or bf
+        unread = [k for k in ("baseline_start", "baseline_finish", "start", "finish") if a.get(k) and not _day(a[k])]
+        why = (f"dates that can't be read ({a[unread[0]]}): set the source's date format" if unread
+               else "no percent complete given" if not a.get("percent_given")
+               else f"a percent complete of {a['percent_complete']:g}, outside 0 to 100" if not 0 <= a["percent_complete"] <= 100
+               else "no baseline dates" if not (bs and bf)
+               else "a baseline finish before its start" if bf < bs or (f and s and f < s) else None)
+        if why:
+            bad.append({"activity": a["activity"], "why": why})
+            continue
+        used.append({"a": a, "bs": bs, "bf": bf, "s": s, "f": f, "w": max((bf - bs).days, 1)})
+    if not used:
+        return {"points": [], "used": 0, "left_out": bad, "earned": None, "planned_today": None, "variance": None,
+                "baseline_finish": None, "forecast_finish": None, "slip_days": None,
+                "basis": "No activity in the schedule has figures that can be used."}
+    total = sum(u["w"] for u in used)
+    t0, t1 = min(u["bs"] for u in used), max(max(u["bf"], u["f"]) for u in used)
+    now = _day(today) or t1
+    days = sorted({t0 + timedelta(days=7 * k) for k in range((t1 - t0).days // 7 + 1)} | {t1} | ({now} if t0 < now < t1 else set()))
+    if len(days) > 260:  # a long project: thin to about 260 points, keeping the ends and today
+        step = len(days) // 260 + 1
+        days = sorted(set(days[::step]) | {t0, t1} | ({now} if t0 < now < t1 else set()))
+
+    def share(t: date, a: str, b: str) -> float:
+        return round(100 * sum(u["w"] * _done_by(t, u[a], u[b]) for u in used) / total, 1)
+
+    earned = round(sum(u["w"] * u["a"]["percent_complete"] for u in used) / total, 1)
+    planned_now = share(now, "bs", "bf")
+    bf, ff = max(u["bf"] for u in used), max(u["f"] for u in used)
+    return {"points": [{"day": d.isoformat(), "planned": share(d, "bs", "bf"), "forecast": share(d, "s", "f")} for d in days],
+            "used": len(used), "left_out": bad, "earned": earned, "planned_today": planned_now,
+            "variance": round(earned - planned_now, 1), "baseline_finish": bf.isoformat(), "forecast_finish": ff.isoformat(),
+            "slip_days": (ff - bf).days,
+            "basis": "The lowest-level activities, each weighted by its baseline duration, at an even pace between "
+                     "its dates; planned from the baseline dates, forecast from today's."}
 
 
 def turnaround_scope(conn, revision: str | None = None, months_ahead: int = 18, as_of_date: str | None = None) -> dict:

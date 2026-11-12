@@ -86,13 +86,32 @@ export interface DetectorRow {
   score: { recall: number | null; precision: number | null; false_alarms_per_week: number | null; since: string; until: string } | null;
   eval: string | null;
   settings: DetectorParam[];
+  closeouts: Closeouts;
+}
+
+/** How the cases a detector or provider raised were closed out (P3.8b). */
+export interface Closeouts {
+  cases: number; closed: number; real: number; false_alarm: number;
+  confirmed_rate: number | null; false_alarm_rate: number | null;
+}
+
+export type Trust = "route" | "triage" | "mute";
+
+export interface ProviderRow {
+  system: string; name: string; label: string; type: string; enabled: boolean;
+  trust: { class: string; trust: Trust; reason: string; updated_by: string; updated_at: string }[];
+  closeouts: Closeouts;
 }
 
 export interface EquipmentClass { code: string; name: string; units: number }
 
 export const detectionApi = {
   detectors: () =>
-    request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[] }>("GET", "/settings/detectors"),
+    request<{ project: string | null; classes: EquipmentClass[]; detectors: DetectorRow[]; providers: ProviderRow[];
+      trust_levels: Record<Trust, string> }>("GET", "/settings/detectors"),
+  setProviderTrust: (system: string, name: string, trust: Trust, cls: string | null, by: string, reason: string) =>
+    request<unknown>("PUT", `/settings/providers/${encodeURIComponent(system)}/${encodeURIComponent(name)}/trust`, undefined,
+      { trust, class: cls, by, reason }),
   switchDetector: (name: string, on: boolean, by: string, reason: string) =>
     request<unknown>("PUT", `/settings/detectors/${encodeURIComponent(name)}/on`, undefined, { on, by, reason }),
   tuneDetector: (name: string, key: string, change: { value?: unknown; class?: string | null; reset?: boolean }, by: string, reason: string) =>

@@ -111,6 +111,16 @@ sample alerts (`<provider>.json` or `alerts.json`) all read. `fakeplant/bundles/
 predictive health service for compressors on both bundles. Its alert joins the machine health case on B1-K-2001
 (Kestrel) and 20-K-2200B (Okan).
 
+Settings → Detection lists each provider beside Fuzer's own detectors, with the same close-out measures: of the cases
+its alerts were on, how many closed as a real problem (confirmed) and how many as a false alarm (P3.8b). A person
+sets how far a provider is trusted, for every equipment class or one, with a reason:
+- **Route directly** (the default): its case goes to the role its work type names.
+- **Triage first**: its case goes to `providers.triage_role`, for a person to look at before it goes on.
+- **Muted**: its alerts are kept and counted under Exceptions → Suppressed, with no case.
+
+Where an alert is about assets in classes set differently, the most trusting setting wins. Joining a Fuzer case
+already open on the asset works the same at every level except muted.
+
 **One finding contract** (P1.1). Whatever raises work hands over the same record, a `Finding`
 (`fuzer.core.findings`): its detector, its origin (`deterministic` for a rule or a calculation, `agentic` for an
 agent, `external` for another system's own detection or record), the method and the standard behind it, the time

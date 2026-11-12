@@ -351,9 +351,12 @@ def on_case(conn, item_id: int) -> list[dict]:
 
 def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: float | None = None,
            value_usd: float | None = None, finding: findings.Finding | None = None, source: str | None = None,
-           assignee: str | None = None, role: str | None = None) -> dict:
+           assignee: str | None = None, role: str | None = None, first_role: str | None = None,
+           mute: str | None = None) -> dict:
     """Open an exception of `type` for `key`, or update the open one, from a finding (the contract in
-    core.findings; with none, a bare one from the source that says only who raised it)."""
+    core.findings; with none, a bare one from the source that says only who raised it). `first_role` sends the case
+    it opens there instead of its type's role, and still joins an open case; `mute` (the reason) counts and keeps a
+    new condition with no case (a provider set so, P3.8b)."""
     t = _type(conn, type)
     evidence = (finding or findings.external(source or by)).evidence()
     if not key:
@@ -380,6 +383,9 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
 
         if suppression.applies(conn, t) and (w := suppression.covering(conn, subjects, suppression._at(evidence))):
             return suppression.record(conn, w, type, key, title, source or by, subjects, evidence, value_usd)
+        if mute:
+            w = {"kind": "muted", "id": 0, "reason": mute, "until": None}
+            return suppression.record(conn, w, type, key, title, source or by, subjects, evidence, value_usd)
     host = _host(conn, t, type, key, subjects) if not (assignee or role) else None
     row = conn.execute(
         """
@@ -392,7 +398,7 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         return _joined(conn, t, row, host, by, unmatched)
     # The work engine runs each operation as its own transaction: a case that can't open rolls this insert back
     # with it, and one that opens commits it.
-    item_id = _case(conn, t, row, by, assignee, role)
+    item_id = _case(conn, t, row, by, assignee, role or (first_role if not assignee else None))
     if item_id:
         row = conn.execute("update exception_record set item_id = %s where id = %s returning *",
                            (item_id, row["id"])).fetchone()

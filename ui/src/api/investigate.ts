@@ -405,7 +405,8 @@ export interface Study {
 
 export const investigateApi = {
   guidedInvestigation: () => request<Investigation>("GET", "/demo/investigation"),
-  liveFigure: (kind: string) => request<LiveFigureData>("GET", `/analytics/figures/${encodeURIComponent(kind)}`),
+  liveFigure: (kind: string, params?: Record<string, string>) =>
+    request<LiveFigureData>("GET", `/analytics/figures/${encodeURIComponent(kind)}`, params),
   events: (id: string) => request<FuzerEvent[]>("GET", `/entities/${encodeURIComponent(id)}/events`, { limit: 200 }),
   maintenance: (id: string) =>
     request<Maintenance>("GET", `/entities/${encodeURIComponent(id)}/maintenance`, { limit: 25 }),

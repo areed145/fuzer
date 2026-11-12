@@ -175,6 +175,8 @@ register(
             "Work"),
     Setting("exceptions.max_shelve_days", "int", 30, "The longest a person can shelve a standing condition off the "
             "open list; when its expiry passes it comes back on its own", "Work", min=1, max=365),
+    Setting("providers.triage_role", "str", "role:engineer", "Where a detection provider set to triage first sends "
+            "the case its alert opens, for a person to look at before it goes on (P3.8b)", "Work"),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
             "record (and during it) an operator log entry about the same plant counts as its log",
             "Work", min=0, max=168),

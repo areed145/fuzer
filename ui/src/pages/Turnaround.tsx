@@ -1,11 +1,13 @@
 /** Turnaround as a window on the Plan (#506, #554): one revision's scope read against the integrated plan. What is
  * in it (its SAP orders), what should be (work that could ride along, tasks that need the unit down but are planned
  * elsewhere, shutdown-only maintenance plans, the worst bad actors), and what is missing (spares out of stock).
- * Planned work is pulled into the window with one button. `#/turnaround` redirects to `#/plan?revision=…`. */
+ * Planned work is pulled into the window with one button. When a planning system's schedule names the revision, its
+ * S-curve shows progress against the baseline and the slip (#360). `#/turnaround` redirects to `#/plan?revision=…`. */
 import { api, type PlanItem, type TurnaroundScope } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
 import { entityHref, href } from "../lib";
 import { useAct } from "./workflows/shared";
+import { LiveFigure } from "../analytics/LiveFigure";
 
 const day = (at: string | null) => (at ? new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "no date");
 
@@ -33,6 +35,8 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
         </p>
         {busy && <p role="status">{busy}…</p>}
         {error && <p role="alert" className="error">{error}</p>}
+        {t.schedule && <Card title="Progress against the baseline">
+          <LiveFigure kind="turnaround-progress" params={{ revision: t.revision }} /></Card>}
         {t.scoped_work.length > 0 && <Card title="In scope">
           <ul className="plain">{t.scoped_work.map((w) => <li key={w.id}>
             <a href={entityHref(w.id)}>{w.order ?? w.id}</a> {w.text}{" "}
