@@ -159,6 +159,12 @@ register(
     Setting("exceptions.join_hours", "int", 48, "An exception about an asset (or the unit it is part of) whose open "
             "case another source's exception raised within this many hours joins that case, so one event reported by "
             "several systems is one case (0: never join)", "Work", min=0, max=720),
+    Setting("exceptions.around_before_hours", "int", 4, "A case shows the alarms and operator log entries about its "
+            "event's assets from this many hours before its earliest finding (a trip's vibration climbs before it)",
+            "Work", min=0, max=72),
+    Setting("exceptions.around_after_hours", "int", 6, "A case shows the alarms and operator log entries about its "
+            "event's assets until this many hours after its latest finding (the checks and restart are logged after)",
+            "Work", min=0, max=72),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
             "record (and during it) an operator log entry about the same plant counts as its log",
             "Work", min=0, max=168),

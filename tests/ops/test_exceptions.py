@@ -580,6 +580,31 @@ def test_another_asset_or_a_type_that_does_not_join_gets_its_own_case(conn, comp
     conn.commit()
 
 
+def test_a_case_shows_the_log_entries_about_its_event_around_its_window(conn, compressor, three_sources):
+    """P3.5a: an entry mentioning the compressor's transmitter in the event's window is shown; one about another asset
+    in the same area, or about the compressor a day later, is not."""
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around
+
+    entries = [("fz-log-a", "2026-11-11 03:12", "fz-pt-2001", "Tripped on high vibration"),
+               ("fz-log-b", "2026-11-11 03:20", "fz-v-1001", "Separator level steady"),
+               ("fz-log-c", "2026-11-12 09:00", "fz-k-2001", "Running steady")]
+    for fid, at, about, words in entries:
+        conn.execute("insert into entity (fuzer_id, kind) values (%s, 'log_entry') on conflict do nothing", (fid,))
+        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'timestamp', to_jsonb(%s::text), "
+                     "'test', 'test'), (%s, 'text', to_jsonb(%s::text), 'test', 'test') on conflict do nothing",
+                     (fid, at, fid, words))
+        conn.execute("insert into edge (src, rel, dst, sources, confidence) values (%s, 'mentions', %s, '{test}', 1) "
+                     "on conflict do nothing", (fid, about))
+    trip = raise_exception(conn, "iow_hi", "IOW-AROUND", "Trip", "limits", refs=[compressor["equipment"]],
+                           finding=Finding("test", "deterministic", start="2026-11-11T03:10"))
+    ctx = around.context(conn, trip["item_id"])
+    assert ctx["window"] == {"start": "2026-11-10T23:10", "end": "2026-11-11T09:10"}
+    assert [x["id"] for x in ctx["log"]] == ["fz-log-a"]
+    assert impl.anchor_map(conn, ["fz-pt-2001"])["fz-pt-2001"] == impl.anchors(conn, ["fz-pt-2001"])
+    conn.commit()
+
+
 def test_joining_can_be_turned_off(conn, compressor, three_sources):
     from fuzer.core import settings
 
