@@ -1,0 +1,14 @@
+# Answer keys for the reliability and maintenance specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# The centrifugal compressors wear out (Weibull beta about 1.3, eta about 236 days) and their 180-day PM sits inside
+# that; the centrifugal pumps fail early in life, so a shorter PM would not help; in the compression area several
+# A-critical machines have a bill-of-materials part with none in stock, 20-K-2200B first.
+- question: Is the 180-day PM interval right for our centrifugal compressors?
+  must_mention: [[wear-out, wear_out, wear out], [236, characteristic life, eta], [180]]
+  specialists: [maintenance-integrity]
+- question: Would shortening the PM on the centrifugal pumps cut their failures?
+  must_mention: [[early life, early_life, early-life], [repair quality, installation, how the work is done]]
+  specialists: [maintenance-integrity]
+- question: Which critical machines in the compression area would wait on a spare part if they failed?
+  must_mention: [20-K-2200B, MAT-100036, [A-critical, criticality A, critical]]
+  specialists: [maintenance-integrity]

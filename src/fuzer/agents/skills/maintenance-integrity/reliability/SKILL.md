@@ -5,6 +5,11 @@ description: Reliability, maintenance and inspection - rotating equipment health
 
 # Reliability, maintenance and inspection
 
+This is the reliability and maintenance specialist pack: the playbook below, and `pack.yaml` beside it naming the
+tools, methods, detectors, charts and measurement roles it uses and the eval it is held to. It is the fleet and history
+view (ISO 14224 failure data, ISO 55000 and IEC 60300 practice); the compression, pumps-and-drivers and
+static-equipment packs hold the condition analysis of one machine or one item.
+
 **Definitions.** A failure is a corrective SAP notification (ISO 14224 failure mode and mechanism).
 MTBF = window length / failures, per unit; per class = window x units with failures / failures.
 A repeat failure is the same failure mode on the same unit more than once in the window.
@@ -39,7 +44,7 @@ A repeat failure is the same failure mode on the same unit more than once in the
    `pumps-and-drivers` skill and follow it.
    **Citing a fit:** `calc("reliability", ref, method="weibull" | "crow_amsaa")` returns beta against 1
    with its basis (`wear_out`, `early_life`, `failures_accelerating`); quote it rather than reading the
-   number off a chart.
+   number off a chart. `plot_reliability(ref)` charts the fit for a person.
    **Does the PM fit how it fails?** `calc("pm_interval", class or unit)` sets the class's median preventive plan
    interval against its Weibull characteristic life (eta): `random_failures` and `early_life` mean a fixed interval
    won't help (condition monitoring, or repair quality), `interval_too_long` that wear-out failures come before the

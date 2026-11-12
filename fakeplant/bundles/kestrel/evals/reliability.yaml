@@ -1,0 +1,10 @@
+# Answer keys for the reliability and maintenance specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# The sales gas compressor B1-K-2001 is A-critical, the site's worst actor, and its packing kit MAT-K2001-PKG is out of
+# stock. Two years of history give no class enough repeat failures to judge a PM interval: that is the answer.
+- question: If B1-K-2001 fails, do we have the spares to repair it?
+  must_mention: [B1-K-2001, MAT-K2001-PKG, [out of stock, none in stock, no stock, zero]]
+  specialists: [maintenance-integrity]
+- question: Is the PM interval right for Kestrel's reciprocating compressors?
+  must_mention: [[too few failures, insufficient, not enough failures, not enough history]]
+  specialists: [maintenance-integrity]
