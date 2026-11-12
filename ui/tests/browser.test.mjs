@@ -505,7 +505,7 @@ test("reader Settings and Sources do not request protected configuration or conn
   assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
-  await page.getByRole("navigation", { name: "Demo pages" }).waitFor();
+  await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   await page.getByRole("navigation", { name: "Investigate pages" }).waitFor();
   assert.equal(await page.getByRole("navigation", { name: "Investigate pages" }).getByRole("link", { name: "Ask", exact: true }).count(), 0);
@@ -904,9 +904,8 @@ test("optional Demo preserves existing primary destinations and specialist route
   await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
-  const demo = page.getByRole("navigation", { name: "Demo pages", exact: true });
-  assert.deepEqual(await demo.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/demo", "#/investigate/okan"]);
+  // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
+  assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
   await breadcrumb.getByText("Okan investigation", { exact: true }).waitFor();
   assert.equal(await breadcrumb.getByText("Okan investigation", { exact: true }).count(), 1);
@@ -952,7 +951,7 @@ test("primary destination navigation keeps page headings and active context alig
   await nav.locator("a").first().waitFor();
   const destinations = [
     { label: "Home", href: "#/", heading: "Home" },
-    { label: "Demo", href: "#/demo", heading: "Demo", area: "Demo pages", current: "Demo tour" },
+    { label: "Demo", href: "#/demo", heading: "Demo" },
     { label: "Explore", href: "#/browse", heading: "Browse", area: "Explore pages", current: "Browse" },
     { label: "Investigate", href: "#/downtime", heading: "Downtime", area: "Investigate pages", current: "Downtime" },
     { label: "Work", href: "#/exceptions", heading: "All work", area: "Work pages", current: "All work" },
@@ -1937,7 +1936,10 @@ test("Home leads with the facility search, labels times and links each item to i
     await page.getByRole("search").getByRole("textbox", { name: "Search the facility" }).waitFor();
     // Home is not a second menu: destinations live in the navigation, not a grid of link cards (docs/ui-style.md).
     assert.equal(await page.locator(".home-guide-links").count(), 0);
-    await page.getByRole("link", { name: "schema mapping field · 3", exact: true }).waitFor();
+    // My work is counted, each count linking to the page that shows it; Home copies no work rows (#556).
+    assert.equal(await page.getByRole("link", { name: "1 assigned to you", exact: true }).getAttribute("href"), "#/inbox");
+    assert.equal(await page.getByRole("link", { name: "Check separator level 1", exact: true }).getAttribute("href"), "#/inbox/task/1");
+    assert.equal(await page.getByRole("button", { name: "Claim", exact: true }).count(), 0);
     await page.getByText("Started 2025-03-11 · 1,450 Sm³ lost oil", { exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "20-PT-3003", exact: true }).getAttribute("href"), "#/cases/31");
     assert.equal(await page.getByRole("link", { name: "OKAN.20PT3003.PV", exact: true }).getAttribute("href"), "#/exceptions?list=ranked&view=kind");
@@ -1948,13 +1950,40 @@ test("Home leads with the facility search, labels times and links each item to i
   }
 });
 
+test("Home counts the ops lead's and steward's work, each number matching the view it opens (#556)", async () => {
+  const exception = (id, extra = {}) => ({ id, type: "upset", key: `k${id}`, title: `Exception ${id}`, source: "sre", state: "open",
+    priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
+    raised_count: 1, first_seen: "2026-11-01T00:00:00Z", last_seen: "2026-11-01T00:00:00Z", ...extra });
+  const open = [exception(1), exception(2), exception(3, { item_id: 30, role: "operator" }),
+    exception(4, { item_id: 40, assignee: "ann", evidence: { field: [{ at: "2026-11-02T00:00:00Z", by: "bo", status: "done", note: null }] } })];
+  await homeFixture({ ...homePopulated,
+    "/work/inbox": { ...homePopulated["/work/inbox"], roles: ["ops_lead", "data_steward"] },
+    "/exceptions": open, "/work/people": [], "/stewardship/unmatched": [{ ref: "P-9", exceptions: 1, open: [], sources: ["sap"] }] });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
+  await page.goto(`${url}/#/`);
+  for (const [name, to] of [["2 to dispatch", "#/exceptions"], ["1 with the field", "#/exceptions?list=field"],
+    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/review"],
+    ["1 ref on open work matched nothing", "#/masterdata"]]) {
+    assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
+  }
+  await page.getByRole("heading", { name: "Highest value", exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Train B vibration", exact: true }).getAttribute("href"), "#/cases/7");
+  await page.getByRole("link", { name: "2 to dispatch", exact: true }).click();
+  await page.getByRole("navigation", { name: "All work views" }).getByRole("link", { name: /To dispatch\s*2/ }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/`);
+  const target = await page.getByRole("link", { name: "2 to dispatch", exact: true }).boundingBox();
+  assert.ok(target.height >= 44, `a count is a 44 px target on a phone, got ${target.height}`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 test("Home with no records keeps only work and health, and readers see no administration", async () => {
   await homeFixture({ ...homePopulated, "/stats": { ...homeStats, records: 0, open_reviews: {} } });
   await page.goto(`${url}/#/`);
   await page.getByRole("heading", { name: "Connect data before exploring", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "Needs you", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "My work", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Data and scheduler health", exact: true }).waitFor();
-  for (const absent of ["Latest daily report", "Top priorities", "Incidents and upsets"]) {
+  for (const absent of ["Latest daily report", "Incidents and upsets"]) {
     assert.equal(await page.getByRole("heading", { name: absent, exact: true }).count(), 0, `${absent} hidden without records`);
   }
   await waveScreenshot("home-empty-1440");
@@ -1980,12 +2009,12 @@ test("Home with no records keeps only work and health, and readers see no admini
 test("Home shows a failed read with its own retry instead of an empty card", async () => {
   await homeFixture({ "/stats": homeStats }, { fail: true });
   await page.goto(`${url}/#/`);
-  for (const card of ["Latest daily report", "Needs you", "Top priorities", "Incidents and upsets", "Data and scheduler health"]) {
+  for (const card of ["Latest daily report", "My work", "Incidents and upsets", "Data and scheduler health"]) {
     const section = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: card, exact: true }) });
     await section.getByRole("alert").first().waitFor();
     assert.ok(await section.getByRole("button", { name: "Try again", exact: true }).count() >= 1, `${card} offers a retry`);
   }
-  for (const zero of ["Nothing on the work board.", "No incidents recorded.", "Nothing waiting for you.", "No daily report recorded."]) {
+  for (const zero of ["No incidents recorded.", "Nothing waiting for you.", "No daily report recorded."]) {
     assert.equal(await page.getByText(zero, { exact: false }).count(), 0, `a failure is not shown as "${zero}"`);
   }
 });
