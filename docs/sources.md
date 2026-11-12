@@ -464,6 +464,17 @@ SAP needs changing), **the system is right** (the drawing needs a redline), or *
 A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
 back with different values is a new question. Questions no longer raised go stale.
 
+## Corrections flow back to the source
+An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
+choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back
+queue (a system that takes no write-backs gets a case for its owner); "the system is right" drafts a redline for the
+drawing; "the drawing is right" drafts the register change, or a case for whoever owns the configured alarms; and
+**Check it in the field** opens a case for the operators. The question stays answered while its correction is out,
+so the next rebuild doesn't ask it again; each rebuild keeps what every source says on the fields a steward chose
+(`reviewed_value`). The correction is done when its write-back is confirmed or the source's next load says what was
+chosen. It comes back to the steward, reopened on the Questions tab and as a case in their queue with what
+happened, when the owner rejects it, the source changes to something else, or the field check is answered.
+
 ## Where an instrument sits
 Claude also says which item each instrument's process connection runs to. When the register has the instrument
 part of a different item (SAP's functional locations), the drawing view lists it: a field change the maintenance

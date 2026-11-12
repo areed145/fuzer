@@ -59,6 +59,14 @@ def build(conn, cands: list[Candidate], assigned: dict[str, str], pack: Pack) ->
                 }))
 
     replace_open_reviews(conn, "conflict", conflicts)
+    # What each source says where a steward chose the value (P2.4): a correction sent to a source is settled by
+    # what the source says on the next load, and the answer itself keeps the question from being asked again.
+    conn.execute("delete from reviewed_value")
+    reviewed = [(fid, field, a["source"], a["source_key"], Jsonb(a["value"]))
+                for (fid, field), items in grouped.items() if any(a["source"] == "review" for a in items)
+                for a in items if a["source"] != "review"]
+    if reviewed:
+        db.copy_rows(conn, "reviewed_value", ["fuzer_id", "field", "source", "source_key", "value"], reviewed)
     values = defaultdict(dict)
     for fid, field, value, _, _ in golden:
         values[fid][field] = value.obj

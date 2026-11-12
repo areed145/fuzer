@@ -208,6 +208,9 @@ def rebuild(conn, pack: Pack) -> dict:
     stats["standing_answers"] = review.apply_standing(conn)  # like questions a steward already answered (P2.3c)
     stats["steward_work"] = data_work.sync(conn)  # every open question is a case in the steward's queue (P2.3)
     stats["criticality_work"] = criticality.sync(conn)  # an asset with no criticality is a steward case
+    from . import corrections
+
+    stats["corrections"] = corrections.sync(conn)  # what answers said was wrong at a source, and what came back (P2.4)
     lap("steward work")
     conn.commit()
     lap("commit")

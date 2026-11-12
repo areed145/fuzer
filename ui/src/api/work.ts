@@ -19,11 +19,15 @@ export interface MatchPayload {
   auto_accept?: number;
 }
 
+/** A correction that came back to the steward (P2.4): rejected by the source's owner, or checked in the field. */
+export interface Returned { kind: string; system: string; why: string }
+
 export interface ConflictPayload {
   fuzer_id: string;
   field: string;
   chosen: unknown;
   values: SourceValue[];
+  returned?: Returned;
 }
 
 export interface SchemaPayload {
@@ -91,6 +95,7 @@ export interface PidMismatchPayload {
   drawn_on?: string; register?: { parent: string; sources: string[] }[];
   /** The disagreement in the one finding shape (P1.1); absent on questions raised before it. */
   finding?: Finding;
+  returned?: Returned;
 }
 
 export interface HeldLoadPayload {
@@ -116,7 +121,7 @@ export type ReviewItem =
     };
 
 export interface Decision {
-  decision: "accept" | "reject" | "choose";
+  decision: "accept" | "reject" | "choose" | "field";
   value?: unknown;
   by: string;
 }

@@ -397,3 +397,23 @@ create table if not exists writeback_event (
     at            timestamptz not null default now()
 );
 create index if not exists writeback_event_row on writeback_event (writeback_id, id);
+
+-- Corrections that flow back to a source (P2.4): what a steward's answer said was wrong in a source, the change
+-- or case drafted for its owner, and how it came back.
+create table if not exists source_correction (
+    id             bigserial primary key,
+    review_item_id bigint not null,
+    kind           text not null,      -- master_data | drawing_correction | correction | field_check
+    system         text not null default '',
+    fuzer_id       text,
+    field          text,
+    wrong          jsonb,              -- what the source says
+    right_value    jsonb,              -- what the steward said is right
+    writeback_id   bigint,             -- the drafted change, when the source takes write-backs
+    item_id        bigint,             -- the owner's case, when it doesn't (or a field check)
+    state          text not null default 'open' check (state in ('open', 'done', 'returned')),
+    outcome        text,
+    created_at     timestamptz not null default now(),
+    closed_at      timestamptz
+);
+create index if not exists source_correction_item on source_correction (review_item_id);
