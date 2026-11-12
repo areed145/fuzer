@@ -6,18 +6,29 @@ from pathlib import Path
 import pytest
 from psycopg.conninfo import make_conninfo
 
-KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
+BUNDLES = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles"
+KESTREL = BUNDLES / "kestrel"
 
 
 @pytest.fixture(scope="module")
 def kestrel_db(request):
     """A connection to a rebuilt Kestrel, one database per test module."""
+    yield from _bundle_db(request, KESTREL)
+
+
+@pytest.fixture(scope="module")
+def harrier_db(request):
+    """A connection to a rebuilt Harrier (the third bundle, a pipeline and terminal), one database per test module."""
+    yield from _bundle_db(request, BUNDLES / "harrier")
+
+
+def _bundle_db(request, bundle: Path):
     from fuzer.core import bundles, db, settings
     from fuzer.core import pack as packs
     from fuzer.ops import pipeline
     from fuzer.sources import ingest
 
-    name = f"kestrel_{request.module.__name__.rsplit('.', 1)[-1]}"
+    name = f"{bundle.name}_{request.module.__name__.rsplit('.', 1)[-1]}"
     admin = lambda: db.connect(autocommit=True, url=make_conninfo(db.database_url(), dbname="postgres"))
     with admin() as a:
         a.execute(f'drop database if exists "{name}" with (force)')
@@ -32,7 +43,7 @@ def kestrel_db(request):
     try:
         with db.connect(url=url) as conn:
             db.init_schema(conn)
-            first = bundles.init(conn, KESTREL, by="test")
+            first = bundles.init(conn, bundle, by="test")
             ingest.ingest(conn, Path(first["data"]))
             pipeline.rebuild(conn, packs.current_pack(conn))
             conn.commit()

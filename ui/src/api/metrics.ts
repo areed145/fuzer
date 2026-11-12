@@ -143,6 +143,55 @@ export interface InterventionGains {
   note: string;
 }
 
+/** Against the accounts (P7.5c, #372): a month's daily allocated volume against what production accounting closed. */
+export interface AccountingMonth {
+  period: string;
+  product: "oil" | "gas";
+  unit: string;
+  accounting: { value: number | null; status: string; since: string; through: string; comment: string | null;
+    record: string; source: string } | null;
+  operational: { value: number | null; days: number; days_expected?: number; since: string | null;
+    through: string | null; refs: string[]; source: string };
+  difference: number | null;
+  difference_pct: number | null;
+  verdict: "agrees" | "differs" | "preliminary" | "incomplete" | "no_accounting" | "no_operational";
+  why: string;
+}
+
+export interface UnitCostMonth {
+  period: string;
+  currency: string;
+  cost: number;
+  by_element: Record<string, number>;
+  oil_sm3: number | null;
+  oil_status: string | null;
+  per_sm3: number | null;
+  why_unknown: string | null;
+  refs: string[];
+}
+
+export interface PlantAccounting {
+  reconciliation: { since: string; until: string; tolerance_pct: number; months: AccountingMonth[];
+    summary: Record<AccountingMonth["verdict"], number>; sources: { operational: string; accounting: string };
+    note: string };
+  unit_cost: { since: string; until: string; currencies: string[]; months: UnitCostMonth[];
+    window: Record<string, { cost: number; oil_sm3: number; per_sm3: number }>;
+    sources: { cost: string; volume: string }; note: string };
+}
+
+/** Is the backlog under control? (#348) */
+export interface BacklogBurn {
+  since: string; until: string; source: string; note: string;
+  months: { month: string; since: string; until: string; created: number; closed: number; net: number;
+    open_at_end: number; closed_without_finish: number; by_type: Record<string, { created: number; closed: number; open_at_end: number }> }[];
+  summary: { created: number; closed: number; open_at_start: number; open_at_end: number | null;
+    trend: "growing" | "steady" | "shrinking" };
+  lag: { orders: number; with_notification: number; without_notification: number; ordered_before_notified: number;
+    median_days: number | null; p90_days: number | null; max_days: number | null;
+    longest: { order: string; label: string; notification: string; notified: string; ordered: string; lag_days: number;
+      type: string | null; priority: string | null }[] };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -154,6 +203,8 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
+  plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),
   interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),
   costOfUnreliability: () => request<CostOfUnreliability>("GET", "/plant/cost-of-unreliability"),
   forecastVsActual: () => request<ForecastVsActual>("GET", "/plant/forecast-vs-actual"),

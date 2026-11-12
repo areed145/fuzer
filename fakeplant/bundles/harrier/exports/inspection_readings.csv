@@ -1,0 +1,10 @@
+reading_id,tag,line_id,cml,survey_date,thickness,unit,nominal,tmin,method
+TM-HR-PL-001-01-1,,HR-PL-001,CML-01,today-1460d,12.62,mm,12.7,9.5,ILI
+TM-HR-PL-001-01-2,,HR-PL-001,CML-01,today-730d,12.55,mm,12.7,9.5,ILI
+TM-HR-PL-001-01-3,,HR-PL-001,CML-01,today-30d,12.47,mm,12.7,9.5,ILI
+TM-HR-PL-001-02-1,,HR-PL-001,CML-02,today-1460d,12.6,mm,12.7,9.5,ILI
+TM-HR-PL-001-02-2,,HR-PL-001,CML-02,today-730d,12.41,mm,12.7,9.5,ILI
+TM-HR-PL-001-02-3,,HR-PL-001,CML-02,today-30d,12.2,mm,12.7,9.5,ILI
+TM-HR-PL-001-03-1,,HR-PL-001,CML-03,today-1460d,12.66,mm,12.7,9.5,ILI
+TM-HR-PL-001-03-2,,HR-PL-001,CML-03,today-730d,12.63,mm,12.7,9.5,ILI
+TM-HR-PL-001-03-3,,HR-PL-001,CML-03,today-30d,12.61,mm,12.7,9.5,ILI

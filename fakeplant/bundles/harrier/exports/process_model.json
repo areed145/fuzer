@@ -1,0 +1,658 @@
+{
+ "version": 1,
+ "seed": 37,
+ "climate": {
+  "mean": 14.0,
+  "diurnal": 6.0,
+  "annual": 9.0,
+  "peak_day": 205,
+  "coolant": "air"
+ },
+ "points": {
+  "HRPT:A1.LT1001.PV": [
+   "A1-T-1001",
+   "liquid_level"
+  ],
+  "HRPT:A1.PT1004.PV": [
+   "A1-P-1003A",
+   "suction_pressure"
+  ],
+  "HRPT:A1.PT1005.PV": [
+   "A1-P-1003A",
+   "discharge_pressure"
+  ],
+  "HRPT:A1.VT1013A.PV": [
+   "A1-P-1003A",
+   "vibration"
+  ],
+  "HRPT:A1.VT1013B.PV": [
+   "A1-P-1003B",
+   "vibration"
+  ],
+  "HRPT:A1.VT1013C.PV": [
+   "A1-P-1003C",
+   "vibration"
+  ],
+  "HRPT:A1.TT1014A.PV": [
+   "A1-P-1003A",
+   "bearing_temperature"
+  ],
+  "HRPT:A1.TT1014B.PV": [
+   "A1-P-1003B",
+   "bearing_temperature"
+  ],
+  "HRPT:A1.TT1014C.PV": [
+   "A1-P-1003C",
+   "bearing_temperature"
+  ],
+  "HRPT:A1.PDT1007.PV": [
+   "A1-F-1007",
+   "value"
+  ],
+  "HRPT:A1.FT1010.PV": [
+   "meter:origin",
+   "flow"
+  ],
+  "HRPT:B1.PT2003.PV": [
+   "B1-P-2001A",
+   "suction_pressure"
+  ],
+  "HRPT:B1.PT2004.PV": [
+   "B1-P-2001A",
+   "discharge_pressure"
+  ],
+  "HRPT:B1.VT2013A.PV": [
+   "B1-P-2001A",
+   "vibration"
+  ],
+  "HRPT:B1.VT2013B.PV": [
+   "B1-P-2001B",
+   "vibration"
+  ],
+  "HRPT:C1.PT3011.PV": [
+   "C1-PT-3011",
+   "value"
+  ],
+  "HRPT:C1.PT3012.PV": [
+   "C1-PT-3012",
+   "value"
+  ],
+  "HRPT:D1.FT4002.PV": [
+   "meter:receipt",
+   "flow"
+  ],
+  "HRPT:D1.PT4003.PV": [
+   "D1-PT-4003",
+   "value"
+  ],
+  "HRPT:E1.LT5001A.PV": [
+   "E1-T-5001A",
+   "liquid_level"
+  ],
+  "HRPT:E1.LT5001B.PV": [
+   "E1-T-5001B",
+   "liquid_level"
+  ],
+  "HRPT:E1.LT5001C.PV": [
+   "E1-T-5001C",
+   "liquid_level"
+  ],
+  "HRPT:E1.PT5003.PV": [
+   "E1-PT-5003",
+   "value"
+  ],
+  "HRPT:F1.PT6003.PV": [
+   "F1-P-6001A",
+   "discharge_pressure"
+  ],
+  "HRPT:F1.FT6010.PV": [
+   "meter:loading",
+   "flow"
+  ],
+  "HRPT:G1.LT7002.PV": [
+   "G1-V-7002",
+   "liquid_level"
+  ],
+  "HRPT:G1.PT7004.PV": [
+   "G1-K-7001",
+   "suction_pressure"
+  ],
+  "HRPT:G1.PT7005.PV": [
+   "G1-K-7001",
+   "discharge_pressure"
+  ],
+  "HRPT:G1.PT7010.PV": [
+   "G1-K-7001",
+   "interstage_pressure"
+  ],
+  "HRPT:G1.TT7006.PV": [
+   "G1-K-7001",
+   "discharge_temperature"
+  ],
+  "HRPT:G1.VT7007.PV": [
+   "G1-K-7001",
+   "vibration"
+  ],
+  "HRPT:G1.ST7008.PV": [
+   "G1-K-7001",
+   "speed"
+  ],
+  "HRPT:G1.PT7009.PV": [
+   "G1-K-7001",
+   "lube_pressure"
+  ],
+  "HRPT:G1.TT7021.PV": [
+   "G1-K-7001",
+   "cylinder_temperature_1"
+  ],
+  "HRPT:G1.TT7022.PV": [
+   "G1-K-7001",
+   "cylinder_temperature_2"
+  ],
+  "HRPT:G1.TT7011.PV": [
+   "G1-E-7003",
+   "outlet_temperature"
+  ],
+  "HRPT:H1.PT8002.PV": [
+   "H1-PT-8002",
+   "value"
+  ],
+  "HRPT:H1.TT8007.PV": [
+   "H1-H-8006",
+   "value"
+  ],
+  "HRPT:H1.FT8005.PV": [
+   "H1-FT-8005",
+   "value"
+  ]
+ },
+ "units": {
+  "train:G1": {
+   "type": "train"
+  },
+  "G1-K-7001": {
+   "type": "recip",
+   "train": "train:G1",
+   "p_suction": 0.4,
+   "p_discharge": 8.0,
+   "p_settle": 1.5,
+   "vibration": 2.2,
+   "rpm": 1200,
+   "throws": {
+    "1": 1,
+    "2": 2
+   },
+   "cooler_between": "G1-E-7003"
+  },
+  "G1-E-7003": {
+   "type": "cooler",
+   "train": "train:G1",
+   "approach": 12.0
+  },
+  "G1-V-7002": {
+   "type": "vessel",
+   "train": "train:G1",
+   "pressure": 0.4,
+   "level": 25
+  },
+  "meter:origin": {
+   "type": "meter",
+   "base": 18000.0
+  },
+  "meter:receipt": {
+   "type": "meter",
+   "base": 17950.0
+  },
+  "meter:loading": {
+   "type": "meter",
+   "base": 17800.0
+  },
+  "A1-T-1001": {
+   "type": "vessel",
+   "pressure": 0.02,
+   "level": 55
+  },
+  "A1-P-1003A": {
+   "type": "pump",
+   "group": "A1-mainline",
+   "meter": "meter:origin",
+   "q_bep": 400.0,
+   "h0": 1050.0,
+   "h_bep": 900.0,
+   "p_suction": 3.5,
+   "vibration": 2.0
+  },
+  "A1-P-1003B": {
+   "type": "pump",
+   "group": "A1-mainline",
+   "meter": "meter:origin",
+   "q_bep": 400.0,
+   "h0": 1050.0,
+   "h_bep": 900.0,
+   "p_suction": 3.5,
+   "vibration": 2.1
+  },
+  "A1-P-1003C": {
+   "type": "pump",
+   "group": "A1-mainline",
+   "meter": "meter:origin",
+   "q_bep": 400.0,
+   "h0": 1050.0,
+   "h_bep": 900.0,
+   "p_suction": 3.5,
+   "vibration": 1.9,
+   "duty": false
+  },
+  "A1-F-1007": {
+   "type": "controlled",
+   "role": "differential_pressure",
+   "value": 0.25,
+   "noise": 0.01,
+   "tau": 60
+  },
+  "B1-P-2001A": {
+   "type": "pump",
+   "group": "B1-mainline",
+   "meter": "meter:origin",
+   "q_bep": 750.0,
+   "h0": 800.0,
+   "h_bep": 680.0,
+   "p_suction": 9.0,
+   "vibration": 2.2
+  },
+  "B1-P-2001B": {
+   "type": "pump",
+   "group": "B1-mainline",
+   "meter": "meter:origin",
+   "q_bep": 750.0,
+   "h0": 800.0,
+   "h_bep": 680.0,
+   "p_suction": 9.0,
+   "vibration": 2.0,
+   "duty": false
+  },
+  "C1-PT-3011": {
+   "type": "controlled",
+   "role": "pressure",
+   "value": 62.0,
+   "noise": 0.4,
+   "tau": 20
+  },
+  "C1-PT-3012": {
+   "type": "controlled",
+   "role": "pressure",
+   "value": 31.0,
+   "noise": 0.3,
+   "tau": 20
+  },
+  "D1-PT-4003": {
+   "type": "controlled",
+   "role": "pressure",
+   "value": 7.5,
+   "noise": 0.08,
+   "tau": 10
+  },
+  "E1-T-5001A": {
+   "type": "vessel",
+   "pressure": 0.01,
+   "level": 62
+  },
+  "E1-T-5001B": {
+   "type": "vessel",
+   "pressure": 0.01,
+   "level": 41
+  },
+  "E1-T-5001C": {
+   "type": "vessel",
+   "pressure": 0.01,
+   "level": 23
+  },
+  "E1-PT-5003": {
+   "type": "controlled",
+   "role": "pressure",
+   "value": 6.0,
+   "noise": 0.3,
+   "tau": 10
+  },
+  "F1-P-6001A": {
+   "type": "pump",
+   "group": "F1-loading",
+   "meter": "meter:loading",
+   "q_bep": 800.0,
+   "h0": 140.0,
+   "h_bep": 120.0,
+   "p_suction": 1.2,
+   "vibration": 2.4
+  },
+  "F1-P-6001B": {
+   "type": "pump",
+   "group": "F1-loading",
+   "meter": "meter:loading",
+   "q_bep": 800.0,
+   "h0": 140.0,
+   "h_bep": 120.0,
+   "p_suction": 1.2,
+   "vibration": 2.3,
+   "duty": false
+  },
+  "H1-PT-8002": {
+   "type": "controlled",
+   "role": "pressure",
+   "value": 7.2,
+   "noise": 0.05
+  },
+  "H1-H-8006": {
+   "type": "controlled",
+   "role": "temperature",
+   "value": 760.0,
+   "noise": 4.0,
+   "tau": 10
+  },
+  "H1-FT-8005": {
+   "type": "controlled",
+   "role": "flow",
+   "value": 12.0,
+   "noise": 1.5,
+   "tau": 3
+  }
+ },
+ "events": [
+  {
+   "unit": "G1-E-7003",
+   "kind": "fouling",
+   "points": [
+    [
+     "today-1d 01:00",
+     0
+    ],
+    [
+     "today-1d 02:30",
+     18
+    ],
+    [
+     "today-1d 06:00",
+     18
+    ],
+    [
+     "today-1d 06:10",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "G1-K-7001",
+   "kind": "discharge_temperature",
+   "points": [
+    [
+     "today-1d 01:00",
+     0
+    ],
+    [
+     "today-1d 02:40",
+     38
+    ],
+    [
+     "today-1d 02:45",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "train:G1",
+   "kind": "trip",
+   "start": "today-1d 02:45",
+   "end": "today-1d 06:20"
+  },
+  {
+   "unit": "E1-PT-5003",
+   "kind": "drift",
+   "points": [
+    [
+     "today-1d 02:45",
+     0
+    ],
+    [
+     "today-1d 03:05",
+     12.5
+    ],
+    [
+     "today-1d 06:20",
+     11.5
+    ],
+    [
+     "today-1d 06:40",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "H1-FT-8005",
+   "kind": "drift",
+   "points": [
+    [
+     "today-1d 02:45",
+     0
+    ],
+    [
+     "today-1d 02:50",
+     310
+    ],
+    [
+     "today-1d 06:20",
+     290
+    ],
+    [
+     "today-1d 06:30",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "G1-K-7001",
+   "kind": "valve_leak",
+   "throw": 2,
+   "points": [
+    [
+     "today-18d 00:00",
+     0
+    ],
+    [
+     "today-6d 00:00",
+     1.0
+    ],
+    [
+     "today+400d",
+     1.0
+    ]
+   ]
+  },
+  {
+   "unit": "train:G1",
+   "kind": "trip",
+   "start": "today-41d 11:05",
+   "end": "today-41d 12:10"
+  },
+  {
+   "unit": "G1-K-7001",
+   "kind": "signal_fault",
+   "var": "vibration",
+   "points": [
+    [
+     "today-41d 11:03",
+     0
+    ],
+    [
+     "today-41d 11:04",
+     13.0
+    ],
+    [
+     "today-41d 11:30",
+     13.0
+    ],
+    [
+     "today-41d 11:31",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "train:G1",
+   "kind": "trip",
+   "start": "today-77d 15:20",
+   "end": "today-77d 16:30"
+  },
+  {
+   "unit": "G1-K-7001",
+   "kind": "discharge_temperature",
+   "points": [
+    [
+     "today-77d 13:00",
+     0
+    ],
+    [
+     "today-77d 15:15",
+     40
+    ],
+    [
+     "today-77d 15:20",
+     0
+    ]
+   ]
+  },
+  {
+   "unit": "B1-P-2001A",
+   "kind": "stopped",
+   "start": "today-4d 09:40",
+   "end": "today+400d"
+  },
+  {
+   "unit": "B1-P-2001B",
+   "kind": "covering",
+   "start": "today-4d 09:42",
+   "end": "today+400d"
+  },
+  {
+   "unit": "A1-F-1007",
+   "kind": "drift",
+   "points": [
+    [
+     "today-30d",
+     0
+    ],
+    [
+     "today-15d",
+     0.15
+    ],
+    [
+     "today-5d",
+     0.38
+    ],
+    [
+     "today",
+     0.5
+    ],
+    [
+     "today+400d",
+     0.5
+    ]
+   ]
+  },
+  {
+   "unit": "A1-P-1003B",
+   "kind": "head_loss",
+   "points": [
+    [
+     "today-60d",
+     0
+    ],
+    [
+     "today-20d",
+     0.04
+    ],
+    [
+     "today",
+     0.08
+    ],
+    [
+     "today+400d",
+     0.08
+    ]
+   ]
+  },
+  {
+   "unit": "meter:receipt",
+   "kind": "bias",
+   "points": [
+    [
+     "today-10d",
+     0
+    ],
+    [
+     "today-7d",
+     0.035
+    ],
+    [
+     "today+400d",
+     0.035
+    ]
+   ]
+  },
+  {
+   "unit": "meter:loading",
+   "kind": "curtail",
+   "start": "today-400d",
+   "end": "today-9d 06:00",
+   "factor": 0.0
+  },
+  {
+   "unit": "meter:loading",
+   "kind": "curtail",
+   "start": "today-6d 18:00",
+   "end": "today-2d 06:00",
+   "factor": 1.0
+  },
+  {
+   "unit": "meter:loading",
+   "kind": "curtail",
+   "start": "today+0d 12:00",
+   "end": "today+400d",
+   "factor": 1.0
+  },
+  {
+   "unit": "E1-T-5001A",
+   "kind": "level",
+   "points": [
+    [
+     "today-10d",
+     0
+    ],
+    [
+     "today",
+     18
+    ],
+    [
+     "today+400d",
+     18
+    ]
+   ]
+  },
+  {
+   "unit": "E1-T-5001C",
+   "kind": "level",
+   "points": [
+    [
+     "today-9d",
+     0
+    ],
+    [
+     "today-6d",
+     -9
+    ],
+    [
+     "today+400d",
+     -9
+    ]
+   ]
+  }
+ ]
+}

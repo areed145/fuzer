@@ -8,7 +8,8 @@ them into one graph, and serves that graph to apps, AI agents and engineers.
 
 The current reference project is the Okan field demo. Asset-specific behavior is
 isolated in an **asset pack**. Okan is the main demo; Kestrel Ridge, a second facility (a gas plant), boots from
-its own seed bundle to show nothing is tied to Okan.
+its own seed bundle to show nothing is tied to Okan, and Harrier, a crude oil pipeline and terminal with no wells,
+shows nothing is tied to a plant (Gate C).
 
 ## Decisions
 
@@ -132,7 +133,7 @@ header (links it opens itself, such as a document, carry `fuzer_project=`); the
 server checks the grant on every request and runs it in that project's schema.
 Dagster starts each schedule and sensor run once per project, tagged
 `fuzer/project`. On Render, each deploy makes Okan the first project and adds every
-other bundle in `fakeplant/bundles` (Kestrel) beside it, loaded and rebuilt, with
+other bundle in `fakeplant/bundles` (Harrier, Kestrel) beside it, loaded and rebuilt, with
 its own agent worker. A project added beside the first takes its data folder, time-series
 provider, timezone, mappings and cache from its own config, so the deployment's
 process-wide `FUZER_DATA_DIR` and `FUZER_TIMESERIES` apply only to the first project.

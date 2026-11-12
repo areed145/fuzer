@@ -1,0 +1,8 @@
+# Answer keys for the metering and balances specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: Sales gas looks short this week. Is the sales meter H1-FT-8010 reading right?
+  must_mention: [H1-FT-8010, C1-FT-3005, [drift, drifting, reads low, reading low], [prove, proving, calibrat]]
+  specialists: [production-surveillance]
+- question: What is the allocation factor at the dry gas meter C1-FT-3005, and can it be trusted?
+  must_mention: [C1-FT-3005, allocation factor, ["0.94", 94], [well test, tests]]
+  specialists: [production-surveillance]

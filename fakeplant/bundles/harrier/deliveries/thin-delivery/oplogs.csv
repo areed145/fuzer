@@ -1,0 +1,17 @@
+entry_id,timestamp,facility,author,text
+HRLOG-0001,today-10d 06:00,HRPT,Shift Supervisor,"Day shift handover: line steady at 18000 sm3/d on A1-FT-1010, mainline pumps A1-P-1003A and B on duty, C on standby. Tank E1-T-5001C at 30%."
+HRLOG-0002,today-9d 06:30,HRPT,Terminal Operator,
+HRLOG-0003,today-8d 18:00,HRPT,Shift Supervisor,
+HRLOG-0004,today-7d 10:15,HRPT,Pipeline Controller,
+HRLOG-0005,today-6d 14:20,HRPT,Field Operator,
+HRLOG-0006,today-5d 08:40,HRPT,Field Operator,
+HRLOG-0007,today-4d 09:35,HRPT,Field Operator,
+HRLOG-0008,today-4d 10:00,HRPT,Shift Supervisor,
+HRLOG-0009,today-3d 06:00,HRPT,Shift Supervisor,
+HRLOG-0010,today-2d 13:10,HRPT,Lab Technician,
+HRLOG-0011,today-1d 02:50,HRPT,Terminal Operator,
+HRLOG-0012,today-1d 03:15,HRPT,Terminal Operator,
+HRLOG-0013,today-1d 06:00,HRPT,Shift Supervisor,
+HRLOG-0014,today-1d 06:25,HRPT,Terminal Operator,
+HRLOG-0015,today-1d 18:00,HRPT,Shift Supervisor,
+HRLOG-0016,today 06:00,HRPT,Shift Supervisor,Day shift handover: line steady. Next tanker due at noon; E1-T-5001A at 80% to load.

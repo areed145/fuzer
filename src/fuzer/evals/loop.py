@@ -112,7 +112,8 @@ def _bring(conn, how: dict) -> str:
     if "deliver" in how and "detector" in how:  # the next delivery lands, then the detector that reads it runs
         from ..sources import ingest
 
-        ingest.ingest(conn, _bundle(conn) / how.pop("deliver"), how.pop("datasets", None), trigger="sensor")
+        ingest.ingest(conn, _bundle(conn) / how.pop("deliver"), how.pop("datasets", None),
+                      snapshot=not how.pop("incremental", False), trigger="sensor")
         conn.commit()
         landed = "a delivery, then "
         if how.pop("rebuild", False):  # the register build after the load makes its records entities

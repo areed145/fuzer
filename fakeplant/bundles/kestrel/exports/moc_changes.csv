@@ -1,0 +1,4 @@
+moc_no,title,change_type,state,tag,opened,closes
+MOC-KR-0138,Add a 30 second delay to the compressor discharge temperature high alarm for summer running,limit,implemented,B1-TT-2002,today-40d 09:00,today+50d 17:00
+MOC-KR-0142,Temporary bypass of the TEG reboiler high temperature shutdown while its thermocouple is replaced,bypass,approved,C1-TT-3008,today-2d 10:00,today+2d 17:00
+MOC-KR-0117,Replace the inlet separator level transmitter with a guided wave radar,equipment,closed,A1-LT-1001,today-200d 09:00,today-150d 17:00

@@ -32,3 +32,7 @@ arrive:
   # to B1 that B1's revision doesn't show
   drawing_disagreement: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
+  # The suction scrubber's high-high level trip, still bypassed past its expiry (the bypass register)
+  bypass_overdue: {detector: bypass_overdue}
+  # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
+  unrecorded_change: {detector: unrecorded_changes}

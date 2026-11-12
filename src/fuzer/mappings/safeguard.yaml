@@ -1,0 +1,20 @@
+# Safeguard register (P3.9a, #763): each safeguard (a trip, interlock or shutdown), the instrument it acts on and the
+# equipment it protects. What a bypass of it takes away is read from here, never from tag names.
+source: safeguards
+record_type: safeguard
+shape: records
+dataset: safeguard_register
+key: safeguard_id
+entity:
+  kind: safeguard
+  fields:
+    - function
+    - action
+    - sil
+links:
+  - rel: acts_on
+    when: tag
+    to: {kind: tag, from: tag, as: tag}
+  - rel: protects
+    when: protects
+    to: {kind: tag, from: protects, as: tag}

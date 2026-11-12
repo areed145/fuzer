@@ -23,8 +23,8 @@ Every persona has one owner and at least one skill.
 
 | Persona | Owner | Skills |
 |---|---|---|
-| Production Surveillance | Production & Surveillance | production-surveillance, production-efficiency |
-| Production / Operations Engineer | Production & Surveillance | production-efficiency, constraint-management, gas-lift, production-engineering |
+| Production Surveillance | Production & Surveillance | production-surveillance, production-efficiency, metering-and-balances |
+| Production / Operations Engineer | Production & Surveillance | production-efficiency, constraint-management, gas-lift, production-engineering, metering-and-balances |
 | Optimization Engineer | Production & Surveillance | production-surveillance, constraint-management, back-pressure, gas-lift |
 | Subsurface Engineer | Wells & Subsurface | gas-lift, production-engineering, well-review, wells-and-lift |
 | Drilling, Completions & Intervention Specialist | Wells & Subsurface | production-engineering, well-review, wells-and-lift |
@@ -66,6 +66,7 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `wells-subsurface/wells-and-lift` | Wells & Subsurface | none | Subsurface Engineer; Drilling, Completions & Intervention Specialist | Wells and artificial lift - whether the latest well test can be trusted, the well's decline and forecast with its range, gas lift performance against the economic optimum, the choke's condition, and what limits the well (choke, back-pressure or lift), for any producing well. | `calc`, `detect_changes`, `downtime`, `intervention_gains`, `maintenance_history`, `opportunities`, `plot_choke`, `plot_decline`, `plot_dp_drift`, `plot_gas_lift_curve`, `plot_intervention_gains`, `plot_water_diagnostic`, `well_performance` | Well tests, wellhead pressure and temperature, choke position, lift gas rate and the manifold each well flows into. | Each well's decline on its own product, whether a test can be trusted, what holds it back (choke or back pressure), its lift response and flowline drift, with the measurements it could not read. | Advises; a choke, lift gas or intervention change is the accountable production engineer's call. |
 | `field-operations-facilities/troubleshooting` | Field Operations & Facilities | none | Field Operator; Surface / Facilities Engineer | Method for troubleshooting a unit or incident (a trip, leak, high vibration, carryover, hydrate) - what happened, what the process values did, similar past incidents, lessons and manual sections, and the checks to make. | `alarm_analysis`, `calc`, `detect_changes`, `gas_lift_network`, `get_entity`, `get_events`, `get_incidents`, `get_upsets`, `instrument_health`, `limits`, `maintenance_history`, `measurements`, `plot_changes`, `plot_choke`, `plot_instrument_health`, `plot_pump_curve`, `plot_state_timeline`, `process_values`, `search`, `spare_parts`, `trace_flow`, `trip_analysis`, `troubleshooting_brief`, `upset_detail`, `what_changed` | Incidents, events, process values, limits, past failures, lessons and manuals. | What happened, what the values did, similar past cases, and checks to make. | Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
 | `field-operations-facilities/upset-correlation` | Field Operations & Facilities | none | Field Operator; Surface / Facilities Engineer | Method for upsets that belong together - correlated events and cascades across units - so the IOC triages one event from where it started, merges duplicate cases and sends one operator; and for the cascades that keep recurring. | `alarm_analysis`, `cascade_patterns`, `plot_propagation`, `plot_state_timeline`, `related_upsets`, `start_study`, `trace_flow`, `trip_analysis`, `upset_detail` | SRE upsets and their detections, the plant model's links, unit run states and alarm history. | One event told first cause first, the knock-ons with their lags, upsets to merge and recurring cascades. | Recommends merges and where to send one operator; the IOC merges cases and dispatches. Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
+| `production-surveillance/metering-and-balances` | Production & Surveillance | none | Production / Operations Engineer; Production Surveillance | Metering and balances - a meter's allocation factor against the well tests upstream of it, and its agreement with the other meter on its stream (custody against check meter), for any flow meter on the allocation network (ISO 14224 class IP). | `calc`, `measurements`, `plot_trend`, `trace_flow` | Meter flow points, the allocation network around each meter, the well tests upstream and the other meters on the same stream. | Each meter's allocation factor against the tests upstream and its agreement with the check meter on its stream, which meter is suspect and why, and what could not be checked (proving records, composition). | Advises; proving, recalibration, a meter factor change or a correction to allocated volumes is the measurement engineer's call. |
 | `field-operations-facilities/gas-treating` | Field Operations & Facilities | none | Surface / Facilities Engineer; Field Operator | Gas treating and dehydration - amine and glycol contactors foaming or fouling, treated gas (acid gas, water content) against its window, reboiler temperatures drifting toward a limit, and refrigeration chillers holding the dew point, for any treating unit (ISO 14224 classes VE, HE, HB). | `calc`, `limits`, `measurements`, `plot_operating_window`, `plot_trend` | Contactor differential pressure, treated gas analysers, reboiler and chiller temperatures, and their recorded operating windows (IOW, alarm settings or learned). | Each treating unit's status with the checks that drive it (foaming, treated gas, reboiler, chiller), the window each was judged against, the link along the train and the lab samples it could not read. | Advises; antifoam, a solvent change-out, a rate cut or a reboiler setpoint change is the operator's and engineer's call. |
 | `field-operations-facilities/shift-handover` | Field Operations & Facilities | none | Field Operator; Surface / Facilities Engineer | Interpret a shift or period for handover - what changed in the records, what is still open, which alarms and excursions matter, and what to verify in the field. | `alarm_analysis`, `get_daily_ops_report`, `get_events`, `limits`, `records_mismatch`, `trip_analysis`, `what_changed` | Operator log events, notifications, downtime, the daily report and excursions for a stated window. | A dated handover of what changed, what is unresolved, which records don't agree and what to verify in the field. | Summarises records; the accountable shift supervisor owns the handover. |
 | `field-operations-facilities/alarms-and-instruments` | Field Operations & Facilities | none | Instrumentation, Controls & OT Specialist; Field Operator | Alarm performance, instrument evidence and control loops - alarm rates, floods, chattering and standing alarms, whether readings can be trusted, whether a loop is cycling, signal changes, and how close a unit runs to its limits. | `alarm_analysis`, `calc`, `capacity_headroom`, `detect_changes`, `instrument_health`, `limits`, `plot_alarms`, `plot_changes`, `plot_instrument_health`, `plot_operating_window` | DCS / PI AF limits, process values and run signals; requires a configured time-series source. | Alarm performance, whether readings can be trusted and when a signal changed, with the window. | No control, tuning or alarm changes; no validated operating envelope is implied. |
@@ -74,11 +75,11 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `maintenance-integrity/pumps-and-drivers` | Maintenance & Integrity | none | Reliability Engineer; Maintenance Technician / Coordinator | Pumps and their drivers - head against the OEM curve, where a pump runs against its best efficiency point, motor load against the nameplate, casing vibration, and gas turbine and gas engine driver checks (exhaust spread, hot section hours, cylinders, heat rate), for any pump or driver (ISO 14224 classes PU, EM, GT, CE). | `calc`, `equipment_curves`, `plot_pump_curve`, `plot_vibration`, `rotating_screen` | Pump flow, pressures and vibration, the OEM curve, the motor's nameplate on the SAP equipment record, and gas turbine and gas engine driver points (exhaust and cylinder temperatures, fuel, output). | Each pump or driver's status with the checks that drive it (curve, operating region, motor load, vibration, exhaust spread, hot section hours, cylinders, heat rate), their basis and data dates. | Advises; stopping a pump, changing a duty or deferring an inspection is the operator's and engineer's call. |
 | `maintenance-integrity/static-equipment` | Maintenance & Integrity | none | Asset Integrity Engineer; Inspection Specialist | Static equipment and integrity - wall loss and remaining life at CMLs against each CML's minimum required thickness, the condition inspection plan against the interval the wall supports, and exchanger fouling, for any pressure vessel, exchanger or piping (ISO 14224 classes VE, HE, PI). | `calc`, `limits`, `measurements`, `plot_cooler_fouling`, `plot_wall_thickness` | CML wall thickness readings and each CML's recorded minimum thickness, the maintenance plans' condition inspections, exchanger outlet temperatures and integrity operating windows. | Each vessel, exchanger or line's remaining life at its governing CML, its inspection plan against the interval its wall supports, fouling, and what could not be checked (RBI, fitness for service). | Advises; inspection intervals, deferrals and fitness for service are the integrity engineer's decisions. |
 | `maintenance-integrity/integrity` | Maintenance & Integrity | none | Asset Integrity Engineer; Inspection Specialist | Asset integrity and inspection evidence - wall loss and remaining life at CMLs, overdue statutory and internal inspections, integrity operating window excursions, and risk ranking of what to review first. | `calc`, `limits`, `maintenance_compliance`, `measurements`, `plot_compliance`, `plot_operating_window`, `plot_wall_thickness`, `value_score` | Wall thickness at CMLs, inspection plans, integrity operating windows and excursions. | Wall loss and remaining life ranked by item, overdue inspections and IOW excursions, with coverage gaps. | Fitness for service, integrity acceptance and inspection deferral are accountable human decisions. |
-| `work-management-supply-chain/work-orders` | Work Management & Supply Chain | Maintenance & Integrity | Work Planner; Work Scheduler; Maintenance Technician / Coordinator | Work order management - the open backlog by priority, type and age, overdue orders, notifications with no order, and how to prioritise the backlog against production risk. | `backlog_health`, `bad_actors`, `deferment_pareto`, `maintenance_compliance`, `maintenance_history`, `work_order_backlog` | SAP work orders, notifications and maintenance plans. | The open backlog by priority, type and age, what is overdue, and a suggested order with reasons. | Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
+| `work-management-supply-chain/work-orders` | Work Management & Supply Chain | Maintenance & Integrity | Work Planner; Work Scheduler; Maintenance Technician / Coordinator | Work order management - the open backlog by priority, type and age, overdue orders, notifications with no order, and how to prioritise the backlog against production risk. | `backlog_burn`, `backlog_health`, `bad_actors`, `deferment_pareto`, `maintenance_compliance`, `maintenance_history`, `plot_backlog_burn`, `work_order_backlog` | SAP work orders, notifications and maintenance plans. | The open backlog by priority, type and age, what is overdue, and a suggested order with reasons. | Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
 | `work-management-supply-chain/turnarounds` | Work Management & Supply Chain | Maintenance & Integrity | Work Planner; Work Scheduler; Supply Chain Specialist | Turnaround (TAR / shutdown) scope - work planned for the revision, shutdown-only inspections and PM due before or around it, bad actors that should be added, long-lead spares to order, and scope gaps. | `deferment_pareto`, `maintenance_history`, `turnaround_scope` | SAP work orders with a revision, shutdown-only plans, bad actors and stock. | Turnaround scope, what is missing from it and out-of-stock spares for scoped units. | Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
 | `work-management-supply-chain/job-readiness` | Work Management & Supply Chain | none | Work Planner; Work Scheduler; Supply Chain Specialist; Logistics Coordinator | Job and turnaround readiness from recorded evidence - scope, dates, spares and stock per job, and what is missing or unknown about materials, resources, schedule conflicts and logistics. | `bad_actors`, `maintenance_compliance`, `maintenance_history`, `plot_backlog`, `spare_parts`, `turnaround_scope`, `value_score`, `work_order_backlog` | Work orders, their dates and turnaround revision, and BOM spares with stock on hand. | Per job, what is recorded as ready and what is missing or unknown (materials, dates, resources, logistics). | A stock count is not a reservation; crew, vendor, transport and access status stay unknown. Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
-| `hse-incident-management/incident-evidence` | HSE & Incident Management | none | HSE Specialist; Environmental / Regulatory Specialist; Incident Investigator; Emergency Response Lead | Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare - without making safety or compliance decisions. | `alarm_analysis`, `compare_periods`, `downtime`, `get_events`, `get_incidents`, `get_upsets`, `incident_detail`, `lessons_learned`, `maintenance_history`, `plot_flare`, `plot_incident`, `plot_propagation`, `plot_state_timeline`, `record_history`, `similar_cases`, `trip_analysis`, `upset_detail` | Incidents, events, upsets, linked work and lessons; flare from EC DAY001. No HSE system of record. | Source-linked timelines, corrective-work status and evidence gaps for accountable review. | No compliance finding, barrier assurance or emergency advice; escalates to accountable people. |
-| `asset-performance-reporting/operations-summary` | Asset Performance & Reporting | none | Asset Manager; Operations Reporter; Commercial / Production Accounting Specialist | Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has. | `bad_actors`, `compare_periods`, `deferment_pareto`, `get_daily_ops_report`, `kpi_scorecard`, `maintenance_compliance`, `opportunities`, `plot_backlog`, `plot_bad_actors`, `plot_compliance`, `plot_kpi_scorecard`, `plot_loss_waterfall`, `plot_score_breakdown`, `production_constraints`, `production_summary`, `turnaround_scope`, `value_score`, `well_performance`, `work_order_backlog` | The cited daily report plus production, deferment, constraints, reliability and work summaries. | Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns. | Internal evidence only: not an approved decision, an external report or accounting reconciliation. |
+| `hse-incident-management/incident-evidence` | HSE & Incident Management | none | HSE Specialist; Environmental / Regulatory Specialist; Incident Investigator; Emergency Response Lead | Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare - without making safety or compliance decisions. | `alarm_analysis`, `compare_periods`, `downtime`, `get_events`, `get_incidents`, `get_upsets`, `incident_detail`, `incident_repeats`, `lessons_learned`, `maintenance_history`, `plot_flare`, `plot_incident`, `plot_incident_repeats`, `plot_propagation`, `plot_state_timeline`, `record_history`, `similar_cases`, `trip_analysis`, `upset_detail` | Incidents, events, upsets, linked work and lessons; flare from EC DAY001. No HSE system of record. | Source-linked timelines, corrective-work status and evidence gaps for accountable review. | No compliance finding, barrier assurance or emergency advice; escalates to accountable people. |
+| `asset-performance-reporting/operations-summary` | Asset Performance & Reporting | none | Asset Manager; Operations Reporter; Commercial / Production Accounting Specialist | Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has. | `accounting_reconciliation`, `bad_actors`, `compare_periods`, `deferment_pareto`, `get_daily_ops_report`, `kpi_scorecard`, `maintenance_compliance`, `opportunities`, `plot_accounting_reconciliation`, `plot_backlog`, `plot_bad_actors`, `plot_compliance`, `plot_kpi_scorecard`, `plot_loss_waterfall`, `plot_score_breakdown`, `production_constraints`, `production_summary`, `turnaround_scope`, `unit_cost`, `value_score`, `well_performance`, `work_order_backlog` | The cited daily report plus production, deferment, constraints, reliability and work summaries. | Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns. | Internal evidence only: not an approved decision, an external report or accounting reconciliation. |
 | `shared/charts` | Shared | every agent | all | When and how to put interactive charts in an answer - which plot tool fits which question, how to read and cite a chart's summary, and when (rarely) to look at the image. | `look_at_figure`, `plot_backlog`, `plot_bad_actors`, `plot_bar`, `plot_changes`, `plot_choke`, `plot_compliance`, `plot_correlation`, `plot_custom`, `plot_decline`, `plot_distribution`, `plot_gas_lift_allocation`, `plot_gas_lift_curve`, `plot_incident`, `plot_instrument_health`, `plot_measurements`, `plot_pump_curve`, `plot_reliability`, `plot_trend`, `plot_vibration`, `plot_wall_thickness`, `plot_water_diagnostic`, `plot_xy` | Whichever records each plot tool reads. | Interactive figures with their markers and a sentence on what each shows. | Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list. |
 | `shared/analysis` | Shared | every agent | Data Scientist / Operations Research Analyst | Reusable analysis methods - comparing periods, detecting changes, correlation, clustering and kept studies - with the assumptions, data sufficiency and uncertainty to state with each result. | `cluster_entities`, `cluster_events`, `cluster_modes`, `compare_periods`, `correlate`, `correlation_matrix`, `detect_changes`, `get_study`, `plot_correlation`, `start_study`, `trace_flow` | PI process values, detected upsets and well tests; results depend on the time-series source. | Correlations, clusters and period comparisons with assumptions, sample size and uncertainty. | Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics. |
 
@@ -95,7 +96,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `pressure`, `differential_pressure`, `temperature`, `flow`, `level`, `valve_position`, `composition`
 - **Charts:** `plot_instrument_health`, `plot_alarms`, `plot_changes`, `plot_operating_window`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Gas treating and dehydration
 
@@ -106,7 +107,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `differential_pressure`, `composition`, `temperature`, `outlet_temperature`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_operating_window`, `plot_trend`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
 
 ### Compression
 
@@ -117,7 +118,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** `machine_health`, `machine_trip`
 - **Measurement roles:** `running_status`, `speed`, `suction_pressure`, `interstage_pressure`, `discharge_pressure`, `suction_temperature`, `discharge_temperature`, `cylinder_discharge_temperature`, `suction_flow`, `anti_surge_valve_position`, `vibration`, `shaft_vibration`, `axial_position`, `bearing_temperature`, `seal_vent_flow`, `lube_oil_pressure`, `lube_oil_temperature`
 - **Charts:** `plot_compressor_performance`, `plot_cooler_fouling`, `plot_vibration`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 6 questions with answer keys across 3 bundles
 
 ### Pumps and drivers
 
@@ -128,7 +129,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** `machine_health`
 - **Measurement roles:** `running_status`, `speed`, `power`, `flow`, `suction_flow`, `suction_pressure`, `discharge_pressure`, `vibration`, `bearing_temperature`, `exhaust_temperature`, `fuel_flow`, `ambient_temperature`
 - **Charts:** `plot_pump_curve`, `plot_vibration`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Reliability and maintenance
 
@@ -139,7 +140,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `running_status`, `vibration`, `bearing_temperature`, `suction_pressure`, `suction_flow`, `discharge_pressure`, `discharge_temperature`, `outlet_temperature`
 - **Charts:** `plot_compressor_performance`, `plot_cooler_fouling`, `plot_peers`, `plot_reliability`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Static equipment and integrity
 
@@ -150,7 +151,18 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `outlet_temperature`, `temperature`, `pressure`, `differential_pressure`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_cooler_fouling`, `plot_wall_thickness`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
+
+### Metering and balances
+
+- **Skill:** `production-surveillance/metering-and-balances`, loaded by Production & Surveillance
+- **Equipment classes (ISO 14224):** IP
+- **Methods:** `allocation_factor` (Engineering practice), `meter_agreement` (Engineering practice)
+- **Detectors:** `instruments`
+- **Briefs:** none
+- **Measurement roles:** `flow`
+- **Charts:** `plot_trend`
+- **Eval:** 6 questions with answer keys across 3 bundles
 
 ### Wells and artificial lift
 
@@ -161,7 +173,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `wellhead_pressure`, `wellhead_temperature`, `casing_pressure`, `choke_position`, `gas_lift_rate`, `pressure`, `flow`
 - **Charts:** `plot_decline`, `plot_water_diagnostic`, `plot_gas_lift_curve`, `plot_choke`, `plot_dp_drift`, `plot_intervention_gains`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
 
 ## Not available
 
@@ -179,22 +191,22 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | HSE & Incident Management | Hazard and barrier status | An authoritative barrier or safety-case register. |
 | HSE & Incident Management | Environmental and regulatory obligation tracking | Permits and obligations from an authoritative register. |
 | HSE & Incident Management | Emergency response procedures | Approved emergency response plans; the assistant only supports with information. |
-| Asset Performance & Reporting | Commercial and production-accounting reconciliation | Authoritative accounting, allocation and cost data. |
+| Asset Performance & Reporting | Commercial reconciliation: sales, nominations, liftings and entitlements | The commercial system's sales and nomination records; production accounting volumes and the cost ledger are reconciled (accounting_reconciliation, unit_cost). |
 
 ## Tool coverage
 
 | Agent | Tools |
 |---|---|
 | Orchestrator | 23 |
-| Production & Surveillance | 69 |
+| Production & Surveillance | 70 |
 | Wells & Subsurface | 57 |
 | Field Operations & Facilities | 83 |
-| Maintenance & Integrity | 70 |
-| Work Management & Supply Chain | 32 |
-| HSE & Incident Management | 39 |
-| Asset Performance & Reporting | 47 |
+| Maintenance & Integrity | 73 |
+| Work Management & Supply Chain | 34 |
+| HSE & Incident Management | 41 |
+| Asset Performance & Reporting | 50 |
 
-## Shared (107)
+## Shared (111)
 
 Used by every agent or by several specialists.
 
@@ -214,6 +226,8 @@ Used by every agent or by several specialists.
 | `recall` | query | ref, include_ended? | What the assistant learned in earlier conversations about an entity and the units it is part of: short dated facts from answers engineers rated useful (or statements they marked to remember). |
 | `bad_actors` | query | since?, until?, limit? | Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure modes, with MTBF per unit and per class. |
 | `work_order_backlog` | query | as_of?, limit? | Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest; open notifications with no order planned yet. |
+| `backlog_burn` | calc | since?, until?, days? | Is the backlog under control (#348)? Per month: work orders created (by start) against closed (by finish) and the orders open at the month's end, with whether the backlog is growing, steady or shrinking; then the days from a notification to the order raised for it (median, 90th percentile, longest). |
+| `plot_backlog_burn` | plot | since?, until?, days? | Chart work orders created and closed each month, with the open backlog at each month's end. |
 | `rotating_screen` | query | at?, limit? | Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at one date, worst first: `act` (a severe flag: vibration zone D, head loss, accelerating failures, low-flow running), then `watch`. |
 | `backlog_health` | query | as_of?, limit? | Backlog health: ageing of open corrective (PM01) orders (flag when over 25 % are older than 90 days), priority 1-2 orders past basic finish, unplanned notifications on bad actors, and the open orders ranked by value / risk in money (production at risk, criticality, compliance, effort). |
 | `maintenance_compliance` | query | as_of?, horizon_days?, limit? | Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks due within the horizon; tasks that need a shutdown are marked. |
@@ -237,6 +251,7 @@ Used by every agent or by several specialists.
 | `well_performance` | query | ref?, since?, limit? | Well tests. |
 | `gas_lift_network` | query | ref?, since?, limit? | The gas lift network: compression -> lift gas headers -> jacket gas lift manifolds (some through another jacket) -> gas lifted wells. |
 | `kpi_scorecard` | calc | until?, days? | How the plant is running (#353): production efficiency, deferred oil, flare, corrective backlog, preventive work on time, failures and repeat failures for the `days` ending on `until` (YYYY-MM-DD; default the latest daily report) against the same length before. |
+| `accounting_reconciliation` | calc | since?, until?, days? | Operational against accounting volumes (#372): each month's daily allocated oil and gas (EC DAY001) summed over the accounting period, against what production accounting closed on the custody meters. |
 | `plot_trend` | plot | refs, at?, hours_before?, hours_after? | Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded. |
 | `plot_measurements` | plot | ref, quantity?, since?, until? | Chart landed measurements over time on a well, tag, equipment or pipeline (well tests, lab results, wall thickness): a panel per quantity, a line per location. |
 | `plot_xy` | plot | x, y, at?, hours_before?, hours_after? | Chart one PI point against another at the same times (operating envelope), coloured by time, with a straight-line fit and r. |
@@ -307,6 +322,7 @@ Used by every agent or by several specialists.
 | `plot_propagation` | plot | upset_id | Chart an SRE upset on the plant model: units coloured by when each was first detected, plant model links between them, the likely first cause marked. |
 | `plot_operating_window` | plot | ref, since, until | Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day. |
 | `plot_modes` | plot | scope, since, until, k? | Chart a unit's operating modes over time as a coloured strip under its regime-carrying point. |
+| `incident_repeats` | calc | since?, until?, days? | Repeat incidents and corrective work ageing (#350): per unit, its incidents in the window and the days between them, the ones that came back after linked corrective work was recorded closed, and every linked order with the age of what is still open. |
 
 ## Orchestrator (2)
 
@@ -334,11 +350,19 @@ Used by every agent or by several specialists.
 | `plot_reliability` | plot | ref, method? | Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up). |
 | `plot_peers` | plot | ref | Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked. |
 
-## Asset Performance & Reporting (1)
+## HSE & Incident Management (1)
+
+| Tool | Kind | Parameters | What it does |
+|---|---|---|---|
+| `plot_incident_repeats` | plot | since?, until?, days? | Chart incidents per unit with repeats marked, beside the open linked corrective orders by age band. |
+
+## Asset Performance & Reporting (3)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `plot_kpi_scorecard` | plot | until?, days? | Chart each KPI's change against the period before, coloured better or worse, unknown ones left as gaps. |
+| `unit_cost` | calc | since?, until?, days? | Operating cost per accounted Sm3 of oil (#372): the cost ledger's booked cost by month and cost element over that month's closed accounted oil, each currency apart and never converted or summed. |
+| `plot_accounting_reconciliation` | plot | since?, until?, days? | Chart each month's daily allocated oil against production accounting, in % of the accounted volume, with the 1 % tolerance; months that can't be compared are listed, not drawn. |
 
 ## MCP only (7)
 
@@ -403,3 +427,5 @@ Called by agents as themselves through the workflow engine.
 | `treated_gas` | contactor with a treated gas analyser | Engineering practice |  |
 | `regenerator` | amine or glycol reboiler (or a stabilizer's) | Engineering practice |  |
 | `chiller` | low temperature separator | Engineering practice |  |
+| `allocation_factor` | meter on the allocation network | Engineering practice |  |
+| `meter_agreement` | meter with another on the same stream | Engineering practice |  |

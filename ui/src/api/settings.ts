@@ -41,7 +41,29 @@ export interface GatePolicy {
     updated_by: string | null; updated_at: string | null }[];
 }
 
+/** The onboarding journey (P8.4): each step a new asset goes through, ready, blocked or to do, and what each gap
+ * prevents. */
+export interface OnboardingStep {
+  key: string;
+  title: string;
+  status: "ready" | "blocked" | "to do";
+  summary: string;
+  gaps: { what: string; prevents: string; link: string | null }[];
+  link: string | null;
+  command?: string;
+  never_loaded?: string[];
+}
+
+export interface Onboarding {
+  project: string | null;
+  steps: OnboardingStep[];
+  ready: number;
+  blocked: number;
+  to_do: number;
+}
+
 export const settingsApi = {
+  onboarding: () => request<Onboarding>("GET", "/onboarding"),
   gatePolicy: () => request<GatePolicy>("GET", "/settings/gates"),
   setGate: (kind: string, by: string, def: number | null, byCriticality: Record<string, number | null>) =>
     request<GatePolicy["confidence"][number]>("PUT", `/settings/gates/${kind}`, undefined,

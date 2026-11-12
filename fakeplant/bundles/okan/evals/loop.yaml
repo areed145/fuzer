@@ -49,3 +49,10 @@ arrive:
   # for an engineer, and a scanned drawing that doesn't show a line its neighbour sends it waits for a steward
   curve_to_confirm: {readings: deliveries/datasheet-read}
   drawing_line_to_confirm: {readings: deliveries/drawing-read, rebuild: true}
+  # The next delivery of the safeguard registers: train B's 2nd stage vibration trip still bypassed past its expiry
+  bypass_overdue: {deliver: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses], rebuild: true,
+                   detector: bypass_overdue}
+  # The next alarm export: train B's 2nd stage vibration high-high moved two days ago, and the only change record
+  # about the probe (in the change register's first delivery) is from long before
+  unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
+                      rebuild: true, detector: unrecorded_changes}

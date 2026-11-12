@@ -1,0 +1,7 @@
+matnr,description,manufacturer,mpn,stock,bin
+MAT-K7001-VLV,"Compressor valve assembly, Ariel JGQ/2",Ariel,JGQ-VA-2,1,HR-W1-01
+MAT-K7001-PKG,"Rod packing set, Ariel JGQ/2",Ariel,JGQ-RP-2,2,HR-W1-02
+MAT-E7003-BLT,"Fan belt set, Hudson HPC-6",Hudson,HPC-6-BLT,0,HR-W1-03
+MAT-P2001-SEAL,"Mechanical seal cartridge, Flowserve DVSH",Flowserve,DVSH-MS-12,1,HR-W2-01
+MAT-P1003-IMP,"Impeller, Flowserve DVSH-10x12",Flowserve,DVSH-IMP-10,0,HR-W2-02
+MAT-FT-XDCR,"Ultrasonic transducer pair, Daniel 3818",Emerson,3818-XD,2,HR-W3-01

@@ -85,7 +85,7 @@ def test_okan_and_kestrel_stand_up_identically_from_a_fresh_database(okan_data, 
                 "register root is the pack's facility": roots == {b["pack"].facility},
                 "loads": runs,
                 "roster": {r["role"] for r in cfg["bundle"]["roster"]} <= person_roles and bool(cfg["bundle"]["roster"]),
-                "operating model": cfg["bundle"]["operating_model"],
+                "operating model": {k: cfg["bundle"]["operating_model"][k] for k in ("name", "version")},
                 "source packs exist": all(Path(p["path"]).is_file() for p in cfg["bundle"]["source_packs"]),
             }
     assert outcomes["okan"] == outcomes["kestrel"] == {
@@ -122,6 +122,11 @@ def test_activating_a_project_writes_no_environment_and_old_variables_only_overr
     ({"roster": "nowhere.yaml"}, "roster template nowhere.yaml is missing"),
     ({"roster": "pack.yaml"}, "must list roles"),
     ({"operating_model": "standard"}, "operating_model must name a model and its version"),
+    ({"operating_model": {"name": "standard", "version": 1, "deviations": [{"part": "settings", "key": "x"}]}},
+     "needs a part .* a key, a reason and an owner"),
+    ({"operating_model": {"name": "standard", "version": 1, "deviations": [
+        {"part": "roles", "key": "operator", "reason": "r", "owner": "ops_lead", "value": {}}]}},
+     "only a settings deviation carries a value"),
 ])
 def test_a_bundles_source_packs_roster_and_operating_model_are_checked(tmp_path, extra, error):
     folder = tmp_path / "kestrel"

@@ -11,7 +11,7 @@ start everything: data, register, drawings, web UI (the one command you need)
 |---|---|
 | `--fresh` | start over: empty the database (and make new fake data) |
 | `--port` |  |
-| `--demo` (kestrel / okan) | a shipped seed bundle to serve, with its exports |
+| `--demo` (harrier / kestrel / okan) | a shipped seed bundle to serve, with its exports |
 | `--no-jobs` | don't start Dagster (schedules: SRE scans, studies, refreshes) |
 | `--jobs-port` | port for the Dagster UI |
 | `--no-worker` | don't start the agent worker (runs workflow agent steps such as daily report drafts) |
@@ -207,6 +207,26 @@ settings (#131): list, get, set, reset, or show a setting's history
 | `--project` | set or reset for this project (default: all projects) |
 | `--by` | who is changing it (default: $USER) |
 | `--reason` | why, kept in the history |
+
+## `fuzer operating-model`
+
+the operating model as a package (P8.1): export, apply, adopt, deviations, conformance, name a deviation
+
+| Argument | What it does |
+|---|---|
+| `action` (export / apply / adopt / deviations / conformance / name / unname / applied) |  |
+| `package` | a package folder, or `standard` (export: the folder to write; deviations and conformance: default the model the project's bundle follows, apply: default `standard`) |
+| `--part` | with name and unname: roles, work_types, settings, processes or forms |
+| `--key` | with name and unname: the role, work type, setting, process or form |
+| `--reason` | with name: why this project differs there |
+| `--owner` | with name: the role or person who owns the difference |
+| `--name` | with export: the model's name |
+| `--version` | with export: the model's version |
+| `--by` | who is applying it (default: $USER) |
+
+## `fuzer onboarding`
+
+the onboarding journey (P8.4): each step ready, blocked or to do, and what each gap prevents
 
 ## `fuzer board`
 

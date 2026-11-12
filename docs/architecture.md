@@ -12,13 +12,13 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 37 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 36 modules</small>"]
-  c_ops["Operations<br><small>fuzer.ops, 29 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 39 modules</small>"]
+  c_ops["Operations<br><small>fuzer.ops, 30 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 24 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
-  c_api["API<br><small>fuzer.api, 19 modules</small>"]
+  c_api["API<br><small>fuzer.api, 20 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 30 modules</small>"]
   c_sources --> c_graph
@@ -54,6 +54,7 @@ flowchart LR
   c_workflow --> c_api
   c_agents --> c_cli
   c_analysis --> c_cli
+  c_api --> c_cli
   c_evals --> c_cli
   c_graph --> c_cli
   c_ops --> c_cli
@@ -78,26 +79,33 @@ From the mapping files in `src/fuzer/mappings` (source → entity kind). Claude'
 
 ```mermaid
 flowchart LR
+  src_accounting[/"accounting"/]
   src_adx[/"adx"/]
   src_ec[/"ec"/]
   src_edms[/"edms"/]
   src_gis[/"gis"/]
   src_jde[/"jde"/]
   src_maximo[/"maximo"/]
+  src_moc[/"moc"/]
   src_oplog[/"oplog"/]
   src_pi[/"pi"/]
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
   src_ptw[/"ptw"/]
   src_rounds[/"rounds"/]
+  src_safeguards[/"safeguards"/]
   src_sap[/"sap"/]
   src_teams[/"teams"/]
+  kind_accounting_volume(["accounting_volume"])
+  kind_bypass(["bypass"])
+  kind_change(["change"])
   kind_conversation(["conversation"])
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
   kind_equipment(["equipment"])
   kind_isolation(["isolation"])
+  kind_ledger_entry(["ledger_entry"])
   kind_log_entry(["log_entry"])
   kind_maintenance_plan(["maintenance_plan"])
   kind_material(["material"])
@@ -108,11 +116,14 @@ flowchart LR
   kind_production_day(["production_day"])
   kind_purchase_order(["purchase_order"])
   kind_round_point(["round_point"])
+  kind_safeguard(["safeguard"])
   kind_timeseries(["timeseries"])
   kind_well(["well"])
   kind_well_test(["well_test"])
   kind_work_center(["work_center"])
   kind_work_order(["work_order"])
+  src_accounting --> kind_accounting_volume
+  src_accounting --> kind_ledger_entry
   src_adx --> kind_timeseries
   src_ec --> kind_downtime
   src_ec --> kind_plant_hierarchy__facility__area__tag__well
@@ -125,6 +136,7 @@ flowchart LR
   src_gis --> kind_well
   src_jde --> kind_equipment
   src_maximo --> kind_equipment
+  src_moc --> kind_change
   src_oplog --> kind_log_entry
   src_pi --> kind_timeseries
   src_pi_af --> kind_plant_hierarchy__facility__area__tag__well
@@ -132,6 +144,8 @@ flowchart LR
   src_ptw --> kind_isolation
   src_ptw --> kind_permit
   src_rounds --> kind_round_point
+  src_safeguards --> kind_bypass
+  src_safeguards --> kind_safeguard
   src_sap --> kind_equipment
   src_sap --> kind_maintenance_plan
   src_sap --> kind_material
@@ -216,7 +230,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `spares`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `accounting`, `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `incident_followup`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `metering`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `spares`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -227,7 +241,7 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
+- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `safeguards`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `detector_tier_run`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detector_tier_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading` (its `schema.sql`)
@@ -248,10 +262,10 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `home`, `notify`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `home`, `notify`, `operating_model`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
 - **Uses:** core
-- **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_home_seen`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token`, `work_view`, `work_watch` ([schema](schema.md))
-- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_home_seen`, `work_watch`, `work_view` (its `schema.sql`)
+- **Writes:** `exception_kind`, `operating_model_applied`, `operating_model_deviation`, `work_definition`, `work_draft`, `work_event`, `work_form`, `work_home_seen`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token`, `work_view`, `work_watch` ([schema](schema.md))
+- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_home_seen`, `work_watch`, `work_view`, `operating_model_applied`, `operating_model_deviation` (its `schema.sql`)
 - **Settings:** `notify.app_url`, `notify.from`, `work.agent_fallback_minutes`, `work.due_soon_minutes` ([settings](settings.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
@@ -264,7 +278,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 47, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 70, orchestrator 23, production-surveillance 69, wells-subsurface 57, work-management-supply-chain 32 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 50, field-operations-facilities 83, hse-incident-management 41, maintenance-integrity 73, orchestrator 23, production-surveillance 70, wells-subsurface 57, work-management-supply-chain 34 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
@@ -282,7 +296,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `onboarding`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `access_login`, `access_session`, `feedback`, `pinned_link`, `value_ranking` ([schema](schema.md))
 - **Settings:** `access.session_hours`, `agents.case_cap_usd`, `demo.enabled` ([settings](settings.md))
@@ -293,7 +307,7 @@ The HTTP API the app uses. More in [deployment](deployment.md).
 The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 - **Code:** [`src/fuzer/cli`](https://github.com/areed145/fuzer/tree/main/src/fuzer/cli): `demo_seed`, `deploy`, `sources`, `up`
-- **Uses:** agents, analysis, core, evals, graph, ops, sources, workflow
+- **Uses:** agents, analysis, api, core, evals, graph, ops, sources, workflow
 - **Writes:** `llm_extraction` ([schema](schema.md))
 - **Tests:** [`tests/cli`](https://github.com/areed145/fuzer/tree/main/tests/cli)
 

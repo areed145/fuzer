@@ -1,0 +1,81 @@
+floc,parent,description,abc_indicator
+HRPT,,Harrier crude pipeline and terminal,A
+HRPT-A1,HRPT,Area A1 origin pump station,
+HRPT-B1,HRPT,Area B1 intermediate pump station (KP 110),
+HRPT-C1,HRPT,"Area C1 mainline, origin to terminal (210 km)",
+HRPT-D1,HRPT,Area D1 terminal receipt,
+HRPT-E1,HRPT,Area E1 terminal tank farm,
+HRPT-F1,HRPT,Area F1 ship loading and custody transfer,
+HRPT-G1,HRPT,Area G1 vapour recovery,
+HRPT-H1,HRPT,Area H1 utilities and thermal oxidiser,
+HRPT-A1-T1001,HRPT-A1,Origin Breakout Tank,A
+HRPT-A1-P1002A,HRPT-A1,Booster Pump A,B
+HRPT-A1-P1002B,HRPT-A1,Booster Pump B,B
+HRPT-A1-F1007,HRPT-A1,Mainline Suction Strainer,C
+HRPT-A1-P1003A,HRPT-A1,Mainline Pump A,A
+HRPT-A1-P1003B,HRPT-A1,Mainline Pump B,A
+HRPT-A1-P1003C,HRPT-A1,Mainline Pump C,A
+HRPT-A1-V1008,HRPT-A1,Pig Launcher,
+HRPT-A1-FT1010,HRPT-A1,Origin Meter,A
+HRPT-A1-XV1009,HRPT-A1,Station Discharge ESD Valve,A
+HRPT-A1-PSV1011,HRPT-A1,Station Discharge Relief Valve,A
+HRPT-B1-P2001A,HRPT-B1,Midline Pump A,A
+HRPT-B1-P2001B,HRPT-B1,Midline Pump B,A
+HRPT-B1-V2005,HRPT-B1,Midline Pig Trap,B
+HRPT-B1-XV2006,HRPT-B1,Midline Station ESD Valve,A
+HRPT-C1-XV3001,HRPT-C1,Mainline Block Valve KP 42,A
+HRPT-C1-XV3002,HRPT-C1,Mainline Block Valve KP 160,A
+HRPT-D1-V4001,HRPT-D1,Terminal Pig Receiver,B
+HRPT-D1-FT4002,HRPT-D1,Terminal Receipt Meter,A
+HRPT-D1-PV4004,HRPT-D1,Receipt Back Pressure Valve,B
+HRPT-E1-T5001A,HRPT-E1,Crude Storage Tank A,A
+HRPT-E1-T5001B,HRPT-E1,Crude Storage Tank B,A
+HRPT-E1-T5001C,HRPT-E1,Crude Storage Tank C,A
+HRPT-F1-P6001A,HRPT-F1,Ship Loading Pump A,B
+HRPT-F1-P6001B,HRPT-F1,Ship Loading Pump B,B
+HRPT-F1-FT6010,HRPT-F1,Custody Transfer Meter,A
+HRPT-F1-V6012,HRPT-F1,Meter Prover,
+HRPT-G1-V7002,HRPT-G1,Vapour Recovery Suction Scrubber,B
+HRPT-G1-K7001,HRPT-G1,Vapour Recovery Compressor,A
+HRPT-G1-E7003,HRPT-G1,Vapour Recovery Aftercooler,B
+HRPT-H1-K8001,HRPT-H1,Instrument Air Compressor,
+HRPT-H1-P8003,HRPT-H1,Fire Water Pump,A
+HRPT-H1-G8004,HRPT-H1,Standby Generator,B
+HRPT-H1-H8006,HRPT-H1,Thermal Oxidiser,A
+HRPT-A1-LT1001,HRPT-A1-T1001,Breakout Tank Level,C
+HRPT-A1-PT1004,HRPT-A1-P1003A,Mainline Suction Pressure,C
+HRPT-A1-PT1005,HRPT-A1-P1003A,Station Discharge Pressure,C
+HRPT-A1-VT1013A,HRPT-A1-P1003A,Mainline Pump A Vibration,C
+HRPT-A1-VT1013B,HRPT-A1-P1003B,Mainline Pump B Vibration,C
+HRPT-A1-VT1013C,HRPT-A1-P1003C,Mainline Pump C Vibration,C
+HRPT-A1-TT1014A,HRPT-A1-P1003A,Mainline Pump A Bearing Temperature,C
+HRPT-A1-TT1014B,HRPT-A1-P1003B,Mainline Pump B Bearing Temperature,C
+HRPT-A1-TT1014C,HRPT-A1-P1003C,Mainline Pump C Bearing Temperature,C
+HRPT-A1-PDT1007,HRPT-A1-F1007,Mainline Suction Strainer Differential Pressure,C
+HRPT-B1-PT2003,HRPT-B1-P2001A,Midline Suction Pressure,C
+HRPT-B1-PT2004,HRPT-B1-P2001A,Midline Discharge Pressure,C
+HRPT-B1-VT2013A,HRPT-B1-P2001A,Midline Pump A Vibration,C
+HRPT-B1-VT2013B,HRPT-B1-P2001B,Midline Pump B Vibration,C
+HRPT-C1-PT3011,HRPT-C1-XV3001,Mainline Pressure KP 42,C
+HRPT-C1-PT3012,HRPT-C1-XV3002,Mainline Pressure KP 160,C
+HRPT-D1-PT4003,HRPT-D1-V4001,Terminal Receipt Pressure,C
+HRPT-E1-LT5001A,HRPT-E1-T5001A,Crude Tank A Level,C
+HRPT-E1-LT5001B,HRPT-E1-T5001B,Crude Tank B Level,C
+HRPT-E1-LT5001C,HRPT-E1-T5001C,Crude Tank C Level,C
+HRPT-E1-PT5003,HRPT-E1-T5001A,Tank Vapour Header Pressure,C
+HRPT-F1-PT6003,HRPT-F1-P6001A,Loading Pump Discharge Pressure,C
+HRPT-G1-LT7002,HRPT-G1-V7002,Vapour Recovery Scrubber Level,C
+HRPT-G1-PT7004,HRPT-G1-K7001,Vapour Recovery Compressor Suction Pressure,C
+HRPT-G1-PT7005,HRPT-G1-K7001,Vapour Recovery Compressor Discharge Pressure,C
+HRPT-G1-PT7010,HRPT-G1-K7001,Vapour Recovery Compressor Interstage Pressure,C
+HRPT-G1-TT7006,HRPT-G1-K7001,Vapour Recovery Compressor Discharge Temperature,C
+HRPT-G1-VT7007,HRPT-G1-K7001,Vapour Recovery Compressor Frame Vibration,C
+HRPT-G1-ST7008,HRPT-G1-K7001,Vapour Recovery Compressor Speed,C
+HRPT-G1-PT7009,HRPT-G1-K7001,Vapour Recovery Compressor Lube Oil Pressure,C
+HRPT-G1-TT7021,HRPT-G1-K7001,Vapour Recovery Compressor Cylinder 1 Discharge Temperature,C
+HRPT-G1-TT7022,HRPT-G1-K7001,Vapour Recovery Compressor Cylinder 2 Discharge Temperature,C
+HRPT-G1-TT7011,HRPT-G1-E7003,Vapour Recovery Aftercooler Outlet Temperature,C
+HRPT-H1-PT8002,HRPT-H1-K8001,Instrument Air Header Pressure,C
+HRPT-H1-TT8007,HRPT-H1-H8006,Oxidiser Firebox Temperature,C
+HRPT-H1-FT8005,HRPT-H1-H8006,Thermal Oxidiser Vapour Flow,C
+HRPT-C1-PL-001,HRPT-C1,"24 inch crude mainline, origin to terminal",A

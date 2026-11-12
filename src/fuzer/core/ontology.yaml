@@ -88,6 +88,21 @@ kinds:
     group: Maintenance
     colour: "#a8553f"
     description: A point a permit needs isolated, how, and whether it is in place.
+  safeguard:
+    label: Safeguard
+    group: Maintenance
+    colour: "#b5463a"
+    description: A trip, interlock or shutdown, the instrument it acts on and the equipment it protects.
+  bypass:
+    label: Bypass
+    group: Maintenance
+    colour: "#d08a3c"
+    description: A safeguard taken out of service, with its state, when it went in, its expiry and change record.
+  change:
+    label: Change record
+    group: Maintenance
+    colour: "#9a6fb0"
+    description: A management of change record, with its type, state, and when it opened and must close.
   round_point:
     label: Round point
     group: Maintenance
@@ -103,6 +118,16 @@ kinds:
     group: Production
     colour: "#95a5a6"
     description: The Energy Components DAY001 record of a day's allocated production.
+  accounting_volume:
+    label: Accounted volume
+    group: Production
+    colour: "#7f8c8d"
+    description: A month's oil or gas as production accounting closed it on the custody meters.
+  ledger_entry:
+    label: Ledger entry
+    group: Production
+    colour: "#8e7f6a"
+    description: Operating cost booked in the ledger for a month and cost element, in its own currency.
   downtime:
     label: Downtime
     group: Production
@@ -257,6 +282,24 @@ relations:
     description: An isolation and the permit that needs it.
     from: [isolation]
     to: [permit]
+  acts_on:
+    label: acts on
+    view: maintenance
+    description: A safeguard and the instrument it acts on.
+    from: [safeguard]
+    to: [tag, equipment]
+  protects:
+    label: protects
+    view: maintenance
+    description: A safeguard and the equipment it protects.
+    from: [safeguard]
+    to: [tag, equipment, area]
+  bypasses:
+    label: bypasses
+    view: maintenance
+    description: A bypass and the safeguard it takes out of service.
+    from: [bypass]
+    to: [safeguard]
   checks:
     label: checks
     view: maintenance
@@ -334,8 +377,8 @@ relations:
   concerns:
     label: concerns
     view: maintenance
-    description: A notification, work order or plan and the tag, equipment, area or facility it is for.
-    from: [notification, work_order, maintenance_plan]
+    description: A notification, work order, plan or change record and the tag, equipment, area or facility it is for.
+    from: [notification, work_order, maintenance_plan, change]
     to: [tag, equipment, area, facility]
   for_notification:
     label: for notification
@@ -358,8 +401,8 @@ relations:
   reports_on:
     label: reports on
     view: production
-    description: A production day and the facility it is for.
-    from: [production_day]
+    description: A production day, accounted volume or ledger entry and the facility it is for.
+    from: [production_day, accounting_volume, ledger_entry]
     to: [facility]
   about:
     label: about

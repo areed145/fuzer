@@ -9,6 +9,7 @@ import { usePermission } from "../Auth";
 import { ApplicationReadiness } from "./ApplicationReadiness";
 import { HumanGates } from "./Gates";
 import { Detection } from "./Detection";
+import { Onboarding } from "./Onboarding";
 
 const when = (at: string | null) => (at ? at.slice(0, 16).replace("T", " ") : "");
 
@@ -42,17 +43,19 @@ function Configuration({ query }: { query: URLSearchParams }) {
   );
   const groups = [...new Set(rows.map((s) => s.group))];
   const detection = query.get("view") === "detection";
-  const configuration = !detection && (query.get("view") === "configuration" || query.has("filter"));
+  const onboarding = query.get("view") === "onboarding";
+  const configuration = !detection && !onboarding && (query.get("view") === "configuration" || query.has("filter"));
   return (
     <section>
       <PageHeader subtitle="Preferences and configuration.">Settings</PageHeader>
       <Appearance />
       <nav className="tabs" aria-label="Settings sections">
-        <a className={!configuration && !detection ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration && !detection ? "page" : undefined}>Readiness</a>
+        <a className={!configuration && !detection && !onboarding ? "on" : ""} href={href("/settings", { project })} aria-current={!configuration && !detection && !onboarding ? "page" : undefined}>Readiness</a>
         <a className={configuration ? "on" : ""} href={href("/settings", { project, view: "configuration" })} aria-current={configuration ? "page" : undefined}>All settings</a>
         <a className={detection ? "on" : ""} href={href("/settings", { view: "detection" })} aria-current={detection ? "page" : undefined}>Detection</a>
+        <a className={onboarding ? "on" : ""} href={href("/settings", { view: "onboarding" })} aria-current={onboarding ? "page" : undefined}>Onboarding</a>
       </nav>
-      {detection ? <Detection /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
+      {detection ? <Detection /> : onboarding ? <Onboarding /> : !configuration ? <><ApplicationReadiness list={list} /><HumanGates /></> : <>
       <UICard className="row small">
         <label>
           Project{" "}

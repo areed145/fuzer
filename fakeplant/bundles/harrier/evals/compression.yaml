@@ -1,0 +1,9 @@
+# Answer keys for the compression specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): its one compressor is the vapour recovery compressor G1-K-7001.
+- question: How is the vapour recovery compressor G1-K-7001 today, and what should we do about it?
+  must_mention: [G1-K-7001, [valve, cylinder 2, 2nd stage, second stage], [trip, tripped, discharge temperature]]
+  specialists: [maintenance-integrity]
+- question: Why did G1-K-7001 trip yesterday, and is it safe to keep running?
+  must_mention: [G1-K-7001, [aftercooler, G1-E-7003, fan, belt], discharge temperature]
+  specialists: [maintenance-integrity]
