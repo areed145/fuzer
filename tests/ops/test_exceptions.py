@@ -234,7 +234,7 @@ def test_a_report_carries_a_reading_and_a_photo_the_ioc_sees(conn, types):
     from fuzer.ops import exceptions as ex
 
     types("leak", audience=("ioc", "field"))
-    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-101 (photo)", "olga", refs=["tag:P-101"])
+    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-102 (photo)", "olga", refs=["tag:P-102"])
     ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at the gland")
     conn.commit()
     with pytest.raises(ExceptionError, match="needs its unit"):
@@ -266,7 +266,7 @@ def test_a_report_made_offline_arrives_once_with_its_time(conn, types):
     from fuzer.ops import exceptions as ex
 
     types("leak", audience=("ioc", "field"))
-    e = raise_exception(conn, "leak", "walk-offline", "Leak at P-101 (offline)", "olga", refs=["tag:P-101"])
+    e = raise_exception(conn, "leak", "walk-offline", "Leak at P-103 (offline)", "olga", refs=["tag:P-103"])
     ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at it")
     conn.commit()
     made = (datetime.now().astimezone() - timedelta(minutes=40)).replace(microsecond=0)
