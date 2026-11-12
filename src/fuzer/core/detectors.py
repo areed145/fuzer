@@ -38,7 +38,8 @@ ON = "detectors.on"  # the setting that switches detectors; detectors.on@<name> 
 
 # Where detectors are written. A module here is imported when the registry is first read.
 MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating",
-           "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards")
+           "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
+           "fuzer.analysis.loops")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 

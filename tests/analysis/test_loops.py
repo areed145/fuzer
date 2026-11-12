@@ -45,3 +45,31 @@ def test_the_test_separator_level_cycles_while_its_valve_sticks(conn):
     assert during["period_min"] == pytest.approx(60, rel=0.1) and during["method"]["id"] == "loop_oscillation"
     after = calcs.run(conn, "loop_oscillation", sep, until="2025-03-01T00:00")
     assert after["flag"] is None and after["oscillating"] == []
+
+
+def test_a_cycling_level_is_a_loop_candidate_until_it_stops(conn):
+    """P3.1a: the screen as a detector. While the valve sticks the separator's level is raised for the engineer as a
+    candidate (never a diagnosis), saying the values are synthetic; when it stops cycling the case clears."""
+    import json
+
+    from fuzer.core import detectors
+    from fuzer.workflow import engine
+
+    engine.load_defaults(conn)
+    conn.commit()
+    out = detectors.run(conn, PACK, "loop_oscillation", until="2025-02-14T00:00")
+    assert not out["errors"], out
+    points = [r["point"] for r in out["raised"]]
+    assert any(p.endswith("LT2003.PV") for p in points) and len(points) <= 3, points  # the one cycling, not the field
+    x = conn.execute("select * from exception_record where type = 'loop_candidate' and state = 'open' and key like "
+                     "'%%LT2003.PV'").fetchone()
+    assert "loop candidate" in x["title"] and "every 60" in x["title"] and x["item_id"]
+    assert conn.execute("select role from work_item where id = %s", (x["item_id"],)).fetchone()["role"] == "engineer"
+    said = json.dumps(x["evidence"])
+    assert "not a diagnosed loop" in said and "synthetic values" in said, said
+    assert detectors.run(conn, PACK, "loop_oscillation", until="2025-02-14T00:00")["raised"][0]["new"] is False
+
+    after = detectors.run(conn, PACK, "loop_oscillation", until="2025-03-01T00:00")
+    assert x["key"] in after["cleared"], after
+    assert conn.execute("select state from exception_record where id = %s", (x["id"],)).fetchone()["state"] != "open"
+    conn.commit()
