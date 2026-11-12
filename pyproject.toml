@@ -10,6 +10,7 @@ dependencies = [
     "uvicorn>=0.30",
     "psycopg[binary]>=3.2",
     "pyyaml>=6.0",
+    "httpx>=0.27",  # the live PI Web API and ADX connectors (sources/pi_web_api.py, sources/adx.py)
     "rapidfuzz>=3.9",
     "mcp>=2.3",
     "anthropic>=2.3",
