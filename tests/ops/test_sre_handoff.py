@@ -2,6 +2,7 @@
 sets up what it needs through fixtures, so it passes on its own and in any order (#137)."""
 
 import pytest
+from psycopg.types.json import Jsonb
 
 from fuzer.agents import mcp_server
 from fuzer.core.pack import load_pack
@@ -79,9 +80,85 @@ def test_handoff_prioritises_diagnoses_and_opens_work(conn, handed_off):
     engine.complete(conn, tok["id"], "alice", {"triage": "false_alarm", "triage_note": "valve stroke test"})
     conn.commit()
     assert sre_handoff.sync_feedback(conn)["false_alarms"] == 1
-    conn.execute("update upset set status = 'detected', work_item_id = null where id = %s", (other["upset"],))
+    # the same pattern again: it gets a case, but one false alarm is 67% sure, under the 95% auto-close gate (P5.10)
+    again = _repeat(conn, other["upset"])
+    known = next(u for u in sre_handoff.candidates(conn) if u["id"] == again)
+    assert known["known_false_alarm"] == {"false_alarms": 1, "real": 0}
+    out = sre_handoff.handoff(conn, PACK, ask=fake_ask)
+    [mine] = [i for i in out["items"] if i["upset"] == again]
+    assert out["diagnosed"] == 0 and mine["false_alarm"]["auto_closed"] is False  # no paid diagnosis for a repeat
+    assert (mine["false_alarm"]["confidence"], mine["false_alarm"]["threshold"]) == (0.667, 0.95)
+    assert engine.item(conn, mine["item_id"])["state"] not in ("done", "cancelled")
+    said = _said(conn, mine["item_id"])
+    assert "1 earlier upset people called a false alarm" in said and "67%" in said and "95%" in said
+    [gate] = conn.execute("select * from gate_decision where item_id = %s", (mine["item_id"],)).fetchall()
+    assert gate["kind"] == "auto_close" and gate["fired"]
+
+
+def _repeat(conn, upset_id: int) -> int:
+    """A new upset that starts with the same detection as `upset_id`, not handed off yet."""
+    return conn.execute(
+        """
+        insert into upset (kind, status, start, "end", first_detection, first_unit, units, detections)
+        select kind, 'detected', start + interval '1 day', "end" + interval '1 day', first_detection, first_unit, units,
+               detections from upset where id = %s returning id
+        """, (upset_id,)).fetchone()["id"]
+
+
+def _said(conn, item_id: int) -> str:
+    from fuzer.workflow import engine
+
+    return " ".join(str(e.get("detail") or e.get("text") or e) for e in engine.item(conn, item_id).get("events", []))
+
+
+def test_a_pattern_people_keep_calling_a_false_alarm_closes_itself_except_on_a_critical_asset(conn, handed_off):
+    """At 95% (18 false alarms, none real) the auto-close gate lets the SRE close a repeat as a false alarm; the same
+    repeat on a high-criticality asset still stops for a person (P5.10)."""
+    from fuzer.ops import sre_handoff
+    from fuzer.workflow import engine
+
+    _, out, _, fake_ask = handed_off
+    from fuzer.core import gates
+
+    def crit(upset_id):
+        u = conn.execute("select first_unit, units from upset where id = %s", (upset_id,)).fetchone()
+        return min((c for c in (gates.criticality(conn, x) for x in [u["first_unit"], *u["units"]]) if c), default=None)
+
+    seed = next(i["upset"] for i in out["items"] if crit(i["upset"]) != "A")  # not a high-criticality asset already
+    pattern = conn.execute("select d.point_id, d.detector, d.key from upset u join detection d on d.id = u.first_detection "
+                           "where u.id = %s", (seed,)).fetchone()
+    conn.execute("insert into sre_suppress (point_id, detector, key, upset_id) values (%s, %s, %s, %s) "
+                 "on conflict do nothing", (pattern["point_id"], pattern["detector"], pattern["key"], seed))
+    for _ in range(18):
+        conn.execute("update upset set status = 'false_alarm' where id = %s", (_repeat(conn, seed),))
+    was = None
+    unit = conn.execute("select first_unit from upset where id = %s", (seed,)).fetchone()["first_unit"]
     conn.commit()
-    assert other["upset"] not in [u["id"] for u in sre_handoff.candidates(conn)]
+    try:
+        assert sre_handoff.false_alarm_confidence(sre_handoff.history(conn, tuple(pattern.values()))) == 0.95
+        closes = _repeat(conn, seed)
+        conn.commit()
+        [mine] = [i for i in sre_handoff.handoff(conn, PACK, ask=fake_ask)["items"] if i["upset"] == closes]
+        assert mine["false_alarm"]["auto_closed"] is True
+        assert engine.item(conn, mine["item_id"])["state"] == "cancelled"
+        assert conn.execute("select status from upset where id = %s", (closes,)).fetchone()["status"] == "false_alarm"
+        assert "95% meets the 95% needed" in _said(conn, mine["item_id"])
+
+        was = conn.execute("select * from golden where fuzer_id = %s and field = 'criticality'", (unit,)).fetchone()
+        conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'criticality', '\"A\"', "
+                     "'test', 'test') on conflict (fuzer_id, field) do update set value = excluded.value", (unit,))
+        stops = _repeat(conn, seed)
+        conn.commit()
+        [mine] = [i for i in sre_handoff.handoff(conn, PACK, ask=fake_ask)["items"] if i["upset"] == stops]
+        assert mine["false_alarm"]["auto_closed"] is False and mine["false_alarm"]["threshold"] is None
+        assert engine.item(conn, mine["item_id"])["state"] not in ("done", "cancelled")
+        assert "always stops for a person" in _said(conn, mine["item_id"])
+    finally:
+        conn.execute("delete from golden where fuzer_id = %s and field = 'criticality'", (unit,))
+        if was:
+            conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, %s, %s, %s, %s)",
+                         (unit, "criticality", Jsonb(was["value"]), was["source"], was["rule"]))
+        conn.commit()
 
 
 def test_board_ranks_everything_once(conn, handed_off):
