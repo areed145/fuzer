@@ -100,6 +100,26 @@ def probability(curve: list[dict], score: float) -> float | None:
     return curve[-1]["p"] if curve else None
 
 
+def confidence(conn, kind: str = "equipment"):
+    """How sure an automatic match is, for the human gate (P5.10): `fn(sources, score)`. Where the pair's source has
+    been measured (its least trusted side, as `measure` attributes pairs), it is the precision measured at that score
+    or above: of the labelled matches scored this high, the share that were the same item. A source not yet measured
+    has only its score to go on, so the score is the confidence."""
+    rank = {r["name"]: r["rank"] for r in conn.execute("select name, rank from source_system")}
+    curves = {r["source"]: r["result"].get("curve") or [] for r in conn.execute(
+        "select source, result from match_calibration where kind = %s", (kind,))}
+
+    def fn(sources, score: float) -> tuple[float, str]:
+        ranks = {s: rank.get(s) if rank.get(s) is not None else float("inf") for s in sources}
+        measured = [s for s, r in ranks.items() if r == max(ranks.values()) and curves.get(s)]
+        for s in measured:
+            at = [c for c in curves[s] if c["threshold"] <= score]
+            if at:
+                return float(at[-1]["precision"]), f"measured on {s}'s labelled pairs"
+        return float(score), "its match score (not yet measured)"
+    return fn
+
+
 def _measure(every: list[dict]) -> dict:
     pairs = [p for p in every if p["outcome"] != "ambiguous"]
     positives = [p["score"] for p in pairs if p["same"]]

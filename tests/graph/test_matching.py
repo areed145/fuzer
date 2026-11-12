@@ -55,9 +55,23 @@ def test_registers_are_loaded_and_keyed(okan_db, key):
     assert {k["case"] for k in key} == {"serial", "score", "review", "ambiguous", "conflict"}
 
 
+def gated(conn) -> set[str]:
+    """The JDE and Maximo records whose match the human gate stopped for a person (P5.10)."""
+    return {ref.split(":", 2)[2] for r in conn.execute(
+        "select subject from review_item where kind = 'match' and payload ? 'gate'")
+        for ref in r["subject"].split("|") if ref.startswith("jde:")}
+
+
+def stopped(conn, key) -> set[str]:
+    """The planted straight-through matches the gate held for a person."""
+    return gated(conn) & {k["key"] for k in cases(key, "score")}
+
+
 def test_answer_key_scores(okan_db, key):
     m = evaluate.matches(okan_db.conn, PACK, key)
-    waiting = len(cases(key, "review")) + len(cases(key, "ambiguous"))
+    stopped = gated(okan_db.conn)
+    assert stopped and stopped <= {k["key"] for k in cases(key, "score")}
+    waiting = len(cases(key, "review")) + len(cases(key, "ambiguous")) + len(stopped)
     assert m["pairs"] == len(key) and m["wrong_merges"] == 0 and m["precision"] == 1.0
     assert m["not_merged"] == waiting and m["recall"] == round((len(key) - waiting) / len(key), 3)
     assert m["recall"] >= 0.9  # the rest wait in the review queue
@@ -69,6 +83,8 @@ def test_each_case_takes_its_path(okan_db, key):
         mine, sap = owner(c, k["source"], k["key"]), owner(c, "sap", k["same_as"]["key"])
         if k["case"] in ("serial", "conflict"):
             assert mine[0] == sap[0] and mine[1] == "key", k
+        elif k["case"] == "score" and k["key"] in gated(c):  # the gate stopped it for a person
+            assert mine[0] != sap[0] and mine[1] == "singleton", k
         elif k["case"] == "score":  # no serial: tag, maker (misspelt or not) and description
             assert mine[0] == sap[0] and mine[1] == "score", k
         else:
@@ -97,7 +113,31 @@ def test_review_cases_are_queued_with_reasons(okan_db, key):
     assert all("more than one possible match" in i["payload"]["why"] for i in items)
     sides = {i["payload"][s]["ref"].split(":", 2)[2] for i in items for s in ("left", "right")} - {amb["key"]}
     assert amb["same_as"]["key"] in sides and len(sides) == 2
-    assert okan_db.built.stats["match_reviews"] == len(cases(key, "review")) + 2
+    assert okan_db.built.stats["match_reviews"] == len(cases(key, "review")) + 2 + len(gated(c))
+
+
+def test_the_gate_stops_matches_on_high_criticality_assets_and_below_99_percent(okan_db):
+    """P5.10: an automatic match goes through only at 99% confidence or above, never on an A-criticality asset, and
+    the question says what it was sure of and what it needed."""
+    c = okan_db.conn
+    stopped = c.execute("select payload from review_item where kind = 'match' and payload ? 'gate'").fetchall()
+    assert stopped
+    for p in (r["payload"] for r in stopped):
+        g = p["gate"]
+        assert (g["criticality"] == "A" and g["threshold"] is None) or g["confidence"] < g["threshold"], g
+        assert g["reason"] in p["why"] and g["basis"]
+    # The steward's case says it too.
+    case = c.execute("select x.evidence from exception_record x where x.type = 'unmatched_record' and x.state = 'open' "
+                     "and x.key = (select 'match:' || subject from review_item where kind = 'match' and payload ? 'gate' "
+                     "limit 1)").fetchone()
+    labels = {i["label"] for i in case["evidence"]["finding"]["items"]}
+    assert {"Confidence", "Needed to go ahead", "Why it stopped"} <= labels
+    went = c.execute("select confidence, threshold, criticality from gate_decision where kind = 'auto_match' "
+                     "and not fired").fetchall()
+    assert went and all(r["confidence"] >= r["threshold"] == 0.99 and r["criticality"] != "A" for r in went)
+    merged = c.execute("select count(*) as n from match_score where outcome = 'merged'").fetchone()["n"]
+    assert merged == len({r["ref"] for r in c.execute(
+        "select ref from gate_decision where kind = 'auto_match' and not fired")})
 
 
 def test_conflicting_maker_goes_to_review(okan_db, key):
@@ -150,7 +190,8 @@ def test_accepting_a_match_merges_and_survives_rebuild(okan_db, key, api):
     c.commit()
     assert owner(c, "jde", k["key"])[0] == owner(c, "sap", k["same_as"]["key"])[0]
     assert not match_items(c, jde_ref(k))  # decided, not asked again
-    assert evaluate.matches(c, PACK, key)["not_merged"] == len(cases(key, "review")) + len(cases(key, "ambiguous")) - 1
+    assert evaluate.matches(c, PACK, key)["not_merged"] == (len(cases(key, "review")) + len(cases(key, "ambiguous"))
+                                                            - 1 + len(stopped(c, key)))
 
 
 def test_rejecting_one_side_of_an_ambiguous_match_lets_the_other_merge(okan_db, key, api):
@@ -167,7 +208,7 @@ def test_rejecting_one_side_of_an_ambiguous_match_lets_the_other_merge(okan_db, 
     assert owner(c, "jde", amb["key"]) == (owner(c, "sap", right)[0], "score")
     assert not match_items(c, jde_ref(amb))
     m = evaluate.matches(c, PACK, key)
-    assert m["wrong_merges"] == 0 and m["not_merged"] == len(cases(key, "review")) - 1
+    assert m["wrong_merges"] == 0 and m["not_merged"] == len(cases(key, "review")) - 1 + len(stopped(c, key))
 
 
 def test_rejecting_a_match_keeps_records_apart(okan_db, key, api):

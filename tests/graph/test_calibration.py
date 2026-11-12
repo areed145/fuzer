@@ -104,26 +104,33 @@ def test_kestrel_planted_maximo_records_take_every_path_and_stay_99_percent_corr
     conn = kestrel
     outcome = {r["left_ref"].split(":")[-1] if r["left_ref"].startswith("maximo") else r["right_ref"].split(":")[-1]:
                (r["outcome"], r["score"]) for r in conn.execute("select * from match_score")}
-    assert outcome["MX-2010"][0] == "merged" and outcome["MX-4006"][0] == "merged"  # no serial, same maker and item
+    assert outcome["MX-2010"][0] == "merged"  # no serial, same maker and item
     assert outcome["MX-6003"][0] == "review"  # no serial and no maker: a person decides
     assert outcome["MX-1009"][0] == "rejected"  # the pump's motor at the pump's tag is not the pump
-    # The glycol pump's driver: same maker, a close name, the pump's tag. The pack's 0.9 takes it straight through,
-    # into the pump: the wrong merge calibration exists to catch.
-    assert outcome["MX-3010"][0] == "merged" and outcome["MX-3010"][1] >= 0.9
+    # The same maker and item on an A-criticality reboiler: the human gate (P5.10) always asks a person there.
+    gate = {r["subject"].split("|")[0].split(":")[-1]: r["payload"]["gate"] for r in conn.execute(
+        "select subject, payload from review_item where kind = 'match' and payload ? 'gate'")}
+    assert outcome["MX-4006"] == ("review", 1.0) and gate["MX-4006"]["criticality"] == "A"
+    # The glycol pump's driver: same maker, a close name, the pump's tag. The pack's 0.9 would take it straight
+    # through, into the pump; the gate holds it, since an unmeasured score of 0.90 is short of the 99% it needs.
+    assert outcome["MX-3010"][0] == "review" and outcome["MX-3010"][1] >= 0.9
+    assert gate["MX-3010"]["confidence"] == outcome["MX-3010"][1] and gate["MX-3010"]["threshold"] == 0.99
 
     before, measured, adopted, after = _calibrate_and_adopt(conn, KESTREL / "answer_keys")
     conn.commit()
-    assert before["merged_unlisted"] == ["maximo:MX-3010"] and before["precision"] < 0.99
+    assert before["merged_unlisted"] == [] and before["precision"] >= 0.99
     maximo = measured["maximo"]
     assert maximo["pairs"] == 5 and maximo["same"] == 3  # the two negatives are measured too
     assert maximo["auto_accept"]["threshold"] > outcome["MX-3010"][1]  # set above the driver
     assert maximo["auto_accept"]["precision"] == 1.0 and maximo["auto_accept"]["lower"] < 0.99  # and honest about n
-    # Stricter is the cautious direction, so it's adopted on a handful of pairs; the next rebuild sends the driver
-    # to a person, and straight-through is right again.
+    # Stricter is the cautious direction, so it's adopted on a handful of pairs; now the measured threshold itself
+    # sends the driver to a person, before the gate is asked, and straight-through stays right.
     assert adopted["maximo"]["auto_accept"] > 0.9
     assert after["precision"] >= 0.99 and after["merged_unlisted"] == [], after
     assert conn.execute("select outcome from match_score where 'maximo:asset:MX-3010' in (left_ref, right_ref)"
                         ).fetchone()["outcome"] == "review"
+    assert not conn.execute("select 1 from review_item where kind = 'match' and status = 'open' "
+                            "and subject like 'maximo:asset:MX-3010|%%' and payload ? 'gate'").fetchone()
 
     from fastapi.testclient import TestClient
 
