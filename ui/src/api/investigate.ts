@@ -322,6 +322,16 @@ export interface AssistantConversation {
   created_at: string;
   updated_at: string;
   turns: number;
+  item_id?: number | null; // the case it was opened from (P4.5a)
+  subject?: string | null; // or the asset
+}
+
+/** What a conversation opened from a case or an asset is about (P4.5a). */
+export interface AskContext {
+  item_id: number | null;
+  subject: string | null;
+  label: string;
+  text: string;
 }
 
 export interface SavedTurn {
@@ -451,11 +461,13 @@ export const investigateApi = {
   feedback: (target: string, useful: boolean, by: string, comment?: string) =>
     request<{ id: number }>("POST", "/feedback", undefined, { target, useful, by, comment }),
   briefRatings: () => request<BriefRatings>("GET", "/feedback/briefs"),
-  ask: (question: string, conversationId: string | undefined, by: string, images: Attachment[] = []) =>
+  ask: (question: string, conversationId: string | undefined, by: string, images: Attachment[] = [],
+        about?: { case_id?: number; subject?: string }) =>
     request<{ job_id: string; conversation_id: string }>("POST", "/assistant/ask", undefined, {
       question, conversation_id: conversationId, by,
-      images: images.map(({ media_type, data }) => ({ media_type, data })),
+      images: images.map(({ media_type, data }) => ({ media_type, data })), ...about,
     }),
+  askContext: (about: { case?: number; subject?: string }) => request<AskContext>("GET", "/assistant/context", about),
   figure: (id: string) => request<FigureData>("GET", `/figures/${encodeURIComponent(id)}`),
   assistantCatalog: () => request<AssistantCatalog>("GET", "/assistant/agents"),
   assistantJob: (id: string) => request<AssistantJob>("GET", `/assistant/jobs/${encodeURIComponent(id)}`),

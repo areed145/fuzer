@@ -93,6 +93,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <KindBadge kind={e.kind} />
             <span className="muted mono small">{e.fuzer_id}</span>
             <WatchButton target={e.fuzer_id} label="asset" />
+            <a className="small" href={href("/ask", { subject: e.fuzer_id })}>Ask about this asset</a>
             {e.golden.description && <span>{fmt(e.golden.description.value)}</span>}
           </div>
         </div>

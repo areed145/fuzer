@@ -49,6 +49,8 @@ class Question(BaseModel):
     conversation_id: str | None = None
     by: str = "anonymous"
     images: list[Image] = []  # screenshots, photos, datasheet pages the user attaches
+    case_id: int | None = None  # a new conversation opened from this case (P4.5a)
+    subject: str | None = None  # or from this asset
 
 
 MAX_IMAGES, MAX_IMAGE_BYTES = 4, 5 * 1024 * 1024
@@ -60,7 +62,7 @@ async def assistant_ask(q: Question):
     import base64
     import binascii
 
-    from ..agents import service
+    from ..agents import context, service
 
     if not q.question.strip():
         raise HTTPException(400, "empty question")
@@ -75,7 +77,9 @@ async def assistant_ask(q: Question):
     if any(len(b) > MAX_IMAGE_BYTES for _, b in images):
         raise HTTPException(400, "each image at most 5 MB")
     try:
-        return service.start(q.question.strip(), q.conversation_id, q.by, images)
+        return service.start(q.question.strip(), q.conversation_id, q.by, images, q.case_id, q.subject)
+    except context.Unknown as e:
+        raise HTTPException(404, str(e))
     except service.Busy as e:
         raise HTTPException(429, str(e), headers={"Retry-After": "5"}) from e
     except service.Unavailable as e:
@@ -89,6 +93,19 @@ def assistant_agents():
     from ..agents.capabilities import public_catalog
     from ..core import llm
     return public_catalog() | {"provider": llm.provider("agents"), "provider_configured": llm.configured("agents")}
+
+
+@router.get("/assistant/context")
+def assistant_context(case: int | None = None, subject: str | None = None, conn=Depends(get_conn)):
+    """What a conversation opened from a case or an asset is about: its label, and the block its first question
+    carries (P4.5a). Reading it calls no model."""
+    from ..agents import context
+    if case is None and not subject:
+        raise HTTPException(400, "give a case or a subject")
+    try:
+        return context.about(conn, case, subject)
+    except context.Unknown as e:
+        raise HTTPException(404, str(e))
 
 
 @router.get("/assistant/jobs/{job_id}")

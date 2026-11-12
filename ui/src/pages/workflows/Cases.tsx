@@ -174,6 +174,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
             {priorityText(it.priority) && <span className="muted">priority {priorityText(it.priority)}</span>}
             <span className="muted">opened by</span> <Actor who={it.created_by} /> <span className="muted">{when(it.created_at)}</span>
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
+            {!demo && <a href={href("/ask", { case: String(it.id) })}>Ask about this case</a>}
           </div>
           {(it.subjects.length > 0 || dataset) && (
             <p className="small">About{" "}
