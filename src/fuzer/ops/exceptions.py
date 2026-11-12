@@ -876,6 +876,7 @@ def field_jobs(conn, person: str) -> list[dict]:
                     "sources": sources if len(sources) > 1 else [],
                     "finding": mine, "history": history, "field": r["evidence"].get("field", []),
                     "sent": sent, "permit": _permit(conn, subjects, r["id"]),
+                    "warnings": _warnings(conn, subjects, r["id"]),
                     "handover": _handover_for(r, person)})
     return out
 
@@ -951,6 +952,13 @@ def accept_handover(conn, exception_id: int, by: str) -> dict:
     events.publish(conn, "exception.handover_accepted", f"exception:{row['id']}",
                    {**_payload(row), "from": h["from"], "to": by})
     return _row(conn, row["id"])
+
+
+def _warnings(conn, subjects: list[str], exception_id: int) -> list[str]:
+    """What the person doing the job should know before starting that never holds it: an open MOC on the equipment."""
+    from . import readiness
+
+    return readiness.mocs(conn, subjects, exception_id)["warnings"]
 
 
 def _permit(conn, subjects: list[str], exception_id: int) -> dict | None:

@@ -244,7 +244,30 @@ def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
     return simops.at_dispatch(conn, subjects, job)
 
 
-CHECKS = (_spares, crew, permits, _simops)
+def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
+    """Open management-of-change records on the job's equipment or where it is installed: a warning for whoever sends
+    or does the work that a change is proposed or in hand there, never a blocker. Read from whatever MOC records are
+    loaded (an open MOC in the register, method `moc_open`); silent when there are none."""
+    base = {"check": "moc", "label": "MOC", "ready": True, "blockers": []}
+    rows = conn.execute(
+        """
+        select m.record, m.quantity, m.value, m.unit, m.at, l.label as asset, r.source_key as moc, r.payload
+        from measurement m left join entity_label l on l.fuzer_id = m.fuzer_id
+        left join source_record r on m.record = r.source || ':' || r.record_type || ':' || r.source_key
+        where m.method = 'moc_open' and m.fuzer_id = any(%s)
+        order by m.at desc, m.record
+        """, (_locations(conn, subjects),)).fetchall()
+    found = [{"moc": r["moc"] or r["record"].rsplit(":", 1)[-1], "asset": r["asset"],
+              "change": f"{r['quantity'].replace('_', ' ')} {_n(r['value'])} {r['unit'] or ''}".strip(),
+              "description": (r["payload"] or {}).get("description"), "since": r["at"].date().isoformat()}
+             for r in rows]
+    warnings = [f"Open MOC {f['moc']} on {f['asset'] or 'this equipment'}: "
+                + (f["description"] or f"proposes {f['change']}").rstrip(".") for f in found]
+    return {**base, "checked": True, "mocs": found, "warnings": warnings,
+            "note": None if found else "No open MOC on this equipment."}
+
+
+CHECKS = (_spares, crew, permits, _simops, mocs)
 
 
 def check(conn, subjects: list[str], job: int | None = None) -> dict:
@@ -252,7 +275,8 @@ def check(conn, subjects: list[str], job: int | None = None) -> dict:
     itself): ready, or each blocker by name."""
     results = [c(conn, subjects, job) for c in CHECKS]
     blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
-    return {"ready": not blockers, "blockers": blockers, "checks": results}
+    warnings = [w for r in results for w in r.get("warnings") or []]  # said to whoever sends it, never holding it
+    return {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": results}
 
 
 def for_exception(conn, exception_id: int) -> dict:

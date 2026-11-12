@@ -75,7 +75,7 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     out = readiness.check(conn, ["fz-nothing-here"])
     assert out["ready"] is True and out["checks"][0]["checked"] is False
     assert out["checks"][0]["note"].startswith("No BOM")
-    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits", "simops"]
+    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits", "simops", "moc"]
 
 
 @pytest.fixture(autouse=True)
