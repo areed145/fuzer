@@ -21,7 +21,13 @@ A package is a folder:
                                    the project's other operating settings reset, changed processes and forms published;
                                    records the version and its digest
     applied(conn)                  the version this project last applied
-    deviations(conn, package)      where this project differs from the package, one row per difference
+    deviations(conn, package)      where this project differs from the package, one row per difference, each with
+                                   the reason and owner it was named with (None for an unnamed deviation)
+    name(conn, part, key, ...)     name a deviation: why this project differs there and who owns it
+    unname(conn, part, key)        take a name back
+    adopt(conn, by)                apply the model the project's bundle follows, set the bundle's settings deviations
+                                   and name its deviations
+    conformance(conn, package)     the model, whether it was applied as it is, and the deviations named and unnamed
 
 Rounds come from the rounds source pack (round_point entities), so a bundle's source packs carry them; metric
 targets are not held anywhere yet. Both join the package when they are.
@@ -176,7 +182,7 @@ def _same(a, b) -> bool:
 def deviations(conn, package: dict | str | Path) -> list[dict]:
     """Where this project differs from the package: {part, key, change (changed | added | missing), package, local},
     in part and key order. `added` is something this project has that the package doesn't hold."""
-    pkg, snap = resolve(package), snapshot(conn)
+    pkg, snap, names = resolve(package), snapshot(conn), _names(conn)
     out = []
     for part in PARTS:
         want, have = pkg.get(part) or {}, snap[part]
@@ -190,9 +196,93 @@ def deviations(conn, package: dict | str | Path) -> list[dict]:
             else:
                 continue
             show = part not in ("processes", "forms")  # a whole BPMN or form isn't a value to show in a row
+            named = names.get((part, key)) or {}
             out.append({"part": part, "key": key, "change": change,
-                        "package": want.get(key) if show else None, "local": have.get(key) if show else None})
+                        "package": want.get(key) if show else None, "local": have.get(key) if show else None,
+                        "reason": named.get("reason"), "owner": named.get("owner")})
     return out
+
+
+def _names(conn) -> dict[tuple[str, str], dict]:
+    return {(r["part"], r["key"]): r for r in conn.execute(
+        "select part, key, reason, owner, named_by, named_at from operating_model_deviation where project = %s "
+        "order by part, key", (_project(conn),))}
+
+
+def name(conn, part: str, key: str, reason: str, owner: str, by: str) -> dict:
+    """Name a deviation: why this project differs from its model at `part`/`key`, and who owns the difference (a role
+    or a person). Naming one that isn't a deviation yet is allowed (a bundle names what it is about to set)."""
+    if part not in PARTS:
+        raise OperatingModelError(f"no part {part!r}: one of {', '.join(PARTS)}")
+    if not (key or "").strip() or not (reason or "").strip() or not (owner or "").strip():
+        raise OperatingModelError("a named deviation needs a key, a reason and an owner")
+    row = conn.execute(
+        """
+        insert into operating_model_deviation (project, part, key, reason, owner, named_by) values (%s, %s, %s, %s, %s, %s)
+        on conflict (project, part, key) do update set reason = excluded.reason, owner = excluded.owner,
+            named_by = excluded.named_by, named_at = now()
+        returning part, key, reason, owner, named_by, named_at
+        """, (_project(conn), part, key.strip(), reason.strip(), owner.strip(), by)).fetchone()
+    conn.commit()
+    return row
+
+
+def unname(conn, part: str, key: str) -> bool:
+    n = conn.execute("delete from operating_model_deviation where project = %s and part = %s and key = %s",
+                     (_project(conn), part, key)).rowcount
+    conn.commit()
+    return bool(n)
+
+
+def _bundle_model(conn) -> dict:
+    from ..core import projects
+
+    ref = (projects.config(conn, _project(conn)).get("bundle") or {}).get("operating_model")
+    if not ref:
+        raise OperatingModelError("this project's bundle doesn't name an operating model")
+    return ref
+
+
+def _package_for(ref: dict) -> dict:
+    if (ref["name"], ref["version"]) != (STANDARD_NAME, STANDARD_VERSION):
+        raise OperatingModelError(f"operating model {ref['name']} v{ref['version']} isn't held here: only "
+                                  f"{STANDARD_NAME} v{STANDARD_VERSION} ships; apply a package folder instead")
+    return standard()
+
+
+def conformance_package(conn) -> dict:
+    """The package this project is held to: the operating model its bundle follows."""
+    return _package_for(_bundle_model(conn))
+
+
+def adopt(conn, by: str) -> dict:
+    """Make this project run the operating model its bundle follows: apply it, set the bundle's settings deviations
+    and name every deviation the bundle declares. What is left unnamed afterwards is the project's own."""
+    ref = _bundle_model(conn)
+    pkg = _package_for(ref)
+    done = apply(conn, pkg, by)
+    project = _project(conn)
+    for d in ref.get("deviations") or []:
+        if d["part"] == "settings" and "value" in d:
+            settings.set(conn, d["key"], d["value"], by=by, reason=d["reason"], project_name=project)
+        name(conn, d["part"], d["key"], d["reason"], d["owner"], by)
+    conn.commit()
+    return {**done, **conformance(conn, pkg)}
+
+
+def conformance(conn, package: dict | str | Path | None = None) -> dict:
+    """How this project stands against a package (by default the one its bundle follows): {model, version, applied
+    (the package was the last one applied, unchanged since), deviations, named, unnamed, stale (named, but no longer
+    a deviation)}."""
+    pkg = resolve(package) if package is not None else conformance_package(conn)
+    rows = deviations(conn, pkg)
+    last = applied(conn)
+    found = {(d["part"], d["key"]) for d in rows}
+    return {"model": pkg["name"], "version": pkg["version"],
+            "applied": bool(last and last["digest"] == digest(pkg)),
+            "deviations": len(rows), "named": sum(1 for d in rows if d["owner"]),
+            "unnamed": [{"part": d["part"], "key": d["key"], "change": d["change"]} for d in rows if not d["owner"]],
+            "stale": [{"part": p, "key": k} for (p, k) in _names(conn) if (p, k) not in found]}
 
 
 def apply(conn, package: dict | str | Path, by: str) -> dict:

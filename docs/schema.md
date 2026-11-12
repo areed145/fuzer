@@ -476,6 +476,20 @@ The operating model each project applied (P8.1, workflow/operating_model.py): th
 | `applied_by` | text |  |
 | `applied_at` | timestamptz |  |
 
+### `operating_model_deviation`
+
+A project's named deviations from its operating model (P8.1, workflow/operating_model.py): why it differs and who owns the difference. A difference without a name here is an unnamed deviation.
+
+| Column | Type | Note |
+|---|---|---|
+| `project` | text |  |
+| `part` | text |  |
+| `key` | text |  |
+| `reason` | text |  |
+| `owner` | text |  |
+| `named_by` | text |  |
+| `named_at` | timestamptz |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)

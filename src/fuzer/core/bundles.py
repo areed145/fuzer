@@ -13,7 +13,10 @@
       timeseries: none
     source_packs: [packs/measurement.yaml]   # optional: the source packs (sources/_catalog_packs) it brings
     roster: roster.yaml       # optional: the roster template, the human workflow roles it staffs and their seats
-    operating_model: {name: standard, version: 1}   # optional: the operating model it follows
+    operating_model:          # optional: the operating model it follows (P8.1), and its named deviations from it
+      name: standard
+      version: 1
+      deviations: [{part: settings, key: handover.shift_times, value: "07:00,19:00", reason: ..., owner: ops_lead}]
 
 A bundle carries its source packs, roster template and operating model reference (P1.6); `init` validates and
 stores them with the project. It installs nothing and assigns nobody: people are assigned to roles by their
@@ -161,12 +164,27 @@ def _roster(manifest: Path, root: Path, rel) -> list[dict]:
     return out
 
 
+MODEL_PARTS = ("roles", "work_types", "settings", "processes", "forms")  # workflow.operating_model.PARTS
+
+
 def _operating_model(manifest: Path, ref) -> dict | None:
+    """The operating model the bundle follows and the deviations from it the facility owns: {name, version,
+    deviations: [{part, key, reason, owner, value?}]}. Only a setting's deviation carries a value (the bundle sets it
+    when the model is adopted); a deviation in another part is named here and made through the workflow screens."""
     if ref is None:
         return None
     if not isinstance(ref, dict) or not isinstance(ref.get("name"), str) or not isinstance(ref.get("version"), int):
         raise BundleError(f"{manifest}: operating_model must name a model and its version ({{name, version}})")
-    return {"name": ref["name"], "version": ref["version"]}
+    out = []
+    for d in ref.get("deviations") or []:
+        if not isinstance(d, dict) or d.get("part") not in MODEL_PARTS or not all(
+                isinstance(d.get(k), str) and d[k].strip() for k in ("key", "reason", "owner")):
+            raise BundleError(f"{manifest}: each operating_model deviation needs a part ({', '.join(MODEL_PARTS)}), "
+                              "a key, a reason and an owner")
+        if "value" in d and d["part"] != "settings":
+            raise BundleError(f"{manifest}: only a settings deviation carries a value ({d['part']} {d['key']})")
+        out.append({k: d[k] for k in ("part", "key", "reason", "owner", "value") if k in d})
+    return {"name": ref["name"], "version": ref["version"], "deviations": out}
 
 
 def _holds_data(conn) -> bool:

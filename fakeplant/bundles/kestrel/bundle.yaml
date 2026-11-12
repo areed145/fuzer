@@ -20,4 +20,12 @@ project:
   timezone: America/Denver
 source_packs: [packs/measurement.yaml, packs/healthwatch.yaml, packs/corrwatch.yaml]
 roster: roster.yaml
-operating_model: {name: standard, version: 1}
+operating_model:
+  name: standard
+  version: 1
+  deviations:
+  - part: settings
+    key: handover.shift_times
+    value: "07:00,19:00"
+    reason: Kestrel's crews hand over at 07:00 and 19:00 local (the shift supervisor's log), not the standard 06:00 and 18:00
+    owner: ops_lead

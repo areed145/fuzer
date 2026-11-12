@@ -317,6 +317,15 @@ its published processes and forms) can be exported as one versioned package fold
 difference (changed, added or missing). `standard` is the built-in standard, version 1: the shipped processes and
 forms, the built-in roles and no settings changed. Okan has no deviations from it.
 
+Where a project differs from its model on purpose, the difference is named: why, and who owns it
+(`fuzer operating-model name --part --key --reason --owner`). A bundle names its facility's deviations under
+`operating_model.deviations` in `bundle.yaml`, and a settings deviation there carries its value;
+`fuzer operating-model adopt` applies the model the bundle follows, sets those values and names them, and
+`fuzer operating-model conformance` reports the model, whether it was applied as it is, and the deviations named and
+unnamed. Okan adopts standard v1 with no deviations; Kestrel adopts it with one, its crews' 07:00 and 19:00 handover
+(`handover.shift_times`, owned by ops_lead). `fuzer init` doesn't adopt by itself: applying resets a project's
+operating settings, so it is a step someone takes.
+
 A package holds operating settings only (the Work, SRE, Signals, Alarms, Opportunities, Reports and Detection
 groups); one holding anything else, or without a version, is refused.
 

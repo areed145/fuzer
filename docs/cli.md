@@ -210,12 +210,16 @@ settings (#131): list, get, set, reset, or show a setting's history
 
 ## `fuzer operating-model`
 
-the operating model as a package (P8.1): export, apply, deviations
+the operating model as a package (P8.1): export, apply, adopt, deviations, conformance, name a deviation
 
 | Argument | What it does |
 |---|---|
-| `action` (export / apply / deviations / applied) |  |
-| `package` | a package folder, or `standard` (export: the folder to write) |
+| `action` (export / apply / adopt / deviations / conformance / name / unname / applied) |  |
+| `package` | a package folder, or `standard` (export: the folder to write; deviations and conformance: default the model the project's bundle follows, apply: default `standard`) |
+| `--part` | with name and unname: roles, work_types, settings, processes or forms |
+| `--key` | with name and unname: the role, work type, setting, process or form |
+| `--reason` | with name: why this project differs there |
+| `--owner` | with name: the role or person who owns the difference |
 | `--name` | with export: the model's name |
 | `--version` | with export: the model's version |
 | `--by` | who is applying it (default: $USER) |

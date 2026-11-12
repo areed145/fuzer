@@ -275,3 +275,16 @@ create table if not exists operating_model_applied (
     applied_by text not null,
     applied_at timestamptz not null default now()
 );
+
+-- A project's named deviations from its operating model (P8.1, workflow/operating_model.py): why it differs and who
+-- owns the difference. A difference without a name here is an unnamed deviation.
+create table if not exists operating_model_deviation (
+    project  text not null,
+    part     text not null,
+    key      text not null,
+    reason   text not null,
+    owner    text not null,
+    named_by text not null,
+    named_at timestamptz not null default now(),
+    primary key (project, part, key)
+);
