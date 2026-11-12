@@ -12,11 +12,7 @@ tag_grammar:
   loop_digits: [4, 4]
   function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, ST, PDT, XV, PV, PSV]
 
-# A pipeline has no wells. A pack still declares a well grammar (core/pack.py reads it unconditionally), so this one
-# names a pattern no Harrier source writes.
-well_grammar:
-  pattern: 'HRW[-_\s]?(?P<num>\d{3})'
-  key: 'HRW-{num}'
+# A pipeline has no wells, so the pack declares no well_grammar: nothing parses as a well.
 
 aliases:
   harrier: [facility, HRPT]

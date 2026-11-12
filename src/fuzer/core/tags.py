@@ -136,3 +136,16 @@ class PatternWellGrammar:
     def parse(self, text: str) -> str | None:
         found = self.find_all(text)
         return found[0].key if found else None
+
+
+class NoWellGrammar:
+    """An asset with no wells (a pipeline, a terminal): its pack declares no well grammar, and nothing parses as a
+    well."""
+
+    prefix = ""
+
+    def find_all(self, text: str) -> list[PatternWellMatch]:
+        return []
+
+    def parse(self, text: str) -> str | None:
+        return None
