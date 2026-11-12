@@ -352,6 +352,15 @@ def work_item_gates(item_id: int, conn=Depends(get_conn)):
     return gates.decisions(conn, item_id)
 
 
+@router.get("/work/items/{item_id}/around")
+def work_item_around(item_id: int, conn=Depends(get_conn)):
+    """The alarms that sounded and the operator log entries written about the case's event, around its window
+    (P3.5a): shown beside the exceptions that joined it."""
+    from ..ops import around
+
+    return around.context(conn, item_id)
+
+
 @router.get("/work/inbox/fields")
 def work_inbox_fields(person: str):
     """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for

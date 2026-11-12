@@ -395,6 +395,16 @@ export interface GateDecision {
   at: string;
 }
 
+/** What sounded and what was written around a case's event (P3.5a): alarms on its assets' points and the operator log
+ * entries that mention them, in the event's window. */
+export interface CaseAround {
+  window: { start: string; end: string } | null;
+  alarms: { point_id: string; point: string; type: string; level: string | null; limit: number; peak: number;
+    start: string; end: string | null }[];
+  log: { id: string; at: string; author: string | null; text: string | null }[];
+  basis: string;
+}
+
 /** A change proposed to a source system (P5.7): it is written only after a named approver approves it. */
 export interface Writeback {
   id: number;
@@ -793,6 +803,7 @@ export const workApi = {
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
+  workItemAround: (id: number) => request<CaseAround>("GET", `/work/items/${id}/around`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
   generateWorkflow: (id: number, description: string, by: string) =>
