@@ -200,13 +200,13 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Orchestrator | 23 |
 | Production & Surveillance | 78 |
 | Wells & Subsurface | 63 |
-| Field Operations & Facilities | 83 |
+| Field Operations & Facilities | 85 |
 | Maintenance & Integrity | 73 |
 | Work Management & Supply Chain | 34 |
-| HSE & Incident Management | 41 |
+| HSE & Incident Management | 43 |
 | Asset Performance & Reporting | 50 |
 
-## Shared (117)
+## Shared (119)
 
 Used by every agent or by several specialists.
 
@@ -329,6 +329,8 @@ Used by every agent or by several specialists.
 | `plot_operating_window` | plot | ref, since, until | Chart a PI point against its limits (alarm, IOW, learned range) with the minutes outside per day. |
 | `plot_modes` | plot | scope, since, until, k? | Chart a unit's operating modes over time as a coloured strip under its regime-carrying point. |
 | `incident_repeats` | calc | since?, until?, days? | Repeat incidents and corrective work ageing (#350): per unit, its incidents in the window and the days between them, the ones that came back after linked corrective work was recorded closed, and every linked order with the age of what is still open. |
+| `quality_trends` | calc | sample_point?, analyte?, days? | Separator and export quality from the lab (#342). |
+| `plot_quality_trend` | plot | sample_point, analyte, days? | Chart one lab analyte at a sample point: the samples, gaps in sampling shaded, downtime marked, and the detector's baseline range when it found a drift. |
 
 ## Orchestrator (2)
 

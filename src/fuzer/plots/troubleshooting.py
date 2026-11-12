@@ -411,3 +411,37 @@ def incident_repeats(conn, since: str | None = None, until: str | None = None, d
         "summary": out["summary"], "came_back_after_closed_work": [c for u in units for c in u["came_back_after_closed_work"]],
         "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
         [u["unit_id"] for u in units if u["unit_id"]][:10])
+
+
+def quality_trend(conn, subject: str, sample_point: str, analyte: str, since: str | None = None,
+                  until: str | None = None, days: int = 365) -> Figure:
+    """One lab analyte at a sample point over the window (#342): the samples (hollow where below detection), the
+    gaps where sampling stopped shaded grey, downtime marked, and the quality_drift detector's baseline range when it
+    found a drift. No limit line: export specifications and discharge limits are not loaded."""
+    from ..analysis import quality_trend as qt
+
+    try:
+        d = qt.series(conn, subject, sample_point, analyte, since, until, days)
+    except qt.CalcError as e:
+        raise ChartError(str(e)) from e
+    pts = d["points"]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": f"{analyte} ({d['unit'] or ''})".replace(" ()", ""),
+             "x": [p["at"] for p in pts], "y": [rnd(p["value"]) for p in pts],
+             "marker": {"symbol": ["circle-open" if p["below_detection"] else "circle" for p in pts]}}]
+    shapes = [{"type": "rect", "xref": "x", "yref": "paper", "y0": 0, "y1": 1, "line": {"width": 0},
+               "fillcolor": "rgba(150,150,150,0.18)", "layer": "below", "x0": g["from"], "x1": g["to"]}
+              for g in d["gaps"]]
+    shapes += [{"type": "rect", "xref": "x", "yref": "paper", "y0": 0, "y1": 1, "line": {"width": 0},
+                "fillcolor": "rgba(230,150,30,0.18)", "layer": "below", "x0": e["start"], "x1": e["end"] or e["start"]}
+               for e in d["events"]]
+    if d["drift"] and d["drift"].get("low") is not None:
+        lo, hi = d["drift"]["low"], d["drift"]["high"]
+        shapes.append({"type": "rect", "xref": "paper", "x0": 0, "x1": 1, "yref": "y", "y0": lo, "y1": hi,
+                       "line": {"width": 0}, "fillcolor": "rgba(40,150,90,0.10)", "layer": "below"})
+    lay = layout(f"{d['label']} {sample_point}: {analyte}, {d['since']} to {d['until']}", None,
+                 f"{analyte} ({d['unit']})" if d["unit"] else analyte)
+    lay["shapes"] = shapes
+    return Figure("quality_trend", lay["title"]["text"], data, lay, {
+        k: d[k] for k in ("sample_point", "analyte", "unit", "samples", "first_half_median", "change_pct", "gaps",
+                          "below_detection", "drift", "limits", "limit_basis", "note")} | {
+        "events": [{k: e[k] for k in ("start", "end", "on", "reason")} for e in d["events"]]}, [subject])
