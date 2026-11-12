@@ -8,8 +8,8 @@ import { when } from "../../work";
  * knowing a safeguard is out. Nothing shows when there are none. */
 export function CaseSafeguards({ id }: { id: number }) {
   const got = useAsync(() => api.workItemSafeguards(id), [id]);
-  const d = got.data;
-  if (!d || (!d.bypasses.length && !d.changes.length)) return null;
+  const d = { bypasses: got.data?.bypasses ?? [], changes: got.data?.changes ?? [] };  // an older server sends neither
+  if (!d.bypasses.length && !d.changes.length) return null;
   const late = d.bypasses.some((b) => b.overdue);
   return (
     <Notice tone={d.bypasses.length ? (late ? "danger" : "warn") : "info"} className="case-safeguards"
