@@ -40,3 +40,6 @@ arrive:
   loop_candidate: {detector: loop_oscillation}
   well_test_review: {not_here: "a pipeline and terminal has no wells to test"}
   gas_lift_instability: {not_here: "a pipeline and terminal has no wells on gas lift"}
+  # The next lab delivery: the crude receipt's BS&W resampled three times yesterday, at about 1 % against 0.2 to 0.4
+  quality_drift: {deliver: deliveries/wet-crude, datasets: [lims_results], incremental: true, rebuild: true,
+                  detector: quality_drift}

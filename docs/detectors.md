@@ -24,6 +24,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
 | [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
+| [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
 
 ## excursions
 
@@ -247,3 +248,13 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Measurement roles:** casing pressure, wellhead pressure
 - **Needs:** casing pressure on a well
 - **Scored by:** `tests/analysis/test_gas_lift.py::test_a_heading_well_is_raised_until_its_casing_settles`, on the fake plant
+
+## quality_drift
+
+**A lab analyte at a sample point drifting off its own baseline.** Each drift raised as `quality_drift` for the engineer (keyed by subject, sample point and analyte), with the level against its baseline; open ones whose samples have come back are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `quality_drift`
+- **Needs:** lab results at a sample point
+- **Scored by:** `tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back`, on the fake plant
