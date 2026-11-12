@@ -353,6 +353,8 @@ export interface WorkProcess {
 export interface WorkItem {
   /** False when no agents provider is configured: no agent worker runs, so agent steps wait for a person. */
   agents_configured?: boolean;
+  /** What agents have spent on the case and its cap (USD; cap 0 means none), P4.4. */
+  agent_spend?: { usd: number; cap_usd: number };
   /** Every exception the case works, each with its finding. */
   sources?: CaseSource[];
   id: number;

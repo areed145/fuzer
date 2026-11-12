@@ -307,6 +307,28 @@ test("a case's process diagram opens on the waiting step at a readable size, the
   assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
 });
 
+test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
+  const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-test"],
+    skills: { "maintenance-integrity/rotating": "3f9c0a1b2c4d" }, cost_usd: 0.42, seconds: 9,
+    tools: [{ agent: "maintenance-integrity", tool: "calc", args: { check: "vibration", ref: "20-K-2200B" } }] };
+  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Agent case", type: "upset", state: "open",
+    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
+    agent_spend: { usd: 2.1, cap_usd: 2 },
+    events: [{ id: 1, kind: "agent_result", actor: "agent:maintenance-integrity", element: "diagnose", at: "2026-11-09T09:05:00Z",
+      data: { step: "Diagnose", data: { diagnose: { answer: "Bearing wear on the drive end.", ledger } } } }] } }));
+  await page.goto(`${url}/#/cases/7`);
+  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Agent work", { exact: true }) }).first();
+  await card.waitFor();
+  await card.getByText("$2.10 of $2.00 cap", { exact: false }).waitFor();
+  await card.getByText("cap reached", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "claude-test" }).waitFor();
+  await card.getByRole("cell", { name: "$0.42" }).waitFor();
+  await card.getByRole("button", { name: "What Diagnose did" }).click();
+  await card.getByText("Bearing wear on the drive end.", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "calc", exact: true }).waitFor();
+  await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });
