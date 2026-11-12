@@ -63,8 +63,8 @@ def _schema() -> dict:
 
 
 def page_content(path: Path) -> tuple[str, list[tuple[str, bytes]]]:
-    """A datasheet's text layer and its page images (media type, bytes). A text datasheet (Markdown, as the
-    kestrel bundle ships) is its own text layer."""
+    """A datasheet's text layer and its page images (media type, bytes). A text datasheet (Markdown, as some
+    bundles ship) is its own text layer."""
     if path.suffix.lower() != ".pdf":
         return path.read_text(errors="replace").strip(), []
     from pypdf import PdfReader
