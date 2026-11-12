@@ -16,7 +16,7 @@ flowchart LR
   c_ops["Operations<br><small>fuzer.ops, 30 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 24 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 25 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 8 modules</small>"]
   c_api["API<br><small>fuzer.api, 20 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
@@ -273,10 +273,10 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `brief`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.metrics`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `context`, `history`, `ledger`, `mcp_server`, `memory`, `packs`, `service`, `shortfalls`, `worker`, `workflow`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `brief`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.metrics`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `context`, `history`, `ledger`, `mcp_server`, `memory`, `packs`, `service`, `shortfalls`, `skill_versions`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
-- **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_event`, `work_token` ([schema](schema.md))
-- **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
+- **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `skill_version`, `work_event`, `work_token` ([schema](schema.md))
+- **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact`, `skill_version` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
 - **Tools:** asset-performance-reporting 50, field-operations-facilities 87, hse-incident-management 45, maintenance-integrity 73, orchestrator 23, production-surveillance 78, wells-subsurface 63, work-management-supply-chain 34 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)

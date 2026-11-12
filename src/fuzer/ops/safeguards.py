@@ -13,9 +13,13 @@ expiry moves out.
 what is installed at one or where one is installed, and, with `system=True`, the rest of the train it is part of
 (graph.structure, from piping). Simultaneous operations, the evidence banner and the refusal of an agent proposal
 (P3.9b, P3.9c) read it from here.
+
+A safeguard is proof tested every so many months (IEC 61511): `proof_tests(conn, subjects)` reads its interval and
+last test from the register, and one past its interval, or with an interval and no test on file, is overdue. The
+`proof_test_overdue` detector raises it as work for the engineer until a later test is on file (P4.2e, #850).
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from ..core import detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
@@ -193,6 +197,123 @@ def watch(conn, by: str = "agent:safeguards", now: datetime | None = None) -> di
         raised.append({"bypass": b["label"], "exception_id": x["id"], "item_id": x["item_id"], "new": x["raised"]})
     for key in set(held) - {b["label"] for b in late}:
         clear_exception(conn, OVERDUE_TYPE, key, by, reason="the bypass is removed or no longer past its expiry")
+        cleared.append(key)
+    conn.commit()
+    return {"overdue": len(late), "raised": raised, "cleared": cleared, "errors": errors}
+
+
+# ---- proof tests (P4.2e, #850) ------------------------------------------------------------------------------------
+
+MONTH_DAYS = 365.25 / 12
+
+
+def _number(v) -> float | None:
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def proof_tests(conn, subjects: list[str] | None = None, at_time: datetime | None = None, *,
+                system: bool = False) -> list[dict]:
+    """Each safeguard with a proof test interval on the register: its last test, when the next is due, and whether it
+    is overdue and by how many days; on `subjects` (see `reach`) when given. One with no test on file is overdue from
+    the day it was asked about, as nothing shows it was ever tested."""
+    now = at_time or datetime.now(UTC)
+    near = set(reach(conn, subjects, system)) if subjects is not None else None
+    out = []
+    for r in conn.execute(
+            """
+            select s.fuzer_id as id, l.label,
+                   max(case when g.field = 'function' then g.value #>> '{}' end) as function,
+                   max(case when g.field = 'action' then g.value #>> '{}' end) as action,
+                   max(case when g.field = 'sil' then g.value #>> '{}' end) as sil,
+                   max(case when g.field = 'proof_test_interval_months' then g.value #>> '{}' end) as interval,
+                   max(case when g.field = 'last_proof_test' then g.value #>> '{}' end) as last_test,
+                   (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
+                    where e.src = s.fuzer_id and e.rel = 'protects' and e.valid_to is null) as protects,
+                   (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
+                    where e.src = s.fuzer_id and e.rel = 'acts_on' and e.valid_to is null) as acts_on
+            from entity s
+            left join entity_label l on l.fuzer_id = s.fuzer_id
+            left join golden g on g.fuzer_id = s.fuzer_id
+            where s.kind = 'safeguard' and s.retired_at is null
+            group by s.fuzer_id, l.label
+            order by l.label
+            """).fetchall():
+        months = _number(r["interval"])
+        if not months:
+            continue
+        guards = list(r["protects"]) + list(r["acts_on"])
+        if near is not None and not near & set(guards):
+            continue
+        last = _when(r["last_test"])
+        due = last + timedelta(days=months * MONTH_DAYS) if last else None
+        overdue = due is None or due < now
+        out.append({**dict(r), "interval_months": months, "protects": list(r["protects"]),
+                    "acts_on": list(r["acts_on"]), "protects_labels": _names(conn, list(r["protects"])),
+                    "acts_on_labels": _names(conn, list(r["acts_on"])),
+                    "due": due.isoformat() if due else None, "overdue": overdue,
+                    "overdue_days": (now - due).days if due and overdue else None})
+    return out
+
+
+def _proof_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("proof_test_overdue") or exception_type(
+        "proof_test_overdue", "Proof test overdue", role="role:engineer", audience=("ioc",), joins=False,
+        description="A safeguard past its proof test interval, or with no proof test on file. Until it is tested "
+                    "the protection it claims is not shown to work. Plan the test, or record the one done. It clears "
+                    "when a test within the interval is on file.")
+
+
+PROOF_TYPE = _proof_type().name
+
+
+@detectors.register("proof_test_overdue", title="A safeguard past its proof test interval",
+                    kind=detectors.RULE, cadence="daily", raises=(PROOF_TYPE,),
+                    needs={"proof test intervals on the safeguard register": lambda conn, pack: conn.execute(
+                        "select 1 from golden g join entity s on s.fuzer_id = g.fuzer_id and s.kind = 'safeguard' "
+                        "where g.field = 'proof_test_interval_months' limit 1").fetchone() is not None},
+                    eval="test:tests/evals/test_safeguards_kestrel.py::"
+                         "test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested",
+                    found=lambda out: len(out["raised"]))
+def watch_proof_tests(conn, by: str = "agent:safeguards", now: datetime | None = None) -> dict:
+    """Each safeguard overdue for its proof test raised as `proof_test_overdue` for the engineer (keyed by the
+    safeguard); open ones now tested within their interval are cleared."""
+    from ..core import work
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    now = now or datetime.now(UTC)
+    held = [r["key"] for r in conn.execute(
+        "select key from exception_record where type = %s and state = 'open'", (PROOF_TYPE,))]
+    late = [p for p in proof_tests(conn, at_time=now) if p["overdue"]]
+    raised, cleared, errors = [], [], []
+    for p in late:
+        on = ", ".join(p["protects_labels"]) or "the plant"
+        what = p["function"] or p["label"]
+        found = Finding(
+            "safeguards.proof_test_overdue", DETERMINISTIC,
+            method="Safeguard register read against each safeguard's proof test interval",
+            start=p["due"], data={"safeguard": p["label"], "overdue_days": p["overdue_days"]},
+            items=(fact("Safeguard", f"{p['label']}: {what}"), fact("Action", p["action"]), fact("SIL", p["sil"]),
+                   fact("Protects", on), fact("Acts on", ", ".join(p["acts_on_labels"])),
+                   fact("Interval", p["interval_months"], "months"),
+                   at("Last proof test", p["last_test"]) if p["last_test"] else fact("Last proof test", "none on file"),
+                   at("Due", p["due"]) if p["due"] else fact("Due", "now: no test on file"),
+                   fact("Overdue", p["overdue_days"], "days")))
+        title = f"{what} on {on}: " + (f"proof test {p['overdue_days']} days overdue" if p["due"]
+                                         else "no proof test on file")
+        try:
+            x = raise_exception(conn, PROOF_TYPE, p["label"], title, by, source="safeguards",
+                                refs=[p["id"], *p["protects"], *p["acts_on"]], priority=0.7, finding=found)
+        except (work.WorkError, ExceptionError) as e:
+            errors.append(f"{p['label']}: {e}")
+            continue
+        raised.append({"safeguard": p["label"], "exception_id": x["id"], "item_id": x["item_id"], "new": x["raised"]})
+    for key in set(held) - {p["label"] for p in late}:
+        clear_exception(conn, PROOF_TYPE, key, by, reason="a proof test within its interval is on file")
         cleared.append(key)
     conn.commit()
     return {"overdue": len(late), "raised": raised, "cleared": cleared, "errors": errors}
