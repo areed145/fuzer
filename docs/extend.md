@@ -3,13 +3,15 @@
 Fuzer is meant to be reused, not forked. A new facility, a new system of record, a new kind of analysis
 for the assistant and a new way of routing work are each **configuration or a small, named addition** in
 one place, with a test and a generated reference page to show it took. This guide walks through the
-four most common extensions:
+five most common extensions:
 
 1. [Add a project](#add-a-project): a facility with its own asset pack and data.
 2. [Add a data source](#add-a-data-source): a new export, table or live system, from the UI or as YAML.
-3. [Add an agent skill](#add-an-agent-skill): a method the assistant's specialists can follow, and the tools
+3. [Write a source pack](#write-a-source-pack): one type of system, with its datasets, the work it raises and
+   its detectors, installed in one step.
+4. [Add an agent skill](#add-an-agent-skill): a method the assistant's specialists can follow, and the tools
    it needs.
-4. [Add a workflow](#add-a-workflow): a BPMN process that routes work between agents and people.
+5. [Add a workflow](#add-a-workflow): a BPMN process that routes work between agents and people.
 
 ```mermaid
 flowchart TB
@@ -280,6 +282,119 @@ across every adapter.
 
 **Tests.** `uv run pytest tests/sources` for mappings and ingest. Add the planted cases to the fake plant
 and an answer key under `fakeplant/` when the source changes matching, so `fuzer eval` scores it.
+
+## Write a source pack
+
+A **source pack** brings one type of system to Fuzer in a single YAML file: the system, how Fuzer reaches it,
+the datasets it exports with their mappings and checks, the work its records raise and who owns that work,
+and the detectors it relies on. A steward installs it from **Sources > Import a source pack** (or
+`fuzer sources import-pack`) and everything lands at once: datasets on Sources, types of work on Routing,
+detectors on Detection. The built-in systems are packs too, in
+[`src/fuzer/source_packs/`](https://github.com/areed145/fuzer/tree/main/src/fuzer/source_packs).
+
+This walkthrough writes a pack for a lab that reports water cut and oil-in-water on well samples. CI builds
+this exact pack from this page and runs the conformance suite on it (`tests/sources/test_pack_conformance.py`),
+so the example always installs and loads.
+
+### 1. Lay out the folder
+
+A pack is its YAML file and a **fixture**: a folder of sample exports, as the system writes them. The
+conformance suite loads the fixture, and a project without the real system can try the pack on it.
+
+```text
+lab/
+  pack.yaml
+  samples/
+    water_cut_samples.csv
+```
+
+### 2. Write the sample export
+
+One file per dataset, named after the dataset. Dates may be relative (`today-30d`), so the sample stays
+recent:
+
+```csv title="lab/samples/water_cut_samples.csv"
+sample_id,well,sampled,water_cut_pct,oil_in_water_mgl
+LS-001,KR12-03H,today-30d,18.5,12
+LS-002,KR12-03H,today-23d,19.1,14
+LS-003,KR12-03H,today-16d,27.4,15
+LS-004,A1FT1002,today-9d,4.2,31
+```
+
+### 3. Write the pack
+
+```yaml title="lab/pack.yaml"
+fuzer_source_pack: 1
+fixture: samples                  # the sample exports, relative to this file
+detectors: [source_health]        # a stale, held or failing lab feed raises work
+system:
+  name: lab
+  kind: lims
+  owner: ana
+connections:
+- name: export
+  type: folder
+  config: {path: lab/samples}     # where the real exports land; the installer can point it elsewhere
+datasets:
+- name: water_cut_samples
+  connection: export
+  record_type: water_cut_sample
+  key: [sample_id]
+  load_mode: snapshot
+  mappings:
+  - source: lab
+    record_type: water_cut_sample
+    yaml: |
+      source: lab
+      record_type: water_cut_sample
+      shape: measurements
+      dataset: water_cut_samples
+      key: [sample_id]
+      measurements:
+        of: {from: well, as: tag_or_well}
+        at: sampled
+        values:
+        - {quantity: water_cut, from: water_cut_pct, unit: "%"}
+        - {quantity: oil_in_water, from: oil_in_water_mgl, unit: mg/L}
+  checks:
+  - {kind: range, column: water_cut_pct, params: {min: 0, max: 100}, blocking: true}
+exception_types:
+- name: water_cut_jump
+  label: Water cut jump
+  role: role:production_engineer
+  description: A well sample came back with a water cut above its expected band; confirm it and review the well.
+exception_rules:
+- name: high_water_cut
+  dataset: water_cut_samples
+  type: water_cut_jump
+  when: {water_cut_pct: {gt: 25}}
+  key: '{sample_id}'
+  refs: [{from: well, as: tag_or_well}]
+  title: 'Water cut {water_cut_pct}% on {well} ({sampled})'
+  priority: 0.5
+```
+
+What each part does:
+
+- `system`, `connections`: the system type and how Fuzer reaches it. Secrets are references (`env:NAME`),
+  never values.
+- `datasets`: one per export, each with the mapping in use ([As YAML](#as-yaml) describes mappings) and its
+  quality checks. A blocking check holds a load that fails it.
+- `exception_types` and `exception_rules`: the work the system's records raise, and the role that owns each
+  type. They appear on Routing, and the rule raises a *Water cut jump* for LS-003.
+- `detectors`: registered detectors the pack needs, switched on when it is installed.
+- `optional` (not used here): datasets not every site exports, loaded when the fixture has them.
+
+### 4. Run the conformance suite
+
+```sh
+uv run fuzer sources conformance lab/pack.yaml     # on a scratch database
+```
+
+It installs the pack, installs it again and expects nothing to change, loads the fixture through the pack's
+own mappings and expects no dataset held, failed or missing, and checks every detector it names is
+registered. Each problem is named; a pack conforms when there are none. Then install it for real from
+Sources: the card lists what it added on each page, linked there.
 
 ## Add an agent skill
 

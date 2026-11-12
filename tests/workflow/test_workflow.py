@@ -353,6 +353,49 @@ def test_agent_cannot_complete_requires_human_step(conn):
     assert engine.item(conn, out["item_id"])["state"] == "done"
 
 
+def test_an_agent_cannot_set_what_a_person_decides_on_any_tool_surface(conn):
+    """P4.4: the human-decision boundary is the server's. Whichever way an agent hands in data (finishing its step
+    directly, through the worker, through the MCP work tools, or as a message), it cannot set the decision keys or
+    any key a person has already set on the process; what it proposes goes under its own keys."""
+    from fuzer.agents.capabilities import work as work_tools
+
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "loop.bpmn").read_text())
+    out = engine.start(conn, "t_loop", {}, "alice")
+    draft = task(conn, out["item_id"], "draft")
+    # The engine: a reserved decision key on the agent's own step is refused, and nothing changes.
+    with pytest.raises(engine.Forbidden, match="a person decides"):
+        engine.complete(conn, draft["id"], "agent:reporter", {"draft": "text", "decision": "ok"})
+    assert task(conn, out["item_id"], "draft")["state"] == "waiting"
+    assert "decision" not in engine.item(conn, out["item_id"])["processes"][0]["data"]
+    engine.complete(conn, draft["id"], "agent:reporter", {"draft": "text"})
+    # A key the person set (their review sent it back) can't be overwritten by the agent on the next round.
+    engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise", "note": "tighten"})
+    again = task(conn, out["item_id"], "draft")
+    with pytest.raises(engine.Forbidden, match="note"):
+        engine.complete(conn, again["id"], "agent:reporter", {"draft": "v2", "note": "looks fine now"})
+    # The MCP work tool: the same refusal, as an error the agent reads.
+    got = work_tools.complete_work(again["id"], "reporter", {"draft": "v2", "approved": True})
+    assert "a person decides" in got["error"]
+    # The worker: a result that crosses the boundary goes to a person with the reason, never into the data.
+    res = worker.run_once(conn, {"reporter": lambda call: {"decision": "ok"}}, "w-boundary")
+    assert res["handed_to"]
+    step = conn.execute("select kind, error from work_token where id = %s", (again["id"],)).fetchone()
+    assert step["kind"] == "user" and "a person decides" in step["error"]
+    data = engine.item(conn, out["item_id"])["processes"][0]["data"]
+    assert data["decision"] == "revise" and data["note"] == "tighten"
+
+
+def test_an_agent_message_cannot_carry_a_decision(conn):
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "messages.bpmn").read_text())
+    out = engine.start(conn, "t_messages", {"incident_id": "inc-boundary"}, "alice")
+    with pytest.raises(engine.Forbidden, match="approved"):
+        engine.send_message(conn, "evidence", "inc-boundary", {"severity": "high", "approved": True}, "agent:troubleshooter")
+    assert engine.send_message(conn, "evidence", "inc-boundary", {"severity": "high"}, "agent:troubleshooter")["delivered"]
+    assert engine.item(conn, out["item_id"])["processes"][0]["data"]["severity"] == "high"
+
+
 def test_claimed_task_belongs_to_its_claimer(conn):
     publish_file(conn, (BPMN_DIR / "exclusive.bpmn").read_text())
     out = engine.start(conn, "t_exclusive", {}, "alice")

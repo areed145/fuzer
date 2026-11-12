@@ -1,0 +1,7 @@
+# PI Data Archive: the historian's point list, and what the process detectors read from it.
+# A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: pi}
+datasets: [pi_points]
+detectors: [excursions, stops, steps, drifts, instruments, models, hydraulics, multivariate]

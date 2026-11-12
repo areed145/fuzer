@@ -10,13 +10,13 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 32 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 33 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 22 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 28 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 16 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 10 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 18 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 19 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 6 modules</small>"]
   c_api["API<br><small>fuzer.api, 18 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
@@ -171,7 +171,7 @@ flowchart TD
 
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_packs`, `_catalog_versions`, `adx`, `alerts`, `aliases`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `pi_web_api`, `preview`, `process_model`, `quality`, `relative_dates`, `rules`, `suggest`, `timeseries`, `workflows`
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_packs`, `_catalog_versions`, `adx`, `alerts`, `aliases`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `packs`, `pi_web_api`, `preview`, `process_model`, `quality`, `relative_dates`, `rules`, `suggest`, `timeseries`, `workflows`
 - **Uses:** core
 - **Writes:** `curve_digitised`, `entity_alias`, `llm_extraction`, `mapping_version`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_exception_rule`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_system` ([schema](schema.md))
 - **Owns:** `source_record`, `llm_extraction`, `source_record_history`, `source_system`, `source_connection`, `source_dataset`, `mapping_version`, `source_run`, `source_profile`, `source_check`, `source_check_result`, `source_match_stat`, `source_rule`, `source_audit`, `equipment_curve`, `curve_digitised`, `source_exception_rule`, `entity_alias` (its `schema.sql`)
@@ -235,7 +235,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `ledger`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)

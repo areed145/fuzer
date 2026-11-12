@@ -210,10 +210,11 @@ def export_pack(name: str, conn=Depends(get_conn)):
 
 @router.post("/packs")
 def import_pack(body: PackImport, conn=Depends(get_conn)):
-    """Add or update a source pack's system, connections, datasets, mappings and checks (safe to repeat)."""
-    from ..sources import catalog
+    """Install a source pack in one step: its system, connections, datasets, mappings and checks, the work types it
+    raises and the detectors it brings (P1.5). Safe to repeat."""
+    from ..sources import packs
 
-    return _do(conn, catalog.import_pack, conn, body.yaml, body.by, body.reason, body.config, data_dir=_data_dir())
+    return _do(conn, packs.install, conn, body.yaml, body.by, body.reason, body.config, data_dir=_data_dir())
 
 
 # ---- the work a system brings (#465) -----------------------------------------------------------

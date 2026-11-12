@@ -920,6 +920,37 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
   assert.equal(await page.locator("input[value='incoming']").count() >= 2, true);  // the name and the path
 });
 
+test("installing a source pack says what it added on Sources, Routing and Detection, linked there (P1.5)", async () => {
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [],
+    types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
+    check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } } }));
+  let posted = null;
+  await page.route("**/sources/packs", (route) => {
+    posted = route.request().postDataJSON();
+    return route.fulfill({ json: { system: ["system measurement"], connections: ["export"],
+      datasets: ["measurement_meters", "measurement_daily_volumes_with_a_very_long_name"],
+      mappings: ["measurement/meter"], checks: ["measurement_meters: not_null meter_id"],
+      exception_types: ["short_gas_day"], exception_rules: ["short day"], detectors: ["source_health"],
+      unchanged: ["mapping measurement/day"] } });
+  });
+  await page.goto(`${url}/#/sources?view=systems`);
+  await page.getByRole("button", { name: "Import a source pack…" }).click();
+  await page.getByPlaceholder("fuzer_source_pack: 1 …").fill("fuzer_source_pack: 1\nsystem: {name: measurement}\n");
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByRole("heading", { name: "On Detection" }).waitFor();
+  assert.equal(posted.yaml.startsWith("fuzer_source_pack: 1"), true);
+  for (const [name, target] of [["measurement_meters", "#/sources?view=dataset&name=measurement_meters"],
+    ["short_gas_day", "#/routing?type=short_gas_day"], ["source_health", "#/settings?view=detection"]]) {
+    assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), target);
+  }
+  await page.getByRole("button", { name: "1 already in place" }).waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`pack-installed-${width}`);
+  }
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
@@ -2848,6 +2879,29 @@ for (const [type, found] of Object.entries(FINDINGS)) {
     assert.doesNotMatch(phone, /fz-[a-z_]+-[0-9a-f]{6,}|\b[a-z]+_[a-z_]+\b|\d{4}-\d{2}-\d{2}T\d{2}/);  // no ids, keys or raw timestamps
     if (found.standard) assert.ok(phone.includes(found.standard));
     if (found.checks.length) await page.getByText(found.checks[0]).waitFor();  // the checks before the work, on the case
+  });
+}
+
+// The jobs the loop eval (P1.7) handed a field operator on the Okan bundle, one per type the field sees, written by
+// `FUZER_WRITE_FIXTURES=1 uv run pytest tests/evals/test_loop.py -k okan` and checked against the API's shape there.
+const LOOP_JOBS = JSON.parse(readFileSync(new URL("./fixtures/loop-field-jobs.json", import.meta.url), "utf8"));
+
+for (const [type, job] of Object.entries(LOOP_JOBS)) {
+  test(`the loop's ${type.replace(/_/g, " ")} field job is usable on a 390 px phone (P1.7)`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "loop-field"));
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "loop-field", jobs: [job], coming_up: [] } }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${url}/#/inbox`);
+    const card = page.locator(".field-job").first();
+    await card.getByRole("heading", { name: job.title }).waitFor();
+    await card.getByText(job.sent.reason).waitFor();  // what the IOC asked
+    for (const a of job.assets) await card.getByText(a.label ?? a.name, { exact: false }).first().waitFor();
+    assert.doesNotMatch(await card.innerText(), /\bfz-[\w-]+/, "no raw ids on the job");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "fits 390 px");
+    for (const name of ["On site", "Done"]) {
+      const box = await card.getByRole("button", { name, exact: true }).boundingBox();
+      assert.ok(box && box.height >= 44 && box.width >= 44, `${name} is a 44 px tap target, got ${box?.width}x${box?.height}`);
+    }
   });
 }
 

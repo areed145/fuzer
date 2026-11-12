@@ -11,7 +11,12 @@ with what to check, read on their job list with no raw ids and reported on site 
 remaining decision taken until the case and the work **close**, and closed with a time and outcome a measure can
 **count**. A type the field never sees is worked at the desk instead. The report names the first step that failed
 for each type and why, and the command exits 1 when any type fails. It writes cases, so run it on a scratch copy;
-`tests/evals/test_loop.py` runs it on Okan.
+`tests/evals/test_loop.py` runs it on Okan and Kestrel.
+
+The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
+(rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser
+tests render each one at 390 px: title, what the IOC asked and the asset visible, no raw ids, no sideways scroll,
+and 44 px tap targets for On site and Done.
 
 Decisions come from the eval's playbook, one entry per process step, and what each type's own source says when it
 raises one from `ARRIVE`; a new process or work type adds its entries there. Agent steps get a scripted answer and

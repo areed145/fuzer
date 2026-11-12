@@ -1,0 +1,8 @@
+# Energy Components: allocation network, downtime, well tests and daily reports.
+# A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: ec}
+datasets: [ec_network, ec_downtime, ec_well_tests, ec_day001, ec_downtime_reasons]
+optional: [ec_day001, ec_downtime_reasons]
+detectors: [opportunities]
