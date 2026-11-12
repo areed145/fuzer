@@ -958,6 +958,19 @@ What each source says on a field a steward chose the value of, from the last reb
 | `source_key` | text |  |
 | `value` | jsonb |  |
 
+### `source_new_record`
+
+Records a steward said are new items, not ones the register already has (P2.1b, graph/contextualized.py): they no longer count as unmatched, so one answer settles a source's whole group.
+
+| Column | Type | Note |
+|---|---|---|
+| `source` | text |  |
+| `record_type` | text |  |
+| `source_key` | text |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `reason` | text |  |
+
 ### `knowledge_index`
 
 What the knowledge search reads: document sections and incidents, with the IDs each is linked to (what its document applies to, what it mentions, its unit) for scoping. Kept by every rebuild.

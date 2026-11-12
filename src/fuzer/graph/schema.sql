@@ -172,6 +172,18 @@ create table if not exists reviewed_value (
 );
 create index if not exists reviewed_value_key on reviewed_value (fuzer_id, field);
 
+-- Records a steward said are new items, not ones the register already has (P2.1b, graph/contextualized.py): they no
+-- longer count as unmatched, so one answer settles a source's whole group.
+create table if not exists source_new_record (
+    source      text not null,
+    record_type text not null,
+    source_key  text not null,
+    decided_by  text not null,
+    decided_at  timestamptz not null default now(),
+    reason      text,
+    primary key (source, record_type, source_key)
+);
+
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
 do $$

@@ -474,6 +474,10 @@ source that holds most of that kind, the register its items are matched to). A n
 should leave under 10% for a steward. Every automatic match is listed with its confidence and basis; "Not this
 record" on the entity page reverses one, and the reversal is a pinned decision every later rebuild keeps.
 
+What matched nothing is one `unmatched_records` case per source in the data steward's queue, however many records it
+is. One answer settles the group: **They are new items** on the system's card remembers them as new
+(`source_new_record`), so later rebuilds don't ask again; to match one instead, open it and use **Same as…**.
+
 ## Corrections flow back to the source
 An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
 choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back

@@ -1,6 +1,7 @@
 """P2.1: a source Fuzer has never seen, added from the UI alone, contextualizes itself on both bundles: its records
-match the register on their own with under 10% left for a steward, every automatic match is listed with its
-confidence, and reversing one is remembered by the next rebuilds."""
+match the register on their own with under 10% left for a steward, what matched nothing is one steward case that one
+answer settles, every automatic match is listed with its confidence, and reversing one is remembered by the next
+rebuilds."""
 
 import csv
 import tempfile
@@ -60,6 +61,17 @@ def _run(conn, client) -> None:
     assert [u["label"] for u in r["unmatched"]] == ["99-X-9999"]  # the one the register lacks, named as written
     assert all(a["confidence"] > 0 and a["basis"] and a["with"] for a in r["automatic"])
 
+    # What matched nothing is one case for the steward, whichever many records it is, and one answer settles it.
+    case = conn.execute("select x.title, x.item_id, w.role from exception_record x join work_item w on w.id = x.item_id "
+                        "where x.type = 'unmatched_records' and x.key = 'inspect' and x.state = 'open'").fetchone()
+    assert case and case["title"] == "1 INSPECT record matches nothing in the register"
+    assert "data_steward" in (case["role"] or "")
+    done = client.post("/sources/systems/inspect/context/new", json={"by": "ana", "reason": "a temporary skid"})
+    assert done.status_code == 200 and done.json()["accepted"] == 1, done.text
+    assert client.get("/sources/systems/inspect/context").json()["steward"]["unmatched"] == 0
+    assert conn.execute("select state from exception_record where type = 'unmatched_records' and key = 'inspect' "
+                        "order by id desc limit 1").fetchone()["state"] != "open"
+
     # Not this record: the reversal is a pinned decision, kept by every rebuild after it.
     a = next(a for a in r["automatic"] if a["method"] == "key")
     done = client.post("/stewardship/split", json={"fuzer_id": a["fuzer_id"], "ref": a["ref"], "by": "ana",
@@ -73,6 +85,7 @@ def _run(conn, client) -> None:
         row = conn.execute("select fuzer_id from crosswalk where source = 'inspect' and source_key = %s",
                            (a["source_key"],)).fetchone()
         assert row["fuzer_id"] != a["fuzer_id"]
+        assert again["steward"]["unmatched"] == 0 or [u["source_key"] for u in again["unmatched"]] == [a["source_key"]]
 
 
 def test_a_new_source_contextualizes_itself_on_okan(okan_db):

@@ -1076,9 +1076,18 @@ test("a system says how its records matched, what is left for a steward and ever
   await page.getByText("2 need a steward (3%)", { exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "1 match to confirm", exact: true }).getAttribute("href"), "#/masterdata?tab=questions&kind=match");
   assert.equal(await page.getByRole("link", { name: "99-X-9999", exact: true }).getAttribute("href"), "#/e/fz-tag-9");
+  let accepted = null;
+  await page.route("**/sources/systems/inspect/context/new", (route) => {
+    accepted = route.request().postDataJSON();
+    return route.fulfill({ json: { accepted: 1 } });
+  });
+  await page.getByRole("button", { name: "They are new items", exact: true }).click();
+  await page.getByText("The record stays as new items", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm They are new items", exact: true }).click();
   await page.getByRole("button", { name: "Automatic matches (59)", exact: true }).click();
   await page.getByRole("cell", { name: "99%", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "20-K-2100C", exact: true }).getAttribute("href"), "#/e/fz-tag-2");
+  assert.equal(accepted?.reason, "new items, not ones the register has");
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
