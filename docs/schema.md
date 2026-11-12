@@ -1515,6 +1515,39 @@ Exception types a deployment defines as data (ops/exceptions.define), so other s
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `suppression`
+
+Suppression (P3.5b, ops/suppression.py): a window on some assets in which their detections are recorded and counted here instead of opening cases. Planned work and shutdowns come from plan_item; a person can add one.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `subjects` | text[] |  |
+| `start_at` | timestamptz |  |
+| `end_at` | timestamptz |  |
+| `reason` | text |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
+### `suppressed_finding`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `type` | text |  |
+| `key` | text |  |
+| `title` | text |  |
+| `source` | text |  |
+| `subjects` | text[] |  |
+| `evidence` | jsonb |  |
+| `value_usd` | double precision |  |
+| `window_kind` | text | planned_work \| shutdown \| person |
+| `window_id` | bigint | the plan_item or suppression it fell in |
+| `reason` | text |  |
+| `raised` | integer |  |
+| `first_seen` | timestamptz |  |
+| `last_seen` | timestamptz |  |
+
 ### `plan_item`
 
 The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders, exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches, so the IOC sees clashes on an asset or a crew and work that could ride along with a shutdown.

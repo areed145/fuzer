@@ -285,6 +285,36 @@ alter table exception_kind add column if not exists joins boolean not null defau
 alter table exception_kind add column if not exists source_system text;  -- the system whose source pack brought it (#465)
 alter table exception_kind add column if not exists due_hours text;  -- its due policy: priority -> hours, "1:24,2:72" (#509)
 
+-- Suppression (P3.5b, ops/suppression.py): a window on some assets in which their detections are recorded and
+-- counted here instead of opening cases. Planned work and shutdowns come from plan_item; a person can add one.
+create table if not exists suppression (
+    id         bigserial primary key,
+    subjects   text[] not null,
+    start_at   timestamptz not null,
+    end_at     timestamptz not null,
+    reason     text not null,
+    created_by text not null,
+    created_at timestamptz not null default now(),
+    check (end_at > start_at)
+);
+create table if not exists suppressed_finding (
+    id          bigserial primary key,
+    type        text not null,
+    key         text not null,
+    title       text not null,
+    source      text,
+    subjects    text[] not null default '{}',
+    evidence    jsonb not null default '{}',
+    value_usd   double precision,
+    window_kind text not null,                    -- planned_work | shutdown | person
+    window_id   bigint not null,                  -- the plan_item or suppression it fell in
+    reason      text not null,
+    raised      integer not null default 1,
+    first_seen  timestamptz not null default now(),
+    last_seen   timestamptz not null default now(),
+    unique (type, key, window_kind, window_id)
+);
+
 -- The integrated plan (ops/plan.py): every planned activity from every source on one timeline (SAP work orders,
 -- exceptions the IOC planned, well interventions, turnaround tasks, logistics), matched to the assets it touches,
 -- so the IOC sees clashes on an asset or a crew and work that could ride along with a shutdown.
