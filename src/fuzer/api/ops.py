@@ -227,6 +227,8 @@ class FieldReport(BaseModel):
     note: str | None = None
     reading: dict[str, Any] | None = None  # {value, unit, what}
     photos: list[str] = []                 # data URLs, resized on the phone
+    client_id: str | None = None           # a report the phone kept offline: applied once (P5.3c)
+    at: str | None = None                  # when it was made, on the phone
 
 
 def _loaded_types() -> None:
@@ -268,7 +270,7 @@ def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""
     from ..ops import exceptions
     return _exception_call(conn, exceptions.report, exception_id, r.by, r.status, r.note, reading=r.reading,
-                           photos=r.photos)
+                           photos=r.photos, client_id=r.client_id, at=r.at)
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")

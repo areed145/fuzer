@@ -695,9 +695,10 @@ export const workApi = {
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
-  fieldReport: (id: number, by: string, status: string, note?: string, extra: { reading?: FieldReading; photos?: string[] } = {}) =>
+  fieldReport: (id: number, by: string, status: string, note?: string,
+    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
-      reading: extra.reading ?? null, photos: extra.photos ?? [] }),
+      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

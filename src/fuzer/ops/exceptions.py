@@ -570,23 +570,51 @@ def photo(conn, exception_id: int, photo_id: int) -> dict:
     return row
 
 
+def _when(conn, at) -> tuple[str, bool]:
+    """When a report was made: the phone's time for one sent later (P5.3c), never in the future or more than a week
+    back; else now. Also whether it was made well before it arrived."""
+    from datetime import datetime, timedelta
+
+    now = conn.execute("select now() as t").fetchone()["t"]
+    if not at:
+        return now.isoformat(), False
+    try:
+        made = datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+    except ValueError:
+        raise ExceptionError("the report's time is not a date and time") from None
+    if made.tzinfo is None:
+        made = made.replace(tzinfo=now.tzinfo)
+    made = min(max(made, now - timedelta(days=7)), now)
+    return made.isoformat(), now - made > timedelta(minutes=2)
+
+
 def report(conn, exception_id: int, by: str, status: str, note: str | None = None, *, reading: dict | None = None,
-           photos=()) -> dict:
+           photos=(), client_id: str | None = None, at: str | None = None) -> dict:
     """What a field operator says back: on site, done, could not do (with why) or a note. Kept on the exception's
     evidence (`field`) and its case's history, and published as exception.reported for the IOC. `done` on a case
     without a process closes it. `done` on a process case, or `could_not_do` on any, hands what was sent to them
     back to whoever sent it (the IOC's step goes back to its queue), so the IOC decides what happens next.
-    A report can carry a reading (a number with its unit) and photos (P5.3b), which the IOC sees with it."""
+    A report can carry a reading (a number with its unit) and photos (P5.3b), which the IOC sees with it.
+    A report the phone kept while it had no signal (P5.3c) comes with its `client_id` and the time it was made: it is
+    applied once (a resend changes nothing) and keeps that time."""
     if status not in FIELD_STATUSES:
         raise ExceptionError(f"status must be one of {FIELD_STATUSES}")
     if status in ("could_not_do", "note") and not (note or "").strip():
         raise ExceptionError("say why (or what) in the note")
     measured, pictures = _reading(reading), _photos(photos)
+    client_id = (str(client_id).strip()[:80] or None) if client_id else None
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # the field reports on the event, which its host carries
-        return report(conn, row["joined_to"], by, status, note, reading=reading, photos=photos)
-    entry = {"at": conn.execute("select now() as t").fetchone()["t"].isoformat(), "by": by, "status": status,
-             "note": note}
+        return report(conn, row["joined_to"], by, status, note, reading=reading, photos=photos, client_id=client_id,
+                      at=at)
+    if client_id and any(f.get("client_id") == client_id for f in (row["evidence"] or {}).get("field") or []):
+        return row  # already here: the phone sent it again after losing the answer
+    made, late = _when(conn, at)
+    entry = {"at": made, "by": by, "status": status, "note": note}
+    if client_id:
+        entry["client_id"] = client_id
+    if late:
+        entry["received_at"] = conn.execute("select now() as t").fetchone()["t"].isoformat()
     if measured:
         entry["reading"] = measured
     if pictures:
@@ -600,6 +628,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
         extra = [reading_text(measured)] if measured else []
         if pictures:
             extra.append(f"{len(pictures)} photo{'s' if len(pictures) > 1 else ''}")
+        if late:
+            extra.append(f"made {made[:16].replace('T', ' ')}, sent when back in signal")
         text = f"Field: {said}" + (f": {note}" if note else "") + (f" ({'; '.join(extra)})" if extra else "")
         work.comment(conn, row["item_id"], by, text, [
             {"kind": "photo", "exception_id": exception_id, "photo_id": i} for i in entry.get("photos", [])])
