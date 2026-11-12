@@ -921,8 +921,13 @@ test("optional Demo preserves existing primary destinations and specialist route
   const work = page.getByRole("navigation", { name: "Work pages", exact: true });
   assert.equal(await work.getByRole("link", { name: "My work", exact: true }).getAttribute("aria-current"), "page");
   assert.deepEqual(await work.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/exceptions", "#/inbox", "#/handover", "#/plan", "#/turnaround", "#/review", "#/masterdata",
-     "#/processes"]);
+    ["#/exceptions", "#/inbox", "#/plan", "#/masterdata"]);
+  // The pages that left Work's nav still open, under the entry that owns them now (#554).
+  for (const [route, owner, area] of [["#/handover", "My work", "Work pages"], ["#/review", "Master data", "Work pages"],
+    ["#/processes", "Processes", "Settings pages"]]) {
+    await page.goto(`${url}/${route}`);
+    await page.getByRole("navigation", { name: area, exact: true }).locator(`a[aria-current="page"]`, { hasText: owner }).waitFor();
+  }
   await nav.getByRole("link", { name: "Explore", exact: true }).click();
   await page.getByRole("navigation", { name: "Explore pages", exact: true }).getByRole("link", { name: "Ontology", exact: true }).waitFor();
   await nav.getByRole("link", { name: "Settings", exact: true }).click();
@@ -2362,13 +2367,46 @@ test("a turnaround shows its scope on the plan and brings planned work into it",
   await page.route("**/turnarounds", (route) => route.fulfill({ json: scope }));
   await page.route("**/turnarounds/bring-in", (route) => { brought.push(route.request().postDataJSON()); return route.fulfill({ json: scope.shutdown_outside[0] }); });
   await page.goto(`${url}/#/turnaround`);
+  // Turnaround is a window on the Plan now (#554): the old link opens Plan with the revision beside the timeline.
+  await page.waitForURL(/#\/plan\?revision=$/);
+  await page.getByRole("heading", { level: 1, name: "Integrated plan" }).waitFor();
   await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor();
+  assert.equal(await page.getByRole("navigation", { name: "Work pages", exact: true })
+    .getByRole("link", { name: "Plan", exact: true }).getAttribute("aria-current"), "page");
   await page.getByText("North train overhaul").waitFor();
   await page.getByText("1 spares out of stock").waitFor();
   await page.getByRole("heading", { name: "Needs the unit down, planned outside it" }).waitFor();
   await page.getByRole("button", { name: "Bring into TA26" }).first().click();
   await expectReports(brought, 1);
   assert.deepEqual(brought[0], { by: "ann", item_id: 6, revision: "TA26" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("link", { name: "Close the turnaround" }).click();
+  await page.waitForURL(/#\/plan$/);
+  await page.getByRole("heading", { name: "Turnaround TA26" }).waitFor({ state: "detached" });
+});
+
+test("the incoming lead finds the shift handover from My work, not the nav (#504)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/work/inbox", (route) => route.fulfill({ json: inbox }));
+  let acked = false;
+  const row = () => ({ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
+    state: acked ? "acknowledged" : "handed_over", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
+    acknowledged_at: acked ? "2026-11-12T06:10:00Z" : null, item_id: 40, lines: 6 });
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row()] }));
+  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": [] } },
+    drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
+  await page.goto(`${url}/#/inbox`);
+  await page.getByText("Shift handover ready", { exact: false }).waitFor();
+  await page.getByRole("link", { name: "Read and acknowledge" }).click();
+  await page.waitForURL(/#\/handover\?id=7$/);
+  await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  acked = true;
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("link", { name: "Shift handover", exact: true }).waitFor();
+  await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
 });
 
 test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {

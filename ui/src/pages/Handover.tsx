@@ -79,7 +79,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       {h.notes && notes === null && <p>{h.notes} <span className="muted small">({h.notes_by}, {when(h.notes_at!)})</span></p>}
       {!acked && canAct && (
         <>
-          <textarea rows={3} style={{ width: "100%" }} aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
+          <textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
             value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />
           <div className="row">
             <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>
