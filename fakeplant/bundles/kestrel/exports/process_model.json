@@ -60,7 +60,7 @@
     "KR 12-03H": {"type": "well", "kind": "gas", "choke0": 50, "choke": {"cv_max": 100.0, "trim": "linear"}, "p_res": 120.0, "c_gas": 0.107, "k_gas": 0.304},
     "KR 12-04H": {"type": "well", "kind": "gas", "choke0": 50, "choke": {"cv_max": 100.0, "trim": "linear"}, "p_res": 128.0, "c_gas": 0.111, "k_gas": 0.294},
     "meter:condensate": {"type": "meter", "base": 82.0},
-    "meter:sales": {"type": "meter", "base": 1325.0},
+    "meter:sales": {"type": "meter", "base": 1360.0},
     "B1-V-2005": {"type": "vessel", "train": "train:B1", "pressure": 24.0, "level": 30},
     "A1-V-1004": {"type": "controlled", "role": "differential_pressure", "value": 0.32, "noise": 0.01, "tau": 60},
     "C1-H-3008": {"type": "controlled", "role": "temperature", "value": 204.0, "noise": 0.8, "tau": 30},
@@ -107,6 +107,7 @@
     {"unit": "C1-H-3008", "kind": "drift", "points": [["today-46d", 0], ["today-37d", -1.5], ["today-30d", -3], ["today-23d", -4.5], ["today-16d", -6], ["today-9d", -7.5], ["today-2d", -9.5], ["today", -10], ["today+400d", -10]]},
     {"unit": "C1-AT-3011", "kind": "drift", "points": [["today-47d", 0], ["today-44d", 2], ["today-37d", 6], ["today-30d", 9], ["today-23d", 15], ["today-16d", 23], ["today-9d", 32], ["today-2d", 55], ["today", 57], ["today+400d", 57]]},
     {"unit": "A1-V-1004", "kind": "drift", "points": [["today-40d", 0], ["today-25d", 0.08], ["today-12d", 0.28], ["today-5d", 0.38], ["today", 0.44], ["today+400d", 0.44]]},
-    {"unit": "D1-E-4006", "kind": "oscillation", "start": "today-4d 00:00", "end": "today+400d", "period": 120, "amplitude": 2.0}
+    {"unit": "D1-E-4006", "kind": "oscillation", "start": "today-4d 00:00", "end": "today+400d", "period": 120, "amplitude": 2.0},
+    {"unit": "meter:sales", "kind": "bias", "points": [["today-12d", 0], ["today-9d", -0.04], ["today+400d", -0.04]]}
   ]
 }
