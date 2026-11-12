@@ -218,6 +218,26 @@ def system_context(name: str, conn=Depends(get_conn)):
     return plain(contextualized.report(conn, name))
 
 
+class NewRecords(Who):
+    refs: list[str] | None = None  # none: every record of the system that matched nothing
+
+
+@router.post("/systems/{name}/context/new")
+def system_records_are_new(name: str, body: NewRecords, conn=Depends(get_conn)):
+    """One answer for the group (P2.1b): the system's records that matched nothing are new items. Remembered."""
+    from ..graph import contextualized
+
+    return _do(conn, contextualized.accept_new, conn, name, body.by, body.refs, body.reason)
+
+
+@router.post("/systems/{name}/context/new/undo")
+def system_records_are_new_undo(name: str, body: Who, conn=Depends(get_conn)):
+    """Take back "these are new": they count as matching nothing again."""
+    from ..graph import contextualized
+
+    return _do(conn, contextualized.undo_new, conn, name, body.by)
+
+
 @router.post("/packs")
 def import_pack(body: PackImport, conn=Depends(get_conn)):
     """Install a source pack in one step: its system, connections, datasets, mappings and checks, the work types it

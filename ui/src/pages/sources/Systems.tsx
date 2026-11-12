@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState, type ReactNode } from "react";
@@ -174,6 +174,7 @@ function SystemWork({ system }: { system: string }) {
  * left for a steward. A match is reversed with "Not this record" on the entity page; the next rebuilds keep it. */
 function SystemContext({ system }: { system: string }) {
   const c = useAsync(() => api.systemContext(system), [system]);
+  const a = useAction();
   if (!c.data) return <Status loading={c.loading} error={c.error} />;
   const r = c.data;
   if (!r.records) return null;
@@ -198,6 +199,10 @@ function SystemContext({ system }: { system: string }) {
           {r.unmatched.slice(0, 5).map((u, i) => <span key={u.fuzer_id}>{i ? ", " : ""}<a href={entityHref(u.fuzer_id)}>{u.label}</a></span>)}
           {r.unmatched.length > 5 && ` and ${r.steward.unmatched - 5} more`}</li>}
       </ul>}
+      {r.unmatched.length > 0 && <ConfirmAction label="They are new items" busy={!!a.busy}
+        consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new items and aren't asked about again. To match one instead, open it and use Same as….`}
+        onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new items, not ones the register has"), c.reload)} />}
+      {a.error && <p className="error small">{a.error}</p>}
       {r.automatic.length > 0 && <Disclosure label={`Automatic matches (${auto})`}>
         <Table density="compact">
           <thead><tr><th>Record</th><th>Matched to</th><th>Basis</th><th>Confidence</th><th>Also in</th></tr></thead>

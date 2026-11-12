@@ -227,7 +227,7 @@ export interface SystemContext {
   steward: { to_confirm: number; disagree: number; unresolved: number; unmatched: number };
   automatic: { ref: string; source_key: string; fuzer_id: string; label: string; kind: string; method: "key" | "score";
     confidence: number; basis: string; with: string[] }[];
-  unmatched: { source_key: string; fuzer_id: string; label: string; kind: string }[];
+  unmatched: { ref: string; source_key: string; fuzer_id: string; label: string; kind: string }[];
 }
 
 export const sourcesApi = {
@@ -299,6 +299,8 @@ export const sourcesApi = {
   importPack: (yaml: string, config: Record<string, Json>, by: string, reason?: string) =>
     request<PackReport>("POST", "/sources/packs", undefined, { yaml, config, by, reason }),
   systemContext: (system: string) => request<SystemContext>("GET", `/sources/systems/${encodeURIComponent(system)}/context`),
+  systemRecordsAreNew: (system: string, by: string, reason?: string) =>
+    request<{ accepted: number }>("POST", `/sources/systems/${encodeURIComponent(system)}/context/new`, undefined, { by, reason: reason ?? null }),
   systemWorkflows: (system: string) => request<SystemWorkflows>("GET", `/sources/systems/${encodeURIComponent(system)}/workflows`),
   deleteExceptionRule: (system: string, rule: string, by: string) =>
     request<Json>("DELETE", `/sources/systems/${encodeURIComponent(system)}/rules/${encodeURIComponent(rule)}`, { by }),
