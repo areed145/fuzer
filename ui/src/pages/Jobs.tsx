@@ -1,7 +1,7 @@
 import "../styles/jobs.css";
 import { Button, ButtonLink, PageHeader, Table, Card as UICard , Badge as UIBadge, Disclosure } from "../ui";
 // The Jobs page (#208): what Fuzer's scheduled Dagster jobs did, without opening Dagster.
-import { api, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
+import { api, type DetectorTier, type JobCheck, type JobRunSummary, type JobTrigger, type JobsOverview } from "../api";
 import { Status, href, timestamp, useAsync } from "../lib";
 
 const RUN_CLASS: Record<string, string> = {
@@ -50,8 +50,35 @@ export function JobsPage() {
         </UICard>
       )}
       {o.data?.available && <Overview o={o.data} />}
+      <Tiers />
     </section>
   );
+}
+
+/** Each detector tier: what runs in it, and its runs, time and findings over the last day (P3.2). */
+function Tiers() {
+  const t = useAsync(() => api.jobTiers(), []);
+  const rows = (t.data?.tiers ?? []).filter((x) => x.detectors.length);
+  if (!rows.length) return null;
+  return <>
+    <h2>Detector tiers</h2>
+    <div className="scroll-x">
+      <Table variant="list">
+        <thead><tr><th>Tier</th><th>Detectors</th><th>Last run</th><th>Last day</th></tr></thead>
+        <tbody>{rows.map((x) => <TierRow key={x.tier} x={x} />)}</tbody>
+      </Table>
+    </div>
+  </>;
+}
+
+function TierRow({ x }: { x: DetectorTier }) {
+  return <tr>
+    <td>{x.label}</td>
+    <td className="small">{x.detectors.map((d) => d.title).join(", ")}</td>
+    <td className="small">{x.last_at ? when(x.last_at) : <span className="muted">never</span>}</td>
+    <td className="small">{x.runs ? <>{x.runs} runs, {duration(x.seconds)} in all ({duration(x.avg_seconds)} each), {x.found} found
+      {x.failures > 0 && <span className="error">, {x.failures} failed</span>}</> : <span className="muted">no runs</span>}</td>
+  </tr>;
 }
 
 function DagsterLink({ d }: { d: JobsOverview["dagster"] }) {

@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..resources import ROOT
+from .deps import get_conn
 from .security import AuthenticatedRoute
 
 router = APIRouter(route_class=AuthenticatedRoute)
@@ -294,6 +295,14 @@ def _materializations(instance, run_id: str) -> list:
 def jobs_health(instance=Depends(get_instance), defs=Depends(get_definitions)):
     """Compact status for the nav indicator."""
     return health(instance, defs)
+
+
+@router.get("/jobs/tiers")
+def jobs_tiers(conn=Depends(get_conn)):
+    """Each detector tier (P3.2): its detectors, last run, and over the last day its runs, seconds and findings."""
+    from ..ops import cadence
+
+    return {"tiers": cadence.summary(conn)}
 
 
 @router.get("/jobs")

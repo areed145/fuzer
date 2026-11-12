@@ -690,6 +690,27 @@ test("Core consistency Jobs preserves metadata units, missing outcomes and actio
   }
 });
 
+test("Jobs shows each detector tier's detectors, runs, time and findings (P3.2)", async () => {
+  await page.route("**/jobs", route => route.fulfill({ json: {
+    available: true, dagster: { reachable: false, url: "http://scheduler.invalid" },
+    scheduler: { running: true, last_heartbeat: null }, health: { level: "ok", summary: "Scheduler observed" },
+    jobs: [], checks: [], sensors: [], claude: null,
+  } }));
+  await page.route("**/jobs/tiers", route => route.fulfill({ json: { tiers: [
+    { tier: "5min", label: "Every 5 minutes", cron: "*/5 * * * *", detectors: [{ name: "compressor_trips", title: "A compressor train that tripped" }],
+      runs: 288, seconds: 576, avg_seconds: 2, last_at: new Date().toISOString(), failures: 1, found: 1 },
+    { tier: "6h", label: "Every 6 hours", cron: "20 */6 * * *", detectors: [], runs: 0, seconds: 0, avg_seconds: 0,
+      last_at: null, failures: 0, found: 0 },
+  ] } }));
+  await page.goto(`${url}/#/jobs`);
+  await page.getByRole("heading", { name: "Detector tiers", exact: true }).waitFor();
+  await page.getByText("288 runs, 10 min in all (2 s each), 1 found", { exact: false }).waitFor();
+  await page.getByText(", 1 failed", { exact: false }).waitFor();
+  assert.equal(await page.getByText("Every 6 hours", { exact: true }).count(), 0);  // a tier with nothing in it is left out
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
 const signedInUser = {
   id: "test-account", actor: "user:test-account", display_name: "Test participant", enabled: true,
   owner: false, roles: ["reader"], permissions: ["read"], csrf: "browser-csrf-test",
