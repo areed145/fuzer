@@ -29,7 +29,8 @@ import numpy as np
 from psycopg.types.json import Jsonb
 
 from ..analysis import calcs, limits, signals
-from ..core import settings
+from ..core import detectors, settings
+from ..core.detectors import MODEL, POINTS, RULE, STATISTICAL
 from ..core.jsonsafe import plain as _plain
 from ..graph.topology import (  # noqa: F401  (sre.topology, as before)
     HOPS,
@@ -93,8 +94,31 @@ def describe(key: str | None) -> str:
 
 
 # ---- detectors ------------------------------------------------------------------------------------
+# What a detector needs on the asset before it can run, as a query that returns a row when it is there.
+LIMITS = "select 1 from point_limit union all select 1 from point_normal limit 1"
+CURVES = ("select 1 from equipment_curve where curve = 'pump' union all "
+          "select 1 from edge where rel = 'lift_gas_to' limit 1")
+CHOKED_WELLS = ("select 1 from edge e join entity w on w.fuzer_id = e.src and w.kind = 'well' "
+                "join edge c on c.dst = e.src and c.rel = 'part_of' join entity_label l on l.fuzer_id = c.src "
+                "and l.label like '%-HCV-%' where e.rel = 'part_of' limit 1")
+AREAS = ("select 1 from entity a join edge p on p.dst = a.fuzer_id and p.rel = 'part_of' "
+         "join edge t on t.src = p.src and t.rel = 'has_timeseries' where a.kind = 'area' "
+         "group by a.fuzer_id having count(distinct t.dst) between 10 and 300 limit 1")
 
+
+def _has_run_signal(conn, pack) -> bool:
+    return any("point" in s for s in limits.run_signals(conn, pack, set(limits.units(conn).values())).values())
+
+
+
+@detectors.register("excursions", title="Outside an alarm limit, an IOW or the learned normal range while the unit runs",
+                    kind=RULE, cadence="6h",
+                    raises=("upset",), window=True, eval="replay:sre:excursions",
+                    needs={"historian points": POINTS, "alarm limits, IOWs or learned normal ranges": LIMITS},
+                    params=("sre.learned_minutes", "sre.step_minutes"))
 def excursions(conn, pack, since, until, src) -> list[dict]:
+    """A point outside its alarm limit, its integrity operating window or the range it normally keeps, while its
+    unit is running. A brief wander outside a learned range is left out."""
     pids = [r["point_id"] for r in conn.execute(
         "select distinct point_id from point_limit union select distinct point_id from point_normal order by 1")]
     learned, out = settings.get(conn, "sre.learned_minutes"), []
@@ -107,7 +131,13 @@ def excursions(conn, pack, since, until, src) -> list[dict]:
     return out
 
 
+@detectors.register("stops", title="A unit going from running to stopped",
+                    kind=RULE, cadence="6h",
+                    raises=("upset",), window=True, eval="replay:sre:stops",
+                    roles=("running status",), needs={"historian points": POINTS, "a run signal on a unit": _has_run_signal},
+                    params=("sre.step_minutes",))
 def stops(conn, pack, since, until, src) -> list[dict]:
+    """A unit with its own run signal going from running to stopped: a trip or a stop."""
     from ..sources.timeseries import _point
 
     sig = {u: s for u, s in limits.run_signals(conn, pack, set(limits.units(conn).values())).items() if "point" in s}
@@ -143,7 +173,13 @@ def _running(conn, pack, pts, a, b, src) -> tuple[dict[str, np.ndarray], dict[st
     return run, unit
 
 
+@detectors.register("steps", title="A measurement stepping on a running unit",
+                    kind=STATISTICAL, cadence="6h",
+                    raises=("upset",), window=True, eval="replay:sre:steps",
+                    needs={"historian points": POINTS}, params=("signals.step_z", "sre.lookback_hours", "sre.step_minutes"))
 def steps(conn, pack, since, until, src) -> list[dict]:
+    """A point stepping to a new level while its unit runs either side, judged against how it moved the day
+    before."""
     pts = _points(conn)
     step = settings.get(conn, "sre.step_minutes")
     a = since - timedelta(hours=settings.get(conn, "sre.lookback_hours"))
@@ -171,7 +207,15 @@ def _daily(since, until) -> bool:
     return any(t.hour == 0 and t.minute == 0 for t in _grid(since, until - timedelta(minutes=1), 60))
 
 
+@detectors.register("drifts", title="A slow climb in what wears and fouls",
+                    kind=STATISTICAL, cadence="daily",
+                    raises=("upset",), window=True, eval="replay:sre:drifts",
+                    roles=("vibration", "bearing temperature", "discharge temperature", "outlet temperature",
+                           "differential pressure"),
+                    needs={"historian points": POINTS}, params=("sre.drift_rise", "signals.drift_z"))
 def drifts(conn, pack, since, until, src) -> list[dict]:
+    """Vibration, bearing and discharge temperatures, cooler outlets and differential pressures climbing over the
+    last month and still climbing."""
     if not _daily(since, until):
         return []
     pts = [p for p in _points(conn) if DRIFTING.search(p["description"] or "")]
@@ -198,7 +242,15 @@ def _set_by_hand(pack) -> list[re.Pattern]:
     return [re.compile(x) for x in limits.config(pack).get("not_learned", [])]
 
 
+@detectors.register("instruments", title="A frozen, stuck, noisy or out of range instrument",
+                    kind=STATISTICAL, cadence="6h",
+                    raises=("upset",), window=True, eval="replay:sre:instruments",
+                    needs={"historian points": POINTS},
+                    params=("signals.flat_hours", "signals.stuck_hours", "signals.stuck_ratio", "signals.noisy_hours",
+                            "signals.noisy_ratio", "signals.range_minutes"))
 def instruments(conn, pack, since, until, src) -> list[dict]:
+    """A reading that is frozen, stuck, noisy or at the end of its range, against the point's own usual spread:
+    instrument work, not an upset."""
     skip = _set_by_hand(pack)
     pts = [p for p in _points(conn) if not any(x.search(p["point"]) or x.search(p["description"] or "") for x in skip)]
     step = settings.get(conn, "sre.step_minutes")
@@ -249,6 +301,10 @@ def baselines(conn, src, pts: list[dict], at: datetime, step: int, days: int) ->
     return have
 
 
+@detectors.register("models", title="Equipment off its curve",
+                    kind=MODEL, cadence="daily",
+                    raises=("upset",), window=True, eval="replay:sre:models",
+                    classes=("pump", "well"), needs={"historian points": POINTS, "a pump curve or a gas lifted well": CURVES})
 def models(conn, pack, since, until, src) -> list[dict]:
     """Equipment against its curve, once a day; a detection while the check flags it."""
     if not _daily(since, until):
@@ -280,6 +336,11 @@ def models(conn, pack, since, until, src) -> list[dict]:
     return out
 
 
+@detectors.register("hydraulics", title="A flowline pressure drop still rising",
+                    kind=MODEL, cadence="daily",
+                    raises=("upset",), window=True, eval="replay:sre:hydraulics",
+                    classes=("well",), roles=("wellhead pressure", "header pressure"),
+                    needs={"historian points": POINTS, "a well with a choke": CHOKED_WELLS})
 def hydraulics(conn, pack, since, until, src) -> list[dict]:
     """Once a day: each jacket well's wellhead-to-header pressure drop still rising (a flowline waxing
     or scaling, #107)."""
@@ -302,6 +363,10 @@ def hydraulics(conn, pack, since, until, src) -> list[dict]:
     return out
 
 
+@detectors.register("multivariate", title="A stretch a process area's own model cannot explain",
+                    kind=STATISTICAL, cadence="daily",
+                    raises=("upset",), window=True, eval="replay:sre:multivariate",
+                    needs={"historian points": POINTS, "a process area with 10 to 300 points": AREAS}, params=("sre.spe_minutes",))
 def multivariate(conn, pack, since, until, src) -> list[dict]:
     """Once a day: each process area's PCA model of the week before against the last day; a stretch the
     model can't explain (squared prediction error past its 99.9th percentile for sre.spe_minutes) on the point
@@ -338,19 +403,16 @@ def _point_name(conn, pid: str) -> str:
     return r["label"] if r else pid
 
 
-DETECTORS = {"excursions": excursions, "stops": stops, "steps": steps, "drifts": drifts, "instruments": instruments,
-             "models": models, "hydraulics": hydraulics, "multivariate": multivariate}
-
-
-def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None) -> list[dict]:
-    """Every detector over one window."""
+def detect(conn, pack, since: datetime, until: datetime, src=None, only: list[str] | None = None,
+           skip=()) -> list[dict]:
+    """Every registered window detector over one window, less the ones in `skip` (not applicable on this asset)."""
     from ..sources.timeseries import provider
 
     src = src or provider()
     out = []
-    for name, fn in DETECTORS.items():
-        if only is None or name in only:
-            out += fn(conn, pack, since, until, src)
+    for d in detectors.window():
+        if (only is None or d.name in only) and d.name not in skip:
+            out += d.fn(conn, pack, since, until, src)
     return sorted(out, key=lambda d: (d["start"], d["point"]))
 
 
@@ -361,9 +423,11 @@ def watermark(conn) -> datetime | None:
     return r["t"]
 
 
-def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime] | None = None) -> dict:
+def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime] | None = None,
+          raised: dict[str, int] | None = None) -> dict:
     """Add detections, or extend the open one with the same point, detector and key that the window just
-    before saw (one left open by a scan that didn't reach this window isn't carried on)."""
+    before saw (one left open by a scan that didn't reach this window isn't carried on). New detections are
+    counted per detector into `raised` when given."""
     new = extended = 0
     a, b = window or (None, None)
     merge = timedelta(minutes=settings.get(conn, "sre.merge_minutes"))
@@ -389,6 +453,8 @@ def store(conn, found: list[dict], run_id: int, window: tuple[datetime, datetime
                 """, (d["point_id"], d["unit_id"], d["detector"], d["key"], d["start"], d["end"], d["magnitude"],
                       Jsonb(_plain(d["evidence"])), run_id, run_id, b))
             new += 1
+            if raised is not None:
+                raised[d["detector"]] = raised.get(d["detector"], 0) + 1
     return {"new": new, "extended": extended}
 
 
@@ -409,15 +475,22 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
                           (start, end)).fetchone()["id"]
     conn.commit()
     t0, totals, windows = time.perf_counter(), {"new": 0, "extended": 0}, 0
+    lacking = {d.name: m for d in detectors.window() if (m := detectors.missing(conn, pack, d))}
+    raised: dict[str, int] = {}  # new detections per detector; an extended one was already counted
     try:
         a = start
         while a < end:
             b = min(a + timedelta(hours=6), end)
-            for k, v in store(conn, detect(conn, pack, a, b, src), run_id, (a, b)).items():
+            for k, v in store(conn, detect(conn, pack, a, b, src, skip=lacking), run_id, (a, b), raised).items():
                 totals[k] += v
             windows += 1
             a = b
         totals["upsets"] = regroup(conn, start)["upsets"]
+        for d in detectors.window():  # each detector's run, or why it did not apply here
+            if d.name in lacking:
+                detectors.record(conn, d.name, detectors.NOT_APPLICABLE, detectors.note(lacking[d.name]), since=start, until=end)
+            else:
+                detectors.record(conn, d.name, detectors.RAN, found=raised.get(d.name, 0), since=start, until=end)
         conn.execute("update sre_run set status = 'done', finished_at = now(), detections = %s, seconds = %s where id = %s",
                      (totals["new"], round(time.perf_counter() - t0, 1), run_id))
         conn.commit()
@@ -427,7 +500,8 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
         conn.commit()
         raise
     return {"run": run_id, "since": start.isoformat(timespec="minutes"), "until": end.isoformat(timespec="minutes"),
-            "windows": windows, **totals, "seconds": round(time.perf_counter() - t0, 1)}
+            "windows": windows, **totals, "seconds": round(time.perf_counter() - t0, 1),
+            "not_applicable": {k: detectors.note(v) for k, v in lacking.items()}}
 
 
 def recent(conn, since: str | None = None, detector: str | None = None, limit: int = 200) -> list[dict]:

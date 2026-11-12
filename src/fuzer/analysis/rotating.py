@@ -48,6 +48,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from ..core import detectors
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 from .calcs import CalcError, _label, read, result, window_of
 
@@ -794,6 +795,18 @@ def _prognosis(conn, fid: str, until: str | None) -> dict:
     return out
 
 
+@detectors.register("machine_health", title="A rotating machine whose condition needs attention", kind=detectors.MODEL,
+                    cadence="daily", raises=("machine_health",),
+                    classes=("compressor", "pump", "gas turbine", "electric motor", "turboexpander", "blower",
+                             "steam turbine"),
+                    roles=("vibration", "bearing temperature", "flow", "suction pressure", "discharge pressure"),
+                    needs={"a rotating machine": "select 1 from edge i join edge c on c.src = i.src and c.rel = "
+                                                 "'classified_as' join entity_label cl on cl.fuzer_id = c.dst "
+                                                 "where i.rel = 'installed_at' and i.valid_to is null and cl.label ~ "
+                                                 "'^ISO14224:(CO|PU|GT|EM|TE|BL|ST)([.]|$)' limit 1"},
+                    eval="test:tests/analysis/test_trips.py::"
+                         "test_machine_health_raises_flagged_machines_and_clears_them_when_fixed",
+                    found=lambda out: len(out["raised"]))
 def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", watch_level: bool = True) -> dict:
     """The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged
     (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates
