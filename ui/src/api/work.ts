@@ -417,6 +417,26 @@ export interface CaseAround {
   basis: string;
 }
 
+/** A safeguard bypass in place on a case's system, and an open change record about it (P3.9b, GET
+ * /work/items/{id}/safeguards): the banner at the top of the evidence. */
+export interface CaseBypass {
+  id: string; label: string; safeguard: string; function: string | null; action: string | null; state: string | null;
+  bypassed_from: string | null; expires: string | null; reason: string | null; authorised_by: string | null;
+  moc: string | null; protects: string[]; protects_labels: string[]; acts_on: string[]; acts_on_labels: string[];
+  overdue: boolean; overdue_hours: number | null; say: string;
+}
+
+export interface CaseChange {
+  id: string; label: string; title: string | null; change_type: string | null; state: string | null;
+  opened: string | null; closes: string | null; about: string[]; about_labels: string[];
+}
+
+export interface CaseSafeguards {
+  bypasses: CaseBypass[];
+  changes: CaseChange[];
+  basis: string;
+}
+
 /** What suppression held back (P3.5b): the windows running now and every finding counted under one. */
 export interface SuppressedView {
   findings: number;
@@ -887,6 +907,7 @@ export const workApi = {
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
   workItemAround: (id: number) => request<CaseAround>("GET", `/work/items/${id}/around`),
+  workItemSafeguards: (id: number) => request<CaseSafeguards>("GET", `/work/items/${id}/safeguards`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
   generateWorkflow: (id: number, description: string, by: string) =>

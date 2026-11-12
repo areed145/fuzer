@@ -6,6 +6,7 @@ import { api, type WorkTaskView } from "../../api";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
+import { CaseSafeguards } from "./Safeguards";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
 import { ProcessDiagram, Timeline } from "./Cases";
@@ -58,6 +59,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
         <div>
           <FromField v={v} />
           {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
+          <CaseSafeguards id={v.item.id} />
           <CaseFindings sources={v.sources} />
           <CaseAround id={v.item.id} />
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}

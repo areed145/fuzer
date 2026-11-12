@@ -37,12 +37,20 @@ def loaded(conn) -> bool:
     return conn.execute("select 1 from entity where kind = 'bypass' and retired_at is null limit 1").fetchone() is not None
 
 
-def reach(conn, subjects: list[str], system: bool = False) -> list[str]:
-    """The subjects, what is installed at them and where they are installed, and with `system` the rest of each one's
-    train (and what drives it)."""
-    from .readiness import _locations
+def _around(conn, ids: list[str]) -> set[str]:
+    """`ids`, what is installed at or is part of one (its instruments), and where one is installed."""
+    if not ids:
+        return set()
+    return {r["id"] for r in conn.execute(
+        "select unnest(%(s)s::text[]) as id union select src from edge where rel in ('installed_at', 'part_of') "
+        "and dst = any(%(s)s) and valid_to is null union select dst from edge where rel = 'installed_at' "
+        "and src = any(%(s)s) and valid_to is null", {"s": list(ids)}).fetchall()}
 
-    near = set(_locations(conn, list(subjects or [])))
+
+def reach(conn, subjects: list[str], system: bool = False) -> list[str]:
+    """The subjects, what is installed at or part of them and where they are installed, and with `system` the rest of
+    each one's train (and what drives it) and what is installed on or part of that."""
+    near = _around(conn, list(subjects or []))
     if system and near:
         from ..graph import structure
 
@@ -52,6 +60,7 @@ def reach(conn, subjects: list[str], system: bool = False) -> list[str]:
             if t.get("known"):
                 near |= set(t["members"])
                 near |= {d for d in (structure.driver(conn, m, plant) for m in t["members"]) if d}
+        near = _around(conn, sorted(near))
     return sorted(near)
 
 
@@ -187,3 +196,57 @@ def watch(conn, by: str = "agent:safeguards", now: datetime | None = None) -> di
         cleared.append(key)
     conn.commit()
     return {"overdue": len(late), "raised": raised, "cleared": cleared, "errors": errors}
+
+
+# ---- changes, and what a case should know before anything else (P3.9b) --------------------------------------------
+
+CLOSED_CHANGE = ("closed", "cancelled", "canceled", "rejected", "withdrawn")
+
+
+def changes(conn, subjects: list[str] | None = None, *, system: bool = False, open_only: bool = True) -> list[dict]:
+    """Change records (the moc source's `moc_changes`) about `subjects` (see `reach`), open ones only by default."""
+    near = reach(conn, subjects, system) if subjects is not None else None
+    if near is not None and not near:
+        return []
+    rows = conn.execute(
+        """
+        select c.fuzer_id as id, cl.label,
+               max(case when g.field = 'title' then g.value #>> '{}' end) as title,
+               max(case when g.field = 'change_type' then g.value #>> '{}' end) as change_type,
+               max(case when g.field = 'state' then g.value #>> '{}' end) as state,
+               max(case when g.field = 'opened' then g.value #>> '{}' end) as opened,
+               max(case when g.field = 'closes' then g.value #>> '{}' end) as closes,
+               (select coalesce(array_agg(e.dst order by e.dst), '{}') from edge e
+                where e.src = c.fuzer_id and e.rel = 'concerns' and e.valid_to is null) as about
+        from entity c
+        left join entity_label cl on cl.fuzer_id = c.fuzer_id
+        left join golden g on g.fuzer_id = c.fuzer_id
+        where c.kind = 'change' and c.retired_at is null
+          and (%(near)s::text[] is null or exists (select 1 from edge e where e.src = c.fuzer_id
+               and e.rel = 'concerns' and e.valid_to is null and e.dst = any(%(near)s)))
+        group by c.fuzer_id, cl.label order by cl.label
+        """, {"near": near}).fetchall()
+    return [{**dict(r), "about": list(r["about"]), "about_labels": _names(conn, list(r["about"]))} for r in rows
+            if not open_only or (r["state"] or "").lower() not in CLOSED_CHANGE]
+
+
+def _case_subjects(conn, item_id: int) -> list[str]:
+    rows = conn.execute("select subjects from exception_record where item_id = %s", (item_id,)).fetchall()
+    found = [s for r in rows for s in r["subjects"] or []]
+    if not found:
+        row = conn.execute("select subjects from work_item where id = %s", (item_id,)).fetchone()
+        found = list(row["subjects"] or []) if row else []
+    return list(dict.fromkeys(found))
+
+
+def on_case(conn, item_id: int, now: datetime | None = None) -> dict:
+    """The bypasses in place on the system a case is about, and the open changes on it: what the evidence leads with,
+    so nobody reads a trend or acts on a trip without knowing a safeguard is out."""
+    subjects = _case_subjects(conn, item_id)
+    if not subjects:
+        return {"bypasses": [], "changes": [], "basis": "This case is about no equipment."}
+    return {"bypasses": bypasses(conn, subjects, now, system=True), "changes": changes(conn, subjects, system=True),
+            "basis": "Bypasses in place now on safeguards that act on or protect what this case is about, what is "
+                     "installed at it or where it is installed, or the rest of its train by the piping; and open "
+                     "change records about the same."}
+

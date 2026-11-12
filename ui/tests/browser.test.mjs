@@ -485,6 +485,28 @@ test("a case shows the alarms and operator log entries around its event (P3.5a)"
   await page.getByRole("link", { name: /tripped on high vibration/ }).waitFor();
 });
 
+test("a case leads its evidence with the safeguards bypassed and the open changes on its system (P3.9b)", async () => {
+  await page.route("**/work/items/9", route => route.fulfill({ json: { id: 9, title: "Train B1 tripped", type: "machine_trip",
+    state: "open", subjects: [], created_by: "trips", created_at: "2026-11-11T03:20:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/9/safeguards", route => route.fulfill({ json: {
+    bypasses: [{ id: "fz-bypass-1", label: "BYP-KR-031", safeguard: "SG-KR-003", function: "Suction scrubber high-high level trip",
+      action: "Trips the compressor", state: "active", bypassed_from: "2026-11-09T08:00", expires: "2026-11-11T20:00",
+      reason: "B1-LT-2005 reading high after calibration", authorised_by: "Shift supervisor", moc: "",
+      protects: ["fz-tag-2"], protects_labels: ["B1-V-2005"], acts_on: ["fz-tag-3"], acts_on_labels: ["B1-LT-2005"],
+      overdue: true, overdue_hours: 14.5, say: "" }],
+    changes: [{ id: "fz-change-1", label: "MOC-KR-0138", title: "Raise the discharge temperature high alarm", change_type: "limit",
+      state: "implemented", opened: "2026-10-03T09:00", closes: "2027-01-01T17:00", about: ["fz-tag-4"], about_labels: ["B1-TT-2002"] }],
+    basis: "Bypasses in place now" } }));
+  await page.goto(`${url}/#/cases/9`);
+  const banner = page.getByRole("region", { name: "Safeguards and changes" });
+  await banner.getByText("A safeguard is bypassed on this system").waitFor();
+  await banner.getByRole("link", { name: "BYP-KR-031" }).waitFor();
+  await banner.getByRole("link", { name: "B1-V-2005" }).waitFor();
+  await banner.getByText(/overdue since/).waitFor();
+  await banner.getByText("no change record", { exact: false }).waitFor();
+  await banner.getByRole("link", { name: "MOC-KR-0138" }).waitFor();
+});
+
 test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
