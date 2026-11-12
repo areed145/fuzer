@@ -45,6 +45,11 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
           <ul>{gaps.map((c, i) => <li key={i}>{c}</li>)}</ul>
         </div>
       )}
+      {(e.lessons ?? []).length > 0 && (
+        <div className="small"><strong>Reviewed lessons it was given</strong>
+          <ul>{(e.lessons ?? []).map((l) => <li key={l.id}>{l.title}{l.by && <> (approved by <Actor who={l.by} />)</>}</li>)}</ul>
+        </div>
+      )}
       {evidence.length + analysis.length + similar.length > 0 && (
         <Disclosure label={<>Evidence, analysis and similar cases</>}>
           {evidence.length > 0 && <Table density="compact" variant="list">

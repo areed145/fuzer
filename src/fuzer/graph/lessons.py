@@ -177,3 +177,23 @@ def knowledge_rows(conn) -> list[tuple]:
     ).fetchall()
     return [(f"lesson:{r['id']}", "lesson", None, r["title"], "lesson", "current", None, None, r["body"],
              [r["scope"]], [r["failure_mode"]]) for r in rows]
+
+
+def approved_for(conn, fids: list[str], limit: int = 5) -> list[dict]:
+    """The approved lessons for these assets' equipment model or class (P6.2b), most incidents and cases first: what a
+    brief on them hands the specialist. A suggested or rejected lesson is never among them."""
+    from .knowledge import scope
+
+    scoped = list({s for f in dict.fromkeys(fids) if f for s in scope(conn, f)})
+    if not scoped:
+        return []
+    return conn.execute(
+        """
+        select l.id, l.title, coalesce(l.text, l.draft) as text, l.failure_mode, l.scope_kind, l.scope_key,
+               l.decided_by, l.decided_at
+        from lesson l
+        where l.status = 'approved' and exists (select 1 from entity_key k where k.kind = l.scope_kind
+                                                and k.key = l.scope_key and k.fuzer_id = any(%s))
+        order by coalesce((l.stats->>'incidents')::int, 0) + coalesce((l.stats->>'cases')::int, 0) desc, l.id
+        limit %s
+        """, (scoped, limit)).fetchall()

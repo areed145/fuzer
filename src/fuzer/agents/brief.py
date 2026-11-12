@@ -4,7 +4,8 @@ A pack owns a case when the case's work type is one the pack `briefs` and one of
 the pack covers (ISO 14224). The pack's agent writes the brief: what happened in plain words, the evidence, what the
 standard analysis shows, similar past cases and what fixed them, a proposed disposition with its confidence, and
 what it could not check, led by the methods its pack cannot run on the case's subjects because a measurement it
-needs is not on the register there (P4.1b). The brief proposes; a person decides (the gate policy, P5.10, always stops an agent's
+needs is not on the register there (P4.1b). The approved lessons for the subjects' equipment model or class go to the
+specialist with the case and are kept on the brief (P6.2b); a suggested or rejected lesson never does. The brief proposes; a person decides (the gate policy, P5.10, always stops an agent's
 proposed disposition at a person).
 
 A brief is kept on the case as an `agent_result` event for the step `brief`, with its ledger (P4.4), so its cost
@@ -37,6 +38,7 @@ from datetime import datetime, timedelta
 from psycopg.types.json import Jsonb
 
 from ..core import detectors, settings
+from ..graph import lessons as lessons_
 from . import ledger, packs
 
 STEP = "brief"
@@ -67,16 +69,20 @@ def due(item: dict) -> datetime:
     return item["created_at"] + tier(item["type"])
 
 
-def prompt(item: dict, pack: dict, gaps: list[str] = ()) -> str:
+def prompt(item: dict, pack: dict, gaps: list[str] = (), lessons: list[dict] = ()) -> str:
     cannot = ("The register shows what its methods cannot run on these subjects; put each under could_not_check: "
               + "; ".join(gaps) + ".\n") if gaps else ""
+    learned = ("Reviewed lessons for this equipment, approved by its engineer; when one applies, cite it as "
+               "lesson:<id> under similar with what it says fixed the problem:\n"
+               + "".join(f"- lesson:{x['id']} {x['title']}: {' '.join(str(x['text'] or '').split())[:600]}\n"
+                         for x in lessons)) if lessons else ""
     return (
         f"Brief case {item['id']} ({item['type']}): {item['title']}. Subjects: {', '.join(item['subjects']) or 'none'}.\n"
         f"What raised it: {json.dumps(item.get('payload') or {}, default=str)[:4000]}\n"
         f"Ask the {pack['owner']} specialist to load the `{pack['path'].rsplit('/', 1)[-1]}` skill and brief the person "
         "who will decide this case, before they open it. Use the skill's checks and cite each record and method used. "
         "Find similar past cases on the same unit or class and what fixed them. Propose a disposition for the person "
-        "to decide; take no action. Say plainly what could not be checked and why.\n" + cannot +
+        "to decide; take no action. Say plainly what could not be checked and why.\n" + learned + cannot +
         "End with one ```json block with these keys: what_happened (plain words, two or three sentences), "
         "evidence (list of {ref, says}), analysis (list of {method, says}), similar (list of {case, fixed_by}), "
         "proposal ({disposition, confidence between 0 and 1, why}), could_not_check (list of strings).")
@@ -147,9 +153,10 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
     if ask is None:
         from . import ask_sync as ask
     gaps = packs.cannot_do(conn, pack, item.get("subjects") or [])
+    learned = lessons_.approved_for(conn, item.get("subjects") or [])
     conn.commit()
     try:
-        answer = ask(prompt(item, pack, gaps))
+        answer = ask(prompt(item, pack, gaps, learned))
     except Exception as e:  # the case still needs a person; the reason goes on it
         return _record(conn, item, actor, {"missing": f"the {pack['owner']} specialist could not be reached: {e}",
                                            **when})
@@ -158,7 +165,9 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
     return _record(conn, item, actor, {
         "pack": pack["path"], "brief": with_gaps(parse(answer["answer"]), gaps), "answer": answer["answer"],
         "usage": answer.get("usage") or {}, "ledger": led, "budget_usd": budget,
-        "over_budget": bool(budget) and led["cost_usd"] > budget, "late": now > due(item), **when})
+        "over_budget": bool(budget) and led["cost_usd"] > budget, "late": now > due(item),
+        "lessons": [{"id": x["id"], "title": x["title"], "failure_mode": x["failure_mode"], "by": x["decided_by"]}
+                    for x in learned], **when})
 
 
 def briefed_types() -> set[str]:
