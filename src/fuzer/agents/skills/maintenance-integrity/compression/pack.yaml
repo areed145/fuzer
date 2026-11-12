@@ -11,4 +11,4 @@ methods: [compressor_performance, cooler_fouling, gas_performance, lube_oil, pow
 detectors: [machine_health, compressor_trips]
 roles: [running status, vibration, bearing temperature, discharge temperature, flow, suction pressure,
         discharge pressure]
-eval: eval.yaml
+eval: compression                     # each bundle's answer keys: evals/compression.yaml in the bundle

@@ -10,12 +10,13 @@ on, and an eval of questions with answer keys:
     methods           the registered methods (standards/methods.yaml) the playbook runs through `calc`
     detectors         the registered detectors that raise its work
     roles             the measurement roles it reads
-    eval              a YAML file: per shipped bundle, questions with must_mention, specialists and charts keys
+    eval              the eval's name: each bundle holds its answer keys in evals/<name>.yaml (questions with
+                      must_mention, specialists and charts keys), so nothing facility specific sits in the pack
 
 Because the pack is a skill folder, the agent ledger's skill version (P4.4) covers the manifest and the eval too.
 
     shipped()          every pack under agents/skills, by skill path
-    load(path)         one pack's manifest, with its playbook and eval read
+    load(path)         one pack's manifest, with its playbook and each shipped bundle's eval questions read
     conformance(path)  what is wrong with it: [] when every name resolves and the playbook and manifest agree
 """
 
@@ -35,12 +36,19 @@ def shipped() -> list[str]:
 
 
 def load(path: str) -> dict:
-    """One pack: its manifest, with `path`, `playbook` (the SKILL.md text) and `questions` (the eval) added."""
+    """One pack: its manifest, with `path`, `playbook` (the SKILL.md text) and `questions` (each shipped bundle's
+    eval questions, by bundle) added."""
+    from ..core import bundles
+
     root = SKILLS / path
     pack = yaml.safe_load((root / MANIFEST).read_text()) or {}
-    ev = root / str(pack.get("eval") or "")
+    questions = {}
+    for b in bundles.shipped() if pack.get("eval") else ():
+        keys = bundles.find(b) / "evals" / f"{pack['eval']}.yaml"
+        if keys.is_file():
+            questions[b] = yaml.safe_load(keys.read_text()) or []
     return {**pack, "path": path, "playbook": (root / "SKILL.md").read_text() if (root / "SKILL.md").is_file() else "",
-            "questions": (yaml.safe_load(ev.read_text()) or {}) if pack.get("eval") and ev.is_file() else {}}
+            "questions": questions}
 
 
 def _diff(what: str, declared, used) -> list[str]:
@@ -101,7 +109,7 @@ def conformance(path: str) -> list[str]:
     questions = pack["questions"]
     for b in bundles.shipped():
         if not questions.get(b):
-            problems.append(f"no eval questions for the {b} bundle")
+            problems.append(f"no eval questions for the {b} bundle (evals/{pack['eval']}.yaml in the bundle)")
     for b, qs in questions.items():
         for i, q in enumerate(qs or [], 1):
             if not q.get("question") or not q.get("must_mention"):

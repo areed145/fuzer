@@ -1,0 +1,8 @@
+# Answer keys for the compression specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: Which of our pumps and compressors needed attention in early March 2024, and why?
+  must_mention: [20-K-2200B, [vibration, zone D]]
+  specialists: [maintenance-integrity]
+- question: Are any of our compressors at risk at the end of December 2025, and what should the IOC do about it?
+  must_mention: [20-K-2100C, surge, [anti-surge, recycl]]
+  specialists: [maintenance-integrity]
