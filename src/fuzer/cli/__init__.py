@@ -130,6 +130,9 @@ def parser() -> argparse.ArgumentParser:
     om.add_argument("--version", type=int, default=1, help="with export: the model's version")
     om.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is applying it (default: $USER)")
 
+    sub.add_parser("onboarding", help="the onboarding journey (P8.4): each step ready, blocked or to do, and what "
+                   "each gap prevents")
+
     bd = sub.add_parser("board", help="the work board (#99): refresh it, or show the top cards")
     bd.add_argument("action", choices=["refresh", "show"])
     bd.add_argument("--limit", type=int, default=20)
@@ -410,6 +413,10 @@ def main(argv=None):
                     _print({"unnamed": om.unname(conn, args.part, args.key)})
                 else:
                     _print(om.applied(conn))
+            elif args.cmd == "onboarding":
+                from ..api import onboarding
+
+                _print(onboarding.journey(conn))
             elif args.cmd == "board":
                 from ..ops import board
 

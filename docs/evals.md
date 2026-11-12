@@ -41,6 +41,14 @@ model (`fuzer operating-model adopt`, no deviations) from its seed bundle alone,
 Its vapour recovery compressor trips and leaks a valve, its tank vapour header breaches its IOW while the oxidiser
 takes the vapours, and its deliveries, drawings and register questions arrive as on the other two bundles.
 
+**The onboarding journey** (P8.4) puts a new asset's road to that point on one page: Settings, Onboarding
+(`GET /onboarding`, `fuzer onboarding`). Each step says whether it is ready, blocked or still to do, and each gap says
+what it prevents and links to the page that fixes it: the bundle (pack, facility, timezone); sources (held or failing
+loads block, datasets never loaded are listed); the source packs the bundle names; the operating model (applied, and any
+difference nobody has named); the register's open questions in the data steward's queue; the roster's seats; and the
+loop eval, run on a copy. The page reads only. `tests/evals/test_onboarding_harrier.py` walks Harrier from its bundle
+to the standard model adopted.
+
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser
 tests render each one at 390 px: title, what the IOC asked and the asset visible, no raw ids, no sideways scroll,

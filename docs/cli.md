@@ -224,6 +224,10 @@ the operating model as a package (P8.1): export, apply, adopt, deviations, confo
 | `--version` | with export: the model's version |
 | `--by` | who is applying it (default: $USER) |
 
+## `fuzer onboarding`
+
+the onboarding journey (P8.4): each step ready, blocked or to do, and what each gap prevents
+
 ## `fuzer board`
 
 the work board (#99): refresh it, or show the top cards
