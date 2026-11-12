@@ -57,7 +57,11 @@ def test_the_owning_pack_briefs_a_new_case_with_its_ledger_and_cost(conn, classe
     assert out["pack"] == "maintenance-integrity/compression" and not out["over_budget"]
     b = out["brief"]
     assert b["proposal"]["confidence"] == 1.0  # clamped: a confidence is a fraction
-    assert b["similar"][0]["fixed_by"] and b["could_not_check"] == ["no OEM map revision date"]
+    # unit-co has nothing measured, so what the pack cannot run there leads, then what the specialist said
+    gaps = b["could_not_check"][:-1]
+    assert b["similar"][0]["fixed_by"] and b["could_not_check"][-1] == "no OEM map revision date"
+    assert "surge on unit-co: no suction flow or anti-surge valve position measured there" in gaps
+    assert all(g in asked[0] for g in gaps)
     assert out["ledger"]["cost_usd"] == 0.31 and "maintenance-integrity/compression" in out["ledger"]["skills"]
     assert item not in brief.pending(conn)
     assert brief.prepare(conn, item, lambda q: pytest.fail("asked twice")) == brief.latest(conn, item)

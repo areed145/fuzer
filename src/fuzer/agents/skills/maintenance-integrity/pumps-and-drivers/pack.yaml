@@ -13,3 +13,13 @@ briefs: [machine_health]              # the work types it briefs, on a subject o
 roles: [running_status, speed, power, flow, suction_flow, suction_pressure, discharge_pressure, vibration,
         bearing_temperature, exhaust_temperature, fuel_flow, ambient_temperature]
 eval: pumps-and-drivers               # each bundle's answer keys: evals/pumps-and-drivers.yaml in the bundle
+# Each method that reads the asset itself, and the roles it needs measured there (P4.1b). Methods that read a
+# neighbour (the scrubber, the driver) or a record (a curve, a plan) are left out rather than reported as blocked.
+needs:
+  pump_curve: [flow, suction_pressure, discharge_pressure]
+  pump_bep: [flow]
+  motor_load: [power]
+  vibration: [vibration]
+  heat_rate: [fuel_flow, power]
+  exhaust_spread: [exhaust_temperature]
+  engine_cylinders: [exhaust_temperature]
