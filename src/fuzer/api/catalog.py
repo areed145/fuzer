@@ -208,6 +208,16 @@ def export_pack(name: str, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/systems/{name}/context")
+def system_context(name: str, conn=Depends(get_conn)):
+    """How the system's records contextualized themselves on the last rebuild (P2.1): what was decided on its own,
+    with confidence, and the share left for a steward."""
+    from ..core.jsonsafe import plain
+    from ..graph import contextualized
+
+    return plain(contextualized.report(conn, name))
+
+
 @router.post("/packs")
 def import_pack(body: PackImport, conn=Depends(get_conn)):
     """Install a source pack in one step: its system, connections, datasets, mappings and checks, the work types it

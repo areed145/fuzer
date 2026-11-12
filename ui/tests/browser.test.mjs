@@ -1053,6 +1053,39 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
   assert.equal(await page.locator("input[value='incoming']").count() >= 2, true);  // the name and the path
 });
 
+test("a system says how its records matched, what is left for a steward and every automatic match (P2.1)", async () => {
+  const system = { id: 1, name: "inspect", kind: null, description: null, owner: "ana", steward: null, timezone: null, encoding: null,
+    decimal: null, date_format: null, rank: null, enabled: true, notes: null, datasets: ["inspections"], connections: [] };
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [system],
+    types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
+    check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } } }));
+  await page.route("**/sources/systems/inspect/workflows", (route) => route.fulfill({ json: { types: [], rules: [],
+    webhook: { path: "/webhooks/inspect", secret: null, ready: false } } }));
+  await page.route("**/sources/systems/inspect/context", (route) => route.fulfill({ json: {
+    source: "inspect", records: 61, built_at: "2026-11-12T04:00:00Z", expects_match: ["tag"], needs_steward: 2, share: 0.0328, target: 0.1,
+    decided: { key: 58, score: 1, pinned: 0, new: 2 }, links: { pct: null, resolved: null, total: null },
+    steward: { to_confirm: 1, disagree: 0, unresolved: 0, unmatched: 1 },
+    automatic: [{ ref: "inspect:inspection:20-p-1001a", source_key: "20-p-1001a", fuzer_id: "fz-tag-1", label: "20-P-1001A", kind: "tag",
+      method: "key", confidence: 1, basis: "same key as the register", with: ["pi_af", "sap"] },
+      { ref: "inspect:inspection:20 K 2100C", source_key: "20 K 2100C", fuzer_id: "fz-tag-2", label: "20-K-2100C", kind: "tag",
+        method: "score", confidence: 0.993, basis: "matched on its values", with: ["sap"] }],
+    unmatched: [{ source_key: "99-X-9999", fuzer_id: "fz-tag-9", label: "99-X-9999", kind: "tag" }] } }));
+  await page.goto(`${url}/#/sources?view=systems`);
+  await page.getByRole("button", { name: /inspect/ }).first().click();
+  await page.getByText("61 records: 59 matched on their own, 2 new.", { exact: false }).waitFor();
+  await page.getByText("2 need a steward (3%)", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "1 match to confirm", exact: true }).getAttribute("href"), "#/masterdata?tab=questions&kind=match");
+  assert.equal(await page.getByRole("link", { name: "99-X-9999", exact: true }).getAttribute("href"), "#/e/fz-tag-9");
+  await page.getByRole("button", { name: "Automatic matches (59)", exact: true }).click();
+  await page.getByRole("cell", { name: "99%", exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "20-K-2100C", exact: true }).getAttribute("href"), "#/e/fz-tag-2");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`system-context-${width}`);
+  }
+});
+
 test("installing a source pack says what it added on Sources, Routing and Detection, linked there (P1.5)", async () => {
   await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [],
     types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },

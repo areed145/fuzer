@@ -219,6 +219,17 @@ export interface SourceLoad {
   removed: number;
 }
 
+/** How a system's records contextualized themselves on the last rebuild (P2.1). */
+export interface SystemContext {
+  source: string; records: number; built_at: string | null; expects_match: string[]; needs_steward: number;
+  share: number | null; target: number; decided: { key: number; score: number; pinned: number; new: number };
+  links: { pct: number | null; resolved: number | null; total: number | null };
+  steward: { to_confirm: number; disagree: number; unresolved: number; unmatched: number };
+  automatic: { ref: string; source_key: string; fuzer_id: string; label: string; kind: string; method: "key" | "score";
+    confidence: number; basis: string; with: string[] }[];
+  unmatched: { source_key: string; fuzer_id: string; label: string; kind: string }[];
+}
+
 export const sourcesApi = {
   sources: () => request<{ data_dir: string; sources: SourceRow[] }>("GET", "/sources"),
   source: (name: string) => request<SourcePreview>("GET", `/sources/${encodeURIComponent(name)}`, { rows: 8 }),
@@ -287,6 +298,7 @@ export const sourcesApi = {
   exportPack: (system: string) => request<{ system: string; yaml: string }>("GET", `/sources/systems/${encodeURIComponent(system)}/pack`),
   importPack: (yaml: string, config: Record<string, Json>, by: string, reason?: string) =>
     request<PackReport>("POST", "/sources/packs", undefined, { yaml, config, by, reason }),
+  systemContext: (system: string) => request<SystemContext>("GET", `/sources/systems/${encodeURIComponent(system)}/context`),
   systemWorkflows: (system: string) => request<SystemWorkflows>("GET", `/sources/systems/${encodeURIComponent(system)}/workflows`),
   deleteExceptionRule: (system: string, rule: string, by: string) =>
     request<Json>("DELETE", `/sources/systems/${encodeURIComponent(system)}/rules/${encodeURIComponent(rule)}`, { by }),
