@@ -17,7 +17,7 @@ flowchart LR
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 24 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 8 modules</small>"]
   c_api["API<br><small>fuzer.api, 20 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 30 modules</small>"]
@@ -285,7 +285,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `replay`, `roles`, `runs`, `steward_eval`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_fact`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)

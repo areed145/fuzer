@@ -272,14 +272,14 @@ def tune(conn, name: str, key: str, value, *, cls: str | None = None, by: str, r
 # ---- scores and listing ---------------------------------------------------------------------------
 
 def replay_score(conn, d: Detector) -> dict | None:
-    """The detector's latest replay score (recall, precision, false alarms a week, over which window), when it is
-    scored by replay and has been."""
-    if not (d.eval or "").startswith("replay:"):
-        return None
+    """The detector's latest replay score (recall, precision, false alarms a week, over which window): from the
+    replay its eval names, else from the sweep of the work detectors (`sweep:<name>`, evals/sweep.py), when it has
+    been run."""
+    key = d.eval.partition(":")[2] if (d.eval or "").startswith("replay:") else f"sweep:{d.name}"
     try:
         with conn.transaction():  # a database without the eval table yet
             r = conn.execute("select since, until, scores, run_at from ops_eval where detector = %s "
-                             "order by id desc limit 1", (d.eval.partition(":")[2],)).fetchone()
+                             "order by id desc limit 1", (key,)).fetchone()
     except Exception:
         return None
     if not r:

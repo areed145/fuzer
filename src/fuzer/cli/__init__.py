@@ -165,6 +165,10 @@ def parser() -> argparse.ArgumentParser:
     ev.add_argument("--loop", action="store_true",
                     help="drive every type of work arrive to counted and say which step failed for which type "
                          "(P1.7; writes cases, so run it on a scratch copy; exits 1 if any type fails)")
+    ev.add_argument("--sweep", action="store_true",
+                    help="run each work detector over the bundle's history and score its raises against the events "
+                         "its evals/detections.yaml declares (P3.6a; writes cases, so run it on a scratch copy; exits "
+                         "1 if a score is under its floor); --detector picks one")
     ev.add_argument("--roles", action="store_true",
                     help="score the measurement roles proposed for each point against the fake plant's process model "
                          "(P1.4; exits 1 under 90%% right or if a wrong role was confident)")
@@ -326,6 +330,22 @@ def main(argv=None):
                          + (f" (arrived from {r['arrived']})" if r.get("arrived") else ""))
                 if res["failed"]:
                     raise SystemExit("loop eval failed: " + "; ".join(res["failed"]))
+            elif args.cmd == "eval" and args.sweep:
+                from ..evals import sweep
+
+                folder = bundles.find(resolve(conn).name)
+                if not folder:
+                    raise SystemExit("this project has no bundle folder, so no detections to score against")
+                only = [args.detector] if args.detector != "limits" else None
+                bad = []
+                for res in sweep.run(conn, pack, folder, only, say=_say).values():
+                    sweep.store(conn, res)
+                    _say(f"{res['detector']}: " + (f"not here ({res['not_here']})" if "not_here" in res else
+                         res.get("note") or f"recall {res['recall']}, precision {res['precision']}, "
+                         f"{res['false']} false of {res['raises']} raised, missed {res['missed'] or 'none'}"))
+                    bad += sweep.gate(res)
+                if bad:
+                    raise SystemExit("sweep eval under its floor: " + "; ".join(bad))
             elif args.cmd == "eval" and args.roles:
                 from ..evals import roles as roles_eval
 
