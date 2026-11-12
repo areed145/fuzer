@@ -465,3 +465,72 @@ def gor_trend(conn, well: str) -> Figure:
     return Figure("gor_trend", lay["title"]["text"], data, lay, {
         "verdict": d["verdict"], "gor_climb": d["gor_climb"], "water_cut_step": d["water_cut_step"],
         "tests": d["tests"], "thresholds": d["thresholds"], "note": d["note"]}, [p["record"] for p in pts][-10:])
+
+
+def field_allocation_factor(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """Allocated oil over the wells' tested offer each month (#338), with and without each well's downtime taken out,
+    the 0.90 to 1.10 band, and the median age of the tests used."""
+    from ..analysis import well_test_factor
+
+    out = well_test_factor.trend(conn, since, until, days)
+    months = [m for m in out["months"] if m["factor"]]
+    if not months:
+        raise ChartError("no month with both a daily report and a live well test in that window")
+    x = [m["month"] for m in months]
+    lo, hi = out["summary"]["band"]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "allocated / tested (shut-in wells out)", "x": x,
+             "y": [m["factor"] for m in months], "line": {"color": "rgba(90,120,200,0.95)"}},
+            {"type": "scatter", "mode": "lines", "name": "ignoring downtime", "x": x,
+             "y": [m["factor_ignoring_downtime"] for m in months], "line": {"dash": "dot", "color": "rgba(90,120,200,0.5)"}},
+            {"type": "scatter", "mode": "lines", "name": f"band {lo} to {hi}", "x": x + x[::-1],
+             "y": [lo] * len(x) + [hi] * len(x), "fill": "toself", "fillcolor": "rgba(40,150,90,0.08)",
+             "line": {"width": 0}, "hoverinfo": "skip"},
+            {"type": "bar", "name": "median test age (days)", "x": x, "y": [m["median_test_age_days"] for m in months],
+             "yaxis": "y2", "marker": {"color": "rgba(150,150,150,0.35)"}}]
+    lay = layout(f"Allocated oil against well tests, {out['since']} to {out['until']}", None, "factor")
+    lay["yaxis2"] = {"title": {"text": "test age (days)"}, "overlaying": "y", "side": "right", "showgrid": False}
+    return Figure("field_allocation_factor", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "verdict": out["verdict"], "flags": out["flags"], "since": out["since"],
+        "until": out["until"], "source": out["source"], "note": out["note"]}, [])
+
+
+def gas_lift_heading(conn, well: str, days: int = 3, until: str | None = None) -> Figure:
+    """One gas lifted well's casing pressure and wellhead pressure (left) and lift gas (right) over the window (#341):
+    a heading well's three cycle together."""
+    from ..analysis import gas_lift_stability as gls
+
+    try:
+        d = gls.well(conn, well, days, until)
+    except calcs.CalcError as e:
+        raise ChartError(str(e)) from e
+    names = {"casing_pressure": "casing pressure", "wellhead_pressure": "wellhead pressure", "gas_lift_rate": "lift gas"}
+    data = []
+    for role, s in d["series"].items():
+        uom = d["points"][role]["uom"] or ""
+        data.append({"type": "scatter", "mode": "lines", "name": f"{names[role]} ({uom})", "x": [t for t, _ in s],
+                     "y": [rnd(v) for _, v in s], **({"yaxis": "y2"} if role == "gas_lift_rate" else {})})
+    lay = layout(f"{d['well']}: casing, wellhead and lift gas, last {days} days ({d['verdict']})", None, "pressure")
+    lay["yaxis2"] = {"title": {"text": "lift gas"}, "overlaying": "y", "side": "right", "showgrid": False}
+    return Figure("gas_lift_heading", lay["title"]["text"], data, lay, {
+        k: d[k] for k in ("verdict", "period_min", "cycling_together", "casing_swing_bar", "casing_swing_pct", "r",
+                          "window")} | {"signals": d["signals"]}, [p["id"] for p in d["points"].values()])
+
+
+def gas_lift_screen(conn, days: int = 3, until: str | None = None, limit: int = 15) -> Figure:
+    """The gas lifted wells ranked by their casing pressure swing over the window (#341), heading wells marked."""
+    from ..analysis import gas_lift_stability as gls
+
+    out = gls.screen(conn, days, until)
+    wells = sorted((w for w in out["wells"] if w.get("casing_swing_pct") is not None),
+                   key=lambda w: (w["verdict"] != "heading", w["verdict"] != "unstable", -w["casing_swing_pct"]))[:limit]
+    if not wells:
+        raise ChartError("no gas lifted well with casing pressure readings in that window")
+    tone = {"heading": "rgba(210,60,50,0.85)", "unstable": "rgba(230,150,40,0.85)"}
+    data = [{"type": "bar", "orientation": "h", "name": "casing swing (% of level)",
+             "y": [w["well"] for w in wells][::-1], "x": [w["casing_swing_pct"] for w in wells][::-1],
+             "marker": {"color": [tone.get(w["verdict"], "rgba(150,150,150,0.6)") for w in wells][::-1]},
+             "text": [w["verdict"] for w in wells][::-1]}]
+    lay = layout(f"Gas lifted wells by casing pressure swing, last {days} days", "swing (% of level)", None)
+    return Figure("gas_lift_screen", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "thresholds": out["thresholds"], "window": out["window"], "note": out["note"],
+        "heading": [w["well"] for w in out["wells"] if w["verdict"] == "heading"]}, [w["well_id"] for w in wells][:10])

@@ -6,8 +6,8 @@
 title: Metering and balances
 owner: production-surveillance        # the agent that loads this pack
 classes: [IP]                         # ISO 14224: input devices (flow meters)
-tools: [calc, measurements, plot_trend, trace_flow]
-charts: [plot_trend]
+tools: [calc, field_allocation_factor, measurements, plot_field_allocation_factor, plot_trend, test_staleness, trace_flow]
+charts: [plot_field_allocation_factor, plot_trend]
 methods: [allocation_factor, meter_agreement]
 detectors: [instruments]
 roles: [flow]

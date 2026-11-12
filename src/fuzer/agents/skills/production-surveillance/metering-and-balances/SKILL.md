@@ -21,6 +21,12 @@ the window, the meter it was checked against and what could not be checked.
   move of 5 % or more since the window before, inside the band: something changed, quote both factors (`value`,
   `previous`). A meter downstream of processing carries shrinkage and fuel, so it sits below one: judge it against
   its own previous factor. Pass `days` to look at a shorter window when a change is recent.
+- **The field over time** (`field_allocation_factor()`, `plot_field_allocation_factor()`): for "are the tests still
+  good" or "why is allocation off field-wide", the oil the daily report books each month over what the producing
+  wells offer at their latest tests, with each well's own downtime taken out and the median test age beside it.
+  Quote the factor, `flags` (low, high, drifting) and the factor ignoring downtime. Well status history isn't
+  loaded, so a well shut in without a downtime record still offers its test and pulls the factor down: say so, and
+  that `test_staleness()` shows which tests are old.
 - **Meter against meter** (`calc("meter_agreement", ref)`): the daily ratio to the nearest other meter on the same
   stream over the last week against its level over the 30 days before. `meter_drift` (2 % or more) is one of the two
   drifting. Two meters can't say which: run the allocation factor on both, and the one whose factor moved is the
