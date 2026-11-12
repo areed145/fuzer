@@ -14,8 +14,11 @@ ACTIONS = {
     "import": "a mapping file becomes a draft version; systems.yaml updates systems and connections",
     "export-pack": "SYSTEM: one system as a source pack (its connections, datasets, mappings in use and checks) in "
                    "one YAML file, for another project or database (--out FILE)",
-    "import-pack": "FILE: add or update a source pack's system, connections, datasets, mappings and checks; safe to "
-                   "repeat (--config CONNECTION.key=value changes a connection's config, e.g. its folder here)",
+    "import-pack": "FILE: install a source pack: its system, connections, datasets, mappings, checks, work types "
+                   "and detectors; safe to repeat (--config CONNECTION.key=value changes a connection's config, "
+                   "e.g. its folder here)",
+    "conformance": "FILE: run the source pack conformance suite (installs the pack and loads its fixture on this "
+                   "project; use a scratch database)",
     "approve": "make a draft mapping version the one in use",
     "rollback": "put an older mapping version back in use (as a new version)",
     "discard": "set a draft mapping version aside without using it",
@@ -141,7 +144,15 @@ def run(conn, pack, data: Path, args) -> object:
                 if not key:
                     raise SystemExit(f"import-pack --config is CONNECTION.key=value, got {k!r}")
                 cfg.setdefault(name, {})[key] = v
-            out = [catalog.import_pack(conn, Path(f).read_text(), by, why, cfg) for f in _need(args, 1, "a pack file")]
+            from ..sources import packs
+
+            out = [packs.install(conn, Path(f).read_text(), by, why, cfg) for f in _need(args, 1, "a pack file")]
+        elif a == "conformance":
+            from ..sources import packs
+
+            out = [packs.conformance(conn, f) for f in _need(args, 1, "a pack file")]
+            if any(r["problems"] for r in out):
+                raise SystemExit("\n".join(f"{r['pack']}: {p}" for r in out for p in r["problems"]))
         elif a == "approve":
             out = catalog.approve(conn, int(_need(args, 1, "a version id")[0]), by, why)
         elif a == "discard":

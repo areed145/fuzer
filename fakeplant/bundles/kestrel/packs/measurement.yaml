@@ -2,6 +2,8 @@
 # it from Sources > Import a source pack (or `fuzer sources import-pack`); a short gas day on a meter then reaches
 # the production engineers' queue, and an estimated volume the engineers', each matched to the tag or well metered.
 fuzer_source_pack: 1
+fixture: ../measurement          # the sample exports the conformance suite loads (P1.5)
+detectors: [source_health]       # a stale, held or failing meter feed raises work
 system:
   name: measurement
   kind: measurement
