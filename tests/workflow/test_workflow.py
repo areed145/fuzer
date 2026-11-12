@@ -455,6 +455,49 @@ def test_failing_agent_retries_then_goes_to_a_person(conn):
     assert engine.item(conn, out["item_id"])["outcome"] == "end_low"
 
 
+def test_agent_step_with_no_worker_goes_to_a_person_with_the_reason(conn):
+    """P0.3: an upset triaged as real on a keyless demo (no agent worker) reaches a person within the fallback time."""
+    quiet(conn)
+    out = engine.start_or_correlate(conn, "upset", {"incident_id": "inc-noworker", "title": "Compressor trip"}, "agent:sre")
+    item = out["item_id"]
+    engine.complete(conn, task(conn, item, "triage")["id"], "alice", {"triage": "real"})
+    diagnose = task(conn, item, "diagnose")
+    assert diagnose["kind"] == "agent"
+    # the case says when it goes to a person if nobody picks it up
+    step = next(s for p in engine.item(conn, item)["processes"] for s in p["open"] if s["id"] == diagnose["id"])
+    assert step["unclaimed"] and step["fallback_at"] == diagnose["created_at"] + timedelta(minutes=30)
+    start = max(diagnose["created_at"], diagnose["run_after"])
+    assert engine.tick(conn, now=start + timedelta(minutes=29))["agent_fallbacks"] == 0
+    assert engine.tick(conn, now=start + timedelta(minutes=31))["agent_fallbacks"] == 1
+    t = task(conn, item, "diagnose")
+    assert t["kind"] == "user" and t["role"] == "engineer" and t["assignee"] is None
+    reason = events(conn, item, "handed_off")[-1]["data"]["reason"]
+    assert reason.startswith("No agent worker picked up 'Diagnose' within 30 min, so it went to the engineer queue.")
+    assert engine.tick(conn, now=start + timedelta(hours=2))["agent_fallbacks"] == 0  # once
+    # a worker holding the lease is working on it: no fallback while the lease runs
+    other = engine.start_or_correlate(conn, "upset", {"incident_id": "inc-held", "title": "Pump trip"}, "agent:sre")
+    engine.complete(conn, task(conn, other["item_id"], "triage")["id"], "alice", {"triage": "real"})
+    held = task(conn, other["item_id"], "diagnose")
+    conn.execute("update work_token set claimed_by = 'w', lease_until = %s where id = %s",
+                 (held["created_at"] + timedelta(hours=1), held["id"]))
+    conn.commit()
+    assert engine.tick(conn, now=held["created_at"] + timedelta(minutes=45))["agent_fallbacks"] == 0
+
+
+def test_agent_fallback_can_be_turned_off(conn):
+    from fuzer.core import settings
+
+    quiet(conn)
+    settings.set(conn, "work.agent_fallback_minutes", 0, by="olga")
+    try:
+        out = engine.start_or_correlate(conn, "upset", {"incident_id": "inc-forever", "title": "Wait"}, "agent:sre")
+        engine.complete(conn, task(conn, out["item_id"], "triage")["id"], "alice", {"triage": "real"})
+        assert engine.tick(conn, now=engine.utcnow() + timedelta(days=3))["agent_fallbacks"] == 0
+        assert task(conn, out["item_id"], "diagnose")["kind"] == "agent"
+    finally:
+        settings.set(conn, "work.agent_fallback_minutes", 30, by="olga")
+
+
 # --- timers and SLAs -----------------------------------------------------------------------------
 
 def test_overdue_task_escalates_and_says_why(conn):

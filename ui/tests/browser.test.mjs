@@ -2315,7 +2315,8 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   const handed = [];
   const step = { id: 77, process_id: 9, element: "diagnose", name: "Diagnose", kind: "agent", state: "waiting", flow: null,
     role: "field-operations-facilities", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0,
-    error: null, created_at: new Date().toISOString(), finished_at: null, finished_by: null, unclaimed: true };
+    error: null, created_at: new Date().toISOString(), finished_at: null, finished_by: null, unclaimed: true,
+    fallback_at: new Date(Date.now() + 30 * 60_000).toISOString() };
   await page.route("**/work/items/7", (route) => route.fulfill({ json: { id: 7, title: "Upset case", type: "upset", state: "open",
     subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", events: [], agents_configured: false,
     payload: { start: "2025-12-30T00:00", first_detection: "excursions:alarm:lo" },
@@ -2324,6 +2325,8 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   await page.route("**/work/tasks/77/hand-off", (route) => { handed.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
   await page.goto(`${url}/#/cases/7`);
   await page.getByText("No AI provider is configured for agents").waitFor();  // straight away, not after 10 minutes
+  // and it says when the step goes to a person if nobody picks it up (P0.3)
+  await page.getByRole("note").filter({ hasText: "It goes to a person queue at" }).waitFor();
   await page.getByRole("button", { name: "Take it over" }).click();
   await expectReports(handed, 1);
   assert.equal(handed[0].to, "riley");

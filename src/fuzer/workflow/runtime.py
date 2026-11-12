@@ -1,6 +1,6 @@
 """BPMN process execution and runtime operations."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
@@ -409,10 +409,23 @@ def _fire(run: _Run, proc: dict, t: dict) -> None:
                 _finish(run, t)
     _advance(run, proc)
 
+def agent_fallback(conn) -> timedelta | None:
+    """How long an agent step may wait unclaimed before it goes to a person (P0.3, #557); None: forever."""
+    from ..core import settings
+
+    minutes = settings.get(conn, "work.agent_fallback_minutes")
+    return timedelta(minutes=minutes) if minutes else None
+
 def tick(conn, now: datetime | None = None, limit: int = 1000) -> dict:
-    """Fire timers that are due and escalate person tasks past their SLA (run from a Dagster schedule).
-    Each process is its own transaction; a process another tick holds is skipped."""
+    """Fire timers that are due, escalate person tasks past their SLA and hand agent steps no worker picked up to a
+    person (run from a Dagster schedule). Each process is its own transaction; a process another tick holds is skipped."""
     now = now or utcnow()
+    # an agent step nobody holds (no worker, or none with a provider) since it became runnable, for longer than the
+    # fallback time: it goes to a person instead of waiting silently (P0.3)
+    wait = agent_fallback(conn)
+    idle = conn.execute("select id, process_id from work_token where state = 'waiting' and kind = 'agent' "
+                        "and (lease_until is null or lease_until < %s) and greatest(created_at, run_after) <= %s "
+                        "order by id limit %s", (now, now - wait, limit)).fetchall() if wait else []
     due = conn.execute("select id, process_id from work_token where state = 'waiting' and kind = 'timer' and due_at <= %s "
                        "order by due_at, id limit %s", (now, limit)).fetchall()
     # past its SLA and not escalated since it was last due (an escalation to a role with an SLA sets a new due time)
@@ -422,7 +435,30 @@ def tick(conn, now: datetime | None = None, limit: int = 1000) -> dict:
     conn.commit()
     fired = sum(_tick_timer(conn, r["process_id"], r["id"], now) for r in due)
     escalated = sum(_escalate(conn, r["process_id"], r["id"], now) for r in late)
-    return {"timers": fired, "escalated": escalated}
+    handed = sum(_agent_fallback(conn, r["process_id"], r["id"], now, wait) for r in idle)
+    return {"timers": fired, "escalated": escalated, "agent_fallbacks": handed}
+
+@_op
+def _agent_fallback(conn, process_id: int, token_id: int, now: datetime, wait: timedelta) -> int:
+    run = _Run(conn, SYSTEM, now)
+    proc = run.proc(process_id, skip_locked=True)
+    if proc is None:
+        return 0
+    t = conn.execute("select * from work_token where id = %s", (token_id,)).fetchone()
+    if (t["state"] != "waiting" or t["kind"] != "agent" or (t["lease_until"] and t["lease_until"] >= now)
+            or max(t["created_at"], t["run_after"] or t["created_at"]) > now - wait):
+        return 0
+    n = run.defn(proc).nodes[t["element"]]
+    role = n.attrs.get("fallbackRole") or _owner(run, proc)
+    agent = t["role"]
+    minutes = int(wait.total_seconds() // 60)
+    reason = (f"No agent worker picked up '{n.label}' within {minutes} min, so it went to the {role} queue. "
+              f"The {agent} agent runs only when an agent worker with an AI provider is running.")
+    _update(run, t, kind="user", role=role, assignee=None, claimed_by=None, lease_until=None,
+            due_at=now + DEFAULT_SLA)
+    run.event("handed_off", proc, t, actor=SYSTEM, **{"from": f"agent:{agent}", "to": f"role:{role}", "reason": reason})
+    run.flush()
+    return 1
 
 @_op
 def _tick_timer(conn, process_id: int, token_id: int, now: datetime) -> int:

@@ -130,6 +130,9 @@ register(
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",
             "Schedule", min=30, env="FUZER_WORK_LEASE_SECONDS"),
+    Setting("work.agent_fallback_minutes", "int", 30, "Minutes an agent step may wait with no agent worker picking it "
+            "up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever)",
+            "Schedule", min=0),
     Setting("db.work_mem", "str", "256MB", "Postgres work_mem for the rebuild's big queries", "Database",
             env="FUZER_WORK_MEM"),
     Setting("intake.sap_notifications", "bool", True, "Raise open SAP notifications with no work order as "
