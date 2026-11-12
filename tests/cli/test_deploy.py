@@ -164,6 +164,7 @@ def test_configure_dagster_keeps_dagster_storage_in_postgres(monkeypatch, tmp_pa
             assert instance.run_coordinator.get_run_queue_config().max_concurrent_runs == deploy.MAX_CONCURRENT_RUNS
             assert instance.run_monitoring_enabled
             assert instance.run_monitoring_max_runtime_seconds == deploy.MAX_RUNTIME_SECONDS
+            assert {"AssetDaemon", "FreshnessDaemon"}.isdisjoint(instance.get_required_daemon_types())
             assert instance.get_runs() == []
             instance.event_log_storage.store_event(_event())  # NOTIFY on write: fails under psycopg 3
         with db.connect(url=url) as conn:
