@@ -1,147 +1,103 @@
 # Roadmap
 
-What's planned. What's done is in the code and the closed issues.
+Fuzer is one router of work from many sources, each matched to an asset through the register, and judged from the
+IOC seat and the field seat: how work arrives, is triaged, routed, dispatched and closed out. This page is the short
+version of the platform roadmap. Status lives in the GitHub issues it links.
 
-## Roadmap
+## The loop
 
-### Done (on fake data)
+Every epic makes one step of this loop better for a work type, on any asset: work **arrives** from a source or a
+detector, is **matched** to an asset, **routed** to a queue and role, **triaged**, **dispatched**, **done** in the
+field on a phone, **closed** back to the source, **counted**, and **learned** from.
 
-- **Register:** core pipeline (ingest, resolve, golden, graph), review queue with pinned decisions, dated links,
-  source record history, REST API, MCP server, web UI, projects and settings in the database.
-- **Sources:** the source catalog (#225): systems, connections (folder, PI Web API, ADX), datasets, mapping
-  versions with approval and rollback, runs, profiles, checks, coverage and match statistics, survivorship and
-  match rules, impact preview, lineage, health and alerts to owners, all editable on the Sources page; lake
-  tables, Excel, JSON and GeoJSON readers, suggested mappings, measurements, limits, curves.
-- **Models and maintenance:** equipment models and ISO 14224 classes, SAP notifications, work orders, plans,
-  BOM and spares.
-- **Operational history:** EC DAY001, downtime and deferment, incidents, lessons learned, Claude reading
-  operator logs, scanned P&IDs, documents and OEM curves.
-- **Assistant:** the operations assistant (agent team with skills and charts) with memory of past
-  conversations.
-- **Agentic operations:** operating limits and IOWs, the SRE scan (detection, upsets, hand-off), the BPMN work
-  engine with inbox and modeler, the value-ranked board, the daily operations report, opportunities,
-  back-pressure debottlenecking, correlation and clustering studies, and the replay eval.
-- **Fake plant:** Okan with a process model; a fake PI Web API and ADX.
+## Phases
 
-### Next
+Phase 1 gates Phases 2, 3 and 4. Phase 5 needs only Phase 0 and runs beside it.
 
-Open now: test the catalog with a new source from the UI alone (#227), real data and Azure (#9 to #14), real
-PI / ADX servers (#15, #16), Teams threads (#22), document access groups (#29), engineer ratings (#221),
-swappable LLM providers (#166), product on flow edges (#205), the SRE baseline cache (#203), DEXPI / CFIHOS
-(#63), stationing and depths (#61), reference data as datasets (#68), calibrated decision models (#94).
+| Phase | Goal | Exit gate |
+|---|---|---|
+| 0 Land and baseline | Finish what is in flight on one clean surface | Work has four entries, every page passes the Clean style lint, no agent step waits silently |
+| 1 Platform spine | One contract each for findings, detectors, methods, measurement roles, source packs and bundles | **Gate A:** the loop eval runs arrive to close on Okan and Kestrel in CI, with registered detectors and bundle configuration only |
+| 2 Context and data quality | Context builds itself, and data problems are routed work | A new source added from the UI is matched and linked with under 10% needing a steward |
+| 3 Detection | Deterministic coverage by equipment class, plus an agentic watch | Every detector has a replay score on both bundles; the watch has run in shadow with measured precision |
+| 4 Specialists | Standards-backed specialists that pre-read every case | Six specialist packs pass their evals; every new case has an agent brief |
+| 5 Work and field | One pane for everyone, a phone-first field, a workflow designer | **Gate B:** every work type closes end to end, write-back included, with the field leg on a phone |
+| 6 Learning | Closed work improves agents, detectors and the register, under review | A confirmed false alarm changes a detector and a reviewed case changes a skill, each through an eval gate |
+| 7 Analytics | One set of measures for plant, process, detectors and agents | An asset manager answers "are we keeping up, and did it stick" from one page |
+| 8 Standards | One operating model across assets | **Gate C:** a third bundle of a different asset type goes live without code changes |
+| R Production readiness | Real data, live historians, cloud, access control | A real asset team runs a shift on it |
 
-The roadmap is tracked in GitHub: one [milestone](https://github.com/areed145/fuzer/milestones) per phase and
-one issue per item (label [`roadmap`](https://github.com/areed145/fuzer/issues?q=label%3Aroadmap)). Each issue
-has its scope, a "done when" checklist and the issues it depends on. The
-sections below explain the thinking behind the bigger items.
+## Build order
 
-1. **[Prove it on real data](https://github.com/areed145/fuzer/milestone/1)**: real exports for one area (#9), tag
-   grammar on real names (#10), Claude reader accuracy (#11), Azure (#12),
-   Entra ID (#13), Dagster in Azure (#14).
-2. **[Live process data](https://github.com/areed145/fuzer/milestone/2)**: PI Web API (#15), ADX (#16), process values
-   around an event (#17).
-3. **[Equipment models & maintenance](https://github.com/areed145/fuzer/milestone/3)**: equipment models and classes,
-   ISO 14224 (#18); SAP notifications and work orders (#19). Models come first
-   because a manual describes a model, not one pump.
-4. **[Operational history & conversations](https://github.com/areed145/fuzer/milestone/4)**: EC DAY001 daily reports
-   (#20), EC downtime and deferment (#21), Teams threads (#22), incidents (#23),
-   lessons learned (#24).
-5. **[Documents & knowledge](https://github.com/areed145/fuzer/milestone/5)**: ingest (#25), linking (#26), scoped
-   search (#27), revisions (#28), group-based access (#29), quality (#30).
-6. **[Troubleshooting assistant](https://github.com/areed145/fuzer/milestone/6)**: #31.
-7. **[Later](https://github.com/areed145/fuzer/milestone/7)**: P&ID flow connectivity (#32), source record history
-   (#33), spares and BOM (#34), Splink matcher (#36),
-   graph DB read replica (#37).
-8. **[Source framework](https://github.com/areed145/fuzer/milestone/8)** (section 20): connector contract and
-   lake-table connector (#57), mapping files and generic per-shape extractors
-   (#58), schema profiling and suggested mappings (#59), geospatial shape and
-   PostGIS (#60), pipeline stationing and well depths (#61), measurements (#62),
-   DEXPI and CFIHOS handover readers (#63); the source catalog in the database (#225, done) and its test with
-   a new source added from the UI alone (#227).
+Six waves across four lanes, so sessions can work at once without touching the same code. Within a cell, epics are
+built left to right.
 
-### Operational history and conversations
+| Wave | Work and UI | Detection and platform | Context and sources | Specialists |
+|---|---|---|---|---|
+| 1 Baseline | P0.1, P0.2, P0.3 | P0.4, P1.1, P1.7 | P1.6 | P1.3, P4.6 |
+| 2 Spine and rails | P5.10, P5.7, P5.2 | P1.2, P1.4 | P1.5, P2.2 | P4.4, R.7 design note |
+| *Gate A* | | Loop eval green on Okan and Kestrel | | |
+| 3 First value | P5.3, P5.1, P6.1, P7.2 | P3.5, P3.8, P3.2, P3.9 | P2.3, P2.4, P2.5 | P4.1, P4.3, first pack of P4.2 |
+| 4 Depth | P5.5, P5.11, P5.4, P5.6, P5.8, P5.9 | P3.1, P3.10, P3.6, P3.3 in shadow, P3.7 | P2.1, P2.6, P7.1 | Packs 2 to 4 of P4.2, P4.5 |
+| *Gate B* | Every work type closes end to end | | | |
+| 5 Compounding | P7.3, P7.5, P7.6 | P6.3, P3.3 live, P3.4, P7.4 | P6.5, P2.7 if needed | P6.2, P6.4, packs 5 to 8 of P4.2 |
+| 6 Standardize | P8.1, P8.3 | P8.2 | P8.4 with the third bundle | Packs proven on the third bundle |
+| *Gate C* | | | Third asset type live, no code | |
 
-Goal: the record of what actually happened on the asset, and how people fixed
-it, is linked to the equipment and wells involved and can be searched next to
-the manuals.
+Landed so far: P1.1 One finding contract, P1.3 Method registry ([Methods](methods.md)) and P1.2 Detector registry
+([Detectors](detectors.md)).
 
-- **DAY001 daily reports (EC)**: one per day: production and injection figures,
-  downtime, and free-text comments. Figures stay in EC / ADX (Fuzer keeps a
-  pointer); comments are read by Claude like operator logs, into links and
-  events.
-- **Downtime and deferment history (EC)**: structured records (start, end, well
-  or facility, reason code, lost volume) plus comments. Each becomes a
-  `downtime` event linked to its wells and, from the comment, to the equipment
-  that caused it. Lost volume on each event makes it possible to rank problems
-  by cost, and to check reason codes against what the comment actually says.
-- **Teams channels (Microsoft Graph)**: only channels the asset team chooses
-  (e.g. operations troubleshooting, upset recovery). A thread (first message +
-  replies) is the unit: Claude links it to tags, wells and incidents, and
-  summarises what the problem was, what was tried and what fixed it. Fuzer stores
-  the link back to the Teams message and the summary, not a second copy of
-  everyone's chat.
-- **Lessons learned**: those summaries become *suggested* troubleshooting
-  steps for a model or tag. An engineer reviews them before they appear next to
-  the official guides, so tribal knowledge turns into reviewed knowledge.
-- **Care needed with chat**: Graph's channel-message permissions need tenant
-  admin consent; people's names and anything personal should be minimised or
-  redacted; retention and legal-hold rules apply; and access should follow
-  channel membership. Worth agreeing with IT, legal and the asset team before
-  building.
+## How the work is tracked
 
-### Documents and knowledge
+| Thing | How |
+|---|---|
+| Epic | One issue titled with its id and name, for example "P1.2 Detector registry", holding Build, the "done when" list and Builds on. Filed when a session starts it, so the backlog holds no stale epics. |
+| Slice | One sub-issue per pull request under its epic, written when the epic starts. |
+| Labels | `epic`, `phase:0` to `phase:8` and `track:R`, `lane:work`, `lane:platform`, `lane:context`, `lane:specialists`, `model:fable` or `model:opus`, `size:S`, `size:M`, `size:L`. |
+| Pull request | Its body says "Part of" its epic and "Closes" its slice. One behavior per pull request, merged before the next starts. |
+| Closing an epic | Only when every "done when" box links the test that shows it, and the loop eval is green. |
+| Existing issues | Each becomes a sub-issue of its epic when that epic is filed, using the map below, or is closed with a reason. |
 
-Goal: every manual, guide and procedure is linked to the entities it applies
-to, and searchable in the context of an entity ("how do I reset the seal
-flush on 20-P-1001B?").
+[Open epics](https://github.com/areed145/fuzer/issues?q=is%3Aissue+is%3Aopen+label%3Aepic) ·
+[Closed epics](https://github.com/areed145/fuzer/issues?q=is%3Aissue+is%3Aclosed+label%3Aepic)
 
-- **Types**: OEM manuals and datasheets, site troubleshooting guides, operating
-  procedures and work instructions, inspection reports and certificates, MOCs.
-- **Ingest**: PDFs and Office files from a document system (SharePoint / an
-  EDMS), with document number, revision, status and effective date. Text layer
-  first, OCR (Azure Document Intelligence) for scans. Split into sections that
-  keep their headings, page numbers and figures.
-- **Link at the right level**: an OEM manual applies to an equipment *model*
-  (and through it to every pump of that model); a site guide applies to tags,
-  systems or areas; a procedure may apply to an equipment *class*. Claude reads
-  each document's front matter and sections, and picks from register candidates
-  (models, tags, classes) the way it does for logs, with low-confidence links
-  sent to the review queue.
-- **One search across knowledge**: the same scoped search covers manuals,
-  guides, reviewed lessons learned, Teams thread summaries and past incidents,
-  each labelled by how authoritative it is (OEM manual vs. a chat thread).
-- **Section-level links**: sections are linked to the components, failure
-  modes and tags they discuss, so search can return the right page, not just the
-  right document.
-- **Search**: full-text plus embeddings (pgvector) over sections, always scoped
-  by the graph (the entity, its model, its class, its area), returning cited
-  passages with page numbers. Exposed in the UI (a Documents tab per entity and a
-  viewer with highlighted passages) and as an MCP tool.
-- **Revisions**: superseded revisions are kept but not served by default;
-  links follow the current revision.
-- **Access**: manuals can be licensed or confidential, so this is where role- or
-  group-based access (currently "everyone sees everything") would start.
-- **Quality**: answer-key sets for document linking and for search, measured
-  like the P&ID reader; reviewer feedback on links and search results.
+## Where the earlier issues go
 
-## What the first slice includes
+Each issue open before the roadmap belongs to the epic that will deliver it. When a session files that epic, it
+attaches these as sub-issues.
 
-- Fake data generator: a synthetic asset across all sources.
-- Tag and well grammars, phrase aliases.
-- Ingest → resolve → golden → graph pipeline on Postgres.
-- Review queue with pinned decisions.
-- REST API: search, entity detail, lookup by source key or free text, dated
-  flow tracing, review.
+| Epic | Issues |
+|---|---|
+| P0.1 Finish screen rationalization | #501, #504, #506, #508 |
+| P0.2 Clean style on every page | #290 and its page polish issues #296, #297, #298, #299, #300, #301, #303, #305, #306, #308, #309, #321, #322, #323, #324 |
+| P1.6 Bundles complete | #376 |
+| P2.2 Calibrated match confidence | #94 |
+| P2.3 Data quality as routed work | #505, #316 |
+| P2.7 Richer plant structure | #61, #63, #205 |
+| P3.1 Deterministic library build-out | #339, #341, #342, #343, #345, #347, #351, #354 |
+| P3.7 Source packs that bring new work | #369, #371 |
+| P4.2 Specialist packs | #333 (umbrella), #338, #355, #356, #357, #358, #359, #363, #364, #365, #366, #367, #368 |
+| P4.6 Shared analysis foundation | #334 |
+| P5.5 Ready to dispatch | #349, #361, #362, #370 |
+| P5.6 Workflow designer | #317, #318, #319 |
+| P5.8 Work that starts in conversation | #22 |
+| P5.9 Plan by window | #337, #360 |
+| P7.2 How the work is running | #348, #350, #373 |
+| P7.3 How the plant is running | #336, #352, #353 |
+| P7.5 Across assets, and value realized | #335, #340, #372 |
+| R.1 Real data for one area | #9, #10 |
+| R.2 Live historians | #15, #16 |
+| R.3 Measured on real work | #11, #221 |
+| R.4 Cloud deployment | #12, #14 |
+| R.5 Access, audit and retention | #29 |
 
-Since added: React web UI (browse, entity detail with graph tab, ontology,
-flow network, review); a read-only MCP server for AI agents; the Okan fake
-asset with COPY-based rebuilds and background
-rebuilds after review answers; Claude reading operator logs into links and
-`event` entities, and reading tags off scanned P&IDs (tiled images, grammar +
-register check, findings for misreads and missing tags), all cached and never
-called during rebuilds; snapshot ingest that retires entities whose records
-disappear; Dagster jobs (per-source assets, export-folder sensor, hourly /
-daily schedules, opt-in nightly Claude run, data-quality checks, failure
-webhook).
+## Principles every epic is judged against
 
-Not yet: Entra ID login, Azure deployment.
+- **Agents read and propose; people decide.** Anything that changes plant, maintenance, schedule or commercial state
+  is approved by a person, and nothing is written to a source system without a named person's approval.
+- **Nothing ships unmeasured.** Every detector, reader, matcher and specialist skill has an answer key and a score in
+  CI. Learning changes pass the same gate.
+- **Asset-type agnostic.** Facility names, tag patterns and asset types do not appear in `src/fuzer/`. Every behavior
+  is proven on Okan and on Kestrel.
+- **Extend, never fork.** Reuse the owning domain, registry and UI kit. A new page, table or service states why an
+  existing one cannot serve.
