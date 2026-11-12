@@ -16,7 +16,8 @@ def test_the_compressor_trip_is_one_case_with_its_alarm_log_detection_and_notifi
     for kind in ("upset", "machine_trip", "machine_health", "sap_notification"):
         loop._bring(conn, arrive[kind])
         conn.commit()
-    trip = conn.execute("select * from exception_record where type = 'machine_trip' and key like 'KRGP-B1@%'").fetchone()
+    trip = conn.execute("select * from exception_record where type = 'machine_trip' and key like 'KRGP-B1:%%@%%'"
+                        ).fetchone()  # keyed by the train piping places B1-K-2001 in
     assert trip and trip["item_id"], "the trip on train B1 opened no case"
     on = exceptions.on_case(conn, trip["item_id"])
     assert {"machine_trip", "sap_notification"} <= {x["type"] for x in on}, on

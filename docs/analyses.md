@@ -413,8 +413,8 @@ extended by the next run rather than raised again.
 **Grouping into upsets.** Detections become one upset when they start within 2 h of the upset's
 latest detection and their units are within 4 hops in the plant model. The links counted are:
 - `part_of`, `flows_to`, `lift_gas_to` and P&ID piping, both ways;
-- the machines and vessels of one compression train (same area, same trailing letter), because the
-  register doesn't link a train's stages;
+- the machines, vessels and driver of one compression train, as `graph.structure` reads it from piping and
+  drives (never from tag names);
 - a tag otherwise on its own, to the manifolds in its area and to its loop family there (20-PT-3003
   with 20-FT-3002), which covers the header pressures and the jackets' gas lift meters.
 

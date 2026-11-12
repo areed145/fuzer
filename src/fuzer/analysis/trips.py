@@ -29,7 +29,6 @@ long before, which is what separates a machine fault from a process upset and fr
   checklist on their field job.
 """
 
-import re
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -175,39 +174,18 @@ def _tag(conn, fid: str) -> str:
     return tag(conn, fid)
 
 
-def train(conn, fid: str) -> dict:
-    """The train a machine belongs to: tags in its area with its trailing train letter (20-K-2200B: area 20, train
-    B), or every tag in its area when it has none (an area such as B1 that is one train); plus the vessels in a lettered
-    area that belong to no train (the inlet separation every train shares)."""
+def train(conn, fid: str, plant=None) -> dict:
+    """The train a machine belongs to, from piping (`graph.structure.train`): its members in flow order and what
+    drives them, the headers it shares (the inlet separation every train takes from) and its compressors. Where the
+    piping can't say, a CalcError gives the reason: a train is never guessed from tag names (#676)."""
+    from ..graph import structure
+
     tag = _tag(conn, fid)
-    label = _label(conn, tag)
-    area = conn.execute("select a.dst from edge a join entity x on x.fuzer_id = a.dst and x.kind = 'area' "
-                        "where a.src = %s and a.rel = 'part_of' limit 1", (tag,)).fetchone()
-    if not area:
-        raise CalcError(f"{label} is in no area, so its train can't be told")
-    rows = conn.execute(
-        """
-        select l.fuzer_id, l.label from edge a join entity_label l on l.fuzer_id = a.src
-        join entity e on e.fuzer_id = a.src and e.kind = 'tag'
-        where a.dst = %s and a.rel = 'part_of'
-          and not exists (select 1 from edge p join entity x on x.fuzer_id = p.dst and x.kind = 'tag'
-                          where p.src = a.src and p.rel = 'part_of')
-        """, (area["dst"],)).fetchall()
-    letter = m.group(1) if (m := re.search(r"\d([A-Z])$", label)) else ""
-    lettered = lambda s: (re.search(r"\d([A-Z])$", s) or [None, ""])[1]
-    members = [r for r in rows if lettered(r["label"]) == letter] if letter else rows
-    shared = [r for r in rows if letter and not lettered(r["label"]) and "VE" in roles.classes(conn, r["fuzer_id"])]
-    machines = [r["fuzer_id"] for r in members if conn.execute(
-        """
-        select 1 from edge i join edge c on c.src = i.src and c.rel = 'classified_as'
-        join entity_label cl on cl.fuzer_id = c.dst
-        where i.dst = %s and i.rel = 'installed_at' and i.valid_to is null and cl.label ~ %s limit 1
-        """, (r["fuzer_id"], CO)).fetchone()]
-    area_label = _label(conn, area["dst"])
-    return {"name": f"train {letter} ({area_label})" if letter else f"train {area_label}",
-            "key": f"{area_label}:{letter}" if letter else area_label, "area": area["dst"],
-            "members": [r["fuzer_id"] for r in members], "shared": [r["fuzer_id"] for r in shared],
-            "machines": machines or [tag]}
+    t = structure.train(conn, tag, plant)
+    if not t["known"]:
+        raise CalcError(f"{_label(conn, tag)}'s train can't be told: {t['basis']}")
+    return {"name": t["name"], "key": t["key"], "area": t["area"], "members": t["members"], "shared": t["shared"],
+            "machines": t["machines"] or [tag], "basis": t["basis"]}
 
 
 def _points(conn, units: list[str]) -> dict[str, dict]:

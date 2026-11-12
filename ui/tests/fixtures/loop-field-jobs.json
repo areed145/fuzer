@@ -3,14 +3,14 @@
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-timeseries-54a11548aadf",
+    "fuzer_id": "fz-timeseries-cd309a3eb0a4",
     "kind": "timeseries",
     "label": "OK_GGCP:20-TT-2300A.PV",
     "lat": null,
     "lon": null
    },
    {
-    "fuzer_id": "fz-tag-c3622dd15846",
+    "fuzer_id": "fz-tag-f77ffdc617dd",
     "kind": "tag",
     "label": "20-K-2300A",
     "lat": 5.42,
@@ -21,7 +21,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-12T13:38:48.117792+00:00",
+  "due": "2026-11-12T14:36:30.566728+00:00",
   "evidence": {
    "allowed_minutes": 120.0,
    "breaches": 4,
@@ -67,12 +67,12 @@
      {
       "kind": "asset",
       "label": "Measured on",
-      "value": "fz-timeseries-54a11548aadf"
+      "value": "fz-timeseries-cd309a3eb0a4"
      },
      {
       "kind": "asset",
       "label": "Unit",
-      "value": "fz-tag-c3622dd15846"
+      "value": "fz-tag-f77ffdc617dd"
      },
      {
       "kind": "text",
@@ -137,10 +137,10 @@
    "note": "IOW-001 rev B, 3rd stage discharge temperature: Discharge valve and dry gas seal damage, lube oil coking. Response: Cut load, open recycle, clean the after-cooler",
    "peak": 149.95,
    "point": "OK_GGCP:20-TT-2300A.PV",
-   "point_id": "fz-timeseries-54a11548aadf",
+   "point_id": "fz-timeseries-cd309a3eb0a4",
    "record": "iow:window:IOW-001>B",
    "side": "hi",
-   "unit_id": "fz-tag-c3622dd15846"
+   "unit_id": "fz-tag-f77ffdc617dd"
   },
   "field": [],
   "finding": {
@@ -158,13 +158,13 @@
      "kind": "asset",
      "label": "Measured on",
      "text": "OK_GGCP:20-TT-2300A.PV",
-     "value": "fz-timeseries-54a11548aadf"
+     "value": "fz-timeseries-cd309a3eb0a4"
     },
     {
      "kind": "asset",
      "label": "Unit",
      "text": "20-K-2300A",
-     "value": "fz-tag-c3622dd15846"
+     "value": "fz-tag-f77ffdc617dd"
     },
     {
      "kind": "text",
@@ -222,20 +222,20 @@
    "standard": "API RP 584",
    "start": "2025-07-12T11:50",
    "subjects": [
-    "fz-timeseries-54a11548aadf",
-    "fz-tag-c3622dd15846"
+    "fz-timeseries-cd309a3eb0a4",
+    "fz-tag-f77ffdc617dd"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-12T09:38:48.099315+00:00",
+  "first_seen": "2026-11-12T10:36:30.555605+00:00",
   "handover": null,
   "history": [],
-  "id": 82,
-  "item_id": 82,
+  "id": 81,
+  "item_id": 81,
   "joined_to": null,
   "key": "IOW-001",
   "label": "IOW breach",
-  "last_seen": "2026-11-12T09:38:48.099315+00:00",
+  "last_seen": "2026-11-12T10:36:30.555605+00:00",
   "own_step": false,
   "permit": {
    "blocked": false,
@@ -249,7 +249,7 @@
   "reports": 1,
   "role": "engineer",
   "sent": {
-   "at": "2026-11-12T09:38:48.138183+00:00",
+   "at": "2026-11-12T10:36:30.581749+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -260,23 +260,23 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-timeseries-54a11548aadf",
-   "fz-tag-c3622dd15846"
+   "fz-timeseries-cd309a3eb0a4",
+   "fz-tag-f77ffdc617dd"
   ],
-  "task_id": 27,
+  "task_id": 25,
   "task_name": "Review IOW breach",
   "task_role": "engineer",
   "title": "IOW IOW-001 critical breach on OK_GGCP:20-TT-2300A.PV: above 144, 4 times past the allowed 2 h",
   "type": "iow_breach",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:38:48.099315+00:00",
+  "updated_at": "2026-11-12T10:36:30.555605+00:00",
   "value_usd": null
  },
  "machine_health": {
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-tag-0275cad011b4",
+    "fuzer_id": "fz-tag-5dcd57d19378",
     "kind": "tag",
     "label": "20-K-2200B",
     "lat": 5.42,
@@ -287,7 +287,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-13T09:39:04.133442+00:00",
+  "due": "2026-11-13T10:37:16.850022+00:00",
   "evidence": {
    "at": "2024-03-05T00:00",
    "finding": {
@@ -411,19 +411,19 @@
    "standard": "ISO 14224 (rotating classes); each check that applies cites its own standard",
    "start": "2024-03-05T00:00",
    "subjects": [
-    "fz-tag-0275cad011b4"
+    "fz-tag-5dcd57d19378"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-12T09:38:48.217604+00:00",
+  "first_seen": "2026-11-12T10:36:30.635610+00:00",
   "handover": null,
   "history": [],
-  "id": 83,
-  "item_id": 83,
+  "id": 82,
+  "item_id": 82,
   "joined_to": null,
   "key": "20-K-2200B",
   "label": "Machine health",
-  "last_seen": "2026-11-12T09:38:48.217604+00:00",
+  "last_seen": "2026-11-12T10:36:30.635610+00:00",
   "own_step": false,
   "permit": {
    "blocked": false,
@@ -437,7 +437,7 @@
   "reports": 1,
   "role": "engineer",
   "sent": {
-   "at": "2026-11-12T09:39:04.159087+00:00",
+   "at": "2026-11-12T10:37:16.863044+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -448,36 +448,36 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-0275cad011b4"
+   "fz-tag-5dcd57d19378"
   ],
-  "task_id": 31,
+  "task_id": 29,
   "task_name": "Work the case",
   "task_role": "engineer",
   "title": "20-K-2200B needs action: vibration in zone D, shaft vibration past its alarm, efficiency dropped",
   "type": "machine_health",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:38:48.217604+00:00",
+  "updated_at": "2026-11-12T10:36:30.635610+00:00",
   "value_usd": null
  },
  "machine_trip": {
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-tag-c3622dd15846",
+    "fuzer_id": "fz-tag-f77ffdc617dd",
     "kind": "tag",
     "label": "20-K-2300A",
     "lat": 5.42,
     "lon": 4.985722
    },
    {
-    "fuzer_id": "fz-tag-0fb8e13ca209",
+    "fuzer_id": "fz-tag-a875a030f794",
     "kind": "tag",
     "label": "20-K-2100A",
     "lat": 5.42,
     "lon": 4.985722
    },
    {
-    "fuzer_id": "fz-tag-f75d7bb76b37",
+    "fuzer_id": "fz-tag-d702ac3f76b6",
     "kind": "tag",
     "label": "20-K-2200A",
     "lat": 5.42,
@@ -492,7 +492,7 @@
    "Restart only when the cooler is fixed or the load is cut; the trip will repeat on the next hot afternoon otherwise."
   ],
   "closed_at": null,
-  "due": "2026-11-13T09:39:05.764371+00:00",
+  "due": "2026-11-13T10:37:27.834945+00:00",
   "evidence": {
    "finding": {
     "checks": [
@@ -510,12 +510,12 @@
      {
       "kind": "text",
       "label": "Train",
-      "value": "train A (OKAN-20)"
+      "value": "train from 20-V-2101A (OKAN-20)"
      },
      {
       "kind": "asset",
       "label": "Likely source",
-      "value": "fz-tag-c3622dd15846"
+      "value": "fz-tag-f77ffdc617dd"
      },
      {
       "kind": "text",
@@ -546,7 +546,7 @@
      {
       "kind": "text",
       "label": "Tripped on",
-      "value": "OK_GGCP:20-TT-2350A.PV 70.38 (trip 58.4), OK_GGCP:20-FT-2000A.PV 1023.36 (trip 1314), OK_GGCP:20-JT-2000A.PV 2682.35 (trip 3925), OK_GGCP:20-FT-2100A.PV 1304.51 (trip 3144), OK_GGCP:20-PT-2100A.PV 14.58 (trip 15), OK_GGCP:20-PT-2301A.PV 32."
+      "value": "OK_GGCP:20-FT-2100A.PV 1304.51 (trip 3144), OK_GGCP:20-PT-2100A.PV 14.58 (trip 15), OK_GGCP:20-PT-2201A.PV 15.12 (trip 15.2), OK_GGCP:20-FT-2200A.PV 499.79 (trip 1206), OK_GGCP:20-PT-2301A.PV 32.93 (trip 33), OK_GGCP:20-FT-2300A.PV 239.45 ("
      },
      {
       "kind": "number",
@@ -565,13 +565,13 @@
      "direction": "up",
      "family": "discharge_temperature",
      "from": 133.53,
-     "id": "fz-timeseries-54a11548aadf",
+     "id": "fz-timeseries-cd309a3eb0a4",
      "lead_minutes": 115,
      "measures": "Train A 3rd Stage Compressor Discharge Temperature",
      "point": "OK_GGCP:20-TT-2300A.PV",
      "to": 163.49,
      "unit": "20-K-2300A",
-     "unit_id": "fz-tag-c3622dd15846",
+     "unit_id": "fz-tag-f77ffdc617dd",
      "unit_of_measure": "degC"
     },
     {
@@ -579,13 +579,13 @@
      "direction": "up",
      "family": "cooling",
      "from": 58.5,
-     "id": "fz-timeseries-ffaddba6f501",
+     "id": "fz-timeseries-e3b774340291",
      "lead_minutes": 65,
      "measures": "Train A 3rd Stage After-cooler Outlet Temperature",
      "point": "OK_GGCP:20-TT-2350A.PV",
      "to": 70.38,
      "unit": "20-E-2350A",
-     "unit_id": "fz-tag-35a5e8e79aba",
+     "unit_id": "fz-tag-45c62d93e064",
      "unit_of_measure": "degC"
     }
    ],
@@ -611,13 +611,13 @@
     {
      "kind": "text",
      "label": "Train",
-     "value": "train A (OKAN-20)"
+     "value": "train from 20-V-2101A (OKAN-20)"
     },
     {
      "kind": "asset",
      "label": "Likely source",
      "text": "20-K-2300A",
-     "value": "fz-tag-c3622dd15846"
+     "value": "fz-tag-f77ffdc617dd"
     },
     {
      "kind": "text",
@@ -648,7 +648,7 @@
     {
      "kind": "text",
      "label": "Tripped on",
-     "value": "OK_GGCP:20-TT-2350A.PV 70.38 (trip 58.4), OK_GGCP:20-FT-2000A.PV 1023.36 (trip 1314), OK_GGCP:20-JT-2000A.PV 2682.35 (trip 3925), OK_GGCP:20-FT-2100A.PV 1304.51 (trip 3144), OK_GGCP:20-PT-2100A.PV 14.58 (trip 15), OK_GGCP:20-PT-2301A.PV 32."
+     "value": "OK_GGCP:20-FT-2100A.PV 1304.51 (trip 3144), OK_GGCP:20-PT-2100A.PV 14.58 (trip 15), OK_GGCP:20-PT-2201A.PV 15.12 (trip 15.2), OK_GGCP:20-FT-2200A.PV 499.79 (trip 1206), OK_GGCP:20-PT-2301A.PV 32.93 (trip 33), OK_GGCP:20-FT-2300A.PV 239.45 ("
     },
     {
      "kind": "number",
@@ -662,28 +662,28 @@
    "standard": "ISO 13379-1 (symptom to cause)",
    "start": "2024-06-11T15:00",
    "subjects": [
-    "fz-tag-c3622dd15846",
-    "fz-tag-0fb8e13ca209",
-    "fz-tag-f75d7bb76b37"
+    "fz-tag-f77ffdc617dd",
+    "fz-tag-a875a030f794",
+    "fz-tag-d702ac3f76b6"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-12T09:39:04.214831+00:00",
+  "first_seen": "2026-11-12T10:37:16.891236+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-12T09:38:48.099315+00:00",
-    "id": 82,
+    "first_seen": "2026-11-12T10:36:30.555605+00:00",
+    "id": 81,
     "state": "closed",
     "title": "IOW IOW-001 critical breach on OK_GGCP:20-TT-2300A.PV: above 144, 4 times past the allowed 2 h"
    }
   ],
-  "id": 84,
-  "item_id": 84,
+  "id": 83,
+  "item_id": 83,
   "joined_to": null,
-  "key": "OKAN-20:A@2024-06-11T15:00",
+  "key": "OKAN-20:20-V-2101A@2024-06-11T15:00",
   "label": "Compressor trip",
-  "last_seen": "2026-11-12T09:39:04.214831+00:00",
+  "last_seen": "2026-11-12T10:37:16.891236+00:00",
   "own_step": false,
   "permit": {
    "blocked": false,
@@ -697,7 +697,7 @@
   "reports": 1,
   "role": "engineer",
   "sent": {
-   "at": "2026-11-12T09:39:05.939754+00:00",
+   "at": "2026-11-12T10:37:29.511419+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -708,26 +708,26 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-c3622dd15846",
-   "fz-tag-0fb8e13ca209",
-   "fz-tag-f75d7bb76b37"
+   "fz-tag-f77ffdc617dd",
+   "fz-tag-a875a030f794",
+   "fz-tag-d702ac3f76b6"
   ],
-  "task_id": 33,
+  "task_id": 31,
   "task_name": "Work the case",
   "task_role": "engineer",
-  "title": "Train A (OKAN-20) tripped 2024-06-11 15:00: high discharge temperature on 20-K-2300A, OK_GGCP:20-TT-2300A.PV moved 115 min before. Restart after checks",
+  "title": "Train from 20-V-2101A (OKAN-20) tripped 2024-06-11 15:00: high discharge temperature on 20-K-2300A, OK_GGCP:20-TT-2300A.PV moved 115 min before. Restart after checks",
   "type": "machine_trip",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:39:04.214831+00:00",
+  "updated_at": "2026-11-12T10:37:16.891236+00:00",
   "value_usd": null
  },
  "round_finding": {
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-tag-859b54e39361",
+    "fuzer_id": "fz-tag-4d362041fce4",
     "kind": "tag",
-    "label": "20-FT-2000A",
+    "label": "20-E-2350C",
     "lat": 5.42,
     "lon": 4.985722
    }
@@ -736,7 +736,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-12T17:39:06.201057+00:00",
+  "due": "2026-11-12T18:37:29.702530+00:00",
   "evidence": {
    "finding": {
     "detector": "loop-eval",
@@ -771,19 +771,19 @@
    "standard": null,
    "start": null,
    "subjects": [
-    "fz-tag-859b54e39361"
+    "fz-tag-4d362041fce4"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-12T09:39:06.194400+00:00",
+  "first_seen": "2026-11-12T10:37:29.696805+00:00",
   "handover": null,
   "history": [],
-  "id": 90,
-  "item_id": 90,
+  "id": 89,
+  "item_id": 89,
   "joined_to": null,
-  "key": "loop:round_finding:20261112093844100131",
+  "key": "loop:round_finding:20261112103626809135",
   "label": "Round finding",
-  "last_seen": "2026-11-12T09:39:06.194400+00:00",
+  "last_seen": "2026-11-12T10:37:29.696805+00:00",
   "own_step": false,
   "permit": {
    "blocked": false,
@@ -797,7 +797,7 @@
   "reports": 1,
   "role": "ops_lead",
   "sent": {
-   "at": "2026-11-12T09:39:06.213154+00:00",
+   "at": "2026-11-12T10:37:29.712586+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -808,29 +808,29 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-859b54e39361"
+   "fz-tag-4d362041fce4"
   ],
-  "task_id": 49,
+  "task_id": 47,
   "task_name": "Work the case",
   "task_role": "ops_lead",
   "title": "Loop eval: Round finding",
   "type": "round_finding",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:39:06.194400+00:00",
+  "updated_at": "2026-11-12T10:37:29.696805+00:00",
   "value_usd": null
  },
  "sap_notification": {
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-equipment-ea72de810c68",
+    "fuzer_id": "fz-equipment-ca1e877fd51b",
     "kind": "equipment",
     "label": "20-K-2100B 1st Stage Compressor",
     "lat": null,
     "lon": null
    },
    {
-    "fuzer_id": "fz-tag-718d165e9a7e",
+    "fuzer_id": "fz-tag-3531215677b2",
     "kind": "tag",
     "label": "20-K-2100B",
     "lat": 5.42,
@@ -841,7 +841,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-15T09:39:06.245687+00:00",
+  "due": "2026-11-15T10:37:29.736291+00:00",
   "evidence": {
    "cause_code": "C06",
    "created": "2025-11-09",
@@ -946,20 +946,20 @@
    "standard": null,
    "start": "2025-11-09",
    "subjects": [
-    "fz-equipment-ea72de810c68",
-    "fz-tag-718d165e9a7e"
+    "fz-equipment-ca1e877fd51b",
+    "fz-tag-3531215677b2"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-12T09:39:06.245687+00:00",
+  "first_seen": "2026-11-12T10:37:29.736291+00:00",
   "handover": null,
   "history": [],
-  "id": 93,
-  "item_id": 91,
+  "id": 92,
+  "item_id": 90,
   "joined_to": null,
   "key": "20000067",
   "label": "SAP notification",
-  "last_seen": "2026-11-12T09:39:06.245687+00:00",
+  "last_seen": "2026-11-12T10:37:29.736291+00:00",
   "own_step": true,
   "permit": {
    "blocked": false,
@@ -1003,7 +1003,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-12T09:39:06.301367+00:00",
+   "at": "2026-11-12T10:37:29.789332+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1014,32 +1014,32 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-equipment-ea72de810c68",
-   "fz-tag-718d165e9a7e"
+   "fz-equipment-ca1e877fd51b",
+   "fz-tag-3531215677b2"
   ],
-  "task_id": 51,
+  "task_id": 49,
   "task_name": "Work the case",
   "task_role": "operator",
   "title": "High vibration on 1st stage compressor (notification 20000067)",
   "type": "sap_notification",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:39:06.306971+00:00",
+  "updated_at": "2026-11-12T10:37:29.793641+00:00",
   "value_usd": null
  },
  "upset": {
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-4525bbc8ac67",
+    "fuzer_id": "fz-tag-d5169a0fb398",
     "kind": "tag",
-    "label": "20-V-2001",
+    "label": "10-P-1001A",
     "lat": 5.42,
-    "lon": 4.985722
+    "lon": 4.985
    },
    {
-    "fuzer_id": "fz-timeseries-eeb415b3b7bf",
+    "fuzer_id": "fz-timeseries-3bcc1d6d043a",
     "kind": "timeseries",
-    "label": "OK_GGCP:20-LT-2001.PV",
+    "label": "OKA_PP.10JT1001A.PV",
     "lat": null,
     "lon": null
    }
@@ -1048,26 +1048,26 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-12T17:39:48.380349+00:00",
+  "due": "2026-11-12T18:38:07.515435+00:00",
   "evidence": {
-   "detections": 617,
+   "detections": 4,
    "finding": {
-    "detector": "sre.excursions",
+    "detector": "sre.stops",
     "items": [
      {
       "kind": "asset",
       "label": "First seen on",
-      "value": "fz-timeseries-eeb415b3b7bf"
+      "value": "fz-timeseries-3bcc1d6d043a"
      },
      {
       "kind": "asset",
       "label": "Started at",
-      "value": "fz-tag-4525bbc8ac67"
+      "value": "fz-tag-d5169a0fb398"
      },
      {
       "kind": "time",
       "label": "Started",
-      "value": "2024-11-05T03:50"
+      "value": "2024-11-05T06:00"
      },
      {
       "kind": "flag",
@@ -1076,35 +1076,29 @@
      },
      {
       "kind": "number",
-      "label": "Peak",
-      "unit": "%",
-      "value": 100.0
-     },
-     {
-      "kind": "number",
       "label": "Assets affected",
-      "value": 186
+      "value": 4
      },
      {
       "kind": "number",
       "label": "Detections",
-      "value": 617
+      "value": 4
      },
      {
       "kind": "text",
       "label": "Why this value",
-      "value": "OK_GGCP:20-LT-2001.PV alarm:hi: 780 Sm3 oil at risk over 1 d ($381k); risk high (A-critical, 0.5 failures/yr; $12k). Worth $394k, due now."
+      "value": "OKA_PP.10JT1001A.PV stopped: risk high (B-critical, 2 failures/yr; $5k). Worth $5k, due now."
      }
     ],
     "method": "Detections grouped into one upset by time and plant topology",
     "origin": "deterministic",
-    "start": "2024-11-05T03:50",
+    "start": "2024-11-05T06:00",
     "v": 1
    },
-   "first_detection": "excursions:alarm:hi",
-   "first_point": "OK_GGCP:20-LT-2001.PV",
-   "first_unit": "20-V-2001",
-   "incident_id": "upset:5",
+   "first_detection": "stops:stopped",
+   "first_point": "OKA_PP.10JT1001A.PV",
+   "first_unit": "10-P-1001A",
+   "incident_id": "upset:7",
    "ongoing": true,
    "priority": {
     "components": {
@@ -1114,34 +1108,33 @@
      },
      "production": {
       "chance": 1.0,
-      "days": 1.0,
-      "gas_ksm3d": 98.0,
-      "oil_sm3": 780,
-      "oil_sm3d": 780.1,
+      "days": 90,
+      "gas_ksm3d": 0.0,
+      "oil_sm3": 0,
+      "oil_sm3d": 0.0,
       "prices": {
        "gas_ksm3": 150,
        "oil_sm3": 470
       },
       "sources": {
-       "chance": "still going",
-       "oil_sm3d": "10% of the latest tested rate of the 142 producing well(s) it reaches (7,801.2 Sm3/d oil, 979.7 kSm3/d gas), for 1 d while it lasts",
+       "oil_sm3d": "EC downtime caused by the tag since 2024-12-30, per day",
        "prices": "pack okan"
       },
       "status": "ok",
-      "value_usd": 381352
+      "value_usd": 0
      },
      "risk": {
       "band": "high",
       "consequence": {
-       "asset": 4,
-       "environment": 3,
-       "people": 4,
-       "reputation": 3
+       "asset": 3,
+       "environment": 2,
+       "people": 2,
+       "reputation": 2
       },
-      "consequence_level": 4,
-      "criticality": "A",
-      "failures_per_year": 0.5,
-      "likelihood_level": 3,
+      "consequence_level": 3,
+      "criticality": "B",
+      "failures_per_year": 2.0,
+      "likelihood_level": 4,
       "matrix_cell": 12,
       "sources": {
        "criticality": "SAP functional location ABC indicator",
@@ -1149,10 +1142,10 @@
        "matrix": "pack okan"
       },
       "status": "ok",
-      "value_usd": 12329
+      "value_usd": 4932
      }
     },
-    "reason": "OK_GGCP:20-LT-2001.PV alarm:hi: 780 Sm3 oil at risk over 1 d ($381k); risk high (A-critical, 0.5 failures/yr; $12k). Worth $394k, due now.",
+    "reason": "OKA_PP.10JT1001A.PV stopped: risk high (B-critical, 2 failures/yr; $5k). Worth $5k, due now.",
     "unknown": [
      "effort"
     ],
@@ -1164,35 +1157,35 @@
      },
      "status": "ok"
     },
-    "value_usd": 393681
+    "value_usd": 4932
    },
-   "start": "2024-11-05T03:50",
-   "units": 186,
-   "upset_id": 5
+   "start": "2024-11-05T06:00",
+   "units": 4,
+   "upset_id": 7
   },
   "field": [],
   "finding": {
    "checks": [],
    "confidence": null,
-   "detector": "sre.excursions",
+   "detector": "sre.stops",
    "end": null,
    "items": [
     {
      "kind": "asset",
      "label": "First seen on",
-     "text": "OK_GGCP:20-LT-2001.PV",
-     "value": "fz-timeseries-eeb415b3b7bf"
+     "text": "OKA_PP.10JT1001A.PV",
+     "value": "fz-timeseries-3bcc1d6d043a"
     },
     {
      "kind": "asset",
      "label": "Started at",
-     "text": "20-V-2001",
-     "value": "fz-tag-4525bbc8ac67"
+     "text": "10-P-1001A",
+     "value": "fz-tag-d5169a0fb398"
     },
     {
      "kind": "time",
      "label": "Started",
-     "value": "2024-11-05T03:50"
+     "value": "2024-11-05T06:00"
     },
     {
      "kind": "flag",
@@ -1201,46 +1194,40 @@
     },
     {
      "kind": "number",
-     "label": "Peak",
-     "unit": "%",
-     "value": 100.0
-    },
-    {
-     "kind": "number",
      "label": "Assets affected",
-     "value": 186
+     "value": 4
     },
     {
      "kind": "number",
      "label": "Detections",
-     "value": 617
+     "value": 4
     },
     {
      "kind": "text",
      "label": "Why this value",
-     "value": "OK_GGCP:20-LT-2001.PV alarm:hi: 780 Sm3 oil at risk over 1 d ($381k); risk high (A-critical, 0.5 failures/yr; $12k). Worth $394k, due now."
+     "value": "OKA_PP.10JT1001A.PV stopped: risk high (B-critical, 2 failures/yr; $5k). Worth $5k, due now."
     }
    ],
    "method": "Detections grouped into one upset by time and plant topology",
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2024-11-05T03:50",
+   "start": "2024-11-05T06:00",
    "subjects": [
-    "fz-tag-4525bbc8ac67",
-    "fz-timeseries-eeb415b3b7bf"
+    "fz-tag-d5169a0fb398",
+    "fz-timeseries-3bcc1d6d043a"
    ],
-   "value_usd": 393681.0
+   "value_usd": 4932.0
   },
-  "first_seen": "2026-11-12T09:39:48.145710+00:00",
+  "first_seen": "2026-11-12T10:38:07.492211+00:00",
   "handover": null,
   "history": [],
   "id": 99,
   "item_id": 98,
   "joined_to": null,
-  "key": "upset:5",
+  "key": "upset:7",
   "label": "Process upset",
-  "last_seen": "2026-11-12T09:39:48.145710+00:00",
+  "last_seen": "2026-11-12T10:38:07.492211+00:00",
   "own_step": true,
   "permit": {
    "blocked": false,
@@ -1248,13 +1235,13 @@
    "needed": false,
    "permit": null
   },
-  "priority": 393681.0,
+  "priority": 4932.0,
   "queued": false,
   "raised_count": 1,
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-12T09:39:48.380349+00:00",
+   "at": "2026-11-12T10:38:07.515435+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1265,16 +1252,16 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-4525bbc8ac67",
-   "fz-timeseries-eeb415b3b7bf"
+   "fz-tag-d5169a0fb398",
+   "fz-timeseries-3bcc1d6d043a"
   ],
   "task_id": 72,
   "task_name": "Field check",
   "task_role": "operator",
-  "title": "High alarm on 20-LT-2001 (peak 100 %) from 2024-11-05 03:50, across 186 assets",
+  "title": "Stopped on 10-JT-1001A from 2024-11-05 06:00, across 4 assets",
   "type": "upset",
   "unmatched": [],
-  "updated_at": "2026-11-12T09:39:48.145710+00:00",
-  "value_usd": 393681.0
+  "updated_at": "2026-11-12T10:38:07.492211+00:00",
+  "value_usd": 4932.0
  }
 }

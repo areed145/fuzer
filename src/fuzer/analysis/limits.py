@@ -379,8 +379,8 @@ def units(conn, point_ids: list[str] | None = None) -> dict[str, str]:
 
 def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
     """Each unit's run signal: {unit: {point (as timeseries._point), on, off}}, the unit's own or the ones
-    it follows ({"follow": [units]}) when it has none: units in the same area and train (the trailing
-    letter of its tag), else all units in the area that have one."""
+    it follows ({"follow": [units]}) when it has none: units in the same area and train (`graph.structure`, from
+    piping and drives), else all units in the area that have one."""
     from ..sources.timeseries import _point
 
     rules = config(pack)["run_signals"]
@@ -404,9 +404,11 @@ def run_signals(conn, pack, unit_ids: set[str]) -> dict[str, dict]:
     area = {r["src"]: r["dst"] for r in conn.execute(
         "select e.src, e.dst from edge e join entity a on a.fuzer_id = e.dst and a.kind = 'area' "
         "where e.rel in ('part_of', 'located_at') and e.valid_to is null")}
-    keys = {r["fuzer_id"]: r["label"] for r in conn.execute("select fuzer_id, label from entity_label where fuzer_id = any(%s)",
-                                                           (list(set(of_unit) | unit_ids),))}
-    train = lambda u: (keys.get(u) or "")[-1:] if re.search(r"\d[A-Z]$", keys.get(u) or "") else ""
+    from ..graph import structure
+
+    plant = structure.load(conn)  # a unit's train from piping, with what drives it (never its tag's name)
+    of_train = {m: t for t in set(plant.trains.values()) for m in t | {plant.drives[x] for x in t if x in plant.drives}}
+    train = lambda u: of_train.get(u) or of_train.get(plant.drives.get(u, ""))
     out = {}
     for u in unit_ids:
         if u in own:
