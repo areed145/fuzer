@@ -12,6 +12,7 @@ import { MatchRef } from "./MatchRef";
 import { Gaps } from "./Gaps";
 import { ContextTab } from "./Context";
 import { ProposalsTab } from "./Proposals";
+import { LearnedRules } from "./Learned";
 import { Review } from "../Review";
 
 const TABS = [["unmatched", "Unmatched on open work"], ["questions", "Questions"], ["unresolved", "Unresolved values"],
@@ -74,8 +75,11 @@ function Unresolved() {
   const operate = usePermission("operate");
   const a = useAct();
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
-  if (!rows.data.length) return <Empty>Every link value the last rebuild read named something in the register.</Empty>;
+  if (!rows.data.length) return <><LearnedRules onChange={rows.reload} />
+    <Empty>Every link value the last rebuild read named something in the register.</Empty></>;
   return (
+    <>
+    <LearnedRules onChange={rows.reload} />
     <Card title="Link values that named nothing (last rebuild)">
       <p className="small muted">Make one an alias of the entity it means and the next rebuild links those records to it.</p>
       <Table density="compact">
@@ -91,6 +95,7 @@ function Unresolved() {
       </Table>
       {a.error && <p className="error small">{a.error}</p>}
     </Card>
+    </>
   );
 }
 

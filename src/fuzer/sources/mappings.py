@@ -277,7 +277,8 @@ class Mapping:
 
     def _endpoint(self, spec, misses: bool = False):
         """An endpoint spec as f(key, row, pack) -> (kind, key) or None; SELF for the record itself. With `misses`
-        (a link's ends), a resolver that finds nothing for a value gives Miss(value) instead of None."""
+        (a link's ends), a value with a recorded alias resolves to what the alias names, and a resolver that finds
+        nothing for a value (or reads it as a kind with no key) gives Miss(value) instead of None."""
         if spec is None or spec == "self":
             return SELF
         if "ref" in spec:
@@ -291,8 +292,13 @@ class Mapping:
 
             def resolve(k, r, p):
                 v = base(k, r, p)
+                if misses and v not in (None, "") and (alias := p.aliases.get(" ".join(str(v).split()).lower())):
+                    return alias  # a steward said what this value names (#476, P6.5): their word wins on a link
                 found = res(v, p)
-                return found if found is not None or not misses or v in (None, "") else Miss(str(v))
+                if not misses or v in (None, ""):
+                    return found
+                # a value the resolver found nothing for, or read as a kind with no key, is one a steward can answer
+                return Miss(str(v)) if found is None or (isinstance(found, tuple) and found[1] is None) else found
             return resolve
         if not spec.get("kind"):
             raise MappingError(f"endpoint needs a kind, a ref or a resolver{self._where}")

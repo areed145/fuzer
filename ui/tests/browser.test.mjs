@@ -1299,6 +1299,34 @@ test("Data review is the Questions tab of Master data, old links land on the sam
   }
 });
 
+test("ten like answers become a rule a steward accepts, and it answers the rest (P6.5)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  const rule = { source: "ptw", kind: "sap:equipment", prefix: "eq", suffix: "",
+    rule: "A PTW value that is a SAP equipment key with 'EQ' before names that item" };
+  let learned = { proposals: [{ ...rule, taught: 10, would_answer: 2, rows: 2,
+    examples: [{ id: 1, value: "EQ-30000003", kind: "tag", key: "20-K-2100B" }],
+    values: [{ value: "EQ-30000011", rows: 1, rel: "covers", fuzer_id: "fz-1", key: "20-P-2101A" },
+             { value: "EQ-30000019", rows: 1, rel: "covers", fuzer_id: "fz-2", key: "20-V-2001" }] }], rules: [] };
+  let sent = null;
+  await page.route("**/stewardship/unresolved", (route) => route.fulfill({ json: [
+    { source: "ptw", rel: "covers", value: "EQ-30000011", rows: 1, aliased: false, built_at: "2026-11-12T00:00:00Z" }] }));
+  await page.route("**/stewardship/learned", (route) => route.fulfill({ json: learned }));
+  await page.route("**/stewardship/learned/accept", (route) => {
+    sent = route.request().postDataJSON();
+    learned = { proposals: [], rules: [{ ...rule, id: 4, status: "accepted", decided_by: "ana", decided_at: "2026-11-12T08:00:00Z",
+      reason: null, answers: 2 }] };
+    return route.fulfill({ json: { recorded: 2 } });
+  });
+  await page.goto(`${url}/#/masterdata?tab=unresolved`);
+  await page.getByText("A PTW value that is a SAP equipment key with 'EQ' before names that item.").waitFor();
+  await page.getByRole("button", { name: "It would answer 2 more values on 2 rows" }).click();
+  assert.equal(await page.getByRole("link", { name: "20-V-2001" }).getAttribute("href"), "#/e/fz-2");
+  await page.getByRole("button", { name: "Accept rule" }).click();
+  await page.getByRole("button", { name: "Confirm Accept rule" }).click();
+  await page.getByRole("cell", { name: rule.rule }).waitFor();
+  assert.deepEqual(sent, { source: "ptw", kind: "sap:equipment", prefix: "eq", suffix: "", by: "ana", reason: "10 like answers" });
+});
+
 test("like questions are answered once, for new ones too when asked (P2.3c)", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   let groups = [{ kind: "match", key: "match|jde+maximo|the maker is unknown on one side", count: 6, items: [1, 2, 3, 4, 5, 6],

@@ -14,3 +14,13 @@ roles: [running_status, speed, suction_pressure, interstage_pressure, discharge_
         discharge_temperature, cylinder_discharge_temperature, suction_flow, anti_surge_valve_position, vibration,
         shaft_vibration, axial_position, bearing_temperature, seal_vent_flow, lube_oil_pressure, lube_oil_temperature]
 eval: compression                     # each bundle's answer keys: evals/compression.yaml in the bundle
+# Each method that reads the asset itself, and the roles it needs measured there (P4.1b). Methods that read a
+# neighbour (the scrubber, the driver) or a record (a curve, a plan) are left out rather than reported as blocked.
+needs:
+  compressor_performance: [discharge_pressure, discharge_temperature]
+  surge: [suction_flow, anti_surge_valve_position]
+  surge_events: [suction_flow, anti_surge_valve_position]
+  seal_gas: [seal_vent_flow]
+  rod_load: [suction_pressure, discharge_pressure]
+  valve_health: [cylinder_discharge_temperature]
+  rotating_health: [vibration]
