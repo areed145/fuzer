@@ -56,6 +56,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`treated_gas`](#treated_gas) Treated gas analyser against its operating window | Engineering practice | Treated gas analyser (mol% or mg/Sm³); Operating window (same) | Seven days of analyser readings and an operating window on the point. |
 | [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
 | [`chiller`](#chiller) Low temperature separator temperature against its operating window | Engineering practice | Separator temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
+| [`inspection_plan`](#inspection_plan) Condition inspection plan against the interval the wall loss supports | API 510 / API 570 | Inspection plan interval and dates (days); Wall thickness readings per CML (mm); Minimum required thickness (mm) | A condition inspection plan concerning the item. |
 
 ## Refusals
 
@@ -495,3 +496,12 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Valid for:** Chilled (low temperature) separators of a dew point control unit with a temperature point.
 - **Needs:** Seven days of temperature readings and an operating window on the point.
 - **Worked example:** `tests/analysis/test_treating.py::test_the_chiller_holds_the_dew_point`, on the fake plant
+
+## inspection_plan
+
+**Condition inspection plan against the interval the wall loss supports.** API 510 / API 570.
+
+- **Valid for:** Pressure vessels, exchangers and piping with a condition inspection plan in the maintenance plans. The supported interval needs repeat thickness readings and a retirement thickness (recorded per CML, or the line's design).
+- **Needs:** A condition inspection plan concerning the item.
+- **Threshold `longest_interval`:** The supported interval is half the remaining life, at most this long. (10 years)
+- **Worked example:** `tests/analysis/test_static_equipment.py::test_the_amine_contactor_plan_outlasts_its_wall`, on the fake plant
