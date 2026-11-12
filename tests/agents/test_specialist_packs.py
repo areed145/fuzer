@@ -29,13 +29,14 @@ def test_conformance_names_what_is_wrong(monkeypatch):
         p = real(path)
         return {**p, "tools": [*p["tools"], "plot_choke", "no_such_tool"], "methods": [*p["methods"][1:], "nope"],
                 "detectors": ["nope"], "classes": ["ZZ"], "charts": ["calc"],
+                "roles": [*p["roles"][1:], "no_such_role"],
                 "questions": {"okan": [{"question": "q", "must_mention": ["x"], "specialists": ["orchestrator"]}]}}
 
     monkeypatch.setattr(packs, "load", broken)
     said = "\n".join(packs.conformance(COMPRESSION))
     for words in ("tools not registered: no_such_tool", "methods not in the registry: nope",
                   "methods in the playbook but not declared: compressor_performance", "detectors not registered: nope",
-                  "roles none of its detectors read", "classes not in ISO 14224: ZZ", "charts that are not plot tools",
+                  "roles not in the measurement role list: no_such_role", "classes not in ISO 14224: ZZ", "charts that are not plot tools",
                   "no eval questions for the kestrel bundle", "okan question 1 does not expect maintenance-integrity"):
         assert words in said, words
 

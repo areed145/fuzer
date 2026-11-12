@@ -9,7 +9,7 @@ on, and an eval of questions with answer keys:
     charts            the plot tools whose charts it shows (a subset of tools)
     methods           the registered methods (standards/methods.yaml) the playbook runs through `calc`
     detectors         the registered detectors that raise its work
-    roles             the measurement roles it reads
+    roles             the measurement roles it reads (core/roles.py), including every role its detectors read
     eval              the eval's name: each bundle holds its answer keys in evals/<name>.yaml (questions with
                       must_mention, specialists and charts keys), so nothing facility specific sits in the pack
 
@@ -62,7 +62,7 @@ def _diff(what: str, declared, used) -> list[str]:
 
 def conformance(path: str) -> list[str]:
     """Everything wrong with one pack, in words a pack author acts on; [] when it conforms."""
-    from ..core import bundles, detectors, methods
+    from ..core import bundles, detectors, methods, roles
     from ..core.capabilities import REGISTRY
     from ..core.taxonomy import load_standard
     from .capabilities import AGENTS, SKILL_CATALOG, tools_by_agent
@@ -101,10 +101,11 @@ def conformance(path: str) -> list[str]:
     found = detectors.registry()
     if bad := sorted(set(pack["detectors"]) - set(found)):
         problems.append(f"detectors not registered: {', '.join(bad)}")
-    # Until the measurement role registry (P1.4) lands, a role is known when one of the pack's detectors reads it.
+    if bad := sorted(set(pack["roles"]) - set(roles.ROLES)):
+        problems.append(f"roles not in the measurement role list: {', '.join(bad)}")
     read = {r for d in pack["detectors"] if d in found for r in found[d].roles}
-    if bad := sorted(set(pack["roles"]) - read):
-        problems.append(f"roles none of its detectors read: {', '.join(bad)}")
+    if bad := sorted(read - set(pack["roles"])):
+        problems.append(f"roles its detectors read but it does not declare: {', '.join(bad)}")
 
     questions = pack["questions"]
     for b in bundles.shipped():
