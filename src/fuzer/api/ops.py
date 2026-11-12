@@ -332,6 +332,7 @@ def plant_intervention_gains(days: int = 730, conn=Depends(get_conn)):
     return iv.gains(conn, days=max(30, min(days, 1825)))
 
 
+<<<<<<< HEAD
 @router.get("/plant/accounting")
 def plant_accounting(days: int = 365, conn=Depends(get_conn)):
     """Each month's daily allocated oil and gas against production accounting, and operating cost per accounted Sm3,
@@ -341,6 +342,8 @@ def plant_accounting(days: int = 365, conn=Depends(get_conn)):
     return {"reconciliation": accounting.reconcile(conn, days=days), "unit_cost": accounting.unit_cost(conn, days=days)}
 
 
+=======
+>>>>>>> origin/main
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

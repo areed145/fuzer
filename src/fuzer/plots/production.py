@@ -15,7 +15,10 @@ DECLINE_MIN_TESTS = 4  # well tests a decline forecast rests on, as calcs.well_t
 
 def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> Figure:
     """Oil rate from well tests (log scale) with an Arps fit after the last step change, and a forecast."""
-    d = calcs.decline_fit(conn, well, model)
+    try:
+        d = calcs.decline_fit(conn, well, model, product="oil")
+    except calcs.CalcError as e:
+        raise ChartError(f"{e}; the chart is of oil rate, and calc('decline') fits a gas well's gas rate") from e
     tests, cuts, start, seg, t0, fit = d["tests"], d["cuts"], d["start"], d["seg"], d["t0"], d["fit"]
     qs = [t["oil_rate"] for t in tests]
     last = seg[-1]["at"]

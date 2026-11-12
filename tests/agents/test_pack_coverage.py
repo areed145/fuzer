@@ -97,3 +97,19 @@ def test_on_kestrel_a_pack_says_what_it_cannot_run_where_measurements_are_missin
     lines = packs.cannot_do(kestrel, packs.load(PUMPS), [pump])
     assert "pump_curve on A1-P-1007A: no suction pressure or discharge pressure measured there" in lines
     assert not any(line.startswith("pump_bep ") for line in lines)  # its flow is measured
+
+
+def test_on_kestrel_a_gas_well_declines_on_its_gas_rate(kestrel):
+    """P4.2f: a gas well's tests carry no oil, so its decline is fitted to its gas rate, in its own unit; the oil-rate
+    chart says why it cannot draw one."""
+    from fuzer.analysis import calcs
+    from fuzer.plots import ChartError, production
+
+    w = kestrel.execute("select fuzer_id from entity_label where label = 'KR 12-03H'").fetchone()["fuzer_id"]
+    d = calcs.run(kestrel, "decline", w)
+    assert (d["product"], d["unit"], d["flag"]) == ("gas", "kSm3/d", None) and "on gas rate" in d["basis"]
+    assert 700 < d["value"] < 800 and 10 < d["effective_decline_pct_per_year"] < 15
+    with pytest.raises(calcs.CalcError, match="no oil rate"):
+        calcs.decline_fit(kestrel, w, product="oil")
+    with pytest.raises(ChartError, match="gas well's gas rate"):
+        production.decline(kestrel, w)

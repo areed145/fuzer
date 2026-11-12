@@ -143,6 +143,7 @@ export interface InterventionGains {
   note: string;
 }
 
+<<<<<<< HEAD
 /** Against the accounts (P7.5c, #372): a month's daily allocated volume against what production accounting closed. */
 export interface AccountingMonth {
   period: string;
@@ -179,6 +180,8 @@ export interface PlantAccounting {
     sources: { cost: string; volume: string }; note: string };
 }
 
+=======
+>>>>>>> origin/main
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -190,7 +193,10 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+<<<<<<< HEAD
   plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),
+=======
+>>>>>>> origin/main
   interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),
   costOfUnreliability: () => request<CostOfUnreliability>("GET", "/plant/cost-of-unreliability"),
   forecastVsActual: () => request<ForecastVsActual>("GET", "/plant/forecast-vs-actual"),

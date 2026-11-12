@@ -49,6 +49,11 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
     assert done["failed_quality_check"]["steps"]["match"] == "matched the sap_work_centers source"
     assert done["unresolved_links"]["steps"]["match"] == "matched the ptw source"
     assert arrived["round_finding"] == "an operator's reading on R-10-01"  # taken on the round, outside its limits
+    # a descriptor edited in PI, and Claude's cached readings of a datasheet and a scanned drawing (no model call)
+    assert arrived["measurement_role_to_confirm"] == "a delivery of pi_points and the rebuild after it"
+    assert arrived["curve_to_confirm"] == "1 cached reading, then the reader's review queue"
+    assert arrived["drawing_line_to_confirm"] == "1 cached reading, then the reader's review queue and the rebuild after it"
+    assert res["synthetic"] == [], res["synthetic"]  # every type on Okan arrives as it does in production
     assert done["criticality_not_assessed"]["steps"]["route"] == "in the data_steward queue"
     assert done["upset"]["steps"]["route"] == "started upset" and done["upset"]["steps"]["count"].endswith("(Resolved)")
     assert done["sap_notification"]["steps"]["triage"] == "on the board, to dispatch"
