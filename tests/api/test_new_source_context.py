@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 from test_add_source_ui_only import add_source
 from test_calibration import kestrel  # noqa: F401  (the Kestrel bundle, built fresh)
 
@@ -137,3 +138,51 @@ def test_not_this_link_is_remembered_on_kestrel(request):
     conn = request.getfixturevalue("kestrel")
     with TestClient(api.app) as client:
         _unlink(conn, client)
+
+
+def _links_route(conn) -> None:
+    """A missing parent has a route: each source and link type whose values named nothing on the last rebuild is one
+    open case for the data steward, and it clears once they all resolve."""
+    from fuzer.graph.contextualized import LINKS_TYPE, sync_links
+
+    pipeline.rebuild(conn, packs.current_pack(conn))
+    conn.commit()
+    want = {f"{r['source']}:{rel}" for r in conn.execute(
+        "select distinct on (source) source, stats->'coverage'->'unresolved' as u from source_match_stat "
+        "order by source, id desc").fetchall() for rel, v in (r["u"] or {}).items() if v.get("rows")}
+    open_ = "select key, title, item_id from exception_record where type = %s and state = 'open'"
+    assert {r["key"] for r in conn.execute(open_, (LINKS_TYPE.name,))} == want
+
+    # A source whose next build names a parent the register lacks: one case, saying how many rows and which value.
+    src = conn.execute("select source from source_match_stat order by id desc limit 1").fetchone()["source"]
+    stats = conn.execute("select stats from source_match_stat where source = %s order by id desc limit 1",
+                         (src,)).fetchone()["stats"]
+    bad = {**stats, "coverage": {**(stats.get("coverage") or {}), "unresolved": {
+        "part_of": {"rows": 3, "values": [{"value": "NO-SUCH-PARENT", "rows": 3}]}}}}
+    clean = {**stats, "coverage": {**(stats.get("coverage") or {}), "unresolved": {}}}
+    added = []
+    try:
+        added.append(conn.execute("insert into source_match_stat (source, stats) values (%s, %s) returning id",
+                                  (src, Jsonb(bad))).fetchone()["id"])
+        sync_links(conn)
+        case = conn.execute(open_ + " and key = %s", (LINKS_TYPE.name, f"{src}:part_of")).fetchone()
+        assert case and case["title"] == f"3 {src.upper()} rows name a parent the register doesn't have"
+        role = conn.execute("select role from work_item where id = %s", (case["item_id"],)).fetchone()["role"]
+        assert "data_steward" in (role or "")
+
+        added.append(conn.execute("insert into source_match_stat (source, stats) values (%s, %s) returning id",
+                                  (src, Jsonb(clean))).fetchone()["id"])
+        assert sync_links(conn)["cleared"] >= 1
+        assert not conn.execute(open_ + " and key like %s", (LINKS_TYPE.name, f"{src}:%")).fetchone()
+    finally:
+        conn.execute("delete from source_match_stat where id = any(%s)", (added,))
+        sync_links(conn)
+        conn.commit()
+
+
+def test_a_missing_parent_is_one_steward_case_on_okan(okan_db):
+    _links_route(okan_db.conn)
+
+
+def test_a_missing_parent_is_one_steward_case_on_kestrel(request):
+    _links_route(request.getfixturevalue("kestrel"))

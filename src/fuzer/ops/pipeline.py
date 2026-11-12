@@ -217,6 +217,7 @@ def rebuild(conn, pack: Pack) -> dict:
     from ..graph import contextualized
 
     stats["unmatched_records"] = contextualized.sync(conn)  # what matched nothing, one case per source (P2.1)
+    stats["unresolved_links"] = contextualized.sync_links(conn)  # a parent or location that isn't in the register
     from ..sources import scorecard
 
     stats["source_quality"] = scorecard.sync(conn)  # each dataset's four measures; a drop is its owner's case (P2.6)
