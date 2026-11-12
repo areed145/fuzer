@@ -18,6 +18,12 @@ def lesson_list(status: str | None = "suggested", limit: int = 100, conn=Depends
     return lessons.listing(conn, status if status != "all" else None, min(limit, 1000))
 
 
+@router.get("/lessons/{lesson_id}/history")
+def lesson_history(lesson_id: int, conn=Depends(get_conn)):
+    """Every version of a lesson: who approved, rejected or edited it, when, and the wording it had."""
+    return lessons.history(conn, lesson_id)
+
+
 class LessonDecision(BaseModel):
     decision: Literal["approve", "reject", "edit"]
     text: str | None = None

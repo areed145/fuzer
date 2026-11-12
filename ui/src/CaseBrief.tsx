@@ -47,7 +47,8 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
       )}
       {(e.lessons ?? []).length > 0 && (
         <div className="small"><strong>Reviewed lessons it was given</strong>
-          <ul>{(e.lessons ?? []).map((l) => <li key={l.id}>{l.title}{l.by && <> (approved by <Actor who={l.by} />)</>}</li>)}</ul>
+          <ul>{(e.lessons ?? []).map((l) => <li key={l.id}>{l.title}{l.by && <> (approved by <Actor who={l.by} />)</>}
+            {l.review_overdue && <> <Badge tone="warn">review overdue</Badge></>}</li>)}</ul>
         </div>
       )}
       {evidence.length + analysis.length + similar.length > 0 && (

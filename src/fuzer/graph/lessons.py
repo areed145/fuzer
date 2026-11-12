@@ -140,11 +140,17 @@ def suggest(conn, taxonomy: str = "iso14224") -> dict:
     return {"lesson_drafts": len(upserts)}
 
 
+REVIEW_DAYS = 365  # an approved lesson is due for its owner's review a year after approval
+
+
 def listing(conn, status: str | None = "suggested", limit: int = 100) -> list[dict]:
+    """Lessons with their version, owner and review date. `review_overdue` flags an approved lesson past its review
+    date, or approved before lessons had one."""
     return conn.execute(
         """
         select id, scope_kind, scope_key, failure_mode, title, coalesce(text, draft) as text, draft, evidence, stats,
-               status, decided_by, decided_at
+               status, decided_by, decided_at, version, owner, review_by,
+               (status = 'approved' and coalesce(review_by < current_date, true)) as review_overdue
         from lesson where (%s::text is null or status = %s)
         order by coalesce((stats->>'incidents')::int, 0) + coalesce((stats->>'cases')::int, 0) desc, title limit %s
         """,
@@ -153,17 +159,33 @@ def listing(conn, status: str | None = "suggested", limit: int = 100) -> list[di
 
 
 def decide(conn, lesson_id: int, decision: str, by: str, text: str | None = None) -> dict | None:
+    """Approve, reject or edit a lesson as a new version. Approving makes `by` its owner and sets the review date a
+    year out, so approving an approved lesson is how its owner confirms it still holds. The history keeps every
+    version's wording and status."""
     status = {"approve": "approved", "reject": "rejected", "edit": None}[decision]
     row = conn.execute(
         """
         update lesson set text = coalesce(%(text)s, text), status = coalesce(%(status)s, status),
-               decided_by = %(by)s, decided_at = now()
-        where id = %(id)s returning id, status
+               decided_by = %(by)s, decided_at = now(), version = version + 1,
+               owner = case when %(status)s = 'approved' then %(by)s when %(status)s = 'rejected' then null else owner end,
+               review_by = case when %(status)s = 'approved' then current_date + %(days)s
+                                when %(status)s = 'rejected' then null else review_by end
+        where id = %(id)s returning id, status, version, owner, review_by, coalesce(text, draft) as text
         """,
-        {"text": text, "status": status, "by": by, "id": lesson_id},
+        {"text": text, "status": status, "by": by, "id": lesson_id, "days": REVIEW_DAYS},
     ).fetchone()
+    if row is not None:
+        conn.execute("insert into lesson_history (lesson_id, version, action, status, text, by_user) "
+                     "values (%s, %s, %s, %s, %s, %s)",
+                     (lesson_id, row["version"], decision, row["status"], row["text"], by))
     conn.commit()
-    return row
+    return row and {k: row[k] for k in ("id", "status", "version", "owner", "review_by")}
+
+
+def history(conn, lesson_id: int) -> list[dict]:
+    """Every decision and edit on a lesson, newest first."""
+    return conn.execute("select version, action, status, text, by_user as by, at from lesson_history "
+                        "where lesson_id = %s order by version desc, id desc", (lesson_id,)).fetchall()
 
 
 def knowledge_rows(conn) -> list[tuple]:
@@ -190,7 +212,7 @@ def approved_for(conn, fids: list[str], limit: int = 5) -> list[dict]:
     return conn.execute(
         """
         select l.id, l.title, coalesce(l.text, l.draft) as text, l.failure_mode, l.scope_kind, l.scope_key,
-               l.decided_by, l.decided_at
+               l.decided_by, l.decided_at, l.owner, l.review_by, coalesce(l.review_by < current_date, true) as review_overdue
         from lesson l
         where l.status = 'approved' and exists (select 1 from entity_key k where k.kind = l.scope_kind
                                                 and k.key = l.scope_key and k.fuzer_id = any(%s))

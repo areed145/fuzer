@@ -982,7 +982,7 @@ export const workApi = {
   comment: (itemId: number, by: string, text: string) =>
     request<unknown>("POST", `/work/items/${itemId}/comment`, undefined, { by, text }),
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
-    request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
+    request<{ id: number; status: string; version: number }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
@@ -1007,7 +1007,7 @@ export interface CaseBriefView {
     missing?: string;
     pack?: string;
     brief?: BriefSections;
-    lessons?: { id: number; title: string; failure_mode?: string | null; by?: string | null }[];
+    lessons?: { id: number; title: string; failure_mode?: string | null; by?: string | null; review_overdue?: boolean }[];
     ledger?: { cost_usd?: number };
     budget_usd?: number;
     over_budget?: boolean;

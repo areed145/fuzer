@@ -196,4 +196,4 @@ def test_an_approved_lesson_reaches_the_next_brief_on_any_asset_of_its_class(con
     assert f"lesson:{ids['approved']} approved seal lesson" in asked[0] and "approved: replace the seal" in asked[0]
     assert "rejected" not in asked[0] and "suggested seal" not in asked[0]
     assert out["lessons"] == [{"id": ids["approved"], "title": "approved seal lesson", "failure_mode": "ELU",
-                               "by": "user:ana"}]
+                               "by": "user:ana", "review_overdue": True}]  # approved with no review date

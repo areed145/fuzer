@@ -284,6 +284,22 @@ create table if not exists lesson (
     updated_at  timestamptz not null default now(),
     unique (scope_kind, scope_key, failure_mode)
 );
+-- P6.2c: a lesson is versioned. Its owner is the engineer who last approved it, it is due for review a year after,
+-- and every edit or decision keeps the wording and status it left behind.
+alter table lesson add column if not exists version int not null default 1;
+alter table lesson add column if not exists owner text;
+alter table lesson add column if not exists review_by date;
+create table if not exists lesson_history (
+    id        bigserial primary key,
+    lesson_id bigint not null references lesson (id) on delete cascade,
+    version   int not null,
+    action    text not null check (action in ('approve', 'reject', 'edit')),
+    status    text not null,
+    text      text not null,
+    by_user   text not null,
+    at        timestamptz not null default now()
+);
+create index if not exists lesson_history_lesson on lesson_history (lesson_id, version);
 
 -- Engineers' own ordering of a sample of work (fuzer ids, most valuable first), to calibrate the value
 -- score (#100) against: value.calibrate reports how well the score's ranking agrees.

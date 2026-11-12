@@ -41,6 +41,20 @@ def test_review_survives_rebuild_and_joins_search(conn):
     assert any(h["kind"] == "lesson" for h in hits)
 
 
+def test_each_decision_is_a_version_with_an_owner_and_a_review_date(conn):
+    d = lessons.listing(conn, "approved")[0]
+    hist = lessons.history(conn, d["id"])
+    assert [(v["version"], v["action"], v["by"]) for v in hist] == [(3, "approve", "tester"), (2, "edit", "tester")]
+    assert hist[1]["text"] == "Check alignment first; then bearings." and hist[1]["status"] == "suggested"
+    assert d["owner"] == "tester" and d["review_by"] is not None and d["review_overdue"] is False
+    conn.execute("update lesson set review_by = current_date - 1 where id = %s", (d["id"],))
+    assert lessons.listing(conn, "approved")[0]["review_overdue"] is True
+    out = lessons.decide(conn, d["id"], "approve", "ana")  # the owner's review: it still holds
+    assert out["version"] == 4 and out["owner"] == "ana"
+    again = {x["id"]: x for x in lessons.listing(conn, "approved")}[d["id"]]
+    assert again["review_overdue"] is False and again["text"] == "Check alignment first; then bearings."
+
+
 def test_lesson_scoped_to_its_model(conn):
     lesson = lessons.listing(conn, "approved")[0]
     scope = conn.execute("select fuzer_id from entity_key where kind = %s and key = %s",
@@ -59,6 +73,8 @@ def test_api(conn):
     rows = client.get("/lessons", params={"status": "all"}).json()
     assert rows
     assert client.post("/lessons/999999", json={"decision": "approve"}).status_code == 404
+    approved = next(r for r in rows if r["status"] == "approved")
+    assert client.get(f"/lessons/{approved['id']}/history").json()[0]["by"] == "ana"
 
 
 def test_three_closed_cases_of_one_failure_mode_on_one_model_draft_a_lesson(conn):
