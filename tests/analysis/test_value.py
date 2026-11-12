@@ -52,16 +52,16 @@ def test_risk_on_the_matrix():
     assert value.risk(Item("work_order", "x", "x", criticality="B", failures_per_year=10), CFG)["likelihood_level"] == 5
 
 
-def test_risk_unknown_criticality_is_unknown_not_zero():
+def test_risk_unknown_criticality_is_not_assessed_not_zero():
     r = value.risk(Item("work_order", "x", "x", criticality=None, failures_per_year=2.0), CFG)
-    assert r["status"] == "unknown" and r["value_usd"] is None and r["criticality"] == "unknown"
-    assert "criticality unknown" in r["note"]
+    assert r["status"] == "unknown" and r["value_usd"] is None and r["criticality"] == "not assessed"
+    assert "criticality not assessed" in r["note"]
     assert value.risk(Item("work_order", "x", "x", criticality="Z", failures_per_year=1), CFG)["status"] == "unknown"
     assert "failures per year" in value.risk(Item("work_order", "x", "x", criticality="A"), CFG)["note"]
     assert value.risk(Item("opportunity", "x", "x", risk_applies=False), CFG)["status"] == "n/a"
     s = value.score(Item("work_order", "x", "20-P-1", oil_sm3d=1, failures_per_year=1), CFG)
-    assert s["criticality"] == "unknown" and "risk" in s["unknown"]
-    assert s["components"]["risk"]["value_usd"] is None and "criticality unknown" in s["reason"]
+    assert s["criticality"] == "not assessed" and "risk" in s["unknown"]
+    assert s["components"]["risk"]["value_usd"] is None and "criticality not assessed" in s["reason"]
 
 
 def test_compliance():
@@ -72,7 +72,8 @@ def test_compliance():
                                    compliance_kind="PM"), CFG)
     assert capped["value_usd"] == 365 * 100 and "counted to 365 d" in capped["note"]
     unknown = value.compliance(Item("maintenance_plan", "x", "x", overdue_days=10, compliance_kind="INSP"), CFG)
-    assert unknown["criticality"] == "unknown" and unknown["criticality_factor"] == 1 and "unknown" in unknown["note"]
+    assert unknown["criticality"] == "not assessed" and unknown["criticality_factor"] == 1
+    assert "not assessed" in unknown["note"] and "data steward" in unknown["note"]
     assert value.compliance(Item("work_order", "x", "x"), CFG)["status"] == "n/a"
     assert value.compliance(Item("maintenance_plan", "x", "x", compliance_kind="NEW"), CFG)["status"] == "unknown"
 
