@@ -251,3 +251,15 @@ create table if not exists work_watch (
     created_at timestamptz not null default now(),
     primary key (name, ref)
 );
+
+-- Saved views per role on All work (P5.1c, #651).
+create table if not exists work_view (
+    id         bigserial primary key,
+    role       text not null,
+    name       text not null,
+    list       text not null,
+    filters    jsonb not null default '{}',
+    created_by text not null,
+    created_at timestamptz not null default now(),
+    unique (role, name)
+);

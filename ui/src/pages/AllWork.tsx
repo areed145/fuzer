@@ -4,10 +4,11 @@
  * unchanged. */
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
-import { Input, PageHeader, Select } from "../ui";
+import { Button, Input, PageHeader, Select } from "../ui";
 import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced } from "../lib";
 import { AssignPicker } from "./workflows/shared";
+import { usePerson } from "../work";
 import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
 import { BoardPage } from "./Board";
 import { CasesPage } from "./workflows/Cases";
@@ -58,6 +59,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   // How many open exceptions each of the IOC's views holds, so what waits shows before a view is opened.
   const open = useAsync(() => api.exceptions({ state: "open" }), []);
   const people = useAsync(() => api.workPeople(), []);
+  const [person] = usePerson();
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const rows = open.data ?? [];
   const counts: Partial<Record<WorkList, number>> = open.data ? iocCounts(rows, operators) : {};
@@ -79,6 +81,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
         ))}
       </nav>
       <FilterBar list={list} query={query} filters={filters} />
+      <SavedViews list={list} filters={filters} roles={(people.data ?? []).find((p) => p.name === person)?.roles ?? []} />
       {list === "ranked" ? <BoardPage query={query} filters={filters} />
         : list === "progress" ? <CasesPage key="progress" query={query} fixedState="open" filters={filters} />
         : list === "closed" ? <CasesPage key="closed" query={query} fixedState="closed" filters={filters} />
@@ -109,6 +112,52 @@ function FilterBar({ list, query, filters }: { list: WorkList; query: URLSearchP
         onChange={(v) => set({ who: v || undefined })} />
       <Input type="search" aria-label="Search titles" placeholder="Search titles" value={text}
         onChange={(e) => setText(e.target.value)} />
+    </div>
+  );
+}
+
+/** Saved views per role (P5.1c, #651): pick one saved for your roles, or save the filters you have as a view for a
+ * role you hold, so everyone in that role finds it here. */
+function SavedViews({ list, filters, roles }: { list: WorkList; filters: WorkFilters; roles: string[] }) {
+  const [person] = usePerson();
+  const saved = useAsync(() => (person ? api.workViews(person) : Promise.resolve([])), [person]);
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  if (!person) return null;
+  const views = Array.isArray(saved.data) ? saved.data : [];
+  const forRole = role || roles[0] || "";
+  const open = (id: string) => {
+    const v = views.find((x) => String(x.id) === id);
+    if (v) location.assign(workHref(v.list as WorkList, { ...v.filters }));
+  };
+  const save = async () => {
+    setError(null);
+    try {
+      const kept = Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) as Record<string, string>;
+      await api.saveWorkView(person, forRole, name.trim(), list, kept);
+      setNaming(false); setName(""); saved.reload();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  if (!views.length && !roles.length) return null;
+  return (
+    <div className="row wrap work-views">
+      {views.length > 0 && <Select aria-label="Saved views" value="" onChange={(e) => open(e.target.value)}>
+        <option value="">Saved views</option>
+        {views.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.role.replace(/_/g, " ")})</option>)}
+      </Select>}
+      {roles.length > 0 && !naming && <Button variant="link" onClick={() => setNaming(true)}>Save this view for a role</Button>}
+      {naming && <>
+        <Input aria-label="View name" placeholder="Name the view" value={name} onChange={(e) => setName(e.target.value)} />
+        {roles.length > 1 && <Select aria-label="For role" value={forRole} onChange={(e) => setRole(e.target.value)}>
+          {roles.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+        </Select>}
+        <Button variant="primary" disabled={!name.trim() || !forRole} onClick={save}>
+          Save for every {forRole.replace(/_/g, " ")}</Button>
+        <Button variant="secondary" onClick={() => { setNaming(false); setError(null); }}>Cancel</Button>
+      </>}
+      {error && <p role="alert" className="error small">{error}</p>}
     </div>
   );
 }

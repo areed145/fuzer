@@ -3362,3 +3362,41 @@ test("watching a case shows its changes on Home under Watching, not as assigned 
   await shift.getByText("parts ordered", { exact: false }).waitFor();
   await shift.getByText("Nothing new on your work.").waitFor();  // watching is not her own work
 });
+
+// P5.1c (#651): an ops lead saves All work's filters as a view for their role, and another ops lead opens it from
+// the picker with the same view and filters.
+test("a view saved on All work for a role opens for everyone in that role with its filters (#651)", async () => {
+  await page.addInitScript(() => { if (!localStorage.getItem("fuzer.reviewer")) localStorage.setItem("fuzer.reviewer", "ines"); });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ines", roles: ["ops_lead"] },
+    { name: "olu", roles: ["ops_lead"] }] }));
+  const saved = [];
+  const asked = [];
+  await page.route("**/work/views*", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      const v = { id: saved.length + 1, role: body.role, name: body.name, list: body.list, filters: body.filters,
+        created_by: body.person, created_at: "2026-11-12T06:00:00Z" };
+      saved.push(v);
+      return route.fulfill({ json: v });
+    }
+    asked.push(new URL(route.request().url()).searchParams.get("person"));
+    return route.fulfill({ json: saved });
+  });
+  await page.goto(`${url}/#/exceptions?list=back&type=upset`);
+  await page.getByRole("button", { name: "Save this view for a role", exact: true }).click();
+  await page.getByLabel("View name").fill("Upsets back from the field");
+  await page.getByRole("button", { name: "Save for every ops lead", exact: true }).click();
+  const picker = page.getByLabel("Saved views");
+  await picker.getByRole("option", { name: "Upsets back from the field (ops lead)" }).waitFor({ state: "attached" });
+  assert.deepEqual(saved.map((v) => [v.role, v.list, v.filters, v.created_by]),
+    [["ops_lead", "back", { type: "upset" }, "ines"]]);
+
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "olu"));
+  await page.goto(`${url}/#/exceptions`);
+  await page.reload();  // a fresh load as the other ops lead
+  await page.getByLabel("Saved views").selectOption({ label: "Upsets back from the field (ops lead)" });
+  await page.waitForURL(/list=back/);
+  assert.match(page.url(), /type=upset/);
+  assert.equal(asked.at(-1), "olu");  // the other ops lead's own picker
+});

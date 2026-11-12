@@ -448,6 +448,20 @@ A watch (P5.1b): a person follows an asset (its fuzer id) or a case ('case:<id>'
 | `ref` | text |  |
 | `created_at` | timestamptz |  |
 
+### `work_view`
+
+Saved views per role on All work (P5.1c, #651).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `role` | text |  |
+| `name` | text |  |
+| `list` | text |  |
+| `filters` | jsonb |  |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)

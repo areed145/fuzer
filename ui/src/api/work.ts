@@ -233,6 +233,10 @@ export interface WorkHome {
   watching: string[];
 }
 
+export interface SavedWorkView {
+  id: number; role: string; name: string; list: string; filters: Record<string, string>; created_by: string; created_at: string;
+}
+
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
@@ -768,6 +772,10 @@ export const workApi = {
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
+  workViews: (person: string) => request<SavedWorkView[]>("GET", "/work/views", { person }),
+  saveWorkView: (person: string, role: string, name: string, list: string, filters: Record<string, string>) =>
+    request<SavedWorkView>("POST", "/work/views", undefined, { person, role, name, list, filters }),
+  removeWorkView: (id: number, person: string) => request("DELETE", `/work/views/${id}`, { person }),
   watching: (person: string) => request<string[]>("GET", "/work/watch", { person }),
   watch: (person: string, ref: string, on: boolean) =>
     request<{ watching: boolean }>("POST", "/work/watch", undefined, { person, ref, on }),
