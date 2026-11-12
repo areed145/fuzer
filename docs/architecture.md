@@ -104,6 +104,7 @@ flowchart LR
   kind_timeseries(["timeseries"])
   kind_well(["well"])
   kind_well_test(["well_test"])
+  kind_work_center(["work_center"])
   kind_work_order(["work_order"])
   src_adx --> kind_timeseries
   src_ec --> kind_downtime
@@ -127,6 +128,7 @@ flowchart LR
   src_sap --> kind_notification
   src_sap --> kind_plant_hierarchy__facility__area__tag__well
   src_sap --> kind_purchase_order
+  src_sap --> kind_work_center
   src_sap --> kind_work_order
 ```
 
