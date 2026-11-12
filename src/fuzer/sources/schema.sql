@@ -362,3 +362,18 @@ create table if not exists detection_provider (
     updated_at timestamptz not null default now(),
     primary key (system, name)
 );
+
+-- How far a provider is trusted (P3.8b, #705), for every equipment class ('') or one: its alerts open their case
+-- for the role their type names (route), for the triage role first (triage), or are counted and kept with no case
+-- (mute). A person sets it, with a reason.
+create table if not exists provider_trust (
+    system     text not null,
+    name       text not null,
+    class      text not null default '',
+    trust      text not null check (trust in ('route', 'triage', 'mute')),
+    reason     text not null,
+    updated_by text not null,
+    updated_at timestamptz not null default now(),
+    primary key (system, name, class),
+    foreign key (system, name) references detection_provider (system, name) on delete cascade
+);

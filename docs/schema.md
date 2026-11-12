@@ -819,6 +819,20 @@ Detection providers (P3.8, sources/providers.py): an outside tool's alerts (cond
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `provider_trust`
+
+How far a provider is trusted (P3.8b, #705), for every equipment class ('') or one: its alerts open their case for the role their type names (route), for the triage role first (triage), or are counted and kept with no case (mute). A person sets it, with a reason.
+
+| Column | Type | Note |
+|---|---|---|
+| `system` | text |  |
+| `name` | text |  |
+| `class` | text |  |
+| `trust` | text |  |
+| `reason` | text |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Graph and golden records
 
 [`src/fuzer/graph/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/schema.sql)
@@ -1587,8 +1601,8 @@ Suppression (P3.5b, ops/suppression.py): a window on some assets in which their 
 | `subjects` | text[] |  |
 | `evidence` | jsonb |  |
 | `value_usd` | double precision |  |
-| `window_kind` | text | planned_work \| shutdown \| person |
-| `window_id` | bigint | the plan_item or suppression it fell in |
+| `window_kind` | text | planned_work \| shutdown \| person \| muted (a provider, P3.8b) |
+| `window_id` | bigint | the plan_item or suppression it fell in (0 when muted) |
 | `reason` | text |  |
 | `raised` | integer |  |
 | `first_seen` | timestamptz |  |

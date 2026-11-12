@@ -70,8 +70,41 @@ def settings_history(key: str, limit: int = 50, conn=Depends(get_conn)):
 def detectors_list(conn=Depends(get_conn)):
     """Every detector on this asset: on or off, whether it applies, its parameters and class values, last run and
     replay score; and the asset's equipment classes a value can be set for."""
+    from ..ops import disposition
+    from ..sources import providers
+
     p = settings.project()
-    return {"project": p, "classes": detectors.asset_classes(conn), "detectors": detectors.listing(conn, pack(), p)}
+    rates = disposition.rates(conn)
+    rows = [{**d, "closeouts": disposition.quality([r for (t, _), r in rates.items() if t in d["raises"]])}
+            for d in detectors.listing(conn, pack(), p)]
+    outside = [{"system": x["system"], "name": x["name"], "label": x["label"], "type": x["type"], "enabled": x["enabled"],
+                "trust": providers.trust_rules(conn, x["system"], x["name"]),
+                "closeouts": disposition.quality([r for k, r in rates.items() if k == (x["type"], x["system"])])}
+               for x in providers.providers(conn)]
+    return {"project": p, "classes": detectors.asset_classes(conn), "detectors": rows, "providers": outside,
+            "trust_levels": providers.TRUST}
+
+
+class TrustIn(BaseModel):
+    trust: Literal["route", "triage", "mute"]
+    cls: str | None = Field(default=None, alias="class")
+    by: str = "anonymous"
+    reason: str = Field(min_length=3)
+
+
+@router.put("/settings/providers/{system}/{name}/trust")
+def provider_trust(system: str, name: str, t: TrustIn, conn=Depends(get_conn)):
+    """How far a detection provider is trusted, for every equipment class or one (P3.8b): route its alerts
+    directly, triage them first, or mute them (kept and counted, no case). A reason is required."""
+    from ..sources import providers
+    from ..sources._catalog_common import CatalogError
+
+    try:
+        row = providers.set_trust(conn, system, name, t.trust, t.reason, t.by, t.cls)
+    except CatalogError as e:
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return row
 
 
 class SwitchIn(BaseModel):
