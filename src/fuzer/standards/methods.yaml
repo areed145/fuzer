@@ -66,6 +66,26 @@ reliability:
       expect: {beta: 0.5, lam: 0.1}
       says: Failures at 400, 900, 1600 and 2500 days after the first follow N = 0.1 t^0.5 exactly.
 
+pm_interval:
+  title: Preventive maintenance interval against the class's failure pattern
+  standard: "IEC 61649 (Weibull analysis); IEC 60300-3-11 (reliability centred maintenance)"
+  inputs: [{name: Failure notifications on the class's units, unit: dates}, {name: Preventive plan intervals, unit: days}]
+  valid: Equipment classes with preventive plans and repeat failures. Inspection plans are left out; a statutory interval is never proposed for change.
+  needs: Three times between failures in the class, else the class is reported as insufficient.
+  vectors:
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[100, 200, 300], 2.0, 200.0]
+      expect: {interval_days: 200, fails_first_pct: 63.2121, flag: null}
+      says: A wear-out class (beta 2) on a 200-day median interval at its characteristic life loses 1 - e^-1 of its units first.
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[365], 1.0, 400.0]
+      expect: {interval_days: 365, flag: random_failures}
+      says: With beta 1 failures are random in time, so a fixed interval cannot prevent them.
+    - kernel: fuzer.analysis.calcs:pm_pattern
+      args: [[180, 400, 420], 3.0, 300.0]
+      expect: {interval_days: 400, flag: interval_too_long}
+      says: A wear-out class serviced past its characteristic life fails before its PM.
+
 wall_loss:
   title: Wall loss rate and remaining life per CML
   standard: "API 570 / API 510"

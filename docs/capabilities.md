@@ -354,6 +354,7 @@ Called by agents as themselves through the workflow engine.
 | `pump_curve` | pump tag or equipment | Engineering practice | chart `plot_pump_curve` |
 | `choke` | well or its choke tag | Engineering practice | chart `plot_choke` |
 | `reliability` | tag, equipment or equipment class | IEC 61649 (Weibull analysis); IEC 61164 (reliability growth, power law) | chart `plot_reliability` |
+| `pm_interval` | equipment class, or a unit or tag in it | IEC 61649 (Weibull analysis); IEC 60300-3-11 (reliability centred maintenance) |  |
 | `wall_loss` | vessel, piping or pipeline | API 570 / API 510 | chart `plot_wall_thickness` |
 | `well_constraint` | well | Engineering practice |  |
 | `dp_drift` | well | Engineering practice | SRE detector `sre.hydraulics` |

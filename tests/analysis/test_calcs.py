@@ -66,7 +66,7 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
     line = conn.execute("select fuzer_id from measurement m join entity e using (fuzer_id) where m.quantity = "
                         "'wall_thickness' and e.kind = 'pipeline' group by 1 order by min(m.value) limit 1").fetchone()
     refs = {"decline": fid(conn, "OK-J07-03"), "gas_lift": fid(conn, "OK-J07-03"), "pump_curve": fid(conn, "10-P-1001A"),
-            "choke": fid(conn, "OK-J12-02"), "reliability": cls, "wall_loss": line["fuzer_id"]}
+            "choke": fid(conn, "OK-J12-02"), "reliability": cls, "pm_interval": cls, "wall_loss": line["fuzer_id"]}
     refs |= {"well_constraint": refs["decline"], "dp_drift": refs["decline"], "compressor_performance": fid(conn, "20-K-2300A"),
              "cooler_fouling": fid(conn, "20-E-2350A"), "peers": k, "vibration": k, "pump_bep": refs["pump_curve"],
              "rotating_health": refs["pump_curve"], "surge": fid(conn, "20-K-2100C"),
@@ -318,3 +318,22 @@ def test_the_wet_flowline_leads_its_corrosion_circuit_and_retires_soon(conn):
     vessel = calcs.run(conn, "corrosion_circuit", fid(conn, "10-V-2001"))
     assert vessel["circuit"] == "10-V-2001" and vessel["line"]["remaining_years"] is None
     assert "stands alone" in vessel["basis"] and "min_required_mm" in vessel["basis"]
+
+
+def test_pm_intervals_are_read_against_how_each_class_fails(conn):
+    """P4.2g (#345): Okan's centrifugal compressors wear out and their 180-day PM sits inside the characteristic life;
+    its gas turbines fail at random and its centrifugal pumps early in life, so a fixed interval won't help either;
+    a class with too few failures says so; inspection plans never enter the advice."""
+    def run(label):
+        return calcs.run(conn, "pm_interval", fid(conn, label))
+
+    co = run("ISO14224:CO.CE")
+    assert (co["value"], co["flag"]) == (180.0, None) and co["beta"] > 1.2 and co["value"] < co["expected"]
+    assert co["inspection_plans_left_out"] > 0 and 0 < co["fails_before_pm_pct"] < 100 and co["unit"] == "days"
+    assert run("ISO14224:GT")["flag"] == "random_failures"
+    pu = run("ISO14224:PU.CE")
+    assert pu["flag"] == "early_life" and "repair quality" in pu["reading"]
+    te = run("ISO14224:IP.TE")
+    assert (te["value"], te["flag"]) == (None, "insufficient_failures")
+    pump = calcs.run(conn, "pm_interval", fid(conn, "10-P-1001A"))  # a unit reads its class
+    assert pump["class"] == "ISO14224:PU.CE"
