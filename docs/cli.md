@@ -208,6 +208,18 @@ settings (#131): list, get, set, reset, or show a setting's history
 | `--by` | who is changing it (default: $USER) |
 | `--reason` | why, kept in the history |
 
+## `fuzer operating-model`
+
+the operating model as a package (P8.1): export, apply, deviations
+
+| Argument | What it does |
+|---|---|
+| `action` (export / apply / deviations / applied) |  |
+| `package` | a package folder, or `standard` (export: the folder to write) |
+| `--name` | with export: the model's name |
+| `--version` | with export: the model's version |
+| `--by` | who is applying it (default: $USER) |
+
 ## `fuzer board`
 
 the work board (#99): refresh it, or show the top cards

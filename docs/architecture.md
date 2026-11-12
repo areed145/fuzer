@@ -15,7 +15,7 @@ flowchart LR
   c_analysis["Analyses<br><small>fuzer.analysis, 38 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 29 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 23 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
   c_api["API<br><small>fuzer.api, 19 modules</small>"]
@@ -253,10 +253,10 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `home`, `notify`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `home`, `notify`, `operating_model`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
 - **Uses:** core
-- **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_home_seen`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token`, `work_view`, `work_watch` ([schema](schema.md))
-- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_home_seen`, `work_watch`, `work_view` (its `schema.sql`)
+- **Writes:** `exception_kind`, `operating_model_applied`, `work_definition`, `work_draft`, `work_event`, `work_form`, `work_home_seen`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token`, `work_view`, `work_watch` ([schema](schema.md))
+- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_home_seen`, `work_watch`, `work_view`, `operating_model_applied` (its `schema.sql`)
 - **Settings:** `notify.app_url`, `notify.from`, `work.agent_fallback_minutes`, `work.due_soon_minutes` ([settings](settings.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 

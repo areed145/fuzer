@@ -307,6 +307,19 @@ Readers: the Reports page (`#/reports`: days, versions, checks, what changed), M
 day of train C's trip (5 November 2024) leads with "Biggest loss: Process trip, 146 Sm3 oil, back at
 10:30" and the trip's downtime record.
 
+## The operating model as a package
+
+The way a project operates (its roles and their SLAs, the work types it declares as data, its operating settings, and
+its published processes and forms) can be exported as one versioned package folder and applied to another project
+(`src/fuzer/workflow/operating_model.py`, P8.1). `fuzer operating-model export <folder> --name --version` writes one;
+`fuzer operating-model apply <folder|standard>` makes this project run it and records the version and its digest;
+`fuzer operating-model deviations <folder|standard>` lists every place this project differs from it, one row per
+difference (changed, added or missing). `standard` is the built-in standard, version 1: the shipped processes and
+forms, the built-in roles and no settings changed. Okan has no deviations from it.
+
+A package holds operating settings only (the Work, SRE, Signals, Alarms, Opportunities, Reports and Detection
+groups); one holding anything else, or without a version, is refused.
+
 ## Scheduled jobs
 
 Dagster runs everything on a schedule (`src/fuzer/ops/jobs.py`; `fuzer jobs`, or alongside the UI with `fuzer up`).

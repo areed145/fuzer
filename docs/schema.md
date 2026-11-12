@@ -462,6 +462,20 @@ Saved views per role on All work (P5.1c, #651).
 | `created_by` | text |  |
 | `created_at` | timestamptz |  |
 
+### `operating_model_applied`
+
+The operating model each project applied (P8.1, workflow/operating_model.py): the package's name, version and the digest of its content, newest last.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `project` | text |  |
+| `name` | text |  |
+| `version` | int |  |
+| `digest` | text |  |
+| `applied_by` | text |  |
+| `applied_at` | timestamptz |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)
