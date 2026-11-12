@@ -1,0 +1,25 @@
+entry_id,timestamp,facility,author,text
+KRLOG-0001,today-10d 07:00,KRGP,Shift Supervisor,"Day shift handover: plant steady, inlet 1420 ksm3/d, sales 1325 ksm3/d at H1-FT-8010, condensate 82 m3/d to tank F1-T-6005A. Glycol pump A on duty, B on standby."
+KRLOG-0002,today-9d 10:30,,,A1-LT-1001 reading 12% higher than the gauge glass on A1-V-1001. Raised a notification for instrument tech.
+KRLOG-0003,today-8d 19:00,,,"Night shift handover: no alarms, B1-K-2001 vibration 2.4 mm/s, discharge 66 barg."
+KRLOG-0004,today-6d 08:15,,,Glycol pump B quarterly service is past due; pump B not run since last month.
+KRLOG-0005,today-4d 14:40,,,Packing leak on C1-P-3002A glycol pump A dripping about one drop a second. Contained in the drip tray.
+KRLOG-0006,today-4d 15:10,,,Notification raised for C1-P-3002A packing; keep A on duty until the packing kit is confirmed in stock.
+KRLOG-0007,today-3d 07:00,,,"Day shift handover: steady. Cold front forecast for the weekend, check methanol injection at Pad 12."
+KRLOG-0008,today-2d 09:30,,,Sales gas water content 141 mg/Sm3 against the 112 limit at C1-V-3001 outlet. Lean glycol purity 98.1 wt%.
+KRLOG-0009,today-2d 10:05,,,Glycol circulation on C1-V-3001 looks low with C1-P-3002A leaking; raised a notification to check the contactor glycol rate.
+KRLOG-0010,today-1d 03:12,,,B1-K-2001 tripped on high vibration (B1-VT-2003). Sales gas to zero. Raised A1-V-1001 pressure setpoint to 27.5 barg to hold the inlet.
+KRLOG-0011,today-1d 03:18,,,Choked back KR 12-03H and KR 12-04H to 10% to hold A1-PT-1001 below the PSV. Inlet flow down to about 570 ksm3/d.
+KRLOG-0012,today-1d 03:45,,,"At B1-K-2001: no visible damage, frame bolts tight, crosshead guide warm. Vibration probe reading normal at rest."
+KRLOG-0013,today-1d 06:40,,,B1-K-2001 restarted after checks; vibration 2.5 mm/s. Wells KR 12-03H and KR 12-04H back to 50% choke.
+KRLOG-0014,today-1d 06:45,,,A1-V-1001 setpoint back to 25 barg. Sales gas recovering through the custody meter H1-FT-8010.
+KRLOG-0015,today-1d 07:30,,,Raised a notification on B1-K-2001 for the vibration trip. Second compressor trip in 35 days; reliability to review before the next one.
+KRLOG-0016,today 07:00,,,"Day shift handover: B1-K-2001 running since yesterday's trip, vibration steady at 2.4 mm/s. C1-P-3002A still leaking and C1-H-3008 reboiler still at 194 degC. Amine contactor dP normal."
+KRLOG-0017,today-12d 09:20,,,A1-PDT-1004 inlet filter coalescer dP 0.62 bar and climbing. Raised a notification to change the elements on A1-V-1004; only 3 elements in stock for 6.
+KRLOG-0018,today-5d 11:00,,,C1-H-3008 TEG reboiler holding 196 degC with the burner at full fire; flame lazy and yellow. Notification raised for the burner and fire tube.
+KRLOG-0019,today-2d 10:20,,,C1-AT-3011 dry gas moisture agrees with the lab at about 140 mg/Sm3. Raised methanol from G1-P-7008A to E1-E-5001 to keep hydrates out of the propane chiller.
+KRLOG-0020,today-1d 03:16,,,A1-PV-1001 opened to flare to hold A1-V-1001 at 27.5 barg; flare H1-FT-8003 about 570 ksm3/d while B1-K-2001 is down.
+KRLOG-0021,today-1d 06:55,,,Flare H1-FT-8003 back to purge after the B1-K-2001 restart; about 85 ksm3 flared during the trip. Logged for the flaring report.
+KRLOG-0022,today-1d 07:05,,,E1-K-5004 propane compressor ran on recycle through the trip; E1-TT-5003 low temperature separator back to -18 degC by 07:30.
+KRLOG-0023,today-1d 07:20,,,D1-PDT-4001 amine contactor dP up to 0.9 bar after the restart and sweet gas CO2 D1-AT-4002 at 1.9 mol% against the 2.0 sales limit. Amine foaming; started antifoam.
+KRLOG-0024,today-1d 09:40,,,D1-V-4001 dP back to 0.35 bar after antifoam. Amine carbon filter D1-F-4010 looks spent; raised a notification on the contactor foaming.

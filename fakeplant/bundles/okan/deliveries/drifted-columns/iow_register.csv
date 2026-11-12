@@ -1,0 +1,12 @@
+iow_id,revision,tag,parameter,iow_class,low_limit,hi_limit,unit,max_time_outside,damage_mechanism,response,effective_date,superseded_date
+IOW-001,A,20-TT-2300A,3rd stage discharge temperature,Critical,,150,degC,4 hrs,"Discharge valve and dry gas seal damage, lube oil coking","Cut load, open recycle, clean the after-cooler",2021-03-01,2025-01-01
+IOW-001,B,20-TT-2300A,3rd stage discharge temperature,Critical,,144,degC,2 h,"Discharge valve and dry gas seal damage, lube oil coking","Cut load, open recycle, clean the after-cooler",2025-01-01,
+IOW-002,A,20-TT-2300B,3rd stage discharge temperature,Critical,,144,degC,2 h,"Discharge valve and dry gas seal damage, lube oil coking","Cut load, open recycle, clean the after-cooler",2021-03-01,
+IOW-003,A,20-TT-2300C,3rd stage discharge temperature,Critical,,144,degC,2 h,"Discharge valve and dry gas seal damage, lube oil coking","Cut load, open recycle, clean the after-cooler",2021-03-01,
+IOW-004,A,20-TT-2350A,3rd stage after-cooler outlet temperature,Standard,,53.4,degC,24 hours,Glycol degradation and losses in the contactor downstream,Clean the after-cooler; check cooling water,2021-03-01,
+IOW-005,A,20-TT-2350B,3rd stage after-cooler outlet temperature,Standard,,53.4,degC,24 hours,Glycol degradation and losses in the contactor downstream,Clean the after-cooler; check cooling water,2021-03-01,
+IOW-006,A,20-TT-2350C,3rd stage after-cooler outlet temperature,Standard,,53.4,degC,24 hours,Glycol degradation and losses in the contactor downstream,Clean the after-cooler; check cooling water,2021-03-01,
+IOW-007,A,20-PT-2400,Glycol contactor pressure,Standard,82.3,,barg,12 h,"Dew point margin lost: free water, hydrates and corrosion in the export line",Restore contactor pressure or cut throughput,2021-03-01,
+IOW-008,A,10-PT-2001,HP separator pressure,Informational,9.9,14.1,barg,,Carry-under and erosion at the outlet nozzles,Note in the shift log,2021-03-01,
+IOW-009,A,20-PT-3003,Lift gas header pressure,Informational,75,,barg,,Hydrate formation in jacket gas lift lines at low header pressure,Note in the shift log,2021-03-01,
+IOW-010,A,20-TT-2310B,3rd stage discharge temperature,Critical,,144,degC,120 min,"Discharge valve and dry gas seal damage, lube oil coking","Cut load, open recycle",2021-03-01,
