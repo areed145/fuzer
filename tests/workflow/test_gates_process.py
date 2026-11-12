@@ -83,6 +83,17 @@ def test_a_critical_asset_stops_even_a_confident_result(conn):
     assert r["out"]["gated"] and "A-criticality asset always stops for a person" in r["out"]["reason"]
 
 
+def test_a_case_on_an_a_and_a_c_asset_is_gated_as_a(conn):
+    started = engine.start(conn, "false_alarm", {"title": "Alarm on two pumps"}, by="agent:sre",
+                           subjects=["fz-pump-c", "fz-pump-a"])
+    step = conn.execute("select id from work_token where item_id = %s and element = 'assess'",
+                        (started["item_id"],)).fetchone()["id"]
+    out = engine.complete(conn, step, "agent:sre", {"confidence": 0.99, "proposed": "false_alarm"})
+    assert out["gated"] and "A-criticality asset always stops for a person" in out["reason"]
+    assert gates.decisions(conn, started["item_id"])[0]["criticality"] == "A"
+    assert gates.most_critical(["C", None, "A", "B"]) == "A" and gates.most_critical([None]) is None
+
+
 def test_could_not_check_stops_it(conn):
     r = run(conn, "fz-pump-c", {"confidence": 0.99, "could_not_check": "the historian (no data since 06:00)"})
     assert r["out"]["gated"] and "could not check the historian" in r["out"]["reason"]

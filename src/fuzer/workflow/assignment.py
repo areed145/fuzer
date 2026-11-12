@@ -121,7 +121,7 @@ def _gate(run: _Run, proc: dict, t: dict, node, by: str, data: dict) -> dict | N
 
     item = run.conn.execute("select subjects from work_item where id = %s", (proc["item_id"],)).fetchone()
     subject = (item or {}).get("subjects") or []
-    crit = max((c for c in (gates.criticality(run.conn, s) for s in subject) if c), default=None)  # A before B
+    crit = gates.most_critical(gates.criticality(run.conn, s) for s in subject)
     raw = data.get("confidence")
     try:
         confidence = float(raw) if raw is not None else None
