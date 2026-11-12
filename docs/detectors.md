@@ -25,6 +25,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
 | [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
 | [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
+| [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
 
 ## excursions
 
@@ -258,3 +259,14 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `quality_drift`
 - **Needs:** lab results at a sample point
 - **Scored by:** `tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back`, on the fake plant
+
+## flare_events
+
+**A flare above its baseline, matched to the records around it.** Each flare episode raised as `flare_event` for the HSE specialist (keyed by where and when it started), with the records it was matched to; an episode is a record of what happened, so it stays until a person closes it.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `flare_event`
+- **Measurement roles:** flare gas flow
+- **Needs:** a flare flow point or a daily flare volume
+- **Scored by:** `tests/analysis/test_flare.py::test_a_flare_event_is_raised_with_its_records_or_unknown`, on the fake plant

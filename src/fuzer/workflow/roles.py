@@ -22,6 +22,7 @@ BUILTIN = {
     "data_steward": ("person", "Master data steward: source problems and register gaps", "P1D", "ops_lead"),
     "maintenance_planner": ("person", "Plans maintenance: raises and schedules SAP notifications", "P2D", "ops_lead"),
     "operator": ("person", "Control room and field operators", "PT4H", "ops_lead"),
+    "hse_specialist": ("person", "HSE and environmental: flaring and emissions evidence, incidents", "P1D", "ops_lead"),
     "workflow_admin": ("person", "Designs and publishes processes, manages roles", None, None),
     "sre": ("agent", "Agentic SRE: detects and groups upsets", None, None),
     "production-surveillance": ("agent", "Production trends, deferment, constraints and gas lift", None, None),

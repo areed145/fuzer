@@ -264,6 +264,9 @@ ASSISTANT_QUESTIONS = [
 ]
 
 
+UNEXPLAINED_FLARE = "2025-11-08"
+
+
 def well_name(site: str, num: str) -> str:
     return f"OK-{site}-{num}"
 
@@ -751,6 +754,11 @@ def generate(out, seed: int = 11) -> dict:
                       "gas_export_ksm3": f"{max(0, 1700 - lost_gas):.0f}", "lift_gas_ksm3": f"{1800 - lost_gas * 0.3:.0f}",
                       "flare_ksm3": f"{40 + (lost_gas * 0.4 if any(d['reason_code'] == 'EXT-EGP' for d in events) else 0):.0f}",
                       "comments": " ".join(notes)})
+    # Story: one day of heavy flaring that no downtime, log entry or comment explains (a relief valve passing, found
+    # later): the flaring report has to say its cause is unknown.
+    for d in daily:
+        if d["report_date"] == UNEXPLAINED_FLARE:
+            d["flare_ksm3"] = "210"
 
     # ---- open work, maintenance plans, well tests (as of AS_OF) --------------------------------------
     brng = random.Random(seed + 7)
