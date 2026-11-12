@@ -4,7 +4,7 @@
  * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
-import { api, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
+import { api, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, flush, outbox, sendReport } from "../fieldOffline";
@@ -79,6 +79,45 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
   );
 }
 
+/** A handover at shift change, the outgoing note first (P5.11c). */
+function HandoverNote({ h }: { h: FieldHandover }) {
+  return (
+    <div className="field-sent" role="status">
+      <p><strong>{h.mine_to_accept ? `Handed over to you by ${h.from}` : `Handed over to ${h.to}: with you until they accept`}</strong>
+        <span className="muted small"> · {when(h.at)}</span></p>
+      <p className="small">Done: {h.done}</p>
+      <p className="small">Left: {h.left}</p>
+      {h.unsafe && <p className="small error">Unsafe to leave: {h.unsafe}</p>}
+      {h.permit && <p className="small muted">Permit {h.permit.label} {h.permit.state ?? ""}{h.permit.why_not ? ` · ${h.permit.why_not}` : ""}</p>}
+    </div>
+  );
+}
+
+/** Hand a job in progress to the incoming crew at shift change (P5.11c). */
+function HandOver({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
+  const { busy, error, run } = useAct();
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState("");
+  const [done, setDone] = useState("");
+  const [left, setLeft] = useState("");
+  const [unsafe, setUnsafe] = useState("");
+  if (!open) return <Button size="sm" onClick={() => setOpen(true)}>Hand over at shift change</Button>;
+  const ready = to.trim() && done.trim() && left.trim();
+  return (
+    <fieldset className="field-evidence">
+      <legend className="small">Hand over to the incoming crew</legend>
+      <Input aria-label="Hand over to" placeholder="who takes it" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Input aria-label="What was done" placeholder="what was done" value={done} onChange={(e) => setDone(e.target.value)} />
+      <Input aria-label="What is left" placeholder="what is left" value={left} onChange={(e) => setLeft(e.target.value)} />
+      <Input aria-label="Unsafe to leave" placeholder="anything unsafe to leave (optional)" value={unsafe}
+        onChange={(e) => setUnsafe(e.target.value)} />
+      <Button variant="primary" disabled={!ready || !!busy} onClick={() => run("Handing over", () => api.fieldHandover(job.id,
+        { by: person, to: to.trim(), done: done.trim(), left: left.trim(), unsafe: unsafe.trim() || undefined }), onChange)}>Hand over</Button>
+      {error && <p role="alert" className="error small">{error}</p>}
+    </fieldset>
+  );
+}
+
 /** The permit to work a job runs under, with its isolations, and whether it may start (P5.11a). */
 function PermitPanel({ permit }: { permit: FieldPermit }) {
   const p = permit.permit;
@@ -137,6 +176,11 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
   const last = job.field[job.field.length - 1];
   return (
     <Card className="field-job" title={<>{job.title} <Badge>{job.label}</Badge></>}>
+      {job.handover && <HandoverNote h={job.handover} />}
+      {job.handover?.mine_to_accept && <div className="row field-actions">
+        <Button variant="primary" disabled={!!busy}
+          onClick={() => run("Accepting", () => api.acceptHandover(job.id, person), onChange)}>Accept the handover</Button>
+      </div>}
       <p className="row small">
         <Due at={job.due} />
         {last && <Badge tone="ok">{SAID[last.status] ?? last.status} · {when(last.at)}</Badge>}
@@ -181,7 +225,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
           {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
         </li>)}</ul>
       </div>}
-      {job.queued ? <div className="row field-actions">
+      {job.handover?.mine_to_accept ? null : job.queued ? <div className="row field-actions">
         <p className="small muted">Waiting in the {job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.</p>
         <Button variant="primary" disabled={!!busy}
           onClick={() => run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), onChange)}>Take it</Button>
@@ -222,7 +266,8 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         <Button disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>
         {job.task_id && job.own_step && <ButtonLink href={taskHref(job.task_id)}>Open step: {job.task_name}</ButtonLink>}
         {job.item_id && !job.task_id && <ButtonLink href={href(`/cases/${job.item_id}`)}>Case</ButtonLink>}
-      </div></>}
+      </div>
+      {!job.handover && <HandOver job={job} person={person} onChange={onChange} />}</>}
       {busy && <p role="status">{busy}…</p>}
       {error && <p role="alert" className="error">{error}</p>}
     </Card>

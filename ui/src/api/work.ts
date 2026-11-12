@@ -742,6 +742,13 @@ export interface FieldJob extends ExceptionRow {
   checklist?: string[];
   /** The permit to work it runs under (P5.11a): null when no permit records are loaded. */
   permit?: FieldPermit | null;
+  /** A handover at shift change still waiting to be accepted (P5.11c). */
+  handover?: FieldHandover | null;
+}
+
+export interface FieldHandover {
+  from: string; to: string; at: string; done: string; left: string; unsafe: string | null;
+  permit: FieldPermit["permit"]; mine_to_accept: boolean; waiting_on: string | null;
 }
 
 export interface FieldPermit {
@@ -807,6 +814,9 @@ export const workApi = {
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
       reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
       override: extra.override ?? null }),
+  fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
+    request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
+  acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

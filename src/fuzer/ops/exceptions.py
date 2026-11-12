@@ -22,7 +22,7 @@ import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import events, findings, work
+from ..core import events, findings, gates, work
 from ..core.exceptions import TYPES, ExceptionError, ExceptionType
 
 OPEN = "open"
@@ -637,8 +637,6 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             override = (override or "").strip()
             if not override:
                 raise ExceptionError(f"{permit['blockers'][0]}. Say why it starts anyway.")
-            from ..core import gates
-
             gates.require_person(conn, "field_start_without_permit", by, item_id=row["item_id"],
                                  ref=f"exception:{row['id']}")
             unpermitted = permit["blockers"][0]
@@ -687,7 +685,14 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             # lands in that person's or queue's Inbox, with the reason saying it is back from the field.
             back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
             if not (has_process and work.report_field_step(conn, row["item_id"], by, status, note, back)):
-                work.hand_back(conn, row["item_id"], by, by, reason=back)
+                came = (row["evidence"] or {}).get("handover") or {}
+                # handed over at shift change (P5.11c): back past the outgoing person to whoever sent it to them
+                sender = (came.get("accepted_at") and came.get("to") == by
+                          and _sent(conn, row["item_id"], came["from"]))
+                if sender and sender["by"] and not gates.machine(sender["by"]):
+                    work.dispatch(conn, row["item_id"], by, sender["by"], back)
+                else:
+                    work.hand_back(conn, row["item_id"], by, by, reason=back)
     row = _row(conn, exception_id)
     from . import closeout
 
@@ -768,8 +773,11 @@ def field_jobs(conn, person: str) -> list[dict]:
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
                or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
-               or (t.id is null and w.assignee is null and w.role = any(%(roles)s)))
-        order by coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
+               or (t.id is null and w.assignee is null and w.role = any(%(roles)s))
+               or (e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null))
+        order by coalesce(e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null,
+                          false) desc,
+                 coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
                  coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
         """, {"p": person, "roles": (roles := work.roles_of(conn, person))}).fetchall()
     out, known = [], types(conn)
@@ -799,9 +807,82 @@ def field_jobs(conn, person: str) -> list[dict]:
                     "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
                     "finding": mine, "history": history, "field": r["evidence"].get("field", []),
-                    "sent": sent, "permit": _permit(conn, subjects, r["id"])})
+                    "sent": sent, "permit": _permit(conn, subjects, r["id"]),
+                    "handover": _handover_for(r, person)})
     return out
 
+
+
+def _handover_for(row: dict, person: str) -> dict | None:
+    """A handover of this job still waiting to be accepted (P5.11c), as the person sees it: theirs to accept, or
+    theirs, handed over and still with them until it is."""
+    h = (row.get("evidence") or {}).get("handover")
+    if not h or h.get("accepted_at"):
+        return None
+    return {**h, "mine_to_accept": h.get("to") == person, "waiting_on": h.get("to") if h.get("from") == person else None}
+
+
+def _holder(conn, row: dict) -> str | None:
+    """Who has a job now: its case's open person step's assignee, else the case's."""
+    step = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' "
+                        "and state in ('ready', 'waiting') order by due_at nulls last, id limit 1",
+                        (row["item_id"],)).fetchone()
+    if step and step["assignee"]:
+        return step["assignee"]
+    item = conn.execute("select assignee from work_item where id = %s", (row["item_id"],)).fetchone()
+    return item and item["assignee"]
+
+
+def hand_over(conn, exception_id: int, by: str, to: str, done: str, left: str, unsafe: str | None = None) -> dict:
+    """Hand a job in progress to someone on the incoming crew (P5.11c): what was done, what is left and anything
+    unsafe to leave, with the permit and isolations it runs under as they stand. It stays with `by` until `to`
+    accepts it; it shows at the top of `to`'s jobs meanwhile."""
+    from ..core import gates
+
+    gates.require_person(conn, "field_dispatch", by, ref=f"exception:{exception_id}", what="handing a job over")
+    done, left, unsafe = (done or "").strip(), (left or "").strip(), (unsafe or "").strip() or None
+    if not done or not left:
+        raise ExceptionError("say what was done and what is left")
+    to = (to or "").strip()
+    if not to or to == by or to.startswith(("role:", "agent:")):
+        raise ExceptionError("hand it to a person on the incoming crew")
+    row = _row(conn, exception_id, lock=True)
+    if row["joined_to"]:
+        return hand_over(conn, row["joined_to"], by, to, done, left, unsafe)
+    if row["state"] != OPEN or not row["item_id"]:
+        raise ExceptionError(f"exception {exception_id} is not a job in the field")
+    if _holder(conn, row) != by:
+        raise ExceptionError("only whoever has the job hands it over")
+    permit = _permit(conn, list(row["subjects"] or []), row["id"])
+    h = {"from": by, "to": to, "at": conn.execute("select now() as t").fetchone()["t"].isoformat(), "done": done,
+         "left": left, "unsafe": unsafe, "permit": permit and permit["permit"], "accepted_at": None}
+    conn.execute("update exception_record set evidence = jsonb_set(evidence, '{handover}', %s), updated_at = now() "
+                 "where id = %s", (Jsonb(h), row["id"]))
+    work.comment(conn, row["item_id"], by, f"Handover to {to}: done: {done}; left: {left}"
+                 + (f"; unsafe to leave: {unsafe}" if unsafe else "") + ". Stays with " + by + " until accepted.")
+    events.publish(conn, "exception.handover", f"exception:{row['id']}", {**_payload(row), "from": by, "to": to})
+    return _row(conn, row["id"])
+
+
+def accept_handover(conn, exception_id: int, by: str) -> dict:
+    """The incoming person takes the job handed to them (P5.11c): it moves to them, and who and when is kept."""
+    row = _row(conn, exception_id, lock=True)
+    if row["joined_to"]:
+        return accept_handover(conn, row["joined_to"], by)
+    h = (row["evidence"] or {}).get("handover")
+    if not h or h.get("accepted_at"):
+        raise ExceptionError("nothing is waiting to be handed over on this job")
+    if h["to"] != by:
+        raise ExceptionError(f"this handover is for {h['to']}")
+    work.dispatch(conn, row["item_id"], h["from"], by, f"handover: {h['left']}")
+    h = {**h, "accepted_at": conn.execute("select now() as t").fetchone()["t"].isoformat()}
+    conn.execute("update exception_record set evidence = jsonb_set(evidence, '{handover}', %s) "
+                 "|| jsonb_build_object('handovers', coalesce(evidence->'handovers', '[]') || %s), updated_at = now() "
+                 "where id = %s", (Jsonb(h), Jsonb([h]), row["id"]))
+    work.comment(conn, row["item_id"], by, f"Accepted the handover from {h['from']}")
+    events.publish(conn, "exception.handover_accepted", f"exception:{row['id']}",
+                   {**_payload(row), "from": h["from"], "to": by})
+    return _row(conn, row["id"])
 
 
 def _permit(conn, subjects: list[str], exception_id: int) -> dict | None:
