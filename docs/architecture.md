@@ -85,6 +85,7 @@ flowchart LR
   src_gis[/"gis"/]
   src_jde[/"jde"/]
   src_maximo[/"maximo"/]
+  src_moc[/"moc"/]
   src_oplog[/"oplog"/]
   src_pi[/"pi"/]
   src_pi_af[/"pi_af"/]
@@ -96,6 +97,7 @@ flowchart LR
   src_teams[/"teams"/]
   kind_accounting_volume(["accounting_volume"])
   kind_bypass(["bypass"])
+  kind_change(["change"])
   kind_conversation(["conversation"])
   kind_document(["document"])
   kind_document_section(["document_section"])
@@ -133,6 +135,7 @@ flowchart LR
   src_gis --> kind_well
   src_jde --> kind_equipment
   src_maximo --> kind_equipment
+  src_moc --> kind_change
   src_oplog --> kind_log_entry
   src_pi --> kind_timeseries
   src_pi_af --> kind_plant_hierarchy__facility__area__tag__well

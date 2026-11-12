@@ -54,3 +54,24 @@ def test_an_overdue_bypass_is_work_for_the_ops_lead_until_it_is_removed(kestrel_
     finally:  # back in place, for the other tests on this database
         conn.execute("update golden set value = to_jsonb('active'::text) where field = 'state' and fuzer_id = %s", (byp,))
         conn.commit()
+
+
+def test_a_case_on_the_system_leads_its_evidence_with_the_bypass_and_the_open_changes(kestrel_db):
+    """P3.9b: a case on the compressor shows its scrubber's trip bypassed (same train, by the piping) and the open
+    alarm change on its discharge temperature; one on the reboiler shows its shutdown bypassed under its change."""
+    from fuzer.api.workflow import work_item_safeguards  # what the case page reads
+    from fuzer.core.exceptions import raise_exception
+
+    conn = kestrel_db
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    k = raise_exception(conn, "records_gap", "test-k", "Compressor question", "test", refs=[_fid(conn, "B1-K-2001")])
+    r = raise_exception(conn, "records_gap", "test-r", "Reboiler question", "test", refs=[_fid(conn, "C1-H-3008")])
+    conn.commit()
+    on_k = safeguards.on_case(conn, k["item_id"])
+    assert [b["label"] for b in on_k["bypasses"]] == ["BYP-KR-031"] and on_k["bypasses"][0]["overdue"]
+    assert [c["label"] for c in on_k["changes"]] == ["MOC-KR-0138"]  # MOC-KR-0117 on the inlet is closed and elsewhere
+    got = work_item_safeguards(r["item_id"], conn=conn)
+    assert [b["label"] for b in got["bypasses"]] == ["BYP-KR-032"] and got["bypasses"][0]["moc"] == "MOC-KR-0142"
+    assert [c["label"] for c in got["changes"]] == ["MOC-KR-0142"]

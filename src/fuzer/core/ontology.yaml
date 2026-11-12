@@ -98,6 +98,11 @@ kinds:
     group: Maintenance
     colour: "#d08a3c"
     description: A safeguard taken out of service, with its state, when it went in, its expiry and change record.
+  change:
+    label: Change record
+    group: Maintenance
+    colour: "#9a6fb0"
+    description: A management of change record, with its type, state, and when it opened and must close.
   round_point:
     label: Round point
     group: Maintenance
@@ -372,8 +377,8 @@ relations:
   concerns:
     label: concerns
     view: maintenance
-    description: A notification, work order or plan and the tag, equipment, area or facility it is for.
-    from: [notification, work_order, maintenance_plan]
+    description: A notification, work order, plan or change record and the tag, equipment, area or facility it is for.
+    from: [notification, work_order, maintenance_plan, change]
     to: [tag, equipment, area, facility]
   for_notification:
     label: for notification

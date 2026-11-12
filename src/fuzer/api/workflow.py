@@ -361,6 +361,15 @@ def work_item_around(item_id: int, conn=Depends(get_conn)):
     return around.context(conn, item_id)
 
 
+@router.get("/work/items/{item_id}/safeguards")
+def work_item_safeguards(item_id: int, conn=Depends(get_conn)):
+    """The safeguard bypasses in place on the system the case is about, and the open changes on it (P3.9b): the
+    banner at the top of its evidence."""
+    from ..ops import safeguards
+
+    return safeguards.on_case(conn, item_id)
+
+
 @router.get("/work/inbox/fields")
 def work_inbox_fields(person: str):
     """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for
