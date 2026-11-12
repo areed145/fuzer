@@ -233,3 +233,35 @@ def plot_intervention_gains(since: str | None = None, until: str | None = None, 
     """Chart each intervention's oil gain net of decline, with its range; unknown ones are listed, not drawn."""
     from ...plots import production
     return _chart(production.intervention_gains, {"since": since, "until": until, "days": days})
+
+
+@capability("wells-subsurface", "production-surveillance", kind="calc")
+def well_diagnostics(well: str | None = None) -> dict[str, Any]:
+    """Water breakthrough and gas screening (#339). With a well: its water cut against cumulative oil (estimated from
+    tests and labelled so), its GOR over time, and the first test where water cut stepped up 15 points over the tests
+    before (a breakthrough suggestion) or GOR climbed 30 % end to end. Without: every well with such a pattern, and
+    test staleness across the field. Patterns are suggestions; the mechanism stays the engineer's question."""
+    from ...analysis import well_diagnostics as wd
+    with db.connect() as conn:
+        if well:
+            fid, err = _resolve(conn, well)
+            if err:
+                return err
+            return _plain(wd.diagnose(conn, fid))
+        return _plain(wd.screen(conn))
+
+
+@capability("wells-subsurface", "production-surveillance", kind="calc")
+def test_staleness(max_days: int = 90) -> dict[str, Any]:
+    """Every well's latest test and its age at the data's latest day; stale beyond `max_days` (default 90). Rates,
+    forecasts and allocation built on a stale test carry its age. A well with no test on file is listed apart."""
+    from ...analysis import well_diagnostics as wd
+    with db.connect() as conn:
+        return _plain(wd.staleness(conn, max(1, min(max_days, 3650))))
+
+
+@capability("wells-subsurface", "production-surveillance", kind="plot")
+def plot_gor_trend(well: str) -> dict[str, Any]:
+    """Chart one well's GOR over its tests, with its first and latest levels when it climbed."""
+    from ...plots import production
+    return _chart(production.gor_trend, {}, {"well": well})
