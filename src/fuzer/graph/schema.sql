@@ -29,6 +29,8 @@ create table if not exists crosswalk (
     primary key (source, record_type, source_key)
 );
 create index if not exists crosswalk_fuzer_id on crosswalk (fuzer_id);
+-- Resolving a reference (graph.queries.records) matches a record's key case-insensitively, on every lookup.
+create index if not exists crosswalk_key_upper on crosswalk (upper(source_key));
 
 -- Canonical keys (tag key, serial, well key, ...) -> Fuzer ID.
 create table if not exists entity_key (
@@ -38,6 +40,7 @@ create table if not exists entity_key (
     primary key (kind, key, fuzer_id)
 );
 create index if not exists entity_key_fuzer_id on entity_key (fuzer_id);
+create index if not exists entity_key_key on entity_key (key);  -- a key looked up whatever its kind
 
 -- One display label per entity, kept by every rebuild (a table, not a view: computing it from
 -- entity_key on every query cost seconds at 300k entities).
