@@ -21,6 +21,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`source_health`](#source_health) A dataset that failed, is held, is stale or fails its checks | Rule | Every 30 minutes | `source_issue` | Any asset with the inputs |
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
 | [`bypass_overdue`](#bypass_overdue) A safeguard still bypassed past its expiry | Rule | Every 30 minutes | `bypass_overdue` | Any asset with the inputs |
+| [`proof_test_overdue`](#proof_test_overdue) A safeguard past its proof test interval | Rule | Once a day | `proof_test_overdue` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
@@ -219,6 +220,16 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `bypass_overdue`
 - **Needs:** safeguard bypass records
 - **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_an_overdue_bypass_is_work_for_the_ops_lead_until_it_is_removed`, on the fake plant
+
+## proof_test_overdue
+
+**A safeguard past its proof test interval.** Each safeguard overdue for its proof test raised as `proof_test_overdue` for the engineer (keyed by the safeguard); open ones now tested within their interval are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `proof_test_overdue`
+- **Needs:** proof test intervals on the safeguard register
+- **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested`, on the fake plant
 
 ## unrecorded_changes
 

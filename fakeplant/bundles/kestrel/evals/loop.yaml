@@ -34,6 +34,8 @@ arrive:
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   # The suction scrubber's high-high level trip, still bypassed past its expiry (the bypass register)
   bypass_overdue: {detector: bypass_overdue}
+  # The suction scrubber's high-high level trip, last proof tested 400 days ago on a 12 month interval
+  proof_test_overdue: {detector: proof_test_overdue}
   # D1-E-4006's temperature cycling every two hours: a loop candidate for the engineer
   loop_candidate: {detector: loop_oscillation}
   # The next well test delivery: KR 12-03H's water cut up from 2.5 to 14 % on yesterday's test
