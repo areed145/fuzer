@@ -1,0 +1,319 @@
+# The method registry (P1.3): every calculation an agent or a detector can call, as data.
+#
+# Each method names the standard behind it (or, where no published standard applies, the engineering practice it
+# follows), its inputs with units, where it is valid, the data it needs before it answers, the thresholds it
+# flags at, and at least one test vector with a known answer:
+#   kernel: a pure function (module:function) with literal arguments and the answer worked by hand
+#   worked: a test that runs the method on the fake plant's injected story
+# Standards are cited as the code applies them; verify clauses against your licensed copy before relying on one.
+# `thresholds` carry `code` (module:CONSTANT) where the calculation reads the same number, so a test keeps the two
+# equal. docs/methods.md is generated from this file; tests/analysis/test_methods.py checks every entry.
+
+decline:
+  title: Latest well test against the Arps decline
+  standard: "Arps, Analysis of Decline Curves (1945)"
+  inputs: [{name: Well tests (oil rate), unit: Sm³/d}]
+  valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change.
+  needs: At least four well tests.
+  vectors:
+    - kernel: fuzer.analysis.calcs:arps
+      args: [[0, 1, 2, 3, 4], [100.0, 81.873075, 67.032005, 54.881164, 44.932896], exponential]
+      expect: {model: exponential, qi: 100.0, D: 0.2, b: 0.0}
+      says: A rate of 100 falling 20 % a year, sampled yearly, fits back to qi 100 and D 0.2.
+
+gas_lift:
+  title: Lift gas against the economic optimum of the well's lift curve
+  practice: Gas lift performance curve fitted to the well's own tests; the optimum is where one more unit of gas gains the breakeven oil.
+  inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Lift gas rate, unit: kSm³/d}]
+  valid: Gas lifted wells with tests at three or more distinct gas rates.
+  needs: At least four well tests with a lift gas rate.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
+
+pump_curve:
+  title: Pump head against the OEM curve at the same flow
+  practice: Differential head from suction and discharge pressure compared with the manufacturer's head curve.
+  inputs: [{name: Flow, unit: m³/h}, {name: Suction and discharge pressure, unit: barg}, {name: OEM head curve, unit: m}]
+  valid: Centrifugal pumps with an accepted OEM curve, while running.
+  needs: A minimum count of running readings in the recent window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
+
+choke:
+  title: Choke effective Cv against its characteristic
+  practice: Effective flow coefficient from the tested rate and pressure drop, as a ratio to the trim's characteristic at the same opening.
+  inputs: [{name: Choke opening, unit: "%"}, {name: Upstream and downstream pressure, unit: barg}, {name: Well test rates, unit: Sm³/d}]
+  valid: Production chokes with a characteristic on record.
+  needs: Three or more readings since the trim was last replaced, else the latest readings before.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_checks_flag_the_okan_stories_as_of_then"}]
+
+reliability:
+  title: Weibull and Crow-AMSAA on the failure history
+  standard: "IEC 61649 (Weibull analysis); IEC 61164 (reliability growth, power law)"
+  inputs: [{name: Failure notifications, unit: dates}]
+  valid: Repairable units or a class of them with repeat failures.
+  needs: Three times between failures for Weibull; four failures for Crow-AMSAA.
+  vectors:
+    - kernel: fuzer.analysis.calcs:weibull
+      args: [[37.2608, 61.4871, 83.2555, 107.5068, 142.9361]]
+      expect: {beta: 2.0, eta: 100.0}
+      says: Five times placed exactly on the median-rank line of a Weibull with beta 2 and eta 100 fit back to it.
+    - kernel: fuzer.analysis.calcs:crow_amsaa
+      args: [[2000-01-01, 2001-02-04, 2002-06-19, 2004-05-19, 2006-11-05]]
+      expect: {beta: 0.5, lam: 0.1}
+      says: Failures at 400, 900, 1600 and 2500 days after the first follow N = 0.1 t^0.5 exactly.
+
+wall_loss:
+  title: Wall loss rate and remaining life per CML
+  standard: "API 570 / API 510"
+  inputs: [{name: Wall thickness readings per CML, unit: mm}, {name: Minimum required thickness, unit: mm}]
+  valid: Vessels, piping and pipelines with repeat thickness surveys at the same locations.
+  needs: Wall thickness readings on the item.
+  vectors:
+    - kernel: fuzer.analysis.calcs:remaining_life
+      args: [8.0, -0.5, 5.0]
+      expect: 6.0
+      says: 8.0 mm losing 0.5 mm a year reaches a 5.0 mm minimum in 6 years.
+
+corrosion_circuit:
+  title: "Corrosion circuit: long and short term rate, remaining life, next inspection"
+  standard: "API 570"
+  clause: "7.1"
+  inputs: [{name: Wall thickness readings per CML, unit: mm}, {name: Maximum operating pressure, unit: barg}, {name: Nominal diameter, unit: in}]
+  valid: In-service lines of one service. The retirement thickness is the Barlow pressure design thickness (ASME B31.4 / B31.8) on an assumed API 5L X52 grade unless one is given.
+  needs: Wall thickness readings on a line of the circuit.
+  vectors:
+    - kernel: fuzer.analysis.integrity:cml_rate
+      args: [[{at: "2015-01-01", value: 10.0}, {at: "2020-01-01", value: 9.0}, {at: "2021-01-01", value: 8.6}]]
+      expect: {long_term: 0.23328, short_term: 0.39918, governing: 0.39918}
+      says: 1.4 mm lost over six years is 0.233 mm/year long term; 0.4 mm in the last year governs.
+    - kernel: fuzer.analysis.integrity:design_thickness
+      args: [100.0, 12]
+      expect: 6.2655
+      says: "Barlow at 100 barg on 323.9 mm OD, X52 at a 0.72 design factor: 10 x 323.9 / (2 x 359 x 0.72)."
+
+well_constraint:
+  title: What limits a well (choke, back-pressure or lift)
+  practice: Critical or subcritical choke flow from the pressure ratio across the choke, with the header pressure and the lift curve.
+  inputs: [{name: Wellhead and header pressure, unit: barg}, {name: Choke opening, unit: "%"}]
+  valid: Producing wells with a wellhead pressure and their jacket's header pressure.
+  needs: A production header pressure for the well's jacket.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+dp_drift:
+  title: Wellhead-to-header pressure drop drift
+  practice: Trend of the flowline pressure drop between well tests; a sustained rise is a restriction building.
+  inputs: [{name: Wellhead and header pressure, unit: barg}]
+  valid: Producing wells over a window with no choke move or reroute.
+  needs: A production header pressure for the well's jacket.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+compressor_performance:
+  title: Compressor stage polytropic efficiency and head
+  practice: Polytropic efficiency from suction and discharge pressure and temperature on ideal-gas properties, the last days against the window's first week.
+  inputs: [{name: Suction and discharge pressure, unit: barg}, {name: Suction and discharge temperature, unit: "°C"}]
+  valid: Compressor stages with all four measurements, while running. Use gas_performance where real-gas properties matter.
+  needs: A suction temperature for the stage and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+cooler_fouling:
+  title: Cooler outlet temperature against its clean baseline
+  practice: Rise of the outlet temperature above the level after the last cleaning, and when it reaches the high limit at that rate.
+  inputs: [{name: Outlet temperature, unit: "°C"}]
+  valid: Coolers with an outlet temperature point and steady duty.
+  needs: At least 14 days of outlet temperature.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+peers:
+  title: Units of a class side by side
+  practice: Failures per year, MTBF, oil lost and vibration per unit, with outliers by robust z-score from the class median.
+  inputs: [{name: Failure notifications, unit: dates}, {name: Vibration, unit: mm/s}]
+  valid: Equipment classes or models with several installed units.
+  needs: At least three units to compare.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+vibration:
+  title: Overall vibration against the evaluation zones
+  standard: "ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors"
+  inputs: [{name: Overall vibration velocity, unit: mm/s RMS}]
+  valid: "Group 1 (300 kW to 50 MW) and group 2 (15 to 300 kW) machines on rigid or flexible foundations, while running."
+  needs: A vibration point in mm/s with enough readings in the window.
+  vectors:
+    - kernel: fuzer.analysis.rotating:zone_of
+      args: [5.0, [2.3, 4.5, 7.1]]
+      expect: C
+      says: 5.0 mm/s on a group 1 machine on a rigid foundation is between 4.5 and 7.1, which is zone C.
+
+pump_bep:
+  title: Pump operating region against best efficiency point
+  standard: "API 610 (preferred and allowable operating regions)"
+  inputs: [{name: Flow, unit: m³/h}, {name: OEM curve with best efficiency point, unit: m³/h}]
+  valid: Centrifugal pumps whose OEM curve gives a best efficiency point.
+  needs: An OEM curve with a best efficiency point.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+surge:
+  title: Compressor surge margin against the OEM map
+  practice: Suction flow over the surge flow at the running speed from the manufacturer's map, with recycle valve duty and head against the map.
+  inputs: [{name: Suction flow, unit: m³/h}, {name: Speed, unit: rpm}, {name: Anti-surge valve opening, unit: "%"}]
+  valid: Centrifugal stages with an OEM map that gives a rated speed and design point.
+  needs: An OEM map for the stage and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+surge_events:
+  title: Surge events from their signature
+  practice: A collapse of suction flow with the anti-surge valve snapping open in the same minutes, while the train runs.
+  inputs: [{name: Suction flow, unit: m³/h}, {name: Anti-surge valve opening, unit: "%"}]
+  valid: Centrifugal stages with a suction flow and an anti-surge valve position.
+  needs: Suction flow and valve position over the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+heat_rate:
+  title: Gas turbine heat rate against the OEM curves
+  practice: Fuel energy per unit of output against the manufacturer's expected heat rate at the same load and ambient temperature.
+  inputs: [{name: Fuel gas flow, unit: Sm³/h}, {name: Output power, unit: kW}, {name: Ambient temperature, unit: "°C"}]
+  valid: Gas turbine drivers with OEM performance curves for the model.
+  needs: OEM curves for the model and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+motor_load:
+  title: Motor load against nameplate and service factor
+  practice: Median running power as a share of the nameplate rating, with hours above the rating and above the service factor.
+  inputs: [{name: Motor power, unit: kW}, {name: Nameplate rating, unit: kW}]
+  valid: Electric motor driven machines with a power point.
+  needs: A motor power point and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+rotating_health:
+  title: Rotating machine health summary
+  standard: "ISO 14224 (rotating classes); each check that applies cites its own standard"
+  inputs: [{name: The inputs of every check that applies to the machine's class, unit: various}]
+  valid: Any rotating machine. Checks whose inputs are missing are listed as not checked.
+  needs: At least one check able to run on the machine.
+  vectors: [{worked: "tests/analysis/test_condition.py::test_the_screen_raises_the_new_findings_with_their_remaining_life"}]
+
+rod_load:
+  title: Reciprocating compressor rod load and reversal
+  standard: "API 618"
+  inputs: [{name: Cylinder suction and discharge pressure, unit: barg}, {name: Rated rod load, unit: kN}]
+  valid: Reciprocating compressors with cylinder geometry on record.
+  needs: Cylinder pressures and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_recip.py::test_a_leaking_second_stage_valve_pushes_first_stage_rod_load_past_the_rating"}]
+
+valve_health:
+  title: Reciprocating compressor valve health
+  standard: "API 618"
+  inputs: [{name: Cylinder discharge temperatures, unit: "°C"}, {name: Stage pressures, unit: barg}]
+  valid: Reciprocating compressors with two or more cylinders on a stage.
+  needs: Two cylinder discharge temperatures on the same stage and enough running time.
+  vectors: [{worked: "tests/analysis/test_recip.py::test_the_leaking_cylinder_runs_hot_and_the_stage_ratios_shift"}]
+
+compressor_trip:
+  title: Trip diagnosis from the first point to move
+  standard: "ISO 13379-1 (symptom to cause)"
+  inputs: [{name: Run signal, unit: kW or rpm}, {name: Every point on the train, unit: various}, {name: Alarm and trip settings, unit: various}]
+  valid: Compression trains with a run signal. Each point is judged against its own hours before the trip.
+  needs: A trip of the train in the two days before the time asked about.
+  vectors: [{worked: "tests/analysis/test_trips.py::test_train_b_tripped_on_the_bearing_vibration_it_showed_for_hours"}]
+
+failed_starts:
+  title: Failed start attempts
+  practice: Starts that did not reach running within the start window, with the reason each one stopped.
+  inputs: [{name: Run signal, unit: kW or rpm}]
+  valid: Compression trains with a run signal.
+  needs: A run signal over the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+protection:
+  title: Machinery protection channels against their settings
+  standard: "API 670"
+  inputs: [{name: Shaft vibration, unit: µm}, {name: Axial position, unit: mm}, {name: Bearing temperature, unit: "°C"}]
+  valid: Machines with protection channels and their alarm and trip settings on record, while running.
+  needs: Protection channels on the machine and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+seal_gas:
+  title: Dry gas seal primary vent flow
+  standard: "API 692"
+  inputs: [{name: Primary vent flow, unit: Nm³/h}]
+  valid: Compressors with dry gas seals and a vent flow point.
+  needs: At least 14 running days of seal vent flow.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+lube_oil:
+  title: Lube oil header pressure and supply temperature
+  standard: "API 614"
+  inputs: [{name: Header pressure, unit: barg}, {name: Supply temperature, unit: "°C"}]
+  valid: Machines with a lube oil system and its alarm and trip settings on record.
+  needs: A lube oil pressure or temperature point and enough running time.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+gas_performance:
+  title: Compressor stage performance on real-gas properties
+  standard: "ASME PTC 10 (Schultz polytropic analysis); ISO 5389"
+  inputs: [{name: Suction and discharge pressure, unit: barg}, {name: Suction and discharge temperature, unit: "°C"}, {name: Gas analysis, unit: mol %}]
+  valid: Centrifugal compressor stages with a gas analysis for the service.
+  needs: A centrifugal stage and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+power_balance:
+  title: Stage gas power against driver output
+  standard: "ASME PTC 10"
+  inputs: [{name: Stage gas power, unit: kW}, {name: Gas turbine output power, unit: kW}]
+  valid: Gas turbine driven centrifugal trains with every stage measurable.
+  needs: An output power point on the driver and every stage measurable in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+exhaust_spread:
+  title: Gas turbine exhaust temperature spread
+  practice: Spread between exhaust thermocouples against its clean level, naming the thermocouple that wandered.
+  inputs: [{name: Exhaust thermocouples, unit: "°C"}]
+  valid: Gas turbines with three or more exhaust thermocouples, while running.
+  needs: Three exhaust thermocouples and enough running time in the window.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+hot_section:
+  title: Fired hours against the hot section inspection interval
+  practice: Running hours since the last hot section inspection against the maintenance plan's interval.
+  inputs: [{name: Run signal, unit: kW or rpm}, {name: Hot section inspection plan, unit: h}]
+  valid: Gas turbines with a hot section inspection plan that has a last-done date and an interval.
+  needs: A hot section inspection plan with a last-done date and an interval.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+engine_cylinders:
+  title: Gas engine cylinder exhaust temperatures
+  practice: Each cylinder's exhaust temperature against the others; a cold one misfires, a hot one is overloaded or lean.
+  inputs: [{name: Cylinder exhaust temperatures, unit: "°C"}]
+  valid: Gas engine driven machines with a thermocouple per cylinder, while running.
+  needs: Cylinder exhaust temperatures and running time in the last two days.
+  vectors: [{worked: "tests/analysis/test_recip.py::test_the_gas_engine_driver_has_a_misfiring_cylinder"}]
+
+remaining_life:
+  title: Remaining life from the trend to its limit
+  standard: "ISO 13381-1"
+  inputs: [{name: A trended condition parameter, unit: various}, {name: Its alarm or trip limit, unit: various}]
+  valid: Rotating machines with a trend heading for a limit. The date carries a 90 % range.
+  needs: A trend on the machine that heads for a limit.
+  vectors: [{worked: "tests/analysis/test_condition.py::test_the_screen_raises_the_new_findings_with_their_remaining_life"}]
+
+test_check:
+  title: Latest well test against inflow and the lift curve
+  practice: The test's liquid rate against the well's own inflow per bar of drawdown and, on a lifted well, its lift curve.
+  inputs: [{name: Well tests with water cut, unit: Sm³/d}, {name: Flowing and shut-in wellhead pressure, unit: barg}]
+  valid: Oil wells with a shut-in wellhead pressure in the last two years.
+  needs: At least four oil well tests with a water cut, and a shut-in wellhead pressure.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+deferment_attribution:
+  title: Shortfall against decline, by cause
+  practice: Each well's latest test below its Arps decline, given one cause and summed by cause across the scope.
+  inputs: [{name: Well tests (oil rate), unit: Sm³/d}, {name: Deferment records, unit: Sm³}]
+  valid: A jacket, area or facility with oil wells that have enough tests for a decline fit.
+  needs: At least one oil well in scope with enough tests for a decline fit.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]
+
+vessel_loading:
+  title: Offered load against a rating
+  practice: What the wells upstream offer at their tested rates against the item's standing rating, in the rating's own units.
+  inputs: [{name: Well test rates of the wells upstream, unit: Sm³/d}, {name: Rating, unit: the rating's own}]
+  valid: Separators, scrubbers and meters with a liquid, oil or gas rating and wells upstream on the flow network.
+  needs: A rating on record and wells upstream of the item.
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_every_check_returns_evidence_and_names_its_users"}]

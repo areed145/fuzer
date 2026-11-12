@@ -253,42 +253,42 @@ Called by agents as themselves through the workflow engine.
 
 ## Calc checks
 
-`calc(check, ref)` runs one; each returns {value, expected, deviation, flag, basis, sources}.
+`calc(check, ref)` runs one; each returns {value, expected, deviation, flag, basis, sources, method}. [Methods](methods.md) has each one's standard, inputs and test vectors.
 
-| Check | On | Also used by |
-|---|---|---|
-| `decline` | well | chart `plot_decline` |
-| `gas_lift` | well | chart `plot_gas_lift_curve` |
-| `pump_curve` | pump tag or equipment | chart `plot_pump_curve` |
-| `choke` | well or its choke tag | chart `plot_choke` |
-| `reliability` | tag, equipment or equipment class | chart `plot_reliability` |
-| `wall_loss` | vessel, piping or pipeline | chart `plot_wall_thickness` |
-| `well_constraint` | well |  |
-| `dp_drift` | well | SRE detector `sre.hydraulics` |
-| `compressor_performance` | compressor stage tag | chart `plot_compressor_performance` |
-| `cooler_fouling` | cooler tag | chart `plot_cooler_fouling` |
-| `peers` | tag, equipment class or model | chart `plot_peers` |
-| `vibration` | machine tag or equipment |  |
-| `pump_bep` | pump tag or equipment |  |
-| `surge` | compressor stage tag or equipment |  |
-| `heat_rate` | gas turbine tag or equipment |  |
-| `motor_load` | motor-driven machine tag or equipment |  |
-| `rotating_health` | machine tag or equipment |  |
-| `rod_load` | reciprocating compressor tag or equipment |  |
-| `valve_health` | reciprocating compressor tag or equipment |  |
-| `compressor_trip` | compressor (any machine of the train) | SRE detector `trips.scan` |
-| `protection` | compressor or other machine with API 670 channels |  |
-| `seal_gas` | compressor with dry gas seals |  |
-| `lube_oil` | gas turbine, engine or compressor with a lube oil system |  |
-| `surge_events` | centrifugal compressor stage |  |
-| `gas_performance` | centrifugal compressor stage |  |
-| `power_balance` | gas turbine or a machine on its train |  |
-| `exhaust_spread` | gas turbine |  |
-| `hot_section` | gas turbine |  |
-| `engine_cylinders` | gas engine driven machine |  |
-| `remaining_life` | rotating machine |  |
-| `failed_starts` | compressor or its train |  |
-| `test_check` | oil well |  |
-| `deferment_attribution` | jacket, area or facility (or one well) |  |
-| `vessel_loading` | separator, scrubber or meter tag with a rating |  |
-| `corrosion_circuit` | pipeline, vessel or piping tag |  |
+| Check | On | Method | Also used by |
+|---|---|---|---|
+| `decline` | well | Arps, Analysis of Decline Curves (1945) | chart `plot_decline` |
+| `gas_lift` | well | Engineering practice | chart `plot_gas_lift_curve` |
+| `pump_curve` | pump tag or equipment | Engineering practice | chart `plot_pump_curve` |
+| `choke` | well or its choke tag | Engineering practice | chart `plot_choke` |
+| `reliability` | tag, equipment or equipment class | IEC 61649 (Weibull analysis); IEC 61164 (reliability growth, power law) | chart `plot_reliability` |
+| `wall_loss` | vessel, piping or pipeline | API 570 / API 510 | chart `plot_wall_thickness` |
+| `well_constraint` | well | Engineering practice |  |
+| `dp_drift` | well | Engineering practice | SRE detector `sre.hydraulics` |
+| `compressor_performance` | compressor stage tag | Engineering practice | chart `plot_compressor_performance` |
+| `cooler_fouling` | cooler tag | Engineering practice | chart `plot_cooler_fouling` |
+| `peers` | tag, equipment class or model | Engineering practice | chart `plot_peers` |
+| `vibration` | machine tag or equipment | ISO 20816-3 (formerly ISO 10816-3); ISO 20816-8 for reciprocating compressors |  |
+| `pump_bep` | pump tag or equipment | API 610 (preferred and allowable operating regions) |  |
+| `surge` | compressor stage tag or equipment | Engineering practice |  |
+| `heat_rate` | gas turbine tag or equipment | Engineering practice |  |
+| `motor_load` | motor-driven machine tag or equipment | Engineering practice |  |
+| `rotating_health` | machine tag or equipment | ISO 14224 (rotating classes); each check that applies cites its own standard |  |
+| `rod_load` | reciprocating compressor tag or equipment | API 618 |  |
+| `valve_health` | reciprocating compressor tag or equipment | API 618 |  |
+| `compressor_trip` | compressor (any machine of the train) | ISO 13379-1 (symptom to cause) | SRE detector `trips.scan` |
+| `protection` | compressor or other machine with API 670 channels | API 670 |  |
+| `seal_gas` | compressor with dry gas seals | API 692 |  |
+| `lube_oil` | gas turbine, engine or compressor with a lube oil system | API 614 |  |
+| `surge_events` | centrifugal compressor stage | Engineering practice |  |
+| `gas_performance` | centrifugal compressor stage | ASME PTC 10 (Schultz polytropic analysis); ISO 5389 |  |
+| `power_balance` | gas turbine or a machine on its train | ASME PTC 10 |  |
+| `exhaust_spread` | gas turbine | Engineering practice |  |
+| `hot_section` | gas turbine | Engineering practice |  |
+| `engine_cylinders` | gas engine driven machine | Engineering practice |  |
+| `remaining_life` | rotating machine | ISO 13381-1 |  |
+| `failed_starts` | compressor or its train | Engineering practice |  |
+| `test_check` | oil well | Engineering practice |  |
+| `deferment_attribution` | jacket, area or facility (or one well) | Engineering practice |  |
+| `vessel_loading` | separator, scrubber or meter tag with a rating | Engineering practice |  |
+| `corrosion_circuit` | pipeline, vessel or piping tag | API 570 7.1 |  |

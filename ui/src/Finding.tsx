@@ -22,11 +22,11 @@ function Value({ item }: { item: FindingItem }) {
  * found comes first (rule, agent or another system, with the method and its standard), then when, then what was
  * found as labelled values with their units, times in local time and assets by name. */
 export function FindingEvidence({ finding, checks = true }: { finding: Finding; checks?: boolean }) {
-  const how = [ORIGIN[finding.origin], finding.method].filter(Boolean).join(": ");
   return (
     <div className="finding">
       <dl className="kv small">
-        <div><dt>Found by</dt><dd>{how}</dd></div>
+        <div><dt>Found by</dt><dd>{ORIGIN[finding.origin]}</dd></div>
+        {finding.method && <div><dt>Method</dt><dd>{finding.method}</dd></div>}
         {finding.standard && <div><dt>Standard</dt><dd>{finding.standard}</dd></div>}
         {finding.start && <div><dt>Window</dt><dd><time dateTime={finding.start}>{when(finding.start)}</time>
           {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</dd></div>}

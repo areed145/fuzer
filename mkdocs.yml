@@ -64,6 +64,7 @@ nav:
       - roadmap.md
   - Reference:
       - capabilities.md
+      - methods.md
       - settings.md
       - cli.md
       - schema.md

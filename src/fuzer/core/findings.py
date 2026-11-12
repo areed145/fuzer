@@ -25,6 +25,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+from . import methods
+
 DETERMINISTIC, AGENTIC, EXTERNAL = "deterministic", "agentic", "external"
 ORIGINS = (DETERMINISTIC, AGENTIC, EXTERNAL)
 KINDS = ("text", "number", "flag", "time", "asset")
@@ -85,7 +87,7 @@ class Finding:
     detector: str                        # what saw it: a detector, a reader or the outside system ("limits.iow", "sap")
     origin: str                          # deterministic, agentic or external
     items: tuple = ()                    # what a person reads; None entries (nothing to say) are dropped
-    method: str | None = None            # how it was worked out, in words
+    method: str | None = None            # how it was worked out: a registered method's id (core.methods), else words
     standard: str | None = None          # the standard and clause behind the method
     start: datetime | str | None = None  # the time window it covers; no end while it is still going
     end: datetime | str | None = None
@@ -172,11 +174,15 @@ def shown(evidence: dict | None, source: str | None = None, subjects=(), value_u
         k: v for k, v in evidence.items() if k not in ("field", "resolved", "checklist")},
         checks=tuple(c for c in evidence.get("checklist") or [] if isinstance(c, str))).record()
     names = names or {}
+    how, standard = rec.get("method"), rec.get("standard")
+    if methods.known(how):  # a registered method reads as its title, with the standard the registry names
+        m = methods.get(how)
+        how, standard = m.title, standard or (m.cites if m.standard else None)
     items = [{**i, "text": names.get(i["value"])} if i.get("kind") == "asset" else i for i in rec.get("items", [])]
     # An asset nobody can name is not shown as its id
     items = [i for i in items if i.get("kind") != "asset" or i.get("text")]
     return {"detector": rec["detector"], "origin": rec["origin"], "origin_label": ORIGIN_WORDS[rec["origin"]],
-            "method": rec.get("method"), "standard": rec.get("standard"), "start": rec.get("start"),
+            "method": how, "standard": standard, "start": rec.get("start"),
             "end": rec.get("end"), "confidence": rec.get("confidence"), "items": items,
             "checks": rec.get("checks", []), "subjects": list(subjects), "value_usd": value_usd}
 

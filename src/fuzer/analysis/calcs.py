@@ -27,7 +27,16 @@ YEAR = 365.25
 
 
 class CalcError(ValueError):
-    """The data can't support the calc (too few tests, no curve, ...); the message says why."""
+    """The data can't support the calc (too few tests, no curve, ...); the message says why. Raised through `run`
+    it is a named refusal of a registered method (core.methods, P1.3): `name` and `method` say which."""
+    name: str = "insufficient_inputs"
+    method: str | None = None
+
+    def refusal(self) -> dict:
+        """The refusal as a result: {refused, reason, method}; {error} for a calc outside the registry."""
+        from ..core import methods
+
+        return methods.refusal(self.method, str(self), self.name) if self.method else {"error": str(self)}
 
 
 def result(value, expected, flag: str | None, basis: str, sources: list[str], **detail) -> dict:
@@ -719,12 +728,19 @@ CHECKS |= {
 
 
 def run(conn, check: str, fid: str, **options) -> dict:
-    """One check by name, with only the options it takes."""
+    """One check by name, with only the options it takes. Every check is a registered method (core.methods): the
+    result carries it as `method`, and a check that can't answer raises a CalcError that names its refusal."""
     import inspect
 
     if check not in CHECKS:
         raise CalcError(f"unknown check {check!r}; one of {', '.join(CHECKS)}")
+    from ..core import methods
+
     fn = CHECKS[check]["fn"]
     takes = inspect.signature(fn).parameters
-    return {"check": check, "of": {"id": fid, "label": _label(conn, fid)},
-            **fn(conn, fid, **{k: v for k, v in options.items() if v is not None and k in takes})}
+    try:
+        out = fn(conn, fid, **{k: v for k, v in options.items() if v is not None and k in takes})
+    except CalcError as e:  # a named refusal of the method, never a number the data can't support
+        e.name, e.method = methods.refusal_name(str(e)), check
+        raise
+    return {"check": check, "method": methods.describe(check), "of": {"id": fid, "label": _label(conn, fid)}, **out}

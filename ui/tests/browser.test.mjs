@@ -799,7 +799,7 @@ test("a drawing disagreement records which side needs changing and says neither 
   await page.route("**/review/11", (route) => { sent = route.request().postDataJSON(); return route.fulfill({ json: { decided: 11 } }); });
   await page.goto(`${url}/#/review?kind=pid_mismatch`);
   await page.getByRole("heading", { name: /Instrument drawn on another item/ }).waitFor();
-  assert.match(await page.locator(".review .finding").innerText(), /Found by\s+Agent: A drawing read by a model[\s\S]*Drawn on\s+20-K-2200B/);
+  assert.match(await page.locator(".review .finding").innerText(), /Found by\s+Agent\s+Method\s+A drawing read by a model[\s\S]*Drawn on\s+20-K-2200B/);
   assert.equal(await page.getByRole("link", { name: "Open OKAN-20-PID-005" }).count(), 1);
   await page.getByRole("button", { name: "Drawing is right, change SAP" }).click();
   await page.getByRole("button", { name: "Confirm decision", exact: true }).click();

@@ -820,8 +820,7 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
         title = f"{m['machine']} {'needs action' if m['status'] == 'act' else 'to watch'}: " + ", ".join(words)
         life = _prognosis(conn, m["id"], until)
         found = Finding(
-            "rotating.screen", DETERMINISTIC, method="Rotating equipment fleet screen", start=s["at"],
-            standard="ISO 20816-3 vibration zones; API 670 protection channels; ISO 14224 rotating classes",
+            "rotating.screen", DETERMINISTIC, method="rotating_health", start=s["at"],
             data={"status": m["status"], "flags": ", ".join(flags), "recommendations": recs, "at": s["at"]},
             items=(fact("Status", {"act": "needs action", "watch": "to watch"}[m["status"]]),
                    fact("Flagged for", ", ".join(words)), fact("Recommended first", (recs or [None])[0]),

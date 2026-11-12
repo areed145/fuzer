@@ -73,7 +73,7 @@ def test_trips_reach_the_ioc_with_the_restart_checklist(conn):
     assert out["trips"] == 1 and len(out["raised"]) == 1 and not out["errors"]
     row = conn.execute("select * from exception_record where type = 'machine_trip'").fetchone()
     found = row["evidence"]["finding"]
-    assert said(row)["Likely cause"] == "high vibration" and found["checks"] and found["standard"].startswith("ISO 13379")
+    assert said(row)["Likely cause"] == "high vibration" and found["checks"] and found["method"] == "compressor_trip"
     assert said(row)["First out"].endswith("20-VT-2200B.PV") and row["item_id"]
     again = trips.scan(conn, PACK, "2024-03-13T00:00", "2024-03-15T00:00")  # the same trip: no second exception
     assert again["raised"][0]["new"] is False
