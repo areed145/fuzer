@@ -819,6 +819,19 @@ Detection providers (P3.8, sources/providers.py): an outside tool's alerts (cond
 | `updated_by` | text |  |
 | `updated_at` | timestamptz |  |
 
+### `provider_poll`
+
+The last read of a polled provider's alert table (P3.8c): read again only when its fingerprint changes.
+
+| Column | Type | Note |
+|---|---|---|
+| `system` | text |  |
+| `name` | text |  |
+| `fingerprint` | text |  |
+| `alerts` | integer |  |
+| `errors` | jsonb |  |
+| `polled_at` | timestamptz |  |
+
 ### `provider_trust`
 
 How far a provider is trusted (P3.8b, #705), for every equipment class ('') or one: its alerts open their case for the role their type names (route), for the triage role first (triage), or are counted and kept with no case (mute). A person sets it, with a reason.

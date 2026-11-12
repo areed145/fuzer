@@ -20,7 +20,8 @@ hand-off (upsets), or a source's sync (SAP notifications). Kestrel's windows are
 process model. The arrive step takes the exception that came in, about an asset and with its own case; whatever else
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
 raised by the loop and listed as `synthetic`: today the steward questions the build raises (they open before the
-starting processes are loaded in the test fixtures) and the source and mapping types neither bundle produces.
+starting processes are loaded in the test fixtures) and the source and mapping types neither bundle produces. Gate A
+passed with this gap logged; #747 makes them arrive on their own.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser

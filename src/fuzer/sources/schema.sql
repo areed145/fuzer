@@ -363,6 +363,18 @@ create table if not exists detection_provider (
     primary key (system, name)
 );
 
+-- The last read of a polled provider's alert table (P3.8c): read again only when its fingerprint changes.
+create table if not exists provider_poll (
+    system      text not null,
+    name        text not null,
+    fingerprint text not null,
+    alerts      integer not null default 0,
+    errors      jsonb not null default '[]',
+    polled_at   timestamptz not null default now(),
+    primary key (system, name),
+    foreign key (system, name) references detection_provider (system, name) on delete cascade
+);
+
 -- How far a provider is trusted (P3.8b, #705), for every equipment class ('') or one: its alerts open their case
 -- for the role their type names (route), for the triage role first (triage), or are counted and kept with no case
 -- (mute). A person sets it, with a reason.

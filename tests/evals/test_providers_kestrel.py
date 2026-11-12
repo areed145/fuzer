@@ -124,3 +124,40 @@ def test_a_noisy_provider_is_muted_for_one_class_or_triaged_first_and_its_close_
     else:
         raise AssertionError("trust changed with no reason")
     conn.commit()
+
+
+def test_a_second_provider_is_a_mapping_and_a_connection_polled_and_offered_each_close_out(kestrel_db):
+    """P3.8c: CorrWatch, added with a pack and no code, writes its alerts to a CSV its connection holds. Polling reads
+    it once (again only when it changes), its alert is worked like any other, and the case's close-out is offered
+    back to it as a write-back a person approves. HealthWatch takes no feedback, so it is offered nothing."""
+    import yaml
+
+    from fuzer.core.pack import resolve
+    from fuzer.ops import disposition, writeback
+
+    conn = kestrel_db
+    engine.load_defaults(conn)
+    loop._people(conn)
+    corr = PACK.parent / "corrwatch.yaml"
+    packs.install(conn, corr.read_text(), "test")
+    conn.commit()
+    first = [x for x in providers.poll(conn, "data") if x.get("provider") == "corrwatch"]
+    assert first and not first[0]["errors"], first
+    [alert] = first[0]["alerts"]
+    assert alert["key"] == "CW-KR-0007" and alert["item_id"] and not alert["unmatched"]
+    assert next(x for x in providers.poll(conn, "data") if x.get("provider") == "corrwatch")["unchanged"]
+
+    disposition.record(conn, resolve(conn), alert["item_id"], "ana", "false_alarm", note="probe fouled, wall is fine")
+    offered = writeback.listing(conn, system="corrwatch")
+    assert [(w["kind"], w["record"], w["state"], w["payload"]["disposition"]) for w in offered] == [
+        ("detection_feedback", "CW-KR-0007", "awaiting_approval", "false_alarm")]
+    assert not writeback.listing(conn, system="healthwatch")
+
+    report = packs.conformance(conn, corr)
+    assert not report["problems"], report["problems"]
+    from fuzer.sources import catalog
+
+    exported = yaml.safe_load(catalog.export_pack(conn, "corrwatch"))
+    assert exported["detection_providers"][0]["poll"] == "corrosion_alerts"
+    assert exported["detection_providers"][0]["feedback"] is True
+    conn.commit()

@@ -214,15 +214,24 @@ def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
 
 
 def _sample_alerts(conn, system: str, pushes: list[dict], fixture: Path, problems: list[str]) -> dict:
-    """A push-only provider's fixture is a sample of its alerts (`<provider>.json` or `alerts.json`, dates relative to
-    today as the bundles write them): each must read through its mapping."""
+    """A provider's fixture is a sample of its alerts: a polled one's table (`poll`), else `<provider>.json` or
+    `alerts.json` (dates relative to today as the bundles write them). Each must read through its mapping."""
     import json
 
-    from . import providers
+    from . import connectors, providers
     from .relative_dates import resolve_all
 
     out = {}
     for p in pushes:
+        if p.get("poll"):
+            table = connectors.find(fixture, p["poll"])
+            if table is None:
+                problems.append(f"provider {p['name']}: its fixture has no {p['poll']} table to poll")
+                continue
+            res = providers.alerts(conn, system, list(table.rows()), p["name"])
+            problems.extend(f"provider {p['name']}: {e}" for e in res["errors"])
+            out[p["name"]] = len(res["alerts"])
+            continue
         sample = next((f for f in (fixture / f"{p['name']}.json", fixture / "alerts.json") if f.is_file()), None)
         if sample is None:
             problems.append(f"provider {p['name']}: its fixture has no {p['name']}.json or alerts.json of sample alerts")

@@ -9,6 +9,7 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
 - `dataset_schedules` sensor: a dataset with its own schedule (source_dataset.schedule, a cron) loads then.
 - `refresh_logs` hourly and `refresh_all` daily (02:00); `source_health` every 30 minutes tells owners about
   stale or broken sources (work items and the alert webhook).
+- `providers_poll` every 15 minutes reads each polled detection provider's alert table when it changed (P3.8c).
 - Each source asset has a check: its dataset's checks and health.
 - `claude_reading` nightly, off by default because it costs money. Turn it on in the UI.
 - Every schedule and sensor runs once per project this database holds (multi-project phase 4): each run is
@@ -474,6 +475,21 @@ def source_health():
     source_health_op()
 
 
+@dg.op(description="Read each polled detection provider's alert table when it has changed (P3.8c).")
+def providers_poll_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..core import events
+    from ..sources import providers
+    with fuzer.connect() as conn:
+        out = providers.poll(conn, fuzer.folder())
+        context.log.info(f"providers: {out}, events: {events.deliver(conn)}")
+        conn.commit()
+
+
+@dg.job(description="Detection providers: polled alert tables read when changed -> findings joined to cases.")
+def providers_poll():
+    providers_poll_op()
+
+
 # --- jobs, schedules, sensors -------------------------------------------------------------------
 
 refresh_all = dg.define_asset_job("refresh_all", selection=dg.AssetSelection.groups("sources", "register"),
@@ -522,6 +538,7 @@ schedules = [
     per_project(studies_job, "*/5 * * * *", RUNNING),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
     per_project(source_health, "*/30 * * * *", RUNNING),
+    per_project(providers_poll, "*/15 * * * *", RUNNING),
 ]
 
 
@@ -607,7 +624,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

@@ -1,0 +1,41 @@
+# A second fake detection provider (P3.8c, #706): a corrosion surveillance service, added with a mapping and a
+# connection and no code. Unlike HealthWatch it doesn't push: it writes its open alerts to a CSV in its export folder,
+# which Fuzer reads every 15 minutes when it changes (`poll`). It takes feedback: each close-out of a case its alert was
+# on is offered back to it as a detection_feedback write-back, which a person approves before the export carries it.
+fuzer_source_pack: 1
+fixture: ../corrwatch
+system:
+  name: corrwatch
+  kind: detection
+  owner: ana
+  enabled: true
+  writeback: {accepts: [detection_feedback], adapter: export}
+connections:
+- name: export
+  type: folder
+  config:
+    path: fakeplant/bundles/kestrel/corrwatch
+  secrets: {}
+  enabled: true
+exception_types:
+- name: corrosion_alert
+  label: Corrosion surveillance alert
+  role: role:engineer
+  audience: [ioc]
+  description: A corrosion rate or remaining wall alert from the corrosion surveillance service.
+detection_providers:
+- name: corrwatch
+  label: CorrWatch corrosion surveillance
+  type: corrosion_alert
+  key: "{alert_id}"
+  refs: ["tag:{vessel}"]
+  title: "{vessel}: corrosion rate {rate_mm_y} mm/y"
+  severity: {from: level, map: {alarm: 0.9, warning: 0.6, advisory: 0.3}}
+  start: "{raised}"
+  link: "{report}"
+  items:
+  - {label: Corrosion rate, from: rate_mm_y, unit: mm/y}
+  - {label: Remaining wall to minimum, from: remaining_mm, unit: mm}
+  clear_when: {state: {in: [closed]}}
+  poll: corrosion_alerts
+  feedback: true
