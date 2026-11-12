@@ -73,7 +73,13 @@ def test_handoff_prioritises_diagnoses_and_opens_work(conn, handed_off):
     assert sre_handoff.handoff(conn, PACK, ask=fake_ask)["candidates"] == 0  # handed off once
 
     # an engineer triages one as a false alarm: its pattern isn't handed off again
-    other = out["items"][-1]
+    from fuzer.core import gates
+
+    def critical(i):  # the auto-close gate never applies on a high-criticality asset; that case is the next test's
+        u = conn.execute("select first_unit, units from upset where id = %s", (i["upset"],)).fetchone()
+        return gates.most_critical(gates.criticality(conn, x) for x in [u["first_unit"], *(u["units"] or [])]) == "A"
+
+    other = next(i for i in reversed(out["items"]) if not critical(i))
     tok = conn.execute("select t.id from work_token t join work_process p on p.id = t.process_id "
                        "where p.item_id = %s and t.element = 'triage' and t.state = 'waiting'", (other["item_id"],)).fetchone()
     engine.set_person(conn, "alice", ["engineer"])
