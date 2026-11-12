@@ -418,3 +418,19 @@ create table if not exists source_correction (
     closed_at      timestamptz
 );
 create index if not exists source_correction_item on source_correction (review_item_id);
+
+-- Structured close-out (P6.1a, #655): what a closed case was, in controlled terms.
+create table if not exists case_disposition (
+    item_id      bigint primary key,
+    disposition  text not null,          -- real | false_alarm | duplicate | data_problem
+    failure_mode text,                   -- ISO 14224 codes from standards/iso14224.yaml
+    mechanism    text,
+    cause        text,
+    activity     text,
+    outcome      text,                   -- fixed | contained | not_fixed | monitoring
+    note         text,
+    duplicate_of bigint,
+    suggested    jsonb not null default '{}',   -- what the form was pre-filled with
+    by           text not null,
+    at           timestamptz not null default now()
+);

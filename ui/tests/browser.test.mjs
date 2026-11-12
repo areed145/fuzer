@@ -3508,3 +3508,51 @@ test("an uncertain measurement role is confirmed or corrected from Review, and s
   assert.equal(sent["7"].decision, "accept");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+// P6.1a (#655): closing a case on a phone says what it was in the ISO 14224 terms, pre-filled from the case's words.
+test("a case closes out on a phone with what it was, its failure mode, cause and action pre-filled (#655)", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let item = { ...demoTask.item, state: "open", closed_at: null, processes: [], events: [] };
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+  const vocabulary = {
+    dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate", data_problem: "Data problem" },
+    outcomes: { fixed: "Fixed", monitoring: "Being monitored" },
+    failure_modes: { VIB: "Vibration", ELP: "External leakage - process medium" },
+    mechanisms: { "2.4": "Wear" }, causes: { "1": "Design-related causes", "3": "Failure related to operation / maintenance" },
+    activities: { "1": "Replace", "2": "Repair" },
+  };
+  let record = null;
+  const posts = [];
+  await page.route("**/work/items/7/closeout", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      posts.push(body);
+      record = { item_id: 7, ...body, mechanism: null, duplicate_of: null, at: "2026-11-12T06:00:00Z" };
+      item = { ...item, state: "done", closed_at: "2026-11-12T06:00:00Z" };
+      return route.fulfill({ json: record });
+    }
+    return route.fulfill({ json: { item_id: 7, record, vocabulary,
+      suggestion: { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" } } });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  const started = Date.now();
+  await page.getByRole("button", { name: "Close out", exact: true }).click();
+  await page.getByText("Filled in from what the case says.", { exact: false }).waitFor();
+  assert.equal(await page.getByLabel("Failure mode").inputValue(), "VIB");
+  assert.equal(await page.getByLabel("Action taken").inputValue(), "1");
+  assert.equal(await page.getByRole("button", { name: "Close the case" }).isDisabled(), true);  // the cause is still to say
+  await page.getByLabel("Cause").selectOption("3");
+  await page.getByLabel("Outcome").selectOption("fixed");
+  const box = await page.getByLabel("Cause").boundingBox();
+  assert.ok(box.height >= 44, `a 44 px target, got ${box.height}`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("button", { name: "Close the case" }).click();
+  await page.getByText("A real problem: Vibration, cause failure related to operation / maintenance, replace; fixed").waitFor();
+  assert.ok(Date.now() - started < 60_000);
+  assert.equal(posts.length, 1);
+  assert.deepEqual([posts[0].by, posts[0].disposition, posts[0].failure_mode, posts[0].cause, posts[0].activity, posts[0].outcome],
+    ["fred", "real", "VIB", "3", "1", "fixed"]);
+  assert.deepEqual(posts[0].suggested, { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

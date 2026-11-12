@@ -221,6 +221,51 @@ class ExceptionDispatch(BaseModel):
     reason: str | None = None
 
 
+class Closeout(BaseModel):
+    by: str
+    disposition: Literal["real", "false_alarm", "duplicate", "data_problem"]
+    failure_mode: str | None = None
+    mechanism: str | None = None
+    cause: str | None = None
+    activity: str | None = None
+    outcome: str | None = None
+    note: str | None = None
+    duplicate_of: int | None = None
+    suggested: dict[str, Any] | None = None   # what the form was pre-filled with, kept beside what was confirmed
+
+
+@router.get("/work/items/{item_id}/closeout")
+def case_closeout(item_id: int, conn=Depends(get_conn)):
+    """A case's close-out (P6.1a): the record if any, what to pre-fill and the controlled lists."""
+    from ..ops import disposition
+    try:
+        return disposition.form(conn, deps.pack(), item_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/work/items/{item_id}/closeout")
+def case_closeout_record(item_id: int, c: Closeout, conn=Depends(get_conn)):
+    """Record what a case was and close it (P6.1a): a real problem needs failure mode, cause and action."""
+    from ..ops import disposition
+    fields = c.model_dump(exclude={"by", "disposition"})
+    try:
+        row = disposition.record(conn, deps.pack(), item_id, c.by, c.disposition, **fields)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return row
+
+
+@router.get("/closeout/missing")
+def closeout_missing(conn=Depends(get_conn)):
+    """Closed cases with no close-out yet (P6.1a)."""
+    from ..ops import disposition
+    return disposition.missing(conn)
+
+
 class FieldReport(BaseModel):
     by: str
     status: Literal["on_site", "done", "could_not_do", "note"]
