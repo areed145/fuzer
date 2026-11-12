@@ -4074,3 +4074,188 @@ test("Work performance counts rounds done, partly done and missed per shift (#71
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.6a (#317): the Processes catalog recovers from a failed read, says who can publish and where routing lives,
+// labels and checks the new-process key, and an import that fails says why and can be tried again.
+test("the Processes catalog recovers, explains who publishes, and validates new processes (#317)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  let failing = true;
+  const imports = [];
+  await page.route("**/work/definitions", (route) => route.request().method() === "POST"
+    ? (imports.push(route.request().postDataJSON()), route.fulfill({ status: 400, json: { detail: "line 3: a person's task needs an SLA" } }))
+    : route.fulfill(failing ? { status: 503, json: { detail: "Database restarting" } }
+    : { json: [{ id: 1, process_key: "upset", version: 2, name: "Upset", state: "published", published_at: "2026-11-01T00:00:00Z", running: 3 },
+      { id: 2, process_key: "upset", version: 3, name: "Upset", state: "draft", published_at: null, running: 0 }] }));
+  await page.route("**/work/stats?*", (route) => route.fulfill({ json: [{ process_key: "upset", waiting: 2, overdue: 1, median_h: 5, p90_h: 30, sla_breach_pct: 12 }] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "alice", roles: ["engineer"] }] }));
+  await page.route("**/work/forms", (route) => route.fulfill({ json: [] }));
+  await page.goto(`${url}/#/processes`);
+  await page.getByRole("alert").filter({ hasText: "Database restarting" }).waitFor();
+  failing = false;
+  await page.getByRole("button", { name: "Try again" }).first().click();
+  const row = page.getByRole("row").filter({ hasText: "Upset" });
+  await row.getByText("v3").waitFor();
+  await page.getByText("which you don't have", { exact: false }).waitFor();
+  assert.equal(await page.locator("#who-edits").getByRole("link", { name: "Routing" }).getAttribute("href"), "#/routing");
+  await page.getByText("No forms yet.", { exact: false }).waitFor();
+
+  const key = page.getByLabel("Key");
+  const create = page.getByRole("button", { name: "Create draft" });
+  await key.fill("upset");
+  await page.getByRole("alert").filter({ hasText: "That key is taken" }).waitFor();
+  assert.equal(await create.isDisabled(), true);
+  assert.equal(await key.getAttribute("aria-invalid"), "true");
+  await key.fill("Lesson Review");
+  await page.getByRole("alert").filter({ hasText: "lower case letters" }).waitFor();
+  await key.fill("lesson_review");
+  assert.equal(await create.isDisabled(), false);
+  assert.equal(await page.getByRole("alert").filter({ hasText: "lower case letters" }).count(), 0);
+  await page.getByLabel("BPMN file to import").setInputFiles({ name: "broken.bpmn", mimeType: "application/xml",
+    buffer: Buffer.from("<definitions/>") });
+  await page.getByRole("alert").filter({ hasText: "Couldn't import broken.bpmn: line 3: a person's task needs an SLA" }).waitFor();
+  assert.deepEqual(imports, [{ xml: "<definitions/>", by: "alice" }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P5.6b (#318): a process page says which version you are on and how it relates to what runs, its views are
+// labelled tabs, a draft shows what draft, check and publish each do, and the monitor, running and routing views
+// recover from a failed read.
+test("a process page says where you are, what each step of a change does, and recovers each view (#318)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/shift_handover.bpmn", import.meta.url), "utf8");
+  await page.route("**/work/definitions?*", (route) => route.fulfill({ json: [
+    { id: 1, process_key: "shift_handover", version: 2, name: "Shift handover", state: "published", published_at: "2026-11-01T00:00:00Z", running: 4,
+      created_by: "olga", created_at: "2026-11-01T00:00:00Z", problems: [] },
+    { id: 2, process_key: "shift_handover", version: 3, name: "Shift handover", state: "draft", published_at: null, running: 0,
+      created_by: "alice", created_at: "2026-11-11T00:00:00Z", problems: [] }] }));
+  await page.route("**/work/definitions/*/bpmn", (route) => route.fulfill({ body: xml, contentType: "application/xml" }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "alice", roles: ["engineer"] }] }));
+  await page.route("**/work/roles", (route) => route.fulfill({ json: { person: ["ops_lead"], agent: [] } }));
+  let failing = true;
+  const flaky = (json) => (route) => route.fulfill(failing ? { status: 503, json: { detail: "Read timed out" } } : { json });
+  await page.route("**/work/monitor/**", flaky({ steps: [], days: 30, version: null }));
+  await page.route("**/work/instances*", flaky([]));
+  await page.route("**/work/definitions/1/routing", flaky([]));
+  await page.goto(`${url}/#/processes/shift_handover?tab=model`);
+  await page.getByTestId("where-you-are").filter({ hasText: "You're looking at draft v3 (not checked yet); v2 is published, with 4 running." }).waitFor();
+  const tabs = page.getByRole("navigation", { name: "Process views" });
+  assert.equal(await tabs.getByRole("link", { name: "Model" }).getAttribute("aria-current"), "page");
+  const steps = page.getByRole("list", { name: "How a change goes live" });
+  assert.match(await steps.locator('[aria-current="step"]').innerText(), /^Draft/);
+  await steps.getByText("Cases already running stay on their version.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
+
+  for (const [tab, after] of [["Monitor", null], ["Running", "None."], ["SLAs & routing", null]]) {
+    failing = true;
+    await tabs.getByRole("link", { name: tab }).click();
+    const alert = page.getByRole("alert").filter({ hasText: "Read timed out" });
+    await alert.waitFor();
+    failing = false;
+    await alert.getByRole("button", { name: "Try again" }).click();
+    await alert.waitFor({ state: "detached" });
+    if (after) await page.getByText(after, { exact: true }).waitFor();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P5.6c (#319): the task form editor opens a valid form without runtime errors, previews it as a person sees it,
+// keeps changes after a failed save, checks the bulk actions and the new key, and turns a missing form into a way
+// to create it.
+test("the task form editor previews, survives a failed save, and recovers a missing form (#319)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  const schema = { type: "default", id: "lesson-review", schemaVersion: 16,
+    components: [{ type: "textfield", key: "lesson", label: "What was learned", id: "f1" }] };
+  await page.route("**/work/forms/lesson-review", (route) => route.fulfill({ json: { key: "lesson-review", version: 2, schema } }));
+  await page.route("**/work/forms/gone", (route) => route.fulfill({ status: 404, json: { detail: "no form gone" } }));
+  const saves = [];
+  await page.route("**/work/forms?*", (route) => { saves.push(route.request().postDataJSON());
+    return route.fulfill({ status: 503, json: { detail: "Database restarting" } }); });
+  await page.goto(`${url}/#/processes/forms/lesson-review`);
+  await page.getByText("v2. Saving makes a new version", { exact: false }).waitFor();
+  await page.locator(".form-editor .fjs-editor-container").waitFor();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const preview = page.locator(".form-preview");
+  await preview.getByLabel("What was learned").waitFor();
+  await page.getByRole("button", { name: "Back to editing" }).click();
+
+  await page.getByText("Bulk actions", { exact: false }).first().click();
+  const bulk = page.getByLabel("Bulk actions (JSON)", { exact: false });
+  await bulk.fill("{ not json");
+  await page.getByRole("alert").filter({ hasText: "Bulk actions aren't valid JSON" }).waitFor();
+  const save = page.getByRole("button", { name: "Save new version" });
+  assert.equal(await save.isDisabled(), true);
+  await bulk.fill('[{ "label": "Accept all", "data": { "accepted": true } }]');
+  await save.click();
+  await page.getByRole("alert").filter({ hasText: "Couldn't save: Database restarting. Your changes are still here" }).waitFor();
+  assert.equal(saves.length, 1);
+  assert.deepEqual(saves[0].fuzer.bulk, [{ label: "Accept all", data: { accepted: true } }]);
+  await page.getByText("unsaved changes").waitFor();
+
+  await page.goto(`${url}/#/processes/forms/gone`);
+  const missing = page.getByRole("alert").filter({ hasText: "There is no form “gone”." });
+  await missing.waitFor();
+  assert.equal(await missing.getByRole("link", { name: "Create it" }).getAttribute("href"), "#/processes/forms/new?key=gone");
+  await missing.getByRole("link", { name: "Create it" }).click();
+  const key = page.getByLabel("Form key");
+  assert.equal(await key.inputValue(), "gone");
+  await key.fill("Bad Key");
+  await page.getByRole("alert").filter({ hasText: "Use lower case letters" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Create form" }).isDisabled(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P5.9a (#337): Plan shows production at risk per shutdown window, with the hours each job is down and any assumed
+// duration said beside the number.
+test("Plan shows production at risk per shutdown window with the durations used (#337)", async () => {
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/at-risk?*", (route) => route.fulfill({ json: { start: "2026-11-12T00:00:00Z", end: "2027-02-10T00:00:00Z", days: 90,
+    basis: "Wells behind each unit on the flow network, at their latest test rate, for the time the unit is down; a well is counted once however many overlapping jobs take it down.",
+    windows: [{ start: "2026-11-22T00:00:00Z", end: "2026-11-25T00:00:00Z", untested: ["KR 14-01H"],
+      assumptions: ["SAP maintenance plans give a due date, not an outage length: one day is assumed"],
+      items: [{ id: 1, title: "Compressor valve change", kind: "shutdown", hours: 48, assumed: null, start: "2026-11-22T00:00:00Z",
+        end: "2026-11-24T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 },
+      { id: 2, title: "Compressor 4000-hour service", kind: "maintenance", hours: 24, assumed: "SAP maintenance plans give a due date, not an outage length: one day is assumed",
+        start: "2026-11-24T00:00:00Z", end: "2026-11-25T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 }],
+      wells: [{ id: "w1", label: "KR 12-03H", hours: 72, rates: { gas_rate: { value: 841, unit: "kSm3/d", at: "2026-11-01" } } },
+        { id: "w2", label: "KR 14-01H", hours: 72, rates: {} }],
+      at_risk: [{ quantity: "gas_rate", value: 2523, unit: "kSm3" }] }] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/plan`);
+  const card = page.locator(".plan-at-risk");
+  await card.getByText("Gas 2,523 kSm3").waitFor();
+  await card.getByText("counted once", { exact: false }).waitFor();
+  await card.getByRole("button", { name: /Gas 2,523 kSm3/ }).click();
+  await card.getByText("Compressor valve change: 48 h down (B1-K-2001)").waitFor();
+  await card.getByText("Assumption: SAP maintenance plans give a due date, not an outage length: one day is assumed.").waitFor();
+  await card.getByText("No test on record, so not counted: KR 14-01H.").waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+test("a turnaround with a schedule shows its progress against the baseline and the slip (#360)", async () => {
+  const scope = { revision: "TA26", revisions: ["TA26"], as_of: "2026-03-01", planned_start: null, scoped_work: [],
+    shutdown_plans_not_in_scope: [], bad_actors_not_in_scope: [], spares_out_of_stock: [], window: null, on_plan: [],
+    ride_along: [], shutdown_outside: [], schedule: { project: "TA26", as_of: "2026-03-01", late: [], slipped: ["A0100"] } };
+  const asked = [];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/turnarounds?*", (route) => route.fulfill({ json: scope }));
+  await page.route("**/analytics/figures/turnaround-progress*", (route) => { asked.push(route.request().url()); return route.fulfill({ json: {
+    kind: "turnaround-progress", title: "Turnaround TA26 progress", sources: [],
+    spec: { data: [{ type: "scatter", mode: "lines", name: "Planned (baseline)", x: ["2026-02-01", "2026-03-01"], y: [0, 40] }], layout: {} },
+    summary: { context: "Schedule as of 1 Mar 2026 · 8 activities counted", headline: "30% earned against 40% planned: 10 points behind the plan, forecast to finish 14 days after its baseline.",
+      stats: [{ label: "Earned", value: "30", unit: "%" }], notes: [], source: "the planning system's schedule (activities)",
+      warnings: ["Not counted: A0010, a percent complete of 112, outside 0 to 100."],
+      tables: [{ title: "Slipped activities · 1", note: null, columns: ["Activity", "Days slipped"], rows: [["A0100", "14"]] }] } } }); });
+  await page.goto(`${url}/#/plan?revision=TA26`);
+  const card = page.locator("section", { has: page.getByRole("heading", { name: "Progress against the baseline" }) });
+  await card.getByText("10 points behind the plan", { exact: false }).waitFor();
+  await card.getByText("Not counted: A0010, a percent complete of 112, outside 0 to 100.").waitFor();
+  await card.getByRole("button", { name: "Slipped activities · 1" }).waitFor();
+  assert.ok(asked.some((u) => u.includes("revision=TA26")));
+});

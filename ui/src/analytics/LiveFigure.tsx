@@ -15,12 +15,14 @@ class FigureBoundary extends Component<{ children: ReactNode }, { failed: boolea
 }
 
 /** Any live figure, whole. The server words and builds it; nothing here knows which chart it is. */
-export function LiveFigure({ kind }: { kind: string }) {
-  return <FigureBoundary><Figure kind={kind} /></FigureBoundary>;
+export function LiveFigure({ kind, params }: { kind: string; params?: Record<string, string> }) {
+  return <FigureBoundary><Figure kind={kind} params={params} /></FigureBoundary>;
 }
 
-function Figure({ kind }: { kind: string }) {
-  const result = useAsync(() => api.liveFigure(kind), [kind]);
+function Figure({ kind, params }: { kind: string; params?: Record<string, string> }) {
+  const key = JSON.stringify(params ?? {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const result = useAsync(() => api.liveFigure(kind, params), [kind, key]);
   const d = result.data;
   const s = d?.summary;
   return <>

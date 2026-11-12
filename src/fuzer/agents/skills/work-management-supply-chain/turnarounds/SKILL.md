@@ -14,6 +14,9 @@ is tagged with a revision (e.g. OK-TAR-2026).
    planning system's schedule is loaded, `schedule` lists the revision's activities with planned and
    baseline finish, percent complete and the work order each executes; `late` and `slipped` name the
    ones behind. "What's late in the turnaround?" is answered from these, citing the activity and its order.
+   `schedule.curve` is its S-curve: percent planned done by week (baseline and today's dates), percent
+   earned today, `variance` in points and `slip_days` of the forecast finish; rows it couldn't use are in
+   `left_out` with why. Say those were left out rather than treating the curve as complete.
 2. **Scope gaps** are the main finding: shutdown-only inspections that would otherwise wait another
    cycle, and bad actors whose permanent fix needs the unit down (check `maintenance_history` for
    repeated temporary fixes such as cleaning a fouled exchanger every year).

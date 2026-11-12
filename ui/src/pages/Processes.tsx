@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -14,6 +14,7 @@ import { blankProcess, focusElement } from "../bpmnSubset";
 const BpmnModeler = lazy(() => import("../BpmnModeler"));
 const BpmnView = lazy(() => import("../BpmnView"));
 const FormEditor = lazy(() => import("../FormEditor"));
+const TaskForm = lazy(() => import("../TaskForm"));
 
 const ADMIN = "workflow_admin";
 const isOpenDraft = (d: WorkDefinition, defs: WorkDefinition[]) =>
@@ -53,9 +54,11 @@ export function ProcessesPage() {
   const statOf = (k: string): ProcessStats | undefined => stats.data?.find((x) => x.process_key === k);
   const forms = useAsync(() => api.workForms(), []);
   const [person] = usePerson();
+  const admin = useAdmin(person);
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
   const groups = useMemo(() => {
@@ -65,49 +68,70 @@ export function ProcessesPage() {
   }, [defs.data]);
   const taken = groups.some(([k]) => k === key);
   const keyOk = /^[a-z][a-z0-9_]*$/.test(key) && !taken;
+  const keyProblem = !key || keyOk ? null : taken ? "That key is taken. Open it in the list to change it."
+    : "Use lower case letters, digits and _, starting with a letter.";
 
   const create = async () => {
+    setError(undefined);
+    setBusy("Creating the draft…");
     try {
       await api.importDefinition(blankProcess(key, name || key), person);
       location.hash = href(`/processes/${key}`, { tab: "model" });
     } catch (e) {
-      setError((e as Error).message);
+      setError(`Couldn't create the draft: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
     }
   };
   const upload = async (f: File) => {
+    setError(undefined);
+    setBusy(`Importing ${f.name}…`);
     try {
       const rows = await api.importDefinition(await f.text(), person);
       location.hash = href(`/processes/${rows[0].process_key}`, { tab: "model", v: String(rows[0].id) });
     } catch (e) {
-      setError((e as Error).message);
+      setError(`Couldn't import ${f.name}: ${(e as Error).message}. Fix the file and import it again.`);
+    } finally {
+      setBusy(null);
+      if (file.current) file.current.value = "";
     }
   };
 
   return (
     <section>
       <PageHeader subtitle="How work moves between people and agents." help="workflow">Processes</PageHeader>
+      <p className="small muted" id="who-edits">Anyone who says who they are can draft a change and check it.
+        Publishing it needs the workflow admin role{person ? (admin ? ", which you have" : ", which you don't have") : ""}.
+        Which queue each type of work goes to is set on <a href={href("/routing")}>Routing</a>, not here.</p>
       <NeedName person={person} />
-      <Status loading={defs.loading} error={defs.error} />
+      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload}
+        empty={!defs.loading && !defs.error && !groups.length}>
+        No processes yet. {person ? "Create one below, or import a .bpmn file." : "Say who you are to create one."}
+      </Status>
+      {stats.error && <p className="small muted" role="status">Running counts are unavailable: {stats.error}{" "}
+        <Button size="sm" onClick={stats.reload}>Try again</Button></p>}
       {groups.length > 0 && (
-        <Table variant="list">
+        <Table variant="list" className="phone-rows" aria-label="Processes">
           <thead><tr><th>Process</th><th>Published</th><th>Draft</th><th>Running</th><th>Steps waiting</th><th>Overdue</th>
-            <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th /></tr></thead>
+            <th title="last 30 days">Cycle time (median / p90)</th><th title="person steps past their SLA, last 30 days">SLA missed</th><th>Open</th></tr></thead>
           <tbody>
             {groups.map(([k, vs]) => {
               const pub = vs.find((d) => d.state === "published");
               const draft = vs.find((d) => isOpenDraft(d, vs));
+              const st = statOf(k);
+              const label = pub?.name ?? vs[0].name ?? k;
               return (
                 <tr key={k}>
-                  <td><a href={href(`/processes/${k}`)}><strong>{pub?.name ?? vs[0].name ?? k}</strong></a> <span className="mono small muted">{k}</span></td>
-                  <td>{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
-                  <td>{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">—</span>}</td>
-                  <td><a href={href(`/processes/${k}`, { tab: "running" })}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
-                  <td>{statOf(k)?.waiting ?? ""}</td>
-                  <td>{statOf(k)?.overdue ? <UIBadge className="badge late">{statOf(k)!.overdue}</UIBadge> : ""}</td>
-                  <td className="small">{statOf(k) && `${hours(statOf(k)!.median_h)} / ${hours(statOf(k)!.p90_h)}`}</td>
-                  <td className="small">{statOf(k)?.sla_breach_pct != null ? `${statOf(k)!.sla_breach_pct}%` : "–"}</td>
-                  <td className="small">
-                    <a href={href(`/processes/${k}`, { tab: "model" })}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })}>Monitor</a>
+                  <td data-label="Process"><a href={href(`/processes/${k}`)}><strong>{label}</strong></a> <span className="mono small muted">{k}</span></td>
+                  <td data-label="Published">{pub ? <>v{pub.version} <span className="small muted">{pub.published_at && when(pub.published_at)}</span></> : <span className="muted">not yet</span>}</td>
+                  <td data-label="Draft">{draft ? <>v{draft.version} <StateBadge state={draft.state} /></> : <span className="muted">none</span>}</td>
+                  <td data-label="Running"><a href={href(`/processes/${k}`, { tab: "running" })} aria-label={`${label}: running cases`}>{vs.reduce((n, d) => n + d.running, 0)}</a></td>
+                  <td data-label="Steps waiting">{st?.waiting ?? "–"}</td>
+                  <td data-label="Overdue">{st?.overdue ? <UIBadge className="badge late">{st.overdue}</UIBadge> : st ? 0 : "–"}</td>
+                  <td data-label="Cycle time" className="small">{st ? `${hours(st.median_h)} / ${hours(st.p90_h)}` : "–"}</td>
+                  <td data-label="SLA missed" className="small">{st?.sla_breach_pct != null ? `${st.sla_breach_pct}%` : "–"}</td>
+                  <td data-label="Open" className="small">
+                    <a href={href(`/processes/${k}`, { tab: "model" })} aria-label={`${label}: model`}>Model</a> · <a href={href(`/processes/${k}`, { tab: "monitor" })} aria-label={`${label}: monitor`}>Monitor</a>
                   </td>
                 </tr>
               );
@@ -117,27 +141,32 @@ export function ProcessesPage() {
       )}
 
       {person && (
-        <UICard className="">
-          <h3>New process</h3>
+        <UICard title="New process">
+          <p className="small muted">A new process starts as a draft. Nothing runs on it until it is checked and published.</p>
           <div className="actions">
-            <Input placeholder="key, e.g. lesson_review" value={key} onChange={(e) => setKey(e.target.value.trim())} />
-            <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-            <Button variant="primary" disabled={!keyOk} onClick={create}>Create draft</Button>
+            <Field label="Key" hint="lower case, e.g. lesson_review">
+              <Input value={key} aria-invalid={!!keyProblem} aria-describedby={keyProblem ? "new-key-problem" : undefined}
+                onChange={(e) => setKey(e.target.value.trim())} />
+            </Field>
+            <Field label="Name" hint="what people read, e.g. Lesson review">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Button variant="primary" disabled={!keyOk || !!busy} onClick={create}>Create draft</Button>
             <span className="muted small">or</span>
-            <Button onClick={() => file.current?.click()}>Import .bpmn</Button>
-            <Input ref={file} type="file" accept=".bpmn,.xml" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+            <Button disabled={!!busy} onClick={() => file.current?.click()}>Import .bpmn</Button>
+            <Input ref={file} type="file" accept=".bpmn,.xml" hidden aria-label="BPMN file to import"
+              onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </div>
-          {key && !keyOk && <p className="small error">{taken ? "That key is taken; open it above to edit." : "A key is lower case letters, digits and _."}</p>}
-          {error && <p className="small error">{error}</p>}
+          {keyProblem && <p className="small error" id="new-key-problem" role="alert">{keyProblem}</p>}
+          {busy && <p className="small" role="status">{busy}</p>}
+          {error && <p className="small error" role="alert">{error}</p>}
         </UICard>
       )}
 
-      <UICard className="">
-        <div className="row spread">
-          <h3>Task forms</h3>
-          {person && <a className="small" href={href("/processes/forms/new")}>New form</a>}
-        </div>
-        <Status loading={forms.loading} error={forms.error} empty={!forms.loading && !forms.data?.length}>No forms yet.</Status>
+      <UICard title="Task forms" actions={person ? <a className="small" href={href("/processes/forms/new")}>New form</a> : undefined}>
+        <Status loading={forms.loading && !forms.data} error={forms.error} onRetry={forms.reload}
+          empty={!forms.loading && !forms.error && !forms.data?.length}>
+          No forms yet. A person's step without a form asks only for a decision and a note.</Status>
         <ul className="plain">
           {forms.data?.map((f) => (
             <li key={f.key} className="row small">
@@ -168,15 +197,12 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
 
   return (
     <section>
-      <div className="row spread">
-        <PageHeader>{title} <span className="mono small muted">{processKey}</span></PageHeader>
-        <div className="tabs">
-          {PROCESS_TABS.map(([k, label]) => (
-            <a key={k} className={tab === k ? "on" : ""} href={href(`/processes/${processKey}`, { tab: k })}>{label}</a>
-          ))}
-        </div>
-      </div>
-      <Status loading={defs.loading && !defs.data} error={defs.error} empty={!defs.loading && !list.length}>
+      <PageHeader subtitle={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
+        actions={<a href={href("/processes")}>All processes</a>}>
+        {title} <span className="mono small muted">{processKey}</span></PageHeader>
+      <Tabs label="Process views" items={PROCESS_TABS.map(([k, label]) => ({
+        key: k, label, href: href(`/processes/${processKey}`, { tab: k }), current: tab === k }))} />
+      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload} empty={!defs.loading && !defs.error && !list.length}>
         No process '{processKey}'. <a href={href("/processes")}>Create one</a>.
       </Status>
       {chosen && tab === "overview" && <OverviewTab processKey={processKey} defs={list} published={published} />}
@@ -186,6 +212,27 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
       {chosen && tab === "routing" && <RoutingTab def={published ?? chosen} />}
     </section>
   );
+}
+
+/** Which version the page shows and how it relates to what runs, so a change is never made to the wrong one. */
+function WhereYouAre({ chosen, published, draft }: { chosen: WorkDefinition; published?: WorkDefinition; draft?: WorkDefinition }) {
+  const pub = published ? `v${published.version} is published${published.running ? `, with ${published.running} running` : ""}` : "nothing is published yet";
+  const which = chosen.state === "published" ? `You're looking at v${chosen.version}, the published version`
+    : chosen.state === "draft" || chosen.state === "checked" ? `You're looking at draft v${chosen.version} (${chosen.state === "checked" ? "checked" : "not checked yet"})`
+    : `You're looking at v${chosen.version}, ${chosen.state}`;
+  const more = chosen.state === "published" && draft ? `; draft v${draft.version} is open` : "";
+  return <span data-testid="where-you-are">{which}{chosen.state === "published" ? "" : `; ${pub}`}{more}.</span>;
+}
+
+/** What each step of a change does, with the step this version is at marked. */
+function Lifecycle({ state }: { state: string }) {
+  const at = state === "draft" ? 0 : state === "checked" ? 1 : 2;
+  const steps = [["Draft", "Save changes. Nothing runs on a draft."], ["Check", "Find problems that stop it running, such as a step with no SLA."],
+                 ["Publish", "New cases start on it. Cases already running stay on their version."]];
+  return <ol className="lifecycle small" aria-label="How a change goes live">
+    {steps.map(([name, what], i) => <li key={name} aria-current={i === at ? "step" : undefined} className={i === at ? "on" : i < at ? "done" : ""}>
+      <strong>{name}</strong> <span className="muted">{what}</span></li>)}
+  </ol>;
 }
 
 function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefinition }) {
@@ -368,8 +415,9 @@ function ModelTab({ def, defs, draft, reload }: {
         )}
         <Button disabled={!xml} onClick={onDownload}>Download .bpmn</Button>
       </div>
+      {editable && <Lifecycle state={def.state} />}
       {editable && !admin && person && <p className="small muted">You can edit and check drafts; publishing needs the workflow admin role.</p>}
-      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
+      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
       <NeedName person={person} />
       {editable && <UICard className="workflow-agent">
         <h3>Workflow drafting agent</h3>
@@ -415,7 +463,8 @@ function ModelTab({ def, defs, draft, reload }: {
           <ul className="plain">
             {problems.map((p, i) => (
               <li key={i} className="small">
-                {p.element ? <a className="mono" onClick={() => modeler.current && focusElement(modeler.current, p.element!)}>{p.element}</a>
+                {p.element ? <Button variant="link" className="mono" aria-label={`Show ${p.element} on the diagram`}
+                  onClick={() => modeler.current && focusElement(modeler.current, p.element!)}>{p.element}</Button>
                   : <span className="muted">file</span>}: {p.message}
               </li>
             ))}
@@ -423,7 +472,8 @@ function ModelTab({ def, defs, draft, reload }: {
         </UICard>
       )}
 
-      {xmlError && <div className="status error">Couldn't load the diagram: {xmlError}</div>}
+      {xmlError && <div className="status error" role="alert">Couldn't load the diagram: {xmlError}{" "}
+        <Button onClick={() => location.reload()}>Reload the page</Button></div>}
       {xml && (
         <Suspense fallback={<div className="status">Loading modeler…</div>}>
           {editable ? <BpmnModeler xml={canvasXml ?? xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
@@ -517,7 +567,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
         <span className="small muted">{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</span>
         <Button onClick={m.reload}>Refresh</Button>
       </div>
-      <Status loading={m.loading && !m.data} error={m.error} />
+      <Status loading={m.loading && !m.data} error={m.error} onRetry={m.reload} />
       {xml && (
         <Suspense fallback={<div className="status">Loading diagram…</div>}>
           <BpmnView xml={xml} classes={classes} overlays={overlays} tall />
@@ -562,21 +612,36 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
 
 const BLANK_FORM = (key: string) => ({ id: key, type: "default", schemaVersion: 19, components: [] });
 
+/** Bulk actions are JSON; say what is wrong with them before a save is tried. */
+function bulkProblem(text: string): string | null {
+  if (!text.trim()) return null;
+  try {
+    const v = JSON.parse(text);
+    return v && typeof v === "object" ? null : "Bulk actions must be a JSON object or list.";
+  } catch (e) {
+    return `Bulk actions aren't valid JSON: ${(e as Error).message}`;
+  }
+}
+
 export function FormPage({ formKey, query }: { formKey: string; query: URLSearchParams }) {
   const isNew = formKey === "new";
   const [person] = usePerson();
   const [newKey, setNewKey] = useState(query.get("key") ?? "");
   const [schema, setSchema] = useState<Record<string, unknown>>();
-  const [loadError, setLoadError] = useState<string>();
+  const [loadError, setLoadError] = useState<{ text: string; missing: boolean }>();
+  const [tries, setTries] = useState(0);
   const [version, setVersion] = useState<number>();
   const [bulk, setBulk] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<Record<string, unknown>>();
   const [msg, setMsg] = useState<{ text: string; error?: boolean }>();
   const saver = useRef<(() => Record<string, unknown>) | undefined>(undefined);
 
   useEffect(() => {
     setLoadError(undefined);
     setDirty(false);
+    setPreview(undefined);
     if (isNew) {
       setSchema(BLANK_FORM("new"));
       setBulk("");
@@ -587,13 +652,23 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       setVersion(f.version);
       const b = (f.schema as any).fuzer?.bulk;
       setBulk(b ? JSON.stringify(b, null, 2) : "");
-    }, (e: Error) => setLoadError(e.message));
-  }, [formKey, isNew]);
+    }, (e: Error & { status?: number }) => setLoadError({ text: e.message, missing: e.status === 404 }));
+  }, [formKey, isNew, tries]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const key = isNew ? newKey : formKey;
   const keyOk = /^[a-z0-9][a-z0-9_-]*$/.test(key);
+  const keyProblem = isNew && newKey && !keyOk ? "Use lower case letters, digits, - and _, starting with a letter or digit." : null;
+  const badBulk = bulkProblem(bulk);
   const save = async () => {
     setMsg(undefined);
+    setSaving(true);
     try {
       const out = { ...saver.current!(), id: key } as Record<string, any>;
       const fuzer = { ...(out.fuzer ?? {}) };
@@ -606,41 +681,70 @@ export function FormPage({ formKey, query }: { formKey: string; query: URLSearch
       if (isNew) location.hash = href(`/processes/forms/${r.key}`);
       else {
         setVersion(r.version);
-        setMsg({ text: `Saved v${r.version}. Tasks use the latest version from now on.` });
+        setMsg({ text: `Saved v${r.version}. Steps that use this form show v${r.version} from now on; steps already filled in keep what was entered.` });
       }
     } catch (e) {
-      setMsg({ text: e instanceof SyntaxError ? `Bulk actions aren't valid JSON: ${e.message}` : (e as Error).message, error: true });
+      setMsg({ text: `Couldn't save: ${(e as Error).message}. Your changes are still here; try again.`, error: true });
+    } finally {
+      setSaving(false);
     }
   };
+  const showPreview = () => {
+    if (preview) return setPreview(undefined);
+    if (saver.current) setPreview(saver.current());
+  };
   const onReady = useCallback((s: (() => Record<string, unknown>) | undefined) => (saver.current = s), []);
-  const onDirty = useCallback(() => setDirty(true), []);
+  const onDirty = useCallback(() => { setDirty(true); setPreview(undefined); }, []);
 
   return (
     <section>
-      <div className="row spread">
-        <PageHeader>{isNew ? "New form" : <>Form <span className="mono">{formKey}</span> <span className="muted small">v{version}</span></>}</PageHeader>
-        <div className="actions">
-          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
-          <Button variant="primary" disabled={!person || !keyOk || !schema} onClick={save}>{isNew ? "Create form" : "Save new version"}</Button>
-        </div>
-      </div>
+      <PageHeader actions={<a href={href("/processes")}>All processes and forms</a>}
+        subtitle={isNew ? "A form is what a person fills in on a process step. Name it, add fields, then create it."
+          : version != null ? `v${version}. Saving makes a new version; earlier versions stay with the steps that used them.` : undefined}>
+        {isNew ? "New form" : <>Form <span className="mono">{formKey}</span></>}</PageHeader>
       <NeedName person={person} />
       {isNew && (
         <div className="actions">
-          <Input placeholder="form key, e.g. lesson-review" value={newKey} onChange={(e) => setNewKey(e.target.value.trim())} />
-          {newKey && !keyOk && <span className="small error">Lower case letters, digits, - and _.</span>}
+          <Field label="Form key" hint="what a process step names, e.g. lesson-review">
+            <Input value={newKey} aria-invalid={!!keyProblem} onChange={(e) => setNewKey(e.target.value.trim())} />
+          </Field>
         </div>
       )}
-      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
-      {loadError && <div className="status error">Couldn't load the form: {loadError}</div>}
-      {schema && (
-        <Suspense fallback={<div className="status">Loading form editor…</div>}>
-          <FormEditor schema={schema} onReady={onReady} onDirty={onDirty} />
-        </Suspense>
-      )}
-      <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
-        <textarea className="mono" rows={5} value={bulk} onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
-      </Disclosure>
+      {keyProblem && <p className="small error" role="alert">{keyProblem}</p>}
+      {loadError && (loadError.missing
+        ? <div className="status error" role="alert">There is no form “{formKey}”.{" "}
+            <a href={href("/processes/forms/new", { key: formKey })}>Create it</a></div>
+        : <div className="status error" role="alert">Couldn't load the form: {loadError.text}{" "}
+            <Button onClick={() => setTries((n) => n + 1)}>Try again</Button></div>)}
+      {schema && <>
+        <div className="work-toolbar">
+          {dirty && <UIBadge className="badge soon">unsaved changes</UIBadge>}
+          <span className="spacer" />
+          <Button aria-pressed={!!preview} onClick={showPreview}>{preview ? "Back to editing" : "Preview"}</Button>
+          <Button variant="primary" disabled={!person || !keyOk || !!badBulk || saving} onClick={save}>
+            {saving ? "Saving…" : isNew ? "Create form" : "Save new version"}</Button>
+        </div>
+        {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
+        {preview && <UICard title="Preview" className="form-preview">
+          <p className="small muted">How a person sees it on their step. Nothing you enter here is kept.</p>
+          <Suspense fallback={<div className="status">Loading preview…</div>}>
+            <TaskForm schema={preview} data={{}} onSubmit={() => undefined} />
+          </Suspense>
+        </UICard>}
+        <div hidden={!!preview}>
+          <Suspense fallback={<div className="status">Loading form editor…</div>}>
+            <FormEditor schema={schema} onReady={onReady} onDirty={onDirty} />
+          </Suspense>
+        </div>
+        <Disclosure className="card small" label={<>Bulk actions {bulk.trim() ? "(set)" : ""}</>}>
+          <label className="prop">
+            <span>Bulk actions (JSON): the decisions a lead can apply to many tasks at once</span>
+            <textarea className="mono" rows={5} value={bulk} aria-invalid={!!badBulk}
+              onChange={(e) => { setBulk(e.target.value); setDirty(true); }} />
+          </label>
+          {badBulk && <p className="small error" role="alert">{badBulk}</p>}
+        </Disclosure>
+      </>}
     </section>
   );
 }
@@ -679,7 +783,7 @@ function RunningTab({ processKey }: { processKey: string }) {
       <div className="tabs small">
         {["running", "completed", "cancelled", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
       </div>
-      <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && !list.data.length}>None.</Status>
+      <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} empty={!!list.data && !list.data.length}>None.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">
           <thead><tr><th>Case</th><th>Waiting on</th><th>Age</th><th>Version</th><th>Started by</th><th /></tr></thead>
@@ -714,7 +818,7 @@ function RunningTab({ processKey }: { processKey: string }) {
 
 function RoutingTab({ def }: { def: WorkDefinition }) {
   const r = useAsync(() => api.workRouting(def.id), [def.id]);
-  if (!r.data) return <Status loading={r.loading} error={r.error} />;
+  if (!r.data) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
   return (
     <>
       <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply

@@ -7,10 +7,12 @@ page's colorway by trace position, so each series keeps a fixed position even wh
 To add one, write a builder and register it in FIGURES.
 """
 
+from datetime import date
 from html import escape
 
 from ..analysis import flow_capacity as fc
 from ..analysis import production_efficiency as pe
+from ..graph.operations import turnaround_scope
 from . import ChartError, Figure, check, layout
 
 LIVE_NOTICE = "Latest recorded data, not a live operating update."
@@ -229,20 +231,85 @@ def flow_capacity(out: dict, notice: str) -> Figure:
     )
 
 
-def _production(conn, facility: str, notice: str) -> Figure:
+def _short(day: str | None) -> str:
+    d = date.fromisoformat(day) if day else None
+    return f"{d.day} {d:%b %Y}" if d else UNKNOWN
+
+
+def turnaround_progress(schedule: dict | None, revision: str | None, notice: str) -> Figure:
+    """A turnaround's S-curve (#360): percent of the work planned done by each week against the baseline and
+    against today's dates, with the percent earned today; slippage named, rows that can't be used listed."""
+    c = (schedule or {}).get("curve") or {}
+    pts = c.get("points") or []
+    days = [p["day"] for p in pts]
+    data = []
+    if pts:
+        data = [
+            {"type": "scatter", "mode": "lines", "name": "Planned (baseline)", "x": days, "y": [p["planned"] for p in pts],
+             "line": {"width": 2}, "hovertemplate": "%{x}: %{y}% planned<extra></extra>"},
+            {"type": "scatter", "mode": "lines", "name": "Forecast (today's dates)", "x": days, "y": [p["forecast"] for p in pts],
+             "line": {"width": 2, "dash": "dash"}, "hovertemplate": "%{x}: %{y}% forecast<extra></extra>"},
+            {"type": "scatter", "mode": "markers", "name": "Earned", "x": [schedule["as_of"]], "y": [c["earned"]],
+             "marker": {"size": 10}, "hovertemplate": "%{x}: %{y}% earned<extra></extra>"},
+        ]
+    if not schedule:
+        headline = f"No planning system's schedule names {revision}." if revision else "No turnaround is chosen."
+    elif not pts:
+        headline = c.get("basis") or "The schedule has no activities to plot."
+    else:
+        v, slip = c["variance"], c["slip_days"]
+        pace = "on the plan" if abs(v) < 0.5 else f"{abs(v):g} points {'ahead of' if v > 0 else 'behind'} the plan"
+        finish = ("finishing on its baseline" if slip == 0 else
+                  f"forecast to finish {abs(slip)} days {'after' if slip > 0 else 'before'} its baseline")
+        headline = (f"No work is planned done by {_short(schedule['as_of'])}; the work is {finish}."
+                    if c["earned"] == 0 and c["planned_today"] == 0
+                    else f"{c['earned']:g}% earned against {c['planned_today']:g}% planned: {pace}, {finish}.")
+    acts = (schedule or {}).get("activities") or []
+    slipped = sorted((a for a in acts if a["slipped_days"] > 0), key=lambda a: -a["slipped_days"])
+    tables = [{"title": f"Slipped activities · {len(slipped)}", "note": "Each activity whose finish has moved past its baseline.",
+               "columns": ["Activity", "Description", "Baseline finish", "Finish", "Days slipped", "% complete"],
+               "rows": [[a["activity"], a["description"] or "", _short(a["baseline_finish"]), _short(a["finish"]),
+                         str(a["slipped_days"]), f"{a['percent_complete']:g}"] for a in slipped]}] if slipped else []
+    return Figure(
+        kind="turnaround-progress", title=f"Turnaround {revision or ''} progress".replace("  ", " "), data=data,
+        layout=layout("", height=HEIGHT, xaxis={"type": "date", "fixedrange": True},
+                      yaxis={"title": {"text": "Work done (%)"}, "range": [0, 105], "fixedrange": True},
+                      margin={"t": 24, "r": 16, "b": 60, "l": 56}, legend={"orientation": "h", "x": 0, "y": 1.14, "font": {"size": 11}},
+                      uirevision=f"{revision}:{(schedule or {}).get('as_of')}"),
+        summary={
+            "context": f"Schedule as of {_short((schedule or {}).get('as_of'))} · {c.get('used', 0)} activities counted · {notice}",
+            "headline": headline,
+            "stats": [{"label": "Earned", "value": f"{c['earned']:g}", "unit": "%"},
+                      {"label": "Planned by now", "value": f"{c['planned_today']:g}", "unit": "%"},
+                      {"label": "Baseline finish", "value": _short(c["baseline_finish"]), "unit": None},
+                      {"label": "Forecast finish", "value": _short(c["forecast_finish"]), "unit": None}] if pts else [],
+            "notes": [c["basis"]] if pts else [],
+            "warnings": [f"Not counted: {b['activity']}, {b['why']}." for b in c.get("left_out") or []],
+            "tables": tables, "source": (schedule or {}).get("source") or "the planning system's schedule (activities)",
+        },
+    )
+
+
+def _production(conn, facility: str, notice: str, **_) -> Figure:
     return production_efficiency(pe.production_efficiency(conn, facility), notice)
 
 
-def _capacity(conn, facility: str, notice: str) -> Figure:
+def _capacity(conn, facility: str, notice: str, **_) -> Figure:
     return flow_capacity(fc.flow_capacity(conn, facility), notice)
 
 
-FIGURES = {"production-efficiency": _production, "flow-capacity": _capacity}
+def _turnaround(conn, facility: str, notice: str, revision: str | None = None, **_) -> Figure:
+    scope = turnaround_scope(conn, revision)
+    return turnaround_progress(scope.get("schedule"), scope.get("revision"), notice)
 
 
-def live(conn, pack, kind: str, facility: str) -> dict:
+FIGURES = {"production-efficiency": _production, "flow-capacity": _capacity, "turnaround-progress": _turnaround}
+
+
+def live(conn, pack, kind: str, facility: str, **opts) -> dict:
+    """A live figure; opts carry what a figure needs beyond the facility (a turnaround's revision)."""
     if kind not in FIGURES:
         raise ChartError(f"no live figure {kind!r}")
-    fig = FIGURES[kind](conn, facility, pack.data_notice or LIVE_NOTICE)
+    fig = FIGURES[kind](conn, facility, pack.data_notice or LIVE_NOTICE, **opts)
     check(fig)
     return {"kind": fig.kind, "title": fig.title, "spec": fig.spec, "summary": fig.summary, "sources": fig.sources}

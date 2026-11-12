@@ -14,3 +14,9 @@ label.choice-inline { display: inline-block; margin-right: 10px; white-space: no
 .tabs.work-lists { display: flex; width: fit-content; max-width: 100%; overflow-x: auto; margin: 4px 0 12px; }
 .tabs.work-lists > a { flex-shrink: 0; white-space: nowrap; }
 details.exception-types { margin-top: 16px; }
+
+/* P5.6b: how a change goes live, with the step this version is at marked */
+.lifecycle { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 8px 0 12px; padding: 0; counter-reset: step; }
+.lifecycle li { flex: 1 1 12rem; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.lifecycle li.on { border-color: var(--accent); }
+.lifecycle li.done strong::after { content: " ✓"; color: var(--ok); }

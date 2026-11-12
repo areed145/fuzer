@@ -26,12 +26,12 @@ def _facility(conn, ref: str | None) -> str:
 
 
 @router.get("/analytics/figures/{kind}")
-def live_figure(kind: str, ref: str | None = None, conn=Depends(get_conn)):
-    """A complete chart panel built from the latest records, for any page to show."""
+def live_figure(kind: str, ref: str | None = None, revision: str | None = None, conn=Depends(get_conn)):
+    """A complete chart panel built from the latest records, for any page to show (a turnaround's by its revision)."""
     from ..plots import ChartError, analytics
     fid = _facility(conn, ref)
     try:
-        return analytics.live(conn, deps.pack(), kind, fid)
+        return analytics.live(conn, deps.pack(), kind, fid, **({"revision": revision} if revision else {}))
     except (ValueError, ChartError) as e:
         raise HTTPException(404 if kind not in analytics.FIGURES else 400, str(e)) from e
 
@@ -935,6 +935,14 @@ def _plan_call(conn, fn, *args, **kwargs):
         raise HTTPException(404 if re.match(r"no (plan item|exception) \d", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
+
+
+@router.get("/plan/at-risk")
+def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn)):
+    """Production at risk from planned shutdowns (P5.9a): each window of overlapping outages over the horizon, the
+    wells behind the units going down at their latest test rate, counted once per window, with the durations used."""
+    from ..ops import at_risk
+    return _plan_call(conn, at_risk.windows, start, days=max(1, min(days, 366)))
 
 
 @router.get("/plan")
