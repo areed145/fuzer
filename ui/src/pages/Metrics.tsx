@@ -24,7 +24,7 @@ function MetricList() {
   return (
     <section>
       <PageHeader subtitle="Each measure defined once; the same number on every page, the daily report and for agents."
-        help="metrics">Metrics</PageHeader>
+        actions={<a href={href("/scorecard")}>How the plant is running</a>} help="metrics">Metrics</PageHeader>
       <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} />
       {list.data && !list.data.length && <Empty>No metrics are registered.</Empty>}
       {[...groups].map(([group, ms]) => (

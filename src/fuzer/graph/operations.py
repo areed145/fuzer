@@ -367,6 +367,49 @@ def maintenance_compliance(conn, as_of_date: str | None = None, horizon_days: in
                                key=lambda i: i["next_due"])[:limit]}
 
 
+def daily_totals(conn, since: str, until: str, fields: tuple[str, ...]) -> dict:
+    """The daily reports in [since, until): how many there are and, per field, its sum and the days that state it, so a
+    field no report carries reads as unknown rather than zero (P7.3, #353)."""
+    days = _rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
+                 {"s": since, "u": until})
+    out = {"days": len(days), "refs": [d["id"] for d in days]}
+    for k in fields:
+        given = [d["f"][k] for d in days if d["f"].get(k) not in (None, "")]
+        out[k] = {"sum": sum(_num(v) for v in given), "days": len(given)}
+    return out
+
+
+def corrective_backlog_at(conn, day: str) -> dict:
+    """Corrective (PM01) work orders open at the start of `day`: created before it and not finished before it. A closed
+    order with no finish date can't be placed, so it is counted apart (P7.3, #353)."""
+    orders = _rows(conn, "work_order", "f->>'order_type' = 'PM01' and f->>'start' < %(d)s", {"d": day})
+    open_, unplaced = [], []
+    for o in orders:
+        f = o["f"]
+        finish = str(f.get("finish") or "")[:10]
+        if finish:
+            if finish >= day:
+                open_.append(o["id"])
+        elif f.get("status") in OPEN:
+            open_.append(o["id"])
+        else:
+            unplaced.append(o["id"])
+    return {"open": open_, "unplaced": unplaced, "orders": len(orders)}
+
+
+def preventive_on_time(conn, since: str, until: str) -> dict:
+    """Preventive and inspection orders (PM02, PM03) due in [since, until), and which of them finished by their due
+    date (basic finish). An order still open past its due date is late (P7.3, #353)."""
+    rows = _rows(conn, "work_order", "f->>'order_type' in ('PM02', 'PM03') and f->>'basic_finish' >= %(s)s "
+                 "and f->>'basic_finish' < %(u)s", {"s": since, "u": until})
+    on_time, late = [], []
+    for o in rows:
+        f = o["f"]
+        finish, due = str(f.get("finish") or "")[:10], str(f["basic_finish"])[:10]
+        (on_time if finish and finish <= due else late).append(o["id"])
+    return {"due": len(rows), "on_time": on_time, "late": late}
+
+
 DONE = {"complete", "completed", "finished", "closed", "cancelled", "canceled"}
 
 

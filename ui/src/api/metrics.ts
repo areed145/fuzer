@@ -31,7 +31,41 @@ export interface MetricValue extends MetricDeclaration {
   grain: string | null;
 }
 
+/** One side of a scorecard KPI: a period's value and the records behind it (P7.3a, #353). */
+export interface KpiPeriod {
+  since: string;
+  through: string;
+  value: number | null;
+  records: number;
+  refs: string[];
+  note: string | null;
+}
+
+export interface Kpi {
+  key: string;
+  label: string;
+  unit: string;
+  better: "higher" | "lower";
+  source: string;
+  definition: string;
+  now: KpiPeriod;
+  before: KpiPeriod;
+  change: number | null;
+  verdict: "better" | "worse" | "same" | "unknown";
+}
+
+export interface PlantScorecard {
+  days: number;
+  now: { since: string; through: string };
+  before: { since: string; through: string };
+  kpis: Kpi[];
+  unknown: string[];
+  note: string;
+}
+
 export const metricsApi = {
+  plantScorecard: (days: number, until?: string | null) =>
+    request<PlantScorecard>("GET", `/plant/scorecard?days=${days}${until ? `&until=${encodeURIComponent(until)}` : ""}`),
   metrics: () => request<MetricDeclaration[]>("GET", "/metrics"),
   metric: (key: string, grain?: string | null) =>
     request<MetricValue>("GET", `/metrics/${encodeURIComponent(key)}${grain ? `?grain=${encodeURIComponent(grain)}` : ""}`),

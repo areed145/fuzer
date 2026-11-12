@@ -278,6 +278,17 @@ def case_recheck(item_id: int, r: Recheck, conn=Depends(get_conn)):
     return row
 
 
+@router.get("/plant/scorecard")
+def plant_scorecard(until: date | None = None, days: int = 30, conn=Depends(get_conn)):
+    """How the plant is running (P7.3a, #353): the KPIs for the period against the one before, each citing its window,
+    unit, source and records; unknown where the records can't say."""
+    from ..analysis import kpis
+    try:
+        return kpis.scorecard(conn, until.isoformat() if until else None, days)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

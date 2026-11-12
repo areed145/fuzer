@@ -390,3 +390,31 @@ def flare(conn, since: str, until: str) -> Figure:
         "co2_kg_per_bbl_median": round(sorted(vals)[len(vals) // 2], 2) if vals else None,
         "note": f"CO2 estimated at {CO2_T_PER_KSM3_FLARED} t per kSm3 flared; fuel gas and venting aren't in DAY001"},
         [d["id"] for d in days][:5])
+
+
+def scorecard(conn, until: str | None = None, days: int = 30) -> Figure:
+    """The KPI scorecard (P7.3a, #353): each KPI's change against the period before, as a share of where it was,
+    coloured better or worse; the values, units and sources are in the summary. An unknown KPI is a gap, not zero."""
+    from ..analysis import kpis
+
+    try:
+        s = kpis.scorecard(conn, until, days)
+    except ValueError as e:
+        raise ChartError(str(e)) from e
+    colour = {"better": "rgba(40,150,90,0.85)", "worse": "rgba(210,60,50,0.85)", "same": "rgba(120,120,120,0.7)"}
+    rows = list(reversed(s["kpis"]))
+    pct = [rnd(100 * k["change"] / k["before"]["value"], 1) if k["change"] is not None and k["before"]["value"]
+           else (0 if k["change"] == 0 else None) for k in rows]
+    text = [f"{k['now']['value']} {k['unit']} (was {k['before']['value']})" if k["verdict"] != "unknown"
+            else "unknown" for k in rows]
+    data = [{"type": "bar", "orientation": "h", "name": "change", "x": pct, "y": [k["label"] for k in rows],
+             "text": text, "textposition": "auto",
+             "marker": {"color": [colour.get(k["verdict"], "rgba(0,0,0,0)") for k in rows]},
+             "hovertemplate": "%{y}: %{text}<extra></extra>"}]
+    lay = layout(f"KPIs {s['now']['since']} to {s['now']['through']} against the {days} days before",
+                 "change against the period before (%)", None)
+    return Figure("scorecard", lay["title"]["text"], data, lay, {
+        "now": s["now"], "before": s["before"], "unknown": s["unknown"], "note": s["note"],
+        "kpis": [{k2: k[k2] for k2 in ("label", "unit", "source", "verdict", "change")} |
+                 {"now": k["now"]["value"], "before": k["before"]["value"]} for k in s["kpis"]]},
+        [r for k in s["kpis"] for r in k["now"]["refs"][:3]])

@@ -4450,3 +4450,44 @@ test("a turnaround with a schedule shows its progress against the baseline and t
   await card.getByRole("button", { name: "Slipped activities · 1" }).waitFor();
   assert.ok(asked.some((u) => u.includes("revision=TA26")));
 });
+
+// P7.3a (#353): from Metrics, how the plant is running: each KPI this period against the one before, with its window,
+// unit and source; a KPI the records can't say reads unknown, never zero, and every value opens its records.
+test("How the plant is running compares each KPI with the period before and shows unknown, not zero (#353)", async () => {
+  const side = (value, over = {}) => ({ since: "2025-12-01", through: "2025-12-30", value, records: value == null ? 0 : 2,
+    refs: value == null ? [] : ["fz-tag-1", "fz-tag-2"], note: null, ...over });
+  await page.route("**/metrics", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    unknown: ["Flare"], note: "Internal evidence from the loaded records, not an approved report.",
+    kpis: [
+      { key: "failures", label: "Failures", unit: "notifications", better: "lower", source: "SAP notifications on equipment",
+        definition: "Failure notifications raised on equipment in the period.", now: side(3), before: side(6),
+        change: -3, verdict: "better" },
+      { key: "flare", label: "Flare", unit: "kSm3", better: "lower", source: "daily production reports (EC DAY001)",
+        definition: "Gas flared.", now: side(null, { note: "no daily report in the period states flare" }), before: side(1200),
+        change: null, verdict: "unknown" },
+    ],
+  } }));
+  await page.goto(`${url}/#/metrics`);
+  await page.getByRole("link", { name: "How the plant is running" }).click();
+  await page.getByRole("heading", { name: "How the plant is running" }).waitFor();
+  await page.getByRole("columnheader", { name: "2025-12-01 to 2025-12-30" }).waitFor();
+  const failures = page.locator('tr[data-kpi="failures"]');
+  await failures.getByText("3 notifications", { exact: true }).waitFor();
+  await failures.getByText("-3 notifications", { exact: true }).waitFor();
+  await failures.locator(".kpi-verdict").getByText("better").waitFor();
+  await failures.getByText("SAP notifications on equipment").waitFor();
+  const flare = page.locator('tr[data-kpi="flare"]');
+  assert.equal(await flare.locator(".kpi-unknown").innerText(), "unknown");  // not 0
+  await flare.getByText("no daily report in the period states flare").waitFor();
+  await flare.locator(".kpi-verdict").getByText("unknown").waitFor();
+  await failures.getByRole("button", { name: "2 records" }).first().click();
+  assert.equal(await failures.getByRole("link", { name: "fz-tag-1" }).first().getAttribute("href"), "#/e/fz-tag-1");
+  await page.getByRole("link", { name: "90 days" }).click();
+  await page.waitForURL(/days=90/);
+  assert.equal(await page.getByRole("link", { name: "Metrics", exact: true }).first().getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
