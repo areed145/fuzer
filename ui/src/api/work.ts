@@ -520,6 +520,13 @@ export interface JoinedException {
 }
 
 /** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
+/** Open questions that share an answer (P2.3c), with the answers they can take. */
+export interface ReviewGroup {
+  kind: string; key: string; label: string; count: number; items: number[];
+  options: { decision: "accept" | "reject" | "choose"; source?: string; value?: unknown; label: string }[];
+  standing: { decision: string; source: string | null; value: unknown; set_by: string } | null;
+}
+
 export interface FindingItem {
   label: string; value: string | number | boolean; unit?: string;
   kind: "text" | "number" | "flag" | "time" | "asset" | "page";
@@ -734,4 +741,8 @@ export const workApi = {
     request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
+  reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
+  decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>
+    request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),
+  withdrawGroup: (key: string, by: string) => request<{ withdrawn: string }>("DELETE", "/review/groups", { key, by }),
 };

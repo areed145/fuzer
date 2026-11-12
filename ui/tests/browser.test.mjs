@@ -1030,6 +1030,33 @@ test("Data review is the Questions tab of Master data, old links land on the sam
   }
 });
 
+test("like questions are answered once, for new ones too when asked (P2.3c)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  let groups = [{ kind: "match", key: "match|jde+maximo|the maker is unknown on one side", count: 6, items: [1, 2, 3, 4, 5, 6],
+    label: "jde and maximo records at the same tag where the maker is unknown on one side", standing: null,
+    options: [{ decision: "accept", label: "The same item, each pair" }, { decision: "reject", label: "Keep each pair apart" }] }];
+  let sent = null;
+  await page.route("**/review/groups?*", (route) => route.fulfill({ json: groups }));
+  await page.route("**/review/groups", (route) => {
+    sent = route.request().postDataJSON();
+    groups = [];
+    return route.fulfill({ json: { decided: [1, 2, 3, 4, 5], skipped: [{ id: 6, why: "already pinned the other way" }], rebuild: null } });
+  });
+  page.on("dialog", (d) => d.accept());
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=match`);
+  const card = page.locator(".like-questions");
+  await card.getByText("6 × jde and maximo records at the same tag where the maker is unknown on one side").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`like-questions-${width}`);
+  }
+  await card.getByLabel("and new ones like these").check();
+  await card.getByRole("button", { name: "Keep each pair apart" }).click();
+  await page.getByText("Answered 5 of 6; 1 left for you (already pinned the other way).").waitFor();
+  assert.deepEqual(sent, { key: "match|jde+maximo|the maker is unknown on one side", decision: "reject", standing: true, by: "ana" });
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",

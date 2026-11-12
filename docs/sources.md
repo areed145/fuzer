@@ -125,6 +125,17 @@ matches the questions. Steward cases don't join the IOC's cases about the same a
 the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
 there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
 
+**Like questions answered once** (P2.3c, `graph/review.py`). Questions are like each other when the same answer
+is right for all of them for the same reason. That covers conflicts on one field between the same systems (written
+differently, or genuinely different), possible matches between the same two registers on the same evidence, and
+drawing disagreements from one check. **Like questions**, above each kind on the Questions tab, answers a whole
+group at once, for example "Use sap's value" or "Keep each pair apart". Each question is decided and pinned as if
+answered alone (a pinned link, a review assertion), so the answer survives rebuilds, and the group's cases close
+together. A question the answer can't apply to is left for a person, with the reason. Ticking **and new ones like
+these** makes it a standing answer: at each rebuild it decides new questions in the group as the person who set it
+(`review_rule`), until it is withdrawn. A standing answer to matches pins them at that rebuild, so their records
+merge or stay apart from the next one.
+
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
 search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the

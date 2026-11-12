@@ -840,6 +840,23 @@ Reviewer match decisions; applied on every rerun.
 | `decided_by` | text |  |
 | `decided_at` | timestamptz |  |
 
+### `review_rule`
+
+Standing answers (P2.3c): one answer for a group of like questions that also decides new ones as they arrive.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `group_key` | text |  |
+| `kind` | text |  |
+| `decision` | text |  |
+| `source` | text |  |
+| `value` | jsonb |  |
+| `set_by` | text |  |
+| `set_at` | timestamptz |  |
+| `withdrawn_by` | text |  |
+| `withdrawn_at` | timestamptz |  |
+
 ### `match_score`
 
 Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
