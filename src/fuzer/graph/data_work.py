@@ -87,11 +87,22 @@ def question_route(item_id: int, kind: str) -> str:
     return f"#/masterdata?tab=questions&kind={kind}&item={item_id}"
 
 
+def _gate(g: dict | None) -> tuple:
+    """Why an automatic match stopped for a person (P5.10): its confidence, the threshold it needed and the reason."""
+    if not g:
+        return ()
+    return (fact("Confidence", round(g["confidence"] * 100, 1) if g.get("confidence") is not None else None, "%"),
+            fact("Needed to go ahead", round(g["threshold"] * 100, 1) if g.get("threshold") is not None
+                 else "always a person", "%" if g.get("threshold") is not None else None),
+            fact("Why it stopped", g.get("reason")))
+
+
 def finding(item_id: int, kind: str, p: dict) -> Finding:
     """The case's evidence: what kind of question, the score where there is one, and a link to answer it."""
     return Finding(f"stewardship.{kind}", EXTERNAL, method=KINDS[kind][2], items=(
         page("Answer", question_route(item_id, kind), "Answer it on Master data"),
         fact("Match score", float(p["score"])) if kind == "match" and p.get("score") is not None else None,
+        *_gate(p.get("gate") if kind == "match" else None),
         fact("Field", p.get("field")) if kind == "conflict" else None,
         fact("Dataset", p.get("dataset")) if kind in ("schema", "mapping", "check") else None,
     ), data={"review_item": item_id, "kind": kind})

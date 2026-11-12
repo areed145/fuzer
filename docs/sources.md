@@ -125,6 +125,17 @@ matches the questions. Steward cases don't join the IOC's cases about the same a
 the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
 there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
 
+**Like questions answered once** (P2.3c, `graph/review.py`). Questions are like each other when the same answer
+is right for all of them for the same reason. That covers conflicts on one field between the same systems (written
+differently, or genuinely different), possible matches between the same two registers on the same evidence, and
+drawing disagreements from one check. **Like questions**, above each kind on the Questions tab, answers a whole
+group at once, for example "Use sap's value" or "Keep each pair apart". Each question is decided and pinned as if
+answered alone (a pinned link, a review assertion), so the answer survives rebuilds, and the group's cases close
+together. A question the answer can't apply to is left for a person, with the reason. Ticking **and new ones like
+these** makes it a standing answer: at each rebuild it decides new questions in the group as the person who set it
+(`review_rule`), until it is withdrawn. A standing answer to matches pins them at that rebuild, so their records
+merge or stay apart from the next one.
+
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
 search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the
@@ -210,9 +221,21 @@ but not measured. **Use the measured thresholds** sets each source's match rule 
 and a pair is held to the stricter of its two sources' thresholds from the next rebuild. The cautious direction
 (a higher straight-through threshold, a lower review floor) is adopted on any evidence. The other direction
 needs at least 30 labelled pairs, since 100% of ten pairs is not 99%. On Kestrel, the glycol pump's driver
-(same maker, a close name, the pump's tag) goes straight into the pump at the pack's 0.90. Measuring puts
-Maximo's threshold above it, and the next rebuild sends it to a person. `tests/graph/test_calibration.py` holds
-straight-through at 99% or better on both bundles.
+(same maker, a close name, the pump's tag) scores 0.90, enough for the pack's threshold. Measuring puts Maximo's
+threshold above it. `tests/graph/test_calibration.py` holds straight-through at 99% or better on both bundles.
+
+**The human gate on automatic matches** (P5.10, `core/gates.py`). A pair the thresholds would merge still asks
+the `auto_match` gate. It goes through only when its confidence meets the gate's threshold: 99% by default, and
+never on an A-criticality asset. The criticality is the tag's, read from the records the same rebuild loads.
+Where the pair's source has been measured, its confidence is the precision measured at that score or above, so
+the two agree: a measured source's threshold is set where its matches reach 99%. A source not yet measured has
+only its score, so its pairs below 0.99 stop for a person whatever the pack's threshold says. The two checks run
+in order. The source's threshold decides whether a pair is a candidate to merge at all, and the gate decides
+whether it may merge without a person. The stricter one wins. A stopped pair becomes a match question like any
+other. Its case shows the confidence, the threshold it needed and why it stopped, and every gate decision, went
+ahead or stopped, is kept in `gate_decision`. Matches on the same key (a shared serial) are the same item by
+definition, and the gate is not asked. On Kestrel the gate holds the glycol pump's driver (0.90 unmeasured) even
+before calibration, and asks a person about the amine reboiler because it is A-criticality.
 
 **Before and after a change.** `fuzer sources impact` runs a proposed mapping beside the one in use over the
 stored records and diffs what they make: entities and links added or removed, fields changed, golden values that
