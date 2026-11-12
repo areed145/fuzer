@@ -35,6 +35,15 @@ def query_timeout(request, error):
                         status_code=504)
 
 
+def server_error(request, error):
+    """A request that ended in an unhandled exception: reported to GitHub issues (when configured), then the 500.
+    Starlette still logs the traceback and re-raises it after this response."""
+    from ..core import bugreports
+
+    bugreports.reporter.report(error, f"{request.method} {request.url.path}")
+    return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+
+
 def cookie_name(kind: str) -> str:
     return ("__Host-" if access.public_url().startswith("https://") else "") + "fuzer_" + kind
 

@@ -1,0 +1,21 @@
+# The wells and artificial lift specialist pack (P4.2, pack 6): whether a well test can be trusted, the well's decline
+# and its forecast with a range, gas lift performance, the choke and what limits the well, on SPE practice for decline
+# analysis (Arps 1945) and the operator's own lift curves. SKILL.md is its playbook; this file names what the playbook
+# relies on, so a missing or renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py)
+# instead of an answer on a case.
+title: Wells and artificial lift
+owner: wells-subsurface               # the agent that loads this pack
+classes: [well]                       # a well is its own unit: it has no ISO 14224 equipment class of its own
+tools: [calc, well_performance, detect_changes, plot_decline, plot_water_diagnostic, plot_gas_lift_curve, plot_choke,
+        plot_dp_drift, plot_intervention_gains, intervention_gains, opportunities, maintenance_history, downtime]
+charts: [plot_decline, plot_water_diagnostic, plot_gas_lift_curve, plot_choke, plot_dp_drift, plot_intervention_gains]
+methods: [choke, decline, dp_drift, gas_lift, test_check, well_constraint]
+detectors: [models, hydraulics, opportunities]
+roles: [wellhead_pressure, wellhead_temperature, casing_pressure, choke_position, gas_lift_rate, pressure, flow]
+eval: wells-and-lift                  # each bundle's answer keys: evals/wells-and-lift.yaml in the bundle
+# Each method that reads the well's own measurements, and the roles it needs there (P4.1b). Decline, the test check
+# and gas lift read the well tests, a record, so they are left out; a naturally flowing well needs no lift gas meter.
+needs:
+  choke: [choke_position, wellhead_pressure]
+  dp_drift: [wellhead_pressure]
+  well_constraint: [wellhead_pressure]

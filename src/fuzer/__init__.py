@@ -31,3 +31,7 @@ def _load_env() -> None:
 
 
 _load_env()
+
+from .core import bugreports  # after _load_env: it reads the settings that loads
+
+bugreports.install()  # a crash in any Fuzer process becomes a GitHub issue, when FUZER_GITHUB_ISSUES_TOKEN is set

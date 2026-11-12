@@ -35,7 +35,7 @@ from .deps import (  # noqa: F401  (fuzer.api.rebuilder and the rest, as before)
     get_conn,
     rebuilder,
 )
-from .security import ProjectScope, RequestBounds, query_timeout
+from .security import ProjectScope, RequestBounds, query_timeout, server_error
 
 
 @asynccontextmanager
@@ -73,3 +73,4 @@ for module in (home, investigation, entities, knowledge, ops, metrics, assistant
 app.add_exception_handler(work.WorkError, workflow.work_error)
 app.add_exception_handler(GateRefused, workflow.work_error)
 app.add_exception_handler(QueryCanceled, query_timeout)
+app.add_exception_handler(Exception, server_error)  # a 500: reported to GitHub issues when configured
