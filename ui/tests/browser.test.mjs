@@ -5050,3 +5050,53 @@ test("Separator and export quality shows each analyte against itself, gaps and d
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P3.10b (#840): the alarm system's rate, its floods with their top contributors and its bad actors, each with its case;
+// nothing to acknowledge.
+test("Alarm performance shows the rate, floods and bad actors with their cases, and nothing to acknowledge (P3.10b)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
+    left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
+    note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
+      net_gain_sm3d: null } } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
+  await page.route("**/plant/well-screen", (route) => route.fulfill({ json: WELLS_NONE }));
+  await page.route("**/plant/allocation-factor", (route) => route.fulfill({ json: AF_NONE }));
+  await page.route("**/plant/gas-lift-stability", (route) => route.fulfill({ json: GL_NONE }));
+  await page.route("**/plant/alarm-performance", (route) => route.fulfill({ json: {
+    window: ["2025-06-23T00:00", "2025-06-25T00:00"], days: 2, alarms: 258, per_hour: 5.38, target_per_hour: 6,
+    flood_per_10min: 10, standing_hours: 24, repeats: 12, synthetic: true, note: "Not alarms to acknowledge.",
+    floods: [{ start: "2025-06-24T14:00", end: "2025-06-24T14:40", alarms: 223, peak_10_min: 173,
+      top: [{ point: "20-FT-2100A", alarms: 2 }, { point: "20-PT-2300A", alarms: 2 }], case: 41 }],
+    bad_actors: [{ point: "OK_J07_05.CASP", point_id: "p1", kinds: ["standing"], limits: ["lo 62.3"],
+      since: "2025-06-05T09:00", alarms: 0, case: null },
+      { point: "10LT2004", point_id: "p2", kinds: ["repeating"], limits: [], since: "2025-06-23T01:00", alarms: 15,
+        case: 42 }],
+    open_cases: [] } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".alarm-performance");
+  await card.locator(".ap-summary").getByText("258 alarms, 5.38 an hour against a target of 6", { exact: false }).waitFor();
+  assert.equal(await card.locator(".ap-rate").count(), 0);  // under target
+  const flood = card.locator('tr[data-flood="2025-06-24T14:00"]');
+  await flood.getByText("223, 173 in 10 minutes").waitFor();
+  await flood.getByText("20-FT-2100A (2), 20-PT-2300A (2)").waitFor();
+  assert.equal(await flood.locator('a[href="#/cases/41"]').count(), 1);
+  const standing = card.locator('tr[data-point="OK_J07_05.CASP"]');
+  await standing.locator(".ap-kind").getByText("standing").waitFor();
+  await standing.getByText("lo 62.3 on since 2025-06-05 09:00").waitFor();
+  await standing.getByText("none yet").waitFor();
+  await card.locator('tr[data-point="10LT2004"]').getByText("15 alarms in the window").waitFor();
+  assert.equal(await card.getByRole("button", { name: /acknowledge/i }).count(), 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

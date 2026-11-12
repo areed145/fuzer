@@ -26,6 +26,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
 | [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
 | [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
+| [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
 
 ## excursions
 
@@ -270,3 +271,13 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Measurement roles:** flare gas flow
 - **Needs:** a flare flow point or a daily flare volume
 - **Scored by:** `tests/analysis/test_flare.py::test_a_flare_event_is_raised_with_its_records_or_unknown`, on the fake plant
+
+## alarm_performance
+
+**Alarm floods and bad actors against ISA-18.2 and EEMUA 191.** Each flood raised as one `alarm_flood` case with its top contributors, and each standing or repeating point as one `alarm_bad_actor` case (keyed by the point), quiet while it goes on and raised again only if it recurs after its case was closed.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `alarm_flood`, `alarm_bad_actor`
+- **Needs:** historian points, alarm limits
+- **Scored by:** `tests/analysis/test_alarm_performance.py::test_a_flood_is_one_case_and_a_bad_actor_is_raised_once`, on the fake plant
