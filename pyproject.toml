@@ -36,6 +36,8 @@ dependencies = [
     "scipy>=1.14",
     "scikit-learn>=1.5",
     "openpyxl>=3.1",
+    # The ADX, PI Web API and Teams connectors (sources/adx.py, pi_web_api.py, teams.py); the export sensor imports them.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
