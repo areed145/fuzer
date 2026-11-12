@@ -31,6 +31,7 @@ import { MeasurementsCard, TrendCard } from "../Trend";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { WatchButton } from "../Watch";
+import { Related } from "../Related";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -180,7 +181,8 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           )}
           {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
-            <IncidentsCard id={e.fuzer_id} />
+            <><IncidentsCard id={e.fuzer_id} />
+            <Related about={{ subject: e.fuzer_id }} incidents={false} /></>
           )}
           {["tag", "equipment", "equipment_model", "equipment_class", "well", "facility"].includes(e.kind) && (
             <DowntimeCard id={e.fuzer_id} />

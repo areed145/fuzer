@@ -9,6 +9,7 @@ import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText,
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
+import { Related } from "../../Related";
 import { AgentWork } from "../../AgentWork";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseGates } from "../Gates";
@@ -193,6 +194,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
       <CaseFindings sources={it.sources} />
       <CaseAround id={it.id} />
+      <Related about={{ case: it.id }} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}

@@ -38,6 +38,7 @@ beforeEach(async () => {
     "/work/items": { items: [], total: 0, overdue: 0, due_soon: 0 },
     "/board": { cards: [], total: 0, page: 1, per_page: 50 },
     "/incidents": { items: [], total: 0 },
+    "/related": { subjects: [], incidents: [], studies: [], lessons: [] },
     "/downtime": { lost_oil_sm3: 0, events: 0, hours: 0, items: [] },
     "/jobs/health": { available: false, level: "unknown", summary: "" },
     "/jobs": { available: false, dagster: { url: "", reachable: false },
@@ -341,6 +342,25 @@ test("a case links to Ask about it and shows an answer attached from Ask in its 
   await entry.getByText("attached an answer from Ask", { exact: false }).waitFor();
   await entry.getByText("Is it the bearing?", { exact: true }).waitFor();
   await entry.getByText("The 1x peak points at the coupling.", { exact: true }).waitFor();
+});
+
+test("a case reaches its incidents, studies and lessons (P4.5c)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Pump vibration rising", type: "machine_health",
+    state: "open", subjects: ["fz-p-1"], created_by: "detector:machine_health", created_at: "2026-11-09T09:00:00Z", processes: [], events: [] } }));
+  const asked = [];
+  await page.route("**/related?*", route => { asked.push(new URL(route.request().url()).search); return route.fulfill({ json: {
+    subjects: ["fz-p-1"],
+    incidents: [{ id: "fz-incident-1", description: "Trip on high vibration", unit: "P-1", start: "2026-10-01", end: "2026-10-01",
+      signals: 1, events: 2, downtime_records: 1, notifications: 0, lost_oil_sm3: 0 }],
+    studies: [{ id: 4, kind: "correlate", status: "done", summary: "suction pressure leads vibration", created_by: "user:ana", created_at: "2026-10-02T10:00:00Z" }],
+    lessons: [{ id: 3, title: "Check the coupling first", status: "approved", failure_mode: "VIB", scope_kind: "equipment_class", scope_key: "PU" }] } }); });
+  await page.goto(`${url}/#/cases/8`);
+  const card = page.locator(".related-work");
+  await card.getByRole("heading", { name: "Incidents, studies and lessons" }).waitFor();
+  assert.deepEqual(asked, ["?case=8"]);
+  assert.equal(await card.getByRole("link", { name: "Trip on high vibration" }).getAttribute("href"), "#/e/fz-incident-1");
+  assert.equal(await card.getByRole("link", { name: "suction pressure leads vibration" }).getAttribute("href"), "#/studies?id=4");
+  assert.equal(await card.getByRole("link", { name: "Check the coupling first" }).getAttribute("href"), "#/lessons?status=approved");
 });
 
 test("a case opens with the specialist's brief above the decision, and the person says whether they followed it (P4.3)", async () => {

@@ -108,6 +108,20 @@ def assistant_context(case: int | None = None, subject: str | None = None, conn=
         raise HTTPException(404, str(e))
 
 
+@router.get("/related")
+def related(case: int | None = None, subject: str | None = None, conn=Depends(get_conn)):
+    """The incidents, studies and lessons about a case's subjects or an asset (P4.5c)."""
+    from ..agents import context
+    if case is not None:
+        row = conn.execute("select subjects from work_item where id = %s", (case,)).fetchone()
+        if row is None:
+            raise HTTPException(404, f"no case {case}")
+        return context.related(conn, row["subjects"] or [])
+    if not subject:
+        raise HTTPException(400, "give a case or a subject")
+    return context.related(conn, [subject])
+
+
 @router.get("/assistant/jobs/{job_id}")
 def assistant_job(job_id: str):
     """Progress (which agent is calling which tool) and, when done, the answer with its cost."""
