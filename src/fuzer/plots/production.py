@@ -410,3 +410,31 @@ def forecast_vs_actual(conn, well: str | None = None, since: str | None = None, 
     return Figure("forecast_vs_actual", lay["title"]["text"], data, lay, {
         "field": out["field"], "not_fitted": len(out["not_fitted"]), "since": out["since"], "until": out["until"],
         "source": out["source"], "note": out["note"]}, [w["id"] for w in ranked])
+
+
+def intervention_gains(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """Each well intervention's oil gain net of the decline before it (P7.5a, #340), with its 90 % range; the ones that
+    can't be said are listed in the summary as unknown, not drawn as zero."""
+    from ..analysis import interventions as iv
+
+    out = iv.gains(conn, since, until, None, days)
+    said = [i for i in out["interventions"] if i["verdict"] != "unknown"]
+    if not said:
+        raise ChartError("no intervention in that window has tests before and after it")
+    said.sort(key=lambda i: i["start"])
+    names = [f"{i['well']} {i['start'][:10]}" for i in said]
+    colour = {"gained": "rgba(40,150,90,0.85)", "lost": "rgba(210,60,50,0.85)", "no_clear_change": "rgba(140,140,140,0.7)"}
+    err = [(i["oil_range_sm3d"][1] - i["oil_expected_sm3d"]) if i["oil_range_sm3d"] else 0 for i in said]
+    data = [{"type": "bar", "name": "oil gain net of decline", "x": names, "y": [i["gain_sm3d"] for i in said],
+             "meta": {"entity": [i["well_id"] for i in said]},
+             "error_y": {"type": "data", "array": [rnd(e, 1) for e in err], "visible": True},
+             "marker": {"color": [colour[i["verdict"]] for i in said]},
+             "text": [i["reason"] or "" for i in said],
+             "hovertemplate": "%{x}: %{y} Sm3/d against its decline<br>%{text}<extra></extra>"}]
+    lay = layout(f"Oil gain by well intervention, net of decline, {out['since']} to {out['until']}", None,
+                 "oil gain (Sm3/d)")
+    return Figure("intervention_gains", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "unknown": [{k: i[k] for k in ("well", "start", "why")} for i in out["interventions"]
+                                               if i["verdict"] == "unknown"],
+        "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
+        [i["id"] for i in said][:10])

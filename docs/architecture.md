@@ -12,8 +12,8 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 37 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 34 modules</small>"]
-  c_ops["Operations<br><small>fuzer.ops, 28 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 35 modules</small>"]
+  c_ops["Operations<br><small>fuzer.ops, 29 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 23 modules</small>"]
@@ -216,7 +216,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `kpis`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `costs`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `forecast_actual`, `hydraulics`, `integrity`, `interventions`, `kpis`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -227,7 +227,7 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
+- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `detector_tier_run`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detector_tier_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading` (its `schema.sql`)
@@ -264,7 +264,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 45, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 70, orchestrator 23, production-surveillance 68, wells-subsurface 55, work-management-supply-chain 32 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 47, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 70, orchestrator 23, production-surveillance 69, wells-subsurface 57, work-management-supply-chain 32 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
