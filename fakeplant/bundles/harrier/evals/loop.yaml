@@ -36,3 +36,14 @@ arrive:
   # the transmitter (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
                       rebuild: true, detector: unrecorded_changes}
+  # The utility air pressure cycling every 50 minutes for four days: a loop candidate for the engineer
+  loop_candidate: {detector: loop_oscillation}
+  well_test_review: {not_here: "a pipeline and terminal has no wells to test"}
+  gas_lift_instability: {not_here: "a pipeline and terminal has no wells on gas lift"}
+  # The next lab delivery: the crude receipt's BS&W resampled three times yesterday, at about 1 % against 0.2 to 0.4
+  quality_drift: {deliver: deliveries/wet-crude, datasets: [lims_results], incremental: true, rebuild: true,
+                  detector: quality_drift}
+  flare_event: {not_here: "no flare flow is metered and no daily report states a flare volume"}
+  alarm_flood: {not_here: "the terminal's 36 alarmed tags never reach 10 alarms in 10 minutes in the replay"}
+  # Crude tank C's level low alarm coming back every few hours, and alarms standing for days
+  alarm_bad_actor: {detector: alarm_performance}

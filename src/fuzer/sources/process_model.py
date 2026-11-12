@@ -181,6 +181,15 @@ class Window:
             out = out + self.between(e["start"], e.get("end")) * float(e["amplitude"]) * wave
         return out
 
+    def heading(self, unit: str) -> np.ndarray:
+        """`heading` events: a gas-lifted well heading (P3.1c, #341), its casing pressure and wellhead pressure swinging
+        by `amplitude` (a fraction) about their level every `period` minutes as lift gas surges through the valve."""
+        out = np.zeros_like(self.t)
+        for e in self.ev(unit, "heading"):
+            phase = (self.t - minutes(e["start"])) / float(e["period"])
+            out = out + self.between(e["start"], e.get("end")) * float(e["amplitude"]) * np.sin(2 * math.pi * phase)
+        return out
+
     def get(self, unit: str, var: str) -> np.ndarray:
         key = (unit, var)
         if key not in self.memo:
@@ -479,8 +488,8 @@ class Window:
                 return np.zeros_like(self.t)
             failed = self.any_between(unit, "valve_failed_open")
             hp = self.get(u["header"], "pressure")
-            return self.lag(hp * (0.82 - 0.14 * failed) * (0.6 + 0.4 * self.get(unit, "flowing")), 15) + \
-                0.4 * self.noise(unit + "c", 20)
+            return self.lag(hp * (0.82 - 0.14 * failed) * (0.6 + 0.4 * self.get(unit, "flowing")), 15) * \
+                (1 + self.heading(unit)) + 0.4 * self.noise(unit + "c", 20)
         if var == "cv":  # the choke's Cv at its opening (its characteristic), times wear: + eroded, - plugged
             c, o = u["choke"], np.clip(self.get(unit, "choke"), 0, 100)
             cv = c["cv_max"] * o / 100 if c["trim"] == "linear" else c["cv_max"] * 30 ** (o / 100 - 1)
@@ -553,6 +562,7 @@ class Window:
             gpm = q / 24 * 4.403
             p = self.get(unit, "back") + u.get("sg", 0.9) * (gpm / self.get(unit, "cv")) ** 2 / 14.5038 \
                 + self.get(unit, "flowline") * q ** 2
+            p = p * (1 + 0.5 * self.heading(unit))  # heading on lift: the wellhead swings with the casing
             return p * (1 - shut) + shut * u.get("shut_in_whp", 45) + 0.1 * self.noise(unit + "whp", 10)
         if var == "wht":
             if u.get("kind") == "gas":

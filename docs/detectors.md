@@ -22,6 +22,12 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
 | [`bypass_overdue`](#bypass_overdue) A safeguard still bypassed past its expiry | Rule | Every 30 minutes | `bypass_overdue` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
+| [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
+| [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
+| [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
+| [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
+| [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
+| [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
 
 ## excursions
 
@@ -223,3 +229,68 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `unrecorded_change`
 - **Needs:** change records
 - **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up`, on the fake plant
+
+## loop_oscillation
+
+**A measurement cycling as a hunting control loop does.** Each controlled measurement cycling regularly over the last `days` raised as `loop_candidate` for the engineer (keyed by the point), with its period and amplitude; open ones whose point no longer cycles are cleared.
+
+- **Kind:** Statistical
+- **Runs:** Once a day
+- **Raises:** `loop_candidate`
+- **Measurement roles:** level, process pressure, differential pressure, process flow, process temperature, outlet temperature, suction pressure, discharge pressure, suction flow, fuel flow
+- **Needs:** historian points, measurement roles of what a controller holds
+- **Scored by:** `tests/analysis/test_loops.py::test_a_cycling_level_is_a_loop_candidate_until_it_stops`, on the fake plant
+
+## well_tests
+
+**A well test overdue, or a water cut or GOR shift on the latest test.** Each well flagged by `review` raised as `well_test_review` for the production engineer (keyed by the well); open ones a newer test no longer flags are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `well_test_review`
+- **Equipment classes:** well
+- **Needs:** well tests
+- **Scored by:** `tests/analysis/test_well_tests.py::test_a_well_whose_water_cut_jumps_is_raised_until_a_newer_test_settles_it`, on the fake plant
+
+## gas_lift_instability
+
+**A gas-lifted well heading: its casing pressure surging regularly.** Each heading well raised as `gas_lift_instability` for the production engineer (keyed by the well), with the casing pressure's period and swing; open ones whose casing has settled are cleared.
+
+- **Kind:** Statistical
+- **Runs:** Once a day
+- **Raises:** `gas_lift_instability`
+- **Equipment classes:** well
+- **Measurement roles:** casing pressure, wellhead pressure
+- **Needs:** casing pressure on a well
+- **Scored by:** `tests/analysis/test_gas_lift.py::test_a_heading_well_is_raised_until_its_casing_settles`, on the fake plant
+
+## quality_drift
+
+**A lab analyte at a sample point drifting off its own baseline.** Each drift raised as `quality_drift` for the engineer (keyed by subject, sample point and analyte), with the level against its baseline; open ones whose samples have come back are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `quality_drift`
+- **Needs:** lab results at a sample point
+- **Scored by:** `tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back`, on the fake plant
+
+## flare_events
+
+**A flare above its baseline, matched to the records around it.** Each flare episode raised as `flare_event` for the HSE specialist (keyed by where and when it started), with the records it was matched to; an episode is a record of what happened, so it stays until a person closes it.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `flare_event`
+- **Measurement roles:** flare gas flow
+- **Needs:** a flare flow point or a daily flare volume
+- **Scored by:** `tests/analysis/test_flare.py::test_a_flare_event_is_raised_with_its_records_or_unknown`, on the fake plant
+
+## alarm_performance
+
+**Alarm floods and bad actors against ISA-18.2 and EEMUA 191.** Each flood raised as one `alarm_flood` case with its top contributors, and each standing or repeating point as one `alarm_bad_actor` case (keyed by the point), quiet while it goes on and raised again only if it recurs after its case was closed.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `alarm_flood`, `alarm_bad_actor`
+- **Needs:** historian points, alarm limits
+- **Scored by:** `tests/analysis/test_alarm_performance.py::test_a_flood_is_one_case_and_a_bad_actor_is_raised_once`, on the fake plant

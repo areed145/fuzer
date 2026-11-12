@@ -1,0 +1,4 @@
+sample_id,analyte,tag,well,sample_point,sampled_at,result,unit,method
+HRS-R00A,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-1d 06:00,0.9,vol%,ASTM D4007
+HRS-R00B,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-1d 12:00,1.1,vol%,ASTM D4007
+HRS-R00C,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-1d 18:00,1.0,vol%,ASTM D4007

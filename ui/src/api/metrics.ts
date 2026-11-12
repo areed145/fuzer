@@ -192,6 +192,68 @@ export interface BacklogBurn {
       type: string | null; priority: string | null }[] };
 }
 
+/** Water breakthrough, gas and test age across the wells (#339). */
+export interface WellScreen {
+  wells_screened: number; source: string; note: string;
+  thresholds: { water_cut_step_points: number; gor_rise: number; stale_days: number };
+  patterns: { well_id: string; well: string; verdict: "water_cut_step" | "gor_climb"; tests: number;
+    water_cut_step: { at: string; record: string; cum_oil_sm3: number; water_cut_before_pct: number;
+      water_cut_after_pct: number; oil_before_sm3d: number | null; oil_after_sm3d: number | null } | null;
+    gor_climb: { first_gor: number; latest_gor: number; ratio: number } | null }[];
+  staleness: { as_of: string; max_days: number; note: string;
+    summary: { current: number; stale: number; no_test_on_file: number; wells: number; stale_share_pct: number | null;
+      median_age_days: number | null; oldest_days: number | null };
+    wells: { id: string; well: string; tests: number; latest_test: string | null; age_days: number | null;
+      status: "current" | "stale" | "no_test_on_file" }[] };
+}
+
+/** Separator and export quality from the lab (#342). */
+export interface PlantQuality {
+  since: string; until: string; source: string; note: string; limits: null; limit_basis: string; gap_factor: number;
+  summary: { series: number; sample_points: number; drifting: number; with_gaps: number; limits_loaded: number };
+  series: { subject: string; label: string; sample_point: string; analyte: string; unit: string | null;
+    samples: number; first: string; last: string; latest: number; low: number; high: number;
+    first_half_median: number; latest_3_median: number; change_pct: number | null; below_detection: number;
+    usual_interval_days: number | null; gaps: { from: string; to: string; days: number }[];
+    drift: { direction: "up" | "down"; level: number; baseline?: number; change?: number; since: string; held?: boolean } | null }[];
+}
+
+/** Gas lift casing heading and instability (#341). */
+export interface GasLiftStability {
+  window: [string, string]; days: number; source: string; note: string; synthetic?: boolean;
+  thresholds: { swing_pct: number; same_period: number; step_minutes: number; min_readings: number };
+  summary: { heading: number; unstable: number; steady: number; too_little_data: number; wells: number };
+  wells: { well_id: string; well: string; verdict: "heading" | "unstable" | "steady" | "too_little_data";
+    period_min?: number | null; cycling_together?: string[]; casing_swing_bar?: number; casing_swing_pct?: number | null;
+    r?: number }[];
+}
+
+/** The alarm system against ISA-18.2 and EEMUA 191: rate, floods and bad actors, with their cases (P3.10b, #840). */
+export interface AlarmPerformance {
+  window: [string, string]; days: number; alarms: number; per_hour: number; target_per_hour: number;
+  flood_per_10min: number; standing_hours: number; repeats: number; synthetic: boolean; note: string;
+  floods: { start: string; end: string; alarms: number; peak_10_min: number; top: { point: string; alarms: number }[];
+    case: number | null }[];
+  bad_actors: { point: string; point_id: string; kinds: ("standing" | "repeating")[]; limits: string[]; since: string;
+    alarms: number; case: number | null }[];
+  open_cases: { id: number; type: string; title: string; item_id: number | null }[];
+}
+
+/** Allocated oil against the wells' tested offer, month by month (#338). */
+export interface AllocationFactor {
+  since: string; until: string; source?: string; note: string;
+  verdict: "steady" | "low" | "high" | "drifting" | "no_tests" | "no_daily_report";
+  flags: ("low" | "high" | "drifting")[];
+  months: { month: string; days: number; days_left_out: number;
+    left_out: { facility_or_tag_downtime: number; field_trip: number };
+    allocated_sm3: number; offered_sm3: number; factor: number | null; factor_ignoring_downtime: number | null;
+    wells_offering: number; well_days_shut_in: number; wells_without_a_live_test: number;
+    median_test_age_days: number | null; max_test_age_days: number | null }[];
+  summary: { months: number; factor: number | null; first_months_factor: number | null;
+    latest_months_factor: number | null; drift: number | null; days_used: number; days_left_out: number;
+    band: [number, number]; drift_threshold: number; drift_months: number; test_days: number };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -203,6 +265,11 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
+  gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
+  alarmPerformance: () => request<AlarmPerformance>("GET", "/plant/alarm-performance"),
+  allocationFactor: () => request<AllocationFactor>("GET", "/plant/allocation-factor"),
+  wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
   backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
   plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),
   interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),

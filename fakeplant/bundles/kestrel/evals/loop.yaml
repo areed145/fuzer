@@ -34,5 +34,18 @@ arrive:
   drawing_line_to_confirm: {deliver: deliveries/drawing-revision, datasets: [pid_sheets], rebuild: true}
   # The suction scrubber's high-high level trip, still bypassed past its expiry (the bypass register)
   bypass_overdue: {detector: bypass_overdue}
+  # D1-E-4006's temperature cycling every two hours: a loop candidate for the engineer
+  loop_candidate: {detector: loop_oscillation}
+  # The next well test delivery: KR 12-03H's water cut up from 2.5 to 14 % on yesterday's test
+  well_test_review: {deliver: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true,
+                     detector: well_tests}
+  gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
+  # The sales gas's water content climbing from about 90 to 141 mg/Sm3 over its last three weekly samples
+  quality_drift: {detector: quality_drift}
+  # The flare during yesterday's compressor trip, matched to the downtime and the operator's log entries
+  flare_event: {detector: flare_events}
+  alarm_flood: {not_here: "its 28 alarmed tags never reach 10 alarms in 10 minutes in the replay; yesterday's compressor trip peaks at 2"}
+  # The glycol reboiler's temperature low alarm, on for days as it drifts down over weeks: a bad actor for the alarm owner
+  alarm_bad_actor: {detector: alarm_performance}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}

@@ -695,6 +695,14 @@
    "kind": "covering",
    "start": "today-1d 07:10",
    "end": "today+400d"
+  },
+  {
+   "unit": "H1-PT-8002",
+   "kind": "oscillation",
+   "start": "today-4d 00:00",
+   "end": "today+400d",
+   "period": 50,
+   "amplitude": 0.2
   }
  ]
 }

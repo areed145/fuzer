@@ -23,7 +23,9 @@ window detectors through the SRE scan and hand-off, a source's sync, or the regi
 step runs that and takes the exception it raised. A type the bundle names no arrival for is raised by the loop itself
 and reported `synthetic`, so the report shows what is not yet covered. Before the run, the processes load and the
 cases opened before they did run them (`routing.adopt_open_cases`), as on the API's start. Work about a source rather
-than an asset (`about: source`) matches one of the project's sources instead of an asset (#747).
+than an asset (`about: source`) matches one of the project's sources instead of an asset (#747). A type that cannot
+arise on the bundle's asset type says why (`not_here: "a pipeline has no wells"`): it is reported under `not_here`,
+not run and not raised synthetically.
 """
 
 import re
@@ -385,7 +387,7 @@ def _readable(job: dict) -> None:
         raise Step(f"the field job shows raw ids: {bad[:3]}")
 
 
-def run_type(conn, route: dict, ref: str, run_id: str = "", how: dict | None = None) -> dict:
+def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | None = None) -> dict:
     """One type through the loop. Returns {type, starts, steps: {step: what happened}, failed: step or None,
     why: the failure}."""
     from ..ops import exceptions as ex
@@ -506,15 +508,19 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     _people(conn)
     conn.commit()
     routes = [r for r in routing.routes(conn) if only is None or r["type"] in only]
-    refs = _assets(conn, len(routes))
-    if len(refs) < len(routes):
-        raise ValueError(f"the register has {len(refs)} free tagged assets for {len(routes)} types")
-    run_id = conn.execute("select to_char(now(), 'YYYYMMDDHH24MISSUS') as t").fetchone()["t"]  # one key per run
     arrive = arrivals(conn) if arrive is None else arrive
+    not_here = {r["type"]: arrive[r["type"]]["not_here"] for r in routes if "not_here" in (arrive.get(r["type"]) or {})}
+    routes = [r for r in routes if r["type"] not in not_here]
+    bare = [r["type"] for r in routes if not arrive.get(r["type"])]  # raised by the loop: each needs an asset of its own
+    free = _assets(conn, len(bare)) if bare else []
+    if len(free) < len(bare):
+        raise ValueError(f"the register has {len(free)} free tagged assets for {len(bare)} types the loop raises")
+    refs = dict(zip(bare, free, strict=True))
+    run_id = conn.execute("select to_char(now(), 'YYYYMMDDHH24MISSUS') as t").fetchone()["t"]  # one key per run
     # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
     # the work another type's own detector is about to raise
     routes.sort(key=lambda r: bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {}))))
-    results = [run_type(conn, r, ref, run_id, arrive.get(r["type"])) for r, ref in zip(routes, refs, strict=True)]
-    return {"types": results, "passed": sum(not r["failed"] for r in results),
+    results = [run_type(conn, r, refs.get(r["type"]), run_id, arrive.get(r["type"])) for r in routes]
+    return {"types": results, "passed": sum(not r["failed"] for r in results), "not_here": not_here,
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [
         f"{r['type']}: {r['failed']}: {r['why']}" for r in results if r["failed"]]}

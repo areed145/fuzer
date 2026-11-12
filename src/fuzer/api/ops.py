@@ -349,6 +349,42 @@ def plant_backlog_burn(days: int = 365, conn=Depends(get_conn)):
     return backlog.burn(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/allocation-factor")
+def plant_allocation_factor(days: int = 365, conn=Depends(get_conn)):
+    """Allocated oil over the producing wells' tested offer each month, shut-in wells taken out by downtime (#338)."""
+    from ..analysis import well_test_factor
+    return well_test_factor.trend(conn, days=max(31, min(days, 1825)))
+
+
+@router.get("/plant/gas-lift-stability")
+def plant_gas_lift_stability(days: int = 3, conn=Depends(get_conn)):
+    """Gas lifted wells whose casing pressure heads, or whose lift gas or wellhead pressure cycles (#341)."""
+    from ..analysis import gas_lift_stability as gls
+    return gls.screen(conn, max(1, min(days, 14)))
+
+
+@router.get("/plant/quality")
+def plant_quality(days: int = 365, conn=Depends(get_conn)):
+    """Each lab analyte at each sample point over the window, gaps in sampling, and drifts first (#342)."""
+    from ..analysis import quality_trend as qt
+    return qt.trends(conn, days=max(30, min(days, 1825)))
+
+
+@router.get("/plant/alarm-performance")
+def plant_alarm_performance(days: int = 2, conn=Depends(get_conn)):
+    """The alarm system against ISA-18.2 and EEMUA 191: its rate, floods and bad actors, and the alarm cases open now
+    (P3.10b, #840). Measures and work for the alarm owner, never alarms to acknowledge."""
+    from ..analysis import alarm_performance
+    return alarm_performance.summary(conn, deps.pack(), max(1, min(days, 7)))
+
+
+@router.get("/plant/well-screen")
+def plant_well_screen(conn=Depends(get_conn)):
+    """Wells whose water cut stepped up or whose GOR climbed, and how old each well's latest test is (#339)."""
+    from ..analysis import well_diagnostics as wd
+    return wd.screen(conn)
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

@@ -294,6 +294,14 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
         events.append({"unit": "10-V-2003", "kind": "oscillation", "start": "2025-02-10T00:00", "end": "2025-02-17T00:00",
                        "period": 60, "amplitude": 4.0, "shape": "sawtooth"})
 
+    # A gas-lifted well heading from 15 to 29 December 2025: its casing and wellhead pressures swing about every 75
+    # minutes as lift gas surges through the valve (P3.1c, #341). The first gas-lifted well no other story touches.
+    busy = {e["unit"] for e in events}
+    lifted = sorted(n for n, u in units.items() if u.get("type") == "well" and u.get("lift") == "GL" and n not in busy)
+    if lifted:
+        events.append({"unit": lifted[0], "kind": "heading", "start": "2025-12-15T00:00", "end": "2025-12-29T00:00",
+                       "period": 75, "amplitude": 0.06})
+
     # Choke moves and pump swaps the operators logged.
     for lg in logs:
         if m := re.match(r"(J\d\d-\d\d|NWP-\d\d) choke opened \d+ to (\d+)%", lg["text"]):
