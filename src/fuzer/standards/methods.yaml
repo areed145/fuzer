@@ -417,3 +417,34 @@ period_comparison:
     min_readings: {value: 5, means: "Readings each window needs before a point is compared.", code: "fuzer.analysis.cases:PERIOD_MIN_POINTS"}
     window_gap: {value: 1, unit: "days", means: "A gap this long inside a window makes the comparison thin.", code: "fuzer.analysis.cases:PERIOD_MAX_GAP_DAYS"}
   vectors: [{worked: "tests/plots/test_views.py::test_compare_periods_and_similar_cases"}]
+
+alarm_performance:
+  title: Alarm system performance over a window
+  standard: "ANSI/ISA-18.2 and EEMUA 191"
+  tool: alarm_analysis
+  inputs: [{name: Alarm limits on each point and the historian readings that cross them, unit: alarms}]
+  valid: Points with an enabled DCS or AF alarm limit; the alarm journal is each reading past a limit while the unit runs, until a real journal is loaded.
+  needs: Enabled alarm limits and readings over the window.
+  thresholds:
+    target_per_hour: {value: 6, means: "Alarms per hour an operator can handle, about one every 10 minutes.", code: "fuzer.analysis.alarms:TARGET_PER_HOUR"}
+    flood: {value: 10, means: "Alarms in 10 minutes past which it is a flood.", code: "fuzer.analysis.alarms:FLOOD"}
+    standing: {value: 24, unit: "h", means: "An alarm on this long is standing.", code: "fuzer.analysis.alarms:STANDING_HOURS"}
+    chattering: {value: 3, means: "Alarms on one point, each within a minute of the last clearing, that make it chattering.", code: "fuzer.analysis.alarms:CHATTER"}
+  vectors: [{worked: "tests/analysis/test_alarms.py::test_alarm_analysis_reads_the_week"}]
+
+instrument_health:
+  title: Whether a transmitter's readings can be trusted
+  practice: Frozen, stuck, noisy, out of range and redundant transmitters drifting apart, each against the point's own last week; the spans and ratios are this registry's own.
+  tool: instrument_health
+  inputs: [{name: Historian readings on the point or every point on the unit, unit: each point's own}]
+  valid: Any measured point with a week of readings before the window.
+  needs: A week of readings before the window and readings inside it.
+  thresholds:
+    frozen: {value: 2, unit: "h", means: "No change at all for this long: frozen (communications, a stale tag).", code: "fuzer.analysis.signals:FLAT_HOURS"}
+    stuck: {value: 6, unit: "h", means: "High-frequency spread far under its usual for this long without being frozen: sticking.", code: "fuzer.analysis.signals:STUCK_HOURS"}
+    stuck_ratio: {value: 0.1, means: "The share of its usual spread under which it counts as stuck.", code: "fuzer.analysis.signals:STUCK"}
+    noisy: {value: 1, unit: "h", means: "Spread far over its usual for this long: hunting or a loose connection.", code: "fuzer.analysis.signals:NOISY_HOURS"}
+    noisy_ratio: {value: 4, means: "Times its usual spread over which it counts as noisy.", code: "fuzer.analysis.signals:NOISY"}
+    out_of_range: {value: 30, unit: "min", means: "At or past the end of its range for this long.", code: "fuzer.analysis.signals:RANGE_MINUTES"}
+    drift: {value: 2, unit: "h", means: "Redundant transmitters apart for this long.", code: "fuzer.analysis.signals:DRIFT_HOURS"}
+  vectors: [{worked: "tests/analysis/test_calcs.py::test_health_finds_the_hunting_level_transmitter"}]

@@ -1,0 +1,14 @@
+# The alarms and instruments specialist pack (P4.2 pack 2, first slice): alarm system performance and whether a
+# reading can be trusted. SKILL.md is its playbook; this file names what the playbook relies on, so a missing or
+# renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+# Control loop methods (oscillation, stiction, loop health) join this pack in its next slice.
+title: Alarms and instruments
+owner: field-operations-facilities    # the agent that loads this pack
+classes: [IP, VA, CL]                 # input devices, valves, control logic (standards/iso14224.yaml)
+tools: [instrument_health, plot_instrument_health, alarm_analysis, plot_alarms, detect_changes, plot_changes, limits,
+        capacity_headroom, plot_operating_window]
+charts: [plot_instrument_health, plot_alarms, plot_changes, plot_operating_window]
+methods: [alarm_performance, instrument_health]   # run by their own tools (the registry's `tool`)
+detectors: [instruments, excursions, steps]
+roles: [pressure, differential_pressure, temperature, flow, level, valve_position, composition]
+eval: alarms-and-instruments          # each bundle's answer keys: evals/alarms-and-instruments.yaml in the bundle

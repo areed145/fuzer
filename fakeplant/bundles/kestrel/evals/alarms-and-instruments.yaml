@@ -1,0 +1,6 @@
+# Answer keys for the alarms and instruments specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists.
+# The alarm rate over the last week is far under target, but the analyser AT3011 on C1 has stood in alarm all week.
+- question: Over the last seven days, is the alarm rate within target, and which alarms are standing?
+  must_mention: [AT3011, standing, [under, below, within]]
+  specialists: [field-operations-facilities]
