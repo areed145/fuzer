@@ -441,7 +441,26 @@ export interface Study {
   result?: Record<string, unknown> | null;
 }
 
+/** Repeat incidents and corrective work ageing (#350). Linked work is a proxy, not an action register. */
+export interface LinkedOrder {
+  id: string; order: string; type: string | null; status: string; open: boolean; start: string | null;
+  finish: string | null; age_days: number | null; age_band: string | null; incident: string;
+  link: "via_notification" | "on_unit_after"; notification: string | null; description: string | null;
+}
+
+export interface IncidentRepeats {
+  since: string; until: string; as_of: string; follow_days: number; source: string; note: string;
+  units: { unit_id: string | null; unit: string; incidents: number; repeat: boolean; days_between: number[];
+    lost_oil_sm3: number; came_back_after_closed_work: { incident: string; start: string; after: string; closed_orders: string[] }[];
+    items: { id: string; start: string; description: string | null; linked_orders: number; open_orders: number }[] }[];
+  open_work: (LinkedOrder & { incidents: string[] })[];
+  closed_work: LinkedOrder[];
+  summary: { incidents: number; units: number; repeat_units: number; came_back_after_closed_work: number;
+    linked_orders: number; open_orders: number; incidents_without_linked_work: number; open_by_age: Record<string, number> };
+}
+
 export const investigateApi = {
+  incidentRepeats: () => request<IncidentRepeats>("GET", "/incidents/repeats"),
   guidedInvestigation: () => request<Investigation>("GET", "/demo/investigation"),
   liveFigure: (kind: string, params?: Record<string, string>) =>
     request<LiveFigureData>("GET", `/analytics/figures/${encodeURIComponent(kind)}`, params),

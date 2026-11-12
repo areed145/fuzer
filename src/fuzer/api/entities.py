@@ -269,6 +269,13 @@ def entity_conversations(fuzer_id: str, limit: int = 20, conn=Depends(get_conn))
     return queries.conversations(conn, fuzer_id, min(limit, 100))
 
 
+@router.get("/incidents/repeats")
+def incident_repeats(days: int = 730, conn=Depends(get_conn)):
+    """Repeat incidents per unit and the age of open linked corrective work (#350); linked work is a proxy."""
+    from ..analysis import incident_followup
+    return incident_followup.repeats(conn, days=max(30, min(days, 1825)))
+
+
 @router.get("/incidents/{fuzer_id}/timeline")
 def incident_timeline(fuzer_id: str, conn=Depends(get_conn)):
     return queries.incident_timeline(conn, fuzer_id)
