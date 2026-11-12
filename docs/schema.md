@@ -1388,6 +1388,19 @@ Exceptions (core/exceptions.py): anything that should draw the IOC's attention a
 | `closed_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `field_photo`
+
+Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `exception_id` | bigint |  |
+| `by` | text |  |
+| `at` | timestamptz |  |
+| `mime` | text |  |
+| `data` | bytea |  |
+
 ### `exception_kind`
 
 Exception types a deployment defines as data (ops/exceptions.define), so other systems (SAP notifications, SCADA alarms, a reporting app) raise them over the API without code. Types declared in code are not stored here.

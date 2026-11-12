@@ -11,6 +11,7 @@ import { AssignPicker, StepBadges, caseHref, useAct } from "./shared";
 import { UpsetPanel } from "./UpsetPanel";
 import { DemoContext } from "../../DemoContext";
 import { usePermission } from "../../Auth";
+import { FieldPhoto, photosOf } from "../../FieldPhoto";
 
 const TaskForm = lazy(() => import("../../TaskForm"));
 
@@ -179,6 +180,8 @@ function FromField({ v }: { v: WorkTaskView }) {
       {asked && <p className="small muted">You asked: {asked}</p>}
       <ul className="plain">{notes.map((c) => <li key={c.id}>
         <strong>{String(c.data.text).slice(7)}</strong> <span className="muted small">· <Actor who={c.actor} /> {when(c.at)}</span>
+        {photosOf(c.data).length > 0 && <div className="field-photos">{photosOf(c.data).map((p) =>
+          <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
       </li>)}</ul>
     </UICard>
   );

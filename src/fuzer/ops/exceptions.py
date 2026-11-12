@@ -515,26 +515,94 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     return row
 
 
-def report(conn, exception_id: int, by: str, status: str, note: str | None = None) -> dict:
+PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
+PHOTO_MAX = 2_000_000  # bytes, after the phone resized it
+PHOTOS_MAX = 4
+
+
+def _reading(reading: dict | None) -> dict | None:
+    """A reading the field took: a number with its unit, and what it was of."""
+    if not reading:
+        return None
+    try:
+        value = float(reading.get("value"))
+    except (TypeError, ValueError):
+        raise ExceptionError("a reading needs a number") from None
+    unit = str(reading.get("unit") or "").strip()
+    if not unit or len(unit) > 20:
+        raise ExceptionError("a reading needs its unit (°C, barg, mm/s...)")
+    what = str(reading.get("what") or "").strip()[:80] or None
+    return {"value": value, "unit": unit, "what": what}
+
+
+def reading_text(r: dict) -> str:
+    v = f"{r['value']:g}"
+    return f"{r['what']} {v} {r['unit']}" if r.get("what") else f"{v} {r['unit']}"
+
+
+def _photos(photos) -> list[tuple[str, bytes]]:
+    """Photos as data URLs (data:image/jpeg;base64,...), checked for type and size."""
+    import base64
+
+    out = []
+    for p in list(photos or [])[:PHOTOS_MAX + 1]:
+        head, _, body = str(p).partition(",")
+        mime = head.removeprefix("data:").removesuffix(";base64")
+        if not head.startswith("data:") or mime not in PHOTO_TYPES:
+            raise ExceptionError("a photo must be a JPEG, PNG or WebP image")
+        try:
+            data = base64.b64decode(body, validate=True)
+        except ValueError:
+            raise ExceptionError("a photo could not be read") from None
+        if len(data) > PHOTO_MAX:
+            raise ExceptionError(f"a photo is too large ({len(data) // 1000} kB, at most {PHOTO_MAX // 1000} kB)")
+        out.append((mime, data))
+    if len(out) > PHOTOS_MAX:
+        raise ExceptionError(f"at most {PHOTOS_MAX} photos on one report")
+    return out
+
+
+def photo(conn, exception_id: int, photo_id: int) -> dict:
+    row = conn.execute("select mime, data from field_photo where id = %s and exception_id = %s",
+                       (photo_id, exception_id)).fetchone()
+    if row is None:
+        raise ExceptionError(f"no photo {photo_id} on exception {exception_id}")
+    return row
+
+
+def report(conn, exception_id: int, by: str, status: str, note: str | None = None, *, reading: dict | None = None,
+           photos=()) -> dict:
     """What a field operator says back: on site, done, could not do (with why) or a note. Kept on the exception's
     evidence (`field`) and its case's history, and published as exception.reported for the IOC. `done` on a case
     without a process closes it. `done` on a process case, or `could_not_do` on any, hands what was sent to them
-    back to whoever sent it (the IOC's step goes back to its queue), so the IOC decides what happens next."""
+    back to whoever sent it (the IOC's step goes back to its queue), so the IOC decides what happens next.
+    A report can carry a reading (a number with its unit) and photos (P5.3b), which the IOC sees with it."""
     if status not in FIELD_STATUSES:
         raise ExceptionError(f"status must be one of {FIELD_STATUSES}")
     if status in ("could_not_do", "note") and not (note or "").strip():
         raise ExceptionError("say why (or what) in the note")
+    measured, pictures = _reading(reading), _photos(photos)
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # the field reports on the event, which its host carries
-        return report(conn, row["joined_to"], by, status, note)
+        return report(conn, row["joined_to"], by, status, note, reading=reading, photos=photos)
     entry = {"at": conn.execute("select now() as t").fetchone()["t"].isoformat(), "by": by, "status": status,
              "note": note}
+    if measured:
+        entry["reading"] = measured
+    if pictures:
+        entry["photos"] = [conn.execute("insert into field_photo (exception_id, by, mime, data) values (%s, %s, %s, %s) "
+                                        "returning id", (exception_id, by, m, d)).fetchone()["id"] for m, d in pictures]
     conn.execute("update exception_record set evidence = jsonb_set(evidence, '{field}', "
                  "coalesce(evidence->'field', '[]') || %s), updated_at = now() where id = %s",
                  (Jsonb([entry]), exception_id))
     if row["item_id"]:
         said = {"on_site": "On site", "done": "Done", "could_not_do": "Could not do", "note": "Note"}[status]
-        work.comment(conn, row["item_id"], by, f"Field: {said}" + (f": {note}" if note else ""))
+        extra = [reading_text(measured)] if measured else []
+        if pictures:
+            extra.append(f"{len(pictures)} photo{'s' if len(pictures) > 1 else ''}")
+        text = f"Field: {said}" + (f": {note}" if note else "") + (f" ({'; '.join(extra)})" if extra else "")
+        work.comment(conn, row["item_id"], by, text, [
+            {"kind": "photo", "exception_id": exception_id, "photo_id": i} for i in entry.get("photos", [])])
         from . import routing
 
         # a queue_item case (#509) is a plain queue case run as a process: Done closes it as before
