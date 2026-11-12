@@ -4032,10 +4032,54 @@ test("the Processes catalog recovers, explains who publishes, and validates new 
   await page.getByRole("alert").filter({ hasText: "lower case letters" }).waitFor();
   await key.fill("lesson_review");
   assert.equal(await create.isDisabled(), false);
+  assert.equal(await page.getByRole("alert").filter({ hasText: "lower case letters" }).count(), 0);
   await page.getByLabel("BPMN file to import").setInputFiles({ name: "broken.bpmn", mimeType: "application/xml",
     buffer: Buffer.from("<definitions/>") });
   await page.getByRole("alert").filter({ hasText: "Couldn't import broken.bpmn: line 3: a person's task needs an SLA" }).waitFor();
   assert.deepEqual(imports, [{ xml: "<definitions/>", by: "alice" }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P5.6b (#318): a process page says which version you are on and how it relates to what runs, its views are
+// labelled tabs, a draft shows what draft, check and publish each do, and the monitor, running and routing views
+// recover from a failed read.
+test("a process page says where you are, what each step of a change does, and recovers each view (#318)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "alice"));
+  const xml = readFileSync(new URL("../../src/fuzer/workflow/definitions/shift_handover.bpmn", import.meta.url), "utf8");
+  await page.route("**/work/definitions?*", (route) => route.fulfill({ json: [
+    { id: 1, process_key: "shift_handover", version: 2, name: "Shift handover", state: "published", published_at: "2026-11-01T00:00:00Z", running: 4,
+      created_by: "olga", created_at: "2026-11-01T00:00:00Z", problems: [] },
+    { id: 2, process_key: "shift_handover", version: 3, name: "Shift handover", state: "draft", published_at: null, running: 0,
+      created_by: "alice", created_at: "2026-11-11T00:00:00Z", problems: [] }] }));
+  await page.route("**/work/definitions/*/bpmn", (route) => route.fulfill({ body: xml, contentType: "application/xml" }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "alice", roles: ["engineer"] }] }));
+  await page.route("**/work/roles", (route) => route.fulfill({ json: { person: ["ops_lead"], agent: [] } }));
+  let failing = true;
+  const flaky = (json) => (route) => route.fulfill(failing ? { status: 503, json: { detail: "Read timed out" } } : { json });
+  await page.route("**/work/monitor/**", flaky({ steps: [], days: 30, version: null }));
+  await page.route("**/work/instances*", flaky([]));
+  await page.route("**/work/definitions/1/routing", flaky([]));
+  await page.goto(`${url}/#/processes/shift_handover?tab=model`);
+  await page.getByTestId("where-you-are").filter({ hasText: "You're looking at draft v3 (not checked yet); v2 is published, with 4 running." }).waitFor();
+  const tabs = page.getByRole("navigation", { name: "Process views" });
+  assert.equal(await tabs.getByRole("link", { name: "Model" }).getAttribute("aria-current"), "page");
+  const steps = page.getByRole("list", { name: "How a change goes live" });
+  assert.match(await steps.locator('[aria-current="step"]').innerText(), /^Draft/);
+  await steps.getByText("Cases already running stay on their version.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
+
+  for (const [tab, after] of [["Monitor", null], ["Running", "None."], ["SLAs & routing", null]]) {
+    failing = true;
+    await tabs.getByRole("link", { name: tab }).click();
+    const alert = page.getByRole("alert").filter({ hasText: "Read timed out" });
+    await alert.waitFor();
+    failing = false;
+    await alert.getByRole("button", { name: "Try again" }).click();
+    await alert.waitFor({ state: "detached" });
+    if (after) await page.getByText(after, { exact: true }).waitFor();
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });

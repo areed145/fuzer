@@ -1,4 +1,4 @@
-import { Button, PageHeader, Table, Card as UICard, Field, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
+import { Button, PageHeader, Table, Tabs, Card as UICard, Field, Input, Select , Badge as UIBadge, Disclosure } from "../ui";
 // Processes and task forms (#97): the list of process definitions, the modeler page (draft → checked →
 // published, compared with the published version), the process monitor (work waiting at each step,
 // drawn on the diagram) and the form-js form editor.
@@ -67,7 +67,7 @@ export function ProcessesPage() {
   }, [defs.data]);
   const taken = groups.some(([k]) => k === key);
   const keyOk = /^[a-z][a-z0-9_]*$/.test(key) && !taken;
-  const keyProblem = !key ? null : taken ? "That key is taken. Open it in the list to change it."
+  const keyProblem = !key || keyOk ? null : taken ? "That key is taken. Open it in the list to change it."
     : "Use lower case letters, digits and _, starting with a letter.";
 
   const create = async () => {
@@ -196,15 +196,12 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
 
   return (
     <section>
-      <div className="row spread">
-        <PageHeader>{title} <span className="mono small muted">{processKey}</span></PageHeader>
-        <div className="tabs">
-          {PROCESS_TABS.map(([k, label]) => (
-            <a key={k} className={tab === k ? "on" : ""} href={href(`/processes/${processKey}`, { tab: k })}>{label}</a>
-          ))}
-        </div>
-      </div>
-      <Status loading={defs.loading && !defs.data} error={defs.error} empty={!defs.loading && !list.length}>
+      <PageHeader subtitle={chosen && <WhereYouAre chosen={chosen} published={published} draft={draft} />}
+        actions={<a href={href("/processes")}>All processes</a>}>
+        {title} <span className="mono small muted">{processKey}</span></PageHeader>
+      <Tabs label="Process views" items={PROCESS_TABS.map(([k, label]) => ({
+        key: k, label, href: href(`/processes/${processKey}`, { tab: k }), current: tab === k }))} />
+      <Status loading={defs.loading && !defs.data} error={defs.error} onRetry={defs.reload} empty={!defs.loading && !defs.error && !list.length}>
         No process '{processKey}'. <a href={href("/processes")}>Create one</a>.
       </Status>
       {chosen && tab === "overview" && <OverviewTab processKey={processKey} defs={list} published={published} />}
@@ -214,6 +211,27 @@ export function ProcessPage({ processKey, query }: { processKey: string; query: 
       {chosen && tab === "routing" && <RoutingTab def={published ?? chosen} />}
     </section>
   );
+}
+
+/** Which version the page shows and how it relates to what runs, so a change is never made to the wrong one. */
+function WhereYouAre({ chosen, published, draft }: { chosen: WorkDefinition; published?: WorkDefinition; draft?: WorkDefinition }) {
+  const pub = published ? `v${published.version} is published${published.running ? `, with ${published.running} running` : ""}` : "nothing is published yet";
+  const which = chosen.state === "published" ? `You're looking at v${chosen.version}, the published version`
+    : chosen.state === "draft" || chosen.state === "checked" ? `You're looking at draft v${chosen.version} (${chosen.state === "checked" ? "checked" : "not checked yet"})`
+    : `You're looking at v${chosen.version}, ${chosen.state}`;
+  const more = chosen.state === "published" && draft ? `; draft v${draft.version} is open` : "";
+  return <span data-testid="where-you-are">{which}{chosen.state === "published" ? "" : `; ${pub}`}{more}.</span>;
+}
+
+/** What each step of a change does, with the step this version is at marked. */
+function Lifecycle({ state }: { state: string }) {
+  const at = state === "draft" ? 0 : state === "checked" ? 1 : 2;
+  const steps = [["Draft", "Save changes. Nothing runs on a draft."], ["Check", "Find problems that stop it running, such as a step with no SLA."],
+                 ["Publish", "New cases start on it. Cases already running stay on their version."]];
+  return <ol className="lifecycle small" aria-label="How a change goes live">
+    {steps.map(([name, what], i) => <li key={name} aria-current={i === at ? "step" : undefined} className={i === at ? "on" : i < at ? "done" : ""}>
+      <strong>{name}</strong> <span className="muted">{what}</span></li>)}
+  </ol>;
 }
 
 function Versions({ defs, current }: { defs: WorkDefinition[]; current: WorkDefinition }) {
@@ -396,8 +414,9 @@ function ModelTab({ def, defs, draft, reload }: {
         )}
         <Button disabled={!xml} onClick={onDownload}>Download .bpmn</Button>
       </div>
+      {editable && <Lifecycle state={def.state} />}
       {editable && !admin && person && <p className="small muted">You can edit and check drafts; publishing needs the workflow admin role.</p>}
-      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`}>{msg.text}</div>}
+      {msg && <div className={`status small ${msg.error ? "error" : "ok"}`} role={msg.error ? "alert" : "status"}>{msg.text}</div>}
       <NeedName person={person} />
       {editable && <UICard className="workflow-agent">
         <h3>Workflow drafting agent</h3>
@@ -443,7 +462,8 @@ function ModelTab({ def, defs, draft, reload }: {
           <ul className="plain">
             {problems.map((p, i) => (
               <li key={i} className="small">
-                {p.element ? <a className="mono" onClick={() => modeler.current && focusElement(modeler.current, p.element!)}>{p.element}</a>
+                {p.element ? <Button variant="link" className="mono" aria-label={`Show ${p.element} on the diagram`}
+                  onClick={() => modeler.current && focusElement(modeler.current, p.element!)}>{p.element}</Button>
                   : <span className="muted">file</span>}: {p.message}
               </li>
             ))}
@@ -451,7 +471,8 @@ function ModelTab({ def, defs, draft, reload }: {
         </UICard>
       )}
 
-      {xmlError && <div className="status error">Couldn't load the diagram: {xmlError}</div>}
+      {xmlError && <div className="status error" role="alert">Couldn't load the diagram: {xmlError}{" "}
+        <Button onClick={() => location.reload()}>Reload the page</Button></div>}
       {xml && (
         <Suspense fallback={<div className="status">Loading modeler…</div>}>
           {editable ? <BpmnModeler xml={canvasXml ?? xml} classes={classes} ctx={ctx} onReady={onReady} onDirty={onDirty} />
@@ -545,7 +566,7 @@ function MonitorTab({ processKey, defs, published }: { processKey: string; defs:
         <span className="small muted">{running} running{drawn && version === undefined ? ` · drawn on v${drawn.version}` : ""}</span>
         <Button onClick={m.reload}>Refresh</Button>
       </div>
-      <Status loading={m.loading && !m.data} error={m.error} />
+      <Status loading={m.loading && !m.data} error={m.error} onRetry={m.reload} />
       {xml && (
         <Suspense fallback={<div className="status">Loading diagram…</div>}>
           <BpmnView xml={xml} classes={classes} overlays={overlays} tall />
@@ -707,7 +728,7 @@ function RunningTab({ processKey }: { processKey: string }) {
       <div className="tabs small">
         {["running", "completed", "cancelled", "all"].map((s) => <a key={s} className={state === s ? "on" : ""} onClick={() => setState(s)}>{s}</a>)}
       </div>
-      <Status loading={list.loading && !list.data} error={list.error} empty={!!list.data && !list.data.length}>None.</Status>
+      <Status loading={list.loading && !list.data} error={list.error} onRetry={list.reload} empty={!!list.data && !list.data.length}>None.</Status>
       {list.data && list.data.length > 0 && (
         <Table variant="results">
           <thead><tr><th>Case</th><th>Waiting on</th><th>Age</th><th>Version</th><th>Started by</th><th /></tr></thead>
@@ -742,7 +763,7 @@ function RunningTab({ processKey }: { processKey: string }) {
 
 function RoutingTab({ def }: { def: WorkDefinition }) {
   const r = useAsync(() => api.workRouting(def.id), [def.id]);
-  if (!r.data) return <Status loading={r.loading} error={r.error} />;
+  if (!r.data) return <Status loading={r.loading} error={r.error} onRetry={r.reload} />;
   return (
     <>
       <p className="small muted">Version {def.version}. A step's own SLA and escalation win; where it sets none, its role's defaults apply
