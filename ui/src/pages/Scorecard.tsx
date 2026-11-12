@@ -7,6 +7,7 @@ import { CostOfUnreliability } from "./CostOfUnreliability";
 import { InterventionGains } from "./InterventionGains";
 import { AgainstTheAccounts } from "./AgainstTheAccounts";
 import { BacklogBurn } from "./BacklogBurn";
+import { WorkExecution } from "./WorkExecution";
 import { WellScreen } from "./WellScreen";
 import { AllocationFactor } from "./AllocationFactor";
 import { GasLiftHeading } from "./GasLiftHeading";
@@ -77,6 +78,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       <QualityTrend />
       <AlarmPerformance />
       <BacklogBurn />
+      <WorkExecution />
       <CostOfUnreliability />
       <InterventionGains />
       <AgainstTheAccounts />

@@ -207,6 +207,18 @@ export interface WellScreen {
       status: "current" | "stale" | "no_test_on_file" }[] };
 }
 
+/** Schedule compliance and repeat repair rate (#373). */
+export interface WorkExecution {
+  since: string; until: string; by: "quarter" | "month"; source: string; note: string;
+  thresholds: { repeat_days: number; min_orders: number };
+  summary: { finished_with_due_date: number; on_time: number; late: number; schedule_compliance_pct: number | null;
+    corrective: number; repeats: number; repeat_rate_pct: number | null; no_due_date: number };
+  periods: { period: string; finished: number; on_time: number; no_due_date: number; corrective: number;
+    schedule_compliance_pct: number | null; repeat_rate_pct: number | null;
+    late: { id: string; order: string; due: string; finish: string; days_late: number; type: string | null }[];
+    repeats: { id: string; order: string; start: string; after: string; previous_finish: string; text: string | null }[] }[];
+}
+
 /** Flare episodes and the records around them (#351). */
 export interface FlareReview {
   since: string; until: string; source: string; note: string;
@@ -278,6 +290,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  workExecution: () => request<WorkExecution>("GET", "/plant/work-execution"),
   incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
