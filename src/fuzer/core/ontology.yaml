@@ -113,6 +113,16 @@ kinds:
     group: Production
     colour: "#95a5a6"
     description: The Energy Components DAY001 record of a day's allocated production.
+  accounting_volume:
+    label: Accounted volume
+    group: Production
+    colour: "#7f8c8d"
+    description: A month's oil or gas as production accounting closed it on the custody meters.
+  ledger_entry:
+    label: Ledger entry
+    group: Production
+    colour: "#8e7f6a"
+    description: Operating cost booked in the ledger for a month and cost element, in its own currency.
   downtime:
     label: Downtime
     group: Production
@@ -386,8 +396,8 @@ relations:
   reports_on:
     label: reports on
     view: production
-    description: A production day and the facility it is for.
-    from: [production_day]
+    description: A production day, accounted volume or ledger entry and the facility it is for.
+    from: [production_day, accounting_volume, ledger_entry]
     to: [facility]
   about:
     label: about

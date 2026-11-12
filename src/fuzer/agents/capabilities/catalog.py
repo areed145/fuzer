@@ -405,5 +405,7 @@ UNAVAILABLE = (
     (_HSE, "Hazard and barrier status", "An authoritative barrier or safety-case register."),
     (_HSE, "Environmental and regulatory obligation tracking", "Permits and obligations from an authoritative register."),
     (_HSE, "Emergency response procedures", "Approved emergency response plans; the assistant only supports with information."),
-    (_ASSET, "Commercial and production-accounting reconciliation", "Authoritative accounting, allocation and cost data."),
+    (_ASSET, "Commercial reconciliation: sales, nominations, liftings and entitlements",
+     "The commercial system's sales and nomination records; production accounting volumes and the cost ledger are "
+     "reconciled (accounting_reconciliation, unit_cost)."),
 )
