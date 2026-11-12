@@ -26,12 +26,12 @@ def _facility(conn, ref: str | None) -> str:
 
 
 @router.get("/analytics/figures/{kind}")
-def live_figure(kind: str, ref: str | None = None, conn=Depends(get_conn)):
-    """A complete chart panel built from the latest records, for any page to show."""
+def live_figure(kind: str, ref: str | None = None, revision: str | None = None, conn=Depends(get_conn)):
+    """A complete chart panel built from the latest records, for any page to show (a turnaround's by its revision)."""
     from ..plots import ChartError, analytics
     fid = _facility(conn, ref)
     try:
-        return analytics.live(conn, deps.pack(), kind, fid)
+        return analytics.live(conn, deps.pack(), kind, fid, **({"revision": revision} if revision else {}))
     except (ValueError, ChartError) as e:
         raise HTTPException(404 if kind not in analytics.FIGURES else 400, str(e)) from e
 

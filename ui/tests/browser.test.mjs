@@ -4160,3 +4160,25 @@ test("Plan shows production at risk per shutdown window with the durations used 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+test("a turnaround with a schedule shows its progress against the baseline and the slip (#360)", async () => {
+  const scope = { revision: "TA26", revisions: ["TA26"], as_of: "2026-03-01", planned_start: null, scoped_work: [],
+    shutdown_plans_not_in_scope: [], bad_actors_not_in_scope: [], spares_out_of_stock: [], window: null, on_plan: [],
+    ride_along: [], shutdown_outside: [], schedule: { project: "TA26", as_of: "2026-03-01", late: [], slipped: ["A0100"] } };
+  const asked = [];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/turnarounds?*", (route) => route.fulfill({ json: scope }));
+  await page.route("**/analytics/figures/turnaround-progress*", (route) => { asked.push(route.request().url()); return route.fulfill({ json: {
+    kind: "turnaround-progress", title: "Turnaround TA26 progress", sources: [],
+    spec: { data: [{ type: "scatter", mode: "lines", name: "Planned (baseline)", x: ["2026-02-01", "2026-03-01"], y: [0, 40] }], layout: {} },
+    summary: { context: "Schedule as of 1 Mar 2026 · 8 activities counted", headline: "30% earned against 40% planned: 10 points behind the plan, forecast to finish 14 days after its baseline.",
+      stats: [{ label: "Earned", value: "30", unit: "%" }], notes: [], source: "the planning system's schedule (activities)",
+      warnings: ["Not counted: A0010, a percent complete of 112, outside 0 to 100."],
+      tables: [{ title: "Slipped activities · 1", note: null, columns: ["Activity", "Days slipped"], rows: [["A0100", "14"]] }] } } }); });
+  await page.goto(`${url}/#/plan?revision=TA26`);
+  const card = page.locator("section", { has: page.getByRole("heading", { name: "Progress against the baseline" }) });
+  await card.getByText("10 points behind the plan", { exact: false }).waitFor();
+  await card.getByText("Not counted: A0010, a percent complete of 112, outside 0 to 100.").waitFor();
+  await card.getByRole("button", { name: "Slipped activities · 1" }).waitFor();
+  assert.ok(asked.some((u) => u.includes("revision=TA26")));
+});

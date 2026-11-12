@@ -747,6 +747,8 @@ export interface TurnaroundScope {
   spares_out_of_stock: { for: string | null; material: string | null; id: string; description: string | null }[];
   window: { start: string; end: string } | null;
   on_plan: PlanItem[]; ride_along: PlanItem[]; shutdown_outside: PlanItem[];
+  /** The planning system's schedule for the revision, when one names it (its S-curve is a live figure). */
+  schedule?: { project: string; as_of: string; late: string[]; slipped: string[] } | null;
 }
 
 /** A job a field operator was sent to: the exception with where to go, what was seen and what they reported. */
