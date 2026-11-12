@@ -94,6 +94,8 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
     data = dict(data or {})
     guard_agent_data(run, proc, data, f"step '{t['name'] or t['element']}'")
     node = run.defn(proc).nodes[t["element"]]
+    if t["kind"] == "agent" and is_agent(by) and (stop := _bypass(run, proc, t, node, by, data)) is not None:
+        return stop
     if t["kind"] == "agent" and is_agent(by) and node.attrs.get("gate"):
         if (stop := _gate(run, proc, t, node, by, data)) is not None:
             return stop
@@ -134,14 +136,32 @@ def _gate(run: _Run, proc: dict, t: dict, node, by: str, data: dict) -> dict | N
     if out["proceed"]:
         data["gate"] = {"decision": out["decision_id"], "reason": out["reason"]}
         return None
+    return _to_person(run, proc, t, node, data, out["reason"], out["decision_id"])
+
+def _to_person(run: _Run, proc: dict, t: dict, node, data: dict, reason: str, decision: int | None) -> dict:
+    """The agent's result stops at a person (its gate's role, or the case owner's) with its proposal and the reason."""
     role = node.attrs.get("gateRole") or node.attrs.get("fallbackRole") or _owner(run, proc)
     _update(run, t, kind="user", role=role, assignee=None, claimed_by=None, lease_until=None, requires_human=True,
             due_at=t["due_at"] or run.now + DEFAULT_SLA)
-    run.event("gated", proc, t, step=node.label, proposal=data, reason=out["reason"], decision=out["decision_id"],
-              to=f"role:{role}")
+    run.event("gated", proc, t, step=node.label, proposal=data, reason=reason, decision=decision, to=f"role:{role}")
     run.flush()
     return {"task_id": t["id"], "process_id": proc["id"], "item_id": proc["item_id"], "process_state": proc["state"],
-            "gated": True, "reason": out["reason"], "to": f"role:{role}"}
+            "gated": True, "reason": reason, "to": f"role:{role}"}
+
+def _bypass(run: _Run, proc: dict, t: dict, node, by: str, data: dict) -> dict | None:
+    """The bypass_safeguard gate (P3.9c): an agent's result on a case about equipment whose safeguard is bypassed
+    never goes ahead on its own, whatever its confidence: it stops at a person, naming the bypass. None: go on."""
+    from ..core import gates
+
+    item = run.conn.execute("select subjects from work_item where id = %s", (proc["item_id"],)).fetchone()
+    reason = gates.refuse_on_bypass(run.conn, (item or {}).get("subjects") or [], by,
+                                    what=f"The agent's result on step '{t['name'] or t['element']}'",
+                                    ref=f"task:{t['id']}", item_id=proc["item_id"])
+    if reason is None:
+        return None
+    decision = run.conn.execute("select max(id) as id from gate_decision where ref = %s", (f"task:{t['id']}",)
+                                ).fetchone()["id"]
+    return _to_person(run, proc, t, node, data, reason, decision)
 
 @_op
 def claim(conn, token_id: int, by: str, now: datetime | None = None) -> dict:

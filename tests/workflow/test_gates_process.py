@@ -132,3 +132,26 @@ def test_a_fixed_gate_step_is_a_persons_only(conn):
     # the shipped upset process carries its field dispatch gate
     upset = conn.execute("select xml from work_definition where process_key = 'upset' and state = 'published'").fetchone()
     assert 'fuzer:gate="field_dispatch"' in upset["xml"]
+
+
+def test_a_confident_result_on_equipment_whose_safeguard_is_bypassed_still_stops_at_a_person(conn):
+    """P3.9c: the bypass_safeguard gate. The agent may rely on the trip that is out, so its result never goes ahead
+    on its own, however confident; the bypass is named. Once the bypass is removed it goes ahead again."""
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-pump-b', 'equipment'), ('fz-sg-1', 'safeguard'), "
+                 "('fz-byp-1', 'bypass')")
+    conn.execute("insert into entity_label (fuzer_id, label) values ('fz-sg-1', 'SG-1'), ('fz-byp-1', 'BYP-1')")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values "
+                 "('fz-sg-1', 'protects', 'fz-pump-b', '{test}', 1), ('fz-byp-1', 'bypasses', 'fz-sg-1', '{test}', 1)")
+    conn.execute("insert into golden (fuzer_id, field, value, source, rule) values ('fz-sg-1', 'function', %s, 't', "
+                 "'t'), ('fz-byp-1', 'state', %s, 't', 't'), ('fz-byp-1', 'moc', %s, 't', 't')",
+                 (Jsonb("Low suction pressure trip"), Jsonb("active"), Jsonb("")))
+    conn.commit()
+    r = run(conn, "fz-pump-b", {"confidence": 0.99, "proposed": "false_alarm"})
+    assert r["out"]["gated"] and r["token"]["kind"] == "user" and r["token"]["requires_human"]
+    assert "Low suction pressure trip (SG-1) bypassed under BYP-1, no change record" in r["out"]["reason"]
+    assert [d["kind"] for d in gates.decisions(conn, r["item"])] == ["bypass_safeguard"]
+    assert gates.refuse_on_bypass(conn, ["fz-pump-b"], "olga", what="x") is None  # a person is never held by it
+
+    conn.execute("update golden set value = %s where fuzer_id = 'fz-byp-1' and field = 'state'", (Jsonb("removed"),))
+    conn.commit()
+    assert not run(conn, "fz-pump-b", {"confidence": 0.99, "proposed": "false_alarm"})["out"].get("gated")
