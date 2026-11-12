@@ -201,12 +201,12 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Production & Surveillance | 70 |
 | Wells & Subsurface | 57 |
 | Field Operations & Facilities | 83 |
-| Maintenance & Integrity | 72 |
+| Maintenance & Integrity | 73 |
 | Work Management & Supply Chain | 34 |
 | HSE & Incident Management | 41 |
 | Asset Performance & Reporting | 50 |
 
-## Shared (110)
+## Shared (111)
 
 Used by every agent or by several specialists.
 
@@ -227,6 +227,7 @@ Used by every agent or by several specialists.
 | `bad_actors` | query | since?, until?, limit? | Equipment ranked by failures (SAP notifications), downtime caused and repeat ISO 14224 failure modes, with MTBF per unit and per class. |
 | `work_order_backlog` | query | as_of?, limit? | Open SAP work orders by priority, type and age; overdue orders (past basic finish); the oldest; open notifications with no order planned yet. |
 | `backlog_burn` | calc | since?, until?, days? | Is the backlog under control (#348)? Per month: work orders created (by start) against closed (by finish) and the orders open at the month's end, with whether the backlog is growing, steady or shrinking; then the days from a notification to the order raised for it (median, 90th percentile, longest). |
+| `plot_backlog_burn` | plot | since?, until?, days? | Chart work orders created and closed each month, with the open backlog at each month's end. |
 | `rotating_screen` | query | at?, limit? | Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at one date, worst first: `act` (a severe flag: vibration zone D, head loss, accelerating failures, low-flow running), then `watch`. |
 | `backlog_health` | query | as_of?, limit? | Backlog health: ageing of open corrective (PM01) orders (flag when over 25 % are older than 90 days), priority 1-2 orders past basic finish, unplanned notifications on bad actors, and the open orders ranked by value / risk in money (production at risk, criticality, compliance, effort). |
 | `maintenance_compliance` | query | as_of?, horizon_days?, limit? | Preventive maintenance (PM) and inspection (INSP) plans: on-time share, overdue tasks and tasks due within the horizon; tasks that need a shutdown are marked. |
@@ -348,12 +349,6 @@ Used by every agent or by several specialists.
 | `plot_wall_thickness` | plot | ref?, kind?, min_required_mm? | Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss rates (and retirement dates if min_required_mm is given); without ref, the items losing wall fastest across the asset (kind narrows to pipelines or tags). |
 | `plot_reliability` | plot | ref, method? | Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up). |
 | `plot_peers` | plot | ref | Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked. |
-
-## Work Management & Supply Chain (1)
-
-| Tool | Kind | Parameters | What it does |
-|---|---|---|---|
-| `plot_backlog_burn` | plot | since?, until?, days? | Chart work orders created and closed each month, with the open backlog at each month's end. |
 
 ## HSE & Incident Management (1)
 

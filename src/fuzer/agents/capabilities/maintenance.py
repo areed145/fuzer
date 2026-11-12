@@ -50,7 +50,7 @@ def backlog_burn(since: str | None = None, until: str | None = None, days: int =
         return _plain(backlog.burn(conn, since, until, days))
 
 
-@capability("work-management-supply-chain", kind="plot")
+@capability("work-management-supply-chain", "maintenance-integrity", kind="plot")
 def plot_backlog_burn(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
     """Chart work orders created and closed each month, with the open backlog at each month's end."""
     from ...plots import maintenance
