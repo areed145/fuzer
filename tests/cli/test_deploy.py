@@ -68,6 +68,58 @@ def test_shutdown_stops_all_children(monkeypatch):
     assert killed == [(123, signal.SIGTERM)]
 
 
+def test_the_daemon_waits_for_the_startup_readings(monkeypatch):
+    started, stop, ready = [], threading.Event(), threading.Event()
+
+    class Proc:
+        pid = 5
+
+        def __init__(self, command, **kwargs):
+            started.append(command[0])
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    waits = iter([False, False, True])
+
+    def wait_once(timeout):
+        if started == ["api"]:  # held while the readings run; they finish now
+            ready.set()
+        return next(waits)
+
+    monkeypatch.setattr(stop, "wait", wait_once)
+    monkeypatch.setattr(deploy.subprocess, "Popen", Proc)
+    monkeypatch.setattr(deploy.os, "killpg", lambda pid, sig: None)
+    deploy.supervise([("Dagster daemon", ["daemon"]), ("API", ["api"])], stop, ready)
+    assert started == ["api", "daemon"]
+
+
+def test_the_daemon_starts_anyway_after_the_wait(monkeypatch):
+    started, stop = [], threading.Event()
+
+    class Proc:
+        pid = 5
+
+        def __init__(self, command, **kwargs):
+            started.append(command[0])
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    waits = iter([False, True])
+    monkeypatch.setattr(stop, "wait", lambda timeout: next(waits))
+    monkeypatch.setattr(deploy.subprocess, "Popen", Proc)
+    monkeypatch.setattr(deploy.os, "killpg", lambda pid, sig: None)
+    deploy.supervise([("Dagster daemon", ["daemon"]), ("API", ["api"])], stop, threading.Event(), wait=0)
+    assert started == ["api", "daemon"]
+
+
 @pytest.mark.parametrize("fail_first", [False, True])
 def test_startup_reads_each_project_in_its_own_scope(monkeypatch, capsys, fail_first):
     seen = []
@@ -84,7 +136,9 @@ def test_startup_reads_each_project_in_its_own_scope(monkeypatch, capsys, fail_f
         report("finished")
 
     monkeypatch.setattr(deploy.pipeline, "read_pending", read)
-    deploy.read_projects(["kestrel"])
+    done = threading.Event()
+    deploy.read_projects(["kestrel"], done)
+    assert done.is_set()
     assert seen == [("okan", "public"), ("kestrel", "proj_kestrel")]
     assert db.scope().project is None
     out = capsys.readouterr().out
@@ -109,14 +163,15 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
 
     class Thread:
         def __init__(self, *, target, args, name, daemon):
-            assert target is deploy.read_projects and args == (["kestrel"],)
+            assert target is deploy.read_projects and args[0] == ["kestrel"]
+            assert isinstance(args[1], threading.Event)
             assert name == "startup-readings" and daemon
 
         def start(self):
             calls.append("background readers")
 
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
-    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop: calls.append("serve"))
+    monkeypatch.setattr(deploy, "supervise", lambda tasks, stop, ready: calls.append("serve"))
     deploy.main(["--bundle", str(tmp_path)])
     assert calls == ["dagster", "end orphans", "seed", "background readers", "serve"]
 

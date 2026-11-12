@@ -614,7 +614,10 @@ class Window:
         cut = sum((self.between(e["start"], e["end"]) * e["factor"] for e in self.ev(unit, "curtail")),
                   np.zeros_like(self.t))
         swing = 1 + 0.04 * self.noise(unit + "slow", 360) + 0.01 * self.noise(unit + "m", 30)  # production, surge drum
-        return self.lag(base * up * (1 - np.clip(cut, 0, 1)), 20) * swing
+        # `bias` events: the meter reads off the true flow by a share (a damaged orifice plate, a fouled ultrasonic
+        # path), so it no longer agrees with the other meters on its stream
+        bias = sum((self.path(e["points"]) for e in self.ev(unit, "bias")), np.zeros_like(self.t))
+        return self.lag(base * up * (1 - np.clip(cut, 0, 1)), 20) * swing * (1 + bias)
 
     def _controlled(self, unit, u, var):
         """A value a controller or the process holds near one level: a reboiler or heater temperature, a filter or

@@ -131,3 +131,16 @@ def test_scanned_datasheet_read_reviewed_and_used(conn, data, okan_pack, monkeyp
     assert mcp_server.plot_pump_curve("10-P-1001A")["summary"]["worst_month"]
     pump = client.get(f"/entities/{fid(conn, '10-P-1001A')}/curves").json()
     assert pump["curve"] == "pump" and "head" in pump["series"]
+
+
+@pytest.mark.parametrize("scanned", [False, True])
+def test_datasheets_are_the_same_bytes_every_build(tmp_path, scanned):
+    """Each deploy regenerates the datasheets; changed bytes would mean a new file hash and a paid re-read."""
+    from fakeplant import curves as fake
+
+    c = fake.pump("Acme", "P1")
+    first, second = tmp_path / "a" / "ds.pdf", tmp_path / "b" / "ds.pdf"
+    for path in (first, second):
+        path.parent.mkdir()
+        fake.datasheet(c, path, scanned, "DS-1")
+    assert first.read_bytes() == second.read_bytes()
