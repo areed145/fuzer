@@ -96,7 +96,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `pressure`, `differential_pressure`, `temperature`, `flow`, `level`, `valve_position`, `composition`
 - **Charts:** `plot_instrument_health`, `plot_alarms`, `plot_changes`, `plot_operating_window`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Gas treating and dehydration
 
@@ -107,7 +107,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `differential_pressure`, `composition`, `temperature`, `outlet_temperature`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_operating_window`, `plot_trend`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
 
 ### Compression
 
@@ -118,7 +118,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** `machine_health`, `machine_trip`
 - **Measurement roles:** `running_status`, `speed`, `suction_pressure`, `interstage_pressure`, `discharge_pressure`, `suction_temperature`, `discharge_temperature`, `cylinder_discharge_temperature`, `suction_flow`, `anti_surge_valve_position`, `vibration`, `shaft_vibration`, `axial_position`, `bearing_temperature`, `seal_vent_flow`, `lube_oil_pressure`, `lube_oil_temperature`
 - **Charts:** `plot_compressor_performance`, `plot_cooler_fouling`, `plot_vibration`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 6 questions with answer keys across 3 bundles
 
 ### Pumps and drivers
 
@@ -129,7 +129,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** `machine_health`
 - **Measurement roles:** `running_status`, `speed`, `power`, `flow`, `suction_flow`, `suction_pressure`, `discharge_pressure`, `vibration`, `bearing_temperature`, `exhaust_temperature`, `fuel_flow`, `ambient_temperature`
 - **Charts:** `plot_pump_curve`, `plot_vibration`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Reliability and maintenance
 
@@ -140,7 +140,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `running_status`, `vibration`, `bearing_temperature`, `suction_pressure`, `suction_flow`, `discharge_pressure`, `discharge_temperature`, `outlet_temperature`
 - **Charts:** `plot_compressor_performance`, `plot_cooler_fouling`, `plot_peers`, `plot_reliability`
-- **Eval:** 5 questions with answer keys across 2 bundles
+- **Eval:** 7 questions with answer keys across 3 bundles
 
 ### Static equipment and integrity
 
@@ -151,7 +151,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `outlet_temperature`, `temperature`, `pressure`, `differential_pressure`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_cooler_fouling`, `plot_wall_thickness`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
 
 ### Metering and balances
 
@@ -162,7 +162,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `flow`
 - **Charts:** `plot_trend`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 6 questions with answer keys across 3 bundles
 
 ### Wells and artificial lift
 
@@ -173,7 +173,7 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `wellhead_pressure`, `wellhead_temperature`, `casing_pressure`, `choke_position`, `gas_lift_rate`, `pressure`, `flow`
 - **Charts:** `plot_decline`, `plot_water_diagnostic`, `plot_gas_lift_curve`, `plot_choke`, `plot_dp_drift`, `plot_intervention_gains`
-- **Eval:** 4 questions with answer keys across 2 bundles
+- **Eval:** 5 questions with answer keys across 3 bundles
 
 ## Not available
 

@@ -1,0 +1,48 @@
+{
+ "nodes": [
+  {
+   "code": "HRPT-ORIGIN",
+   "type": "meter",
+   "tag": "A1FT1010",
+   "name": "Origin meter"
+  },
+  {
+   "code": "HRPT-RECEIPT",
+   "type": "meter",
+   "tag": "D1FT4002",
+   "name": "Terminal receipt meter"
+  },
+  {
+   "code": "HRPT-TANKS",
+   "type": "tank",
+   "tag": "E1T5001A",
+   "name": "Crude storage tanks"
+  },
+  {
+   "code": "HRPT-CUSTODY",
+   "type": "meter",
+   "tag": "F1FT6010",
+   "name": "Custody transfer meter"
+  }
+ ],
+ "edges": [
+  {
+   "from": "HRPT-ORIGIN",
+   "to": "HRPT-RECEIPT",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "HRPT-RECEIPT",
+   "to": "HRPT-TANKS",
+   "valid_from": "",
+   "valid_to": ""
+  },
+  {
+   "from": "HRPT-TANKS",
+   "to": "HRPT-CUSTODY",
+   "valid_from": "",
+   "valid_to": ""
+  }
+ ]
+}

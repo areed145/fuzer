@@ -1,0 +1,7 @@
+qmnum,notif_type,created,equnr,floc,priority,short_text,damage_code,cause_code,status
+10007001,M2,today-1d,60000029,HRPT-G1-K7001,2,VRU compressor tripped on high discharge temperature,DM-OHT,CA-FAN,OSNO
+10007002,M1,today-5d,60000029,HRPT-G1-K7001,3,Cylinder 2 discharge running hot; check 2nd stage valves,DM-OHT,CA-WEAR,OSNO
+10007003,M2,today-4d,60000012,HRPT-B1-P2001A,2,Mechanical seal leak on midline pump A,DM-LEAK,CA-WEAR,OSNO
+10007004,M1,today-6d,60000004,HRPT-A1-F1007,3,Strainer dP rising; wax in the basket,DM-PLU,CA-WAX,OSNO
+10007005,M1,today-7d,60000019,HRPT-D1-FT4002,3,Receipt meter reads 3% above origin meter,DM-SIG,CA-FOUL,OSNO
+10007006,M1,today-20d,60000006,HRPT-A1-P1003B,3,Mainline pump B below its curve; plan an impeller check,DM-PDE,CA-WEAR,OSNO

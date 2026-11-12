@@ -1,0 +1,61 @@
+[
+ {
+  "doc_number": "HR-TG-G1-001",
+  "revision": "A",
+  "doc_type": "troubleshooting_guide",
+  "title": "Vapour recovery compressor trip response",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/HR-TG-G1-001.md",
+  "tags": [
+   "G1-K-7001",
+   "G1-TT-7006",
+   "G1-E-7003",
+   "G1-TT-7011",
+   "E1-PT-5003",
+   "H1-H-8006",
+   "H1-FT-8005"
+  ]
+ },
+ {
+  "doc_number": "HR-PR-B1-001",
+  "revision": "B",
+  "doc_type": "procedure",
+  "title": "Running the midline station on one pump",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/HR-PR-B1-001.md",
+  "tags": [
+   "B1-P-2001A",
+   "B1-P-2001B",
+   "B1-PT-2003",
+   "B1-PT-2004",
+   "A1-P-1003A"
+  ]
+ },
+ {
+  "doc_number": "HR-PR-F1-001",
+  "revision": "A",
+  "doc_type": "procedure",
+  "title": "Proving the custody transfer meter",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/HR-PR-F1-001.md",
+  "tags": [
+   "F1-FT-6010",
+   "F1-V-6012"
+  ]
+ },
+ {
+  "doc_number": "HR-DS-K7001",
+  "revision": "A",
+  "doc_type": "datasheet",
+  "title": "Vapour recovery compressor datasheet",
+  "status": "current",
+  "effective_date": "2024-06-01",
+  "file": "documents/HR-DS-K7001.md",
+  "tags": [
+   "G1-K-7001"
+  ]
+ }
+]

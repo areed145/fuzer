@@ -11,7 +11,7 @@ with what to check, read on their job list with no raw ids and reported on site 
 remaining decision taken until the case and the work **close**, and closed with a time and outcome a measure can
 **count**. A type the field never sees is worked at the desk instead. The report names the first step that failed
 for each type and why, and the command exits 1 when any type fails. It writes cases, so run it on a scratch copy;
-`tests/evals/test_loop.py` and `test_loop_kestrel.py` run it on Okan and Kestrel.
+`tests/evals/test_loop.py`, `test_loop_kestrel.py` and `test_loop_harrier.py` run it on Okan, Kestrel and Harrier.
 
 Work **arrives** the way it does in production (P1.7c, Gate A). Each bundle's `evals/loop.yaml` names what brings each
 type in and the window of the bundle's history where it does: a registered detector run as a schedule runs it
@@ -31,10 +31,15 @@ match nothing, links that name nothing) says `about: source`, and its match step
 sources. Kestrel's windows are relative (`today-1d 03:10`) like its
 process model. The arrive step takes the exception that came in, about an asset and with its own case; whatever else
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
-raised by the loop and listed as `synthetic`: on Okan none; on Kestrel only a curve to confirm, since none of its
-datasheets has a pump or choke curve for the reader to read (#747). Arrivals that change the data (deliveries,
+raised by the loop and listed as `synthetic`: on Okan none; on Kestrel and Harrier only a curve to confirm, since none
+of their datasheets has a pump or choke curve for the reader to read (#747). Arrivals that change the data (deliveries,
 suggestions, rounds, readings) run after the other types, since the rebuild after a load runs the detectors too and a round finding would
 host the next detector's work on the same machine.
+
+**Gate C** (P8.4): Harrier, a crude oil pipeline and terminal with no wells, passes the loop on the standard operating
+model (`fuzer operating-model adopt`, no deviations) from its seed bundle alone, with no change under `src/fuzer/`.
+Its vapour recovery compressor trips and leaks a valve, its tank vapour header breaches its IOW while the oxidiser
+takes the vapours, and its deliveries, drawings and register questions arrive as on the other two bundles.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser

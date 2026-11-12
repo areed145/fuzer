@@ -1,0 +1,17 @@
+entry_id,timestamp,facility,author,text
+HRLOG-0001,today-10d 06:00,HRPT,Shift Supervisor,"Day shift handover: line steady at 18000 sm3/d on A1-FT-1010, mainline pumps A1-P-1003A and B on duty, C on standby. Tank E1-T-5001C at 30%."
+HRLOG-0002,today-9d 06:30,HRPT,Terminal Operator,"Tanker alongside at the jetty. Lined up E1-T-5001C to the loading pumps; F1-P-6001A on duty, custody meter F1-FT-6010 proved this morning."
+HRLOG-0003,today-8d 18:00,HRPT,Shift Supervisor,"Night shift handover: loading on F1-FT-6010, VRU G1-K-7001 running, tank vapour header 6 mbarg."
+HRLOG-0004,today-7d 10:15,HRPT,Pipeline Controller,Origin A1-FT-1010 and terminal D1-FT-4002 disagree by about 3%; line pack steady. Asked the metering technician to look at D1-FT-4002 diagnostics.
+HRLOG-0005,today-6d 14:20,HRPT,Field Operator,A1-PDT-1007 strainer dP 0.4 bar and climbing. Wax in the basket again; strainer change-over planned for the weekend.
+HRLOG-0006,today-5d 08:40,HRPT,Field Operator,G1-K-7001 cylinder 2 discharge running hot to the touch. Raised a notification for the rotating equipment crew.
+HRLOG-0007,today-4d 09:35,HRPT,Field Operator,"Seal leak on midline pump B1-P-2001A, crude on the baseplate. Stopped A and started B1-P-2001B. Spill contained."
+HRLOG-0008,today-4d 10:00,HRPT,Shift Supervisor,"Notification raised for B1-P-2001A mechanical seal. Midline running on B only, no standby."
+HRLOG-0009,today-3d 06:00,HRPT,Shift Supervisor,"Day shift handover: tanker sailed. B1-P-2001A isolated for seal change, permit pending."
+HRLOG-0010,today-2d 13:10,HRPT,Lab Technician,"Receipt sample BS&W 0.4 vol%, within the 0.5 limit. Tank E1-T-5001A sampled for RVP."
+HRLOG-0011,today-1d 02:50,HRPT,Terminal Operator,VRU G1-K-7001 tripped on high discharge temperature. Aftercooler G1-E-7003 fan not turning; belt off. Tank vapours to the thermal oxidiser H1-H-8006.
+HRLOG-0012,today-1d 03:15,HRPT,Terminal Operator,Tank vapour header E1-PT-5003 at 18 mbarg. Held receipts steady; the oxidiser is taking it.
+HRLOG-0013,today-1d 06:00,HRPT,Shift Supervisor,Day shift handover: belt replaced on G1-E-7003 by the night electrician. VRU restart after the fan check.
+HRLOG-0014,today-1d 06:25,HRPT,Terminal Operator,"G1-K-7001 restarted and loaded. Vapours back to the VRU, oxidiser flow back to purge."
+HRLOG-0015,today-1d 18:00,HRPT,Shift Supervisor,"Night shift handover: VRU steady, discharge temperature 118 degC. Midline still on B1-P-2001B only."
+HRLOG-0016,today 06:00,HRPT,Shift Supervisor,Day shift handover: line steady. Next tanker due at noon; E1-T-5001A at 80% to load.

@@ -1,0 +1,23 @@
+sample_id,analyte,tag,well,sample_point,sampled_at,result,unit,method
+HRS-R07,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-44d 09:00,0.2,vol%,ASTM D4007
+HRS-R07V,rvp,E1-T-5001A,,Crude tank A sample,today-44d 09:30,62,kPa,ASTM D323
+HRS-R07H,h2s,E1-T-5001A,,Crude tank A vapour space,today-44d 09:45,3,ppm,UOP 163
+HRS-R06,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-37d 09:00,0.3,vol%,ASTM D4007
+HRS-R06V,rvp,E1-T-5001A,,Crude tank A sample,today-37d 09:30,63,kPa,ASTM D323
+HRS-R06H,h2s,E1-T-5001A,,Crude tank A vapour space,today-37d 09:45,4,ppm,UOP 163
+HRS-R05,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-30d 09:00,0.2,vol%,ASTM D4007
+HRS-R05V,rvp,E1-T-5001A,,Crude tank A sample,today-30d 09:30,61,kPa,ASTM D323
+HRS-R05H,h2s,E1-T-5001A,,Crude tank A vapour space,today-30d 09:45,3,ppm,UOP 163
+HRS-R04,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-23d 09:00,0.3,vol%,ASTM D4007
+HRS-R04V,rvp,E1-T-5001A,,Crude tank A sample,today-23d 09:30,64,kPa,ASTM D323
+HRS-R04H,h2s,E1-T-5001A,,Crude tank A vapour space,today-23d 09:45,5,ppm,UOP 163
+HRS-R03,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-16d 09:00,0.3,vol%,ASTM D4007
+HRS-R03V,rvp,E1-T-5001A,,Crude tank A sample,today-16d 09:30,63,kPa,ASTM D323
+HRS-R03H,h2s,E1-T-5001A,,Crude tank A vapour space,today-16d 09:45,4,ppm,UOP 163
+HRS-R02,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-9d 09:00,0.4,vol%,ASTM D4007
+HRS-R02V,rvp,E1-T-5001A,,Crude tank A sample,today-9d 09:30,65,kPa,ASTM D323
+HRS-R02H,h2s,E1-T-5001A,,Crude tank A vapour space,today-9d 09:45,4,ppm,UOP 163
+HRS-R01,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-2d 09:00,0.4,vol%,ASTM D4007
+HRS-R01V,rvp,E1-T-5001A,,Crude tank A sample,today-2d 09:30,66,kPa,ASTM D323
+HRS-R01H,h2s,E1-T-5001A,,Crude tank A vapour space,today-2d 09:45,5,ppm,UOP 163
+HRS-R01,bsw,D1-FT-4002,,Crude receipt at D1-FT-4002,today-1d 09:00,0.5,vol%,ASTM D4007

@@ -1,0 +1,9 @@
+plan,kind,equnr,floc,task,interval_days,last_done,next_due,needs_shutdown
+PM-60000029,PM,60000029,HRPT-G1-K7001,"4000-hour service, VRU compressor",166,today-60d,today+106d,
+PM-60000005,PM,60000005,HRPT-A1-P1003A,"Annual vibration and alignment check, mainline pump A",365,today-200d,today+165d,
+PM-60000006,PM,60000006,HRPT-A1-P1003B,"Annual vibration and alignment check, mainline pump B",365,today-210d,today+155d,
+PM-60000026,PM,60000026,HRPT-F1-FT6010,Prove custody transfer meter,30,today-9d,today+21d,
+PM-60000019,PM,60000019,HRPT-D1-FT4002,Verify terminal receipt meter,90,today-80d,today+10d,
+PM-60000021,PM,60000021,HRPT-E1-T5001A,"Floating roof seal inspection, crude tank A",365,today-300d,today+65d,X
+PM-60000032,PM,60000032,HRPT-H1-P8003,Weekly fire water pump run,7,today-5d,today+2d,
+PM-60000011,PM,60000011,HRPT-A1-PSV1011,Relief valve bench test,730,today-700d,today+30d,X

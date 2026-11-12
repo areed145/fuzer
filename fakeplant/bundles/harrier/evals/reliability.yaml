@@ -1,0 +1,9 @@
+# Answer keys for the reliability specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): spares and PM intervals for the pumps and the vapour recovery compressor.
+- question: If the VRU aftercooler fan belt goes again, do we have a spare?
+  must_mention: [G1-E-7003, MAT-E7003-BLT, [out of stock, none in stock, no stock, zero]]
+  specialists: [maintenance-integrity]
+- question: Is the PM interval right for Harrier's mainline pumps?
+  must_mention: [[too few failures, insufficient, not enough failures, not enough history]]
+  specialists: [maintenance-integrity]

@@ -1,0 +1,513 @@
+[
+ {
+  "path": "HRPT",
+  "template": "Pipeline",
+  "description": "Harrier crude pipeline and terminal",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\B1 MIDLINE",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\C1 MAINLINE",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\D1 RECEIPT",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\E1 TANK FARM",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\F1 LOADING",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\G1 VAPOUR RECOVERY",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\H1 UTILITIES",
+  "template": "Area",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-T-1001",
+  "template": "Storage Tank",
+  "attributes": [
+   {
+    "name": "Breakout Tank Level",
+    "pi_point": "HRPT:A1.LT1001.PV",
+    "uom": "%",
+    "LoLo": 10,
+    "Lo": 20,
+    "Hi": 85,
+    "HiHi": 92
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-P-1002A",
+  "template": "Centrifugal Pump",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-P-1002B",
+  "template": "Centrifugal Pump",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-F-1007",
+  "template": "Strainer",
+  "attributes": [
+   {
+    "name": "Mainline Suction Strainer Differential Pressure",
+    "pi_point": "HRPT:A1.PDT1007.PV",
+    "uom": "bar",
+    "Hi": 0.7,
+    "HiHi": 1.0
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-P-1003A",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Mainline Suction Pressure",
+    "pi_point": "HRPT:A1.PT1004.PV",
+    "uom": "barg",
+    "LoLo": 2.0,
+    "Lo": 2.8
+   },
+   {
+    "name": "Station Discharge Pressure",
+    "pi_point": "HRPT:A1.PT1005.PV",
+    "uom": "barg",
+    "Lo": 60,
+    "Hi": 92,
+    "HiHi": 96
+   },
+   {
+    "name": "Mainline Pump A Vibration",
+    "pi_point": "HRPT:A1.VT1013A.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.0
+   },
+   {
+    "name": "Mainline Pump A Bearing Temperature",
+    "pi_point": "HRPT:A1.TT1014A.PV",
+    "uom": "degC",
+    "Hi": 85,
+    "HiHi": 95
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-P-1003B",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Mainline Pump B Vibration",
+    "pi_point": "HRPT:A1.VT1013B.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.0
+   },
+   {
+    "name": "Mainline Pump B Bearing Temperature",
+    "pi_point": "HRPT:A1.TT1014B.PV",
+    "uom": "degC",
+    "Hi": 85,
+    "HiHi": 95
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-P-1003C",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Mainline Pump C Vibration",
+    "pi_point": "HRPT:A1.VT1013C.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.0
+   },
+   {
+    "name": "Mainline Pump C Bearing Temperature",
+    "pi_point": "HRPT:A1.TT1014C.PV",
+    "uom": "degC",
+    "Hi": 85,
+    "HiHi": 95
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-V-1008",
+  "template": "Pressure Vessel",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-FT-1010",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Origin Meter Crude Flow",
+    "pi_point": "HRPT:A1.FT1010.PV",
+    "uom": "sm3/d",
+    "Lo": 12000
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-XV-1009",
+  "template": "Valve",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\A1 ORIGIN\\A1-PSV-1011",
+  "template": "Relief Valve",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\B1 MIDLINE\\B1-P-2001A",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Midline Suction Pressure",
+    "pi_point": "HRPT:B1.PT2003.PV",
+    "uom": "barg",
+    "LoLo": 4.0,
+    "Lo": 6.0
+   },
+   {
+    "name": "Midline Discharge Pressure",
+    "pi_point": "HRPT:B1.PT2004.PV",
+    "uom": "barg",
+    "Lo": 40,
+    "Hi": 80,
+    "HiHi": 86
+   },
+   {
+    "name": "Midline Pump A Vibration",
+    "pi_point": "HRPT:B1.VT2013A.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.0
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\B1 MIDLINE\\B1-P-2001B",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Midline Pump B Vibration",
+    "pi_point": "HRPT:B1.VT2013B.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.0
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\B1 MIDLINE\\B1-V-2005",
+  "template": "Pressure Vessel",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\B1 MIDLINE\\B1-XV-2006",
+  "template": "Valve",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\C1 MAINLINE\\C1-XV-3001",
+  "template": "Valve",
+  "attributes": [
+   {
+    "name": "Mainline Pressure KP 42",
+    "pi_point": "HRPT:C1.PT3011.PV",
+    "uom": "barg",
+    "Lo": 35,
+    "Hi": 80
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\C1 MAINLINE\\C1-XV-3002",
+  "template": "Valve",
+  "attributes": [
+   {
+    "name": "Mainline Pressure KP 160",
+    "pi_point": "HRPT:C1.PT3012.PV",
+    "uom": "barg",
+    "Lo": 12,
+    "Hi": 60
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\D1 RECEIPT\\D1-V-4001",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Terminal Receipt Pressure",
+    "pi_point": "HRPT:D1.PT4003.PV",
+    "uom": "barg",
+    "Lo": 3.0,
+    "Hi": 12,
+    "HiHi": 14
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\D1 RECEIPT\\D1-FT-4002",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Terminal Receipt Meter Crude Flow",
+    "pi_point": "HRPT:D1.FT4002.PV",
+    "uom": "sm3/d",
+    "Lo": 12000
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\D1 RECEIPT\\D1-PV-4004",
+  "template": "Valve",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\E1 TANK FARM\\E1-T-5001A",
+  "template": "Storage Tank",
+  "attributes": [
+   {
+    "name": "Crude Tank A Level",
+    "pi_point": "HRPT:E1.LT5001A.PV",
+    "uom": "%",
+    "LoLo": 8,
+    "Lo": 15,
+    "Hi": 88,
+    "HiHi": 94
+   },
+   {
+    "name": "Tank Vapour Header Pressure",
+    "pi_point": "HRPT:E1.PT5003.PV",
+    "uom": "mbarg",
+    "Lo": 2,
+    "Hi": 15,
+    "HiHi": 20
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\E1 TANK FARM\\E1-T-5001B",
+  "template": "Storage Tank",
+  "attributes": [
+   {
+    "name": "Crude Tank B Level",
+    "pi_point": "HRPT:E1.LT5001B.PV",
+    "uom": "%",
+    "LoLo": 8,
+    "Lo": 15,
+    "Hi": 88,
+    "HiHi": 94
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\E1 TANK FARM\\E1-T-5001C",
+  "template": "Storage Tank",
+  "attributes": [
+   {
+    "name": "Crude Tank C Level",
+    "pi_point": "HRPT:E1.LT5001C.PV",
+    "uom": "%",
+    "LoLo": 8,
+    "Lo": 15,
+    "Hi": 88,
+    "HiHi": 94
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\F1 LOADING\\F1-P-6001A",
+  "template": "Centrifugal Pump",
+  "attributes": [
+   {
+    "name": "Loading Pump Discharge Pressure",
+    "pi_point": "HRPT:F1.PT6003.PV",
+    "uom": "barg",
+    "Hi": 14,
+    "HiHi": 16
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\F1 LOADING\\F1-P-6001B",
+  "template": "Centrifugal Pump",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\F1 LOADING\\F1-FT-6010",
+  "template": "Flow Meter",
+  "attributes": [
+   {
+    "name": "Custody Transfer Meter Crude Flow",
+    "pi_point": "HRPT:F1.FT6010.PV",
+    "uom": "sm3/d"
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\F1 LOADING\\F1-V-6012",
+  "template": "Pressure Vessel",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\G1 VAPOUR RECOVERY\\G1-V-7002",
+  "template": "Pressure Vessel",
+  "attributes": [
+   {
+    "name": "Vapour Recovery Scrubber Level",
+    "pi_point": "HRPT:G1.LT7002.PV",
+    "uom": "%",
+    "Hi": 70,
+    "HiHi": 80
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\G1 VAPOUR RECOVERY\\G1-K-7001",
+  "template": "Reciprocating Compressor",
+  "attributes": [
+   {
+    "name": "Vapour Recovery Compressor Suction Pressure",
+    "pi_point": "HRPT:G1.PT7004.PV",
+    "uom": "barg",
+    "Lo": 0.1
+   },
+   {
+    "name": "Vapour Recovery Compressor Discharge Pressure",
+    "pi_point": "HRPT:G1.PT7005.PV",
+    "uom": "barg",
+    "Lo": 5.0,
+    "Hi": 10,
+    "HiHi": 11
+   },
+   {
+    "name": "Vapour Recovery Compressor Interstage Pressure",
+    "pi_point": "HRPT:G1.PT7010.PV",
+    "uom": "barg"
+   },
+   {
+    "name": "Vapour Recovery Compressor Discharge Temperature",
+    "pi_point": "HRPT:G1.TT7006.PV",
+    "uom": "degC",
+    "Hi": 140,
+    "HiHi": 150
+   },
+   {
+    "name": "Vapour Recovery Compressor Frame Vibration",
+    "pi_point": "HRPT:G1.VT7007.PV",
+    "uom": "mm/s",
+    "Hi": 7.1,
+    "HiHi": 11.2
+   },
+   {
+    "name": "Vapour Recovery Compressor Speed",
+    "pi_point": "HRPT:G1.ST7008.PV",
+    "uom": "rpm",
+    "Lo": 900
+   },
+   {
+    "name": "Vapour Recovery Compressor Lube Oil Pressure",
+    "pi_point": "HRPT:G1.PT7009.PV",
+    "uom": "barg",
+    "Lo": 2.5,
+    "LoLo": 1.8
+   },
+   {
+    "name": "Vapour Recovery Compressor Cylinder 1 Discharge Temperature",
+    "pi_point": "HRPT:G1.TT7021.PV",
+    "uom": "degC",
+    "Hi": 140
+   },
+   {
+    "name": "Vapour Recovery Compressor Cylinder 2 Discharge Temperature",
+    "pi_point": "HRPT:G1.TT7022.PV",
+    "uom": "degC",
+    "Hi": 140
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\G1 VAPOUR RECOVERY\\G1-E-7003",
+  "template": "Air Cooler",
+  "attributes": [
+   {
+    "name": "Vapour Recovery Aftercooler Outlet Temperature",
+    "pi_point": "HRPT:G1.TT7011.PV",
+    "uom": "degC",
+    "Hi": 50,
+    "HiHi": 60
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\H1 UTILITIES\\H1-K-8001",
+  "template": "Air Compressor",
+  "attributes": [
+   {
+    "name": "Instrument Air Header Pressure",
+    "pi_point": "HRPT:H1.PT8002.PV",
+    "uom": "barg",
+    "Lo": 6.0,
+    "LoLo": 5.0
+   }
+  ]
+ },
+ {
+  "path": "HRPT\\H1 UTILITIES\\H1-P-8003",
+  "template": "Centrifugal Pump",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\H1 UTILITIES\\H1-G-8004",
+  "template": "Generator",
+  "attributes": []
+ },
+ {
+  "path": "HRPT\\H1 UTILITIES\\H1-H-8006",
+  "template": "Fired Heater",
+  "attributes": [
+   {
+    "name": "Oxidiser Firebox Temperature",
+    "pi_point": "HRPT:H1.TT8007.PV",
+    "uom": "barg"
+   },
+   {
+    "name": "Thermal Oxidiser Vapour Flow",
+    "pi_point": "HRPT:H1.FT8005.PV",
+    "uom": "sm3/h",
+    "Hi": 400
+   }
+  ]
+ }
+]

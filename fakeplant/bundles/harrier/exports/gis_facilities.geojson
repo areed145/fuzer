@@ -1,0 +1,157 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -111.8,
+     47.5
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT",
+    "floc": "HRPT",
+    "name": "Harrier Crude Pipeline and Terminal",
+    "type": "pipeline system",
+    "install_year": 2018,
+    "longitude": -111.8,
+    "latitude": 47.5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -112.4,
+     47.62
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-A1",
+    "floc": "HRPT-A1",
+    "name": "Area A1 origin pump station",
+    "type": "pump station",
+    "install_year": 2018,
+    "longitude": -112.4,
+    "latitude": 47.62
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -111.72,
+     47.48
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-B1",
+    "floc": "HRPT-B1",
+    "name": "Area B1 intermediate pump station (KP 110)",
+    "type": "pump station",
+    "install_year": 2018,
+    "longitude": -111.72,
+    "latitude": 47.48
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -110.95,
+     47.31
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-D1",
+    "floc": "HRPT-D1",
+    "name": "Area D1 terminal receipt",
+    "type": "terminal",
+    "install_year": 2018,
+    "longitude": -110.95,
+    "latitude": 47.31
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -110.951,
+     47.311
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-E1",
+    "floc": "HRPT-E1",
+    "name": "Area E1 terminal tank farm",
+    "type": "terminal",
+    "install_year": 2018,
+    "longitude": -110.951,
+    "latitude": 47.311
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -110.94,
+     47.3
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-F1",
+    "floc": "HRPT-F1",
+    "name": "Area F1 ship loading and custody transfer",
+    "type": "terminal",
+    "install_year": 2018,
+    "longitude": -110.94,
+    "latitude": 47.3
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -110.952,
+     47.312
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-G1",
+    "floc": "HRPT-G1",
+    "name": "Area G1 vapour recovery",
+    "type": "terminal",
+    "install_year": 2018,
+    "longitude": -110.952,
+    "latitude": 47.312
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -110.953,
+     47.309
+    ]
+   },
+   "properties": {
+    "facility_id": "HRPT-H1",
+    "floc": "HRPT-H1",
+    "name": "Area H1 utilities and thermal oxidiser",
+    "type": "terminal",
+    "install_year": 2018,
+    "longitude": -110.953,
+    "latitude": 47.309
+   }
+  }
+ ]
+}

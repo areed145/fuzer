@@ -1,0 +1,8 @@
+# The roster template: the human workflow roles this facility staffs, with seats per shift. People are assigned
+# to these roles from their own accounts on Settings > Users; the template names no one.
+roles:
+- {role: operator, seats: 2}
+- {role: engineer, seats: 1}
+- {role: maintenance_planner, seats: 1}
+- {role: data_steward, seats: 1}
+- {role: ops_lead, seats: 1}

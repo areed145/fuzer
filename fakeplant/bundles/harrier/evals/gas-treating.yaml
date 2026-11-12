@@ -1,0 +1,6 @@
+# Answer keys for the gas-treating specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): it treats no gas; the right answer says so and points at what it does have (vapour recovery and the oxidiser).
+- question: Is the amine or glycol unit at Harrier on spec?
+  must_mention: [[no amine, no glycol, no gas treating, doesn't treat, does not treat, not part of], [G1-K-7001, vapour recovery, H1-H-8006, oxidiser]]
+  specialists: [field-operations-facilities]

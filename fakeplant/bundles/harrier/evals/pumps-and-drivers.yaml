@@ -1,0 +1,9 @@
+# Answer keys for the pumps-and-drivers specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): its machines are the mainline pumps at the origin and midline stations and the loading pumps.
+- question: Is mainline pump A1-P-1003B running to its curve?
+  must_mention: [A1-P-1003B, [head, below its curve, under its curve, curve], [impeller, wear]]
+  specialists: [maintenance-integrity]
+- question: The midline is on one pump. What happens if B1-P-2001B trips?
+  must_mention: [B1-P-2001B, B1-P-2001A, [seal, no standby]]
+  specialists: [maintenance-integrity]

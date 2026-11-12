@@ -1,0 +1,7 @@
+# Answer keys for the static-equipment specialist pack's eval on this bundle (P4.1), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Harrier is a pipeline and terminal (P8.4): its static equipment is the mainline itself (in-line inspection), the tanks and the pig traps.
+- question: How fast is the mainline HR-PL-001 losing wall, and where is it worst?
+  must_mention: [HR-PL-001, CML-02, [rate, mm/year, mm per year], [remaining life, years]]
+  specialists: [maintenance-integrity]
+  charts: [wall_thickness]
