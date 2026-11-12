@@ -40,5 +40,7 @@ arrive:
   well_test_review: {deliver: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true,
                      detector: well_tests}
   gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
+  # The sales gas's water content climbing from about 90 to 141 mg/Sm3 over its last three weekly samples
+  quality_drift: {detector: quality_drift}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}
