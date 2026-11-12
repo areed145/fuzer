@@ -21,4 +21,4 @@ ENV PATH="/app/.venv/bin:$PATH" \
     FUZER_TIMESERIES=synthetic \
     DAGSTER_HOME=/var/lib/fuzer/dagster
 
-CMD ["python", "-m", "fuzer.cli.deploy"]
+CMD ["python", "-m", "fuzer.cli.deploy", "--bundle", "/app/fakeplant/bundles/okan"]

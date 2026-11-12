@@ -5,7 +5,7 @@ A project's config is the `project` row in the database, stored by `fuzer init -
 the same name (fakeplant/bundles/<name>) is the fallback when the database has no row (CI, the demos); Fuzer keeps
 no project files of its own (P1.6).
 
-    fuzer --project okan eval --ops --full        # or FUZER_PROJECT=okan
+    fuzer --project <name> eval --ops --full      # or FUZER_PROJECT=<name>
 
 For one release, activating a project fills in the old variables (FUZER_DATA_DIR, FUZER_MAPPINGS,
 FUZER_TIMESERIES, FUZER_TIMEZONE, FUZER_CACHE_DIR) from it, so code that still reads them works; a variable
@@ -52,7 +52,7 @@ def scope(conn, name: str):
 
 
 def use(conn, name: str):
-    """`with projects.use(conn, "kestrel"):` runs the block, and every connection it opens, for that project."""
+    """`with projects.use(conn, name):` runs the block, and every connection it opens, for that project."""
     from . import db
 
     return db.use(scope(conn, name))

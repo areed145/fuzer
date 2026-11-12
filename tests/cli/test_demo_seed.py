@@ -4,6 +4,15 @@ from fuzer.cli import demo_seed
 from fuzer.core import db
 
 
+def _bundle(exports, name="okan"):
+    """A seed bundle for the shipped Okan pack whose exports are the test's folder."""
+    folder = exports / "bundle"
+    folder.mkdir(exist_ok=True)
+    (folder / "bundle.yaml").write_text(f"bundle: 1\nname: {name}\npack: {demo_seed.BUNDLES / 'okan' / 'pack.yaml'}\n"
+                                        f"project:\n  data: {exports}\n")
+    return folder
+
+
 def test_seed_refuses_other_asset(tmp_path):
     (tmp_path / "process_model.json").touch()
     (tmp_path / "sap_floc.csv").touch()
@@ -13,7 +22,7 @@ def test_seed_refuses_other_asset(tmp_path):
                      "values ('sap','floc','OTHER','{\"parent\":\"\"}')")
         conn.commit()
         with pytest.raises(RuntimeError, match="another asset"):
-            demo_seed.seed(conn, tmp_path)
+            demo_seed.seed(conn, _bundle(tmp_path))
         assert conn.execute("select to_regclass('public.source_record') as t").fetchone()["t"]
 
 
@@ -38,9 +47,9 @@ def test_seed_retries_interrupted_load_and_skips_after_success(tmp_path, monkeyp
     with db.connect() as conn:
         db.reset(conn)  # the existing Render service has already initialized the schema
         with pytest.raises(RuntimeError, match="interrupted"):
-            demo_seed.seed(conn, tmp_path)
-        demo_seed.seed(conn, tmp_path)
-        demo_seed.seed(conn, tmp_path)
+            demo_seed.seed(conn, _bundle(tmp_path))
+        demo_seed.seed(conn, _bundle(tmp_path))
+        demo_seed.seed(conn, _bundle(tmp_path))
         assert calls == ["ingest", "ingest", "rebuild", "ingest"]  # later starts look, and unchanged data doesn't rebuild
         assert conn.execute("select complete from fuzer_demo_bootstrap").fetchone()["complete"]
 
@@ -53,17 +62,17 @@ def test_seed_loads_okan(tmp_path, monkeypatch):
     with db.connect() as conn:
         conn.execute("drop schema public cascade; create schema public")
         conn.commit()
-        demo_seed.seed(conn, tmp_path)
+        demo_seed.seed(conn, _bundle(tmp_path))
         assert conn.execute("select count(*) as n from source_record").fetchone()["n"] > 0
         assert conn.execute("select count(*) as n from entity").fetchone()["n"] > 0
-        assert demo_seed.load_pack("okan").facility == "OKAN"
+        assert demo_seed.projects.active(conn) == "okan"  # the bundle is the database's first project
         assert conn.execute("select complete from fuzer_demo_bootstrap").fetchone()["complete"]
         counts = conn.execute("select count(*) as n from source_record").fetchone()
-        demo_seed.seed(conn, tmp_path)
+        demo_seed.seed(conn, _bundle(tmp_path))
         assert conn.execute("select count(*) as n from source_record").fetchone() == counts
         conn.execute("drop table fuzer_demo_bootstrap")
         conn.commit()
-        demo_seed.seed(conn, tmp_path)
+        demo_seed.seed(conn, _bundle(tmp_path))
         assert conn.execute("select count(*) as n from source_record").fetchone() == counts
 
 
@@ -76,7 +85,7 @@ def test_seed_refuses_unidentified_existing_data(tmp_path):
                      "values ('sap','equipment','CUSTOM','{}')")
         conn.commit()
         with pytest.raises(RuntimeError, match="existing data was left unchanged"):
-            demo_seed.seed(conn, tmp_path)
+            demo_seed.seed(conn, _bundle(tmp_path))
         assert conn.execute("select count(*) as n from source_record").fetchone()["n"] == 1
 
 
@@ -87,7 +96,7 @@ def test_seed_rejects_empty_ingest(tmp_path, monkeypatch):
     with db.connect() as conn:
         db.reset(conn)
         with pytest.raises(RuntimeError, match="zero records"):
-            demo_seed.seed(conn, tmp_path)
+            demo_seed.seed(conn, _bundle(tmp_path))
         assert not conn.execute("select complete from fuzer_demo_bootstrap").fetchone()["complete"]
 
 
@@ -121,7 +130,7 @@ def test_a_built_register_takes_new_mappings_and_changed_exports(tmp_path, monke
         db.reset(conn)
         db.init_schema(conn)
         _built(conn)
-        demo_seed.seed(conn, tmp_path)
+        demo_seed.seed(conn, _bundle(tmp_path))
     assert len(calls) == rebuilds
     assert ("Data refreshed" if rebuilds else "Data unchanged") in capsys.readouterr().out
 
@@ -134,7 +143,7 @@ def test_a_held_load_is_reported(tmp_path, monkeypatch, capsys):
         db.reset(conn)
         db.init_schema(conn)
         _built(conn)
-        demo_seed.seed(conn, tmp_path)
+        demo_seed.seed(conn, _bundle(tmp_path))
     assert "Data refresh held: ec_day001" in capsys.readouterr().out
 
 
@@ -152,7 +161,7 @@ def test_a_failed_refresh_reports_once_and_startup_carries_on(tmp_path, monkeypa
         db.reset(conn)
         db.init_schema(conn)
         _built(conn)
-        demo_seed.seed(conn, tmp_path)  # does not raise
+        demo_seed.seed(conn, _bundle(tmp_path))  # does not raise
     assert len(attempts) == 1
     assert "Data refresh failed" in capsys.readouterr().out
 
@@ -173,14 +182,17 @@ def test_deploy_registers_okan_first_and_adds_each_other_bundle(tmp_path, capsys
     (bundles / "broken" / "bundle.yaml").write_text("bundle: 1\nname: broken\n")  # no pack: reported, skipped
     with db.connect() as conn:
         db.reset(conn)
-        assert demo_seed.register_projects(conn, bundles) == ["kestrel"]
+        demo_seed.bundles.init(conn, bundles / "okan", by="deploy")  # what seed() does first
+        assert demo_seed.register_projects(conn, "okan", bundles) == ["kestrel"]
         assert projects.active(conn) == "okan" and projects.stored(conn) == ["kestrel", "okan"]
         assert conn.execute("select count(*) as n from proj_kestrel.entity").fetchone()["n"] >= 34
         assert conn.execute("select count(*) as n from entity").fetchone()["n"] == 0  # nothing in Okan's
         # Kestrel's open notifications reach its IOC queue at deploy, not at the next scheduled register run.
         assert conn.execute("select count(*) as n from proj_kestrel.exception_record "
                             "where type = 'sap_notification' and state = 'open'").fetchone()["n"] == 4
-        assert demo_seed.register_projects(conn, bundles) == ["kestrel"]  # a redeploy changes nothing
+        assert demo_seed.register_projects(conn, "okan", bundles) == ["kestrel"]  # a redeploy changes nothing
     out = capsys.readouterr().out
     assert "Project broken isn't registered" in out and "Project kestrel: unchanged" in out
-    assert demo_seed.register_projects(None, tmp_path / "none") == []
+    with db.connect() as conn:
+        db.reset(conn)
+        assert demo_seed.register_projects(conn, "okan", tmp_path / "none") == []  # no first project: none added

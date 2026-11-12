@@ -171,7 +171,7 @@ def _tag(conn, fid: str) -> str:
 
 def train(conn, fid: str) -> dict:
     """The train a machine belongs to: tags in its area with its trailing train letter (20-K-2200B: area 20, train
-    B), or every tag in its area when it has none (Kestrel's B1 area is one train); plus the vessels in a lettered
+    B), or every tag in its area when it has none (an area such as B1 that is one train); plus the vessels in a lettered
     area that belong to no train (the inlet separation every train shares)."""
     tag = _tag(conn, fid)
     label = _label(conn, tag)
