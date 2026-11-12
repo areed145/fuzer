@@ -212,6 +212,27 @@ function SystemContext({ system }: { system: string }) {
           ))}</tbody>
         </Table>
       </Disclosure>}
+      {r.links.listed.length > 0 && <Disclosure label={`Links it states (${r.links.resolved ?? r.links.listed.length})`}>
+        <Table density="compact">
+          <thead><tr><th>From</th><th>Link</th><th>To</th><th>Basis</th><th /></tr></thead>
+          <tbody>{r.links.listed.map((l) => (
+            <tr key={`${l.src}|${l.rel}|${l.dst}`}><td><a href={entityHref(l.src)}>{l.src_label}</a></td><td>{l.rel.replace(/_/g, " ")}</td>
+              <td><a href={entityHref(l.dst)}>{l.dst_label}</a></td><td>{l.basis}{l.confidence < 1 ? ` (${pct(l.confidence)})` : ""}</td>
+              <td><Button size="sm" variant="link" disabled={!!a.busy} onClick={() => confirm(`Leave out ${system}'s link from ${l.src_label} to ${l.dst_label}? The next rebuilds won't state it${l.with_others ? " for this system (another system also states it)" : ""}.`)
+                && a.run(`unlink-${l.src}-${l.dst}`, () => api.systemUnlink(system, l, reviewer(), "not this link"), c.reload)}>Not this link</Button></td></tr>
+          ))}</tbody>
+        </Table>
+      </Disclosure>}
+      {r.links.unlinked.length > 0 && <Disclosure label={`Links left out (${r.links.unlinked.length})`}>
+        <Table density="compact">
+          <thead><tr><th>From</th><th>Link</th><th>To</th><th>By</th><th /></tr></thead>
+          <tbody>{r.links.unlinked.map((l) => (
+            <tr key={`${l.src}|${l.rel}|${l.dst}`}><td>{l.src_label}</td><td>{l.rel.replace(/_/g, " ")}</td><td>{l.dst_label}</td><td>{l.decided_by}</td>
+              <td><Button size="sm" variant="link" disabled={!!a.busy}
+                onClick={() => a.run(`relink-${l.src}-${l.dst}`, () => api.systemRelink(system, l, reviewer()), c.reload)}>Take back</Button></td></tr>
+          ))}</tbody>
+        </Table>
+      </Disclosure>}
     </>
   );
 }

@@ -478,6 +478,10 @@ What matched nothing is one `unmatched_records` case per source in the data stew
 is. One answer settles the group: **They are new items** on the system's card remembers them as new
 (`source_new_record`), so later rebuilds don't ask again; to match one instead, open it and use **Same as…**.
 
+The card also lists every link the source states, as the last rebuild resolved it (by its key, or read from text with
+a confidence). **Not this link** leaves that source's statement of it out of every later build (`unlinked`, in the
+source audit log); another source stating the same link keeps it, and **Take back** restores it.
+
 ## Corrections flow back to the source
 An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
 choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back

@@ -1063,7 +1063,9 @@ test("a system says how its records matched, what is left for a steward and ever
     webhook: { path: "/webhooks/inspect", secret: null, ready: false } } }));
   await page.route("**/sources/systems/inspect/context", (route) => route.fulfill({ json: {
     source: "inspect", records: 61, built_at: "2026-11-12T04:00:00Z", expects_match: ["tag"], needs_steward: 2, share: 0.0328, target: 0.1,
-    decided: { key: 58, score: 1, pinned: 0, new: 2 }, links: { pct: null, resolved: null, total: null },
+    decided: { key: 58, score: 1, pinned: 0, new: 2 }, links: { pct: 100, resolved: 1, total: 1, by_rel: {},
+      listed: [{ src: "fz-tag-1", rel: "located_at", dst: "fz-area-1", src_label: "20-P-1001A", dst_label: "Train A", dst_kind: "area",
+        confidence: 1, with_others: false, basis: "named by its key" }], unlinked: [] },
     steward: { to_confirm: 1, disagree: 0, unresolved: 0, unmatched: 1 },
     automatic: [{ ref: "inspect:inspection:20-p-1001a", source_key: "20-p-1001a", fuzer_id: "fz-tag-1", label: "20-P-1001A", kind: "tag",
       method: "key", confidence: 1, basis: "same key as the register", with: ["pi_af", "sap"] },
@@ -1088,6 +1090,16 @@ test("a system says how its records matched, what is left for a steward and ever
   await page.getByRole("cell", { name: "99%", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "20-K-2100C", exact: true }).getAttribute("href"), "#/e/fz-tag-2");
   assert.equal(accepted?.reason, "new items, not ones the register has");
+  let unlinked = null;
+  await page.route("**/sources/systems/inspect/links/unlink", (route) => {
+    unlinked = route.request().postDataJSON();
+    return route.fulfill({ json: { unlinked: {} } });
+  });
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Links it states (1)", exact: true }).click();
+  await page.getByRole("button", { name: "Not this link", exact: true }).click();
+  for (let i = 0; i < 50 && !unlinked; i++) await page.waitForTimeout(50);
+  assert.deepEqual([unlinked?.src, unlinked?.rel, unlinked?.dst], ["fz-tag-1", "located_at", "fz-area-1"]);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
