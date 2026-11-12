@@ -17,8 +17,8 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
 - Asset checks on the register flag data-quality problems; failed runs post to
   FUZER_ALERT_WEBHOOK (Teams / Slack / any JSON webhook) when it is set.
 
-Settings come from the environment: FUZER_DATABASE_URL, each project's exports folder from its bundle,
-FUZER_TIMEZONE (default UTC); the Claude model and effort are the
+Settings come from the environment (FUZER_DATABASE_URL) and the projects: each project's exports folder from its
+bundle, and the schedules' timezone from the first project's (default UTC); the Claude model and effort are the
 settings llm.model and llm.effort, the day close the setting daily_report.close_cron (#131).
 """
 
@@ -444,7 +444,18 @@ refresh_logs = dg.define_asset_job("refresh_logs", selection=dg.AssetSelection.a
 claude_reading = dg.define_asset_job("claude_reading", selection=dg.AssetSelection.groups("claude"),
                                      description="Claude reads new log entries and drawings (costs money).")
 
-TZ = os.environ.get("FUZER_TIMEZONE", "UTC")
+def schedule_timezone() -> str:
+    """The timezone schedules run in: the database's first project's (from its bundle), read when the code location
+    loads; UTC without one. The deprecated FUZER_TIMEZONE still overrides it (projects.field)."""
+    if not os.environ.get("FUZER_DATABASE_URL"):  # nothing to ask (an import in tests or tooling): no server started
+        return os.environ.get("FUZER_TIMEZONE") or "UTC"
+    try:
+        return projects.field("timezone") or "UTC"
+    except Exception:  # no database yet: the schedules still load
+        return "UTC"
+
+
+TZ = schedule_timezone()
 
 
 def per_project(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.ScheduleDefinition:

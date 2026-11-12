@@ -130,3 +130,17 @@ def test_a_bundles_source_packs_roster_and_operating_model_are_checked(tmp_path,
     (folder / "bundle.yaml").write_text(yaml.safe_dump(manifest))
     with pytest.raises(bundles.BundleError, match=error):
         bundles.read(folder)
+
+
+def test_schedules_run_in_the_first_projects_timezone(tmp_path, monkeypatch, clean):
+    """The scheduler's timezone comes from the database's first project (its bundle), not an environment variable."""
+    from fuzer.ops import jobs
+
+    url = _fresh("standup_timezone")
+    monkeypatch.setenv("FUZER_DATABASE_URL", url)
+    assert jobs.schedule_timezone() == "UTC"  # no project yet
+    with db.connect(url=url) as conn:
+        db.init_schema(conn)
+        bundles.init(conn, SHIPPED / "kestrel", by="test")
+    projects._fields.clear()
+    assert jobs.schedule_timezone() == "America/Denver"
