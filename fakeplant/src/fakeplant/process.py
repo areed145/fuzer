@@ -288,6 +288,12 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
     if "20-V-2101C" in units:
         units["20-V-2101C"].update({"carryover_from": "20-V-2001", "carryover_gain": 2.2})
 
+    # The test separator's level valve sticks from 10 to 17 February 2025: its level controller limit-cycles, the
+    # level ramping up and snapping back about once an hour (P4.2b, #354).
+    if "10-V-2003" in units:
+        events.append({"unit": "10-V-2003", "kind": "oscillation", "start": "2025-02-10T00:00", "end": "2025-02-17T00:00",
+                       "period": 60, "amplitude": 4.0, "shape": "sawtooth"})
+
     # Choke moves and pump swaps the operators logged.
     for lg in logs:
         if m := re.match(r"(J\d\d-\d\d|NWP-\d\d) choke opened \d+ to (\d+)%", lg["text"]):
