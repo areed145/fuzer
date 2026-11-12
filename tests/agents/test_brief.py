@@ -37,7 +37,7 @@ def _case(conn, type_: str, subject: str) -> int:
 
 @pytest.fixture
 def classes(monkeypatch):
-    known = {"unit-co": "CO", "unit-pu": "PU"}
+    known = {"unit-co": "CO", "unit-pu": "PU", "unit-ve": "VE"}
     monkeypatch.setattr(detectors, "classes_of", lambda conn, units: {u: known[u] for u in units if u in known})
 
 
@@ -66,8 +66,13 @@ def test_the_owning_pack_briefs_a_new_case_with_its_ledger_and_cost(conn, classe
 
 
 def test_a_missing_brief_says_why(conn, classes):
-    pump = _case(conn, "machine_health", "unit-pu")  # no shipped pack covers pumps yet
-    assert "no specialist pack briefs a machine_health case" in brief.prepare(conn, pump, ask=None)["missing"]
+    vessel = _case(conn, "machine_health", "unit-ve")  # no shipped pack covers pressure vessels
+    assert "no specialist pack briefs a machine_health case" in brief.prepare(conn, vessel, ask=None)["missing"]
+    pump = _case(conn, "machine_health", "unit-pu")
+    assert brief.owner(conn, {"type": "machine_health", "subjects": ["unit-pu"]})["path"] == \
+        "maintenance-integrity/pumps-and-drivers"
+    assert brief.owner(conn, {"type": "machine_trip", "subjects": ["unit-pu"]}) is None  # it briefs machine health only
+    brief._record(conn, {"id": pump}, "system", {"missing": "test"})
 
     down = _case(conn, "machine_trip", "unit-co")
 
@@ -135,3 +140,26 @@ class _Same:
 
     def __exit__(self, *exc):
         return False
+
+
+def test_the_case_shows_its_brief_and_the_person_records_whether_they_followed_it(conn, classes):
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import app
+
+    client = TestClient(app)
+    item = _case(conn, "machine_health", "unit-co")
+    v = client.get(f"/work/items/{item}").json()["brief"]
+    assert v["expected"] and v["entry"] is None and v["due"] and v["verdict"] is None  # due, not written yet
+    url = f"/work/items/{item}/brief/verdict"
+    assert client.post(url, json={"by": "olga", "followed": "yes"}).status_code == 409  # nothing to follow yet
+    brief.prepare(conn, item, lambda q: {"answer": BRIEFED, "usage": {"cost_usd": 0.2}})
+    assert client.post(url, json={"by": "agent:maintenance-integrity", "followed": "yes"}).status_code == 403
+    r = client.post(url, json={"by": "olga", "followed": "partly", "note": "checked the valve first"})
+    assert r.status_code == 200, r.text
+    v = client.get(f"/work/items/{item}").json()["brief"]
+    assert v["entry"]["brief"]["what_happened"].startswith("Stage 1")
+    assert v["verdict"]["by"] == "olga" and v["verdict"]["followed"] == "partly"
+    assert v["verdict"]["disposition"] == "plan an anti-surge valve check" and v["verdict"]["confidence"] == 1.0
+    other = _case(conn, "source_issue", "unit-co")
+    assert client.get(f"/work/items/{other}").json()["brief"]["expected"] is False

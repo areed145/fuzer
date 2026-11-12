@@ -115,12 +115,15 @@ def zone_of(v: float, bounds: tuple[float, float, float]) -> str:
 
 def vibration(conn, fid: str, days: int = 90, until: str | None = None, group: str | None = None,
               foundation: str = "rigid", src=None) -> dict:
+    from ..graph import roles
     from ..sources.timeseries import _unit_points
 
     tag = _tag(conn, fid)
-    pts = [p for p in _unit_points(conn, tag, 30) if (p["uom"] or "").lower() == "mm/s"]
+    pts = _unit_points(conn, tag, 30)
+    casing = roles.of(conn, [p["id"] for p in pts])
+    pts = [p for p in pts if casing.get(p["id"]) == "vibration"]  # casing vibration (velocity), what ISO 20816 zones
     if not pts:
-        raise CalcError("no vibration point (mm/s) on that machine")
+        raise CalcError("no casing vibration point on that machine")
     recip = is_recip(conn, tag)
     if recip:  # ISO 20816-3's zones are for rotating machines: a recip's frame is judged against its maker's limits
         bounds = recip_bounds(conn, [p["id"] for p in pts])
@@ -239,19 +242,16 @@ def _map_head(c: dict, q: float, speed_pct: float) -> float | None:
 
 
 def _stage_parts(conn, tag: str) -> dict:
-    """A compressor stage's suction flow and anti-surge valve points, and its driver's speed (20-K-2100C is
-    driven by 20-GT-2000C)."""
-    import re
+    """A compressor stage's suction flow and anti-surge valve points, and its driver's speed (the driver in its
+    train), by their measurement roles."""
+    from ..graph import roles
+    from .equipment import driver_of, role_point
 
-    from .equipment import _tag_point
-
-    label = _label(conn, tag)
-    m = re.match(r"^(\d\d)-K-(\d)\d00([A-Z])$", label)
-    if not m:
-        raise CalcError("not a compressor stage tag (NN-K-N?00X)")
-    area, series, train = m.groups()
-    parts = {"flow": _tag_point(conn, label, "Suction Flow"), "asv": _tag_point(conn, label, "Anti-Surge Valve"),
-             "speed": _tag_point(conn, f"{area}-GT-{series}000{train}", "Speed")}
+    if "CO" not in roles.classes(conn, tag):
+        raise CalcError("not a compressor stage")
+    driver = driver_of(conn, tag)
+    parts = {"flow": role_point(conn, tag, "suction_flow"), "asv": role_point(conn, tag, "anti_surge_valve_position"),
+             "speed": role_point(conn, driver, "speed") if driver else None}
     missing = [k for k, v in parts.items() if not v]
     if missing:
         raise CalcError("no " + " or ".join({"flow": "suction flow", "asv": "anti-surge valve", "speed": "driver speed"}[k]
@@ -301,7 +301,7 @@ def surge(conn, fid: str, days: int = 30, until: str | None = None, recent_days:
     except CalcError:
         pass
     siblings = []
-    label = _label(conn, tag)
+    label = _label(conn, tag)  # the same stage on the other trains: needs the stage order the register lacks (P2.7)
     for other in conn.execute("select fuzer_id, label from entity_label where label ~ %s and label <> %s order by label",
                               (f"^{label[:-1]}[A-Z]$", label)).fetchall():
         try:
@@ -386,16 +386,11 @@ HEAT_RATE_HIGH = 4.0  # % above the ambient- and load-corrected expected heat ra
 
 def _ambient_point(conn) -> dict | None:
     """The site's ambient air temperature point, wherever it hangs."""
-    r = conn.execute(
-        """
-        select e.fuzer_id from entity e join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
-        where e.kind = 'timeseries' and g.value #>> '{}' ilike '%%ambient air temperature%%' order by 1 limit 1
-        """).fetchone()
-    if not r:
-        return None
+    from ..graph import roles
     from ..sources.timeseries import _point as point
 
-    return point(conn, r["fuzer_id"])
+    pid = roles.anywhere(conn, "ambient_temperature")
+    return point(conn, pid) if pid else None
 
 
 def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_days: int = 7, src=None) -> dict:
@@ -405,16 +400,15 @@ def heat_rate(conn, fid: str, days: int = 30, until: str | None = None, recent_d
     expected."""
     from ..sources import curves
     from .calcs import curve_for
-    from .equipment import _tag_point
+    from .equipment import role_point
 
     tag = _tag(conn, fid)
-    label = _label(conn, tag)
     c = curve_for(conn, curves.model_of(conn, tag), "gas turbine")
     need = ("power_ambient", "heat_rate_ambient", "heat_rate_load")
     if c.get("curve") != "gas_turbine" or any(not c["series"].get(k) for k in need):
         raise CalcError("no OEM gas turbine performance curves for this model")
     lhv = (c["ratings"].get("fuel_lhv") or [None])[0]
-    parts = {"fuel": _tag_point(conn, label, "Fuel Gas Flow"), "power": _tag_point(conn, label, "Output Power"),
+    parts = {"fuel": role_point(conn, tag, "fuel_flow"), "power": role_point(conn, tag, "power"),
              "ambient": _ambient_point(conn)}
     missing = [k for k, v in parts.items() if not v]
     if missing or not lhv:
@@ -486,12 +480,12 @@ def motor_load(conn, fid: str, days: int = 30, until: str | None = None, recent_
     the rating, and the running hours above the rating and above the service factor over the window. Running above
     the service factor spends insulation life; a pump that suddenly draws more for the same duty is running out
     along its curve (a passing recirculation valve, a lost downstream restriction) or pumping a heavier fluid."""
-    from .equipment import _tag_point
+    from .equipment import role_point
 
     tag = _tag(conn, fid)
     rating = motor_rating(conn, tag)
     rated, sf = rating["rated_kw"], rating["service_factor"]
-    p = _tag_point(conn, _label(conn, tag), "Motor Power")
+    p = role_point(conn, tag, "power")
     if not p:
         raise CalcError("no motor power (kW) point on that machine")
     start, end = window_of(conn, days, until)

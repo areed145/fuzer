@@ -35,12 +35,8 @@ A repeat failure is the same failure mode on the same unit more than once in the
    Integrity operating windows (IOWs) are the process side of this: `limits(ref)` lists a unit's IOWs
    (class, limits, time allowed outside) and excursions past them; a breach past its allowed time
    already has an `iow_breach` work item. Repeated breaches explain faster wall loss or seal damage.
-5. **Pumps against their curve:** `plot_pump_curve(ref)` puts PI operating points on the OEM curve.
-   Head falling below the curve month by month at the same flow means internal wear (wear rings,
-   impeller): quote `head_vs_curve_by_month` and the month it started. Running far from the BEP
-   (outside the preferred region) shortens seal and bearing life; say how much time was spent there.
-   `equipment_curves(ref)` gives the curve itself; `calc("pump_curve", ref)` the latest month's head
-   against the curve as one number (`head_loss` at 5 % below).
+5. **Pumps and drivers** (curves, where a pump runs, motor load, gas turbine and engine drivers): load the
+   `pumps-and-drivers` skill and follow it.
    **Citing a fit:** `calc("reliability", ref, method="weibull" | "crow_amsaa")` returns beta against 1
    with its basis (`wear_out`, `early_life`, `failures_accelerating`); quote it rather than reading the
    number off a chart.
@@ -65,36 +61,15 @@ A repeat failure is the same failure mode on the same unit more than once in the
      value, the trend and the date it reaches zone D. Overall vibration cannot tell a bearing from
      misalignment: spectra need a condition-monitoring source Fuzer doesn't have, so say so rather than
      naming a defect frequency.
-   - **Where it runs** (pumps, `calc("pump_bep", ref)`): flow against the best efficiency point. Time below the
-     minimum stable flow (`low_flow`) causes recirculation, which kills seals and bearings: it explains
-     repeat seal failures better than the seal does. Time outside 70-120 % of BEP (`off_bep`) shortens life.
-   - **Motor load** (motor-driven machines, `calc("motor_load", ref)`): measured motor power against the
-     nameplate's rated kW and service factor, both on the driven unit's SAP equipment record, so a swapped pump
-     brings its own motor's rating. Running above the service factor (`motor_overload`) spends insulation life:
-     act on it. Above the rating but inside the service factor (`motor_high`) leaves no margin for a hot day or
-     a heavier fluid. A pump that suddenly draws more for the same export is running out along its curve: if its
-     flow is above what the export or header meter sees, a minimum-flow recirculation valve is passing, and
-     `pump_bep` will show it off its BEP at the same time. Quote the load as a % of rating, the hours above the
-     service factor and when they started. A machine with no rating on record says so: ask for the motor
-     datasheet rather than assuming one.
+   - **Pumps, motors and drivers** (BEP, motor load, exhaust spread, hot section, engine cylinders, heat rate):
+     load the `pumps-and-drivers` skill and follow it.
    - **Compressors** (surge, reciprocating rod load and valves, API 670 protection channels, surges, dry gas
      seals, lube oil and real-gas performance): load the `compression` skill and follow it.
-   - **Drivers**: `calc("exhaust_spread", ref)` names the exhaust thermocouple that wandered when the spread widens
-     (a lean or hot combustor, or the thermocouple itself: check it before the borescope); `calc("hot_section",
-     ref)` counts fired hours since the last hot section inspection against the plan's interval and gives the due
-     date at the recent running rate; `calc("engine_cylinders", ref)` finds a misfiring (cold) or hot cylinder on a
-     gas engine driver.
    - **Will it make the window?** `calc("remaining_life", ref)` gathers every trend heading for a limit (zone D, the
      protection trips, the seal vent's high-high, the lube oil trip, the inspection hours), each with a 90 % range
      (ISO 13381-1), and sets the earliest against the next turnaround or shutdown. `fails_before_window` means act
      now or pull the window forward; `tight` means only the early end of the range misses it. Quote the date, the
      range and the window, never a bare "remaining life".
-   - **Heat rate** (gas turbine drivers, `calc("heat_rate", ref)`): fuel energy per kWh of output against the
-     OEM curves at the same load and ambient temperature, so a hot afternoon or part load isn't mistaken for a
-     fault. Excess rising a fraction of a percent a week is the air compressor fouling: an offline water wash
-     recovers most of it. A step, or an excess a wash doesn't recover, points at the hot section: recommend a
-     borescope. Quote the excess, its trend and when it started. The fuel's heating value is the design value,
-     not a measured one, so a few percent either way is within the method.
    - **Performance**: `pump_curve` (head below the curve at the same flow means internal wear) or
      `compressor_performance` (an efficiency drop means fouling, wear or recycle).
    - **Failure history**: Weibull beta (`wear_out` suits a PM interval, `early_life` points at repair

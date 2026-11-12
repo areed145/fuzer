@@ -329,6 +329,49 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case opens with the specialist's brief above the decision, and the person says whether they followed it (P4.3)", async () => {
+  const posted = [];
+  let verdict = null;
+  const item = () => ({ id: 19, title: "Machine health on 20-K-2100C", type: "machine_health", state: "open", subjects: [],
+    created_by: "detector:machine_health", created_at: "2026-11-12T03:00:00Z", events: [], processes: [],
+    brief: { expected: true, due: "2026-11-13T03:00:00Z", verdict, entry: { pack: "maintenance-integrity/compression",
+      ledger: { cost_usd: 0.62 }, budget_usd: 0.5, over_budget: true, late: false, brief: {
+        what_happened: "Stage 1 ran within 4 % of its surge line for most of the week.",
+        evidence: [{ ref: "tag:20-FT-2101", says: "suction flow fell 12 %" }],
+        analysis: [{ method: "surge", says: "5th percentile margin 3.8 %" }],
+        similar: [{ case: "INC-2024-07", fixed_by: "anti-surge valve recalibrated" }],
+        proposal: { disposition: "Plan an anti-surge valve check", confidence: 0.72, why: "margin under 5 %" },
+        could_not_check: ["no OEM map revision date"] } } } });
+  await page.route("**/work/items/19", route => route.fulfill({ json: item() }));
+  await page.route("**/work/items/19/brief/verdict", route => {
+    const body = route.request().postDataJSON();
+    posted.push(body);
+    verdict = { by: body.by, at: "2026-11-12T04:00:00Z", followed: body.followed, note: body.note ?? null };
+    return route.fulfill({ json: verdict });
+  });
+  await page.goto(`${url}/#/cases/19`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
+  await page.reload();
+  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Specialist brief", { exact: true }) }).first();
+  await card.waitFor();
+  await card.getByText("Stage 1 ran within 4 % of its surge line", { exact: false }).waitFor();
+  await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
+  await card.getByText("72 % confident", { exact: false }).waitFor();
+  await card.getByText("no OEM map revision date", { exact: true }).waitFor();
+  await card.getByText("$0.62 of $0.50 budget", { exact: false }).waitFor();
+  await card.getByText("over budget", { exact: true }).waitFor();
+  await card.getByRole("button", { name: "Evidence, analysis and similar cases" }).click();
+  await card.getByRole("cell", { name: "anti-surge valve recalibrated" }).waitFor();
+  await card.getByLabel("Note on the proposal").fill("checked the valve first");
+  await card.getByRole("button", { name: "Partly followed" }).click();
+  await card.getByText("Partly followed by", { exact: false }).waitFor();
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].followed, "partly");
+  assert.equal(posted[0].note, "checked the valve first");
+  assert.equal(posted[0].by, "pat");
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
@@ -1008,6 +1051,60 @@ test("Add a source offers a connection for a subfolder when its folder's tables 
   await page.getByRole("heading", { name: /Where is the data\?/ }).waitFor();
   assert.equal(await page.getByPlaceholder("name (default folder)").inputValue(), "incoming");
   assert.equal(await page.locator("input[value='incoming']").count() >= 2, true);  // the name and the path
+});
+
+test("a system says how its records matched, what is left for a steward and every automatic match (P2.1)", async () => {
+  const system = { id: 1, name: "inspect", kind: null, description: null, owner: "ana", steward: null, timezone: null, encoding: null,
+    decimal: null, date_format: null, rank: null, enabled: true, notes: null, datasets: ["inspections"], connections: [] };
+  await page.route("**/sources/catalog", (route) => route.fulfill({ json: { systems: [system],
+    types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
+    check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } } }));
+  await page.route("**/sources/systems/inspect/workflows", (route) => route.fulfill({ json: { types: [], rules: [],
+    webhook: { path: "/webhooks/inspect", secret: null, ready: false } } }));
+  await page.route("**/sources/systems/inspect/context", (route) => route.fulfill({ json: {
+    source: "inspect", records: 61, built_at: "2026-11-12T04:00:00Z", expects_match: ["tag"], needs_steward: 2, share: 0.0328, target: 0.1,
+    decided: { key: 58, score: 1, pinned: 0, new: 2 }, links: { pct: 100, resolved: 1, total: 1, by_rel: {},
+      listed: [{ src: "fz-tag-1", rel: "located_at", dst: "fz-area-1", src_label: "20-P-1001A", dst_label: "Train A", dst_kind: "area",
+        confidence: 1, with_others: false, basis: "named by its key" }], unlinked: [] },
+    steward: { to_confirm: 1, disagree: 0, unresolved: 0, unmatched: 1 },
+    automatic: [{ ref: "inspect:inspection:20-p-1001a", source_key: "20-p-1001a", fuzer_id: "fz-tag-1", label: "20-P-1001A", kind: "tag",
+      method: "key", confidence: 1, basis: "same key as the register", with: ["pi_af", "sap"] },
+      { ref: "inspect:inspection:20 K 2100C", source_key: "20 K 2100C", fuzer_id: "fz-tag-2", label: "20-K-2100C", kind: "tag",
+        method: "score", confidence: 0.993, basis: "matched on its values", with: ["sap"] }],
+    unmatched: [{ source_key: "99-X-9999", fuzer_id: "fz-tag-9", label: "99-X-9999", kind: "tag" }] } }));
+  await page.goto(`${url}/#/sources?view=systems`);
+  await page.getByRole("button", { name: /inspect/ }).first().click();
+  await page.getByText("61 records: 59 matched on their own, 2 new.", { exact: false }).waitFor();
+  await page.getByText("2 need a steward (3%)", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "1 match to confirm", exact: true }).getAttribute("href"), "#/masterdata?tab=questions&kind=match");
+  assert.equal(await page.getByRole("link", { name: "99-X-9999", exact: true }).getAttribute("href"), "#/e/fz-tag-9");
+  let accepted = null;
+  await page.route("**/sources/systems/inspect/context/new", (route) => {
+    accepted = route.request().postDataJSON();
+    return route.fulfill({ json: { accepted: 1 } });
+  });
+  await page.getByRole("button", { name: "They are new items", exact: true }).click();
+  await page.getByText("The record stays as new items", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm They are new items", exact: true }).click();
+  await page.getByRole("button", { name: "Automatic matches (59)", exact: true }).click();
+  await page.getByRole("cell", { name: "99%", exact: true }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "20-K-2100C", exact: true }).getAttribute("href"), "#/e/fz-tag-2");
+  assert.equal(accepted?.reason, "new items, not ones the register has");
+  let unlinked = null;
+  await page.route("**/sources/systems/inspect/links/unlink", (route) => {
+    unlinked = route.request().postDataJSON();
+    return route.fulfill({ json: { unlinked: {} } });
+  });
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Links it states (1)", exact: true }).click();
+  await page.getByRole("button", { name: "Not this link", exact: true }).click();
+  for (let i = 0; i < 50 && !unlinked; i++) await page.waitForTimeout(50);
+  assert.deepEqual([unlinked?.src, unlinked?.rel, unlinked?.dst], ["fz-tag-1", "located_at", "fz-area-1"]);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`system-context-${width}`);
+  }
 });
 
 test("installing a source pack says what it added on Sources, Routing and Detection, linked there (P1.5)", async () => {

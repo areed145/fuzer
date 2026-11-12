@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import (
@@ -171,13 +171,32 @@ def work_item(item_id: int, conn=Depends(get_conn)):
     """An item with its processes (path taken, open steps), every event in its history, the finding of every
     exception it works (`sources`, P1.1), and whether an agents
     provider is configured: without one no agent worker runs, so an agent step will wait until a person takes it."""
-    from ..agents import ledger
+    from ..agents import brief, ledger
     from ..core import llm, settings
     from ..ops import exceptions
 
     return {**work.item(conn, item_id), "agents_configured": llm.configured("agents"),
-            "sources": exceptions.on_case(conn, item_id),
+            "sources": exceptions.on_case(conn, item_id), "brief": brief.view(conn, item_id),
             "agent_spend": {"usd": ledger.case_spend(conn, item_id), "cap_usd": settings.get(conn, "agents.case_cap_usd")}}
+
+
+class BriefVerdict(BaseModel):
+    by: str
+    followed: Literal["yes", "partly", "no"]
+    note: str | None = None
+
+
+@router.post("/work/items/{item_id}/brief/verdict")
+def work_item_brief_verdict(item_id: int, v: BriefVerdict, conn=Depends(get_conn)):
+    """The person who decided says whether they followed the specialist brief's proposal (P4.3), for Phase 6."""
+    from ..agents import brief
+
+    try:
+        return brief.verdict(conn, item_id, v.by, v.followed, v.note)
+    except brief.VerdictRefused as e:
+        raise HTTPException(403, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from None
 
 
 @router.get("/work/agent-spend")

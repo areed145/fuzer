@@ -219,6 +219,23 @@ export interface SourceLoad {
   removed: number;
 }
 
+/** A link a system states, as the last rebuild resolved it (P2.1c). */
+export interface SystemLink {
+  src: string; rel: string; dst: string; src_label: string; dst_label: string; dst_kind: string;
+  confidence: number; with_others: boolean; basis: string;
+}
+/** How a system's records contextualized themselves on the last rebuild (P2.1). */
+export interface SystemContext {
+  source: string; records: number; built_at: string | null; expects_match: string[]; needs_steward: number;
+  share: number | null; target: number; decided: { key: number; score: number; pinned: number; new: number };
+  links: { pct: number | null; resolved: number | null; total: number | null; by_rel: Record<string, [number, number]>;
+    listed: SystemLink[]; unlinked: (Omit<SystemLink, "confidence" | "basis" | "dst_kind" | "with_others"> & { decided_by: string; decided_at: string })[] };
+  steward: { to_confirm: number; disagree: number; unresolved: number; unmatched: number };
+  automatic: { ref: string; source_key: string; fuzer_id: string; label: string; kind: string; method: "key" | "score";
+    confidence: number; basis: string; with: string[] }[];
+  unmatched: { ref: string; source_key: string; fuzer_id: string; label: string; kind: string }[];
+}
+
 export const sourcesApi = {
   sources: () => request<{ data_dir: string; sources: SourceRow[] }>("GET", "/sources"),
   source: (name: string) => request<SourcePreview>("GET", `/sources/${encodeURIComponent(name)}`, { rows: 8 }),
@@ -287,6 +304,13 @@ export const sourcesApi = {
   exportPack: (system: string) => request<{ system: string; yaml: string }>("GET", `/sources/systems/${encodeURIComponent(system)}/pack`),
   importPack: (yaml: string, config: Record<string, Json>, by: string, reason?: string) =>
     request<PackReport>("POST", "/sources/packs", undefined, { yaml, config, by, reason }),
+  systemContext: (system: string) => request<SystemContext>("GET", `/sources/systems/${encodeURIComponent(system)}/context`),
+  systemRecordsAreNew: (system: string, by: string, reason?: string) =>
+    request<{ accepted: number }>("POST", `/sources/systems/${encodeURIComponent(system)}/context/new`, undefined, { by, reason: reason ?? null }),
+  systemUnlink: (system: string, l: { src: string; rel: string; dst: string }, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", `/sources/systems/${encodeURIComponent(system)}/links/unlink`, undefined, { ...l, by, reason: reason ?? null }),
+  systemRelink: (system: string, l: { src: string; rel: string; dst: string }, by: string) =>
+    request<Record<string, unknown>>("POST", `/sources/systems/${encodeURIComponent(system)}/links/relink`, undefined, { ...l, by }),
   systemWorkflows: (system: string) => request<SystemWorkflows>("GET", `/sources/systems/${encodeURIComponent(system)}/workflows`),
   deleteExceptionRule: (system: string, rule: string, by: string) =>
     request<Json>("DELETE", `/sources/systems/${encodeURIComponent(system)}/rules/${encodeURIComponent(rule)}`, { by }),

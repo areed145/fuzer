@@ -1,0 +1,10 @@
+# How each type of work arrives on Kestrel for the loop eval (P1.7c, Gate A): what brings it in, as production runs
+# it, and the window where it does. Dates are relative to the day they're read, like the process model's, so the
+# windows follow its events: yesterday's compressor trip on train B1, and B1-K-2001's valve leak and misfire.
+# The keys are as in fakeplant/bundles/okan/evals/loop.yaml.
+arrive:
+  upset: {scan: sre, since: "today-1d 00:00", until: "today-1d 12:00"}
+  machine_trip: {detector: compressor_trips, since: "today-2d 00:00", until: "today-1d 12:00"}
+  machine_health: {detector: machine_health}
+  iow_breach: {detector: iow_breaches, start: "today-2d 00:00", end: "today"}
+  sap_notification: {source: sap_notifications}

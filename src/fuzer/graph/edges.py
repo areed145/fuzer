@@ -34,6 +34,8 @@ def resolver(assigned: dict, key_index: dict):
 def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_index: dict) -> dict:
     endpoint = resolver(assigned, key_index)
     merged, unresolved = {}, Counter()
+    unlinked = {(r["source"], r["src"], r["rel"], r["dst"]) for r in conn.execute(
+        "select source, src, rel, dst from unlinked")}  # a steward's "Not this link" (P2.1c)
     coverage: dict[str, dict[str, list[int]]] = {}  # source -> rel -> [resolved, total] (#225)
     for e in [e for c in cands for e in c.edges] + extra:
         (src, why_s), (dst, why_d) = endpoint(e.src), endpoint(e.dst)
@@ -43,6 +45,8 @@ def build(conn, cands: list[Candidate], extra: list[Edge], assigned: dict, key_i
             unresolved[f"{e.rel}: {why_s or why_d}"] += 1
             continue
         cov[0] += 1
+        if (e.source, src, e.rel, dst) in unlinked:
+            continue
         # The same link stated by several sources becomes one edge listing all of them.
         key = (src, e.rel, dst, _date(e.valid_from))
         if key in merged:

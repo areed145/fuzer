@@ -301,6 +301,14 @@ SKILL_CATALOG = (
         "channels, seals, lube oil, performance), their basis and data dates.",
         "Advises; stopping, unloading or re-staging a machine is the operator's and machinery engineer's call."),
     SkillDefinition(
+        f"{_MAINT}/pumps-and-drivers", (_MAINT,),
+        (RELIABILITY_ENGINEER, MAINTENANCE_COORDINATOR),
+        "Pump flow, pressures and vibration, the OEM curve, the motor's nameplate on the SAP equipment record, and "
+        "gas turbine and gas engine driver points (exhaust and cylinder temperatures, fuel, output).",
+        "Each pump or driver's status with the checks that drive it (curve, operating region, motor load, vibration, "
+        "exhaust spread, hot section hours, cylinders, heat rate), their basis and data dates.",
+        "Advises; stopping a pump, changing a duty or deferring an inspection is the operator's and engineer's call."),
+    SkillDefinition(
         f"{_MAINT}/integrity", (_MAINT,),
         (INTEGRITY_ENGINEER, INSPECTION_SPECIALIST),
         "Wall thickness at CMLs, inspection plans, integrity operating windows and excursions.",

@@ -3,6 +3,7 @@ import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input,
  * the case's history. */
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { api, type WorkTaskView } from "../../api";
+import { CaseBrief } from "../../CaseBrief";
 import { CaseFindings } from "../../Finding";
 import { Status, href, useAsync } from "../../lib";
 import { Actor, DataView, Due, EntityLinks, holder, startedWith, usePerson, when } from "../../work";
@@ -55,6 +56,7 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
       <div className="task-layout">
         <div>
           <FromField v={v} />
+          {item.data && <CaseBrief it={item.data} person={person} readOnly={demo} reload={item.reload} />}
           <CaseFindings sources={v.sources} />
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}

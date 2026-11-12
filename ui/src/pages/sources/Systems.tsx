@@ -1,9 +1,9 @@
-import { Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { Button, ConfirmAction, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState, type ReactNode } from "react";
 import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json, type PackReport } from "../../api";
-import { Status, href, useAsync } from "../../lib";
+import { Status, entityHref, href, useAsync } from "../../lib";
 import { TestSteps, reviewer, useAction } from "./common";
 import { SystemWritebacks } from "../Writeback";
 
@@ -170,6 +170,73 @@ function SystemWork({ system }: { system: string }) {
   );
 }
 
+/** How its records matched on the last rebuild (P2.1): what was decided on its own, with confidence, and what is
+ * left for a steward. A match is reversed with "Not this record" on the entity page; the next rebuilds keep it. */
+function SystemContext({ system }: { system: string }) {
+  const c = useAsync(() => api.systemContext(system), [system]);
+  const a = useAction();
+  if (!c.data) return <Status loading={c.loading} error={c.error} />;
+  const r = c.data;
+  if (!r.records) return null;
+  const auto = r.decided.key + r.decided.score;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const over = r.share != null && r.share >= r.target;
+  const asks: [number, string, string][] = [
+    [r.steward.to_confirm, r.steward.to_confirm === 1 ? "match to confirm" : "matches to confirm", href("/masterdata", { tab: "questions", kind: "match" })],
+    [r.steward.disagree, r.steward.disagree === 1 ? "value that disagrees" : "values that disagree", href("/masterdata", { tab: "questions", kind: "conflict" })],
+    [r.steward.unresolved, r.steward.unresolved === 1 ? "row naming nothing" : "rows naming nothing", href("/masterdata", { tab: "unresolved" })],
+  ];
+  return (
+    <>
+      <h3>How its records matched</h3>
+      <p className="small">{r.records} records: {auto} matched on their own, {r.decided.new} new
+        {r.decided.pinned ? `, ${r.decided.pinned} decided by a steward` : ""}.{" "}
+        <UIBadge tone={over ? "warn" : "ok"}>{r.needs_steward} need a steward ({pct(r.share ?? 0)})</UIBadge>
+        {r.links.pct != null && <> Links resolved: {r.links.pct}%.</>}</p>
+      {(asks.some(([n]) => n) || r.unmatched.length > 0) && <ul className="small">
+        {asks.filter(([n]) => n).map(([n, what, to]) => <li key={what}><a href={to}>{n} {what}</a></li>)}
+        {r.unmatched.length > 0 && <li>{r.steward.unmatched} matched nothing in the register:{" "}
+          {r.unmatched.slice(0, 5).map((u, i) => <span key={u.fuzer_id}>{i ? ", " : ""}<a href={entityHref(u.fuzer_id)}>{u.label}</a></span>)}
+          {r.unmatched.length > 5 && ` and ${r.steward.unmatched - 5} more`}</li>}
+      </ul>}
+      {r.unmatched.length > 0 && <ConfirmAction label="They are new items" busy={!!a.busy}
+        consequence={`${r.steward.unmatched === 1 ? "The record stays" : `The ${r.steward.unmatched} records stay`} as new items and aren't asked about again. To match one instead, open it and use Same as….`}
+        onConfirm={() => void a.run("new", () => api.systemRecordsAreNew(system, reviewer(), "new items, not ones the register has"), c.reload)} />}
+      {a.error && <p className="error small">{a.error}</p>}
+      {r.automatic.length > 0 && <Disclosure label={`Automatic matches (${auto})`}>
+        <Table density="compact">
+          <thead><tr><th>Record</th><th>Matched to</th><th>Basis</th><th>Confidence</th><th>Also in</th></tr></thead>
+          <tbody>{r.automatic.map((m) => (
+            <tr key={m.ref}><td><code>{m.source_key}</code></td><td><a href={entityHref(m.fuzer_id)}>{m.label}</a></td>
+              <td>{m.basis}</td><td>{pct(m.confidence)}</td><td>{m.with.join(", ")}</td></tr>
+          ))}</tbody>
+        </Table>
+      </Disclosure>}
+      {r.links.listed.length > 0 && <Disclosure label={`Links it states (${r.links.resolved ?? r.links.listed.length})`}>
+        <Table density="compact">
+          <thead><tr><th>From</th><th>Link</th><th>To</th><th>Basis</th><th /></tr></thead>
+          <tbody>{r.links.listed.map((l) => (
+            <tr key={`${l.src}|${l.rel}|${l.dst}`}><td><a href={entityHref(l.src)}>{l.src_label}</a></td><td>{l.rel.replace(/_/g, " ")}</td>
+              <td><a href={entityHref(l.dst)}>{l.dst_label}</a></td><td>{l.basis}{l.confidence < 1 ? ` (${pct(l.confidence)})` : ""}</td>
+              <td><Button size="sm" variant="link" disabled={!!a.busy} onClick={() => confirm(`Leave out ${system}'s link from ${l.src_label} to ${l.dst_label}? The next rebuilds won't state it${l.with_others ? " for this system (another system also states it)" : ""}.`)
+                && a.run(`unlink-${l.src}-${l.dst}`, () => api.systemUnlink(system, l, reviewer(), "not this link"), c.reload)}>Not this link</Button></td></tr>
+          ))}</tbody>
+        </Table>
+      </Disclosure>}
+      {r.links.unlinked.length > 0 && <Disclosure label={`Links left out (${r.links.unlinked.length})`}>
+        <Table density="compact">
+          <thead><tr><th>From</th><th>Link</th><th>To</th><th>By</th><th /></tr></thead>
+          <tbody>{r.links.unlinked.map((l) => (
+            <tr key={`${l.src}|${l.rel}|${l.dst}`}><td>{l.src_label}</td><td>{l.rel.replace(/_/g, " ")}</td><td>{l.dst_label}</td><td>{l.decided_by}</td>
+              <td><Button size="sm" variant="link" disabled={!!a.busy}
+                onClick={() => a.run(`relink-${l.src}-${l.dst}`, () => api.systemRelink(system, l, reviewer()), c.reload)}>Take back</Button></td></tr>
+          ))}</tbody>
+        </Table>
+      </Disclosure>}
+    </>
+  );
+}
+
 const whenText = (when: Json) => Object.entries(when).map(([col, cond]) =>
   Object.entries(cond as Json).map(([op, v]) => `${col} ${OP_TEXT[op] ?? op} ${Array.isArray(v) ? v.join("|") : String(v)}`).join(", ")).join(" and ");
 const OP_TEXT: Record<string, string> = { eq: "=", ne: "≠", lt: "<", le: "≤", gt: ">", ge: "≥", in: "in", not_in: "not in" };
@@ -196,6 +263,7 @@ function SystemCard({ s, cat, reload }: { s: CatalogSystem; cat: Catalog; reload
       <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("pack", () => api.exportPack(s.name),
         (r) => download(`${s.name}.source-pack.yaml`, r.yaml, "application/yaml"))}>Download source pack</Button>
       {a.error && <p className="error small">{a.error}</p>}
+      <SystemContext system={s.name} />
       <SystemWork system={s.name} />
       <SystemWritebacks system={s.name} />
       <h3>Connections</h3>

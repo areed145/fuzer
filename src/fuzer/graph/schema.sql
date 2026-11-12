@@ -97,6 +97,19 @@ create table if not exists edge (
 create index if not exists edge_src on edge (src, rel);
 create index if not exists edge_dst on edge (dst, rel);
 
+-- "Not this link" (P2.1c, graph/contextualized.py): a source's statement of a link a steward said is wrong. The edge
+-- build leaves that source's statement out on every rebuild (another source stating the same link keeps it).
+create table if not exists unlinked (
+    source     text not null,
+    src        text not null,
+    rel        text not null,
+    dst        text not null,
+    decided_by text not null,
+    decided_at timestamptz not null default now(),
+    reason     text,
+    primary key (source, src, rel, dst)
+);
+
 create table if not exists review_item (
     id         bigserial primary key,
     kind       text not null,  -- match, conflict, schema
@@ -171,6 +184,18 @@ create table if not exists reviewed_value (
     value      jsonb
 );
 create index if not exists reviewed_value_key on reviewed_value (fuzer_id, field);
+
+-- Records a steward said are new items, not ones the register already has (P2.1b, graph/contextualized.py): they no
+-- longer count as unmatched, so one answer settles a source's whole group.
+create table if not exists source_new_record (
+    source      text not null,
+    record_type text not null,
+    source_key  text not null,
+    decided_by  text not null,
+    decided_at  timestamptz not null default now(),
+    reason      text,
+    primary key (source, record_type, source_key)
+);
 
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.

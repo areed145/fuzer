@@ -214,6 +214,9 @@ def rebuild(conn, pack: Pack) -> dict:
     from ..analysis import completeness
 
     stats["context_gaps"] = completeness.sync(conn)  # the assets whose missing context holds back most (P2.5)
+    from ..graph import contextualized
+
+    stats["unmatched_records"] = contextualized.sync(conn)  # what matched nothing, one case per source (P2.1)
     lap("steward work")
     conn.commit()
     lap("commit")

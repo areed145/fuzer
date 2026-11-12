@@ -208,6 +208,60 @@ def export_pack(name: str, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/systems/{name}/context")
+def system_context(name: str, conn=Depends(get_conn)):
+    """How the system's records contextualized themselves on the last rebuild (P2.1): what was decided on its own,
+    with confidence, and the share left for a steward."""
+    from ..core.jsonsafe import plain
+    from ..graph import contextualized
+
+    return plain(contextualized.report(conn, name))
+
+
+class NewRecords(Who):
+    refs: list[str] | None = None  # none: every record of the system that matched nothing
+
+
+@router.post("/systems/{name}/context/new")
+def system_records_are_new(name: str, body: NewRecords, conn=Depends(get_conn)):
+    """One answer for the group (P2.1b): the system's records that matched nothing are new items. Remembered."""
+    from ..graph import contextualized
+
+    return _do(conn, contextualized.accept_new, conn, name, body.by, body.refs, body.reason)
+
+
+@router.post("/systems/{name}/context/new/undo")
+def system_records_are_new_undo(name: str, body: Who, conn=Depends(get_conn)):
+    """Take back "these are new": they count as matching nothing again."""
+    from ..graph import contextualized
+
+    return _do(conn, contextualized.undo_new, conn, name, body.by)
+
+
+class Link(Who):
+    src: str
+    rel: str
+    dst: str
+
+
+@router.post("/systems/{name}/links/unlink")
+def system_unlink(name: str, body: Link, conn=Depends(get_conn)):
+    """Not this link (P2.1c): the system's statement of it is left out from the next rebuild on. Remembered."""
+    from ..graph import contextualized
+
+    return {**_do(conn, contextualized.unlink, conn, name, body.src, body.rel, body.dst, body.by, body.reason),
+            "rebuild": deps.rebuilder.request()}
+
+
+@router.post("/systems/{name}/links/relink")
+def system_relink(name: str, body: Link, conn=Depends(get_conn)):
+    """Take back "Not this link"."""
+    from ..graph import contextualized
+
+    return {**_do(conn, contextualized.relink, conn, name, body.src, body.rel, body.dst, body.by),
+            "rebuild": deps.rebuilder.request()}
+
+
 @router.post("/packs")
 def import_pack(body: PackImport, conn=Depends(get_conn)):
     """Install a source pack in one step: its system, connections, datasets, mappings and checks, the work types it

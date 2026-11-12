@@ -464,6 +464,24 @@ SAP needs changing), **the system is right** (the drawing needs a redline), or *
 A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
 back with different values is a new question. Questions no longer raised go stale.
 
+## How a new source matched
+Each system's card on Sources says how its records contextualized themselves on the last rebuild
+(`graph.contextualized`, `GET /sources/systems/{name}/context`): how many matched the register on their own (on a
+canonical key, or scored above the auto-accept threshold and let through by the human gate), how many are new, and
+how many need a steward: matches to confirm, values that disagree with another source, rows whose links named
+nothing, and records that matched nothing of a kind whose records from that source otherwise match (never in the
+source that holds most of that kind, the register its items are matched to). A new source
+should leave under 10% for a steward. Every automatic match is listed with its confidence and basis; "Not this
+record" on the entity page reverses one, and the reversal is a pinned decision every later rebuild keeps.
+
+What matched nothing is one `unmatched_records` case per source in the data steward's queue, however many records it
+is. One answer settles the group: **They are new items** on the system's card remembers them as new
+(`source_new_record`), so later rebuilds don't ask again; to match one instead, open it and use **Same as…**.
+
+The card also lists every link the source states, as the last rebuild resolved it (by its key, or read from text with
+a confidence). **Not this link** leaves that source's statement of it out of every later build (`unlinked`, in the
+source audit log); another source stating the same link keeps it, and **Take back** restores it.
+
 ## Corrections flow back to the source
 An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
 choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back
