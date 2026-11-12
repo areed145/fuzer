@@ -3592,6 +3592,8 @@ for (const state of ["empty", "loading", "failed"]) {
         "/network": { nodes: [], edges: [], truncated: false, rels: [] },
         "/feedback/briefs": { incidents: 0, rated: 0, ratings: 0, useful_share: null, items: [] },
         "/work/workload": { people: [], roles: {}, agents: [], agent_failures: [] },
+        "/sources/catalog": { systems: [], types: { connections: {}, load_modes: [], drift_policies: [], statuses: [] },
+          check_kinds: {}, data_dir: "/data", rebuild: { built_at: null, needed: false, changes: [] } },
       };
       await page.route("**/*", (route) => {
         const path = new URL(route.request().url()).pathname;
