@@ -15,6 +15,9 @@ def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
     # matches one of the project's sources (#747)
     assert not {"conflicting_sources", "context_gap", "criticality_not_assessed", "measurement_role_to_confirm",
                 "unmatched_record", "unmatched_records", "unresolved_links"} & set(res["synthetic"]), arrived
+    assert not {"failed_quality_check", "mapping_drift", "mapping_to_approve", "source_issue", "source_quality_drop"
+                } & set(res["synthetic"]), arrived  # the bundle's next deliveries (deliveries/) and the rebuild after
     done = {r["type"]: r for r in res["types"]}
+    assert done["source_issue"]["steps"]["match"] == "matched the oplogs source"
     assert done["unmatched_records"]["steps"]["match"].startswith("matched the ") and \
         done["measurement_role_to_confirm"]["steps"]["route"] == "in the data_steward queue"

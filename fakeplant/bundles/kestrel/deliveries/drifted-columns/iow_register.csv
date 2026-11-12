@@ -1,0 +1,9 @@
+iow_id,revision,tag,parameter,iow_class,low_limit,hi_limit,unit,max_time_outside,damage_mechanism,response,effective_date,superseded_date
+IOW-KR-001,A,B1-TT-2002,Compressor discharge temperature,Critical,,150,degC,2 h,"Valve and rod packing damage, lube oil breakdown","Cut load, check the aftercooler fans and fins",2023-03-01,
+IOW-KR-002,A,A1-PT-1001,Inlet separator pressure,Standard,,27.0,barg,2 h,Overpressure toward the PSV set pressure (30 barg),"Choke back the Pad 12 wells, restore compression or flare",2023-03-01,
+IOW-KR-003,A,B1-VT-2003,Compressor frame vibration,Standard,,7.1,mm/s,4 h,"Crosshead and foundation bolt loosening, bearing wear","Reduce load, inspect frame bolts and crosshead clearances",2023-03-01,
+IOW-KR-004,A,C1-TT-3008,TEG reboiler temperature,Critical,190,204,degC,4 h,Glycol thermal degradation above 204 degC; poor lean glycol purity below 190 degC,Check burner and fuel gas; raise stripping gas; sample lean glycol,2023-03-01,
+IOW-KR-005,A,D1-TT-4006,Amine reboiler temperature,Standard,115,127,degC,4 h,MDEA degradation and reboiler corrosion above 127 degC; poor stripping below 115 degC,Adjust hot oil to the reboiler; check lean amine loading,2023-03-01,
+IOW-KR-006,A,E1-TT-5003,Low temperature separator temperature,Standard,,-15,degC,2 h,Sales gas hydrocarbon dew point off specification,Check propane compressor E1-K-5004 and chiller level,2023-03-01,
+IOW-KR-007,A,D1-AT-4002,Sweet gas CO2,Standard,,2.0,mol%,1 h,Sales gas off specification (2.0 mol% CO2),Raise amine circulation; check for foaming,2023-03-01,
+IOW-KR-008,A,C1-AT-3011,Dry gas water content,Standard,,112,mg/Sm3,4 h,Sales gas off specification; hydrates in the propane chiller,Check TEG reboiler temperature and circulation; raise methanol to E1-E-5001,2023-03-01,

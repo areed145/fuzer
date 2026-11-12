@@ -42,6 +42,11 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
     # start (routing.adopt_open_cases); work about a source matches one of the project's sources (#747)
     assert not {"conflicting_sources", "context_gap", "criticality_not_assessed", "drawing_disagreement",
                 "unmatched_record", "unmatched_records", "unresolved_links"} & set(res["synthetic"]), arrived
+    # source and mapping problems: the bundle's next deliveries land, and the rebuild after them raises the rest
+    assert not {"failed_quality_check", "mapping_drift", "mapping_to_approve", "source_issue", "source_quality_drop"
+                } & set(res["synthetic"]), arrived
+    assert arrived["mapping_drift"] == "a delivery of iow_register and the rebuild after it"
+    assert done["failed_quality_check"]["steps"]["match"] == "matched the sap_work_centers source"
     assert done["unresolved_links"]["steps"]["match"] == "matched the ptw source"
     assert done["criticality_not_assessed"]["steps"]["route"] == "in the data_steward queue"
     assert done["upset"]["steps"]["route"] == "started upset" and done["upset"]["steps"]["count"].endswith("(Resolved)")

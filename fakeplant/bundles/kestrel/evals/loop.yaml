@@ -17,3 +17,10 @@ arrive:
   # Work about a source rather than an asset: matched to one of the project's sources
   unmatched_records: {build: true, about: source}
   unresolved_links: {build: true, about: source}
+  # Source and mapping problems: the next deliveries in the bundle's history (deliveries/) land as a source's load
+  # takes them, and the register build that follows every load raises what they leave behind
+  failed_quality_check: {deliver: deliveries/duplicate-keys, datasets: [lims_results], rebuild: true, about: source}
+  mapping_drift: {deliver: deliveries/drifted-columns, datasets: [iow_register], rebuild: true, about: source}
+  source_issue: {deliver: deliveries/thin-delivery, datasets: [oplogs], about: source}  # its fill dropped on load
+  source_quality_drop: {deliver: deliveries/thin-delivery, datasets: [oplogs], rebuild: true, about: source}
+  mapping_to_approve: {suggest: deliveries/new-export, about: source}  # a new export: a suggested mapping

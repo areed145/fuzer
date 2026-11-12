@@ -92,6 +92,16 @@ def arrivals(conn) -> dict[str, dict]:
     return resolve_all((yaml.safe_load(path.read_text()) or {}).get("arrive", {}))  # `today-1d 03:10` reads as a date
 
 
+def _bundle(conn) -> Path:
+    from ..core import bundles
+    from ..core.pack import resolve
+
+    folder = bundles.find(resolve(conn).name)
+    if not folder:
+        raise Step("this project has no bundle folder to deliver from")
+    return Path(folder)
+
+
 def _bring(conn, how: dict) -> str:
     """Run what brings a type in, as production runs it. Returns what ran, in words."""
     from ..core import detectors
@@ -117,6 +127,25 @@ def _bring(conn, how: dict) -> str:
         return f"the {how['source']} sync"
     if how.get("build"):
         return "the register build"
+    if "deliver" in how:  # the next delivery in the bundle's history lands, as the source's load job takes it
+        from ..ops import pipeline
+        from ..sources import ingest
+
+        names = list(how.get("datasets") or [])
+        ingest.ingest(conn, _bundle(conn) / how["deliver"], names or None, trigger="sensor")
+        conn.commit()
+        if how.get("rebuild"):  # the register build that follows every load (the stewards' questions, the scorecard)
+            pipeline.rebuild(conn, pack)
+            conn.commit()
+        return f"a delivery of {', '.join(names) or how['deliver']}" + (" and the rebuild after it" if how.get("rebuild") else "")
+    if "suggest" in how:  # a new export lands: the mapping suggester proposes one, the stewards' queue picks it up
+        from ..graph import data_work
+        from ..sources import suggest
+
+        suggest.run(conn, pack, _bundle(conn) / how["suggest"])
+        data_work.sync(conn)
+        conn.commit()
+        return "the mapping suggester on a new export"
     if "sync" in how:
         if how["sync"] not in SYNCS:
             raise Step(f"no sync called {how['sync']}")
@@ -146,6 +175,8 @@ def _source_of(conn, row: dict) -> str | None:
             for k in ("dataset", "source")]
     for name in [*said, *(row["key"] or "").replace(":", " ").split()]:
         if name in names or name.lower() in names:
+            return name
+        if name.partition("_")[0].lower() in names:  # a new export, named for the system it comes from
             return name
     return None
 
@@ -402,6 +433,9 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
         raise ValueError(f"the register has {len(refs)} free tagged assets for {len(routes)} types")
     run_id = conn.execute("select to_char(now(), 'YYYYMMDDHH24MISSUS') as t").fetchone()["t"]  # one key per run
     arrive = arrivals(conn) if arrive is None else arrive
+    # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
+    # the work another type's own detector is about to raise
+    routes.sort(key=lambda r: bool(arrive.get(r["type"], {}).get("deliver") or arrive.get(r["type"], {}).get("suggest")))
     results = [run_type(conn, r, ref, run_id, arrive.get(r["type"])) for r, ref in zip(routes, refs, strict=True)]
     return {"types": results, "passed": sum(not r["failed"] for r in results),
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [

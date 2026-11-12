@@ -1,0 +1,5 @@
+coupon_id,tag,installed,removed,weight_loss_g,rate_mm_y,pitting,analyst
+CC-2025-01,10-V-2001,2025-03-04,2025-06-03,1.82,0.041,none,Lab A
+CC-2025-02,20-V-2001,2025-03-04,2025-06-03,2.95,0.067,light,Lab A
+CC-2025-03,10-V-2001,2025-06-03,2025-09-02,1.77,0.040,none,Lab A
+CC-2025-04,20-V-2001,2025-06-03,2025-09-02,3.41,0.077,light,Lab A

@@ -1,0 +1,4 @@
+reading_id,tag,node,quantity,value,unit,effective,method,status,description
+MOC-2011-007,10-V-2001,,liquid_capacity,14500,Sm3/d,2011-06-01,,,
+MOC-2025-014,10-V-2001,,liquid_capacity,13400,Sm3/d,2025-05-19,,,
+MOC-2025-031,10-V-2001,,liquid_capacity,15500,Sm3/d,2025-11-20,,,

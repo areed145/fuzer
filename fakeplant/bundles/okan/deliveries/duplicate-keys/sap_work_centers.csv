@@ -1,0 +1,5 @@
+arbpl,description,crew_size,shift
+MECH,Mechanical maintenance crew,6,days
+INST,Instrument technicians,2,days
+ELEC,Electrical technicians,2,days
+MECH,Mechanical maintenance crew,6,days
