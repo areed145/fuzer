@@ -304,7 +304,8 @@ def main(argv=None):
 
                 res = loop.run(conn)
                 for r in res["types"]:
-                    _say(f"{r['type']}: " + (f"failed at {r['failed']}: {r['why']}" if r["failed"] else "completed"))
+                    _say(f"{r['type']}: " + (f"failed at {r['failed']}: {r['why']}" if r["failed"] else "completed")
+                         + (f" (arrived from {r['arrived']})" if r.get("arrived") else ""))
                 if res["failed"]:
                     raise SystemExit("loop eval failed: " + "; ".join(res["failed"]))
             elif args.cmd == "eval" and args.roles:
