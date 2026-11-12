@@ -7,17 +7,30 @@ first message.
 
     about(conn, item_id, subject)   {item_id, subject, label, text} or None when neither is given
     framed(question, ctx)           the question with the context block before it
+    attach(conn, answer_id, item_id, by)
+                                    put an answer and its charts on a case, in one action, as an `attached` event
+                                    (P4.5b); only a named person can
+
+Attaching only adds to the case's history: it changes nothing else on the case and nothing in a source system.
 """
 
 import json
+import re
+
+from psycopg.types.json import Jsonb
 
 from ..core.labels import label
 
 RAISED_CHARS = 3000
+FIGURE = re.compile(r"\[\[figure:(f_[0-9a-f]+)\]\]")
 
 
 class Unknown(LookupError):
-    """No such case or asset."""
+    """No such case, asset or answer."""
+
+
+class Refused(PermissionError):
+    """Only a named person attaches to a case."""
 
 
 def _brief(conn, item_id: int) -> str:
@@ -62,3 +75,22 @@ def about(conn, item_id: int | None = None, subject: str | None = None) -> dict 
 
 def framed(question: str, ctx: dict | None) -> str:
     return f"{ctx['text']}\n\nQuestion: {question}" if ctx else question
+
+
+def attach(conn, answer_id: str, item_id: int, by: str) -> dict:
+    """Put an answer, with its charts, on a case as an `attached` event by the person who attached it."""
+    from ..core import gates
+
+    if gates.machine(by):
+        raise Refused(f"{by} is not a person: only a person attaches an answer to a case")
+    a = conn.execute("select id, conversation_id, question, answer from assistant_answer where id = %s and answer is not "
+                     "null", (answer_id,)).fetchone()
+    if a is None:
+        raise Unknown(f"no finished answer {answer_id}")
+    if conn.execute("select 1 from work_item where id = %s", (item_id,)).fetchone() is None:
+        raise Unknown(f"no case {item_id}")
+    data = {"answer_id": a["id"], "conversation_id": a["conversation_id"], "question": a["question"],
+            "answer": a["answer"], "figures": list(dict.fromkeys(FIGURE.findall(a["answer"])))}
+    conn.execute("insert into work_event (item_id, kind, actor, data) values (%s, 'attached', %s, %s)",
+                 (item_id, by, Jsonb(data)))  # the caller commits, as with a comment
+    return {"item_id": item_id, **data}

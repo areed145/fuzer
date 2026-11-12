@@ -490,6 +490,9 @@ export const investigateApi = {
   endFact: (id: number, by: string, validTo?: string) =>
     request<AssistantFact>("POST", `/assistant/facts/${id}/end`, undefined, { by, valid_to: validTo }),
   deleteFact: (id: number) => request<{ deleted: number }>("DELETE", `/assistant/facts/${id}`),
+  attachAnswer: (answerId: string, itemId: number, by: string) =>
+    request<{ item_id: number; figures: string[] }>("POST", `/assistant/answers/${encodeURIComponent(answerId)}/attach`,
+      undefined, { item_id: itemId, by }),
   remember: (answerId: string, statement: string, by: string) =>
     request<{ facts: number[]; ended: number[]; items: AssistantFact[] }>(
       "POST", `/assistant/answers/${encodeURIComponent(answerId)}/remember`, undefined, { statement, by }),
