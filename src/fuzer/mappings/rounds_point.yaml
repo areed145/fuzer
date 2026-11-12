@@ -1,0 +1,22 @@
+# Operator rounds checklist points (P5.4a, #717): on each round, what to read (a number with its unit and limits) or
+# check (pass or fail) on which equipment. kind: reading or check; sort orders the points along the round.
+source: rounds
+record_type: point
+shape: records
+dataset: rounds_points
+key: point_id
+entity:
+  kind: round_point
+  fields:
+    - round
+    - area
+    - what
+    - kind
+    - unit
+    - [low, {from: low, as: number, keep: true}]
+    - [high, {from: high, as: number, keep: true}]
+    - [sort, {from: sort, as: number, keep: true}]
+links:
+  - rel: checks
+    when: floc
+    to: {from: floc, as: floc}

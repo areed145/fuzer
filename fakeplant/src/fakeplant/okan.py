@@ -42,6 +42,7 @@ from .common import (
     _add_hours,
     _permits,
     _purchase_orders,
+    _rounds,
     _spares,
     _work_center,
     _write_csv,
@@ -1134,6 +1135,7 @@ def generate(out, seed: int = 11) -> dict:
     permits, isolations = _permits(equipment)
     _write_csv(out / "ptw_permits.csv", permits)
     _write_csv(out / "ptw_isolations.csv", isolations)
+    _write_csv(out / "rounds_points.csv", _rounds(equipment))
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)

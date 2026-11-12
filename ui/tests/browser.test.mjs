@@ -3937,3 +3937,27 @@ test("a job in progress is handed over at shift change and the incoming operator
   assert.deepEqual(accepted[0], { by: "gina" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+// P5.4a (#717): an operator's My work shows this shift's rounds, each with how far it has got, and opens one to its
+// points in order with their limits.
+test("an operator sees this shift's rounds and a round's points (#717)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olu"));
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "olu", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  const run = { id: 4, round: "Compression", area: "Compression", shift_start: "2026-11-12T06:00:00Z", shift_end: "2026-11-12T18:00:00Z",
+    role: "operator", points: 2, taken: 1, found: 0, state: "open" };
+  await page.route("**/rounds", (route) => route.fulfill({ json: [run] }));
+  await page.route("**/rounds/4", (route) => route.fulfill({ json: { ...run, points: [
+    { id: "fz-rp1", point_id: "RP-B1-01", asset: "fz-k", asset_label: "B1-K-2001", round: "Compression", area: "Compression",
+      what: "Discharge pressure", kind: "reading", unit: "barg", low: 40, high: 62, taken: null },
+    { id: "fz-rp2", point_id: "RP-B1-02", asset: "fz-k", asset_label: "B1-K-2001", round: "Compression", area: "Compression",
+      what: "No oil on the skid", kind: "check", unit: null, low: null, high: null, taken: null }] } }));
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const rounds = page.locator("section", { has: page.getByRole("heading", { name: /Rounds this shift/ }) });
+  await rounds.getByText("1 of 2 taken").waitFor();
+  await rounds.getByRole("button", { name: "Compression (Compression)" }).click();
+  await rounds.getByText("40 to 62 barg").waitFor();
+  await rounds.getByText("No oil on the skid").waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
