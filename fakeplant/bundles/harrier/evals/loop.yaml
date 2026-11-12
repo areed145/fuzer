@@ -39,3 +39,4 @@ arrive:
   # The utility air pressure cycling every 50 minutes for four days: a loop candidate for the engineer
   loop_candidate: {detector: loop_oscillation}
   well_test_review: {not_here: "a pipeline and terminal has no wells to test"}
+  gas_lift_instability: {not_here: "a pipeline and terminal has no wells on gas lift"}

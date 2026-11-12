@@ -39,5 +39,6 @@ arrive:
   # The next well test delivery: KR 12-03H's water cut up from 2.5 to 14 % on yesterday's test
   well_test_review: {deliver: deliveries/well-test, datasets: [ec_well_tests], incremental: true, rebuild: true,
                      detector: well_tests}
+  gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}
