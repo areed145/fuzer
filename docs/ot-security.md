@@ -1,0 +1,92 @@
+# OT security, read and write paths, and site scoping
+
+This is the design note for roadmap epic R.7 (OT security, roles and multi-site tenancy). The epic is delivered with
+the pilot, but two of its rules shape work that comes much earlier: the approved write-back queue (P5.7) and the
+cross-asset views (P7.5). This page fixes those rules now so neither is built twice. It follows the zone and conduit
+model of IEC 62443-3-2 as Fuzer applies it; check clause numbers against your licensed copy before relying on one.
+
+Read it as an IOC lead would: Fuzer watches the plant and routes work, it never touches the control system, and a
+person who works one site sees that site and nothing else.
+
+## Decisions
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | Reading and writing are separate paths with separate credentials. A collector only reads. | A compromised or buggy collector then cannot change anything, whatever code it runs. |
+| D2 | The write-back queue (P5.7) is the only code path that writes to any external system, and every item in it carries a named person's approval. | One place to audit, rate-limit, and switch off. |
+| D3 | Fuzer never writes to a system classed `control`. Write-back targets are business systems only (SAP, maintenance, historian annotations, document stores, operator logs). | The control system is out of scope for an operations router; a write there is a safety question, not a workflow. |
+| D4 | Every connection declares its class (`control`, `control_adjacent`, `business`) and its direction (`read`, `write`). A `control` or `control_adjacent` connection can only be `read`. | Makes D1 and D3 checkable from configuration instead of code review. |
+| D5 | A project is the unit of tenancy: one site (one asset or operating area) is one project, in its own database schema, with its own secrets and audit trail. | This is how Fuzer already isolates Okan and Kestrel (`core/db.py`, `core/projects.py`); tenancy builds on it rather than adding a second scoping model. |
+| D6 | A person sees a project only through a grant to it. Owners span all projects. A cross-site view (P7.5) reads only the projects the person is granted, and shows which ones it left out. | The default is no access; a fleet view is a union of grants, never a bypass. |
+| D7 | Inside a project, role-based access by area and function narrows what a person can act on, never what exists. Areas come from the register (the plant hierarchy), not from a separate list. | One register, asset-type agnostic; an area grant follows the asset tree the matcher already builds. |
+| D8 | Agents act as named agent identities with no grant of their own beyond read and propose. Every surface (API, MCP, CLI, worker) checks the same permission at the server. | Matches P4.4: the human-decision boundary is enforced by the server, not the prompt. |
+| D9 | Every write, approval, permission change and sign-in lands in the project's audit record, exportable per project. | An operator or regulator asks about one site at a time. |
+
+## Zones and conduits
+
+```mermaid
+flowchart LR
+  subgraph L2["Control zone (Levels 0 to 2): out of Fuzer's reach"]
+    DCS["DCS, SIS, PLCs"]
+  end
+  subgraph L3["Control-adjacent zone (Level 3)"]
+    HIST["Historian (PI, ADX)"]
+    AF["Asset framework"]
+  end
+  subgraph DMZ["Collector zone (Level 3.5)"]
+    COL["Fuzer collectors<br><small>read-only credentials</small>"]
+  end
+  subgraph L4["Business zone (Level 4)"]
+    SAP["SAP / maintenance"]
+    DOCS["Documents, logs"]
+  end
+  subgraph APP["Fuzer application zone"]
+    CORE["Register, work engine, agents"]
+    WBQ["Write-back queue (P5.7)<br><small>approved items only</small>"]
+  end
+  DCS -->|"historian's own interface"| HIST
+  HIST -->|"read"| COL
+  AF -->|"read"| COL
+  SAP -->|"read"| COL
+  DOCS -->|"read"| COL
+  COL -->|"loads"| CORE
+  CORE -->|"proposals"| WBQ
+  WBQ -->|"write, business systems only"| SAP
+  WBQ -->|"write"| DOCS
+```
+
+There is no conduit from Fuzer into the control zone. Values reach Fuzer only through the historian, which the plant
+already operates as the boundary to Levels 0 to 2. The write-back queue has conduits to business systems and nowhere
+else; historian annotations are written through the historian's business-facing interface, never to point values.
+
+## What this means for the code today
+
+These hold now and are checked by `tests/architecture/test_read_write_paths.py`:
+
+- **PI Web API**: the collector issues GET requests, and its one POST is `/batch`, whose sub-requests are all `GET`
+  (`sources/pi_web_api.py`).
+- **ADX**: the collector posts only to the query endpoint (`/v1/rest/query`), which does not run control commands;
+  management commands go to `/v1/rest/mgmt`, which Fuzer never calls (`sources/adx.py`).
+- **Folders**: read from the project's data folder.
+
+What each later epic must do:
+
+| Epic | Must |
+|---|---|
+| P5.7 Write-back queue | Be the only module that sends to an external system. Refuse a target whose connection is not `business` and `write`. Hold its write credentials apart from every collector's. |
+| P3.7 Source packs | Declare each connection's class and direction (D4) in the pack. |
+| P7.5 Across assets | Read through the person's project grants (D6) and name the projects left out. |
+| P4.4 Agents as accountable workers | Give agents no permission beyond read and propose, checked at the server on every surface (D8). |
+| R.5 Access, audit and retention | Keep the audit record per project and export it per project (D9). |
+| R.7 itself, with the pilot | Area and function grants (D7), the per-project secret store, and the documented deployment zones. |
+
+## Open questions for review
+
+1. **Is one site always one project?** The recommendation is yes for the pilot. A large site with several operating
+   areas stays one project and uses area grants (D7); a second operating company is always a second project.
+2. **Historian annotations.** They are writes to a control-adjacent system. The recommendation is to allow them only
+   through the historian's annotation interface with a separate write identity, classed `business` for that purpose,
+   and to drop them if the site's OT security owner says no.
+3. **Read-only proof.** Fuzer can show that its code only reads; it cannot prove a credential cannot write. The
+   recommendation is that the deployment checklist asks the site to issue collector credentials from a read-only
+   role and records who confirmed it.
