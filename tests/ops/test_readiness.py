@@ -1,5 +1,6 @@
-"""Ready to dispatch (P5.5a, #681): a job's spares from its equipment's BOM, stock and purchase orders, on Kestrel
-and Okan, read from the records and never from the equipment type."""
+"""Ready to dispatch (P5.5, #680): a job's spares from its equipment's BOM, stock and purchase orders, and its crew
+from the work center its work orders name, on Kestrel and Okan, read from the records and never from the equipment
+type."""
 
 from datetime import date, timedelta
 from pathlib import Path
@@ -74,6 +75,7 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     out = readiness.check(conn, ["fz-nothing-here"])
     assert out["ready"] is True and out["checks"][0]["checked"] is False
     assert out["checks"][0]["note"].startswith("No BOM")
+    assert [c["check"] for c in out["checks"]] == ["spares", "crew"]
 
 
 @pytest.fixture
@@ -119,6 +121,34 @@ def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kes
     assert client.post(f"/exceptions/{fan}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 200
 
 
+def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(kestrel, client):
+    from fuzer.graph import queries
+
+    conn, pack = kestrel
+    gen = queries.resolve_ref(conn, pack, "G1-G-7006")  # its work orders go to ELEC, one electrician
+    first = job(conn, "G-7006 load test", gen)
+    crew = client.get(f"/exceptions/{first}/readiness").json()["checks"][1]
+    assert crew["check"] == "crew" and crew["ready"] is True
+    [elec] = crew["centers"]
+    assert (elec["label"], elec["crew"], elec["busy"]) == ("ELEC", 1, 0)
+    assert client.post(f"/exceptions/{first}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 200
+    second = job(conn, "G-7006 batteries", gen)
+    out = client.get(f"/exceptions/{second}/readiness").json()
+    assert out["ready"] is False
+    assert out["blockers"] == [f"Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #{first} Look at "
+                               "G-7006 load test"]
+    assert client.post(f"/exceptions/{second}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 409
+    # the first one is not held up by itself, and a compressor's mechanical crew (3) still has room
+    assert client.get(f"/exceptions/{first}/readiness").json()["checks"][1]["ready"] is True
+    k2001 = readiness.crew(conn, [queries.resolve_ref(conn, pack, "B1-K-2001")])
+    assert [c["label"] for c in k2001["centers"]] == ["MECH"] and k2001["ready"] is True
+
+
+def test_equipment_no_work_order_names_a_crew_for_is_not_blocked(kestrel):
+    out = readiness.crew(kestrel[0], ["fz-nothing-here"])
+    assert out["ready"] is True and out["checked"] is False and out["note"].startswith("No work orders")
+
+
 def test_okan_spares_come_from_its_own_records(okan_db):
     conn = okan_db.conn
     short = conn.execute(
@@ -127,4 +157,6 @@ def test_okan_spares_come_from_its_own_records(okan_db):
     out = readiness.check(conn, [short])
     assert out["ready"] is False and out["checks"][0]["checked"]
     ordered = conn.execute("select count(*) as n from entity where kind = 'purchase_order'").fetchone()["n"]
+    centers = readiness.crew(conn, [short])["centers"]
+    assert centers and {c["label"] for c in centers} <= {"MECH", "INST", "ELEC"} and all(c["crew"] for c in centers)
     assert ordered > 0

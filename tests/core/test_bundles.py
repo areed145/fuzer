@@ -19,11 +19,11 @@ ROOT = Path(__file__).resolve().parents[2]
 KESTREL = ROOT / "fakeplant" / "bundles" / "kestrel"
 KESTREL_DATASETS = {
     "sap_floc", "sap_equipment", "pi_points", "maximo_assets", "pi_af",
-    "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders",
+    "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders", "sap_work_centers",
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 360
+KESTREL_ENTITIES = 363
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 

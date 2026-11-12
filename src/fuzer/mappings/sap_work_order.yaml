@@ -1,5 +1,6 @@
 # SAP work orders, with the site activity code as an ISO 14224 maintenance activity. status: CRTD / REL open,
-# TECO done; basic_finish is the due date; revision names the turnaround (shutdown) the work is planned for.
+# TECO done; basic_finish is the due date; revision names the turnaround (shutdown) the work is planned for;
+# arbpl is the work center (crew) that does it.
 source: sap
 record_type: work_order
 shape: events
@@ -26,6 +27,9 @@ links:
   - rel: concerns
     when: floc
     to: {from: floc, as: floc}
+  - rel: done_by
+    when: arbpl
+    to: {kind: work_center, from: arbpl}
   - rel: for_notification
     when: qmnum
     to: {kind: notification, from: qmnum}

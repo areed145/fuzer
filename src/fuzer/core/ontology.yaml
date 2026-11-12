@@ -73,6 +73,11 @@ kinds:
     group: Equipment
     colour: "#b08d62"
     description: A purchase order line for a material, with its quantity and delivery date.
+  work_center:
+    label: Work center
+    group: Maintenance
+    colour: "#7d8f69"
+    description: A maintenance crew that work is planned against, with its crew size.
   allocation_node:
     label: Allocation node
     group: Production
@@ -214,6 +219,12 @@ relations:
     description: A purchase order and the material it is for.
     from: [purchase_order]
     to: [material]
+  done_by:
+    label: done by
+    view: maintenance
+    description: A work order and the work center (crew) that does it.
+    from: [work_order]
+    to: [work_center]
   flows_to:
     label: flows to
     view: flow

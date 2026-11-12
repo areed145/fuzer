@@ -36,11 +36,13 @@ from .common import (
     ACTIONS,
     CAUSES,
     DAMAGE_TEXT,
+    WORK_CENTERS,
     Tag,
     _add_days,
     _add_hours,
     _purchase_orders,
     _spares,
+    _work_center,
     _write_csv,
 )
 
@@ -540,7 +542,7 @@ def generate(out, seed: int = 11) -> dict:
                        "finish": finish if status == "TECO" else "", "basic_finish": due or finish,
                        "status": status, "priority": priority or (n["priority"] if n else "3"), "revision": revision,
                        "activity_code": activity, "cost": f"{mrng.uniform(800, 60000):.0f}" if status == "TECO" else "",
-                       "text": text})
+                       "text": text, "arbpl": _work_center(text)})
 
     def lost(obj: str, start: str, hours: float, reason: str, comment: str, oil_rate: float, gas_rate: float = 0):
         downtime.append({"event_id": f"OKDT-{len(downtime) + 1:05d}", "object_code": obj, "start": start,
@@ -1127,6 +1129,7 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "sap_materials.csv", materials)
     _write_csv(out / "sap_bom.csv", bom)
     _write_csv(out / "sap_purchase_orders.csv", _purchase_orders(materials))
+    _write_csv(out / "sap_work_centers.csv", WORK_CENTERS)
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)
