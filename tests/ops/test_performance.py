@@ -61,6 +61,8 @@ def test_a_queue_falling_behind_this_week_shows_against_the_last_four_with_its_c
     assert this["hand_backs"] == {"n": 1, "ids": [new[0]]} and this["escalations"]["ids"] == [new[1]]
     assert ops["weeks"][0]["close_h"] == 48.0
     assert ops["keeping_up"] == "falling_behind" and ops["backlog_avg4"] == 0.0
+    assert ops["arrivals_avg4"] == round(sum(c["arrivals"]["n"] for c in ops["weeks"][:-1]) / 4, 1)
+    assert ops["closed_avg4"] == round(sum(c["closed"]["n"] for c in ops["weeks"][:-1]) / 4, 1)
     planners = next(q for q in out["queues"] if q["queue"] == "maintenance_planner")
     assert planners["keeping_up"] == "keeping_up" and planners["weeks"][-1]["closed"]["ids"] == [p]
     assert {t["type"] for t in out["types"]} == {"upset", "pm"}

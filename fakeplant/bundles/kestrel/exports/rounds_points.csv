@@ -1,0 +1,10 @@
+point_id,round,area,sort,floc,what,kind,unit,low,high
+R-B1-01,Compression rounds,B1,1,KRGP-B1-K2001,Lube oil pressure,reading,barg,3.0,5.5
+R-B1-02,Compression rounds,B1,2,KRGP-B1-K2001,Discharge temperature cylinder 3,reading,degC,60,140
+R-B1-03,Compression rounds,B1,3,KRGP-B1-K2001,Frame vibration,reading,mm/s,0,7.1
+R-B1-04,Compression rounds,B1,4,KRGP-B1-E2010,"Aftercooler fans running, no belt noise",check,,,
+R-C1-01,Dehydration rounds,C1,1,KRGP-C1-H3008,Reboiler temperature,reading,degC,190,204
+R-C1-02,Dehydration rounds,C1,2,KRGP-C1-P3002A,Glycol pump A seal leak-free,check,,,
+R-C1-03,Dehydration rounds,C1,3,KRGP-C1-V3001,Contactor level,reading,%,30,70
+R-G1-01,Utilities rounds,G1,1,KRGP-G1-G7006,Standby generator battery voltage,reading,V,24,28
+R-G1-02,Utilities rounds,G1,2,KRGP-G1-K7004B,Instrument air compressor discharge pressure,reading,barg,6.5,8.5

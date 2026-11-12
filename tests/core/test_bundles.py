@@ -19,11 +19,11 @@ ROOT = Path(__file__).resolve().parents[2]
 KESTREL = ROOT / "fakeplant" / "bundles" / "kestrel"
 KESTREL_DATASETS = {
     "sap_floc", "sap_equipment", "pi_points", "maximo_assets", "pi_af",
-    "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders", "sap_work_centers", "ptw_permits", "ptw_isolations",
+    "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders", "sap_work_centers", "ptw_permits", "ptw_isolations", "rounds_points",
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 388  # with 14 closed permits from the old permit system (P6.5)
+KESTREL_ENTITIES = 397  # with 14 closed permits from the old permit system (P6.5) and Operator rounds' points
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 

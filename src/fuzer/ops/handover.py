@@ -28,7 +28,7 @@ from psycopg.types.json import Jsonb
 from ..core import settings, work
 from ..core.exceptions import ExceptionError
 
-SECTIONS = ["Open work", "In the field", "Open permits", "Back from the field", "Escalated or overdue", "Dispatched",
+SECTIONS = ["Open work", "In the field", "Open permits", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
             "New exceptions", "Records to check"]
 RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
 CASE_TYPE = "shift_handover"
@@ -100,6 +100,9 @@ def facts(conn, start: datetime, end: datetime) -> dict:
                            if r["handover"] and not r["handover"].get("accepted_at") else ""),
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
+    from . import rounds
+
+    keep("Rounds", rounds.of_shift(conn, start, end), lambda r: _line(r["text"]))
     keep("Back from the field", conn.execute(
         """
         select e.id, e.title, e.item_id, f->>'status' as said, f->>'by' as by, f->>'note' as note

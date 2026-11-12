@@ -1735,6 +1735,36 @@ Structured close-out (P6.1a, #655): what a closed case was, in controlled terms.
 | `first` | bigint | the case reopened as a repeat |
 | `at` | timestamptz |  |
 
+### `round_run`
+
+Operator rounds (P5.4, ops/rounds.py): one run of each round per shift, for the operator role, and what was read or checked on it. A run past its shift's end is done (every point taken), partly done or missed.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `round` | text |  |
+| `shift_start` | timestamptz |  |
+| `shift_end` | timestamptz |  |
+| `role` | text |  |
+| `points` | integer |  |
+| `state` | text | open \| done \| partly_done \| missed |
+| `taken_by` | text |  |
+| `closed_at` | timestamptz |  |
+
+### `round_reading`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `run_id` | bigint |  |
+| `point` | text | the round point's fuzer id |
+| `value` | double precision |  |
+| `passed` | boolean, | a check: passed or failed; a reading: inside its limits |
+| `note` | text |  |
+| `by` | text |  |
+| `at` | timestamptz |  |
+| `exception_id` | bigint, | what an out-of-limit reading or a failed check raised |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
