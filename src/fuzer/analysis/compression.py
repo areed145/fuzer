@@ -104,20 +104,20 @@ def stage_state(g: dict, ps: float, pd: float, ts: float, td: float) -> dict | N
 def _stage(conn, label: str) -> dict:
     """A stage's points: pressures and temperatures (the cooler before it, else the ambient + 8 for a 1st stage
     with no suction thermometer), and its suction flow."""
-    from .equipment import _stage_points, _tag_point
+    from ..graph import roles
+    from .equipment import _stage_points, role_point
 
     pts = dict(_stage_points(conn, label))
-    flow = _tag_point(conn, label, "Suction Flow")
+    stage = conn.execute("select fuzer_id from entity_label where label = %s", (label,)).fetchone()["fuzer_id"]
+    flow = role_point(conn, stage, "suction_flow")
     if flow:
         pts["q"] = flow
     assumed = None
     if not pts.get("ts"):
-        amb = conn.execute("select e.dst as id from edge e join golden g on g.fuzer_id = e.dst and g.field = 'description' "
-                           "where e.rel = 'has_timeseries' and (g.value #>> '{}') ~* 'ambient' limit 1").fetchone()
-        if amb:
+        if amb := roles.anywhere(conn, "ambient_temperature"):
             from ..sources.timeseries import _point
 
-            pts["ts"] = _point(conn, amb["id"])
+            pts["ts"] = _point(conn, amb)
             assumed = "the ambient temperature + 8 degC (no suction thermometer on a 1st stage)"
     missing = [k for k in ("ps", "pd", "ts", "td") if not pts.get(k)]
     if missing:
@@ -184,19 +184,20 @@ def gas_performance(conn, fid: str, days: int = 30, until: str | None = None, sr
 def power_balance(conn, fid: str, days: int = 30, until: str | None = None, src=None) -> dict:
     """The gas power a train's stages absorb against its gas turbine's output power: the closure now against the
     window's first week."""
-    from .equipment import _tag_point
+    from ..graph import roles
+    from .equipment import role_point
     from .trips import train
 
     tag = _tag(conn, fid)
     tr = train(conn, tag)
-    labels = sorted(_label(conn, m) for m in tr["members"])
-    gt = next((x for x in labels if "-GT-" in x), None)
-    stages = [x for x in labels if re.match(r"^\d\d-K-\d\d00[A-Z]$", x)]
+    members = sorted(tr["members"], key=lambda m: _label(conn, m))
+    gt = next((m for m in members if "GT" in roles.classes(conn, m)), None)
+    stages = [_label(conn, m) for m in members if "CO" in roles.classes(conn, m)]
     if not gt or not stages:
         raise CalcError("no gas turbine driven centrifugal train for that machine")
-    power = _tag_point(conn, gt, "Output Power")
+    power = role_point(conn, gt, "power")
     if not power:
-        raise CalcError(f"no output power point on {gt}")
+        raise CalcError(f"no output power point on {_label(conn, gt)}")
     g = gas_properties(conn, tag, until)
     sts = {s: _stage(conn, s) for s in stages}
     start, end = window_of(conn, days, until)

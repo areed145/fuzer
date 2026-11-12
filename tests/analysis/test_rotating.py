@@ -134,3 +134,27 @@ def test_a_pump_with_a_passing_recirculation_valve_runs_its_motor_above_the_serv
     assert any("recirculation" in r for r in m["recommendations"])
     with pytest.raises(CalcError, match="motor rating"):
         rotating.motor_load(conn, fid(conn, "20-K-2300A"))
+
+
+def test_surge_heat_rate_motor_load_and_cooler_fouling_read_roles_not_descriptions(conn):
+    """P1.4d: with every point's description blanked, surge, heat rate, motor load and cooler fouling come out the
+    same: they find their points by measurement role, and the driver by its class in the train. (The stage order
+    behind a stage's scrubber, cooler and siblings still comes from its tag name until the register holds it.)"""
+    from fuzer.analysis import equipment
+
+    ids = {ref: fid(conn, ref) for ref in ("20-K-2100C", "20-GT-2000B", "10-P-1001B", "20-E-2350A")}
+
+    def seen() -> list:
+        s = rotating.surge(conn, ids["20-K-2100C"], until="2025-12-30T00:00")
+        h = rotating.heat_rate(conn, ids["20-GT-2000B"], until="2025-11-10T00:00")
+        m = rotating.motor_load(conn, ids["10-P-1001B"], until="2025-12-01T00:00")
+        c = equipment.cooler_fouling(conn, ids["20-E-2350A"], 180, "2024-08-10T00:00", pack=PACK)
+        return [(r["value"], r["flag"], r["sources"]) for r in (s, h, m, c)]
+
+    before = seen()
+    try:
+        conn.execute("update golden set value = '\"\"' where field = 'description' "
+                     "and fuzer_id in (select fuzer_id from entity where kind = 'timeseries')")
+        assert seen() == before
+    finally:
+        conn.rollback()
