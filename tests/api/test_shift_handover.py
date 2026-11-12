@@ -60,7 +60,12 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 sent, back = raised["10004002"], raised["10004007"]
                 ok(client.post(f"/exceptions/{sent['id']}/dispatch", json={"by": "ioc-ann", "to": "fred",
                                                                           "reason": "check the packing"}))
-                ok(client.post(f"/exceptions/{back['id']}/dispatch", json={"by": "ioc-ann", "to": "fred"}))
+                # the reboiler's hot work (PTW-24105, its order under way today) clashes with this line break (#715): a real
+                # SIMOPS block every time, so the dispatch says why it goes anyway
+                r = client.post(f"/exceptions/{back['id']}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+                assert r.status_code == 409 and "Hot work near a line break in KRGP-C1" in r.text, r.text
+                ok(client.post(f"/exceptions/{back['id']}/dispatch", json={"by": "ioc-ann", "to": "fred", "override":
+                    "contactor isolated and gas-free before the reboiler hot work restarts; area authority agreed"}))
                 ok(client.post(f"/exceptions/{back['id']}/report", json={"by": "fred", "status": "could_not_do",
                                                                         "note": "needs a lab sample first"}))
 
