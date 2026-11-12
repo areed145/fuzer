@@ -46,7 +46,7 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
       <div className="row">
         {view === "open" && <Select aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
           <option value="open">open</option><option value="cleared">cleared</option>
-          <option value="closed">closed</option><option value="">any state</option>
+          <option value="closed">closed</option><option value="shelved">shelved</option><option value="">any state</option>
         </Select>}
         <span className="small muted">{shown.length} {shown.length === 1 ? "event" : "events"}</span>
       </div>
@@ -190,6 +190,8 @@ function Row({ r, person, people, queues, onChange }: {
   const [ask, setAsk] = useState("");
   const [planOn, setPlanOn] = useState("");
   const [why, setWhy] = useState("");
+  const [shelveTo, setShelveTo] = useState("");
+  const [shelveWhy, setShelveWhy] = useState("");
   const [ready, setReady] = useState<Readiness | null>(null);
   const blocked = !!ready && !ready.ready;
   const fieldSaid = r.evidence?.field?.[r.evidence.field.length - 1];
@@ -237,6 +239,19 @@ function Row({ r, person, people, queues, onChange }: {
         <Button size="sm" disabled={!planOn || !!busy} title="Put it on the integrated plan instead of working it now"
           onClick={() => run("Planning", () => api.planException(r.id, person, planOn, `${planOn}T23:59:00Z`),
             () => { setPlanOn(""); onChange(); })}>Plan</Button>
+      </div>}
+      {r.shelved_until && new Date(r.shelved_until) > new Date() ? <div>
+        <Badge>Shelved</Badge> until {when(r.shelved_until)}: {r.shelved_reason}{r.shelved_by ? ` · ${r.shelved_by}` : ""}{" "}
+        {person && <Button size="sm" variant="ghost" disabled={!!busy}
+          onClick={() => run("Unshelving", () => api.unshelveException(r.id, person), onChange)}>Back on the list</Button>}
+      </div> : r.state === "open" && person && <div className="row">
+        <Input type="date" aria-label="Shelve until" value={shelveTo} onChange={(e) => setShelveTo(e.target.value)} width="sm" />
+        <Input aria-label="Why shelve it" placeholder="why it can wait" value={shelveWhy}
+          onChange={(e) => setShelveWhy(e.target.value)} width="sm" />
+        <Button size="sm" variant="secondary" disabled={!shelveTo || !shelveWhy.trim() || !!busy}
+          title="Off the list until then; it comes back on its own"
+          onClick={() => run("Shelving", () => api.shelveException(r.id, person, shelveWhy.trim(), `${shelveTo}T23:59:00Z`),
+            () => { setShelveTo(""); setShelveWhy(""); onChange(); })}>Shelve</Button>
       </div>}{error && <p role="alert" className="error">{error}</p>}</td>
     </tr>
   );

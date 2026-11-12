@@ -5,7 +5,8 @@ matched to entities, routed to a case through the Work port, and published on th
     clear(conn, type, key, by, reason)
     split(conn, exception_id, by)   take one that joined another's case back out to a case of its own
     join(conn, exception_id, into, by)  the reverse: bring one with its own case into another's, cancelling its own
-    reconcile(conn)          close the ones whose case finished (the work tick runs it)
+    reconcile(conn)          close the ones whose case finished, unshelve expired ones (the work tick runs it)
+    shelve(conn, exception_id, by, reason, until) / unshelve(...)  set a standing condition aside, with an expiry
     match(conn, refs)        -> (fuzer ids, refs that matched nothing)
     listing(conn, ...)       what the IOC (or the field) sees
 
@@ -432,7 +433,7 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict
 
 def reconcile(conn) -> dict:
     """Close open exceptions whose case finished (a person closed it, its process ended). If the condition
-    still holds, its next raise opens a new exception and case."""
+    still holds, its next raise opens a new exception and case. Shelved ones whose expiry passed go back on the list."""
     rows = conn.execute(
         """
         update exception_record e set state = 'closed', closed_at = now(), updated_at = now()
@@ -441,7 +442,66 @@ def reconcile(conn) -> dict:
         """).fetchall()
     for row in rows:
         events.publish(conn, "exception.closed", f"exception:{row['id']}", _payload(row))
-    return {"closed": len(rows)}
+    return {"closed": len(rows), "unshelved": len(unshelve_expired(conn))}
+
+
+def shelve(conn, exception_id: int, by: str, reason: str, until) -> dict:
+    """Set a standing condition aside (P3.5c, #694): off the open list, with a reason, until `until`. New raises still
+    add their evidence; when the expiry passes the work tick puts it back. Never a safety case type (`gates`): an
+    integrity window breach stays in front of the IOC."""
+    from datetime import UTC, datetime, timedelta
+
+    from ..core import gates, settings
+
+    row = _row(conn, exception_id, lock=True)
+    if row["joined_to"]:
+        row = _row(conn, row["joined_to"], lock=True)  # the event is one row: its host is what leaves the list
+    if row["state"] != OPEN:
+        raise ExceptionError(f"exception {row['id']} is {row['state']}, not open")
+    if row["type"] in gates.safety_case_types(conn):
+        raise ExceptionError(f"{_label(conn, row['type'])} is a safety case type: it can't be shelved")
+    if not (reason or "").strip():
+        raise ExceptionError("shelving needs a reason")
+    at = until if isinstance(until, datetime) else datetime.fromisoformat(str(until))
+    at = at if at.tzinfo else at.replace(tzinfo=UTC)
+    now = conn.execute("select now() as t").fetchone()["t"]
+    days = settings.get(conn, "exceptions.max_shelve_days")
+    if at <= now:
+        raise ExceptionError("shelving needs an expiry in the future")
+    if at > now + timedelta(days=days):
+        raise ExceptionError(f"shelving is for at most {days} days (exceptions.max_shelve_days)")
+    row = conn.execute("update exception_record set shelved_until = %s, shelved_by = %s, shelved_reason = %s, "
+                       "updated_at = now() where id = %s returning *", (at, by, reason.strip(), row["id"])).fetchone()
+    if row["item_id"]:
+        work.comment(conn, row["item_id"], by, f"Shelved until {at:%Y-%m-%d %H:%M} UTC: {reason.strip()}")
+    events.publish(conn, "exception.shelved", f"exception:{row['id']}",
+                   {**_payload(row), "by": by, "reason": row["shelved_reason"], "until": at.isoformat()})
+    return row
+
+
+def unshelve(conn, exception_id: int, by: str, why: str = "taken off the shelf") -> dict:
+    """Put a shelved exception back on the open list now."""
+    row = _row(conn, exception_id, lock=True)
+    if row["joined_to"]:
+        row = _row(conn, row["joined_to"], lock=True)
+    if row["shelved_until"] is None:
+        raise ExceptionError(f"exception {row['id']} isn't shelved")
+    return _unshelved(conn, row, by, why)
+
+
+def _unshelved(conn, row: dict, by: str, why: str) -> dict:
+    row = conn.execute("update exception_record set shelved_until = null, updated_at = now() where id = %s "
+                       "returning *", (row["id"],)).fetchone()
+    if row["item_id"]:
+        work.comment(conn, row["item_id"], by, f"Back on the list: {why} (it was shelved: {row['shelved_reason']})")
+    events.publish(conn, "exception.unshelved", f"exception:{row['id']}", {**_payload(row), "by": by, "why": why})
+    return row
+
+
+def unshelve_expired(conn) -> list[dict]:
+    """Every shelved exception whose expiry passed, back on the open list (the work tick, through `reconcile`)."""
+    return [_unshelved(conn, r, "system", "its shelving expired") for r in conn.execute(
+        "select * from exception_record where shelved_until is not null and shelved_until <= now() for update").fetchall()]
 
 
 def listing(conn, state: str | None = OPEN, type: str | None = None, subject: str | None = None,
@@ -465,7 +525,9 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
         from exception_record e
         left join work_item w on w.id = e.item_id
         where e.joined_to is null
-          and (%(state)s::text is null or e.state = %(state)s)
+          and (%(state)s::text is null or e.state = %(state)s
+               or (%(state)s = 'shelved' and e.state = 'open' and e.shelved_until > now()))
+          and (%(state)s::text is distinct from 'open' or e.shelved_until is null or e.shelved_until <= now())
           and (%(type)s::text is null or e.type = %(type)s
                or exists (select 1 from exception_record j where j.joined_to = e.id and j.type = %(type)s))
           and (%(subject)s::text is null or %(subject)s = any(e.subjects)

@@ -644,6 +644,45 @@ def test_planned_work_and_a_shutdown_suppress_a_machines_detections_and_count_th
     conn.rollback()
 
 
+def test_a_shelved_condition_leaves_the_list_and_returns_when_its_expiry_passes(conn, compressor, types):
+    """P3.5c: shelved with a reason and an expiry, it leaves the open list and a repeat raise doesn't bring it back;
+    once the expiry passes the work tick's reconcile returns it, and says so on its case. A safety type can't be
+    shelved, nor can one be shelved without a reason, into the past or past the longest shelving."""
+    from datetime import UTC, datetime, timedelta
+
+    from fuzer.core import gates
+
+    types("standing_x", role="role:engineer")
+    types("safety_y", role="role:engineer")
+    gates.set_safety_case_types(conn, ["safety_y"], by="test")
+    x = raise_exception(conn, "standing_x", "S-1", "Seal weeping", "screen", refs=[compressor["tag"]])
+    soon = datetime.now(UTC) + timedelta(days=2)
+    with pytest.raises(ExceptionError, match="reason"):
+        impl.shelve(conn, x["id"], "ann", " ", soon)
+    with pytest.raises(ExceptionError, match="future"):
+        impl.shelve(conn, x["id"], "ann", "known", datetime.now(UTC) - timedelta(hours=1))
+    with pytest.raises(ExceptionError, match="at most"):
+        impl.shelve(conn, x["id"], "ann", "known", datetime.now(UTC) + timedelta(days=400))
+    impl.shelve(conn, x["id"], "ann", "Known weep, repair at the next outage", soon.isoformat())
+    assert x["id"] not in [r["id"] for r in impl.listing(conn)]
+    assert [r["id"] for r in impl.listing(conn, state="shelved")] == [x["id"]]
+    again = raise_exception(conn, "standing_x", "S-1", "Seal weeping", "screen", refs=[compressor["tag"]])
+    assert not again["raised"] and x["id"] not in [r["id"] for r in impl.listing(conn)]
+    assert impl.reconcile(conn)["unshelved"] == 0
+
+    conn.execute("update exception_record set shelved_until = now() - interval '1 minute' where id = %s", (x["id"],))
+    assert impl.reconcile(conn)["unshelved"] == 1
+    assert x["id"] in [r["id"] for r in impl.listing(conn)]
+    notes = [r["data"]["text"] for r in conn.execute(
+        "select data from work_event where item_id = %s and kind = 'commented' order by id", (x["item_id"],))]
+    assert notes[0].startswith("Shelved until") and notes[-1].startswith("Back on the list: its shelving expired")
+
+    y = raise_exception(conn, "safety_y", "Y-1", "IOW", "limits", refs=[compressor["elsewhere"]])
+    with pytest.raises(ExceptionError, match="safety"):
+        impl.shelve(conn, y["id"], "ann", "known", soon)
+    conn.rollback()
+
+
 def test_joining_can_be_turned_off(conn, compressor, three_sources):
     from fuzer.core import settings
 

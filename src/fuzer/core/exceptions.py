@@ -95,7 +95,8 @@ def clear_exception(conn, type: str, key: str, by: str, reason: str | None = Non
 
 
 def reconcile(conn) -> dict:
-    """Close open exceptions whose case finished; the work tick runs it."""
+    """Close open exceptions whose case finished, and put back the shelved ones whose expiry passed; the work tick
+    runs it."""
     return _engine().reconcile(conn)
 
 

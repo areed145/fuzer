@@ -649,6 +649,8 @@ export interface ExceptionRow {
   item_id: number | null; case_state: string | null; assignee: string | null; role: string | null;
   raised_count: number; reports?: number; first_seen: string; last_seen: string;
   planned?: { id: number; start_at: string; end_at: string; crew: string | null } | null;
+  /** Set aside by a person until then, with why (P3.5c). */
+  shelved_until?: string | null; shelved_by?: string | null; shelved_reason?: string | null;
   /** What the source sent with it, and what the field has reported back (`field`). */
   evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };
   /** Other systems' exceptions about the same event, which joined this one's case (#464). */
@@ -803,6 +805,10 @@ export const workApi = {
     request<PlanItem>("POST", "/turnarounds/bring-in", undefined, { by, item_id: itemId, revision }),
   planException: (id: number, by: string, start: string, end: string, crew?: string) =>
     request<PlanItem>("POST", `/exceptions/${id}/plan`, undefined, { by, start, end, crew: crew ?? null }),
+  shelveException: (id: number, by: string, reason: string, until: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/shelve`, undefined, { by, reason, until }),
+  unshelveException: (id: number, by: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/unshelve`, undefined, { by }),
   exceptionKinds: () => request<ExceptionKind[]>("GET", "/exceptions/types"),
   /** The reference forms another system's refs are matched by, each with an example from this register. */
   exceptionRefs: () => request<{ form: string; example: string; entities: number }[]>("GET", "/exceptions/refs"),

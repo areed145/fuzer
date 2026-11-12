@@ -372,6 +372,34 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("a standing condition is shelved with a reason and an expiry, and shows as shelved (P3.5c)", async () => {
+  const row = (extra = {}) => ({ id: 5, type: "machine_health", key: "K-1", title: "Seal weeping", source: "screen", state: "open",
+    priority: null, value_usd: null, subjects: [], unmatched: [], item_id: null, case_state: null, assignee: null, role: null,
+    raised_count: 1, first_seen: "2026-11-01T00:00:00Z", last_seen: "2026-11-01T00:00:00Z", ...extra });
+  let rows = [row()];
+  const shelved = [];
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: rows }));
+  await page.route("**/exceptions/5/shelve", (route) => {
+    const body = route.request().postDataJSON();
+    shelved.push(body);
+    rows = [row({ shelved_until: "2099-01-01T23:59:00Z", shelved_by: body.by, shelved_reason: body.reason })];
+    return route.fulfill({ json: rows[0] });
+  });
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
+  await page.reload();
+  await page.getByText("Seal weeping").waitFor();
+  const shelve = page.getByRole("button", { name: "Shelve", exact: true });
+  assert.equal(await shelve.isDisabled(), true);
+  await page.getByLabel("Shelve until").fill("2099-01-01");
+  await page.getByLabel("Why shelve it").fill("Repair at the next outage");
+  await shelve.click();
+  await page.getByRole("button", { name: "Back on the list" }).waitFor();
+  await page.getByText("Repair at the next outage", { exact: false }).waitFor();
+  assert.deepEqual(shelved, [{ by: "pat", reason: "Repair at the next outage", until: "2099-01-01T23:59:00Z" }]);
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
   await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
     windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",

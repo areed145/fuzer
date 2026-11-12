@@ -169,6 +169,8 @@ register(
             "asset with planned work or a shutdown scheduled or in progress on it is counted under that window instead "
             "of opening a case (never a safety case type). Off: only shutdowns, turnarounds and people's windows count",
             "Work"),
+    Setting("exceptions.max_shelve_days", "int", 30, "The longest a person can shelve a standing condition off the "
+            "open list; when its expiry passes it comes back on its own", "Work", min=1, max=365),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
             "record (and during it) an operator log entry about the same plant counts as its log",
             "Work", min=0, max=168),

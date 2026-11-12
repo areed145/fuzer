@@ -230,6 +230,10 @@ create unique index if not exists exception_record_open on exception_record (typ
 alter table exception_record add column if not exists joined_to bigint;
 create index if not exists exception_record_joined on exception_record (joined_to) where joined_to is not null;
 create index if not exists exception_record_subjects on exception_record using gin (subjects);
+-- Shelved (P3.5c): a standing condition a person set aside with a reason, off the open list until the expiry passes.
+alter table exception_record add column if not exists shelved_until timestamptz;
+alter table exception_record add column if not exists shelved_by text;
+alter table exception_record add column if not exists shelved_reason text;
 -- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
 create table if not exists field_photo (
     id           bigserial primary key,
