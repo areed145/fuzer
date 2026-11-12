@@ -13,9 +13,9 @@ flowchart LR
   c_sources["Sources and ingestion<br><small>fuzer.sources, 37 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 49 modules</small>"]
-  c_ops["Operations<br><small>fuzer.ops, 31 modules</small>"]
+  c_ops["Operations<br><small>fuzer.ops, 30 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 13 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 14 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 24 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
   c_api["API<br><small>fuzer.api, 21 modules</small>"]
@@ -241,7 +241,7 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `conformance`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `safeguards`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
+- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `at_risk`, `board`, `cadence`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `fleet`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `rounds`, `routing`, `safeguards`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `detector_tier_run`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detector_tier_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading` (its `schema.sql`)
@@ -262,7 +262,7 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `home`, `notify`, `operating_model`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `conformance`, `definitions`, `engine`, `home`, `notify`, `operating_model`, `roles`, `runtime`, `views`, `work_drafts`, `work_items`
 - **Uses:** core
 - **Writes:** `exception_kind`, `operating_model_applied`, `operating_model_deviation`, `work_definition`, `work_draft`, `work_event`, `work_form`, `work_home_seen`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token`, `work_view`, `work_watch` ([schema](schema.md))
 - **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_home_seen`, `work_watch`, `work_view`, `operating_model_applied`, `operating_model_deviation` (its `schema.sql`)

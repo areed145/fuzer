@@ -83,7 +83,7 @@ def _has(conn, table: str) -> bool:
 def standing(conn, days: int = DAYS) -> dict:
     """This project against its operating model, and its work in practice over the last `days`."""
     from ..core import projects
-    from ..workflow import operating_model as om
+    from . import operating_model as om
 
     project = projects.current(conn)
     try:
@@ -128,7 +128,7 @@ def fleet(allowed: list[str] | None, days: int = DAYS) -> dict:
 
 
 def _standard_version() -> int:
-    from ..workflow import operating_model as om
+    from . import operating_model as om
 
     return om.STANDARD_VERSION
 
@@ -144,7 +144,7 @@ def reviews(conn, pack=None, by: str = "agent:standards") -> dict:
     key); open ones whose deviation was reviewed (a later date) or unnamed are cleared."""
     from ..core import work
     from ..core.exceptions import ExceptionError, clear_exception, raise_exception
-    from ..workflow import operating_model as om
+    from . import operating_model as om
 
     roles = {r["name"] for r in conn.execute("select name from work_role")}
     out, due = {"checked": 0, "raised": [], "cleared": 0, "errors": []}, set()

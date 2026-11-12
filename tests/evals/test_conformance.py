@@ -3,7 +3,7 @@ its work in practice, and a deviation past its review date as work for its owner
 
 from datetime import date, timedelta
 
-from fuzer.ops import conformance
+from fuzer.workflow import conformance
 from fuzer.workflow import operating_model as om
 
 

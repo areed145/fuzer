@@ -414,7 +414,7 @@ def main(argv=None):
                 elif args.action == "unname":
                     _print({"unnamed": om.unname(conn, args.part, args.key)})
                 elif args.action in ("standing", "fleet"):
-                    from ..ops import conformance as standards
+                    from ..workflow import conformance as standards
 
                     _print(standards.standing(conn, args.days) if args.action == "standing"
                            else standards.fleet(None, args.days))

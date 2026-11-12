@@ -13,7 +13,7 @@ def conformance(days: int = 28):
     """Each asset against its operating model (P8.2): version, deviations with their owner and review date, a verdict
     (standard, justified or drifted) and its work in practice over `days`. Reads only."""
     from ..core import access, db
-    from ..ops import conformance as standards
+    from ..workflow import conformance as standards
     from .security import current
 
     if days < 1 or days > 366:
