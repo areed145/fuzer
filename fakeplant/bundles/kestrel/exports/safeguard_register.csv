@@ -1,0 +1,6 @@
+safeguard_id,tag,protects,function,action,sil
+SG-KR-001,A1-LT-1001,A1-V-1001,Inlet separator high-high level shutdown,Closes the inlet shutdown valve,2
+SG-KR-002,B1-VT-2003,B1-K-2001,Compressor high vibration trip,Trips the compressor,1
+SG-KR-003,B1-LT-2005,B1-V-2005,Suction scrubber high-high level trip,Trips the compressor,2
+SG-KR-004,B1-TT-2002,B1-K-2001,Compressor high discharge temperature trip,Trips the compressor,1
+SG-KR-005,C1-TT-3008,C1-H-3008,TEG reboiler high temperature shutdown,Shuts off the reboiler fuel gas,1
