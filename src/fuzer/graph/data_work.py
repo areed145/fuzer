@@ -86,6 +86,8 @@ def refs(kind: str, p: dict) -> list[str]:
         out += [x for x in (p.get("point_id"), p.get("asset")) if isinstance(x, str)]
     if kind == "pid_mismatch" and p.get("tag"):
         out.append(f"tag:{p['tag']}")
+    if kind == "pid_connection":  # the two items the line would join
+        out += [f"tag:{p[k]}" for k in ("from", "to") if isinstance(p.get(k), str)]
     return list(dict.fromkeys(out))
 
 
