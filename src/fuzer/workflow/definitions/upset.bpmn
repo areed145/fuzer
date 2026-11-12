@@ -34,7 +34,7 @@
     <bpmn:startEvent id="detected" name="Upset detected" >
       <bpmn:outgoing>f_start</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage" fuzer:dispatch="triage=field_check">
+    <bpmn:userTask id="triage" name="Triage" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="upset-triage" fuzer:dispatch="triage=field_check" fuzer:gate="field_dispatch">
       <bpmn:incoming>f_start</bpmn:incoming>
       <bpmn:incoming>f_checked</bpmn:incoming>
       <bpmn:outgoing>f_triaged</bpmn:outgoing>

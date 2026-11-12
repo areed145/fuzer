@@ -181,6 +181,36 @@ The event outbox (core/events.py): what happened, written in the transaction tha
 | `attempts` | integer |  |
 | `last_error` | text |  |
 
+### `gate_policy`
+
+Human gates as policy (P5.10, #619; core/gates.py). The fixed gates are code and never configurable; a confidence gate's thresholds (per asset criticality) and the safety case types are data here, over the shipped defaults.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `settings` | jsonb |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+### `gate_decision`
+
+Every automatic or agent decision a gate saw: its confidence, the threshold applied and whether the gate fired (stopped it for a person), with the reason a person reads on the case.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text |  |
+| `actor` | text |  |
+| `ref` | text |  |
+| `item_id` | bigint |  |
+| `confidence` | double precision |  |
+| `threshold` | double precision |  |
+| `criticality` | text |  |
+| `could_not_check` | text[] |  |
+| `fired` | boolean |  |
+| `reason` | text |  |
+| `at` | timestamptz |  |
+
 ## Work engine
 
 [`src/fuzer/workflow/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/schema.sql)

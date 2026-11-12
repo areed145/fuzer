@@ -32,7 +32,20 @@ export interface SettingChange {
 
 export type SettingScope = "global" | "project";
 
+/** The gate policy (P5.10): fixed gates, never configurable, and each confidence gate's thresholds (null: always a
+ * person) by asset criticality. */
+export interface GatePolicy {
+  fixed: { kind: string; label: string }[];
+  safety_case_types: string[];
+  confidence: { kind: string; label: string; default: number | null; by_criticality: Record<string, number | null>;
+    updated_by: string | null; updated_at: string | null }[];
+}
+
 export const settingsApi = {
+  gatePolicy: () => request<GatePolicy>("GET", "/settings/gates"),
+  setGate: (kind: string, by: string, def: number | null, byCriticality: Record<string, number | null>) =>
+    request<GatePolicy["confidence"][number]>("PUT", `/settings/gates/${kind}`, undefined,
+      { by, default: def, by_criticality: byCriticality }),
   settings: (project?: string) =>
     request<{ project: string | null; projects: string[]; settings: SettingRow[];
       deployment?: { mode: string; configured: boolean; bootstrap_present: boolean } }>("GET", "/settings", { project }),

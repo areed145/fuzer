@@ -88,3 +88,7 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 /* Home's charts sit side by side on a desk screen and stack on a phone; no carousel. */
 .home-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 @media (max-width: 1000px) { .home-charts { grid-template-columns: 1fr; } }
+/* A case's gate decisions (P5.10): went ahead or stopped, the reason, then the numbers. */
+.gate-list { display: grid; gap: 8px; margin: 0; padding: 0; }
+.gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
+.gate-list li > .small { grid-column: 2; color: var(--muted); }

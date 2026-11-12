@@ -402,9 +402,16 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None) -> dict
     if shared and not row["joined_to"]:
         _promote(conn, row)
     if row["item_id"] and t.close_case_on_clear and not t.process and not shared:
-        item = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()
+        from ..core import gates
+
+        item = conn.execute("select state, type from work_item where id = %s", (row["item_id"],)).fetchone()
         if item and item["state"] not in ("done", "cancelled"):
-            work.close_case(conn, row["item_id"], "done", by, reason=reason or "the condition cleared")
+            if item["type"] in gates.safety_case_types(conn) and gates.machine(by):
+                # a safety or environmental case is closed by a person (P5.10 fixed gate): it stays open, saying so
+                work.comment(conn, row["item_id"], by, f"The condition cleared ({reason or 'cleared'}). A safety or "
+                             "environmental case is closed by a person: check it and close it.")
+            else:
+                work.close_case(conn, row["item_id"], "done", by, reason=reason or "the condition cleared")
     events.publish(conn, "exception.cleared", f"exception:{row['id']}", {**_payload(row, t), "reason": reason})
     return row
 
@@ -483,7 +490,11 @@ def _due(conn, row: dict):
 
 def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = None) -> dict:
     """Send an exception to someone (a person, `role:<role>`): open its case for them if it has none, else hand
-    its case (or the case's open person step) to them. Publishes exception.dispatched."""
+    its case (or the case's open person step) to them. Publishes exception.dispatched. Dispatching is a fixed gate
+    (P5.10): only a named person dispatches."""
+    from ..core import gates
+
+    gates.require_person(conn, "field_dispatch", by, ref=f"exception:{exception_id}")
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # part of another's case: the event is dispatched once, through its host
         return dispatch(conn, row["joined_to"], by, to, reason)
