@@ -812,9 +812,9 @@ CHECKS |= {
 def _module(module, name):
     """A check that lives in one of the specialist modules (#515), imported when it runs."""
     def fn(conn, fid, **kw):
-        from . import facilities, integrity, surveillance
+        from . import facilities, integrity, spares, surveillance
 
-        mod = {"facilities": facilities, "integrity": integrity, "surveillance": surveillance}[module]
+        mod = {"facilities": facilities, "integrity": integrity, "spares": spares, "surveillance": surveillance}[module]
         return getattr(mod, name)(conn, fid, **kw)
     return fn
 
@@ -830,6 +830,9 @@ CHECKS |= {
     "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
         conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
         "used_by": {"agent": "calc", "detector": None}},
+    "spares_coverage": {"fn": lambda conn, fid, until=None: _module("spares", "coverage")(conn, fid, until=until),
+                        "ref": "tag or equipment, equipment class or model, area or facility",
+                        "used_by": {"agent": "calc"}},
     "inspection_plan": {"fn": lambda conn, fid, until=None: _module("integrity", "inspection_plan")(conn, fid, until=until),
                         "ref": "vessel, exchanger or piping tag with an inspection plan",
                         "used_by": {"agent": "calc", "detector": None}},

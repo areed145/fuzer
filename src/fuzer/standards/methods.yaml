@@ -86,6 +86,18 @@ pm_interval:
       expect: {interval_days: 400, flag: interval_too_long}
       says: A wear-out class serviced past its characteristic life fails before its PM.
 
+spares_coverage:
+  title: Critical spares coverage, ranked by criticality and failure history
+  standard: "ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management)"
+  inputs: [{name: Bill of materials of each unit's installed equipment, unit: materials}, {name: Stock on hand, unit: each}, {name: Criticality (A, B, C), unit: class}, {name: Failure notifications, unit: count}]
+  valid: Tagged units whose equipment carries a bill of materials. A unit with none is unknown, never covered; minimum stock and lead times are not in the records, so covered means one or more on the shelf.
+  needs: A bill of materials on the unit's installed equipment.
+  vectors:
+    - kernel: fuzer.analysis.spares:rank
+      args: [[{unit: P-2, status: covered, criticality: A, failures: 9}, {unit: P-1, status: uncovered, criticality: B, failures: 1}, {unit: K-1, status: uncovered, criticality: A, failures: 2}, {unit: V-1, status: unknown, criticality: A, failures: 0}]]
+      expect: [{unit: K-1, status: uncovered, criticality: A, failures: 2}, {unit: P-1, status: uncovered, criticality: B, failures: 1}, {unit: V-1, status: unknown, criticality: A, failures: 0}, {unit: P-2, status: covered, criticality: A, failures: 9}]
+      says: A-critical stock-outs come first, then other stock-outs, then units nobody can check, then covered ones.
+
 wall_loss:
   title: Wall loss rate and remaining life per CML
   standard: "API 570 / API 510"

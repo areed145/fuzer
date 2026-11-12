@@ -15,6 +15,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`choke`](#choke) Choke effective Cv against its characteristic | Engineering practice | Choke opening (%); Upstream and downstream pressure (barg); Well test rates (Sm³/d) | Three or more readings since the trim was last replaced, else the latest readings before. |
 | [`reliability`](#reliability) Weibull and Crow-AMSAA on the failure history | IEC 61649 (Weibull analysis); IEC 61164 (reliability growth, power law) | Failure notifications (dates) | Three times between failures for Weibull; four failures for Crow-AMSAA. |
 | [`pm_interval`](#pm_interval) Preventive maintenance interval against the class's failure pattern | IEC 61649 (Weibull analysis); IEC 60300-3-11 (reliability centred maintenance) | Failure notifications on the class's units (dates); Preventive plan intervals (days) | Three times between failures in the class, else the class is reported as insufficient. |
+| [`spares_coverage`](#spares_coverage) Critical spares coverage, ranked by criticality and failure history | ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management) | Bill of materials of each unit's installed equipment (materials); Stock on hand (each); Criticality (A (class); Failure notifications (count) | A bill of materials on the unit's installed equipment. |
 | [`wall_loss`](#wall_loss) Wall loss rate and remaining life per CML | API 570 / API 510 | Wall thickness readings per CML (mm); Minimum required thickness (mm) | Wall thickness readings on the item. |
 | [`corrosion_circuit`](#corrosion_circuit) Corrosion circuit: long and short term rate, remaining life, next inspection | API 570 7.1 | Wall thickness readings per CML (mm); Maximum operating pressure (barg); Nominal diameter (in) | Wall thickness readings on a line of the circuit. |
 | [`well_constraint`](#well_constraint) What limits a well (choke, back-pressure or lift) | Engineering practice | Wellhead and header pressure (barg); Choke opening (%) | A production header pressure for the well's jacket. |
@@ -120,6 +121,14 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Test vector:** A wear-out class (beta 2) on a 200-day median interval at its characteristic life loses 1 - e^-1 of its units first. (`pm_pattern`)
 - **Test vector:** With beta 1 failures are random in time, so a fixed interval cannot prevent them. (`pm_pattern`)
 - **Test vector:** A wear-out class serviced past its characteristic life fails before its PM. (`pm_pattern`)
+
+## spares_coverage
+
+**Critical spares coverage, ranked by criticality and failure history.** ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management).
+
+- **Valid for:** Tagged units whose equipment carries a bill of materials. A unit with none is unknown, never covered; minimum stock and lead times are not in the records, so covered means one or more on the shelf.
+- **Needs:** A bill of materials on the unit's installed equipment.
+- **Test vector:** A-critical stock-outs come first, then other stock-outs, then units nobody can check, then covered ones. (`rank`)
 
 ## wall_loss
 
