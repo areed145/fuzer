@@ -106,7 +106,7 @@ production separator on 2024-01-01".
 Everything asset-specific lives in a pack: the tag grammar (function codes, the
 area format, loop length, or a whole tag pattern), well names, phrase aliases, and
 matching thresholds and survivorship rules that seed the source catalog's rules
-(edited there afterwards). Okan's is `src/fuzer/packs/okan.yaml`.
+(edited there afterwards). Okan's is `fakeplant/bundles/okan/pack.yaml`; Fuzer packages none of its own.
 
 A **seed bundle** (#376) holds what a fresh database needs to serve one facility:
 `bundle.yaml`, the pack and, optionally, its exports. `fuzer init --bundle <folder>`

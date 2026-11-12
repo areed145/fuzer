@@ -7,10 +7,10 @@ from pathlib import Path
 from ..core import bundles, db, projects
 from ..core.pack import current_pack, load_pack
 from ..ops import pipeline
+from ..resources import BUNDLES
 from ..sources import catalog, ingest
 
 LOCK = 0x465A444D  # session lock: held across the ingest and rebuild commits
-BUNDLES = Path(__file__).resolve().parents[3] / "fakeplant" / "bundles"
 
 
 def refresh(conn, folder: Path, pack=None) -> None:

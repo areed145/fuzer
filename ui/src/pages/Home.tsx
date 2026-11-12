@@ -1,11 +1,8 @@
 import { useState } from "react";
-import {
-  api,
-  type BoardCard,
-  type Stats,
-  type Upset,
-  type WorkRow,
-} from "../api";
+import { api, type FieldJob, type Stats, type Upset, type WorkInbox } from "../api";
+import { myWorkCounts } from "./workflows/Inbox";
+import { caseHref, taskHref } from "./workflows/shared";
+import { iocCounts, workHref } from "./AllWork";
 import { Status, entityHref, href, timestamp, useAsync } from "../lib";
 import { usePerson } from "../work";
 import { Button, PageHeader, Input , Card as UICard} from "../ui";
@@ -18,7 +15,7 @@ const HOME_FIGURES = [
   { kind: "flow-capacity", title: "System capacity and bottleneck" },
 ];
 
-export function HomePage({ query, stats, statsLoading, statsError }: {
+export function HomePage({ query, stats }: {
   query: URLSearchParams;
   stats?: Stats;
   statsLoading: boolean;
@@ -43,8 +40,7 @@ export function HomePage({ query, stats, statsLoading, statsError }: {
       {/* With no records loaded, reports, priorities and incidents can only be empty: keep work and health. */}
       <div className="home-grid">
         {!noRecords && <LatestReportCard />}
-        <NeedsYouCard stats={stats} statsLoading={statsLoading} statsError={statsError} />
-        {!noRecords && <PrioritiesCard />}
+        <ShiftCards stats={stats} />
         {!noRecords && <IncidentsCard />}
         {configure && <HealthCard />}
       </div>
@@ -110,95 +106,94 @@ function LatestReportCard() {
   );
 }
 
-function NeedsYouCard({ stats, statsLoading, statsError }: {
-  stats?: Stats;
-  statsLoading: boolean;
-  statsError?: string;
-}) {
+/** Home summarizes and links (#508, #556): counts for the person's roles, each linking to the view that shows the
+ * same number, and the next few titles. The rows themselves live on My work, All work and Master data. */
+function ShiftCards({ stats }: { stats?: Stats }) {
   const [person] = usePerson();
+  const configure = usePermission("configure");
   const inbox = useAsync(() => person ? api.inbox(person) : Promise.resolve(null), [person]);
-  const rows = inbox.data ? [...inbox.data.mine, ...inbox.data.queue].slice(0, 4) : [];
-  const reviews = stats ? Object.entries(stats.open_reviews).filter(([, count]) => count > 0) : [];
-  const reviewTotal = reviews.reduce((sum, [, count]) => sum + count, 0);
+  const field = useAsync(() => person ? api.fieldJobs(person) : Promise.resolve(null), [person]);
+  const roles = inbox.data?.roles ?? [];
+  return <>
+    <MyWorkCard person={person} inbox={inbox.data} loading={inbox.loading} error={inbox.error} retry={inbox.reload}
+      jobs={field.data?.jobs ?? []} />
+    {roles.includes("ops_lead") && <AllWorkCard />}
+    {(roles.includes("data_steward") || configure) && <MasterDataCard stats={stats} />}
+  </>;
+}
+
+/** One count linking to its view. `children` is "one|many" when the noun changes with the number. */
+function Count({ n, to, children, late }: { n: number; to: string; children: string; late?: boolean }) {
+  const [one, many = one] = children.split("|");
+  return <li><a href={to} className={late && n > 0 ? "late" : undefined}><strong>{n}</strong> {n === 1 ? one : many}</a></li>;
+}
+
+function MyWorkCard({ person, inbox, loading, error, retry, jobs }: {
+  person: string | null; inbox?: WorkInbox | null; loading: boolean; error?: string; retry: () => void; jobs: FieldJob[];
+}) {
+  const c = inbox ? myWorkCounts(inbox, jobs) : null;
+  const my = href("/inbox");
   return (
     <UICard className="home-card" as="section">
-      <div className="row spread">
-        <h2>Needs you</h2>
-        <a href={href("/inbox")}>Open inbox</a>
-      </div>
-      <Status loading={inbox.loading && !inbox.data} error={inbox.error} onRetry={inbox.reload} />
-      {!person && !inbox.loading && <p className="muted small">Set your name in the sidebar to see your work.</p>}
-      {inbox.data && (
-        <>
-          <p className="muted small">
-            {inbox.data.counts.mine.total + inbox.data.counts.queue.total} items · {inbox.data.counts.mine.total} assigned · {inbox.data.counts.queue.total} in your queues
-          </p>
-          {rows.length ? (
-            <ul className="home-list">
-              {rows.map((row) => <WorkItem key={`${row.task_id ?? "item"}-${row.item_id}`} row={row} />)}
-            </ul>
-          ) : <p className="muted small">Nothing waiting for you.</p>}
-        </>
-      )}
-      <div className="home-subsection">
-        <div className="row spread">
-          <strong>Open reviews</strong>
-          <a href={href("/review")}>{stats ? `${reviewTotal} to review` : "Open data review"}</a>
-        </div>
-        <Status loading={statsLoading && !stats} error={statsError} />
-        {stats && (reviews.length ? (
-          <div className="row small">
-            {reviews.map(([kind, count]) => (
-              <a key={kind} className="badge" href={href("/review", { kind })}>{kind.replace(/_/g, " ")} · {count}</a>
-            ))}
-          </div>
-        ) : <p className="muted small">No open reviews.</p>)}
-      </div>
+      <div className="row spread"><h2>My work</h2><a href={my}>Open My work</a></div>
+      {!person && <p className="muted small">Choose your name under “You are” in the menu.</p>}
+      <Status loading={loading && !inbox} error={error} onRetry={retry} />
+      {c && <>
+        <ul className="home-counts">
+          {c.escalated > 0 && <Count n={c.escalated} to={my} late>escalated to you</Count>}
+          {c.sent > 0 && <Count n={c.sent} to={my}>sent to you</Count>}
+          <Count n={c.mine} to={my}>assigned to you</Count>
+          <Count n={c.queue} to={my}>unclaimed in your roles</Count>
+          {c.overdue > 0 && <Count n={c.overdue} to={my} late>overdue</Count>}
+        </ul>
+        {c.top.length > 0 ? <ol className="home-list">{c.top.map((r) => <li key={`${r.task_id ?? "i"}-${r.item_id}`}>
+          <a href={r.task_id ? taskHref(r.task_id) : caseHref(r.item_id)}>{r.title}</a></li>)}</ol>
+          : <p className="muted small">Nothing waiting for you.</p>}
+      </>}
     </UICard>
   );
 }
 
-function WorkItem({ row }: { row: WorkRow }) {
-  const to = row.task_id ? `/inbox/task/${row.task_id}` : `/cases/${row.item_id}`;
-  return (
-    <li>
-      <a href={href(to)}>{row.title}</a>
-      <span className="muted small">{row.type.replace(/_/g, " ")} · {row.assignee ?? row.role ?? "open"}</span>
-    </li>
-  );
-}
-
-function PrioritiesCard() {
+function AllWorkCard() {
+  const open = useAsync(() => api.exceptions({ state: "open" }), []);
+  const people = useAsync(() => api.workPeople(), []);
   const board = useAsync(() => api.board({}, 1), []);
-  const cards = board.data?.cards.slice(0, 5) ?? [];
+  const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
+  const c = open.data ? iocCounts(open.data, operators) : null;
+  const top = board.data?.cards.slice(0, 3) ?? [];
   return (
     <UICard className="home-card" as="section">
-      <div className="row spread">
-        <h2>Top priorities</h2>
-        <a href={href("/exceptions", { list: "ranked" })}>All work, ranked</a>
-      </div>
-      <Status loading={board.loading && !board.data} error={board.error} onRetry={board.reload} empty={board.data?.total === 0}>
-        Nothing on the work board.
-      </Status>
-      {cards.length > 0 && (
-        <ol className="home-list home-priorities">
-          {cards.map((card) => <Priority key={card.key} card={card} />)}
-        </ol>
-      )}
+      <div className="row spread"><h2>All work</h2><a href={workHref("dispatch")}>Open All work</a></div>
+      <Status loading={open.loading && !open.data} error={open.error} onRetry={open.reload} />
+      {c && <ul className="home-counts">
+        <Count n={c.dispatch} to={workHref("dispatch")} late>to dispatch</Count>
+        <Count n={c.field} to={workHref("field")}>with the field</Count>
+        <Count n={c.back} to={workHref("back")}>back from the field</Count>
+        <Count n={c.open} to={workHref("open")}>open</Count>
+      </ul>}
+      {top.length > 0 && <>
+        <h3>Highest value</h3>
+        <ol className="home-list">{top.map((card) => <li key={card.key}>
+          <a href={card.item_id ? caseHref(card.item_id) : workHref("ranked")}>{card.title}</a>
+          <span className="muted small">{card.effective_usd == null ? "not valued" : `$${Math.round(card.effective_usd).toLocaleString()}`}</span>
+        </li>)}</ol>
+      </>}
     </UICard>
   );
 }
 
-function Priority({ card }: { card: BoardCard }) {
-  const value = card.effective_usd == null ? "not valued" : `$${Math.round(card.effective_usd).toLocaleString()}`;
+function MasterDataCard({ stats }: { stats?: Stats }) {
+  const unmatched = useAsync(() => api.unmatchedRefs(), []);
+  const reviews = stats ? Object.values(stats.open_reviews).reduce((a, b) => a + b, 0) : null;
   return (
-    <li>
-      <span className="mono muted">{card.rank}.</span>
-      <div>
-        <a href={card.item_id ? href(`/cases/${card.item_id}`) : href("/exceptions", { list: "ranked" })}>{card.title}</a>
-        <span className="muted small">{card.kind.replace(/_/g, " ")} · {value}</span>
-      </div>
-    </li>
+    <UICard className="home-card" as="section">
+      <div className="row spread"><h2>Master data</h2><a href={href("/masterdata")}>Open Master data</a></div>
+      <Status loading={unmatched.loading && !unmatched.data} error={unmatched.error} onRetry={unmatched.reload} />
+      <ul className="home-counts">
+        {unmatched.data && <Count n={unmatched.data.length} to={href("/masterdata")} late>ref on open work matched nothing|refs on open work matched nothing</Count>}
+        {reviews !== null && <Count n={reviews} to={href("/review")}>record to review|records to review</Count>}
+      </ul>
+    </UICard>
   );
 }
 

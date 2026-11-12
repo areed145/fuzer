@@ -99,6 +99,25 @@ def test_malformed_bundles_fail_explicitly(tmp_path, manifest, pack, error):
         bundles.read(_bundle(tmp_path, manifest, pack))
 
 
+def test_every_facility_is_a_shipped_bundle_and_fuzer_packages_none():
+    """P1.6a: Okan's pack lives in its bundle like Kestrel's; src/fuzer holds no packs and no project files."""
+    from fuzer.resources import PACKAGE
+
+    assert not (PACKAGE / "packs").exists() and not (ROOT / "projects").exists()
+    assert {"okan", "kestrel"} <= set(bundles.shipped()) == set(projects.repo_names())
+    for name, facility in (("okan", "OKAN"), ("kestrel", "KRGP")):
+        assert packs.load_pack(name).facility == facility
+        cfg = projects.config(None, name)  # no database row: the shipped bundle's project
+        assert cfg["source"] == "repository" and cfg["pack_config"]["facility"] == facility
+        assert packs.for_project(cfg).facility == facility
+        assert Path(cfg["data"]).is_absolute()
+    assert projects.config(None, "okan")["data"] == str(ROOT / "fakeplant" / "data" / "okan")
+    with pytest.raises(LookupError, match="no seed bundle"):
+        packs.load_pack("nowhere")
+    with pytest.raises(projects.ProjectError):
+        projects.config(None, "nowhere")
+
+
 def test_a_missing_bundle_fails(tmp_path):
     with pytest.raises(bundles.BundleError, match="no bundle.yaml"):
         bundles.read(tmp_path)

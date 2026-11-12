@@ -1,5 +1,0 @@
-# The Okan field demo (fakeplant). The database's `project` row, when there is one, wins over this file.
-pack: okan
-data: fakeplant/data/okan
-timeseries: synthetic
-fakeplant: {asset: okan, seed: 11}
