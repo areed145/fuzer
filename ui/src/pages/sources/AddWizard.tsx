@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select , Badge as UIBadge} from "../../ui";
+import { ActionStatus, ConfirmAction, Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Empty } from "../../ui";
 /** Add a source (#225): system -> connection -> table -> what its rows mean -> how it loads -> save and load. */
 import { useState, type ReactNode } from "react";
 import { api, type AddTableResult, type Catalog, type CatalogSystem, type SourceLoad, type TablePreview } from "../../api";
@@ -68,7 +68,6 @@ function PickSystem({ cat, value, onPick }: { cat: Catalog; value: string | null
   const [pick, setPick] = useState(value ?? "");
   return (
     <>
-      <p className="muted small">The system of record the data comes from. Its name is what the records will say as their source.</p>
       <div className="row">
         <Select value={pick} onChange={(e) => setPick(e.target.value)}>
           <option value="">choose a system…</option>
@@ -91,10 +90,6 @@ function PickConnection({ s, types, dataDir, onPick, suggest }: { s: CatalogSyst
   const [tested, setTested] = useState<Record<number, Awaited<ReturnType<typeof api.testConnection>>>>({});
   return (
     <>
-      <p className="muted small">
-        How Fuzer reaches <code>{s.name}</code>. A folder connection with no path reads the project's data folder;
-        give it a path for anywhere else (a lake, an export drop).
-      </p>
       {s.connections.map((c) => (
         <div key={c.id} className="row">
           <Button variant="secondary" onClick={() => onPick(c.id)}>Use <code>{c.name}</code></Button>
@@ -135,15 +130,14 @@ function PickTable({ connection, folder, onPick, onOtherConnection }: {
       {fresh.length === 0 && (
         // Not a dead end (#412): new tables elsewhere need a connection that points there.
         <div className="small">
-          <p className="muted">Everything this connection holds is already a dataset.
-            {folder && " A folder connection reads only the tables directly in its folder, not in its subfolders."}</p>
+          <Empty>Everything this connection holds is already a dataset.{folder && " Only tables directly in its folder are read."}</Empty>
           <Button variant="secondary" size="sm" onClick={() => onOtherConnection()}>
             {folder ? "Add a connection for another folder" : "Choose or add another connection"}</Button>
         </div>
       )}
       {(t.data.subfolders ?? []).length > 0 && (
         <div className="small">
-          <p className="muted">Subfolders with tables of their own, each read through its own connection:</p>
+          <p>Subfolders with tables of their own, each read through its own connection:</p>
           <div className="row wrap">
             {t.data.subfolders!.map((f) => (
               <Button key={f.path} variant="secondary" size="sm" onClick={() => onOtherConnection({ name: f.name, path: f.path })}>
@@ -156,7 +150,7 @@ function PickTable({ connection, folder, onPick, onOtherConnection }: {
         {fresh.map((x) => <Button key={x.table} variant="secondary" onClick={() => onPick(x.table)}><code>{x.table}</code></Button>)}
       </div>
       {t.data.tables.length > fresh.length && (
-        <p className="muted small">Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</p>
+        <p className="small">Already loaded: {t.data.tables.filter((x) => x.dataset).map((x) => x.table).join(", ")}</p>
       )}
     </>
   );

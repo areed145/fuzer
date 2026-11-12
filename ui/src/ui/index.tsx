@@ -35,7 +35,7 @@ export function PageHeader({ children, subtitle, actions, help, className = "" }
   children: ReactNode; subtitle?: ReactNode; actions?: ReactNode; help?: string; className?: string;
 }) {
   const tools = (actions || help) && <div className="ui-page-actions">{actions}{help && <HelpLink doc={help} />}</div>;
-  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="muted">{subtitle}</p>}</div>{tools}</header>;
+  return <header className="ui-page-header"><div><h1 tabIndex={-1} className={className}>{children}</h1>{subtitle && <p className="ui-page-subtitle">{subtitle}</p>}</div>{tools}</header>;
 }
 
 /** A quiet link to the docs page that explains this screen. Use it instead of paragraphs of guidance on the page. */

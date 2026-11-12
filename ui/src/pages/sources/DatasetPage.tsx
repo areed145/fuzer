@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -117,7 +117,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
     <>
       <div className="row">
         <ConfirmAction label="Load now" busy={!!a.busy} disabled={!ready}
-          consequence={`Load ${ds.name} into the shared facility using ${ds.load_mode} mode? ${LOAD_HELP[ds.load_mode]}. This does not prove a rebuild has finished.`}
+          consequence={`Load ${ds.name} into the shared facility using ${ds.load_mode} mode? ${LOAD_HELP[ds.load_mode]}. The rebuild that follows is tracked on Jobs.`}
           onConfirm={() => a.run("run", () => api.runDataset(ds.name), (r) => { setDone(r); reload(); })} />
         <Button variant="secondary" disabled={!!a.busy || !d.connection}
           onClick={() => a.run("test", () => api.testConnection(d.connection!.id), setTest)}>Test connection</Button>
@@ -287,7 +287,7 @@ function Lifecycle({ d, reload }: { d: DatasetDetail; reload: () => void }) {
 function MappingTab({ d, reload }: { d: DatasetDetail; reload: () => void }) {
   const current = d.mappings.find((m) => m.current) ?? d.mappings[0];
   const [review, setReview] = useState<MappingVersion | null>(null);
-  if (!current) return <p className="muted small">No mapping.</p>;
+  if (!current) return <Empty className="small">No mapping.</Empty>;
   const drafts = d.mappings.filter((m) => m.status === "draft");
   return (
     <>
@@ -392,7 +392,7 @@ function Runs({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           ))}
         </tbody>
       </Table>
-      {d.runs.length === 0 && <p className="muted small">Not loaded yet.</p>}
+      {d.runs.length === 0 && <Empty className="small">Not loaded yet.</Empty>}
     </>
   );
 }
@@ -464,7 +464,7 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             ))}
           </tbody>
         </Table>
-      ) : <p className="muted small">None yet.</p>}
+      ) : <Empty className="small">None yet.</Empty>}
       <Disclosure label={<>Add a check by hand</>}>
         <div className="row">
           <Select value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -492,14 +492,14 @@ function Quality({ d, reload }: { d: DatasetDetail; reload: () => void }) {
             </tbody>
           </Table>
         </div>
-      ) : <p className="muted small">No profile yet: one is kept with every load.</p>}
+      ) : <Empty className="small">No profile yet. One is kept with every load.</Empty>}
     </>
   );
 }
 
 function Matching({ d }: { d: DatasetDetail }) {
   const s = d.matching[0]?.stats as Record<string, any> | undefined;  // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (!s) return <p className="muted small">No rebuild since this source loaded.</p>;
+  if (!s) return <Empty className="small">No rebuild since this source loaded.</Empty>;
   const cov = s.coverage ?? {};
   return (
     <div className="small">
@@ -526,7 +526,7 @@ function Matching({ d }: { d: DatasetDetail }) {
       {cov.unresolved && (
         <>
           <h3 className="small">Values that name nothing Fuzer knows</h3>
-          <p className="muted">No link is guessed for these. Fix them in the export, or add the name to the asset pack's aliases.</p>
+          <p>No link is guessed for these. Fix them in the export, or add the name to the asset pack's aliases.</p>
           <Table variant="list" density="compact">
             <thead><tr><th>Link</th><th>Value</th><th>Rows</th></tr></thead>
             <tbody>
@@ -537,7 +537,7 @@ function Matching({ d }: { d: DatasetDetail }) {
           </Table>
         </>
       )}
-      <p className="muted">Which source wins a field: <a href={href("/sources", { view: "rules" })}>Rules</a>.</p>
+      <p>Which source wins a field: <a href={href("/sources", { view: "rules" })}>Rules</a>.</p>
     </div>
   );
 }

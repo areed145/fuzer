@@ -160,7 +160,7 @@ function ColumnForm({ text, dataset, columns, samples, onText }: {
         </div>
       )}
       {form.kept.length > 0 && (
-        <p className="muted small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>
+        <p className="small">Also in this mapping, kept as it is (edit under YAML): {form.kept.join("; ")}.</p>
       )}
       {error && <p className="error small">{error}</p>}
     </>

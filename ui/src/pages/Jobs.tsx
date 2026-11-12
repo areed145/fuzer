@@ -110,7 +110,6 @@ function Overview({ o }: { o: JobsOverview }) {
       </div>
 
       <h2>Data checks</h2>
-      <p className="muted small">Checks on the register after each rebuild. They flag problems without blocking the rebuild.</p>
       <div className="scroll-x">
         <Table variant="list" density="compact">
           <thead><tr><th>Check</th><th>Result</th><th>Details</th><th>Checked</th></tr></thead>
@@ -238,7 +237,7 @@ function ClaudeSpend({ c }: { c: NonNullable<JobsOverview["claude"]> }) {
           {" "}Last 30 days: <strong>${c.usd_30d.toFixed(2)}</strong> across {c.runs.length} run{c.runs.length === 1 ? "" : "s"}.
         </p>
         {Object.keys(c.limits).length > 0 && (
-          <p className="muted small">
+          <p className="small">
             Limits per run: {Object.entries(c.limits).map(([k, v]) => limitText(k, v)).join(" · ")}
           </p>
         )}
@@ -283,7 +282,7 @@ export function JobRunPage({ id }: { id: string }) {
         <PageHeader><code>{d.job}</code></PageHeader>
         <RunBadge status={d.status} />
       </div>
-      <p className="muted small">
+      <p className="small">
         Run <code>{d.run_id.slice(0, 8)}</code> · started by {d.trigger}
         {" · Scheduler start: "}{timestamp(d.start)}
         {d.seconds != null && ` · took ${duration(d.seconds)}`}
@@ -313,12 +312,11 @@ export function JobRunPage({ id }: { id: string }) {
       {d.assets.length > 0 && (
         <>
           <h2>Recorded asset results</h2>
-          <p className="muted small">A scheduler result is not proof of ingestion: inspect loaded, missing, held and paused outcomes.</p>
           <div className="grid">
             {d.assets.map((a) => (
               <UICard key={a.asset} className="">
                 <h3><code>{a.asset}</code></h3>
-                <p className="muted small">Scheduler observation: {timestamp(a.time)}</p>
+                <p className="small">Scheduler observation: {timestamp(a.time)}</p>
                 <Table variant="keyValue" density="compact" headingCase="verbatim">
                   <tbody>
                     {Object.entries(a.metadata).map(([k, v]) => (
