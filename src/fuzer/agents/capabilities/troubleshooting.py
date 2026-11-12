@@ -344,3 +344,39 @@ def plot_incident_repeats(since: str | None = None, until: str | None = None, da
     """Chart incidents per unit with repeats marked, beside the open linked corrective orders by age band."""
     from ...plots import troubleshooting
     return _chart(troubleshooting.incident_repeats, {"since": since, "until": until, "days": days})
+
+
+@capability("field-operations-facilities", "hse-incident-management", kind="calc")
+def quality_trends(sample_point: str | None = None, analyte: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Separator and export quality from the lab (#342). Without arguments: every analyte at every sample point over
+    the last `days` (oil in water, BS&W, salt, density, water dew point, H2S, CO2), its first half's median against its
+    latest samples', gaps where sampling stopped, and the quality_drift detector's drift first. With `sample_point` and
+    `analyte`: that one series' samples, gaps and the downtime around it. Limits are not loaded: never say on or off
+    specification."""
+    from ...analysis import quality_trend as qt
+    days = max(30, min(days, 1825))
+    with db.connect() as conn:
+        if sample_point and analyte:
+            subject = qt.find(conn, sample_point, analyte)
+            if not subject:
+                return {"error": f"no {analyte} sample at {sample_point!r}; call quality_trends() for the sample points"}
+            try:
+                d = qt.series(conn, subject, sample_point, analyte, days=days)
+            except qt.CalcError as e:
+                return {"error": str(e)}
+            return _plain(d | {"points": d["points"][-30:]})
+        return _plain(qt.trends(conn, days=days))
+
+
+@capability("field-operations-facilities", "hse-incident-management", kind="plot")
+def plot_quality_trend(sample_point: str, analyte: str, days: int = 365) -> dict[str, Any]:
+    """Chart one lab analyte at a sample point: the samples, gaps in sampling shaded, downtime marked, and the
+    detector's baseline range when it found a drift. No limit line: none is loaded."""
+    from ...analysis import quality_trend as qt
+    from ...plots import troubleshooting
+    with db.connect() as conn:
+        subject = qt.find(conn, sample_point, analyte)
+    if not subject:
+        return {"error": f"no {analyte} sample at {sample_point!r}"}
+    return _chart(troubleshooting.quality_trend, {"subject": subject, "sample_point": sample_point, "analyte": analyte,
+                                                  "days": max(30, min(days, 1825))})
