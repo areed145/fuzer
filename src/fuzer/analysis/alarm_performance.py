@@ -97,23 +97,27 @@ def review(conn, pack, until: str | None = None, days: int = DAYS, src=None) -> 
             "bad_actors": sorted(bad.values(), key=lambda b: (-b["alarms"], b["since"], b["point"]))}
 
 
-def _types():
+def _flood_type():
     from ..core.exceptions import TYPES, exception_type
 
-    flood = TYPES.get("alarm_flood") or exception_type(
+    return TYPES.get("alarm_flood") or exception_type(
         "alarm_flood", "Alarm flood", role="role:engineer", audience=("ioc",), joins=False,
         description="More alarms than an operator can handle (EEMUA 191: over 10 in 10 minutes), raised once per "
                     "flood with the points that drove it, for the alarm owner to rationalize. Not an alarm to "
                     "acknowledge.")
-    actor = TYPES.get("alarm_bad_actor") or exception_type(
+
+
+def _actor_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("alarm_bad_actor") or exception_type(
         "alarm_bad_actor", "Alarm bad actor", role="role:engineer", audience=("ioc",), joins=False,
         description="An alarm standing for a day or more, or one point alarming over and over: rationalize the "
                     "alarm, fix the instrument or review the setpoint. Raised once; quiet until it is resolved or "
                     "recurs after a fix. Not an alarm to acknowledge.")
-    return flood.name, actor.name
 
 
-FLOOD_TYPE, ACTOR_TYPE = _types()
+FLOOD_TYPE, ACTOR_TYPE = _flood_type().name, _actor_type().name
 _WHAT = "Alarm performance work for the alarm owner, not an alarm to acknowledge."
 
 
