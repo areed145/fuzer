@@ -234,7 +234,7 @@ def test_a_report_carries_a_reading_and_a_photo_the_ioc_sees(conn, types):
     from fuzer.ops import exceptions as ex
 
     types("leak", audience=("ioc", "field"))
-    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-101 (photo)", "olga", refs=["tag:P-101"])
+    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-102 (photo)", "olga", refs=["tag:P-102"])
     ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at the gland")
     conn.commit()
     with pytest.raises(ExceptionError, match="needs its unit"):
@@ -255,6 +255,33 @@ def test_a_report_carries_a_reading_and_a_photo_the_ioc_sees(conn, types):
     assert img.media_type == "image/png" and img.body.startswith(b"\x89PNG")
     with pytest.raises(Exception, match="404"):
         api.exception_photo(e["id"] + 999, entry["photos"][0], conn)
+
+
+def test_a_report_made_offline_arrives_once_with_its_time(conn, types):
+    """P5.3c (#643): the phone sends a report it kept without signal, then again after losing the answer: it is
+    applied once and keeps the time it was made, which the case history says."""
+    from datetime import datetime, timedelta
+
+    from fuzer.api import ops as api
+    from fuzer.ops import exceptions as ex
+
+    types("leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak", "walk-offline", "Leak at P-103 (offline)", "olga", refs=["tag:P-103"])
+    ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at it")
+    conn.commit()
+    made = (datetime.now().astimezone() - timedelta(minutes=40)).replace(microsecond=0)
+    sent = api.FieldReport(by="fred", status="note", note="drip rate 12/min", client_id="phone-1-abc", at=made.isoformat())
+    api.exception_report(e["id"], sent, conn)
+    again = api.exception_report(e["id"], sent, conn)
+    entries = [f for f in again["evidence"]["field"] if f.get("client_id") == "phone-1-abc"]
+    assert len(entries) == 1 and datetime.fromisoformat(entries[0]["at"]) == made and entries[0]["received_at"]
+    said = conn.execute("select count(*) as n, max(data->>'text') as t from work_event where item_id = %s and "
+                        "kind = 'commented'", (again["item_id"],)).fetchone()
+    assert said["n"] == 1 and "sent when back in signal" in said["t"]
+    future = ex.report(conn, e["id"], "fred", "note", "clock ahead", client_id="phone-1-def",
+                       at=(datetime.now().astimezone() + timedelta(days=1)).isoformat())
+    assert datetime.fromisoformat(future["evidence"]["field"][-1]["at"]) <= datetime.now().astimezone()
+    conn.commit()
 
 
 def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types):
