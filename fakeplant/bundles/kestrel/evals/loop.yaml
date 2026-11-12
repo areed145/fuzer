@@ -24,3 +24,7 @@ arrive:
   source_issue: {deliver: deliveries/thin-delivery, datasets: [oplogs], about: source}  # its fill dropped on load
   source_quality_drop: {deliver: deliveries/thin-delivery, datasets: [oplogs], rebuild: true, about: source}
   mapping_to_approve: {suggest: deliveries/new-export, about: source}  # a new export: a suggested mapping
+  # An operator's reading on a round, outside its limits: the compressor frame shaking above its zone
+  round_finding: {round: {point: R-B1-03, value: 9.4}}
+  # A stop in the next downtime delivery that neither the operator log nor a notification mentions
+  records_gap: {deliver: deliveries/unlogged-stop, datasets: [ec_downtime], rebuild: true, detector: records_gaps}

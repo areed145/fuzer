@@ -108,12 +108,38 @@ def _bring(conn, how: dict) -> str:
     from ..core.pack import resolve
 
     pack, how = resolve(conn), dict(how)
+    landed = ""
+    if "deliver" in how and "detector" in how:  # the next delivery lands, then the detector that reads it runs
+        from ..sources import ingest
+
+        ingest.ingest(conn, _bundle(conn) / how.pop("deliver"), how.pop("datasets", None), trigger="sensor")
+        conn.commit()
+        landed = "a delivery, then "
+        if how.pop("rebuild", False):  # the register build after the load makes its records entities
+            from ..ops import pipeline
+
+            pipeline.rebuild(conn, pack)
+            conn.commit()
+            landed = "a delivery and the rebuild after it, then "
+    if "round" in how:  # an operator takes a reading on a round, on the phone
+        from ..ops import rounds
+
+        point = how["round"]["point"]
+        rounds.open_shift(conn)
+        conn.commit()
+        run_ = next((r for r in rounds.runs(conn) if any(p["point_id"] == point for p in rounds.run(conn, r["id"])["points"])),
+                    None)
+        if run_ is None:
+            raise Step(f"no open round has the point {point}")
+        rounds.take(conn, run_["id"], point, FIELD, value=how["round"].get("value"), passed=how["round"].get("passed"),
+                    note="Taken on the round (loop eval).")
+        return f"an operator's reading on {point}"
     if "detector" in how:
         name = how.pop("detector")
         out = detectors.run(conn, pack, name, **how)
         if isinstance(out, dict) and out.get("status") in (detectors.OFF, detectors.NOT_APPLICABLE):
             raise Step(f"{name} did not run: {out['note']}")
-        return name
+        return landed + name
     if how.get("scan") == "sre":  # the window detectors raise upsets through the SRE scan and its hand-off
         from ..ops import sre, sre_handoff
 
@@ -435,7 +461,7 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     arrive = arrivals(conn) if arrive is None else arrive
     # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
     # the work another type's own detector is about to raise
-    routes.sort(key=lambda r: bool(arrive.get(r["type"], {}).get("deliver") or arrive.get(r["type"], {}).get("suggest")))
+    routes.sort(key=lambda r: bool({"deliver", "suggest", "round"} & set(arrive.get(r["type"], {}))))
     results = [run_type(conn, r, ref, run_id, arrive.get(r["type"])) for r, ref in zip(routes, refs, strict=True)]
     return {"types": results, "passed": sum(not r["failed"] for r in results),
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [
