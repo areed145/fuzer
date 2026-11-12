@@ -179,6 +179,19 @@ export interface PlantAccounting {
     sources: { cost: string; volume: string }; note: string };
 }
 
+/** Is the backlog under control? (#348) */
+export interface BacklogBurn {
+  since: string; until: string; source: string; note: string;
+  months: { month: string; since: string; until: string; created: number; closed: number; net: number;
+    open_at_end: number; closed_without_finish: number; by_type: Record<string, { created: number; closed: number; open_at_end: number }> }[];
+  summary: { created: number; closed: number; open_at_start: number; open_at_end: number | null;
+    trend: "growing" | "steady" | "shrinking" };
+  lag: { orders: number; with_notification: number; without_notification: number; ordered_before_notified: number;
+    median_days: number | null; p90_days: number | null; max_days: number | null;
+    longest: { order: string; label: string; notification: string; notified: string; ordered: string; lag_days: number;
+      type: string | null; priority: string | null }[] };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -190,6 +203,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
   plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),
   interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),
   costOfUnreliability: () => request<CostOfUnreliability>("GET", "/plant/cost-of-unreliability"),

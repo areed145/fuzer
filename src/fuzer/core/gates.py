@@ -12,6 +12,8 @@ Two parts:
 
     require_person(conn, kind, actor, ...)   a fixed gate: raises GateRefused for a machine actor
     check(conn, kind, confidence, ...)       a confidence gate: {proceed, threshold, fired, reason}
+    refuse_on_bypass(conn, subjects, actor)  the bypass_safeguard gate on a machine's proposal about equipment
+                                             whose safeguard is bypassed (P3.9c): the reason when it is refused
     decisions(conn, item_id)                 every gate decision on a case, so a person sees why it did or didn't
                                              stop for them
 
@@ -104,6 +106,78 @@ def require_person(conn, kind: str, actor: str, *, ref: str | None = None, item_
         f" ({what})" if what else "")
     log.warning("gate refused: %s", reason)
     raise GateRefused(reason)
+
+
+# A bypass is in place while its state says so (the safeguards source, P3.9a); the words sites use.
+BYPASS_IN_PLACE = ("active", "in place", "applied", "bypassed", "inhibited", "overridden", "forced")
+
+
+def bypassed(conn, subjects, at=None) -> list[dict]:
+    """The safeguards bypassed now on `subjects`: a bypass in place, on a safeguard that protects or acts on a
+    subject, what is part of or installed at one, or what one is part of or installed at. Read from the bypass and
+    safeguard registers; an empty list where none are loaded."""
+    subjects = [s for s in subjects or [] if s]
+    if not subjects:
+        return []
+    try:
+        with conn.transaction():
+            rows = conn.execute(
+                """
+                with near as (
+                    select unnest(%(s)s::text[]) as id
+                    union select src from edge where rel in ('part_of', 'installed_at') and dst = any(%(s)s)
+                      and valid_to is null
+                    union select dst from edge where rel in ('part_of', 'installed_at') and src = any(%(s)s)
+                      and valid_to is null)
+                select distinct bl.label as bypass, sl.label as safeguard,
+                       (select g.value #>> '{}' from golden g where g.fuzer_id = s.fuzer_id and g.field = 'function')
+                         as function,
+                       st.value #>> '{}' as state, fr.value #>> '{}' as since,
+                       (select g.value #>> '{}' from golden g where g.fuzer_id = b.fuzer_id and g.field = 'moc') as moc
+                from entity b
+                join edge l on l.src = b.fuzer_id and l.rel = 'bypasses' and l.valid_to is null
+                join entity s on s.fuzer_id = l.dst and s.kind = 'safeguard'
+                join edge pe on pe.src = s.fuzer_id and pe.rel in ('protects', 'acts_on') and pe.valid_to is null
+                join near n on n.id = pe.dst
+                left join entity_label bl on bl.fuzer_id = b.fuzer_id
+                left join entity_label sl on sl.fuzer_id = s.fuzer_id
+                left join golden st on st.fuzer_id = b.fuzer_id and st.field = 'state'
+                left join golden fr on fr.fuzer_id = b.fuzer_id and fr.field = 'bypassed_from'
+                where b.kind = 'bypass' and b.retired_at is null
+                order by bl.label
+                """, {"s": subjects}).fetchall()
+    except Exception:  # a register without the graph's tables
+        return []
+    from datetime import UTC, datetime
+
+    now = at or datetime.now(UTC)
+
+    def started(v) -> bool:
+        try:
+            t = datetime.fromisoformat(str(v).replace("Z", "+00:00").replace(" ", "T")) if v else None
+        except ValueError:
+            return True
+        return t is None or (t if t.tzinfo else t.replace(tzinfo=UTC)) <= now
+    return [dict(r) for r in rows if (r["state"] or "").lower() in BYPASS_IN_PLACE and started(r["since"])]
+
+
+def refuse_on_bypass(conn, subjects, actor: str, *, what: str, ref: str | None = None,
+                     item_id: int | None = None) -> str | None:
+    """The `bypass_safeguard` fixed gate for a proposal: an agent's (or any machine's) proposal about equipment whose
+    safeguard is bypassed doesn't go ahead, whatever its confidence, as it may rely on the protection that is out. A
+    named person may go on. Returns the reason (recorded as a gate decision) when it is refused, else None."""
+    if not machine(actor):
+        return None
+    out = bypassed(conn, subjects)
+    if not out:
+        return None
+    named = "; ".join(f"{b['function'] or b['safeguard']} ({b['safeguard']}) bypassed under {b['bypass']}"
+                      + (f", {b['moc']}" if b["moc"] else ", no change record") for b in out)
+    reason = (f"{what} stopped for a person: {FIXED['bypass_safeguard'].lower()} is a person's call, and it may rely "
+              f"on a safeguard that is out: {named}.")
+    _record(conn, "bypass_safeguard", actor, fired=True, reason=reason, ref=ref, item_id=item_id)
+    log.warning("gate refused: %s", reason)
+    return reason
 
 
 def threshold(conn, kind: str, criticality: str | None) -> float | None:
