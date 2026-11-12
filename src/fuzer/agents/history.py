@@ -109,9 +109,11 @@ def store_image(conn, conversation_id: str, media_type: str, data: bytes) -> str
     return sha
 
 
-def ensure(conn, conversation_id: str, by: str = "anonymous", title: str = "") -> None:
-    conn.execute("insert into assistant_conversation (id, by_user, title) values (%s, %s, %s) on conflict (id) do nothing",
-                 (conversation_id, by, title[:120]))
+def ensure(conn, conversation_id: str, by: str = "anonymous", title: str = "", item_id: int | None = None,
+           subject: str | None = None) -> None:
+    """A new conversation; `item_id` or `subject` is the case or asset it is about (P4.5a)."""
+    conn.execute("insert into assistant_conversation (id, by_user, title, item_id, subject) values (%s, %s, %s, %s, %s) "
+                 "on conflict (id) do nothing", (conversation_id, by, title[:120], item_id, subject))
 
 
 def exists(conn, conversation_id: str | None) -> bool:
@@ -132,7 +134,8 @@ def conversations(conn, by: str | None = None, limit: int = 30) -> list[dict]:
 
 def conversation(conn, conversation_id: str) -> dict | None:
     """A conversation and its questions and answers in order (what the Ask page shows when it reopens one)."""
-    c = conn.execute("select id, title, by_user, created_at, updated_at from assistant_conversation where id = %s",
+    c = conn.execute("select id, title, by_user, created_at, updated_at, item_id, subject from assistant_conversation "
+                     "where id = %s",
                      (conversation_id,)).fetchone()
     if c is None:
         return None

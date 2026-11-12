@@ -28,6 +28,9 @@ create table if not exists assistant_conversation (
     updated_at timestamptz not null default now()
 );
 create index if not exists assistant_conversation_recent on assistant_conversation (by_user, updated_at desc);
+-- What a conversation opened from a case or an asset is about (P4.5a); its first question carries that context.
+alter table assistant_conversation add column if not exists item_id bigint;
+alter table assistant_conversation add column if not exists subject text;
 
 create table if not exists assistant_message (
     conversation_id text not null references assistant_conversation (id) on delete cascade,

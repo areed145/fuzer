@@ -1,9 +1,9 @@
 import "../styles/ask.css";
 import { ActionStatus, Button, ButtonLabel, ConfirmAction, PageHeader, Card as UICard, Input , Badge as UIBadge, Disclosure } from "../ui";
 import { useEffect, useRef, useState } from "react";
-import { api, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
+import { api, type AskContext, type AssistantCatalog, type AssistantJob, type Attachment, type SavedTurn } from "../api";
 import { Markdown } from "../Markdown";
-import { href, useAsync } from "../lib";
+import { entityHref, href, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { DemoContext } from "../DemoContext";
 import { usePermission } from "../Auth";
@@ -60,11 +60,21 @@ export function AskPage({ query }: { query: URLSearchParams }) {
   const [conversation, setConversation] = useState<string>();
   const [listed, setListed] = useState(0); // bumped to reload the conversation list
   const [openError, setOpenError] = useState<string>();
+  // The case or asset this conversation is about (P4.5a): from the link that opened Ask, or the reopened conversation.
+  const linked = (): About => {
+    const n = Number(query.get("case"));
+    return query.get("case") && Number.isInteger(n) ? { case_id: n } : query.get("subject") ? { subject: query.get("subject")! } : {};
+  };
+  const [about, setAbout] = useState<About>(linked);
+  useEffect(() => { if (!conversation) setAbout(linked()); }, [query.get("case"), query.get("subject")]);
+  const context = useAsync(() => (about.case_id !== undefined || about.subject
+    ? api.askContext({ case: about.case_id, subject: about.subject }) : Promise.resolve(null)), [about.case_id, about.subject]);
   const reopen = async (id: string) => {
     setOpenError(undefined);
     try {
       const c = await api.conversation(id);
       setConversation(c.id);
+      setAbout(c.item_id != null ? { case_id: c.item_id } : c.subject ? { subject: c.subject } : {});
       setTurns(c.turns.map((t) => saved(c.id, t)));
     } catch (e) {
       setOpenError(String(e));
@@ -94,7 +104,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
     const n = turns.length;
     setTurns((ts) => [...ts, { question, images: sent }]);
     try {
-      const started = await api.ask(question, conversation, asker(), sent);
+      const started = await api.ask(question, conversation, asker(), sent, conversation ? undefined : about);
       setConversation(started.conversation_id);
       setTurns((ts) => ts.map((t, i) => (i === n ? { ...t, jobId: started.job_id } : t)));
     } catch (e) {
@@ -141,7 +151,8 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           not tested any provider to show this.
         </UICard>
       )}
-      {turns.length === 0 && (
+      <AboutBanner about={about} context={context} />
+      {turns.length === 0 && !context.data && (
         <div className="ask-examples">
           {EXAMPLES.map(([label, q]) => (
             <Button key={label} className="example" disabled={!ai} onClick={() => demo ? setText(q) : ask(q)}>
@@ -156,7 +167,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
       {turns.map((t, i) => <TurnView key={i} turn={t} labels={labels} demo={demo} />)}
       <div ref={end} />
       <form className="ask-box card" onSubmit={(e) => { e.preventDefault(); if (!demo) ask(text); }}>
-        <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : "Ask about the plant…"}
+        <textarea aria-label="Question for the operations assistant" rows={3} value={text} placeholder={turns.length ? "Ask a follow-up…" : context.data ? `Ask about ${context.data.label}…` : "Ask about the plant…"}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={(e) => {
                     const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
@@ -195,7 +206,7 @@ export function AskPage({ query }: { query: URLSearchParams }) {
           </ButtonLabel>
           {turns.length > 0 && (
             <Button type="button" variant="link" disabled={busy}
-                    onClick={() => { setTurns([]); setConversation(undefined); }}>New conversation</Button>
+                    onClick={() => { setTurns([]); setConversation(undefined); setAbout(linked()); }}>New conversation</Button>
           )}
           <span className="spacer" />
           <span className="muted small">Enter to send · Shift+Enter for a new line · paste images</span>
@@ -209,6 +220,28 @@ export function AskPage({ query }: { query: URLSearchParams }) {
 }
 
 type Catalog = ReturnType<typeof useAsync<AssistantCatalog>>;
+
+/** The case or asset a conversation is about (P4.5a). */
+type About = { case_id?: number; subject?: string };
+
+/** What this conversation is about, with a way back to it. The context goes with the first question, so the person
+ * never has to name the case or the asset. */
+function AboutBanner({ about, context }: { about: About; context: ReturnType<typeof useAsync<AskContext | null>> }) {
+  if (about.case_id === undefined && !about.subject) return null;
+  if (context.error) return <p className="error small" role="alert">The {about.case_id !== undefined ? "case" : "asset"} this
+    question is about could not be loaded: {context.error}</p>;
+  const c = context.data;
+  if (!c) return <p className="small" role="status">Loading what this conversation is about…</p>;
+  const back = c.item_id != null ? href(`/cases/${c.item_id}`) : entityHref(c.subject!);
+  return (
+    <UICard className="ask-about" role="note">
+      Asking about <a href={back}>{c.label}</a>.{" "}
+      <span className="muted small">{c.item_id != null
+        ? "Its subjects, what raised it and its brief go with your first question, so you don't need to name them."
+        : "It goes with your first question, so you don't need to name it."}</span>
+    </UICard>
+  );
+}
 
 /** A name from the catalog; ids it doesn't list (retired ones in saved conversations) read as words. */
 const agentLabel = (labels: Record<string, string>, id: string) =>

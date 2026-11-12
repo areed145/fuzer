@@ -530,6 +530,35 @@ test("Ask says up front when no AI provider is configured, without calling one (
   assert.deepEqual(posts, []);
 });
 
+test("Ask opened from a case names it, links back and sends it only with the first question (P4.5a)", async () => {
+  await page.route("**/assistant/agents", route => route.fulfill({ json: { agents: [], unavailable: [], provider: "anthropic", provider_configured: true } }));
+  await page.route("**/assistant/context?*", route => route.fulfill({ json: { item_id: 9, subject: "fz-p-1",
+    label: "case 9: Pump vibration rising", text: "This conversation is about case 9" } }));
+  const asked = [];
+  await page.route("**/assistant/ask", route => {
+    asked.push(route.request().postDataJSON());
+    return route.fulfill({ json: { job_id: `j${asked.length}`, conversation_id: "c1" } });
+  });
+  await page.route("**/assistant/jobs/*", route => route.fulfill({ json: { id: "j", conversation_id: "c1", question: "q",
+    status: "done", answer: "Looks like the coupling.", steps: [], model_calls: 1, seconds: 1,
+    usage: { cost_usd: 0.01, models: {}, model_calls: 1 } } }));
+  await page.goto(`${url}/#/ask?case=9`);
+  const about = page.getByRole("note").filter({ hasText: "Asking about" });
+  await about.waitFor();
+  assert.equal(await about.getByRole("link", { name: "case 9: Pump vibration rising" }).getAttribute("href"), "#/cases/9");
+  const box = page.getByRole("textbox", { name: "Question for the operations assistant" });
+  assert.equal(await box.getAttribute("placeholder"), "Ask about case 9: Pump vibration rising…");
+  await box.fill("Is it the bearing?");
+  await box.press("Enter");
+  await page.getByText("Looks like the coupling.").waitFor();
+  await box.fill("And the seal?");
+  await Promise.all([page.waitForRequest("**/assistant/ask"), box.press("Enter")]);
+  assert.equal(asked[0].case_id, 9);
+  assert.equal(asked[0].question, "Is it the bearing?");
+  assert.equal(asked[1].case_id, undefined, "a follow-up has the case in its conversation already");
+  assert.equal(asked[1].conversation_id, "c1");
+});
+
 test("the Work badge says what it counts and the Cases filters are labelled (#397, #409)", async () => {
   await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
   await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "ana", roles: ["engineer"], mine: [], queue: [],
