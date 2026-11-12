@@ -798,6 +798,32 @@ Reviewer match decisions; applied on every rerun.
 | `decided_by` | text |  |
 | `decided_at` | timestamptz |  |
 
+### `match_score`
+
+Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `left_ref` | text |  |
+| `right_ref` | text |  |
+| `sources` | text[] |  |
+| `score` | double precision |  |
+| `outcome` | text |  |
+
+### `match_calibration`
+
+The last calibration per entity kind and source (P2.2): measured precision at each threshold, the calibrated probability for a score, and the thresholds it recommends.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `source` | text |  |
+| `result` | jsonb |  |
+| `labels` | text |  |
+| `measured_at` | timestamptz |  |
+| `measured_by` | text |  |
+
 ### `knowledge_index`
 
 What the knowledge search reads: document sections and incidents, with the IDs each is linked to (what its document applies to, what it mentions, its unit) for scoping. Kept by every rebuild.

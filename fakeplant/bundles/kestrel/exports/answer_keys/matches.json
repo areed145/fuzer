@@ -1,0 +1,101 @@
+[
+ {
+  "source": "maximo",
+  "key": "MX-1001",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000001"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-2001",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000002"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-3002",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000005"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-3003",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000006"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-4001",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000016"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-3008",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000015"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-5004",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000028"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-7006",
+  "case": "serial",
+  "same_as": {
+   "source": "sap",
+   "key": "50000045"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-2010",
+  "case": "score",
+  "same_as": {
+   "source": "sap",
+   "key": "50000003"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-4006",
+  "case": "score",
+  "same_as": {
+   "source": "sap",
+   "key": "50000020"
+  }
+ },
+ {
+  "source": "maximo",
+  "key": "MX-6003",
+  "case": "review",
+  "same_as": {
+   "source": "sap",
+   "key": "50000033"
+  }
+ }
+]

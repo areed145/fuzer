@@ -121,6 +121,15 @@ def matches(conn, pack: Pack, cases: list[dict]) -> dict:
     owner = {(r["source"], r["source_key"]): r["fuzer_id"] for r in conn.execute(
         "select source, source_key, fuzer_id from crosswalk where record_type in ('equipment', 'asset')")}
     tp = fp = fn = pending = 0
+    # A record of a source the key covers that the key doesn't list is no other system's item (a scrapped pump, a
+    # motor at its pump's tag): merged with another system's record, it is a wrong merge.
+    listed = {(c["source"], str(c["key"])) for c in cases} | {(c["same_as"]["source"], str(c["same_as"]["key"])) for c in cases}
+    covered = {c["source"] for c in cases}
+    sources_of = {}
+    for (s, _), f in owner.items():
+        sources_of.setdefault(f, set()).add(s)
+    unlisted = sorted(k for k, f in owner.items() if k[0] in covered and k not in listed and len(sources_of[f]) > 1)
+    fp += len(unlisted)
     for c in cases:
         a, b = owner.get((c["source"], c["key"])), owner.get((c["same_as"]["source"], c["same_as"]["key"]))
         if a and a == b:
@@ -132,7 +141,8 @@ def matches(conn, pack: Pack, cases: list[dict]) -> dict:
             fp += 1
         else:
             pending += 1
-    return {"pairs": len(cases), **_pr(tp, fp, fn), "wrong_merges": fp, "not_merged": pending}
+    return {"pairs": len(cases), **_pr(tp, fp, fn), "wrong_merges": fp, "not_merged": pending,
+            "merged_unlisted": [f"{s}:{k}" for s, k in unlisted]}
 
 
 def schema(conn, pack: Pack, cases: list[dict], data_dir: Path) -> dict:
