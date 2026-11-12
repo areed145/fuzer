@@ -363,6 +363,13 @@ def plant_gas_lift_stability(days: int = 3, conn=Depends(get_conn)):
     return gls.screen(conn, max(1, min(days, 14)))
 
 
+@router.get("/plant/quality")
+def plant_quality(days: int = 365, conn=Depends(get_conn)):
+    """Each lab analyte at each sample point over the window, gaps in sampling, and drifts first (#342)."""
+    from ..analysis import quality_trend as qt
+    return qt.trends(conn, days=max(30, min(days, 1825)))
+
+
 @router.get("/plant/well-screen")
 def plant_well_screen(conn=Depends(get_conn)):
     """Wells whose water cut stepped up or whose GOR climbed, and how old each well's latest test is (#339)."""

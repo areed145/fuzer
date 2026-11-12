@@ -207,6 +207,17 @@ export interface WellScreen {
       status: "current" | "stale" | "no_test_on_file" }[] };
 }
 
+/** Separator and export quality from the lab (#342). */
+export interface PlantQuality {
+  since: string; until: string; source: string; note: string; limits: null; limit_basis: string; gap_factor: number;
+  summary: { series: number; sample_points: number; drifting: number; with_gaps: number; limits_loaded: number };
+  series: { subject: string; label: string; sample_point: string; analyte: string; unit: string | null;
+    samples: number; first: string; last: string; latest: number; low: number; high: number;
+    first_half_median: number; latest_3_median: number; change_pct: number | null; below_detection: number;
+    usual_interval_days: number | null; gaps: { from: string; to: string; days: number }[];
+    drift: { direction: "up" | "down"; level: number; baseline?: number; change?: number; since: string; held?: boolean } | null }[];
+}
+
 /** Gas lift casing heading and instability (#341). */
 export interface GasLiftStability {
   window: [string, string]; days: number; source: string; note: string; synthetic?: boolean;
@@ -243,6 +254,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
   allocationFactor: () => request<AllocationFactor>("GET", "/plant/allocation-factor"),
   wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
