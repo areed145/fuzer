@@ -799,7 +799,7 @@ def _prognosis(conn, fid: str, until: str | None) -> dict:
                     cadence="daily", raises=("machine_health",),
                     classes=("compressor", "pump", "gas turbine", "electric motor", "turboexpander", "blower",
                              "steam turbine"),
-                    roles=("vibration", "bearing temperature", "flow", "suction pressure", "discharge pressure"),
+                    roles=("vibration", "bearing_temperature", "suction_flow", "suction_pressure", "discharge_pressure"),
                     needs={"a rotating machine": "select 1 from edge i join edge c on c.src = i.src and c.rel = "
                                                  "'classified_as' join entity_label cl on cl.fuzer_id = c.dst "
                                                  "where i.rel = 'installed_at' and i.valid_to is null and cl.label ~ "
