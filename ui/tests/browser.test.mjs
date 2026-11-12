@@ -3266,3 +3266,53 @@ test("a reading and a photo taken on the phone reach the IOC's From the field bo
   await box.getByText("Done: gland repacked (Gland temperature 72.5 °C; 1 photo)").waitFor();
   await box.getByRole("img", { name: "Photo from the field" }).waitFor();
 });
+
+// P5.3c (#643): without signal the jobs still read from the phone, a report waits in the outbox, and it is sent
+// once, with the time it was made, when the signal returns.
+test("a report made without signal waits on the phone and is sent once with its time when signal returns (#643)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let online = true;
+  const posts = [];
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const live = (json) => (route) => (online ? route.fulfill({ json }) : route.abort("internetdisconnected"));
+  await page.route("**/exceptions/field?*", live({ person: "fred", jobs: [job], coming_up: [] }));
+  await page.route("**/work/inbox?*", live({ person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } }));
+  await page.route("**/exceptions/7/report", (route) => {
+    if (!online) return route.abort("internetdisconnected");
+    posts.push({ ...route.request().postDataJSON(), received: Date.now() });
+    return route.fulfill({ json: job });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.locator(".field-job").getByText("Look at the gland").waitFor();  // seen once with signal: kept
+
+  online = false;
+  await page.reload();
+  await page.getByText("No signal: these are your jobs as kept on this phone", { exact: false }).waitFor();
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+  await card.getByText("P-101 export pump").waitFor();
+  const before = Date.now();
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await card.getByText("No signal: kept on this phone", { exact: false }).waitFor();
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  assert.equal(posts.length, 0);
+  await page.waitForTimeout(1500);  // still no signal
+
+  online = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor({ state: "detached" });
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));  // a second nudge sends nothing more
+  await page.waitForTimeout(200);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].note, "Gland weeping, 12 drips a minute");
+  assert.ok(posts[0].client_id, "carries its id, so a resend is applied once");
+  const made = Date.parse(posts[0].at);
+  assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
+});

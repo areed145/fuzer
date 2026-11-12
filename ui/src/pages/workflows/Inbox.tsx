@@ -10,7 +10,8 @@ import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
-import { ComingUp, FieldJobCard } from "../Field";
+import { ComingUp, FieldJobCard, Outbox } from "../Field";
+import { fieldJobs } from "../../fieldOffline";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -28,7 +29,8 @@ export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
-  const field = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
+  // Kept on the phone, so the jobs still read without signal (P5.3c).
+  const field = useAsync(() => (person ? fieldJobs(person) : Promise.resolve(null)), [person]);
   const stats = useAsync(() => api.stats(), []);
   // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
@@ -43,8 +45,10 @@ export function InboxPage() {
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
     <SampleTeam />
   </UICard></section>;
-  if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
-  const d = inbox.data;
+  const offline = field.data?.offline;
+  if (!inbox.data && !offline) return <Status loading={inbox.loading} error={inbox.error} />;
+  const none = { total: 0, overdue: 0, due_soon: 0 };
+  const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
   const jobs = field.data?.jobs ?? [];
@@ -77,7 +81,10 @@ export function InboxPage() {
         <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
-      <NewForYou person={person} />
+      {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
+        Reports wait here and send when the signal returns.</Notice>}
+      <Outbox onSent={() => { field.reload(); inbox.reload(); }} />
+      {!offline && <NewForYou person={person} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>

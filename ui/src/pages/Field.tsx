@@ -3,10 +3,45 @@
  * site, done, could not do, a note). What they report lands on the exception as evidence the IOC sees. My jobs was its
  * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
  * else waiting on them. */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type FieldJob, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
+import { OUTBOX_CHANGED, flush, outbox, sendReport } from "../fieldOffline";
+
+/** Reports kept on this phone while there was no signal (P5.3c): sent as soon as it returns, or now by hand. */
+export function Outbox({ onSent }: { onSent: () => void }) {
+  const [waiting, setWaiting] = useState(outbox().length);
+  const [refused, setRefused] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const sentRef = useRef(onSent);
+  sentRef.current = onSent;
+  useEffect(() => {
+    const count = () => setWaiting(outbox().length);
+    const send = async () => {
+      if (!outbox().length) return;
+      setBusy(true);
+      const r = await flush();
+      setBusy(false);
+      count();
+      if (r.refused.length) setRefused(r.refused);
+      if (r.sent) sentRef.current();
+    };
+    window.addEventListener(OUTBOX_CHANGED, count);
+    window.addEventListener("online", send);
+    void send();
+    const timer = window.setInterval(send, 30_000);
+    return () => { window.removeEventListener(OUTBOX_CHANGED, count); window.removeEventListener("online", send); clearInterval(timer); };
+  }, []);
+  if (!waiting && !refused.length) return null;
+  return (
+    <Card className="field-outbox" title={waiting ? `${waiting} report${waiting > 1 ? "s" : ""} waiting to send` : "Reports not accepted"}>
+      {waiting > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
+      {refused.map((r, i) => <p key={i} role="alert" className="error small">Not accepted: {r}</p>)}
+      {waiting > 0 && <Button disabled={busy} onClick={() => window.dispatchEvent(new Event("online"))}>{busy ? "Sending…" : "Send now"}</Button>}
+    </Card>
+  );
+}
 import { entityHref, href } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
@@ -52,6 +87,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
   const [unit, setUnit] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
+  const [kept, setKept] = useState(false);
   const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
   const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
   const say = (status: string) => {
@@ -59,8 +95,12 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
     if (reading && (!Number.isFinite(reading.value) || !reading.unit)) return setProblem("A reading needs a number and its unit.");
     setProblem(null);
     // Clear only the note that went: words typed while the request was in flight stay.
-    return run(SAID[status], () => api.fieldReport(job.id, person, status, sent || undefined, { reading, photos }),
-      () => { setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]); onChange(); });
+    return run(SAID[status], () => sendReport({ exception_id: job.id, by: person, status, note: sent || undefined, reading, photos }),
+      (how) => {
+        setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
+        setKept(how === "queued");
+        if (how === "sent") onChange();
+      });
   };
   const addPhoto = async (files: FileList | null) => {
     try {
@@ -142,6 +182,7 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
         </span>)}</div>}
       </fieldset>
       {problem && <p role="alert" className="error small">{problem}</p>}
+      {kept && <p role="status" className="small">No signal: kept on this phone. It sends, with this time, when the signal returns.</p>}
       <div className="row field-actions">
         <Button disabled={!!busy} onClick={() => say("on_site")}>On site</Button>
         <Button variant="primary" disabled={!!busy} onClick={() => say("done")}>Done</Button>
