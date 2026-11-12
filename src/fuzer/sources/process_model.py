@@ -3,10 +3,10 @@
 A fake plant can describe itself in `process_model.json` in its data folder: its units (compressor trains,
 compressors, coolers, vessels, lift gas headers, jackets, wells, pumps, meters, valves, values a controller
 holds), which PI point measures which of their variables, and timed events (trips, shutdowns, a bearing
-wearing, a cooler fouling, a gas lift valve failing open, choke moves, hydrates). Values then follow from
-simple relations with first-order lags rather than being drawn per point, so causes lead effects: vibration
-before bearing temperature, a compressor trip before the lift gas header falls, the header before the wells'
-gas lift rates.
+wearing, a cooler fouling, a gas lift valve failing open, choke moves, hydrates, a control loop cycling). Values
+then follow from simple relations with first-order lags rather than being drawn per point, so causes lead effects:
+vibration before bearing temperature, a compressor trip before the lift gas header falls, the header before the
+wells' gas lift rates.
 
 Everything is a function of absolute time on a fixed 5-minute grid (inputs are stateless; lags are
 truncated convolutions with a warm-up before the window), so a timestamp reads the same value from any
@@ -169,6 +169,16 @@ class Window:
         out = np.zeros_like(self.t)
         for e in self.ev(unit, kind):
             out = np.maximum(out, self.between(e["start"], e.get("end")))
+        return out
+
+    def cycles(self, unit: str) -> np.ndarray:
+        """`oscillation` events: a control loop cycling (P4.2b, #354), a sine for a loop that hunts or a sawtooth for
+        one limit-cycling on a sticking valve, of `amplitude` about the value and `period` minutes."""
+        out = np.zeros_like(self.t)
+        for e in self.ev(unit, "oscillation"):
+            phase = (self.t - minutes(e["start"])) / float(e["period"])
+            wave = 2 * (phase % 1) - 1 if e.get("shape") == "sawtooth" else np.sin(2 * math.pi * phase)
+            out = out + self.between(e["start"], e.get("end")) * float(e["amplitude"]) * wave
         return out
 
     def get(self, unit: str, var: str) -> np.ndarray:
@@ -402,6 +412,7 @@ class Window:
         if var in ("liquid_level", "true_level"):
             lvl = u.get("level", 45.0) + 4 * self.noise(unit + "l", 20)  # the level controller hunting a little
             lvl = lvl + sum((self.path(e["points"]) for e in self.ev(unit, "level")), np.zeros_like(self.t))
+            lvl = lvl + self.cycles(unit)  # its level controller cycling
             if u.get("carryover_from"):  # liquid arriving from upstream
                 up = self.get(u["carryover_from"], "true_level")
                 lvl = lvl + u.get("carryover_gain", 1.4) * self.lag(np.maximum(up - 75, 0), 20)
@@ -620,7 +631,7 @@ class Window:
             run = self.get(u["train"], "running")
             v = run * v + (1 - run) * float(u.get("idle", u["value"]))
         noise = float(u.get("noise", 0.01 * abs(float(u["value"]))))
-        return self.lag(v, float(u.get("tau", 10))) + noise * self.noise(unit + "c", 15)
+        return self.lag(v, float(u.get("tau", 10))) + self.cycles(unit) + noise * self.noise(unit + "c", 15)
 
     def _valve(self, unit, u, var):
         if var != "position":

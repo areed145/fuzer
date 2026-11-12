@@ -530,6 +530,31 @@ def _exception_call(conn, fn, *args, **kwargs):
     return out
 
 
+class ExceptionShelve(BaseModel):
+    by: str
+    reason: str
+    until: str
+
+
+@router.post("/exceptions/{exception_id}/shelve")
+def exception_shelve(exception_id: int, d: ExceptionShelve, conn=Depends(get_conn)):
+    """Set a standing condition aside with a reason, off the open list until `until` (P3.5c). Never a safety case
+    type; at most `exceptions.max_shelve_days`."""
+    from ..ops import exceptions
+    try:
+        return _exception_call(conn, exceptions.shelve, exception_id, d.by, d.reason, d.until)
+    except ValueError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+
+
+@router.post("/exceptions/{exception_id}/unshelve")
+def exception_unshelve(exception_id: int, d: ExceptionSplit, conn=Depends(get_conn)):
+    """Put a shelved exception back on the open list now."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.unshelve, exception_id, d.by, d.reason or "taken off the shelf")
+
+
 class RefResolve(BaseModel):
     by: str
     ref: str

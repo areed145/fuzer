@@ -1,0 +1,14 @@
+# Answer keys for the alarms and instruments specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists.
+# The week of 4 November 2024 has an alarm flood, 20-LT-2001 on vessel 20-V-2001 hunts while its pressure
+# transmitter is fine, and the test separator 10-V-2003 level limit-cycles on a sticking valve from 10 to 17 February
+# 2025.
+- question: How did the alarm system perform in the week of 4 November 2024, against the target rate?
+  must_mention: [[flood, floods], [per hour, alarms per hour]]
+  specialists: [field-operations-facilities]
+- question: Can we trust the readings on vessel 20-V-2001 in early November 2024?
+  must_mention: [20-LT-2001, [noisy, hunting, erratic, suspect]]
+  specialists: [field-operations-facilities]
+- question: Was the level control on test separator 10-V-2003 behaving in mid-February 2025?
+  must_mention: [10-V-2003, [cycling, cycles, oscillat, limit cycl], [valve, stiction, sticking]]
+  specialists: [field-operations-facilities]

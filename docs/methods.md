@@ -49,6 +49,9 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
 | [`period_comparison`](#period_comparison) Each measurement in two windows, before and after a change | Engineering practice | Historian readings on the point or the unit's points (each point's own) | Enough readings in each window for the shared sufficiency check; a point without them is listed as not compared. |
+| [`alarm_performance`](#alarm_performance) Alarm system performance over a window | ANSI/ISA-18.2 and EEMUA 191 | Alarm limits on each point and the historian readings that cross them (alarms) | Enabled alarm limits and readings over the window. |
+| [`instrument_health`](#instrument_health) Whether a transmitter's readings can be trusted | Engineering practice | Historian readings on the point or every point on the unit (each point's own) | A week of readings before the window and readings inside it. |
+| [`loop_oscillation`](#loop_oscillation) Whether a control loop is cycling, with its period and amplitude | Engineering practice | Historian readings on the unit's points or one point (each point's own) | A day or more of 5-minute readings, and at least four cycles in the window. |
 
 ## Refusals
 
@@ -411,3 +414,44 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `min_readings`:** Readings each window needs before a point is compared. (5)
 - **Threshold `window_gap`:** A gap this long inside a window makes the comparison thin. (1 days)
 - **Worked example:** `tests/plots/test_views.py::test_compare_periods_and_similar_cases`, on the fake plant
+
+## alarm_performance
+
+**Alarm system performance over a window.** ANSI/ISA-18.2 and EEMUA 191.
+
+- **Valid for:** Points with an enabled DCS or AF alarm limit; the alarm journal is each reading past a limit while the unit runs, until a real journal is loaded.
+- **Needs:** Enabled alarm limits and readings over the window.
+- **Run by:** `alarm_analysis`
+- **Threshold `target_per_hour`:** Alarms per hour an operator can handle, about one every 10 minutes. (6)
+- **Threshold `flood`:** Alarms in 10 minutes past which it is a flood. (10)
+- **Threshold `standing`:** An alarm on this long is standing. (24 h)
+- **Threshold `chattering`:** Alarms on one point, each within a minute of the last clearing, that make it chattering. (3)
+- **Worked example:** `tests/analysis/test_alarms.py::test_alarm_analysis_reads_the_week`, on the fake plant
+
+## instrument_health
+
+**Whether a transmitter's readings can be trusted.** Engineering practice. Frozen, stuck, noisy, out of range and redundant transmitters drifting apart, each against the point's own last week; the spans and ratios are this registry's own.
+
+- **Valid for:** Any measured point with a week of readings before the window.
+- **Needs:** A week of readings before the window and readings inside it.
+- **Run by:** `instrument_health`
+- **Threshold `frozen`:** No change at all for this long: frozen (communications, a stale tag). (2 h)
+- **Threshold `stuck`:** High-frequency spread far under its usual for this long without being frozen: sticking. (6 h)
+- **Threshold `stuck_ratio`:** The share of its usual spread under which it counts as stuck. (0.1)
+- **Threshold `noisy`:** Spread far over its usual for this long: hunting or a loose connection. (1 h)
+- **Threshold `noisy_ratio`:** Times its usual spread over which it counts as noisy. (4)
+- **Threshold `out_of_range`:** At or past the end of its range for this long. (30 min)
+- **Threshold `drift`:** Redundant transmitters apart for this long. (2 h)
+- **Worked example:** `tests/analysis/test_calcs.py::test_health_finds_the_hunting_level_transmitter`, on the fake plant
+
+## loop_oscillation
+
+**Whether a control loop is cycling, with its period and amplitude.** Engineering practice. Regularity of the autocorrelation's zero crossings (Thornhill, Huang and Zhang, 2003), with a check that the autocorrelation comes back one period on; the minimum cycles and that check are this registry's own.
+
+- **Valid for:** A measurement a controller holds near one level (a level, temperature, pressure or flow), over a window of several cycles.
+- **Needs:** A day or more of 5-minute readings, and at least four cycles in the window.
+- **Threshold `regular`:** Regularity r over which the cycling is regular, not noise. (1)
+- **Threshold `min_cycles`:** Cycles the window must hold before regularity is judged. (4)
+- **Threshold `acf_peak`:** How high the autocorrelation must come back one period on. (0.4)
+- **Test vector:** Half periods of 10, 10, 10, 11 and 9 samples: periods average 20 with a spread of 1.26, so r = 20 / 3.79 = 5.27, a regular cycle. (`regularity`)
+- **Worked example:** `tests/analysis/test_loops.py::test_the_test_separator_level_cycles_while_its_valve_sticks`, on the fake plant

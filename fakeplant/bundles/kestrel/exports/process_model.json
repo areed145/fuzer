@@ -106,6 +106,7 @@
     {"unit": "D1-AT-4002", "kind": "drift", "points": [["today-1d 06:45", 0], ["today-1d 07:25", 0.8], ["today-1d 08:40", 0.5], ["today-1d 09:50", 0.05], ["today-1d 10:30", 0]]},
     {"unit": "C1-H-3008", "kind": "drift", "points": [["today-46d", 0], ["today-37d", -1.5], ["today-30d", -3], ["today-23d", -4.5], ["today-16d", -6], ["today-9d", -7.5], ["today-2d", -9.5], ["today", -10], ["today+400d", -10]]},
     {"unit": "C1-AT-3011", "kind": "drift", "points": [["today-47d", 0], ["today-44d", 2], ["today-37d", 6], ["today-30d", 9], ["today-23d", 15], ["today-16d", 23], ["today-9d", 32], ["today-2d", 55], ["today", 57], ["today+400d", 57]]},
-    {"unit": "A1-V-1004", "kind": "drift", "points": [["today-40d", 0], ["today-25d", 0.08], ["today-12d", 0.28], ["today-5d", 0.38], ["today", 0.44], ["today+400d", 0.44]]}
+    {"unit": "A1-V-1004", "kind": "drift", "points": [["today-40d", 0], ["today-25d", 0.08], ["today-12d", 0.28], ["today-5d", 0.38], ["today", 0.44], ["today+400d", 0.44]]},
+    {"unit": "D1-E-4006", "kind": "oscillation", "start": "today-4d 00:00", "end": "today+400d", "period": 120, "amplitude": 2.0}
   ]
 }

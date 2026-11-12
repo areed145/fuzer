@@ -1,0 +1,10 @@
+# Answer keys for the alarms and instruments specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists.
+# The alarm rate over the last week is far under target, but the analyser AT3011 on C1 has stood in alarm all week,
+# and the amine reboiler D1-E-4006 temperature has cycled every two hours for four days.
+- question: Over the last seven days, is the alarm rate within target, and which alarms are standing?
+  must_mention: [AT3011, standing, [under, below, within]]
+  specialists: [field-operations-facilities]
+- question: Is the amine reboiler D1-E-4006 holding its temperature steady over the last few days?
+  must_mention: [D1-E-4006, [cycling, cycles, oscillat], [hour, 120 min, two hours, 2 h]]
+  specialists: [field-operations-facilities]

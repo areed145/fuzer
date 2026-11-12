@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 35 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 29 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 30 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 27 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
@@ -206,7 +206,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `hydraulics`, `integrity`, `limits`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `hydraulics`, `integrity`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)
@@ -221,7 +221,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `exception_kind`, `exception_record`, `field_photo`, `measurement`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `round_reading`, `round_run`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat`, `round_run`, `round_reading` (its `schema.sql`)
-- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
+- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts

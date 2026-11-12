@@ -702,6 +702,9 @@ CHECKS |= {
                        "used_by": {"agent": "calc"}},
     "failed_starts": {"fn": _cond("trips", "failed_starts"), "ref": "compressor or its train",
                       "used_by": {"agent": "calc"}},
+    "loop_oscillation": {"fn": lambda conn, fid, days=3, until=None: _cond("loops", "oscillation")(
+        conn, fid, days=days, until=until), "ref": "a controlled unit (vessel, heater, reboiler) or one point",
+                         "used_by": {"agent": "calc", "detector": None}},
 }
 
 
