@@ -41,6 +41,8 @@ def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[st
 DAGSTER_SCHEMA = "dagster"
 DAGSTER_URL_ENV = "FUZER_DAGSTER_PG_URL"
 COMPUTE_LOG_DAYS = 14
+MAX_CONCURRENT_RUNS = 4
+MAX_RUNTIME_SECONDS = 4 * 3600  # the nightly rebuild is the longest run
 DAGSTER_YAML = f"""\
 # Written by fuzer.cli.deploy on every start: Dagster's run, event and schedule storage lives in the
 # deployment's Postgres (schema {DAGSTER_SCHEMA}), not in SQLite on the persistent disk, which the API, webserver,
@@ -49,6 +51,21 @@ storage:
   postgres:
     postgres_url:
       env: {DAGSTER_URL_ENV}
+# One instance with one CPU: a few runs at a time (each is its own Python process), and a run whose process died
+# (killed with an old instance, or stuck) is ended rather than holding a run slot forever.
+run_coordinator:
+  module: dagster._core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: {MAX_CONCURRENT_RUNS}
+    dequeue_interval_seconds: 10
+run_monitoring:
+  enabled: true
+  start_timeout_seconds: 300
+  cancel_timeout_seconds: 300
+  max_runtime_seconds: {MAX_RUNTIME_SECONDS}
+  max_resume_run_attempts: 0
+  poll_interval_seconds: 60
 retention:
   schedule:
     purge_after_days: 14
@@ -100,6 +117,34 @@ def configure_dagster(home: Path, url: str) -> None:
         conn.execute(f'create schema if not exists "{DAGSTER_SCHEMA}"')
     os.environ[DAGSTER_URL_ENV] = dagster_url(url)
     (home / "dagster.yaml").write_text(DAGSTER_YAML)
+
+
+def end_orphaned_runs() -> None:
+    """End the runs the previous instance left behind, before this instance's daemon starts. Render stops the old
+    instance before starting a new one (the service has a disk), so no run process survives a deploy: a run still
+    marked starting or running is an orphan that would hold a run slot until it timed out, and a scheduled run still
+    queued is a backlog its schedule will replace within minutes. Runs queued by hand stay queued. Runs in a separate
+    process, so this supervisor does not keep Dagster loaded."""
+    code = "from fuzer.cli.deploy import _end_orphaned_runs; _end_orphaned_runs()"
+    if subprocess.run([sys.executable, "-c", code], check=False).returncode:
+        print("Dagster: could not end the previous instance's runs; the run monitor ends them on its timeouts",
+              flush=True)
+
+
+def _end_orphaned_runs() -> None:
+    import dagster as dg
+
+    S = dg.DagsterRunStatus
+    with dg.DagsterInstance.get() as instance:
+        orphaned = instance.get_runs(dg.RunsFilter(statuses=[S.STARTING, S.STARTED, S.CANCELING]))
+        for run in orphaned:
+            instance.report_run_canceled(run, "Ended at startup: the instance running it was replaced.")
+        queued = [run for run in instance.get_runs(dg.RunsFilter(statuses=[S.QUEUED, S.NOT_STARTED]))
+                  if "dagster/schedule_name" in run.tags]
+        for run in queued:
+            instance.report_run_canceled(run, "Dropped at startup: its schedule starts a fresh run.")
+    print(f"Dagster: ended {len(orphaned)} runs the previous instance left running and dropped {len(queued)} "
+          "queued scheduled runs", flush=True)
 
 
 def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None:
@@ -157,6 +202,7 @@ def main(argv: list[str] | None = None) -> None:
     home.mkdir(parents=True, exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
     configure_dagster(home, url)
+    end_orphaned_runs()
     with db.connect() as conn:
         first = seed(conn, Path(args.bundle))["name"]
         engine.load_defaults(conn)

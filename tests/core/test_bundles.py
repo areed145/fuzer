@@ -504,9 +504,18 @@ def test_scheduled_jobs_run_once_per_project_in_its_own_schema(serving, tmp_path
         from datetime import datetime
 
         at = datetime(2026, 1, 1, 2, tzinfo=UTC)
-        with dg.build_schedule_context(resources={"fuzer": fuzer}, scheduled_execution_time=at) as ctx:
-            runs = schedule.evaluate_tick(ctx).run_requests
-        assert sorted(r.tags[jobs.PROJECT_TAG] for r in runs) == ["kestrel", "okan"]
+        with dg.instance_for_test() as instance:
+            with dg.build_schedule_context(instance=instance, resources={"fuzer": fuzer},
+                                           scheduled_execution_time=at) as ctx:
+                runs = schedule.evaluate_tick(ctx).run_requests
+            assert sorted(r.tags[jobs.PROJECT_TAG] for r in runs) == ["kestrel", "okan"]
+            # A project whose previous run is still going skips the tick rather than queue another behind it.
+            instance.add_run(dg.DagsterRun(job_name="refresh_all", run_id="still-running",
+                                           status=dg.DagsterRunStatus.STARTED, tags=jobs.project_tags("kestrel")))
+            with dg.build_schedule_context(instance=instance, resources={"fuzer": fuzer},
+                                           scheduled_execution_time=at) as ctx:
+                runs = schedule.evaluate_tick(ctx).run_requests
+            assert [r.tags[jobs.PROJECT_TAG] for r in runs] == ["okan"]
 
         sensed = jobs.new_exports(dg.build_sensor_context(resources={"fuzer": fuzer}))
         assert [r.tags[jobs.PROJECT_TAG] for r in sensed.run_requests] == ["kestrel"]  # only Kestrel has exports

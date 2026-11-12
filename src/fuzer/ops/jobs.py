@@ -540,9 +540,23 @@ def per_project(job, cron: str, status: dg.DefaultScheduleStatus) -> dg.Schedule
                  default_status=status, required_resource_keys={"fuzer"})
     def schedule(context: dg.ScheduleEvaluationContext):
         at = context.scheduled_execution_time.isoformat()
-        return [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
-                for project, _ in context.resources.fuzer.targets()]
+        requests = [dg.RunRequest(run_key=f"{project}@{at}", tags=project_tags(project))
+                    for project, _ in context.resources.fuzer.targets()
+                    if not pending(context.instance, job.name, project)]
+        return requests or dg.SkipReason("the previous run for each project is still queued or running")
     return schedule
+
+
+PENDING = [dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.STARTING,
+           dg.DagsterRunStatus.STARTED, dg.DagsterRunStatus.CANCELING]
+
+
+def pending(instance: dg.DagsterInstance, job_name: str, project: str) -> bool:
+    """A run of this job for this project is still queued or running. Its schedule skips a tick rather than queue
+    another behind it: every run picks up all the work pending when it starts, so a backlog of the same run only
+    holds the instance's few run slots and its database."""
+    return instance.get_runs_count(dg.RunsFilter(job_name=job_name, statuses=PENDING,
+                                                 tags=project_tags(project))) > 0
 
 
 RUNNING, STOPPED = dg.DefaultScheduleStatus.RUNNING, dg.DefaultScheduleStatus.STOPPED
