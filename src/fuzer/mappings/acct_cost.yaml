@@ -1,0 +1,22 @@
+# The cost ledger: operating cost booked by cost element and month, each in its own currency.
+source: accounting
+record_type: ledger
+shape: events
+dataset: acct_cost_ledger
+key: entry_id
+entity:
+  kind: ledger_entry
+  fields:
+    - period
+    - period_start
+    - period_end
+    - cost_element
+    - cost_centre
+    - currency
+    - [timestamp, {from: period_end, keep: true}]
+    - [description, {template: "{cost_element} {period}", keep: true}]
+    - [amount, {from: amount, as: number, keep: true}]
+links:
+  - rel: reports_on
+    when: facility
+    to: {kind: facility, from: facility}
