@@ -40,6 +40,11 @@ A repeat failure is the same failure mode on the same unit more than once in the
    **Citing a fit:** `calc("reliability", ref, method="weibull" | "crow_amsaa")` returns beta against 1
    with its basis (`wear_out`, `early_life`, `failures_accelerating`); quote it rather than reading the
    number off a chart.
+   **Does the PM fit how it fails?** `calc("pm_interval", class or unit)` sets the class's median preventive plan
+   interval against its Weibull characteristic life (eta): `random_failures` and `early_life` mean a fixed interval
+   won't help (condition monitoring, or repair quality), `interval_too_long` that wear-out failures come before the
+   PM; `fails_before_pm_pct` is the share expected to fail first. `insufficient_failures` is unknown, not fine.
+   Inspection plans are left out, and a statutory interval is never proposed for change.
 6. **Equipment performance.** `calc("compressor_performance", stage)` gives a stage's polytropic
    efficiency against its first week (`efficiency_drop`: fouling, wear, recycle through a hot cooler);
    `calc("cooler_fouling", cooler)` the outlet temperature above its clean baseline and when it reaches its
