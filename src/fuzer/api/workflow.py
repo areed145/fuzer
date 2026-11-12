@@ -255,6 +255,14 @@ def work_notify_preference_set(name: str, p: NotifyPreference, conn=Depends(get_
     return notify.set_preference(conn, name, p.channel, p.address, p.quiet_from, p.quiet_to, p.by)
 
 
+@router.get("/work/items/{item_id}/gates")
+def work_item_gates(item_id: int, conn=Depends(get_conn)):
+    """Every gate decision on a case (P5.10): why it did or didn't stop for a person."""
+    from ..core import gates
+
+    return gates.decisions(conn, item_id)
+
+
 @router.get("/work/inbox/fields")
 def work_inbox_fields(person: str):
     """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for

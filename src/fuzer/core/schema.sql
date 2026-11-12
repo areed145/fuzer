@@ -159,3 +159,29 @@ create table if not exists event_outbox (
     last_error   text
 );
 create index if not exists event_outbox_pending on event_outbox (id) where delivered_at is null;
+
+-- Human gates as policy (P5.10, #619; core/gates.py). The fixed gates are code and never configurable; a confidence
+-- gate's thresholds (per asset criticality) and the safety case types are data here, over the shipped defaults.
+create table if not exists gate_policy (
+    kind       text primary key,
+    settings   jsonb not null default '{}',
+    updated_by text,
+    updated_at timestamptz not null default now()
+);
+-- Every automatic or agent decision a gate saw: its confidence, the threshold applied and whether the gate fired
+-- (stopped it for a person), with the reason a person reads on the case.
+create table if not exists gate_decision (
+    id              bigserial primary key,
+    kind            text not null,
+    actor           text not null,
+    ref             text,
+    item_id         bigint,
+    confidence      double precision,
+    threshold       double precision,
+    criticality     text,
+    could_not_check text[] not null default '{}',
+    fired           boolean not null,
+    reason          text not null,
+    at              timestamptz not null default now()
+);
+create index if not exists gate_decision_item on gate_decision (item_id, id);
