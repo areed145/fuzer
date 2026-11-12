@@ -404,3 +404,16 @@ forecast_range:
       args: [{model: exponential, qi: 100.0, D: 0.2, b: 0.0}, [0, 1, 2, 3, 4], [100.0, 80.0, 70.0, 54.0, 45.0], 5]
       expect: {value: 36.787944, range: [33.224857, 40.733142]}
       says: The same decline through scattered tests forecasts 36.79 at year 5 within 33.2 to 40.7.
+
+period_comparison:
+  title: Each measurement in two windows, before and after a change
+  practice: Medians and the change, with Welch's t on the means and each window's sample cut to its effective size for autocorrelation (n (1 - r1) / (1 + r1)); each window through the shared sufficiency check first. A significant change after a fix does not prove the fix caused it.
+  tool: compare_periods
+  inputs: [{name: Historian readings on the point or the unit's points, unit: each point's own}]
+  valid: Any measured point with readings in both windows; windows of similar operation compare best.
+  needs: Enough readings in each window for the shared sufficiency check; a point without them is listed as not compared.
+  thresholds:
+    significant: {value: 0.05, means: "The p value under which a change is called significant.", code: "fuzer.analysis.cases:P_SIGNIFICANT"}
+    min_readings: {value: 5, means: "Readings each window needs before a point is compared.", code: "fuzer.analysis.cases:PERIOD_MIN_POINTS"}
+    window_gap: {value: 1, unit: "days", means: "A gap this long inside a window makes the comparison thin.", code: "fuzer.analysis.cases:PERIOD_MAX_GAP_DAYS"}
+  vectors: [{worked: "tests/plots/test_views.py::test_compare_periods_and_similar_cases"}]

@@ -4,7 +4,9 @@
   move, a repair, a swap), the change, and whether it is significant. The test is Welch's t, with each
   window's sample size cut to its effective size for autocorrelation (n (1 - r1) / (1 + r1)), since
   process values sampled every 10 minutes aren't independent. It closes the loop on "did the fix work"
-  when a work item closes.
+  when a work item closes. Each window goes through the shared sufficiency check (P4.6): a point with too
+  few readings in either is listed under `not_compared` with the reason, never dropped silently, and a
+  gap inside a window marks the row `thin`.
 - `similar_cases(ref)`: past incidents like this one (same unit or class, failure modes and event
   types, queries.similar_incidents), each with the work orders raised for it: what was done, its
   activity, and whether the same unit came back within 90 days (the fix didn't hold). It takes an
@@ -16,8 +18,11 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from .calcs import CalcError, _label, read, result
+from .forecast import sufficiency
 
 P_SIGNIFICANT = 0.05
+PERIOD_MIN_POINTS = 5  # readings each window needs before a point is compared
+PERIOD_MAX_GAP_DAYS = 1  # a whole day or more with no reading inside a window makes the comparison thin
 
 
 def _effective_n(x: np.ndarray) -> float:
@@ -43,12 +48,17 @@ def compare_periods(conn, ref: str, a: tuple[str, str], b: tuple[str, str], step
         raise CalcError("each window must end after it starts")
     va = read({p["id"]: p for p in pts}, wa[0], wa[1], step, src)
     vb = read({p["id"]: p for p in pts}, wb[0], wb[1], step, src)
-    rows = []
+    rows, skipped = [], []
     for p in pts:
-        x, y = np.array(list(va[p["id"]].values()), float), np.array(list(vb[p["id"]].values()), float)
-        x, y = x[~np.isnan(x)], y[~np.isnan(y)]
-        if len(x) < 5 or len(y) < 5:
+        sa = {t: v for t, v in va[p["id"]].items() if not np.isnan(v)}  # NaN is no reading
+        sb = {t: v for t, v in vb[p["id"]].items() if not np.isnan(v)}
+        enough = {w: sufficiency(list(s_), PERIOD_MIN_POINTS, max_gap_days=PERIOD_MAX_GAP_DAYS)
+                  for w, s_ in (("before", sa), ("after", sb))}
+        short = [f"{w}: {'; '.join(e['reasons'])}" for w, e in enough.items() if not e["quotable"]]
+        if short:
+            skipped.append({"point": p["point"], "point_id": p["id"], "why": "; ".join(short)})
             continue
+        x, y = np.array(list(sa.values()), float), np.array(list(sb.values()), float)
         na, nb = _effective_n(x), _effective_n(y)
         se = np.sqrt(np.var(x, ddof=1) / na + np.var(y, ddof=1) / nb)
         t = (y.mean() - x.mean()) / se if se > 0 else 0.0
@@ -58,15 +68,20 @@ def compare_periods(conn, ref: str, a: tuple[str, str], b: tuple[str, str], step
                      "before_median": round(float(np.median(x)), 3), "after_median": round(float(np.median(y)), 3),
                      "change": round(float(np.median(y) - np.median(x)), 3),
                      "change_pct": round(float((np.median(y) - np.median(x)) / np.median(x) * 100), 1) if np.median(x) else None,
-                     "p_value": round(pval, 4), "significant": pval < P_SIGNIFICANT, "effective_n": [round(na), round(nb)]})
+                     "p_value": round(pval, 4), "significant": pval < P_SIGNIFICANT, "effective_n": [round(na), round(nb)],
+                     "readings": [len(x), len(y)],
+                     "sufficiency": {w: e["verdict"] for w, e in enough.items()},
+                     "thin": [f"{w}: {r}" for w, e in enough.items() for r in e["reasons"]]})
     if not rows:
-        raise CalcError("no values in those windows")
+        raise CalcError("too little data in those windows to compare: " + "; ".join(
+            f"{s_['point']} ({s_['why']})" for s_ in skipped[:5]) if skipped else "no values in those windows")
     rows.sort(key=lambda r: (not r["significant"], r["p_value"]))
     sig = [r for r in rows if r["significant"]]
     return result(len(sig), None, "changed" if sig else "no_significant_change",
                   f"median of each point in {a[0]} to {a[1]} against {b[0]} to {b[1]}; Welch's t on the means with each "
                   f"sample cut to its effective size for autocorrelation, significant under p {P_SIGNIFICANT}",
-                  [ref, *[r["point_id"] for r in rows[:10]]], unit="points that changed", points=rows[:20])
+                  [ref, *[r["point_id"] for r in rows[:10]]], unit="points that changed", points=rows[:20],
+                  windows={"before": list(a), "after": list(b)}, compared=len(rows), not_compared=skipped)
 
 
 def _incident_of(conn, ref: str) -> str:

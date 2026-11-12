@@ -196,7 +196,8 @@ def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str,
 def compare_periods(ref: str, before_since: str, before_until: str, after_since: str, after_until: str) -> dict[str, Any]:
     """Did the change work? Each point on a PI point or unit in two windows (before and after a choke move,
     a repair, a swap): medians, the change, and whether it is significant (Welch's t with autocorrelation
-    taken into account). Use it to close the loop when a work item closes."""
+    taken into account). Each window passes the shared sufficiency check first: points with too few readings
+    are listed under not_compared with why. Use it to close the loop when a work item closes."""
     from ...analysis import cases
     with db.connect() as conn:
         fid, err = _resolve(conn, ref)
