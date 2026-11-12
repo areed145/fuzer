@@ -16,12 +16,14 @@ def list_metrics() -> list[dict[str, Any]]:
 
 
 @capability("all", kind="query")
-def get_metric(key: str, grain: str | None = None) -> dict[str, Any]:
+def get_metric(key: str, grain: str | None = None, at: str | None = None) -> dict[str, Any]:
     """One registered KPI now: its value, with its definition and unit, and by a grain (one of the metric's grains:
     queue, type, area, class, facility, system, dataset) its rows and the cases or records behind each. Quote the
-    value as returned, with its period."""
+    value as returned, with its period. For a dated metric, at (YYYY-MM-DD) is the day its period ends."""
+    from datetime import date
+
     with db.connect() as conn:
         try:
-            return _plain(metrics.value(conn, mcp_server.PACK, key, grain))
-        except metrics.MetricError as e:
+            return _plain(metrics.value(conn, mcp_server.PACK, key, grain, date.fromisoformat(at) if at else None))
+        except (metrics.MetricError, ValueError) as e:
             return {"error": str(e), "metrics": sorted(metrics.registry())}

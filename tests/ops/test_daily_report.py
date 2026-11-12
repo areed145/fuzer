@@ -54,6 +54,21 @@ def test_a_trip_day_leads_with_the_trip(conn):
     assert any("7-day average" in fact["text"] for fact in report["facts"]["sections"]["Production and deferment"])
 
 
+def test_efficiency_is_the_registered_metric_for_the_report_day(conn):
+    """P7.1b: the report quotes production efficiency from the metric registry for the 14 days to its own day, and
+    the day's oil against potential is named so it isn't read as that metric."""
+    from fuzer.core import metrics
+
+    day = "2025-12-20"
+    lines = daily_report.facts(conn, PACK, day)["sections"]["Production and deferment"]
+    reg = metrics.value(conn, PACK, "production.efficiency", at=date.fromisoformat(day))
+    assert reg["value"] is not None and reg["as_of"] == day
+    eff = [f for f in lines if f["text"].startswith("Production efficiency")]
+    assert len(eff) == 1 and eff[0]["values"]["eff"] == reg["value"] and eff[0]["cites"] == reg["refs"], eff
+    assert "of potential" in lines[0]["text"] and "efficiency" not in lines[0]["text"]
+    assert metrics.value(conn, PACK, "production.efficiency")["as_of"] != day  # the latest is another period
+
+
 def test_late_records_make_a_new_version(conn):
     day = "2025-12-29"
     rec = daily_report._day001(conn, day)

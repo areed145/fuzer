@@ -39,6 +39,10 @@ def _same(conn) -> dict:
                 seen[key] = via_api
         assert client.get("/metrics/no.such").status_code == 404
         assert client.get("/metrics/maintenance.urgent_overdue", params={"grain": "area"}).status_code == 400
+        assert client.get("/metrics/maintenance.urgent_overdue", params={"at": "2025-12-20"}).status_code == 400
+        for key in (k for k, m in metrics.registry().items() if m.dated):  # a dated metric, for a past period
+            past = client.get(f"/metrics/{key}", params={"at": "2025-12-20"}).json()
+            assert mcp_server.get_metric(key, at="2025-12-20")["value"] == past["value"], key
     return seen
 
 
