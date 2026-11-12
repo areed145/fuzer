@@ -352,6 +352,18 @@ def work_tick():
     work_tick_op()
 
 
+@dg.op(description="Tell people about work that moved to them and steps coming due (P5.2).")
+def work_notify_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+    from ..workflow import notify
+    with fuzer.connect() as conn:
+        context.log.info(f"notify: {notify.scan(conn)}")
+
+
+@dg.job(description="Notifications: work sent, handed back, escalated or coming due, told to the person within a minute.")
+def work_notify():
+    work_notify_op()
+
+
 @dg.op(description="Agentic SRE (#96): detect upsets in the process data since the last run.")
 def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSettings) -> None:
     from ..workflow import engine
@@ -475,6 +487,7 @@ schedules = [
     per_project(refresh_all, "0 2 * * *", RUNNING),
     per_project(claude_reading, "0 3 * * *", STOPPED),
     per_project(work_tick, "*/5 * * * *", RUNNING),
+    per_project(work_notify, "* * * * *", RUNNING),
     per_project(sre_scan, "0 */6 * * *", RUNNING),
     per_project(studies_job, "*/5 * * * *", RUNNING),
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
@@ -564,7 +577,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, sre_scan, day_close, studies_job, source_health],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, sre_scan, day_close, studies_job, source_health],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

@@ -2492,6 +2492,39 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
 });
 
+test("a dispatched operator sees what they were sent on My work and lands on the job from it (#604)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
+  const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  const read = [];
+  let notifications = [
+    { id: 3, kind: "dispatched", item_id: 41, token_id: null, text: "ines sent you 'Check the pump seal'. seal weeping",
+      link: "#/cases/41", channel: "in_app", delivery: null, created_at: "2026-11-12T06:05:00Z", read_at: null },
+    { id: 2, kind: "due_soon", item_id: 40, token_id: 9, text: "'Swap the filter' is due in 20 min.",
+      link: "#/cases/40", channel: "in_app", delivery: null, created_at: "2026-11-12T06:00:00Z", read_at: null },
+  ];
+  await page.route("**/work/notifications?*", (route) => route.fulfill({ json: { notifications,
+    unread: notifications.filter((n) => !n.read_at).length } }));
+  await page.route("**/work/notifications/read", (route) => {
+    const body = route.request().postDataJSON();
+    read.push(body);
+    notifications = notifications.map((n) => (!body.ids || body.ids.includes(n.id) ? { ...n, read_at: "now" } : n));
+    return route.fulfill({ json: { read: 1 } });
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "New for you (2)" }).waitFor();
+  await page.getByText("Due soon", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "ines sent you 'Check the pump seal'. seal weeping" }).click();
+  await page.waitForURL(/#\/cases\/41$/);
+  await expectReports(read, 1);
+  assert.deepEqual(read[0], { person: "olav", ids: [3] });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "New for you (1)" }).waitFor();
+  await page.getByRole("button", { name: "Mark all read" }).click();
+  await page.getByRole("heading", { name: /New for you/ }).waitFor({ state: "detached" });
+  assert.deepEqual(read[1], { person: "olav", ids: null });
+});
+
 test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));

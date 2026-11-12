@@ -357,6 +357,48 @@ One row per step a process reached. Rows stay once done, so they are also the pa
 | `data` | jsonb |  |
 | `at` | timestamptz |  |
 
+### `work_notification`
+
+Telling the assignee (P5.2, #604): dispatch, hand-back, escalation, automatic assignment and due-soon each tell the person concerned (workflow/notify.py), read from work_event by a cursor so every path that moves work is covered. `key` makes each one once. Every notification shows in the person's list on My work; `delivery` is its send on their chosen channel (null: in-app only; queued, held for quiet hours, sent, failed).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `key` | text |  |
+| `person` | text |  |
+| `kind` | text | dispatched, handed_back, escalated, assigned, due_soon |
+| `item_id` | bigint |  |
+| `token_id` | bigint |  |
+| `text` | text |  |
+| `link` | text |  |
+| `channel` | text |  |
+| `delivery` | text |  |
+| `error` | text |  |
+| `created_at` | timestamptz |  |
+| `sent_at` | timestamptz |  |
+| `read_at` | timestamptz |  |
+
+### `work_notify_cursor`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | int |  |
+| `last_event` | bigint |  |
+
+### `work_notify_pref`
+
+How each person wants to be told: in_app, email, teams or slack, at `address` (an email address, or for Teams and Slack where their webhook URL is kept: env:NAME), and quiet hours in the project's timezone when nothing external is sent (held until they end; it still shows in-app).
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `channel` | text |  |
+| `address` | text |  |
+| `quiet_from` | time |  |
+| `quiet_to` | time |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Sources and ingestion
 
 [`src/fuzer/sources/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources/schema.sql)

@@ -4,7 +4,7 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
-import { api, type FieldJob, type WorkInbox, type WorkRow } from "../../api";
+import { api, type FieldJob, type WorkInbox, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
@@ -77,6 +77,7 @@ export function InboxPage() {
         <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
+      <NewForYou person={person} />
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
@@ -114,6 +115,36 @@ export function InboxPage() {
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
     </section>
+  );
+}
+
+/** What the person was told since they last looked (P5.2, #604): each line opens its case and counts as read. */
+function NewForYou({ person }: { person: string }) {
+  const told = useAsync(() => api.notifications(person), [person]);
+  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at);
+  if (!unread.length) return null;
+  const read = (ids?: number[]) => api.markNotificationsRead(person, ids).then(told.reload, told.reload);
+  return (
+    <UICard className="new-for-you" title={`New for you (${told.data?.unread ?? unread.length})`}
+      actions={<Button onClick={() => read()}>Mark all read</Button>}>
+      <ul className="notification-list">
+        {unread.slice(0, 8).map((n) => <NotificationLine key={n.id} n={n} onOpen={() => void read([n.id])} />)}
+      </ul>
+    </UICard>
+  );
+}
+
+const KIND: Record<WorkNotification["kind"], string> = {
+  dispatched: "Sent to you", handed_back: "Handed back", escalated: "Escalated", assigned: "Assigned", due_soon: "Due soon",
+};
+
+function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => void }) {
+  return (
+    <li>
+      <UIBadge className={`badge ${n.kind === "escalated" || n.kind === "due_soon" ? "late" : ""}`}>{KIND[n.kind]}</UIBadge>
+      <a href={n.link} onClick={onOpen}>{n.text}</a>
+      <span className="small">{when(n.created_at)}</span>
+    </li>
   );
 }
 
