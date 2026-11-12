@@ -579,7 +579,7 @@ def _when(conn, at) -> tuple[str, bool]:
     if not at:
         return now.isoformat(), False
     try:
-        made = datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+        made = datetime.fromisoformat(str(at))
     except ValueError:
         raise ExceptionError("the report's time is not a date and time") from None
     if made.tzinfo is None:
