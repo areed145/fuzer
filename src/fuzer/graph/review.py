@@ -10,7 +10,8 @@ import re
 
 from psycopg.types.json import Jsonb
 
-DECISIONS = ("accept", "reject", "choose")
+DECISIONS = ("accept", "reject", "choose", "field")
+FIELD_KINDS = ("conflict", "pid_mismatch")  # questions "check it in the field" can answer (P2.4)
 
 
 class ReviewError(ValueError):
@@ -27,7 +28,11 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
         raise LookupError("unknown review item")
     p = item["payload"]
     record = {"decision": decision, "value": value, "by": by, **(extra or {})}
-
+    if decision == "field":  # neither record can be trusted: the plant itself is looked at (P2.4, ops.corrections)
+        if item["kind"] not in FIELD_KINDS:
+            raise ReviewError("only conflicting values and drawing disagreements can be sent for a field check")
+    elif item["kind"] in FIELD_KINDS:
+        record.update(_wrong(item["kind"], p, decision, value))
 
     if item["kind"] == "mapping":
         if decision != "reject":
@@ -56,7 +61,9 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
         if decision == "choose":
             raise ReviewError("drawing connections take accept (link them) or reject")
     elif item["kind"] == "pid_mismatch":  # a drawing and the DCS, AF or SAP disagree (#475): which needs changing
-        if decision == "accept" or (decision == "choose" and value not in ("drawing", "system")):
+        if decision == "field":
+            pass
+        elif decision == "accept" or (decision == "choose" and value not in ("drawing", "system")):
             raise ReviewError("drawing disagreements take choose with drawing (the system needs changing) or "
                               "system (the drawing needs a redline), or reject (not a real disagreement)")
     elif item["kind"] == "match":
@@ -71,6 +78,8 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
             """,
             (p["left"]["ref"], p["right"]["ref"], rule, by),
         )
+    elif decision == "field":
+        pass  # nothing changes until the field check comes back
     else:
         if decision == "reject":
             raise ReviewError("conflict items take accept (keep chosen) or choose (with value)")
@@ -103,6 +112,23 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
         data_work.sync(conn, by)  # the answer closes its case in the steward's queue
     rebuild = item["kind"] == "match" or (item["kind"] in ("curve", "pid_connection") and decision != "reject")
     return {"decided": item_id, "kind": item["kind"], "rebuild": rebuild}
+
+
+def _wrong(kind: str, p: dict, decision: str, value) -> dict:
+    """Which source the answer says is wrong, kept on the decision so its correction is drafted for that source's
+    owner (P2.4, ops.corrections). A value written the same way but for case and punctuation is not wrong."""
+    if kind == "conflict" and decision in ("accept", "choose"):
+        right = p.get("chosen") if decision == "accept" else value
+        wrong = sorted({v["source"] for v in p.get("values") or [] if v.get("source") not in (None, "review")
+                        and right is not None and _spelling(v.get("value")) != _spelling(right)})
+        return {"wrong": wrong, "right": right} if wrong else {}
+    if kind == "pid_mismatch" and decision == "choose":
+        if value == "system":
+            return {"wrong": ["drawing"]}
+        if p.get("check") == "placement":
+            return {"wrong": sorted({s for x in p.get("register") or [] for s in x.get("sources") or []})}
+        return {"wrong": ["alarm configuration"]}
+    return {}
 
 
 # ---- like questions answered once (P2.3c) ---------------------------------------------------------------------

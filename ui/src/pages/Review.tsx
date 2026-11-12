@@ -441,6 +441,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
         </h3>
       </div>
       {description && <p className="small">{description}</p>}
+      {p.returned && <p className="small returned">{p.returned.why}</p>}
       <ul className="choices">
         {distinct.map((v) => {
           const from = p.values.filter((x) => fmt(x.value) === fmt(v.value));
@@ -472,6 +473,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
       >
         <Input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
         <Button disabled={busy || !custom.trim()}>Save</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         {feedback}
       </form>
     </UICard>
@@ -581,7 +583,7 @@ const MISMATCH_TITLE = { alarm: "Alarm setting differs from the drawing", alarm_
 /** A drawing and the DCS, AF or SAP disagree (#475): which side needs changing. Recording it changes neither. */
 function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string | null; p: PidMismatchPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide,
-    "It records which side needs changing for the team to act on. The drawing, the DCS, AF and SAP stay as they are.");
+    "It drafts the correction for the owner of the side that is wrong. Nothing changes there until they approve it.");
   const system = p.check === "placement" ? "SAP" : "the alarm";
   return (
     <UICard className="review">
@@ -590,6 +592,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <span className="muted small">{p.sheet}</span>
       </div>
       <p>{p.question}</p>
+      {p.returned && <p className="small returned">{p.returned.why}</p>}
       <a className="mono small" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
       {p.finding ? <FindingEvidence finding={p.finding} /> : <div className="small">{p.detail}</div>}
       <div className="row">
@@ -602,6 +605,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <Button disabled={busy} onClick={() => run({ decision: "choose", value: "system" })}>
           {p.check === "placement" ? "SAP" : "Alarm"} is right, redline the drawing
         </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "reject" })}>Not a disagreement</Button>
       </div>
       {feedback}

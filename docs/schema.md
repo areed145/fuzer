@@ -913,6 +913,18 @@ The last calibration per entity kind and source (P2.2): measured precision at ea
 | `measured_at` | timestamptz |  |
 | `measured_by` | text |  |
 
+### `reviewed_value`
+
+What each source says on a field a steward chose the value of, from the last rebuild (P2.4): how a correction sent back to a source is seen to land.
+
+| Column | Type | Note |
+|---|---|---|
+| `fuzer_id` | text |  |
+| `field` | text |  |
+| `source` | text |  |
+| `source_key` | text |  |
+| `value` | jsonb |  |
+
 ### `knowledge_index`
 
 What the knowledge search reads: document sections and incidents, with the IDs each is linked to (what its document applies to, what it mentions, its unit) for scoping. Kept by every rebuild.
@@ -1512,6 +1524,27 @@ The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer
 | `by` | text |  |
 | `note` | text |  |
 | `at` | timestamptz |  |
+
+### `source_correction`
+
+Corrections that flow back to a source (P2.4): what a steward's answer said was wrong in a source, the change or case drafted for its owner, and how it came back.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `review_item_id` | bigint |  |
+| `kind` | text | master_data \| drawing_correction \| correction \| field_check |
+| `system` | text |  |
+| `fuzer_id` | text |  |
+| `field` | text |  |
+| `wrong` | jsonb, | what the source says |
+| `right_value` | jsonb, | what the steward said is right |
+| `writeback_id` | bigint, | the drafted change, when the source takes write-backs |
+| `item_id` | bigint, | the owner's case, when it doesn't (or a field check) |
+| `state` | text |  |
+| `outcome` | text |  |
+| `created_at` | timestamptz |  |
+| `closed_at` | timestamptz |  |
 
 ## Charts
 

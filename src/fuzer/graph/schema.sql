@@ -161,6 +161,17 @@ create table if not exists match_calibration (
     primary key (kind, source)
 );
 
+-- What each source says on a field a steward chose the value of, from the last rebuild (P2.4): how a correction
+-- sent back to a source is seen to land.
+create table if not exists reviewed_value (
+    fuzer_id   text not null,
+    field      text not null,
+    source     text not null,
+    source_key text,
+    value      jsonb
+);
+create index if not exists reviewed_value_key on reviewed_value (fuzer_id, field);
+
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
 do $$

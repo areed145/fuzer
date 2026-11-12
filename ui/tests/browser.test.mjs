@@ -1148,6 +1148,31 @@ test("review custom-value confirmation and cancellation do not resubmit the cont
   assert.equal(writes[0].value, "corrected value");
 });
 
+test("a question that came back says why, and can be sent for a field check (P2.4)", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 9, kind: "conflict", label: "20-P-1001A", description: null, payload: { fuzer_id: "tag-1", field: "manufacturer",
+      chosen: "Flowserve", values: [{ value: "Flowserve", source: "sap", source_key: "1" }, { value: "Sulzer", source: "jde", source_key: "2" }],
+      returned: { kind: "master_data", system: "jde", why: "JDE's owner rejected the correction: the nameplate says Sulzer. Look at it again." } } },
+  ] }));
+  const writes = [];
+  await page.route("**/review/9", (route) => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { decided: 9 } });
+  });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict`);
+  await page.getByText("JDE's owner rejected the correction: the nameplate says Sulzer.").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`question-returned-${width}`);
+  }
+  await page.getByRole("button", { name: "Check it in the field", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #9" }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].decision, "field");
+});
+
 test("optional Demo preserves existing primary destinations and specialist routes", async () => {
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
