@@ -4,6 +4,9 @@ drafted from live work, every line citing its case or exception the way the dail
 Six sections, over the shift that just ended:
 
     Open work               open cases by priority (most urgent first)
+    In the field            jobs in progress (on site, not yet done) and with whom, and handovers waiting to be
+                            accepted (P5.11d)
+    Open permits            permits to work not closed or expired, and isolations not yet in place (P5.11d)
     Back from the field     exceptions the field reported done or could not do, waiting on the IOC to decide
     Escalated or overdue    steps escalated during the shift, and steps past their due time now
     Dispatched              what the outgoing shift sent to the field, and to whom
@@ -25,8 +28,8 @@ from psycopg.types.json import Jsonb
 from ..core import settings, work
 from ..core.exceptions import ExceptionError
 
-SECTIONS = ["Open work", "Back from the field", "Escalated or overdue", "Dispatched", "New exceptions",
-            "Records to check"]
+SECTIONS = ["Open work", "In the field", "Open permits", "Back from the field", "Escalated or overdue", "Dispatched",
+            "New exceptions", "Records to check"]
 RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
@@ -84,6 +87,19 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         """, ([CASE_TYPE, RECORDS],)).fetchall(),
         lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')}), with {holder(r)}"
                         + (f", due {r['due']:%d %b %H:%M}" if r["due"] else ""), f"case:{r['id']}"))
+    keep("In the field", conn.execute(
+        """
+        select e.id, e.title, e.item_id, f->>'by' as by, f->>'at' as at, e.evidence->'handover' as handover
+        from exception_record e, lateral (select evidence->'field'->-1 as f) last
+        where e.state = 'open' and e.joined_to is null and f->>'status' = 'on_site'
+        order by (f->>'at')
+        """).fetchall(),
+        lambda r: _line(f"{r['title']}: {r['by']} on site since {_local(r['at'])}"
+                        + (f"; handed over to {r['handover']['to']}, waiting to be accepted"
+                           + (f" (unsafe to leave: {r['handover']['unsafe']})" if r["handover"].get("unsafe") else "")
+                           if r["handover"] and not r["handover"].get("accepted_at") else ""),
+                        f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
+    keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
     keep("Back from the field", conn.execute(
         """
         select e.id, e.title, e.item_id, f->>'status' as said, f->>'by' as by, f->>'note' as note
@@ -129,6 +145,56 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         """, (RECORDS,)).fetchall(),
         lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     return {"sections": sections, "more": more}
+
+
+def _local(at: str | None) -> str:
+    if not at:
+        return "?"
+    try:
+        return datetime.fromisoformat(at).astimezone(_tz()).strftime("%H:%M")
+    except ValueError:
+        return at[11:16]
+
+
+def _permits(conn, end: datetime) -> list[dict]:
+    """Permits to work not closed or expired at the shift change, with any isolation not yet in place, from the
+    permit records (P5.11d)."""
+    from .readiness import IN_PLACE, LIVE, _when
+
+    rows = conn.execute(
+        """
+        select p.fuzer_id as id, pl.label, ll.label as location,
+               max(case when g.field = 'permit_type' then g.value #>> '{}' end) as type,
+               max(case when g.field = 'state' then g.value #>> '{}' end) as state,
+               max(case when g.field = 'valid_to' then g.value #>> '{}' end) as valid_to,
+               (select coalesce(jsonb_agg(jsonb_build_object('isolation', il.label, 'point', ip.value #>> '{}',
+                                                             'state', ist.value #>> '{}') order by il.label), '[]')
+                from edge i join entity_label il on il.fuzer_id = i.src
+                left join golden ip on ip.fuzer_id = i.src and ip.field = 'point'
+                left join golden ist on ist.fuzer_id = i.src and ist.field = 'state'
+                where i.rel = 'isolation_for' and i.dst = p.fuzer_id) as isolations
+        from entity p left join entity_label pl on pl.fuzer_id = p.fuzer_id
+        left join edge c on c.src = p.fuzer_id and c.rel = 'covers'
+        left join entity_label ll on ll.fuzer_id = c.dst
+        left join golden g on g.fuzer_id = p.fuzer_id
+        where p.kind = 'permit'
+        group by p.fuzer_id, pl.label, ll.label
+        order by pl.label
+        """).fetchall()
+    out = []
+    for r in rows:
+        until = _when(r["valid_to"])
+        if (r["state"] or "").lower() not in (*LIVE, "approved", "suspended") or (until and until < end):
+            continue
+        waiting = [i for i in r["isolations"] if (i["state"] or "").lower() not in IN_PLACE]
+        text = (f"{r['label']} {r['type'] or 'permit'} on {r['location'] or '?'}, {r['state']}"
+                + (f" to {r['valid_to']}" if r["valid_to"] else "")
+                + (f"; {len(waiting)} of {len(r['isolations'])} isolations not in place ("
+                   + ", ".join(f"{i['isolation']} {i['state'] or 'no state'}" for i in waiting) + ")" if waiting
+                   else f"; {len(r['isolations'])} isolation{'s' if len(r['isolations']) > 1 else ''} in place"
+                   if r["isolations"] else ""))
+        out.append({"id": r["id"], "text": text})
+    return out
 
 
 def draft(conn, by: str, now: datetime | None = None, force: bool = False) -> dict | None:

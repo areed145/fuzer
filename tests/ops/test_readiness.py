@@ -305,6 +305,31 @@ def test_a_job_handed_over_at_shift_change_stays_with_the_outgoing_operator_unti
     assert holder == "ioc-ann"
 
 
+def test_the_shift_handover_lists_jobs_in_the_field_and_open_permits_from_the_records(kestrel, client):
+    from datetime import UTC, datetime
+
+    from fuzer.graph import queries
+    from fuzer.ops import handover
+
+    conn, pack = kestrel
+    e = job(conn, "G-7006 load test, at shift change", queries.resolve_ref(conn, pack, "G1-G-7006"))
+    client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred", "override": "crew"})
+    client.post(f"/exceptions/{e}/report", json={"by": "fred", "status": "on_site"})
+    client.post(f"/exceptions/{e}/handover", json={"by": "fred", "to": "gina", "done": "breaker racked out",
+                                                 "left": "run the load test", "unsafe": "panel door open"})
+    now = datetime.now(UTC)
+    s = handover.facts(conn, now - timedelta(hours=12), now)["sections"]
+    [field] = [x for x in s["In the field"] if f"exception:{e}" in x["cites"]]
+    assert field["text"].startswith("Look at G-7006 load test, at shift change: fred on site since ")
+    assert "handed over to gina, waiting to be accepted (unsafe to leave: panel door open)" in field["text"]
+    permits = {x["text"].split()[0]: x["text"] for x in s["Open permits"]}
+    assert "PTW-24102" not in permits  # expired
+    assert permits["PTW-24101"].startswith("PTW-24101 cold work on ") and \
+        "1 of 3 isolations not in place (ISO-24101-3 planned)" in permits["PTW-24101"]
+    assert permits["PTW-24103"].endswith("; 1 isolation in place")
+    assert all(x["cites"][0].startswith("entity:") for x in s["Open permits"])
+
+
 def test_okan_spares_come_from_its_own_records(okan_db):
     conn = okan_db.conn
     short = conn.execute(
