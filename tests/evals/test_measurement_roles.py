@@ -1,6 +1,9 @@
 """Measurement roles (P1.4a): the role proposed for every point on both bundles, against what each fake plant's
 process model says the point is."""
 
+import importlib
+import inspect
+import re
 from pathlib import Path
 
 import pytest
@@ -41,6 +44,36 @@ def test_instrument_letters_come_from_the_tag_grammar_or_an_isa_tag():
     assert roles.letters_in("OK_GGCP:20-PDT-2100A.PV") == "PDT"
     assert roles.letters_in("KRGP:B1.ST2004.PV") == "ST"
     assert roles.letters_in("OK_J01_01.WHP") is None
+
+
+# What compressor monitoring reads about a point (P1.4c): its role and the ISO 14224 class of what it is on, never
+# its description, its units or the letters in a tag name. The run signal and vibration are checked on Okan with the
+# descriptions blanked and the tags renamed (tests/analysis/test_trips.py).
+_TAG_WORDS = re.compile(r"description|\buom\b|ilike|mm/s|\"rpm\"|\"kW\"|-[A-Z]{1,3}-")
+
+
+@pytest.mark.parametrize("fn", ["analysis.trips:_family", "analysis.trips:_points", "analysis.rotating:_ambient_point"])
+def test_compressor_monitoring_reads_roles_not_descriptions_or_tag_patterns(fn):
+    module, name = fn.split(":")
+    code = inspect.getsource(getattr(importlib.import_module(f"fuzer.{module}"), name))
+    body = code.split('"""', 2)[-1] if code.count('"""') >= 2 else code  # its docstring may say what it doesn't read
+    assert not _TAG_WORDS.findall(body), (fn, _TAG_WORDS.findall(body))
+
+
+@pytest.mark.parametrize("role,classes,direction,want", [
+    ("vibration", ["CO"], 1, "vibration"), ("bearing_temperature", ["CO"], 1, "bearing"),
+    ("anti_surge_valve_position", ["CO"], 1, "surge"), ("speed", ["CO"], -1, "driver"),
+    ("pressure", ["GT"], 1, "driver"), ("level", ["VE"], 1, "liquid_carryover"), ("level", ["VE"], -1, "process"),
+    ("cylinder_discharge_temperature", ["CO"], 1, "discharge_temperature"),
+    ("discharge_temperature", ["CO"], 1, "discharge_temperature"), ("discharge_temperature", ["VE"], 1, "process"),
+    ("outlet_temperature", ["HE"], 1, "cooling"), ("pressure", ["VE"], -1, "suction_pressure"),
+    ("suction_pressure", ["CO"], -1, "suction_pressure"), ("interstage_pressure", ["CO"], 1, "discharge_pressure"),
+    ("axial_position", ["CO"], 1, "process"), (None, [], 1, "process"),
+])
+def test_a_trip_cause_family_comes_from_the_role_and_the_class(role, classes, direction, want):
+    from fuzer.analysis import trips
+
+    assert trips._family(role, classes, direction) == want
 
 
 def test_every_role_the_answer_key_and_the_detectors_name_is_on_the_list():

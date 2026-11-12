@@ -121,3 +121,21 @@ def of(conn, point_ids) -> dict[str, str]:
     """Each point's role."""
     return {r["point_id"]: r["role"] for r in conn.execute(
         "select point_id, role from measurement_role where point_id = any(%s)", (list(point_ids),))}
+
+
+def classes(conn, fid: str) -> set[str]:
+    """The ISO 14224 class codes of what is at a tag: its own classification and the equipment installed at it
+    ("CO" a compressor, "VE" a vessel, "HE" a heat exchanger)."""
+    return {c for r in conn.execute(
+        """
+        select cl.label from edge c join entity_label cl on cl.fuzer_id = c.dst
+        where c.rel = 'classified_as' and (c.src = %(f)s or c.src in (
+            select i.src from edge i where i.dst = %(f)s and i.rel = 'installed_at' and i.valid_to is null))
+        """, {"f": fid}) if (c := _code(r["label"]))}
+
+
+def anywhere(conn, role: str) -> str | None:
+    """The best point with `role` on any asset (a site's ambient air temperature)."""
+    r = conn.execute("select point_id from measurement_role where role = %s order by confidence desc, point_id limit 1",
+                     (role,)).fetchone()
+    return r["point_id"] if r else None

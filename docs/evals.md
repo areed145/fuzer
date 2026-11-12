@@ -36,6 +36,15 @@ A proposal below the confidence threshold is steward work: it is a question on M
 with the point's evidence and the proposed role. Confirming it or choosing another role pins it in
 `measurement_role_pin`, live at once and kept by every rebuild.
 
+Compressor monitoring reads roles (P1.4c): a trip's cause family comes from the role of the point that moved first
+and the ISO 14224 class of what it is on, the train's run signal is its driver's speed or power role, vibration zones
+read the casing vibration role and the heat rate reads the ambient temperature role. `tests/analysis/test_trips.py`
+blanks every point's description and renames the tags, and the trips, vibration and ambient come out the same.
+Surge, heat rate, motor load and cooler fouling find their points by role and a compressor's driver by its class
+in the train (P1.4d); `tests/analysis/test_rotating.py` blanks the descriptions and checks they come out the same. A
+stage's scrubber, cooler and its counterparts on the other trains still come from its tag name: the register holds
+no stage order or stage piping yet (P2.7).
+
 ## Replaying history to score the detectors
 
 The SRE runs unattended, so nobody checks each thing it raises. Before trusting it, and after
