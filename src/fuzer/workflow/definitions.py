@@ -144,6 +144,10 @@ def check_definition(conn, definition_id: int, by: str) -> dict:
 def publish(conn, definition_id: int, by: str) -> dict:
     """Publish a version: needs the workflow-admin role (or `system`, loading the pack's starting set)
     and no problems. New processes start on it; running ones stay on theirs."""
+    if by != SYSTEM:  # the system installs the shipped processes; any other machine is refused (P5.10 fixed gate)
+        from ..core import gates
+
+        gates.require_person(conn, "publish", by, ref=f"definition:{definition_id}")
     if by != SYSTEM and ADMIN_ROLE not in roles_of(conn, by):
         raise Forbidden(f"publishing needs the {ADMIN_ROLE} role; {by} doesn't have it")
     row = conn.execute("select * from work_definition where id = %s for update", (definition_id,)).fetchone()

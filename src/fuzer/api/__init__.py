@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.errors import QueryCanceled
 
 from ..core import access, db
+from ..core.gates import GateRefused
 from ..sources import catalog as source_catalog
 from ..workflow import engine as work
 from . import (
@@ -69,4 +70,5 @@ if (UI_DIST / "assets").is_dir():
 for module in (home, investigation, entities, knowledge, ops, assistant, ontology, graph, workflow, settings, catalog, sources, stewardship, jobs):  # in this order: FastAPI matches routes in the order they were added
     app.include_router(module.router)
 app.add_exception_handler(work.WorkError, workflow.work_error)
+app.add_exception_handler(GateRefused, workflow.work_error)
 app.add_exception_handler(QueryCanceled, query_timeout)

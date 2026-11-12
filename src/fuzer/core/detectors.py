@@ -243,7 +243,10 @@ def param(conn, key: str, cls: str | None = None):
 def tune(conn, name: str, key: str, value, *, cls: str | None = None, by: str, reason: str | None = None,
          project_name: str | None = None, reset: bool = False) -> dict:
     """Set (or with `reset`, clear) one of a detector's parameters on one asset, for one equipment class or all of
-    them; kept in the settings history."""
+    them; kept in the settings history. Changing a detector parameter is a fixed gate: a named person only."""
+    from . import gates
+
+    gates.require_person(conn, "limit_change", by, ref=f"detector:{name}:{key}")
     d = get(name)
     if key not in d.params:
         raise DetectorError(f"{name} is not tuned by {key}; its parameters are {', '.join(d.params) or 'none'}")

@@ -329,6 +329,42 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
+    state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/8/gates", route => route.fulfill({ json: [
+    { id: 1, kind: "auto_close", actor: "agent:sre", confidence: 0.7, threshold: 0.95, criticality: "C", could_not_check: [],
+      fired: true, reason: "An automatic close as duplicate or false alarm stopped for a person: its confidence 70% is below the 95% needed on a C-criticality asset.",
+      at: "2026-11-12T06:01:00Z" }] }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.getByRole("heading", { name: "Gates" }).waitFor();
+  await page.getByText("Stopped for a person", { exact: true }).waitFor();
+  await page.getByText("its confidence 70% is below the 95% needed", { exact: false }).waitFor();
+
+  const set = [];
+  let policy = { fixed: [{ kind: "field_dispatch", label: "Dispatching people to the field" }], safety_case_types: ["iow_breach"],
+    confidence: [{ kind: "auto_close", label: "An automatic close as duplicate or false alarm", default: 0.95,
+      by_criticality: { A: null }, updated_by: null, updated_at: null }] };
+  await page.route("**/settings/gates", route => route.fulfill({ json: policy }));
+  await page.route("**/settings/gates/auto_close", route => {
+    const body = route.request().postDataJSON();
+    set.push(body);
+    policy = { ...policy, confidence: [{ ...policy.confidence[0], default: body.default, updated_by: body.by }] };
+    return route.fulfill({ json: policy.confidence[0] });
+  });
+  await page.goto(`${url}/#/settings`);
+  await page.getByRole("heading", { name: "Human gates" }).waitFor();
+  await page.getByText("dispatching people to the field", { exact: false }).waitFor();
+  const row = page.getByRole("row").filter({ hasText: "An automatic close" });
+  await row.getByText("always a person", { exact: true }).waitFor();
+  await row.getByRole("button", { name: "Change" }).click();
+  await row.getByLabel(/Goes ahead at/).fill("97");
+  await row.getByRole("button", { name: "Save" }).click();
+  await row.getByText("97%", { exact: true }).waitFor();
+  assert.equal(set[0].default, 0.97);
+  assert.deepEqual(set[0].by_criticality, {});
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });

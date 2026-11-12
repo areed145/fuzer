@@ -313,6 +313,20 @@ export interface NotifyPreference {
   updated_at?: string | null;
 }
 
+/** A gate's decision on a case (P5.10): whether an automatic or agent decision went ahead or stopped for a person. */
+export interface GateDecision {
+  id: number;
+  kind: string;
+  actor: string;
+  confidence: number | null;
+  threshold: number | null;
+  criticality: string | null;
+  could_not_check: string[];
+  fired: boolean;
+  reason: string;
+  at: string;
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -653,6 +667,7 @@ export const workApi = {
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
+  workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
   generateWorkflow: (id: number, description: string, by: string) =>

@@ -118,7 +118,11 @@ def _send(conn, c: dict, by: str) -> dict:
 
 
 def approve(conn, closeout_id: int, by: str, text: str | None = None, short_text: str | None = None) -> dict:
-    """Send a drafted close-out (with the planner's edits to its text), and finish its case."""
+    """Send a drafted close-out (with the planner's edits to its text), and finish its case. A write-back: only a
+    named person approves one (P5.10 fixed gate)."""
+    from ..core import gates
+
+    gates.require_person(conn, "write_back", by, ref=f"closeout:{closeout_id}")
     c = get(conn, closeout_id)
     if c["state"] != "draft":
         raise ExceptionError(f"close-out {closeout_id} is {c['state']}, not a draft")
