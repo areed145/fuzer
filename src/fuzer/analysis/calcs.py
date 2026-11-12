@@ -672,10 +672,14 @@ CHECKS |= {
 
 
 def _cond(module, name):
-    def run(conn, fid, **kw):
+    def target():
         import importlib
 
-        return getattr(importlib.import_module(f"fuzer.analysis.{module}"), name)(conn, fid, **kw)
+        return getattr(importlib.import_module(f"fuzer.analysis.{module}"), name)
+
+    def run(conn, fid, **kw):
+        return target()(conn, fid, **kw)
+    run.target = target  # what `run` reads the options from: this wrapper names none of its own
     return run
 
 
@@ -739,7 +743,7 @@ def run(conn, check: str, fid: str, **options) -> dict:
     from ..core import methods
 
     fn = CHECKS[check]["fn"]
-    takes = inspect.signature(fn).parameters
+    takes = inspect.signature(fn.target() if hasattr(fn, "target") else fn).parameters
     try:
         out = fn(conn, fid, **{k: v for k, v in options.items() if v is not None and k in takes})
     except CalcError as e:  # a named refusal of the method, never a number the data can't support
