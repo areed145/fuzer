@@ -263,6 +263,12 @@ def entity_incidents(fuzer_id: str, since: str | None = None, until: str | None 
     return queries.incidents(conn, fuzer_id, since, until, min(limit, 1000))
 
 
+@router.get("/entities/{fuzer_id}/conversations")
+def entity_conversations(fuzer_id: str, limit: int = 20, conn=Depends(get_conn)):
+    """The chat threads about this asset (P5.8b): summary, fix and the link back to Teams."""
+    return queries.conversations(conn, fuzer_id, min(limit, 100))
+
+
 @router.get("/incidents/{fuzer_id}/timeline")
 def incident_timeline(fuzer_id: str, conn=Depends(get_conn)):
     return queries.incident_timeline(conn, fuzer_id)

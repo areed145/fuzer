@@ -138,6 +138,11 @@ kinds:
     group: Events
     colour: "#a0679b"
     description: An operator log entry.
+  conversation:
+    label: Conversation
+    group: Events
+    colour: "#7a6fb0"
+    description: A troubleshooting thread from a chat channel, kept as a summary and a link back to it.
   event:
     label: Event
     group: Events

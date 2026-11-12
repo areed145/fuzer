@@ -149,6 +149,13 @@ def _document_part(row, pack: Pack):
     return ("document", row["file"]) if n == 0 else ("document_section", f"{row['file']}#{n:03d}")
 
 
+def _mentioned(v: str, pack: Pack):
+    """The first tag or well written in free text (a thread's summary, P5.8c), in any style the pack reads."""
+    from ..core.nel import find_mentions
+
+    return next(((m.kind, m.key) for m in find_mentions(str(v or ""), pack) if m.kind != "tag_noarea"), None)
+
+
 RESOLVERS = {
     "floc": _floc,
     "document_part": _document_part,
@@ -157,6 +164,7 @@ RESOLVERS = {
     "af_parent": lambda v, pack: _af(v.split("\\")[:-1], pack) if "\\" in v else None,
     "ec_node": _ec_node,
     "tag_or_well": _tag_or_well,
+    "mentioned": _mentioned,
     "facility_or_well": lambda v, pack: ("facility", v) if v == pack.facility else ("well", pack.wells.parse(v or "")),
 }
 

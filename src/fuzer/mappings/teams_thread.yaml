@@ -1,0 +1,12 @@
+# Teams troubleshooting threads (P5.8a, #744): a channel message and its replies, kept as a summary (problem, what was
+# tried, the fix), the people's roles and a link back to Teams, never the chat itself (fuzer.sources.teams). The
+# assets its summary names are linked by mention.
+source: teams
+record_type: thread
+shape: events
+entity:
+  kind: conversation
+  fields: [subject, channel, started_at, last_post_at, replies, participants, problem, tried, fix, state, web_url]
+mentions:
+  - from: summary
+    props: [text, span, method]

@@ -56,6 +56,13 @@ export interface FuzerEvent {
   log: { id: string; label: string | null; text: string | null } | null;
 }
 
+/** A chat thread about an asset (P5.8b): its summary and a link back to where it was said, never the chat. */
+export interface ChatThread {
+  id: string; subject: string | null; channel: string | null; state: string | null; started_at: string | null;
+  last_post_at: string | null; problem: string | null; tried: string[]; fix: string | null; participants: string[];
+  web_url: string | null;
+}
+
 export interface Maintenance {
   total: number;
   failure_modes: { code: string | null; name: string | null; count: number }[];
@@ -416,6 +423,7 @@ export const investigateApi = {
     request<RankRow[]>("GET", "/downtime/ranking", { by, since, limit: 15 }),
   reasonChecks: () =>
     request<{ fuzer_id: string; label: string; issue: string; start: string }[]>("GET", "/downtime/reason-checks"),
+  assetThreads: (id: string) => request<ChatThread[]>("GET", `/entities/${encodeURIComponent(id)}/conversations`),
   incidents: (id?: string) =>
     request<{ total: number; items: Incident[] }>(
       "GET", id ? `/entities/${encodeURIComponent(id)}/incidents` : "/incidents", { limit: 100 }),
