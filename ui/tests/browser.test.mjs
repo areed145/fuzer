@@ -4451,6 +4451,9 @@ test("a turnaround with a schedule shows its progress against the baseline and t
   assert.ok(asked.some((u) => u.includes("revision=TA26")));
 });
 
+const BURN_NONE = { since: "", until: "", source: "", note: "", months: [], summary: { created: 0, closed: 0,
+  open_at_start: 0, open_at_end: null, trend: "steady" }, lag: { orders: 0, with_notification: 0, without_notification: 0,
+  ordered_before_notified: 0, median_days: null, p90_days: null, max_days: null, longest: [] } };
 const ACCOUNTS_NONE = { reconciliation: { since: "", until: "", tolerance_pct: 1, months: [], summary: { agrees: 0,
   differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0 }, sources: { operational: "", accounting: "" },
   note: "" }, unit_cost: { since: "", until: "", currencies: [], months: [], window: {}, sources: { cost: "", volume: "" }, note: "" } };
@@ -4478,6 +4481,7 @@ test("How the plant is running compares each KPI with the period before and show
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4527,6 +4531,7 @@ test("Wells under their own forecast are listed with the field line, and thin we
   } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4559,6 +4564,7 @@ test("Cost of unreliability shows each part with its currency and never adds an 
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4602,6 +4608,7 @@ test("Interventions show their gain net of decline, and unknown where a side has
     price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
   await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
     left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: {
     since: "2024-01-01", until: "2025-12-31", source: "downtime records and well tests",
@@ -4648,6 +4655,7 @@ test("Across assets compares granted fields on the same KPIs and names the ones 
       gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
   await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
     price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
   await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
     note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
@@ -4682,6 +4690,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
       net_gain_sm3d: null } } }));
   const op = (since, through, days, value) => ({ value, days, days_expected: 31, since, through,
     refs: ["fz-production_day-1", "fz-production_day-2"], source: "daily allocated production" });
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: BURN_NONE }));
   await page.route("**/plant/accounting", (route) => route.fulfill({ json: {
     reconciliation: { since: "2024-12-31", until: "2025-12-31", tolerance_pct: 1, sources: {
       operational: "daily allocated production (EC DAY001 daily reports)", accounting: "production accounting" },
@@ -4766,3 +4775,43 @@ test("Incidents show repeats per unit, work that closed before a repeat, and ope
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// #348: is the backlog under control? Created against closed each month, open at month end, and the notification-to-
+// order lag with the orders that had no notification counted and left out.
+test("The backlog burn shows created against closed and the lag, leaving out orders with no notification (#348)", async () => {
+  await page.route("**/plant/scorecard?*", (route) => route.fulfill({ json: {
+    days: 30, now: { since: "2025-12-01", through: "2025-12-30" }, before: { since: "2025-11-01", through: "2025-11-30" },
+    kpis: [], unknown: [], note: "" } }));
+  await page.route("**/plant/forecast-vs-actual", (route) => route.fulfill({ json: { since: "", until: "", unit: "",
+    source: "", note: "", wells: [], not_fitted: [], field: { wells_compared: 0, forecast_sm3d: 0, actual_sm3d: 0,
+      gap_sm3d: 0, below_forecast: [], above_forecast: [] } } }));
+  await page.route("**/plant/cost-of-unreliability", (route) => route.fulfill({ json: { since: "", until: "",
+    price: { oil_sm3: 470, currency: "USD", source: "" }, order_currencies: [], units: [], units_total: 0, source: "", note: "" } }));
+  await page.route("**/plant/scorecard/fleet?*", (route) => route.fulfill({ json: { days: 30, projects: [{ project: "okan" }],
+    left_out: [], kpis: [], note: "" } }));
+  await page.route("**/plant/intervention-gains", (route) => route.fulfill({ json: { since: "", until: "", source: "",
+    note: "", interventions: [], summary: { interventions: 0, said: 0, unknown: 0, gained: 0, lost: 0, no_clear_change: 0,
+      net_gain_sm3d: null } } }));
+  await page.route("**/plant/accounting", (route) => route.fulfill({ json: ACCOUNTS_NONE }));
+  const m = (month, created, closed, open) => ({ month, since: `${month}-01`, until: "", created, closed, net: created - closed,
+    open_at_end: open, closed_without_finish: 0, by_type: {} });
+  await page.route("**/plant/backlog-burn", (route) => route.fulfill({ json: {
+    since: "2025-01-01", until: "2025-12-31", source: "SAP work orders", note: "The lag covers only orders raised for a notification.",
+    months: [m("2025-11", 11, 5, 29), m("2025-12", 6, 3, 32)],
+    summary: { created: 17, closed: 8, open_at_start: 23, open_at_end: 32, trend: "growing" },
+    lag: { orders: 17, with_notification: 7, without_notification: 10, ordered_before_notified: 0, median_days: 1,
+      p90_days: 7, max_days: 16, longest: [{ order: "fz-work_order-1", label: "50000271", notification: "fz-notification-1",
+        notified: "2025-09-29", ordered: "2025-10-15", lag_days: 16, type: "PM01", priority: "2" }] } } }));
+  await page.goto(`${url}/#/scorecard`);
+  const card = page.locator(".backlog-burn");
+  await card.getByText("17 orders created, 8 closed; open went from 23 to 32", { exact: false }).waitFor();
+  await card.locator(".burn-trend").getByText("growing").waitFor();
+  await card.locator('tr[data-month="2025-12"] td[data-label="Open at month end"]').getByText("32").waitFor();
+  await card.getByText("Median 1 days, 90% within 7, longest 16", { exact: false }).waitFor();
+  await card.getByText("10 of 17 orders had no notification and are left out.", { exact: false }).waitFor();
+  await card.getByText("16 days, notified 2025-09-29, ordered 2025-10-15", { exact: false }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+

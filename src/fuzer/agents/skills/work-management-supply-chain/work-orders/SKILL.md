@@ -15,11 +15,14 @@ basic finish date; overdue means past it at `as_of`. Priority 1 is most urgent.
    older than 90 days: the backlog isn't being worked down), `urgent_overdue` (priority 1-2 past basic
    finish) and `unplanned_risk` (notifications with no order on bad actors), and gives `ranked`, the
    open orders by value / risk in money. Quote each flag with its threshold and lead with `ranked`.
-3. **Prioritise** by risk, not age: high-priority overdue orders first, then orders on bad actors or
+3. `backlog_burn` (and `plot_backlog_burn`): is the backlog under control? Orders created against closed each month,
+   the open backlog at each month's end and its trend, and the notification-to-order lag. Say how many orders had
+   no notification: they are left out of the lag, not counted as zero.
+4. **Prioritise** by risk, not age: high-priority overdue orders first, then orders on bad actors or
    units that caused deferment (`bad_actors`, `deferment_pareto(by="tag")`), then statutory
    inspection work (`maintenance_compliance`). Orders flagged with a `revision` wait for the turnaround.
-4. **Unplanned notifications** are risk without a plan; name them and their units.
-5. For one unit: `maintenance_history(ref)` shows its notifications and orders over time.
+5. **Unplanned notifications** are risk without a plan; name them and their units.
+6. For one unit: `maintenance_history(ref)` shows its notifications and orders over time.
 
 **Escalate** priority 1-2 orders past basic finish on a unit that is running, statutory inspection work past due,
 and a notification on a bad actor with no order. **Don't trust** an order's status as the job's state (TECO says it
