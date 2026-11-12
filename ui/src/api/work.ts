@@ -19,11 +19,15 @@ export interface MatchPayload {
   auto_accept?: number;
 }
 
+/** A correction that came back to the steward (P2.4): rejected by the source's owner, or checked in the field. */
+export interface Returned { kind: string; system: string; why: string }
+
 export interface ConflictPayload {
   fuzer_id: string;
   field: string;
   chosen: unknown;
   values: SourceValue[];
+  returned?: Returned;
 }
 
 export interface SchemaPayload {
@@ -91,6 +95,7 @@ export interface PidMismatchPayload {
   drawn_on?: string; register?: { parent: string; sources: string[] }[];
   /** The disagreement in the one finding shape (P1.1); absent on questions raised before it. */
   finding?: Finding;
+  returned?: Returned;
 }
 
 export interface HeldLoadPayload {
@@ -116,7 +121,7 @@ export type ReviewItem =
     };
 
 export interface Decision {
-  decision: "accept" | "reject" | "choose";
+  decision: "accept" | "reject" | "choose" | "field";
   value?: unknown;
   by: string;
 }
@@ -303,6 +308,64 @@ export interface WorkNotification {
   read_at: string | null;
 }
 
+/** How a person is told (P5.2b, #606): on My work only, or also by email, Teams or Slack, with quiet hours. */
+export interface NotifyPreference {
+  channel: "in_app" | "email" | "teams" | "slack";
+  address: string | null;
+  quiet_from: string | null;
+  quiet_to: string | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
+}
+
+/** A gate's decision on a case (P5.10): whether an automatic or agent decision went ahead or stopped for a person. */
+export interface GateDecision {
+  id: number;
+  kind: string;
+  actor: string;
+  confidence: number | null;
+  threshold: number | null;
+  criticality: string | null;
+  could_not_check: string[];
+  fired: boolean;
+  reason: string;
+  at: string;
+}
+
+/** A change proposed to a source system (P5.7): it is written only after a named approver approves it. */
+export interface Writeback {
+  id: number;
+  system: string;
+  kind: string;
+  record: string | null;
+  action: string;
+  payload: Record<string, unknown>;
+  state: "drafted" | "awaiting_approval" | "approved" | "sent" | "confirmed" | "failed" | "rejected";
+  drafted_by: string;
+  drafted_at: string;
+  approver_role: string | null;
+  item_id: number | null;
+  source_ref: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  due_at: string | null;
+  sent_at: string | null;
+  confirmed_at: string | null;
+  error: string | null;
+  reason: string | null;
+}
+
+export interface WritebackDetail extends Writeback {
+  label: string;
+  approvers: string[] | null;
+  cadence: string | null;
+  adapter: string;
+  history: { id: number; state: string; by: string; note: string | null; at: string }[];
+}
+
+/** A reading the field took on site (P5.3b): a number with its unit, and what it was of. */
+export interface FieldReading { value: number; unit: string; what?: string | null }
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -487,7 +550,7 @@ export interface HandoverRow {
 export interface Closeout {
   id: number; exception_id: number; system: string; record: string; action: "complete" | "follow_up";
   draft: { text: string; status?: string | null; short_text?: string; [k: string]: unknown };
-  state: "draft" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
+  state: "draft" | "approved" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
   decided_by: string | null; decided_at: string | null; applied_at: string | null;
 }
 
@@ -510,10 +573,17 @@ export interface JoinedException {
 }
 
 /** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
+/** Open questions that share an answer (P2.3c), with the answers they can take. */
+export interface ReviewGroup {
+  kind: string; key: string; label: string; count: number; items: number[];
+  options: { decision: "accept" | "reject" | "choose"; source?: string; value?: unknown; label: string }[];
+  standing: { decision: string; source: string | null; value: unknown; set_by: string } | null;
+}
+
 export interface FindingItem {
   label: string; value: string | number | boolean; unit?: string;
-  kind: "text" | "number" | "flag" | "time" | "asset";
-  /** An asset's tag and description. */
+  kind: "text" | "number" | "flag" | "time" | "asset" | "page";
+  /** An asset's tag and description, or a page link's words. */
   text?: string | null;
 }
 
@@ -566,7 +636,7 @@ export interface FieldJob extends ExceptionRow {
   assets: { fuzer_id: string; label: string | null; kind: string | null; lat: number | null; lon: number | null }[];
   finding: Finding;
   history: { id: number; title: string; state: string; first_seen: string }[];
-  field: { at: string; by: string; status: string; note: string | null }[];
+  field: { at: string; by: string; status: string; note: string | null; reading?: FieldReading; photos?: number[] }[];
   /** Who sent it to them, when, and what they asked for. */
   sent: { by: string | null; at: string | null; reason: string | null } | null;
   /** The open step is in one of their roles (a Field check), so they can open it; another role's step handed to
@@ -598,6 +668,9 @@ export const workApi = {
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   notifications: (person: string) =>
     request<{ notifications: WorkNotification[]; unread: number }>("GET", "/work/notifications", { person }),
+  notifyPreference: (person: string) => request<NotifyPreference>("GET", `/work/people/${encodeURIComponent(person)}/notify`),
+  setNotifyPreference: (person: string, p: NotifyPreference, by: string) =>
+    request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
@@ -611,14 +684,26 @@ export const workApi = {
     request<Handover>("POST", `/handovers/${id}/acknowledge`, undefined, { by, note: note ?? null }),
   resolveRef: (id: number, by: string, ref: string, fuzer_id: string, remember: boolean, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/resolve`, undefined, { by, ref, fuzer_id, remember, reason: reason ?? null }),
+  writebacks: (f: { system?: string; state?: string; item_id?: number } = {}) => request<Writeback[]>("GET", "/writebacks", f),
+  writeback: (id: number) => request<WritebackDetail>("GET", `/writebacks/${id}`),
+  approveWriteback: (id: number, by: string, payload?: Record<string, unknown>) =>
+    request<Writeback>("POST", `/writebacks/${id}/approve`, undefined, { by, payload: payload ?? null }),
+  rejectWriteback: (id: number, by: string, reason: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/reject`, undefined, { by, reason }),
+  confirmWriteback: (id: number, by: string, note?: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/confirm`, undefined, { by, note: note ?? null }),
+  failWriteback: (id: number, by: string, reason: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/fail`, undefined, { by, reason }),
   closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
   approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
-  fieldReport: (id: number, by: string, status: string, note?: string) =>
-    request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null }),
+  fieldReport: (id: number, by: string, status: string, note?: string,
+    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string } = {}) =>
+    request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
+      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),
@@ -640,6 +725,7 @@ export const workApi = {
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
+  workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
   generateWorkflow: (id: number, description: string, by: string) =>
@@ -721,4 +807,8 @@ export const workApi = {
     request<{ id: number; status: string }>("POST", `/lessons/${id}`, undefined, { decision, by, text }),
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   decide: (id: number, d: Decision) => request<{ decided: number }>("POST", `/review/${id}`, undefined, d),
+  reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
+  decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>
+    request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),
+  withdrawGroup: (key: string, by: string) => request<{ withdrawn: string }>("DELETE", "/review/groups", { key, by }),
 };

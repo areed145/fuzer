@@ -22,6 +22,7 @@ from ..graph import (
     llm_links,
     measurements,
     queries,
+    roles,
     spatial,
 )
 from ..graph.resolve import replace_open_reviews, resolve, resolve_keyed, retire_unused, sync_labels
@@ -168,6 +169,7 @@ def rebuild(conn, pack: Pack) -> dict:
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
     # where a drawing and the DCS, AF or SAP disagree: questions for a person, never a change to either (#475)
     replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack)))
+    stats |= roles.build(conn, pack)  # what each historian point means for its asset (P1.4)
     lap("measurements")
 
     stats["located"] = spatial.index(conn)
@@ -201,6 +203,15 @@ def rebuild(conn, pack: Pack) -> dict:
         (Jsonb(queries.ontology(conn, cached=False)),),
     )
     lap("summary")
+    from ..graph import criticality, data_work, review
+
+    stats["standing_answers"] = review.apply_standing(conn)  # like questions a steward already answered (P2.3c)
+    stats["steward_work"] = data_work.sync(conn)  # every open question is a case in the steward's queue (P2.3)
+    stats["criticality_work"] = criticality.sync(conn)  # an asset with no criticality is a steward case
+    from . import corrections
+
+    stats["corrections"] = corrections.sync(conn)  # what answers said was wrong at a source, and what came back (P2.4)
+    lap("steward work")
     conn.commit()
     lap("commit")
     stats["seconds"] = timings

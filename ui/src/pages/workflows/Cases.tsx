@@ -9,6 +9,9 @@ import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText,
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { AgentWork } from "../../AgentWork";
+import { CaseGates } from "../Gates";
+import { CaseWritebacks } from "../Writeback";
+import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
@@ -182,6 +185,8 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
       <CaseFindings sources={it.sources} />
+      <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
+      <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">
@@ -227,10 +232,10 @@ function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: s
     <UICard className="">
       <h3>{d.action === "complete" ? `Complete ${d.record} in ${system}` : `Raise a follow-up to ${d.record} in ${system}`}</h3>
       <p className="small muted">{d.action === "complete"
-        ? `The field reported it done. Sending this closes it in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}, so its record agrees and the IOC stops holding it.`
-        : `The field could not do it. Sending this raises a new ${system} record for the work that is still needed.`}</p>
+        ? `The field reported it done. Once a planner approves it, it closes it in ${system}${d.draft.status ? ` (status ${d.draft.status})` : ""}, so its record agrees and the IOC stops holding it.`
+        : `The field could not do it. Once approved, this raises a new ${system} record for the work that is still needed.`}</p>
       {d.state !== "draft" ? (
-        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state}</UIBadge>{" "}
+        <p className="small"><UIBadge className={`badge ${d.state === "sent" ? "ok" : ""}`}>{d.state === "approved" ? "approved, goes in the next batch" : d.state}</UIBadge>{" "}
           by <Actor who={d.decided_by ?? ""} /> {d.decided_at && when(d.decided_at)}
           {d.applied_at && <span className="muted"> · applied to the demo's {system} data</span>}</p>
       ) : null}
@@ -244,7 +249,7 @@ function CloseoutPanel({ id, person, readOnly, reload }: { id: number; person: s
       {d.state === "draft" && !readOnly && (
         <div className="row">
           <Button variant="primary" disabled={!!a.busy} onClick={() => a.run("send", () =>
-            api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve and send to {system}</Button>
+            api.approveCloseout(id, person, text ?? undefined, short ?? undefined), done)}>Approve for {system}</Button>
           <Button variant="secondary" disabled={!!a.busy} onClick={() => a.run("discard", () =>
             api.discardCloseout(id, person, "not sent: updated by hand"), done)}>Don't send</Button>
         </div>
@@ -328,6 +333,8 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
             <li key={e.id} className={`ev-${e.kind}`}>
               <div className="row small"><span className="muted mono">{when(e.at)}</span> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</div>
               {body}
+              {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>
+                <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}
             </li>
           );
         })}

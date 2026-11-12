@@ -612,7 +612,9 @@ def close_item(conn, item_id: int, state: str, by: str, reason: str | None = Non
     """Finish or cancel a case from outside its process (its condition cleared, the field did it): a case without a
     process moves to `state`; one with a process has its open steps ended with the reason and the case moves to
     `state` with it, as when the process reaches its end (#509: a queue case is a process now)."""
-    from .work_items import transition
+    from .work_items import safety_gate, transition
+
+    safety_gate(conn, item_id, state, by)
 
     if not conn.execute("select 1 from work_process where item_id = %s and state = 'running' and parent_token is null",
                         (item_id,)).fetchone():

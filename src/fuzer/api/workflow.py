@@ -232,6 +232,37 @@ def work_notifications_read(r: NotificationsRead, conn=Depends(get_conn)):
     return notify.mark_read(conn, r.person, r.ids)
 
 
+class NotifyPreference(BaseModel):
+    by: str
+    channel: str = "in_app"         # in_app, email, teams, slack
+    address: str | None = None      # email address; env:NAME holding the Teams or Slack webhook URL
+    quiet_from: str | None = None   # HH:MM in the project's timezone
+    quiet_to: str | None = None
+
+
+@router.get("/work/people/{name}/notify")
+def work_notify_preference(name: str, conn=Depends(get_conn)):
+    """How a person is told about work (P5.2b, #606)."""
+    from ..workflow import notify
+
+    return notify.preference(conn, name)
+
+
+@router.put("/work/people/{name}/notify")
+def work_notify_preference_set(name: str, p: NotifyPreference, conn=Depends(get_conn)):
+    from ..workflow import notify
+
+    return notify.set_preference(conn, name, p.channel, p.address, p.quiet_from, p.quiet_to, p.by)
+
+
+@router.get("/work/items/{item_id}/gates")
+def work_item_gates(item_id: int, conn=Depends(get_conn)):
+    """Every gate decision on a case (P5.10): why it did or didn't stop for a person."""
+    from ..core import gates
+
+    return gates.decisions(conn, item_id)
+
+
 @router.get("/work/inbox/fields")
 def work_inbox_fields(person: str):
     """A person's Inbox in every field (project) they hold a role in and may open (#497): the overarching view for

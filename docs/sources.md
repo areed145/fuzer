@@ -115,6 +115,36 @@ by tag and description. `data` holds only the variables the type's process route
 or `POST /exceptions` body keeps sending `evidence` in the sender's own keys; `findings.external` turns it into a
 finding in one place. A test fails when a raiser under `src/fuzer` passes anything else.
 
+**Data problems are routed work** (P2.3, `graph/data_work.py`). Every open question the build leaves becomes a case in
+the data steward's queue, with its own work type on the Routing page and the role's SLA. That covers a possible
+match, sources that disagree, a drawing that disagrees with a system, a drawing line or datasheet curve to
+confirm, an export whose columns changed, a suggested mapping, and a load a check held. These cases are worked in
+the same engine as the IOC's, so they show in My work and All work. Each case is keyed to its question and synced
+at every rebuild. An answer clears the case, and so does a question that no longer arises, so the queue always
+matches the questions. Steward cases don't join the IOC's cases about the same asset. The questions themselves are
+the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
+there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
+
+**Missing criticality is the steward's to fill** (`graph/criticality.py`). An asset's criticality ranks its work by
+consequence and decides where the human gates always stop for a person, so an asset without one is neither treated
+as the most nor the least critical. Each asset (a tag not part of another, or a well) with no criticality is one open
+`criticality_not_assessed` case in the data steward's queue, keyed by the asset, so rebuilds never duplicate it.
+Setting a criticality, by a fix on Master data or the source's next load, clears it at the next rebuild. Until
+then, the value score and the matching gate say "not assessed": compliance still counts the overdue days at the
+lowest factor, saying so, and risk is left unknown rather than guessed. A register that rates no asset at all
+raises nothing, since its source is the gap.
+
+**Like questions answered once** (P2.3c, `graph/review.py`). Questions are like each other when the same answer
+is right for all of them for the same reason. That covers conflicts on one field between the same systems (written
+differently, or genuinely different), possible matches between the same two registers on the same evidence, and
+drawing disagreements from one check. **Like questions**, above each kind on the Questions tab, answers a whole
+group at once, for example "Use sap's value" or "Keep each pair apart". Each question is decided and pinned as if
+answered alone (a pinned link, a review assertion), so the answer survives rebuilds, and the group's cases close
+together. A question the answer can't apply to is left for a person, with the reason. Ticking **and new ones like
+these** makes it a standing answer: at each rebuild it decides new questions in the group as the person who set it
+(`review_rule`), until it is withdrawn. A standing answer to matches pins them at that rebuild, so their records
+merge or stay apart from the next one.
+
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
 search the register, pick the asset, and (by default) remember the value. The asset becomes a subject of the
@@ -182,6 +212,39 @@ coverage and open reviews. A problem opens one `source_issue` work item for the 
 system's owner, else `role:data_steward`) and posts to the alert webhook; the item closes when the problem
 clears. Rules (`rules.py`): survivorship priority and match thresholds come from the catalog at each rebuild,
 seeded from the pack (a rule nobody edited follows the pack).
+
+**Calibrated match confidence** (P2.2, `graph/calibration.py`). Equipment that shares no serial with another
+system's record is scored on its tag, maker and description. Each rebuild keeps every scored pair with what it
+did (`match_score`): merged, sent to review, ambiguous or left apart. **Measure**, on the Rules page (or
+`fuzer sources calibrate`), labels those pairs from the stewards' match decisions and the project's answer key
+(`answer_keys/matches.json` in its data folder). It then gives each source what its scores are worth:
+
+- its precision and recall at each threshold, with the lower bound of the 95% interval,
+- a calibrated probability per score (isotonic),
+- a straight-through threshold at 99% measured precision,
+- a review floor that rejects no true match it saw.
+
+A pair belongs to the register being matched in, the less trusted of its two systems by rank, so a contractor
+register is measured on its own records. A record that fits two items always goes to a person, so it is counted
+but not measured. **Use the measured thresholds** sets each source's match rule (`equipment/<source>`, audited),
+and a pair is held to the stricter of its two sources' thresholds from the next rebuild. The cautious direction
+(a higher straight-through threshold, a lower review floor) is adopted on any evidence. The other direction
+needs at least 30 labelled pairs, since 100% of ten pairs is not 99%. On Kestrel, the glycol pump's driver
+(same maker, a close name, the pump's tag) scores 0.90, enough for the pack's threshold. Measuring puts Maximo's
+threshold above it. `tests/graph/test_calibration.py` holds straight-through at 99% or better on both bundles.
+
+**The human gate on automatic matches** (P5.10, `core/gates.py`). A pair the thresholds would merge still asks
+the `auto_match` gate. It goes through only when its confidence meets the gate's threshold: 99% by default, and
+never on an A-criticality asset. The criticality is the tag's, read from the records the same rebuild loads.
+Where the pair's source has been measured, its confidence is the precision measured at that score or above, so
+the two agree: a measured source's threshold is set where its matches reach 99%. A source not yet measured has
+only its score, so its pairs below 0.99 stop for a person whatever the pack's threshold says. The two checks run
+in order. The source's threshold decides whether a pair is a candidate to merge at all, and the gate decides
+whether it may merge without a person. The stricter one wins. A stopped pair becomes a match question like any
+other. Its case shows the confidence, the threshold it needed and why it stopped, and every gate decision, went
+ahead or stopped, is kept in `gate_decision`. Matches on the same key (a shared serial) are the same item by
+definition, and the gate is not asked. On Kestrel the gate holds the glycol pump's driver (0.90 unmeasured) even
+before calibration, and asks a person about the amine reboiler because it is A-criticality.
 
 **Before and after a change.** `fuzer sources impact` runs a proposed mapping beside the one in use over the
 stored records and diffs what they make: entities and links added or removed, fields changed, golden values that
@@ -400,6 +463,17 @@ sheet, tag and both sides. The reviewer records which one needs changing: **the 
 SAP needs changing), **the system is right** (the drawing needs a redline), or **not a disagreement** (a misread).
 A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
 back with different values is a new question. Questions no longer raised go stale.
+
+## Corrections flow back to the source
+An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
+choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back
+queue (a system that takes no write-backs gets a case for its owner); "the system is right" drafts a redline for the
+drawing; "the drawing is right" drafts the register change, or a case for whoever owns the configured alarms; and
+**Check it in the field** opens a case for the operators. The question stays answered while its correction is out,
+so the next rebuild doesn't ask it again; each rebuild keeps what every source says on the fields a steward chose
+(`reviewed_value`). The correction is done when its write-back is confirmed or the source's next load says what was
+chosen. It comes back to the steward, reopened on the Questions tab and as a case in their queue with what
+happened, when the owner rejects it, the source changes to something else, or the field check is answered.
 
 ## Where an instrument sits
 Claude also says which item each instrument's process connection runs to. When the register has the instrument

@@ -4,13 +4,14 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
-import { api, type FieldJob, type WorkInbox, type WorkNotification, type WorkRow } from "../../api";
+import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
-import { ComingUp, FieldJobCard } from "../Field";
+import { ComingUp, FieldJobCard, Outbox } from "../Field";
+import { fieldJobs } from "../../fieldOffline";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -28,7 +29,8 @@ export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
-  const field = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
+  // Kept on the phone, so the jobs still read without signal (P5.3c).
+  const field = useAsync(() => (person ? fieldJobs(person) : Promise.resolve(null)), [person]);
   const stats = useAsync(() => api.stats(), []);
   // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
   const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
@@ -43,8 +45,10 @@ export function InboxPage() {
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
     <SampleTeam />
   </UICard></section>;
-  if (!inbox.data) return <Status loading={inbox.loading} error={inbox.error} />;
-  const d = inbox.data;
+  const offline = field.data?.offline;
+  if (!inbox.data && !offline) return <Status loading={inbox.loading} error={inbox.error} />;
+  const none = { total: 0, overdue: 0, due_soon: 0 };
+  const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
   const jobs = field.data?.jobs ?? [];
@@ -77,7 +81,10 @@ export function InboxPage() {
         <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
-      <NewForYou person={person} />
+      {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
+        Reports wait here and send when the signal returns.</Notice>}
+      <Outbox onSent={() => { field.reload(); inbox.reload(); }} />
+      {!offline && <NewForYou person={person} />}
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
@@ -85,7 +92,7 @@ export function InboxPage() {
         {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
-        {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
+        {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
       <ScenarioClock />
@@ -114,6 +121,7 @@ export function InboxPage() {
       </section>}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
+      <HowYouAreTold person={person} />
     </section>
   );
 }
@@ -145,6 +153,44 @@ function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => vo
       <a href={n.link} onClick={onOpen}>{n.text}</a>
       <span className="small">{when(n.created_at)}</span>
     </li>
+  );
+}
+
+const CHANNEL: Record<NotifyPreference["channel"], string> = {
+  in_app: "Only here, on My work", email: "Email", teams: "Teams", slack: "Slack",
+};
+
+/** Where the person is told besides My work, and their quiet hours, when nothing is sent (P5.2b, #606). */
+function HowYouAreTold({ person }: { person: string }) {
+  const pref = useAsync(() => api.notifyPreference(person), [person]);
+  const [draft, setDraft] = useState<NotifyPreference | null>(null);
+  const [state, setState] = useState<{ error?: string; saved?: boolean }>({});
+  if (!pref.data) return null;
+  const p = draft ?? pref.data;
+  const change = (patch: Partial<NotifyPreference>) => { setDraft({ ...p, ...patch }); setState({}); };
+  const save = () => api.setNotifyPreference(person, p, person)
+    .then(() => { setDraft(null); setState({ saved: true }); pref.reload(); }, (e: Error) => setState({ error: e.message }));
+  const external = p.channel !== "in_app";
+  return (
+    <UICard className="" title="How you are told">
+      <div className="row small">
+        <label>Also send to{" "}
+          <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
+            {Object.entries(CHANNEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+        </label>
+        {external && <label>{p.channel === "email" ? "Address" : "Webhook kept in"}{" "}
+          <Input value={p.address ?? ""} placeholder={p.channel === "email" ? "name@company.com" : "env:NAME"}
+            onChange={(e) => change({ address: e.target.value })} /></label>}
+        {external && <label>Quiet from{" "}
+          <Input type="time" value={p.quiet_from?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_from: e.target.value || null })} /></label>}
+        {external && <label>to{" "}
+          <Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></label>}
+        <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
+        {state.error && <span role="alert" className="error">{state.error}</span>}
+        {state.saved && <span role="status">Saved.</span>}
+      </div>
+    </UICard>
   );
 }
 
@@ -181,7 +227,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
   return (
     <UICard className="">
       <h2>{title} <span className="muted small">{rows.length}{hint ? ` · ${hint}` : ""}</span></h2>
-      <Table variant="results">
+      <Table variant="results" className="phone-rows">
         <tbody>{rows.map((r) => <Row key={`${r.task_id ?? "i"}-${r.item_id}`} r={r} person={person} picked={picked} toggle={toggle} />)}</tbody>
       </Table>
     </UICard>

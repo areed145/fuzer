@@ -134,7 +134,7 @@ def excursions(conn, pack, since, until, src) -> list[dict]:
 @detectors.register("stops", title="A unit going from running to stopped",
                     kind=RULE, cadence="6h",
                     raises=("upset",), window=True, eval="replay:sre:stops",
-                    roles=("running status",), needs={"historian points": POINTS, "a run signal on a unit": _has_run_signal},
+                    roles=("running_status",), needs={"historian points": POINTS, "a run signal on a unit": _has_run_signal},
                     params=("sre.step_minutes",))
 def stops(conn, pack, since, until, src) -> list[dict]:
     """A unit with its own run signal going from running to stopped: a trip or a stop."""
@@ -210,8 +210,8 @@ def _daily(since, until) -> bool:
 @detectors.register("drifts", title="A slow climb in what wears and fouls",
                     kind=STATISTICAL, cadence="daily",
                     raises=("upset",), window=True, eval="replay:sre:drifts",
-                    roles=("vibration", "bearing temperature", "discharge temperature", "outlet temperature",
-                           "differential pressure"),
+                    roles=("vibration", "bearing_temperature", "discharge_temperature", "outlet_temperature",
+                           "differential_pressure"),
                     needs={"historian points": POINTS}, params=("sre.drift_rise", "signals.drift_z"),
                     by_class=("sre.drift_rise",))
 def drifts(conn, pack, since, until, src) -> list[dict]:
@@ -343,7 +343,7 @@ def models(conn, pack, since, until, src) -> list[dict]:
 @detectors.register("hydraulics", title="A flowline pressure drop still rising",
                     kind=MODEL, cadence="daily",
                     raises=("upset",), window=True, eval="replay:sre:hydraulics",
-                    classes=("well",), roles=("wellhead pressure", "header pressure"),
+                    classes=("well",), roles=("wellhead_pressure", "pressure"),
                     needs={"historian points": POINTS, "a well with a choke": CHOKED_WELLS})
 def hydraulics(conn, pack, since, until, src) -> list[dict]:
     """Once a day: each jacket well's wellhead-to-header pressure drop still rising (a flowline waxing

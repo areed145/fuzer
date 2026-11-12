@@ -3,9 +3,45 @@
  * site, done, could not do, a note). What they report lands on the exception as evidence the IOC sees. My jobs was its
  * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
  * else waiting on them. */
-import { useState } from "react";
-import { api, type FieldJob, type PlanItem } from "../api";
-import { Badge, Button, ButtonLink, Card } from "../ui";
+import { useEffect, useRef, useState } from "react";
+import { api, type FieldJob, type FieldReading, type PlanItem } from "../api";
+import { Badge, Button, ButtonLink, Card, Input } from "../ui";
+import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
+import { OUTBOX_CHANGED, flush, outbox, sendReport } from "../fieldOffline";
+
+/** Reports kept on this phone while there was no signal (P5.3c): sent as soon as it returns, or now by hand. */
+export function Outbox({ onSent }: { onSent: () => void }) {
+  const [waiting, setWaiting] = useState(outbox().length);
+  const [refused, setRefused] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const sentRef = useRef(onSent);
+  sentRef.current = onSent;
+  useEffect(() => {
+    const count = () => setWaiting(outbox().length);
+    const send = async () => {
+      if (!outbox().length) return;
+      setBusy(true);
+      const r = await flush();
+      setBusy(false);
+      count();
+      if (r.refused.length) setRefused(r.refused);
+      if (r.sent) sentRef.current();
+    };
+    window.addEventListener(OUTBOX_CHANGED, count);
+    window.addEventListener("online", send);
+    void send();
+    const timer = window.setInterval(send, 30_000);
+    return () => { window.removeEventListener(OUTBOX_CHANGED, count); window.removeEventListener("online", send); clearInterval(timer); };
+  }, []);
+  if (!waiting && !refused.length) return null;
+  return (
+    <Card className="field-outbox" title={waiting ? `${waiting} report${waiting > 1 ? "s" : ""} waiting to send` : "Reports not accepted"}>
+      {waiting > 0 && <p className="small">Made without signal and kept on this phone. They send, with the time you made them, when the signal returns.</p>}
+      {refused.map((r, i) => <p key={i} role="alert" className="error small">Not accepted: {r}</p>)}
+      {waiting > 0 && <Button disabled={busy} onClick={() => window.dispatchEvent(new Event("online"))}>{busy ? "Sending…" : "Send now"}</Button>}
+    </Card>
+  );
+}
 import { entityHref, href } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
@@ -46,11 +82,33 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
 export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person: string; onChange: () => void }) {
   const { busy, error, run } = useAct();
   const [note, setNote] = useState("");
+  const [what, setWhat] = useState("");
+  const [value, setValue] = useState("");
+  const [unit, setUnit] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [kept, setKept] = useState(false);
+  const dictate = useDictation((t) => setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)));
+  const reading: FieldReading | undefined = value.trim() ? { value: Number(value), unit: unit.trim(), what: what.trim() || null } : undefined;
   const say = (status: string) => {
     const sent = note.trim();
+    if (reading && (!Number.isFinite(reading.value) || !reading.unit)) return setProblem("A reading needs a number and its unit.");
+    setProblem(null);
     // Clear only the note that went: words typed while the request was in flight stay.
-    return run(SAID[status], () => api.fieldReport(job.id, person, status, sent || undefined),
-      () => { setNote((n) => (n.trim() === sent ? "" : n)); onChange(); });
+    return run(SAID[status], () => sendReport({ exception_id: job.id, by: person, status, note: sent || undefined, reading, photos }),
+      (how) => {
+        setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]);
+        setKept(how === "queued");
+        if (how === "sent") onChange();
+      });
+  };
+  const addPhoto = async (files: FileList | null) => {
+    try {
+      const added = await Promise.all(Array.from(files ?? []).map((f) => shrink(f)));
+      setPhotos((p) => [...p, ...added].slice(0, 4));
+    } catch {
+      setProblem("That photo could not be read.");
+    }
   };
   const last = job.field[job.field.length - 1];
   return (
@@ -93,7 +151,10 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       {job.field.length > 0 && <div>
         <h3 className="small">Field log</h3>
         <ul className="plain small">{job.field.map((f, i) => <li key={i}>
-          {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""} <span className="muted">{f.by}</span></li>)}</ul>
+          {when(f.at)} · <strong>{SAID[f.status] ?? f.status}</strong>{f.note ? `: ${f.note}` : ""}
+          {f.reading && <> · <strong>{readingText(f.reading)}</strong></>} <span className="muted">{f.by}</span>
+          {f.photos?.length ? <div className="field-photos">{f.photos.map((p) => <FieldPhoto key={p} exceptionId={job.id} photoId={p} />)}</div> : null}
+        </li>)}</ul>
       </div>}
       {job.queued ? <div className="row field-actions">
         <p className="small muted">Waiting in the {job.role?.replace(/_/g, " ") ?? ""} queue for whoever is free.</p>
@@ -102,6 +163,26 @@ export function FieldJobCard({ job, person, onChange }: { job: FieldJob; person:
       </div> : <>
       <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC (a reading, what you found, why it couldn't be done)</label>
       <textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      {dictate && <Button size="sm" onClick={dictate.toggle} aria-pressed={dictate.listening}>
+        {dictate.listening ? "Stop dictating" : "Dictate the note"}</Button>}
+      <fieldset className="field-evidence">
+        <legend className="small">A reading</legend>
+        <div className="row">
+          <Input aria-label="What was read" placeholder="what (e.g. bearing temperature)" value={what} onChange={(e) => setWhat(e.target.value)} />
+          <Input aria-label="Reading" type="number" inputMode="decimal" step="any" placeholder="value" value={value}
+            onChange={(e) => setValue(e.target.value)} />
+          <Input aria-label="Unit" placeholder="unit (°C, barg, mm/s)" value={unit} onChange={(e) => setUnit(e.target.value)} />
+        </div>
+        <label className="small" htmlFor={`photo-${job.id}`}>Photos {photos.length ? `(${photos.length})` : ""}</label>
+        <input id={`photo-${job.id}`} type="file" accept="image/*" capture="environment" multiple
+          onChange={(e) => { void addPhoto(e.target.files); e.target.value = ""; }} />
+        {photos.length > 0 && <div className="field-photos">{photos.map((p, i) => <span key={i} className="field-photo">
+          <img src={p} alt={`Photo ${i + 1} to send`} />
+          <Button size="sm" aria-label={`Remove photo ${i + 1}`} onClick={() => setPhotos((x) => x.filter((_, j) => j !== i))}>Remove</Button>
+        </span>)}</div>}
+      </fieldset>
+      {problem && <p role="alert" className="error small">{problem}</p>}
+      {kept && <p role="status" className="small">No signal: kept on this phone. It sends, with this time, when the signal returns.</p>}
       <div className="row field-actions">
         <Button disabled={!!busy} onClick={() => say("on_site")}>On site</Button>
         <Button variant="primary" disabled={!!busy} onClick={() => say("done")}>Done</Button>

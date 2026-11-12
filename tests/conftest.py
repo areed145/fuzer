@@ -5,8 +5,10 @@ seeing each other's changes and nothing is rebuilt twice.
 
 The plant's generated files are shared too: a module that edits its data folder generates its own."""
 
+import atexit
 import os
 import re
+import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -28,6 +30,9 @@ os.environ["FUZER_ENV_FILE"] = "none"
 # an embedded Postgres in a temporary folder.
 os.environ.pop("FUZER_DATABASE_URL", None)
 os.environ["FUZER_PGDATA"] = tempfile.mkdtemp(prefix="fzpg")
+# ...removed when the run ends. Registered before the server starts, so it runs after pgserver's own exit hook has
+# stopped it (exit hooks run last registered first); each xdist worker removes its own.
+atexit.register(shutil.rmtree, os.environ["FUZER_PGDATA"], ignore_errors=True)
 # Nor a Claude key: tests run on recorded or fake answers, so one that forgets its fake fails instead of paying.
 os.environ.pop("ANTHROPIC_API_KEY", None)
 os.environ["FUZER_AUTH_MODE"] = "local"  # Legacy API fixtures opt into trusted loopback attribution explicitly.
@@ -243,3 +248,13 @@ class _Sequence:
 
 def pytest_configure(config):
     config.pluginmanager.register(_Sequence(), "fuzer-sequence")
+
+
+def pytest_unconfigure(config):
+    """Stop this process's test Postgres and remove its folder (an xdist worker may skip exit hooks)."""
+    from fuzer.core import db
+
+    if db._server is not None:
+        db._server.cleanup()
+        db._server = None
+    shutil.rmtree(os.environ["FUZER_PGDATA"], ignore_errors=True)

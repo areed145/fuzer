@@ -13,16 +13,23 @@ import {
   type MappingPayload,
   type MatchPayload,
   type ReviewItem,
+  type ReviewGroup,
   type ReviewKind,
   type SchemaPayload,
   type Stats,
 } from "../api";
 import { SourceBadge, Status, entityHref, fmt, href, notifyChanged, useAsync } from "../lib";
-import { ActionStatus, Bar, Button, ButtonLink, PageHeader, Table, Card as UICard, Input } from "../ui";
+import { ActionStatus, Bar, Button, ButtonLink, Table, Card as UICard, Input } from "../ui";
 import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 import { FindingEvidence } from "../Finding";
 
+/** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
+export const questionsHref = (kind?: string, item?: number) =>
+  href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
+
+/** The questions the build leaves for the data steward, by kind (P2.3): a tab on Master data. Each is also a case in
+ * the steward's queue, which links here opened on its question; answering closes that case. */
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
@@ -69,35 +76,37 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
     notifyChanged();
   };
 
-  const open = items.data?.filter((i) => !done.has(i.id)) ?? [];
+  const asked_item = Number(query.get("item")) || null;
+  // Opened from its case: that question first.
+  const open = (items.data?.filter((i) => !done.has(i.id)) ?? [])
+    .sort((a, b) => Number(b.id === asked_item) - Number(a.id === asked_item));
 
   return (
     <section>
-      <PageHeader subtitle="Data waiting for a decision." help="data-model">Data review</PageHeader>
       <div className="row spread">
         <div className="tabs">
-          <a className={kind === "match" ? "on" : ""} href={href("/review", { kind: "match" })}>
+          <a className={kind === "match" ? "on" : ""} href={questionsHref("match")}>
             Possible matches <span className="muted">{stats?.open_reviews.match ?? 0}</span>
           </a>
-          <a className={kind === "conflict" ? "on" : ""} href={href("/review", { kind: "conflict" })}>
+          <a className={kind === "conflict" ? "on" : ""} href={questionsHref("conflict")}>
             Conflicting values <span className="muted">{stats?.open_reviews.conflict ?? 0}</span>
           </a>
-          <a className={kind === "schema" ? "on" : ""} href={href("/review", { kind: "schema" })}>
+          <a className={kind === "schema" ? "on" : ""} href={questionsHref("schema")}>
             Schema changes <span className="muted">{stats?.open_reviews.schema ?? 0}</span>
           </a>
-          <a className={kind === "mapping" ? "on" : ""} href={href("/review", { kind: "mapping" })}>
+          <a className={kind === "mapping" ? "on" : ""} href={questionsHref("mapping")}>
             New tables <span className="muted">{stats?.open_reviews.mapping ?? 0}</span>
           </a>
-          <a className={kind === "curve" ? "on" : ""} href={href("/review", { kind: "curve" })}>
+          <a className={kind === "curve" ? "on" : ""} href={questionsHref("curve")}>
             Datasheet curves <span className="muted">{stats?.open_reviews.curve ?? 0}</span>
           </a>
-          <a className={kind === "check" ? "on" : ""} href={href("/review", { kind: "check" })}>
+          <a className={kind === "check" ? "on" : ""} href={questionsHref("check")}>
             Held loads <span className="muted">{stats?.open_reviews.check ?? 0}</span>
           </a>
-          <a className={kind === "pid_connection" ? "on" : ""} href={href("/review", { kind: "pid_connection" })}>
+          <a className={kind === "pid_connection" ? "on" : ""} href={questionsHref("pid_connection")}>
             Drawing connections <span className="muted">{stats?.open_reviews.pid_connection ?? 0}</span>
           </a>
-          <a className={kind === "pid_mismatch" ? "on" : ""} href={href("/review", { kind: "pid_mismatch" })}>
+          <a className={kind === "pid_mismatch" ? "on" : ""} href={questionsHref("pid_mismatch")}>
             Drawing disagreements <span className="muted">{stats?.open_reviews.pid_mismatch ?? 0}</span>
           </a>
         </div>
@@ -133,6 +142,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         </div>
       )}
 
+      <LikeQuestions kind={kind} name={name} onDone={() => { items.reload(); notifyChanged(); }} />
       <Status loading={items.loading && !items.data} error={items.error} empty={items.data && open.length === 0}>
         All done. Nothing left to review here.
       </Status>
@@ -163,6 +173,46 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         ),
       )}
     </section>
+  );
+}
+
+/** Like questions answered once (P2.3c): each group's answers, applied to every question in it; a standing answer
+ * also decides new ones like them at each rebuild, as the person who set it. */
+function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string; onDone: () => void }) {
+  const groups = useAsync(() => api.reviewGroups(kind), [kind]);
+  const operate = usePermission("operate");
+  const [standing, setStanding] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [result, setResult] = useState<string>();
+  const [error, setError] = useState<string>();
+  if (!groups.data?.length) return result ? <p role="status" className="small">{result}</p> : null;
+  const answer = async (g: ReviewGroup, o: ReviewGroup["options"][number]) => {
+    const forNew = !!standing[g.key];
+    if (!confirm(`${o.label} for all ${g.count} questions${forNew ? ", and for new ones like them" : ""}?`)) return;
+    setBusy(g.key); setError(undefined);
+    try {
+      const r = await api.decideGroup({ key: g.key, decision: o.decision, source: o.source, value: o.value, standing: forNew, by: name || "anonymous" });
+      setResult(`Answered ${r.decided.length} of ${g.count}${r.skipped.length ? `; ${r.skipped.length} left for you (${r.skipped[0].why})` : ""}.`);
+      groups.reload(); onDone();
+    } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(null); }
+  };
+  return (
+    <UICard className="like-questions" title="Like questions">
+      <p className="small">One answer for questions that share it. Each is kept as if answered alone.</p>
+      <Table variant="list" density="compact">
+        <tbody>{groups.data.map((g) => (
+          <tr key={g.key}>
+            <th scope="row">{g.count} × {g.label}{g.standing && <div className="small">New ones are answered by {g.standing.set_by}'s standing answer.</div>}</th>
+            <td>{operate && <div className="row">
+              {g.options.map((o) => <Button key={o.label} size="sm" variant="secondary" disabled={!!busy} onClick={() => void answer(g, o)}>{o.label}</Button>)}
+              <label className="small"><input type="checkbox" checked={!!standing[g.key]} onChange={(e) => setStanding({ ...standing, [g.key]: e.target.checked })} /> and new ones like these</label>
+            </div>}</td>
+          </tr>
+        ))}</tbody>
+      </Table>
+      {result && <p role="status" className="small">{result}</p>}
+      {error && <p className="error small">{error}</p>}
+    </UICard>
   );
 }
 
@@ -391,6 +441,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
         </h3>
       </div>
       {description && <p className="small">{description}</p>}
+      {p.returned && <p className="small returned">{p.returned.why}</p>}
       <ul className="choices">
         {distinct.map((v) => {
           const from = p.values.filter((x) => fmt(x.value) === fmt(v.value));
@@ -422,6 +473,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
       >
         <Input value={custom} placeholder="or type the correct value" onChange={(e) => setCustom(e.target.value)} />
         <Button disabled={busy || !custom.trim()}>Save</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         {feedback}
       </form>
     </UICard>
@@ -531,7 +583,7 @@ const MISMATCH_TITLE = { alarm: "Alarm setting differs from the drawing", alarm_
 /** A drawing and the DCS, AF or SAP disagree (#475): which side needs changing. Recording it changes neither. */
 function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string | null; p: PidMismatchPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide,
-    "It records which side needs changing for the team to act on. The drawing, the DCS, AF and SAP stay as they are.");
+    "It drafts the correction for the owner of the side that is wrong. Nothing changes there until they approve it.");
   const system = p.check === "placement" ? "SAP" : "the alarm";
   return (
     <UICard className="review">
@@ -540,6 +592,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <span className="muted small">{p.sheet}</span>
       </div>
       <p>{p.question}</p>
+      {p.returned && <p className="small returned">{p.returned.why}</p>}
       <a className="mono small" href={entityHref(p.fuzer_id)}>{label ?? p.tag}</a>
       {p.finding ? <FindingEvidence finding={p.finding} /> : <div className="small">{p.detail}</div>}
       <div className="row">
@@ -552,6 +605,7 @@ function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string
         <Button disabled={busy} onClick={() => run({ decision: "choose", value: "system" })}>
           {p.check === "placement" ? "SAP" : "Alarm"} is right, redline the drawing
         </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "field" })}>Check it in the field</Button>
         <Button variant="ghost" disabled={busy} onClick={() => run({ decision: "reject" })}>Not a disagreement</Button>
       </div>
       {feedback}

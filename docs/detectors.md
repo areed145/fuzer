@@ -64,7 +64,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Kind:** Statistical
 - **Runs:** Once a day
 - **Raises:** `upset`
-- **Measurement roles:** vibration, bearing temperature, discharge temperature, outlet temperature, differential pressure
+- **Measurement roles:** casing vibration, bearing temperature, discharge temperature, outlet temperature, differential pressure
 - **Needs:** historian points
 - **Setting `sre.drift_rise`:** Share of its starting value a drift must climb before it is raised (default 0.05), *per class*
 - **Setting `signals.drift_z`:** A drift: the fitted trend moves this many times the spread around it (default 4.0)
@@ -105,7 +105,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Runs:** Once a day
 - **Raises:** `upset`
 - **Equipment classes:** well
-- **Measurement roles:** wellhead pressure, header pressure
+- **Measurement roles:** wellhead pressure, process pressure
 - **Needs:** historian points, a well with a choke
 - **Scored by:** the replay harness, `fuzer eval --ops --detector sre:hydraulics`
 
@@ -138,7 +138,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Runs:** Every 6 hours
 - **Raises:** `machine_trip`
 - **Equipment classes:** compressor
-- **Measurement roles:** running status, vibration, bearing temperature, discharge temperature
+- **Measurement roles:** running status, casing vibration, bearing temperature, discharge temperature
 - **Needs:** historian points, a compression train
 - **Scored by:** `tests/analysis/test_trips.py::test_trips_reach_the_ioc_with_the_restart_checklist`, on the fake plant
 
@@ -150,7 +150,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Runs:** Once a day
 - **Raises:** `machine_health`
 - **Equipment classes:** compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine
-- **Measurement roles:** vibration, bearing temperature, flow, suction pressure, discharge pressure
+- **Measurement roles:** casing vibration, bearing temperature, suction flow, suction pressure, discharge pressure
 - **Needs:** a rotating machine
 - **Scored by:** `tests/analysis/test_trips.py::test_machine_health_raises_flagged_machines_and_clears_them_when_fixed`, on the fake plant
 

@@ -229,6 +229,16 @@ create unique index if not exists exception_record_open on exception_record (typ
 alter table exception_record add column if not exists joined_to bigint;
 create index if not exists exception_record_joined on exception_record (joined_to) where joined_to is not null;
 create index if not exists exception_record_subjects on exception_record using gin (subjects);
+-- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
+create table if not exists field_photo (
+    id           bigserial primary key,
+    exception_id bigint not null,
+    by           text not null,
+    at           timestamptz not null default now(),
+    mime         text not null,
+    data         bytea not null
+);
+create index if not exists field_photo_exception on field_photo (exception_id);
 -- Source problems opened as work items before the exception contract become its open exceptions, so the next
 -- health check updates them instead of opening a second case.
 insert into exception_record (type, key, title, source, priority, evidence, item_id, first_seen, last_seen)
@@ -346,3 +356,64 @@ create table if not exists shift_handover (
     acknowledged_at   timestamptz,
     acknowledged_note text
 );
+
+-- The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer proposes to a source system, and
+-- the only way one is written. drafted -> awaiting_approval -> approved -> sent -> confirmed, or failed (back to the
+-- approver with the source's reason) or rejected. `idem_key` makes a proposal, and a send, happen once.
+create table if not exists writeback (
+    id            bigserial primary key,
+    system        text not null,
+    kind          text not null,      -- notification, safety_notification, order, master_data, annotation, ...
+    record        text,               -- the system's own key, when the change is to an existing record
+    action        text not null default 'update',
+    payload       jsonb not null default '{}',
+    idem_key      text not null unique,
+    state         text not null default 'drafted'
+                  check (state in ('drafted', 'awaiting_approval', 'approved', 'sent', 'confirmed', 'failed', 'rejected')),
+    drafted_by    text not null,
+    drafted_at    timestamptz not null default now(),
+    approver_role text,
+    item_id       bigint,             -- the approver's case
+    source_ref    text,               -- what proposed it (closeout:12, review:4, ...)
+    approved_by   text,
+    approved_at   timestamptz,
+    due_at        timestamptz,        -- when its cadence lets it go
+    sent_at       timestamptz,
+    confirmed_at  timestamptz,
+    failed_at     timestamptz,
+    attempts      integer not null default 0,
+    error         text,
+    reason        text
+);
+create index if not exists writeback_due on writeback (due_at) where state = 'approved';
+create index if not exists writeback_item on writeback (item_id);
+create index if not exists writeback_ref on writeback (source_ref);
+create table if not exists writeback_event (
+    id            bigserial primary key,
+    writeback_id  bigint not null,
+    state         text not null,
+    by            text not null,
+    note          text,
+    at            timestamptz not null default now()
+);
+create index if not exists writeback_event_row on writeback_event (writeback_id, id);
+
+-- Corrections that flow back to a source (P2.4): what a steward's answer said was wrong in a source, the change
+-- or case drafted for its owner, and how it came back.
+create table if not exists source_correction (
+    id             bigserial primary key,
+    review_item_id bigint not null,
+    kind           text not null,      -- master_data | drawing_correction | correction | field_check
+    system         text not null default '',
+    fuzer_id       text,
+    field          text,
+    wrong          jsonb,              -- what the source says
+    right_value    jsonb,              -- what the steward said is right
+    writeback_id   bigint,             -- the drafted change, when the source takes write-backs
+    item_id        bigint,             -- the owner's case, when it doesn't (or a field check)
+    state          text not null default 'open' check (state in ('open', 'done', 'returned')),
+    outcome        text,
+    created_at     timestamptz not null default now(),
+    closed_at      timestamptz
+);
+create index if not exists source_correction_item on source_correction (review_item_id);

@@ -305,7 +305,7 @@ def methods_md() -> str:
 
 def detectors_md() -> str:
     """Every registered detector: what it looks for, where it applies, what it needs and what it raises."""
-    from .core import detectors, settings
+    from .core import detectors, roles, settings
 
     reg = detectors.registry()
     out = ["# Detectors", "", HEADER.format(what="the detector registry (`core/detectors.py`)"),
@@ -322,7 +322,7 @@ def detectors_md() -> str:
                 f"- **Kind:** {detectors.KINDS[d.kind]}", f"- **Runs:** {detectors.CADENCES[d.cadence]}",
                 f"- **Raises:** {', '.join(f'`{r}`' for r in d.raises)}"]
         out += [f"- **Equipment classes:** {', '.join(d.classes)}"] if d.classes else []
-        out += [f"- **Measurement roles:** {', '.join(d.roles)}"] if d.roles else []
+        out += [f"- **Measurement roles:** {', '.join(roles.ROLES[r].label.lower() for r in d.roles)}"] if d.roles else []
         out += [f"- **Needs:** {', '.join(d.needs)}"] if d.needs else []
         out += [f"- **Setting `{k}`:** {settings.REGISTRY[k].description} (default {settings.REGISTRY[k].default})"
                 + (", *per class*" if k in d.by_class else "") for k in d.params]

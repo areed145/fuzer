@@ -3,7 +3,11 @@
 1. Reviewer must-links merge first; cannot-links block merges everywhere, between whole clusters.
 2. Same kind + same canonical key merges automatically.
 3. Equipment at the same tag without a shared serial is scored; high scores
-   merge, middle scores go to the review queue.
+   merge, middle scores go to the review queue. The thresholds are the kind's match rule, or a source's own
+   (`equipment/<source>`, set from measured precision by graph/calibration.py, P2.2); a pair uses the stricter
+   of its two sources'. A pair the thresholds would merge also asks the human gate (core/gates.py, P5.10):
+   99% confidence, measured where the source is calibrated, and never on an A-criticality asset; a pair it stops
+   goes to review with why. Every scored pair is kept in match_score with what it did.
 4. Each cluster keeps the ID most of its members already had.
 """
 
@@ -14,9 +18,10 @@ from itertools import combinations
 from psycopg.types.json import Jsonb
 from rapidfuzz import fuzz, utils
 
-from ..core import db
+from ..core import db, gates
 from ..core.model import Candidate
 from ..core.pack import Pack
+from . import calibration
 
 
 class Clusters:
@@ -74,12 +79,33 @@ def score_equipment(a: Candidate, b: Candidate) -> tuple[float, str]:
     return round(0.6 * mfr_score + 0.4 * desc, 3), why
 
 
+def thresholds(matching: dict, kind: str, sources) -> dict:
+    """The thresholds a pair from these sources is held to: each source's own rule where it has one, else the kind's,
+    and the stricter of the two sides."""
+    base = matching[kind]
+    own = [matching.get(f"{kind}/{s}") or {} for s in sources]
+    pick = lambda k: max([float(base[k])] + [float(o[k]) for o in own if k in o])
+    return {"auto_accept": pick("auto_accept"), "review_min": pick("review_min")}
+
+
+MATCHER = "fuzer:matcher"  # the actor the gate records for automatic matches
+
+
+def _criticality(cands: list[Candidate]) -> dict[str, str]:
+    """Each tag's criticality, by the tag key equipment is matched at, from the records this rebuild reads."""
+    out = {}
+    for c in cands:
+        v = str(c.fields.get("criticality") or "").strip().upper()
+        if c.kind == "tag" and c.key and v:
+            out[c.key] = min(v, out.get(c.key, v))  # two records disagreeing: the more critical (A before B)
+    return out
+
+
 def _summary(c: Candidate) -> dict:
     return {"ref": c.ref, "source": c.source, "key": c.key, "block": c.block, "fields": c.fields}
 
 
 def resolve(conn, cands: list[Candidate], pack: Pack):
-    cfg = pack.matching["equipment"]
     by_ref = {c.ref: c for c in cands}
 
     pins = conn.execute("select left_ref, right_ref, rule from pinned_link").fetchall()
@@ -132,25 +158,48 @@ def resolve(conn, cands: list[Candidate], pack: Pack):
                 best[k] = (s, a, b, why)
 
     partners = defaultdict(set)
-    for s, a, b, _ in best.values():
-        if s >= cfg["auto_accept"]:
+    cfgs = {k: thresholds(pack.matching, "equipment", (a.source, b.source)) for k, (_, a, b, _) in best.items()}
+    for k, (s, a, b, _) in best.items():
+        if s >= cfgs[k]["auto_accept"]:
             partners[cl.find(a.ref)].add(cl.find(b.ref))
             partners[cl.find(b.ref)].add(cl.find(a.ref))
 
-    reviews = []
-    for s, a, b, why in best.values():
+    # The human gate (P5.10): a pair the thresholds would merge goes through only when the gate agrees: confident
+    # enough (99% by default, measured where calibrated) and not on a high-criticality asset.
+    sure = calibration.confidence(conn) if best else None
+    crit = _criticality(cands)
+    reviews, scored = [], []
+    for k, (s, a, b, why) in best.items():
+        cfg = cfgs[k]
         ambiguous = len(partners[cl.find(a.ref)]) > 1 or len(partners[cl.find(b.ref)]) > 1
-        if s >= cfg["auto_accept"] and not ambiguous and cl.union(a.ref, b.ref):
+        left, right = sorted((a, b), key=lambda c: c.ref)
+        outcome, gate = "rejected", None
+        if s >= cfg["auto_accept"] and not ambiguous and not cl.blocked(a.ref, b.ref):
+            conf, basis = sure((a.source, b.source), s)
+            gate = gates.check(conn, "auto_match", conf, actor=MATCHER, criticality=crit.get(a.block),
+                               ref=f"{left.ref}|{right.ref}")
+            gate.update(confidence=conf, basis=basis, criticality=crit.get(a.block) or "not assessed")
+        if gate and gate["proceed"] and cl.union(a.ref, b.ref):
+            outcome = "merged"
             for r in (a.ref, b.ref):
                 methods.setdefault(r, ("score", s))
-        elif s >= cfg["review_min"] or ambiguous:
+        elif s >= cfg["review_min"] or ambiguous or gate:
+            outcome = "ambiguous" if ambiguous else "review"
             if ambiguous:
                 why += "; more than one possible match"
-            left, right = sorted((a, b), key=lambda c: c.ref)
+            elif gate:
+                why += f"; {gate['reason']}"
             reviews.append((f"{left.ref}|{right.ref}",
                             {"left": _summary(left), "right": _summary(right), "score": s, "why": why,
-                             "review_min": cfg["review_min"], "auto_accept": cfg["auto_accept"]}))
+                             "review_min": cfg["review_min"], "auto_accept": cfg["auto_accept"],
+                             **({"gate": {k: gate[k] for k in ("confidence", "threshold", "basis", "criticality",
+                                                                "reason")}} if gate else {})}))
+        scored.append(("equipment", left.ref, right.ref, sorted({a.source, b.source}), s, outcome))
     replace_open_reviews(conn, "match", reviews)
+    conn.execute("delete from match_score where kind = 'equipment'")
+    with conn.cursor() as cur:
+        cur.executemany("insert into match_score (kind, left_ref, right_ref, sources, score, outcome) "
+                        "values (%s, %s, %s, %s, %s, %s)", scored)
 
     assigned = _assign_ids(conn, cl.groups(), by_ref)
 

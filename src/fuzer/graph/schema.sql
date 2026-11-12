@@ -123,6 +123,55 @@ create table if not exists pinned_link (
 alter table pinned_link add column if not exists batch text;
 alter table pinned_link add column if not exists reason text;
 
+-- Standing answers (P2.3c): one answer for a group of like questions that also decides new ones as they arrive.
+create table if not exists review_rule (
+    id           bigserial primary key,
+    group_key    text not null,
+    kind         text not null,
+    decision     text not null,
+    source       text,
+    value        jsonb,
+    set_by       text not null,
+    set_at       timestamptz not null default now(),
+    withdrawn_by text,
+    withdrawn_at timestamptz
+);
+create unique index if not exists review_rule_standing on review_rule (group_key) where withdrawn_at is null;
+
+-- Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
+create table if not exists match_score (
+    kind        text not null,
+    left_ref    text not null,
+    right_ref   text not null,
+    sources     text[] not null,
+    score       double precision not null,
+    outcome     text not null check (outcome in ('merged', 'review', 'ambiguous', 'rejected')),
+    primary key (kind, left_ref, right_ref)
+);
+
+-- The last calibration per entity kind and source (P2.2): measured precision at each threshold, the calibrated
+-- probability for a score, and the thresholds it recommends.
+create table if not exists match_calibration (
+    kind        text not null,
+    source      text not null,
+    result      jsonb not null,
+    labels      text not null,
+    measured_at timestamptz not null default now(),
+    measured_by text,
+    primary key (kind, source)
+);
+
+-- What each source says on a field a steward chose the value of, from the last rebuild (P2.4): how a correction
+-- sent back to a source is seen to land.
+create table if not exists reviewed_value (
+    fuzer_id   text not null,
+    field      text not null,
+    source     text not null,
+    source_key text,
+    value      jsonb
+);
+create index if not exists reviewed_value_key on reviewed_value (fuzer_id, field);
+
 -- Fast "contains" search over values, keys and source keys when pg_trgm is available
 -- (Docker / Azure Postgres). Search still works without it, just slower.
 do $$
@@ -251,6 +300,17 @@ create table if not exists measurement (
     primary key (record, quantity)
 );
 create index if not exists measurement_of on measurement (fuzer_id, quantity, at);
+
+-- What each historian point means for the asset it measures (P1.4, graph/roles.py): one role from core/roles.py,
+-- proposed with every rebuild from the point's description, instrument letters, units and the equipment it is on.
+create table if not exists measurement_role (
+    point_id   text primary key,            -- the timeseries entity
+    role       text not null,
+    asset      text,                        -- the equipment or well it is a role of (not the instrument)
+    confidence double precision not null,   -- 0-1; below core.roles.CONFIDENT a steward confirms it
+    basis      jsonb not null               -- what said so, in words
+);
+create index if not exists measurement_role_of on measurement_role (asset, role);
 
 -- #242: the EC DAY001 record of a day's allocated production is the `production_day` kind ("daily report" is the
 -- drafted narrative in daily_ops_report). Renamed in place so Fuzer IDs stay; idempotent.

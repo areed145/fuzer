@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from psycopg.conninfo import make_conninfo
 
-from fuzer.core import bundles, db, events, settings
+from fuzer.core import bundles, db, settings
 from fuzer.core import pack as packs
 
 KESTREL = Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel"
@@ -59,6 +59,10 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
             data = Path(first["data"])
             monkeypatch.setenv("FUZER_DATA_DIR", str(data))  # where this project's exports are, as the server has it
             settings.set(conn, "closeout.apply_to_exports", True, by="test")
+            from fuzer.workflow import engine
+
+            engine.set_person(conn, "pat", ["maintenance_planner"])  # the planner who approves SAP write-backs
+            conn.commit()
             pack = packs.current_pack(conn)
 
             def refresh():
@@ -93,13 +97,18 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                 assert refresh()["held"] == 1
                 assert _sap(sap)["10004002"]["status"] == "OSNO"
 
+                # an agent can't approve a write-back (P5.10 fixed gate), nor someone outside the approver roles
+                assert client.post(f"/closeouts/{draft['id']}/approve", json={"by": "agent:maintenance"}).status_code == 403
                 sent = ok(client.post(f"/closeouts/{draft['id']}/approve",
                                       json={"by": "pat", "text": "Gland repacked in the field; no leak after 30 min."}))
-                assert sent["state"] == "sent" and sent["draft"]["text"].startswith("Gland repacked")
+                assert sent["state"] == "approved" and sent["draft"]["text"].startswith("Gland repacked")
                 again = client.post(f"/closeouts/{draft['id']}/approve", json={"by": "pat"})
                 assert again.status_code == 400 and "not a draft" in again.text
+                # approved, it waits for SAP's next batch (P5.7): the case is released once SAP has it
                 case = conn.execute("select state from work_item where id = %s", (draft["item_id"],)).fetchone()
-                assert case["state"] == "done"
+                assert case["state"] == "open"
+                [queued] = ok(client.get("/writebacks", params={"item_id": draft["item_id"]}))
+                assert queued["state"] == "approved" and queued["approved_by"] == "pat"
                 conn.rollback()
 
                 # could not do: a follow-up notification is drafted instead
@@ -112,10 +121,16 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
                 ok(client.post(f"/closeouts/{follow['id']}/approve", json={"by": "pat"}))
                 conn.rollback()
 
-            events.deliver(conn)  # the demo's SAP adapter
+            from datetime import datetime, timedelta
+
+            from fuzer.ops import writeback
+
+            writeback.run(conn, datetime.now().astimezone() + timedelta(hours=1))  # the batch: the demo's SAP adapter
             applied = conn.execute("select id, action, applied_at, applied_note from source_closeout order by id").fetchall()
             assert all(r["applied_at"] for r in applied), (applied, str(sap), conn.execute(
-                "select topic, attempts, last_error from event_outbox where topic = 'source.update'").fetchall())
+                "select id, state, error from writeback").fetchall())
+            assert {r["state"] for r in conn.execute("select state from writeback")} == {"confirmed"}
+            assert conn.execute("select state from work_item where id = %s", (draft["item_id"],)).fetchone()["state"] == "done"
             assert {r["applied_note"] for r in applied} == {str(sap)}
             notes = _sap(sap)
             assert notes["10004002"]["status"] == "NOCO"

@@ -29,7 +29,7 @@ from . import methods
 
 DETERMINISTIC, AGENTIC, EXTERNAL = "deterministic", "agentic", "external"
 ORIGINS = (DETERMINISTIC, AGENTIC, EXTERNAL)
-KINDS = ("text", "number", "flag", "time", "asset")
+KINDS = ("text", "number", "flag", "time", "asset", "page")
 VERSION = 1
 KEY = "finding"  # where an exception's stored evidence holds the record
 MAX_ITEMS = 12  # what fits a phone before it stops being read
@@ -50,9 +50,11 @@ class Item:
     value: str | float | int | bool
     unit: str | None = None
     kind: str = "text"
+    text: str | None = None  # a page link's words
 
     def record(self) -> dict:
-        return {"label": self.label, "value": self.value, "kind": self.kind, **({"unit": self.unit} if self.unit else {})}
+        return {"label": self.label, "value": self.value, "kind": self.kind, **({"unit": self.unit} if self.unit else {}),
+                **({"text": self.text} if self.text else {})}
 
 
 def _iso(v) -> str | None:
@@ -82,6 +84,15 @@ def asset(label: str, fuzer_id: str | None) -> Item | None:
     return Item(label, fuzer_id, None, "asset") if fuzer_id else None
 
 
+def page(label: str, route: str | None, text: str) -> Item | None:
+    """A page in Fuzer where the finding is worked (`#/masterdata?tab=questions&item=12`), shown as a link."""
+    if not route:
+        return None
+    if not route.startswith("#/"):
+        raise FindingError(f"a page link is a route in Fuzer (#/...), not {route!r}")
+    return Item(label, route, None, "page", text)
+
+
 @dataclass(frozen=True)
 class Finding:
     detector: str                        # what saw it: a detector, a reader or the outside system ("limits.iow", "sap")
@@ -105,7 +116,7 @@ class Finding:
         items = tuple(i for i in self.items if i is not None)
         for i in items:
             if not isinstance(i, Item) or not i.label.strip() or i.kind not in KINDS:
-                raise FindingError(f"a finding's items are fact(), at() or asset() with a label, not {i!r}")
+                raise FindingError(f"a finding's items are fact(), at(), asset() or page() with a label, not {i!r}")
         if KEY in self.data:
             raise FindingError(f"`{KEY}` is the record's own place in the evidence")
         object.__setattr__(self, "items", items)

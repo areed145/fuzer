@@ -69,7 +69,7 @@ function LastLoad({ d, reload }: { d: DatasetDetail; reload: () => void }) {
           {checks ? checks.map((c) => c.kind === "duplicate keys"
             ? `the export repeats ${c.value} key${c.value === 1 ? "" : "s"} (${(c.detail?.examples ?? []).join(", ")})`
             : `the ${c.kind} check failed (${c.value})`).join("; ")
-            : <>its columns changed (answer it on <a href={href("/review", { kind: "schema" })}>Review</a>)</>}.
+            : <>its columns changed (answer it on <a href={href("/masterdata", { tab: "questions", kind: "schema" })}>Master data</a>)</>}.
           {" "}Fix it (the export, the key under Settings, or the check under Quality), then load again.
         </p>
       )}
@@ -144,7 +144,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
                 <span className="muted">({w.assignee ?? w.role ?? "unassigned"}, {when(w.created_at)})</span></li>
             ))}
             {d.reviews.map((r) => (
-              <li key={`r${r.id}`}><a href={href("/review", { kind: r.kind })}>review item {r.id}</a>:{" "}
+              <li key={`r${r.id}`}><a href={href("/masterdata", { tab: "questions", kind: r.kind, item: String(r.id) })}>question {r.id}</a>:{" "}
                 {r.kind === "check" ? "a held load" : "changed columns"} <span className="muted">({when(r.created_at)})</span></li>
             ))}
           </ul>
@@ -510,7 +510,7 @@ function Matching({ d }: { d: DatasetDetail }) {
       </p>
       <p>
         How its records matched: {Object.entries(s.by_method ?? {}).map(([k, v]) => `${k} ${v}`).join(", ") || "–"}. Open reviews:{" "}
-        {Object.entries(s.open_reviews ?? {}).map(([k, v]) => <a key={k} href={href("/review", { kind: k })}>{k} {String(v)} </a>)}
+        {Object.entries(s.open_reviews ?? {}).map(([k, v]) => <a key={k} href={href("/masterdata", { tab: "questions", kind: k })}>{k} {String(v)} </a>)}
         {Object.keys(s.open_reviews ?? {}).length === 0 && "none"}
       </p>
       {cov.by_rel && (

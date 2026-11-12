@@ -4,7 +4,6 @@ from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
 from ..core import ontology
@@ -59,95 +58,87 @@ def review_list(status: str = "open", kind: str | None = None, limit: int = 100,
 
 
 class Decision(BaseModel):
-    decision: Literal["accept", "reject", "choose"]
+    decision: Literal["accept", "reject", "choose", "field"]
     value: Any = None
     by: str = "anonymous"
 
 
+@router.get("/review/groups")
+def review_groups(kind: str | None = None, conn=Depends(get_conn)):
+    """Open questions that share an answer (P2.3c), largest first, each with the answers it can take."""
+    from ..graph import review
+
+    return review.groups(conn, kind)
+
+
+class GroupDecision(BaseModel):
+    key: str
+    decision: Literal["accept", "reject", "choose"]
+    source: str | None = None
+    value: Any = None
+    standing: bool = False
+    by: str = "anonymous"
+
+
+@router.post("/review/groups")
+def review_group_decide(d: GroupDecision, conn=Depends(get_conn)):
+    """Answer every question in a group the same way; `standing` answers new ones like them at each rebuild too."""
+    from ..graph import review
+    from ..ops import corrections
+
+    try:
+        out = review.decide_group(conn, d.key, d.decision, d.by, source=d.source, value=d.value, standing=d.standing)
+        corrections.sync(conn, d.by)
+    except LookupError as e:
+        conn.rollback()
+        raise HTTPException(404, str(e)) from e
+    except review.ReviewError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return {**out, "rebuild": deps.rebuilder.request() if out["rebuild"] else None}
+
+
+@router.delete("/review/groups")
+def review_group_withdraw(key: str, by: str = "anonymous", conn=Depends(get_conn)):
+    """Withdraw a standing answer: new questions like these wait for a person again."""
+    from ..graph import review
+
+    if not review.withdraw(conn, key, by):
+        raise HTTPException(404, f"no standing answer for {key}")
+    conn.commit()
+    return {"withdrawn": key}
+
+
 @router.post("/review/{item_id}")
 def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
-    item = conn.execute("select * from review_item where id = %s", (item_id,)).fetchone()
-    if not item:
-        raise HTTPException(404, "unknown review item")
-    p = item["payload"]
+    from ..graph import review
+    from ..ops import corrections
 
-    if item["kind"] == "mapping":
-        if d.decision != "reject":
-            from ..sources import suggest
-
-            try:  # a new version; the next ingest loads the table and rebuilds use it
-                suggest.save(conn, p["dataset"], p["yaml"] if d.decision == "accept" else d.value, d.by)
-            except ValueError as e:
-                raise HTTPException(400, str(e)) from e
-    elif item["kind"] == "schema":
-        if d.decision == "choose":
-            raise HTTPException(400, "schema items take accept (load with the new columns) or reject (keep holding)")
-        if d.decision == "accept":
-            # The new columns become the expected ones; the next ingest loads the dataset.
-            conn.execute("update source_dataset set schema = %s where name = %s", (Jsonb(p["new"]), p["dataset"]))
-    elif item["kind"] == "curve":  # a datasheet Claude read: accept as read, or choose with corrections
-        if d.decision != "reject":
-            from ..sources import llm_curves
-            if d.decision == "choose" and not isinstance(d.value, dict):
-                raise HTTPException(400, "choose needs the corrected reading")
-            llm_curves.accept(conn, item, d.by, d.value if d.decision == "choose" else None)
-    elif item["kind"] == "check":  # a held load (#225): fixed at the source, then loaded again from its dataset
-        if d.decision == "choose":
-            raise HTTPException(400, "held-load items take accept (seen) or reject")
-    elif item["kind"] == "pid_connection":  # an off-page line one drawing shows: accept links it, reject leaves it
-        if d.decision == "choose":
-            raise HTTPException(400, "drawing connections take accept (link them) or reject")
-    elif item["kind"] == "pid_mismatch":  # a drawing and the DCS, AF or SAP disagree (#475): which needs changing
-        if d.decision == "accept" or (d.decision == "choose" and d.value not in ("drawing", "system")):
-            raise HTTPException(400, "drawing disagreements take choose with drawing (the system needs changing) or "
-                                     "system (the drawing needs a redline), or reject (not a real disagreement)")
-    elif item["kind"] == "match":
-        if d.decision == "choose":
-            raise HTTPException(400, "match items take accept or reject")
-        rule = "must" if d.decision == "accept" else "cannot"
-        conn.execute(
-            """
-            insert into pinned_link (left_ref, right_ref, rule, decided_by) values (%s, %s, %s, %s)
-            on conflict (left_ref, right_ref) do update set rule = excluded.rule,
-                decided_by = excluded.decided_by, decided_at = now()
-            """,
-            (p["left"]["ref"], p["right"]["ref"], rule, d.by),
-        )
-    else:
-        if d.decision == "reject":
-            raise HTTPException(400, "conflict items take accept (keep chosen) or choose (with value)")
-        value = p["chosen"] if d.decision == "accept" else d.value
-        if value is None:
-            raise HTTPException(400, "choose needs a value")
-        conn.execute("delete from assertion where fuzer_id = %s and field = %s and source = 'review'",
-                     (p["fuzer_id"], p["field"]))
-        conn.execute(
-            "insert into assertion (fuzer_id, field, value, source, source_key) values (%s, %s, %s, 'review', %s)",
-            (p["fuzer_id"], p["field"], Jsonb(value), d.by),
-        )
-        # A chosen value only changes this one golden field, so apply it now; no rebuild needed.
-        conn.execute(
-            """
-            insert into golden (fuzer_id, field, value, source, rule) values (%s, %s, %s, 'review', 'review')
-            on conflict (fuzer_id, field) do update
-            set value = excluded.value, source = excluded.source, rule = excluded.rule
-            """,
-            (p["fuzer_id"], p["field"], Jsonb(value)),
-        )
-
-    conn.execute(
-        """
-        update review_item set status = 'decided', decision = %s, decided_by = %s, decided_at = now()
-        where id = %s
-        """,
-        (Jsonb(d.model_dump()), d.by, item_id),
-    )
+    try:
+        out = review.decide(conn, item_id, d.decision, d.value, d.by)
+        corrections.sync(conn, d.by)  # an answer that says a source is wrong drafts its correction (P2.4)
+    except LookupError as e:
+        conn.rollback()
+        raise HTTPException(404, str(e)) from e
+    except review.ReviewError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
     conn.commit()
-    if item["kind"] == "match" or (item["kind"] in ("curve", "pid_connection") and d.decision != "reject"):
+    if out["rebuild"]:
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
     return {"decided": item_id}
+
+
+@router.get("/review/{item_id}/corrections")
+def review_corrections(item_id: int, conn=Depends(get_conn)):
+    """What an answer drafted for the source it said was wrong, and how each came back (P2.4)."""
+    from ..core.jsonsafe import plain
+    from ..ops import corrections
+
+    return plain(corrections.listing(conn, item_id))
 
 
 @router.post("/rebuild")

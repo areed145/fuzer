@@ -181,6 +181,36 @@ The event outbox (core/events.py): what happened, written in the transaction tha
 | `attempts` | integer |  |
 | `last_error` | text |  |
 
+### `gate_policy`
+
+Human gates as policy (P5.10, #619; core/gates.py). The fixed gates are code and never configurable; a confidence gate's thresholds (per asset criticality) and the safety case types are data here, over the shipped defaults.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `settings` | jsonb |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+### `gate_decision`
+
+Every automatic or agent decision a gate saw: its confidence, the threshold applied and whether the gate fired (stopped it for a person), with the reason a person reads on the case.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text |  |
+| `actor` | text |  |
+| `ref` | text |  |
+| `item_id` | bigint |  |
+| `confidence` | double precision |  |
+| `threshold` | double precision |  |
+| `criticality` | text |  |
+| `could_not_check` | text[] |  |
+| `fired` | boolean |  |
+| `reason` | text |  |
+| `at` | timestamptz |  |
+
 ## Work engine
 
 [`src/fuzer/workflow/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/schema.sql)
@@ -840,6 +870,61 @@ Reviewer match decisions; applied on every rerun.
 | `decided_by` | text |  |
 | `decided_at` | timestamptz |  |
 
+### `review_rule`
+
+Standing answers (P2.3c): one answer for a group of like questions that also decides new ones as they arrive.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `group_key` | text |  |
+| `kind` | text |  |
+| `decision` | text |  |
+| `source` | text |  |
+| `value` | jsonb |  |
+| `set_by` | text |  |
+| `set_at` | timestamptz |  |
+| `withdrawn_by` | text |  |
+| `withdrawn_at` | timestamptz |  |
+
+### `match_score`
+
+Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `left_ref` | text |  |
+| `right_ref` | text |  |
+| `sources` | text[] |  |
+| `score` | double precision |  |
+| `outcome` | text |  |
+
+### `match_calibration`
+
+The last calibration per entity kind and source (P2.2): measured precision at each threshold, the calibrated probability for a score, and the thresholds it recommends.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `source` | text |  |
+| `result` | jsonb |  |
+| `labels` | text |  |
+| `measured_at` | timestamptz |  |
+| `measured_by` | text |  |
+
+### `reviewed_value`
+
+What each source says on a field a steward chose the value of, from the last rebuild (P2.4): how a correction sent back to a source is seen to land.
+
+| Column | Type | Note |
+|---|---|---|
+| `fuzer_id` | text |  |
+| `field` | text |  |
+| `source` | text |  |
+| `source_key` | text |  |
+| `value` | jsonb |  |
+
 ### `knowledge_index`
 
 What the knowledge search reads: document sections and incidents, with the IDs each is linked to (what its document applies to, what it mentions, its unit) for scoping. Kept by every rebuild.
@@ -938,6 +1023,18 @@ Sparse, manual measurements landed from sources (well tests, lab samples, inspec
 | `reported` | text, | as the source gave it, when converted |
 | `method` | text |  |
 | `location` | text, | where on it: a CML, a sample point |
+
+### `measurement_role`
+
+What each historian point means for the asset it measures (P1.4, graph/roles.py): one role from core/roles.py, proposed with every rebuild from the point's description, instrument letters, units and the equipment it is on.
+
+| Column | Type | Note |
+|---|---|---|
+| `point_id` | text | the timeseries entity |
+| `role` | text |  |
+| `asset` | text, | the equipment or well it is a role of (not the instrument) |
+| `confidence` | double precision | 0-1; below core.roles.CONFIDENT a steward confirms it |
+| `basis` | jsonb | what said so, in words |
 
 ### `steward_fix`
 
@@ -1303,6 +1400,19 @@ Exceptions (core/exceptions.py): anything that should draw the IOC's attention a
 | `closed_at` | timestamptz |  |
 | `updated_at` | timestamptz |  |
 
+### `field_photo`
+
+Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `exception_id` | bigint |  |
+| `by` | text |  |
+| `at` | timestamptz |  |
+| `mime` | text |  |
+| `data` | bytea |  |
+
 ### `exception_kind`
 
 Exception types a deployment defines as data (ops/exceptions.define), so other systems (SAP notifications, SCADA alarms, a reporting app) raise them over the API without code. Types declared in code are not stored here.
@@ -1387,6 +1497,67 @@ Shift handovers (#467, ops/handover.py): drafted from live work at each shift ch
 | `acknowledged_by` | text |  |
 | `acknowledged_at` | timestamptz |  |
 | `acknowledged_note` | text |  |
+
+### `writeback`
+
+The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer proposes to a source system, and the only way one is written. drafted -> awaiting_approval -> approved -> sent -> confirmed, or failed (back to the approver with the source's reason) or rejected. `idem_key` makes a proposal, and a send, happen once.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `system` | text |  |
+| `kind` | text | notification, safety_notification, order, master_data, annotation, ... |
+| `record` | text, | the system's own key, when the change is to an existing record |
+| `action` | text |  |
+| `payload` | jsonb |  |
+| `idem_key` | text |  |
+| `state` | text |  |
+| `drafted_by` | text |  |
+| `drafted_at` | timestamptz |  |
+| `approver_role` | text |  |
+| `item_id` | bigint, | the approver's case |
+| `source_ref` | text, | what proposed it (closeout:12, review:4, ...) |
+| `approved_by` | text |  |
+| `approved_at` | timestamptz |  |
+| `due_at` | timestamptz, | when its cadence lets it go |
+| `sent_at` | timestamptz |  |
+| `confirmed_at` | timestamptz |  |
+| `failed_at` | timestamptz |  |
+| `attempts` | integer |  |
+| `error` | text |  |
+| `reason` | text |  |
+
+### `writeback_event`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `writeback_id` | bigint |  |
+| `state` | text |  |
+| `by` | text |  |
+| `note` | text |  |
+| `at` | timestamptz |  |
+
+### `source_correction`
+
+Corrections that flow back to a source (P2.4): what a steward's answer said was wrong in a source, the change or case drafted for its owner, and how it came back.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `review_item_id` | bigint |  |
+| `kind` | text | master_data \| drawing_correction \| correction \| field_check |
+| `system` | text |  |
+| `fuzer_id` | text |  |
+| `field` | text |  |
+| `wrong` | jsonb, | what the source says |
+| `right_value` | jsonb, | what the steward said is right |
+| `writeback_id` | bigint, | the drafted change, when the source takes write-backs |
+| `item_id` | bigint, | the owner's case, when it doesn't (or a field check) |
+| `state` | text |  |
+| `outcome` | text |  |
+| `created_at` | timestamptz |  |
+| `closed_at` | timestamptz |  |
 
 ## Charts
 

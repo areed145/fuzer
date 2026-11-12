@@ -30,7 +30,8 @@ AUDIENCES = ("ioc", "field")
 # Where types are declared in code. `load()` imports them by name (core does not import the modules above it), so
 # the routing table holds every type before any has been raised; a module that declares one adds itself here.
 DECLARED_IN = ("fuzer.ops.intake", "fuzer.ops.sre_handoff", "fuzer.sources.alerts", "fuzer.analysis.records",
-               "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating")
+               "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating", "fuzer.graph.data_work",
+               "fuzer.graph.criticality")
 _impl: ModuleType | None = None
 
 

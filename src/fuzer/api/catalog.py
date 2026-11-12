@@ -650,11 +650,36 @@ def mapper_yaml(body: MapperYaml, conn=Depends(get_conn)):
 
 @router.get("/rules")
 def rules_list(conn=Depends(get_conn)):
+    from ..graph import calibration
     from ..sources import rules
 
     rules.seed(conn, deps.pack())
     conn.commit()
-    return rules.listing(conn)
+    return {**rules.listing(conn), "calibration": calibration.listing(conn, rules.apply(conn, deps.pack()).matching)}
+
+
+class Calibrate(BaseModel):
+    by: str = "anonymous"
+    reason: str | None = None
+
+
+@router.post("/calibration")
+def calibrate(body: Calibrate, conn=Depends(get_conn)):
+    """Measure the last rebuild's scored match pairs against the stewards' decisions and the project's answer key
+    (answer_keys/matches.json in its data folder, where there is one) (P2.2)."""
+    from pathlib import Path
+
+    from ..graph import calibration
+
+    return _do(conn, calibration.measure_from_keys, conn, Path(_data_dir()) / "answer_keys", body.by)
+
+
+@router.post("/calibration/adopt")
+def adopt_calibration(body: Calibrate, conn=Depends(get_conn)):
+    """Set each measured source's match thresholds from its calibration; the next rebuild uses them (P2.2)."""
+    from ..graph import calibration
+
+    return _do(conn, calibration.adopt, conn, body.by, reason=body.reason)
 
 
 @router.put("/rules/{scope}/{name}")

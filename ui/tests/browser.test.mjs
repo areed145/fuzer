@@ -329,6 +329,74 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
+    state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
+  await page.route("**/work/items/8/gates", route => route.fulfill({ json: [
+    { id: 1, kind: "auto_close", actor: "agent:sre", confidence: 0.7, threshold: 0.95, criticality: "C", could_not_check: [],
+      fired: true, reason: "An automatic close as duplicate or false alarm stopped for a person: its confidence 70% is below the 95% needed on a C-criticality asset.",
+      at: "2026-11-12T06:01:00Z" }] }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.getByRole("heading", { name: "Gates" }).waitFor();
+  await page.getByText("Stopped for a person", { exact: true }).waitFor();
+  await page.getByText("its confidence 70% is below the 95% needed", { exact: false }).waitFor();
+
+  const set = [];
+  let policy = { fixed: [{ kind: "field_dispatch", label: "Dispatching people to the field" }], safety_case_types: ["iow_breach"],
+    confidence: [{ kind: "auto_close", label: "An automatic close as duplicate or false alarm", default: 0.95,
+      by_criticality: { A: null }, updated_by: null, updated_at: null }] };
+  await page.route("**/settings/gates", route => route.fulfill({ json: policy }));
+  await page.route("**/settings/gates/auto_close", route => {
+    const body = route.request().postDataJSON();
+    set.push(body);
+    policy = { ...policy, confidence: [{ ...policy.confidence[0], default: body.default, updated_by: body.by }] };
+    return route.fulfill({ json: policy.confidence[0] });
+  });
+  await page.goto(`${url}/#/settings`);
+  await page.getByRole("heading", { name: "Human gates" }).waitFor();
+  await page.getByText("dispatching people to the field", { exact: false }).waitFor();
+  const row = page.getByRole("row").filter({ hasText: "An automatic close" });
+  await row.getByText("always a person", { exact: true }).waitFor();
+  await row.getByRole("button", { name: "Change" }).click();
+  await row.getByLabel(/Goes ahead at/).fill("97");
+  await row.getByRole("button", { name: "Save" }).click();
+  await row.getByText("97%", { exact: true }).waitFor();
+  assert.equal(set[0].default, 0.97);
+  assert.deepEqual(set[0].by_criticality, {});
+});
+
+test("a write-back waits on the case for a named approver and then for its batch (#636)", async () => {
+  await page.route("**/work/items/9", route => route.fulfill({ json: { id: 9, title: "Write back to SAP 10004002", type: "writeback",
+    state: "open", subjects: [], created_by: "agent:maintenance", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
+  let row = { id: 21, system: "sap", kind: "notification", record: "10004002", action: "complete", payload: { text: "Gland repacked" },
+    state: "awaiting_approval", drafted_by: "agent:maintenance", drafted_at: "2026-11-12T06:00:00Z", approver_role: "maintenance_planner",
+    item_id: 9, source_ref: null, approved_by: null, approved_at: null, due_at: null, sent_at: null, confirmed_at: null, error: null,
+    reason: null };
+  const approvals = [];
+  await page.route(/\/writebacks\?/, route => route.fulfill({ json: [row] }));
+  await page.route(/\/writebacks\/21$/, route => route.fulfill({ json: { ...row, label: "Notification",
+    approvers: ["maintenance_planner", "ops_lead"], cadence: "in the next 15-minute batch", adapter: "export",
+    history: [{ id: 1, state: "awaiting_approval", by: "agent:maintenance", note: null, at: "2026-11-12T06:00:00Z" }] } }));
+  await page.route(/\/writebacks\/21\/approve$/, route => {
+    approvals.push(route.request().postDataJSON());
+    row = { ...row, state: "approved", approved_by: "pat", due_at: "2026-11-12T06:15:00Z" };
+    return route.fulfill({ json: row });
+  });
+  await page.goto(`${url}/#/cases/9`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
+  await page.reload();
+  await page.getByRole("heading", { name: "Notification for SAP 10004002" }).waitFor();
+  await page.getByText("waiting for approval", { exact: true }).waitFor();
+  await page.getByText("then sent in the next 15-minute batch", { exact: false }).waitFor();
+  await page.getByLabel("Change to write").fill("Gland repacked; no leak");
+  await page.getByRole("button", { name: "Approve for SAP" }).click();
+  await page.getByText("approved, waiting for its batch", { exact: true }).waitFor();
+  assert.equal(approvals[0].by, "pat");
+  assert.equal(approvals[0].payload.text, "Gland repacked; no leak");
+  assert.equal(await page.getByRole("button", { name: "Approve for SAP" }).count(), 0);
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });
@@ -973,6 +1041,90 @@ test("installing a source pack says what it added on Sources, Routing and Detect
   }
 });
 
+test("Rules shows each source's match thresholds with the precision measured at them, and adopts them (P2.2)", async () => {
+  const row = (source, inUse, recommended, at) => ({ kind: "equipment", source, labels: "answer key and steward decisions",
+    measured_at: "2026-11-12T02:00:00Z", measured_by: "ana", pairs: 5, same: 3, ambiguous: 0, target: 0.99,
+    recommended, in_use: inUse, at_auto_accept: at });
+  let rules = { ranks: [{ name: "sap", rank: 10, enabled: true }], rules: [],
+    calibration: [row("maximo", { auto_accept: 0.9, review_min: 0.6 }, { auto_accept: 1.0, review_min: 0.6 },
+      { threshold: 0.92, precision: 0.75, lower: 0.3, pairs: 4, recall: 1 })] };
+  let adopted = 0;
+  await page.route("**/sources/rules", (route) => route.fulfill({ json: rules }));
+  await page.route("**/sources/calibration/adopt", (route) => {
+    adopted++;
+    rules = { ...rules, calibration: [row("maximo", { auto_accept: 1.0, review_min: 0.6 }, { auto_accept: 1.0, review_min: 0.6 },
+      { threshold: 1.0, precision: 1, lower: 0.44, pairs: 3, recall: 0.67 })] };
+    return route.fulfill({ json: { maximo: { auto_accept: 1.0, review_min: 0.6 } } });
+  });
+  await page.goto(`${url}/#/sources?view=rules`);
+  const card = page.locator(".match-confidence");
+  await card.getByText("75% correct of 4 pairs").waitFor();
+  await card.getByText("measured: 1.00").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`match-confidence-${width}`);
+  }
+  await card.getByRole("button", { name: /Use the measured thresholds for maximo/ }).click();
+  await card.getByText("100% correct of 3 pairs").waitFor();
+  assert.equal(adopted, 1);
+  assert.equal(await card.getByRole("button", { name: /Use the measured thresholds/ }).count(), 0);
+});
+
+test("Data review is the Questions tab of Master data, old links land on the same kind, and a case opens its question (P2.3)", async () => {
+  await page.route("**/review?*", (route) => {
+    const kind = new URL(route.request().url()).searchParams.get("kind");
+    return route.fulfill({ json: kind === "conflict" ? [
+      { id: 4, kind: "conflict", label: "20-P-1001A", description: "Export pump", payload: { fuzer_id: "fz-1", field: "manufacturer",
+        chosen: "Flowserve", values: [{ value: "Flowserve", source: "sap", source_key: "1" }, { value: "FLOWSERVE", source: "maximo", source_key: "MX-1" }] } },
+      { id: 9, kind: "conflict", label: "20-K-2200B", description: "Compressor", payload: { fuzer_id: "fz-2", field: "model",
+        chosen: "JGK/4", values: [{ value: "JGK/4", source: "sap", source_key: "2" }, { value: "JGK4", source: "maximo", source_key: "MX-2" }] } },
+    ] : [] });
+  });
+  await page.goto(`${url}/#/review?kind=conflict`);
+  await page.waitForURL(/#\/masterdata\?tab=questions&kind=conflict/);
+  await page.getByRole("heading", { level: 1, name: "Master data" }).waitFor();
+  assert.equal(await page.getByRole("tab", { name: /Questions/ }).getAttribute("aria-selected"), "true");
+  await page.getByText("20-P-1001A").first().waitFor();
+  // Opened from its case: that question comes first.
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict&item=9`);
+  await page.getByText("20-K-2200B").first().waitFor();
+  const first = await page.locator(".review").first().innerText();
+  assert.match(first, /20-K-2200B/);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`masterdata-questions-${width}`);
+  }
+});
+
+test("like questions are answered once, for new ones too when asked (P2.3c)", async () => {
+  await context.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  let groups = [{ kind: "match", key: "match|jde+maximo|the maker is unknown on one side", count: 6, items: [1, 2, 3, 4, 5, 6],
+    label: "jde and maximo records at the same tag where the maker is unknown on one side", standing: null,
+    options: [{ decision: "accept", label: "The same item, each pair" }, { decision: "reject", label: "Keep each pair apart" }] }];
+  let sent = null;
+  await page.route("**/review/groups?*", (route) => route.fulfill({ json: groups }));
+  await page.route("**/review/groups", (route) => {
+    sent = route.request().postDataJSON();
+    groups = [];
+    return route.fulfill({ json: { decided: [1, 2, 3, 4, 5], skipped: [{ id: 6, why: "already pinned the other way" }], rebuild: null } });
+  });
+  page.on("dialog", (d) => d.accept());
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=match`);
+  const card = page.locator(".like-questions");
+  await card.getByText("6 × jde and maximo records at the same tag where the maker is unknown on one side").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`like-questions-${width}`);
+  }
+  await card.getByLabel("and new ones like these").check();
+  await card.getByRole("button", { name: "Keep each pair apart" }).click();
+  await page.getByText("Answered 5 of 6; 1 left for you (already pinned the other way).").waitFor();
+  assert.deepEqual(sent, { key: "match|jde+maximo|the maker is unknown on one side", decision: "reject", standing: true, by: "ana" });
+});
+
 test("review custom-value confirmation and cancellation do not resubmit the containing form", async () => {
   await page.route("**/review?*", (route) => route.fulfill({ json: [
     { id: 8, kind: "conflict", payload: { fuzer_id: "tag-1", field: "description", chosen: "a",
@@ -994,6 +1146,31 @@ test("review custom-value confirmation and cancellation do not resubmit the cont
   await page.getByRole("status").filter({ hasText: "Saved #8" }).waitFor();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].value, "corrected value");
+});
+
+test("a question that came back says why, and can be sent for a field check (P2.4)", async () => {
+  await page.route("**/review?*", (route) => route.fulfill({ json: [
+    { id: 9, kind: "conflict", label: "20-P-1001A", description: null, payload: { fuzer_id: "tag-1", field: "manufacturer",
+      chosen: "Flowserve", values: [{ value: "Flowserve", source: "sap", source_key: "1" }, { value: "Sulzer", source: "jde", source_key: "2" }],
+      returned: { kind: "master_data", system: "jde", why: "JDE's owner rejected the correction: the nameplate says Sulzer. Look at it again." } } },
+  ] }));
+  const writes = [];
+  await page.route("**/review/9", (route) => {
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ json: { decided: 9 } });
+  });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=conflict`);
+  await page.getByText("JDE's owner rejected the correction: the nameplate says Sulzer.").waitFor();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await waveScreenshot(`question-returned-${width}`);
+  }
+  await page.getByRole("button", { name: "Check it in the field", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved #9" }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].decision, "field");
 });
 
 test("optional Demo preserves existing primary destinations and specialist routes", async () => {
@@ -2066,7 +2243,7 @@ test("Home counts the ops lead's and steward's work, each number matching the vi
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: open }));
   await page.goto(`${url}/#/`);
   for (const [name, to] of [["2 to dispatch", "#/exceptions"], ["1 with the field", "#/exceptions?list=field"],
-    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/review"],
+    ["1 back from the field", "#/exceptions?list=back"], ["4 open", "#/exceptions?list=open"], ["15 records to review", "#/masterdata?tab=questions"],
     ["1 ref on open work matched nothing", "#/masterdata"]]) {
     assert.equal(await page.getByRole("link", { name, exact: true }).getAttribute("href"), to);
   }
@@ -2578,6 +2755,33 @@ test("a dispatched operator sees what they were sent on My work and lands on the
   assert.deepEqual(read[1], { person: "olav", ids: null });
 });
 
+test("a person chooses Slack with quiet hours on My work (#606)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
+  const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  const saved = [];
+  await page.route("**/work/people/olav/notify", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      if (!body.address) return route.fulfill({ status: 400, json: { detail: "slack needs env:NAME, the environment variable holding the webhook URL" } });
+      saved.push(body);
+      return route.fulfill({ json: body });
+    }
+    return route.fulfill({ json: { channel: "in_app", address: null, quiet_from: null, quiet_to: null } });
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "How you are told" }).waitFor();
+  await page.getByLabel("Also send to").selectOption("slack");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("alert").filter({ hasText: "env:NAME" }).waitFor();
+  await page.getByLabel("Webhook kept in").fill("env:OLAV_SLACK");
+  await page.getByLabel("Quiet from").fill("22:00");
+  await page.getByLabel("to", { exact: true }).fill("06:00");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.deepEqual(saved[0], { channel: "slack", address: "env:OLAV_SLACK", quiet_from: "22:00", quiet_to: "06:00", by: "olav" });
+});
+
 test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
@@ -2979,3 +3183,136 @@ for (const state of ["empty", "loading", "failed"]) {
     assert.deepEqual(crashed, []);
   });
 }
+
+// P5.3a (#641): the field's pages on a 390 px phone are rows and single-column forms, with every control a 44 px
+// tap target and nothing wider than the screen: My work, the job, the task and the case.
+test("My work, the job, the task and the case fit a 390 px phone with 44 px targets (#641)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const source = { id: 7, type: "sap_notification", key: "k-1", title: "Pump P-101 vibration", source: "sap", state: "open",
+    first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", joined_to: null, subjects: [], label: "SAP notification",
+    finding: FINDINGS.sap_notification };
+  const job = { ...source, priority: null, unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, due: "2026-11-12T12:00:00Z", task_id: null, task_name: null,
+    assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump", lat: 1, lon: 2 }], checklist: [], sources: [],
+    history: [], field: [{ at: "2026-11-12T06:00:00Z", by: "fred", status: "on_site", note: null }], queued: false,
+    sent: { reason: "Check the drive-end bearing", by: "ines", at: "2026-11-12T05:50:00Z" } };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  const row = { ...demoTask.task, type: "upset", title: demoTask.item.title, subjects: [], bulk: [], priority: 2, escalated_at: null,
+    error: null, created_at: "2026-11-12T05:00:00Z", overdue: false, claimed_by: null };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["engineer"],
+    mine: [{ ...row, item_id: 8, assignee: "fred", due_at: "2026-11-12T12:00:00Z" }],
+    queue: [{ ...row, item_id: 9, task_id: 43, title: "Another case in the queue", due_at: null }],
+    counts: { mine: { total: 1 }, queue: { total: 1 } } } }));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, sources: [source] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [],
+    sources: [source], due: null, closed_at: null, created_at: "2026-11-12T05:00:00Z" } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const small = async (path, ready) => {
+    await page.goto(`${url}/#${path}`);
+    await page.getByRole("heading", { name: ready }).first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits 390 px`);
+    return page.evaluate(() => [...document.querySelectorAll("#main-content button, #main-content input:not([type=hidden]), "
+      + "#main-content select, #main-content textarea, #main-content a.ui-button")]
+      .filter((el) => el.offsetParent !== null)
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.height < 44 || r.width < 44)
+      .map(({ el, r }) => `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") || el.textContent || el.getAttribute("placeholder") || "").trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+  };
+  const found = {
+    "My work": await small("/inbox", "Pump P-101 vibration"),
+    task: await small("/inbox/task/42", "Review recorded evidence"),
+    case: await small("/cases/7", "Loaded shared case"),
+  };
+  assert.deepEqual(found, { "My work": [], task: [], case: [] });
+});
+
+// P5.3b (#642): Done with a reading and a photo from the phone; the IOC's "From the field" box shows both.
+test("a reading and a photo taken on the phone reach the IOC's From the field box (#642)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [], checklist: [], sources: [], history: [], field: [], queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const sent = [];
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/exceptions/7/report", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job").first();
+  await card.getByLabel("What was read").fill("Gland temperature");
+  await card.getByLabel("Reading", { exact: true }).fill("72.5");
+  await card.getByLabel("Unit").fill("°C");
+  await card.locator('input[type="file"]').setInputFiles({ name: "gland.png", mimeType: "image/png", buffer: PNG });
+  await card.getByRole("img", { name: "Photo 1 to send" }).waitFor();
+  await card.getByRole("button", { name: "Done", exact: true }).click();
+  for (let i = 0; i < 50 && !sent.length; i++) await page.waitForTimeout(50);
+  assert.equal(sent[0].status, "done");
+  assert.deepEqual(sent[0].reading, { value: 72.5, unit: "°C", what: "Gland temperature" });
+  assert.equal(sent[0].photos.length, 1);
+  assert.match(sent[0].photos[0], /^data:image\/jpeg;base64,/);  // shrunk on the phone
+
+  const said = { id: 99, kind: "commented", actor: "fred", element: null, at: "2026-11-12T06:00:00Z",
+    data: { text: "Field: Done: gland repacked (Gland temperature 72.5 °C; 1 photo)",
+      attachments: [{ kind: "photo", exception_id: 7, photo_id: 3 }] } };
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask,
+    evidence: { ...demoTask.evidence, comments: [said] } } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [], sources: [] } }));
+  await page.route("**/exceptions/7/photos/3", (route) => route.fulfill({ body: PNG, contentType: "image/png" }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/inbox/task/42`);
+  const box = page.locator(".from-field");
+  await box.getByText("Done: gland repacked (Gland temperature 72.5 °C; 1 photo)").waitFor();
+  await box.getByRole("img", { name: "Photo from the field" }).waitFor();
+});
+
+// P5.3c (#643): without signal the jobs still read from the phone, a report waits in the outbox, and it is sent
+// once, with the time it was made, when the signal returns.
+test("a report made without signal waits on the phone and is sent once with its time when signal returns (#643)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let online = true;
+  const posts = [];
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump" }], checklist: [], sources: [],
+    history: [], field: [], queued: false, sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  const live = (json) => (route) => (online ? route.fulfill({ json }) : route.abort("internetdisconnected"));
+  await page.route("**/exceptions/field?*", live({ person: "fred", jobs: [job], coming_up: [] }));
+  await page.route("**/work/inbox?*", live({ person: "fred", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } }));
+  await page.route("**/exceptions/7/report", (route) => {
+    if (!online) return route.abort("internetdisconnected");
+    posts.push({ ...route.request().postDataJSON(), received: Date.now() });
+    return route.fulfill({ json: job });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  await page.locator(".field-job").getByText("Look at the gland").waitFor();  // seen once with signal: kept
+
+  online = false;
+  await page.reload();
+  await page.getByText("No signal: these are your jobs as kept on this phone", { exact: false }).waitFor();
+  const card = page.locator(".field-job").first();
+  await card.getByText("Look at the gland").waitFor();
+  await card.getByText("P-101 export pump").waitFor();
+  const before = Date.now();
+  await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
+  await card.getByRole("button", { name: "Add note", exact: true }).click();
+  await card.getByText("No signal: kept on this phone", { exact: false }).waitFor();
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
+  assert.equal(posts.length, 0);
+  await page.waitForTimeout(1500);  // still no signal
+
+  online = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor({ state: "detached" });
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));  // a second nudge sends nothing more
+  await page.waitForTimeout(200);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].note, "Gland weeping, 12 drips a minute");
+  assert.ok(posts[0].client_id, "carries its id, so a resend is applied once");
+  const made = Date.parse(posts[0].at);
+  assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
+});

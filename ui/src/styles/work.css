@@ -50,3 +50,26 @@ ol.timeline > li.ev-completed::before, ol.timeline > li.ev-agent_result::before 
 ol.timeline > li.ev-escalated::before, ol.timeline > li.ev-failed::before, ol.timeline > li.ev-agent_failed::before { border-color: var(--danger); }
 ol.timeline > li.ev-handed_off::before, ol.timeline > li.ev-message::before { border-color: var(--accent); }
 .agent-idle { color: var(--warn); flex-basis: 100%; }
+
+/* Phones (P5.3a, #641): My work, the job, the task and the case as rows and single-column forms, every control a
+ * 44 px tap target. Checkboxes keep their size: their row is the target. */
+@media (max-width: 600px) {
+  #main-content :is(button, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])) { min-height: 44px; }
+  #main-content :is(button, a.ui-button) { min-width: 44px; min-height: 44px; }
+  #main-content .row > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { flex: 1 1 100%; width: 100%; max-width: none; }
+  .phone-rows, .phone-rows tbody { display: block; }
+  .phone-rows tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .phone-rows tr:last-child { border-bottom: none; }
+  .phone-rows td { display: block; padding: 0; border: none; }
+  .phone-rows td:first-child:empty { display: none; }
+  .phone-rows td:nth-child(2) { flex: 1 1 calc(100% - 40px); min-width: 0; }
+  .phone-rows td:nth-child(3) { flex: 1 1 auto; }
+  .phone-rows td:nth-child(4) { flex: none; }
+}
+
+/* Evidence from the field (P5.3b, #642): a reading and photos on a report, and the photos where the IOC reads it. */
+.field-evidence { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; min-width: 0; }
+.field-evidence .row > input { flex: 1 1 120px; min-width: 0; }
+.field-photos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.field-photo { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 64px; min-height: 64px; }
+.field-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }

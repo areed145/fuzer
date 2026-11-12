@@ -223,6 +223,67 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     conn.commit()
 
 
+PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ"
+         "AAAABJRU5ErkJggg==")
+
+
+def test_a_report_carries_a_reading_and_a_photo_the_ioc_sees(conn, types):
+    """P5.3b (#642): Done with a reading and a photo; the case's history says it in words and links the photo,
+    which the API serves back as the image the phone sent."""
+    from fuzer.api import ops as api
+    from fuzer.ops import exceptions as ex
+
+    types("leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-102 (photo)", "olga", refs=["tag:P-102"])
+    ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at the gland")
+    conn.commit()
+    with pytest.raises(ExceptionError, match="needs its unit"):
+        ex.report(conn, e["id"], "fred", "note", "hot", reading={"value": 72})
+    with pytest.raises(ExceptionError, match="JPEG, PNG or WebP"):
+        ex.report(conn, e["id"], "fred", "note", "x", photos=["data:text/html;base64,PGI+"])
+    conn.rollback()
+    row = api.exception_report(e["id"], api.FieldReport(by="fred", status="done", note="gland repacked",
+                                                        reading={"value": 72.5, "unit": "°C", "what": "Gland"},
+                                                        photos=[PIXEL]), conn)
+    [entry] = row["evidence"]["field"]
+    assert entry["reading"] == {"value": 72.5, "unit": "°C", "what": "Gland"} and len(entry["photos"]) == 1
+    said = conn.execute("select data from work_event where item_id = %s and kind = 'commented' order by id desc limit 1",
+                        (row["item_id"],)).fetchone()["data"]
+    assert said["text"] == "Field: Done: gland repacked (Gland 72.5 °C; 1 photo)"
+    assert said["attachments"] == [{"kind": "photo", "exception_id": e["id"], "photo_id": entry["photos"][0]}]
+    img = api.exception_photo(e["id"], entry["photos"][0], conn)
+    assert img.media_type == "image/png" and img.body.startswith(b"\x89PNG")
+    with pytest.raises(Exception, match="404"):
+        api.exception_photo(e["id"] + 999, entry["photos"][0], conn)
+
+
+def test_a_report_made_offline_arrives_once_with_its_time(conn, types):
+    """P5.3c (#643): the phone sends a report it kept without signal, then again after losing the answer: it is
+    applied once and keeps the time it was made, which the case history says."""
+    from datetime import datetime, timedelta
+
+    from fuzer.api import ops as api
+    from fuzer.ops import exceptions as ex
+
+    types("leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak", "walk-offline", "Leak at P-103 (offline)", "olga", refs=["tag:P-103"])
+    ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at it")
+    conn.commit()
+    made = (datetime.now().astimezone() - timedelta(minutes=40)).replace(microsecond=0)
+    sent = api.FieldReport(by="fred", status="note", note="drip rate 12/min", client_id="phone-1-abc", at=made.isoformat())
+    api.exception_report(e["id"], sent, conn)
+    again = api.exception_report(e["id"], sent, conn)
+    entries = [f for f in again["evidence"]["field"] if f.get("client_id") == "phone-1-abc"]
+    assert len(entries) == 1 and datetime.fromisoformat(entries[0]["at"]) == made and entries[0]["received_at"]
+    said = conn.execute("select count(*) as n, max(data->>'text') as t from work_event where item_id = %s and "
+                        "kind = 'commented'", (again["item_id"],)).fetchone()
+    assert said["n"] == 1 and "sent when back in signal" in said["t"]
+    future = ex.report(conn, e["id"], "fred", "note", "clock ahead", client_id="phone-1-def",
+                       at=(datetime.now().astimezone() + timedelta(days=1)).isoformat())
+    assert datetime.fromisoformat(future["evidence"]["field"][-1]["at"]) <= datetime.now().astimezone()
+    conn.commit()
+
+
 def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types):
     """Dispatching a process case hands its open person step (the IOC's decision) to the operator; when they say
     done, or that they couldn't, it goes back to whoever had it, so it reappears in the IOC's Inbox."""
@@ -821,7 +882,8 @@ def test_every_module_that_declares_a_type_is_loaded_with_the_routing_table():
 
     declared = set()
     for f in PACKAGE.rglob("*.py"):
-        if re.search(r"^\s+return TYPES\.get\(\"\w+\"\) or exception_type\(|^[A-Z_]+ = exception_type\(|^exception_type\(",
+        if re.search(r"^\s+return TYPES\.get\(\"\w+\"\) or exception_type\(|^[A-Z_]+ = exception_type\(|^exception_type\("
+                     r"|^[A-Z_]+ = \{\w+: exception_type\(",
                      f.read_text(), re.MULTILINE):
             declared.add("fuzer." + ".".join(f.relative_to(PACKAGE).with_suffix("").parts))
     assert declared == set(port.DECLARED_IN)
