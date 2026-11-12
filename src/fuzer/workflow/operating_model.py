@@ -257,9 +257,14 @@ def conformance_package(conn) -> dict:
 
 def adopt(conn, by: str) -> dict:
     """Make this project run the operating model its bundle follows: apply it, set the bundle's settings deviations
-    and name every deviation the bundle declares. What is left unnamed afterwards is the project's own."""
+    and name every deviation the bundle declares. What is left unnamed afterwards is the project's own. The shipped
+    processes and forms load first, as the API's start loads them, so a project stood up from its bundle a moment ago
+    adopts without the caller publishing the shipped definitions (which needs workflow_admin)."""
+    from . import definitions
+
     ref = _bundle_model(conn)
     pkg = _package_for(ref)
+    definitions.load_defaults(conn)
     done = apply(conn, pkg, by)
     project = _project(conn)
     for d in ref.get("deviations") or []:

@@ -4,7 +4,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from .tags import PatternWellGrammar, TagGrammar, WellGrammar
+from .tags import NoWellGrammar, PatternWellGrammar, TagGrammar, WellGrammar
 
 
 @dataclass
@@ -12,7 +12,7 @@ class Pack:
     name: str
     facility: str
     tags: TagGrammar
-    wells: WellGrammar | PatternWellGrammar
+    wells: WellGrammar | PatternWellGrammar | NoWellGrammar  # NoWellGrammar: the pack declares none (no wells)
     aliases: dict[str, tuple[str, str]]
     matching: dict
     survivorship: dict
@@ -35,6 +35,13 @@ NO_PROJECT = ("No project to serve: this database holds none and FUZER_PROJECT i
 CACHE_SECONDS = 5.0
 
 
+def _wells(wg: dict | None) -> WellGrammar | PatternWellGrammar | NoWellGrammar:
+    """The pack's well grammar: a pattern, platforms, or none at all for an asset with no wells."""
+    if not wg:
+        return NoWellGrammar()
+    return PatternWellGrammar(wg["pattern"], wg["key"]) if "pattern" in wg else WellGrammar(wg["platforms"])
+
+
 def pack_from_config(raw: dict) -> Pack:
     """A Pack from its YAML/JSON form (a seed bundle's pack.yaml, or the copy stored in its project)."""
     tg = raw["tag_grammar"]
@@ -43,8 +50,7 @@ def pack_from_config(raw: dict) -> Pack:
         facility=raw["facility"],
         tags=TagGrammar(tg["function_codes"], tg.get("area_digits", 2), tuple(tg.get("loop_digits", (3, 5))),
                         area=tg.get("area"), pattern=tg.get("pattern")),
-        wells=(PatternWellGrammar(wg["pattern"], wg["key"]) if "pattern" in (wg := raw["well_grammar"])
-               else WellGrammar(wg["platforms"])),
+        wells=_wells(raw.get("well_grammar")),
         aliases={phrase: tuple(target) for phrase, target in raw.get("aliases", {}).items()},
         matching=raw["matching"],
         survivorship=raw["survivorship"],

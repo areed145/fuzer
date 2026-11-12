@@ -79,7 +79,8 @@ tag_grammar:              # how sources write tags: A1-PT-1001, KRGP:A1.PT1001.P
   loop_digits: [4, 4]
   function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, AT, PDT, XV, PV, PSV, FIC, PIC, LIC]
 
-well_grammar:             # KR12-03H, KR-12-03H and KR_12_03H all meet on one well, "KR 12-03H"
+well_grammar:             # KR12-03H, KR-12-03H and KR_12_03H all meet on one well, "KR 12-03H" (leave it out
+                          # for an asset with no wells: nothing then parses as a well)
   pattern: 'KR[-_\s]?(?P<pad>\d{2})[-_\s]?(?P<num>\d{2})(?P<h>H?)'
   key: 'KR {pad}-{num}{h}'
 

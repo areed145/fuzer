@@ -115,6 +115,11 @@
     "uom": "degC",
     "Hi": 85,
     "HiHi": 95
+   },
+   {
+    "name": "Mainline Pump A Motor Power",
+    "pi_point": "HRPT:A1.JT1015A.PV",
+    "uom": "kW"
    }
   ]
  },
@@ -135,6 +140,11 @@
     "uom": "degC",
     "Hi": 85,
     "HiHi": 95
+   },
+   {
+    "name": "Mainline Pump B Motor Power",
+    "pi_point": "HRPT:A1.JT1015B.PV",
+    "uom": "kW"
    }
   ]
  },
@@ -155,6 +165,11 @@
     "uom": "degC",
     "Hi": 85,
     "HiHi": 95
+   },
+   {
+    "name": "Mainline Pump C Motor Power",
+    "pi_point": "HRPT:A1.JT1015C.PV",
+    "uom": "kW"
    }
   ]
  },

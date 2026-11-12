@@ -45,6 +45,18 @@
    "A1-P-1003C",
    "bearing_temperature"
   ],
+  "HRPT:A1.JT1015A.PV": [
+   "A1-P-1003A",
+   "power"
+  ],
+  "HRPT:A1.JT1015B.PV": [
+   "A1-P-1003B",
+   "power"
+  ],
+  "HRPT:A1.JT1015C.PV": [
+   "A1-P-1003C",
+   "power"
+  ],
   "HRPT:A1.PDT1007.PV": [
    "A1-F-1007",
    "value"
@@ -653,6 +665,36 @@
      -9
     ]
    ]
+  },
+  {
+   "unit": "A1-P-1003A",
+   "kind": "vibration_rise",
+   "points": [
+    [
+     "today-1d 02:00",
+     0
+    ],
+    [
+     "today-1d 06:30",
+     9.8
+    ],
+    [
+     "today-1d 07:00",
+     9.8
+    ]
+   ]
+  },
+  {
+   "unit": "A1-P-1003A",
+   "kind": "stopped",
+   "start": "today-1d 06:40",
+   "end": "today+400d"
+  },
+  {
+   "unit": "A1-P-1003C",
+   "kind": "covering",
+   "start": "today-1d 07:10",
+   "end": "today+400d"
   },
   {
    "unit": "H1-PT-8002",
