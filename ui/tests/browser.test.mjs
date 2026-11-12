@@ -3908,3 +3908,52 @@ test("hot work beside a line break is flagged on Plan and at dispatch (#709)", a
   await page.getByRole("button", { name: /Weld reboiler fire tube support/ }).click();
   await page.getByText("Simultaneous operations: Hot work near a line break in TEG dehydration: hot work (PTW-24105)", { exact: false }).waitFor();
 });
+
+// P5.11c (#710): at shift change the outgoing operator hands a job in progress over; the incoming one sees the note
+// at the top and accepts it.
+test("a job in progress is handed over at shift change and the incoming operator accepts it (#710)", async () => {
+  const base = { id: 31, type: "leak", key: "k31", title: "Compressor B1-K-2001 valve change", source: "olga", state: "open",
+    priority: null, value_usd: null, subjects: ["fz-k"], unmatched: [], item_id: 61, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, first_seen: "2026-11-12T06:00:00Z", last_seen: "2026-11-12T06:00:00Z", label: "Leak", due: null,
+    task_id: null, task_name: null, assets: [{ fuzer_id: "fz-k", label: "B1-K-2001", kind: "equipment", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], queued: false, sources: [],
+    field: [{ at: "2026-11-12T15:00:00Z", by: "fred", status: "on_site", note: null }],
+    sent: { by: "ann", at: "2026-11-12T14:00:00Z", reason: "change the valve" }, permit: null, handover: null };
+  const sent = [];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [base], coming_up: [] } }));
+  await page.route("**/exceptions/31/handover", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: base }); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "valve change" });
+  await card.getByRole("button", { name: "Hand over at shift change" }).click();
+  const go = card.getByRole("button", { name: "Hand over", exact: true });
+  assert.equal(await go.isDisabled(), true);
+  await card.getByLabel("Hand over to").fill("gina");
+  await card.getByLabel("What was done").fill("isolated and blown down");
+  await card.getByLabel("What is left").fill("fit the new discharge valve");
+  await card.getByLabel("Unsafe to leave").fill("cylinder 3 cover is off");
+  await go.click();
+  await expectReports(sent, 1);
+  assert.deepEqual(sent[0], { by: "fred", to: "gina", done: "isolated and blown down", left: "fit the new discharge valve",
+    unsafe: "cylinder 3 cover is off" });
+
+  const handed = { ...base, queued: true, handover: { from: "fred", to: "gina", at: "2026-11-12T17:55:00Z", done: "isolated and blown down",
+    left: "fit the new discharge valve", unsafe: "cylinder 3 cover is off", permit: null, mine_to_accept: true, waiting_on: null } };
+  const accepted = [];
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "gina"));
+  await page.unroute("**/exceptions/field?*");
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "gina", jobs: [handed], coming_up: [] } }));
+  await page.route("**/exceptions/31/handover/accept", (route) => { accepted.push(route.request().postDataJSON()); return route.fulfill({ json: base }); });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "gina"));
+  await page.reload();
+  const theirs = page.locator(".field-job", { hasText: "valve change" });
+  await theirs.getByText("Handed over to you by fred").waitFor();
+  await theirs.getByText("Unsafe to leave: cylinder 3 cover is off").waitFor();
+  assert.equal(await theirs.getByRole("button", { name: "Take it" }).count(), 0);
+  await theirs.getByRole("button", { name: "Accept the handover" }).click();
+  await expectReports(accepted, 1);
+  assert.deepEqual(accepted[0], { by: "gina" });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});

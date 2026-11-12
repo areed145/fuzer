@@ -401,6 +401,32 @@ def exception_readiness(exception_id: int, conn=Depends(get_conn)):
         raise HTTPException(404, str(e)) from e
 
 
+class FieldHandover(BaseModel):
+    by: str
+    to: str
+    done: str
+    left: str
+    unsafe: str | None = None
+
+
+@router.post("/exceptions/{exception_id}/handover")
+def exception_handover(exception_id: int, h: FieldHandover, conn=Depends(get_conn)):
+    """Hand a job in progress to someone on the incoming crew (P5.11c); it stays with the sender until accepted."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.hand_over, exception_id, h.by, h.to, h.done, h.left, h.unsafe)
+
+
+class ByPerson(BaseModel):
+    by: str
+
+
+@router.post("/exceptions/{exception_id}/handover/accept")
+def exception_handover_accept(exception_id: int, b: ByPerson, conn=Depends(get_conn)):
+    """The incoming person accepts a job handed to them (P5.11c)."""
+    from ..ops import exceptions
+    return _exception_call(conn, exceptions.accept_handover, exception_id, b.by)
+
+
 @router.post("/exceptions/{exception_id}/report")
 def exception_report(exception_id: int, r: FieldReport, conn=Depends(get_conn)):
     """A field operator reports back: on site, done, could not do (with why), or a note."""

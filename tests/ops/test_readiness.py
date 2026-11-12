@@ -262,6 +262,74 @@ def test_hot_work_beside_a_line_break_is_flagged_on_plan_and_at_dispatch(kestrel
     assert r.status_code == 409 and "Simultaneous operations: Hot work near a line break" in r.text
 
 
+def test_a_job_handed_over_at_shift_change_stays_with_the_outgoing_operator_until_accepted(kestrel, client):
+    from fuzer.graph import queries
+    from fuzer.ops import exceptions
+
+    conn, pack = kestrel
+    e = job(conn, "K-2001 valve change, shift change", queries.resolve_ref(conn, pack, "B1-K-2001"))
+    assert client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred", "reason": "change the valve",
+                                                        "override": "parts on site"}).is_success
+    assert client.post(f"/exceptions/{e}/report", json={"by": "fred", "status": "on_site"}).is_success
+    r = client.post(f"/exceptions/{e}/handover", json={"by": "gina", "to": "fred", "done": "x", "left": "y"})
+    assert r.status_code == 400 and "only whoever has the job" in r.text
+    r = client.post(f"/exceptions/{e}/handover", json={"by": "fred", "to": "gina", "done": "isolated and blown down",
+                                                     "left": "fit new discharge valve on cylinder 3",
+                                                     "unsafe": "cylinder 3 cover is off"})
+    assert r.status_code == 200, r.text
+    # with gina, at the top, the outgoing note first; still fred's until she accepts it
+    [top, *_] = exceptions.field_jobs(conn, "gina")
+    assert top["id"] == e and top["handover"]["mine_to_accept"] and top["handover"]["from"] == "fred"
+    assert (top["handover"]["done"], top["handover"]["left"], top["handover"]["unsafe"]) == (
+        "isolated and blown down", "fit new discharge valve on cylinder 3", "cylinder 3 cover is off")
+    assert top["handover"]["permit"]["label"] == "PTW-24101"  # the permit it runs under, as it stood
+    [mine] = [j for j in exceptions.field_jobs(conn, "fred") if j["id"] == e]
+    assert mine["handover"]["waiting_on"] == "gina" and not mine["queued"]
+    assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "otto"}).status_code == 400
+    assert client.post(f"/exceptions/{e}/handover/accept", json={"by": "gina"}).is_success
+    [taken] = [j for j in exceptions.field_jobs(conn, "gina") if j["id"] == e]
+    assert taken["handover"] is None and not taken["queued"]
+    assert not [j for j in exceptions.field_jobs(conn, "fred") if j["id"] == e]
+    item = taken["item_id"]
+    said = [c["body"] for c in conn.execute(
+        "select data->>'text' as body from work_event where item_id = %s and kind = 'commented' order by id", (item,))]
+    assert any(s.startswith("Handover to gina: done: isolated and blown down; left: fit new discharge valve") and
+               "unsafe to leave: cylinder 3 cover is off" in s for s in said)
+    assert said[-1] == "Accepted the handover from fred"
+    # what gina can't finish goes back past fred, who is off shift, to the IOC that sent it
+    assert client.post(f"/exceptions/{e}/report", json={"by": "gina", "status": "could_not_do",
+                                                      "note": "wrong valve delivered"}).is_success
+    holder = conn.execute("select coalesce((select assignee from work_token where item_id = %(i)s and kind = 'user' "
+                          "and state in ('ready', 'waiting') limit 1), (select assignee from work_item where id = %(i)s))"
+                          " as a", {"i": item}).fetchone()["a"]
+    assert holder == "ioc-ann"
+
+
+def test_the_shift_handover_lists_jobs_in_the_field_and_open_permits_from_the_records(kestrel, client):
+    from datetime import UTC, datetime
+
+    from fuzer.graph import queries
+    from fuzer.ops import handover
+
+    conn, pack = kestrel
+    e = job(conn, "G-7006 load test, at shift change", queries.resolve_ref(conn, pack, "G1-G-7006"))
+    client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred", "override": "crew"})
+    client.post(f"/exceptions/{e}/report", json={"by": "fred", "status": "on_site"})
+    client.post(f"/exceptions/{e}/handover", json={"by": "fred", "to": "gina", "done": "breaker racked out",
+                                                 "left": "run the load test", "unsafe": "panel door open"})
+    now = datetime.now(UTC)
+    s = handover.facts(conn, now - timedelta(hours=12), now)["sections"]
+    [field] = [x for x in s["In the field"] if f"exception:{e}" in x["cites"]]
+    assert field["text"].startswith("Look at G-7006 load test, at shift change: fred on site since ")
+    assert "handed over to gina, waiting to be accepted (unsafe to leave: panel door open)" in field["text"]
+    permits = {x["text"].split()[0]: x["text"] for x in s["Open permits"]}
+    assert "PTW-24102" not in permits  # expired
+    assert permits["PTW-24101"].startswith("PTW-24101 cold work on ") and \
+        "1 of 3 isolations not in place (ISO-24101-3 planned)" in permits["PTW-24101"]
+    assert permits["PTW-24103"].endswith("; 1 isolation in place")
+    assert all(x["cites"][0].startswith("entity:") for x in s["Open permits"])
+
+
 def test_okan_spares_come_from_its_own_records(okan_db):
     conn = okan_db.conn
     short = conn.execute(
