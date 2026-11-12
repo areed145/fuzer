@@ -166,7 +166,10 @@ def rebuild(conn, pack: Pack) -> dict:
     lap("graph")
     endpoint = edges.resolver({**assigned, **d_assigned}, key_index)
     # the drawings' equipment data and alarm and trip tables (#475), from the cached readings
-    stats |= measurements.build(conn, pack, maps, endpoint, capacity_bounds.derive,
+    from . import rounds  # readings operators took on rounds stay on their asset (P5.4b)
+
+    derive = lambda c, p, rows: capacity_bounds.derive(c, p, rows) | rounds.measurements(c)
+    stats |= measurements.build(conn, pack, maps, endpoint, derive,
                                 extra=llm_pids.design_measurements(conn, pid_sheets, pack))
     stats |= curves.build(conn, pack, maps, endpoint)
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))

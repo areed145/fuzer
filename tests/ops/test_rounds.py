@@ -52,6 +52,7 @@ def fresh(kestrel):
     yield
     conn = kestrel[0]
     conn.rollback()
+    conn.execute("update exception_record set state = 'cleared' where type = 'round_finding'")
     conn.execute("delete from round_reading")
     conn.execute("delete from round_run")
     conn.commit()
@@ -93,3 +94,69 @@ def test_each_round_opens_once_a_shift_for_operators_and_last_shifts_close(kestr
     states = {r["state"] for r in conn.execute("select state from round_run where shift_start = %s",
                                                 (first["shift_start"],))}
     assert states == {"missed"}
+
+
+def test_a_reading_outside_its_limits_raises_one_routed_case_and_is_kept_on_the_asset(kestrel):
+    from fuzer.graph import measurements
+    from fuzer.ops import pipeline
+
+    conn, pack = kestrel
+    comp = next(r for r in rounds.runs(conn) if r["round"] == "Compression rounds")
+    ok = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=4.2)
+    assert ok["taken"]["passed"] is True and ok["exception"] is None
+    low = rounds.take(conn, comp["id"], "R-B1-01", "olu", value=2.1, note="gauge steady")  # taken again: corrected
+    assert low["taken"]["passed"] is False and low["exception"]["raised"] is True
+    e = conn.execute("select * from exception_record where id = %s", (low["exception"]["id"],)).fetchone()
+    assert e["type"] == "round_finding" and e["subjects"] == [low["asset"]] and e["item_id"]
+    assert e["title"] == "Lube oil pressure on B1-K-2001: 2.1 barg, limits 3 to 5.5 barg"
+    case = conn.execute("select role from work_item where id = %s", (e["item_id"],)).fetchone()
+    assert case["role"] == "ops_lead" or conn.execute(  # the queue's own process holds the role on its task
+        "select 1 from work_task where item_id = %s and role = 'ops_lead'", (e["item_id"],)).fetchone()
+    items = {i["label"]: i for i in e["evidence"]["finding"]["items"]}
+    assert (items["Reading"]["value"], items["Reading"]["unit"], items["Limits"]["value"], items["Outside"]["value"]) == (
+        2.1, "barg", "3 to 5.5 barg", "low")
+    assert e["evidence"]["finding"]["origin"] == "deterministic"
+    # a second bad reading on a later run adds to the same case, never a second one
+    conn.execute("update round_run set state = 'missed' where id = %s", (comp["id"],))
+    again = rounds.take(conn, conn.execute(
+        "insert into round_run (round, shift_start, shift_end, points) values ('Compression rounds', now(), "
+        "now() + interval '12 hours', 4) returning id").fetchone()["id"], "R-B1-01", "olu", value=2.0)
+    assert again["exception"] == {"id": e["id"], "raised": False}
+    assert conn.execute("select count(*) as n from exception_record where type = 'round_finding' and state = 'open'"
+                        ).fetchone()["n"] == 1
+    with pytest.raises(Exception, match="closed"):
+        rounds.take(conn, comp["id"], "R-B1-02", "olu", value=1)
+    conn.commit()
+    # the reading is a measurement on the compressor, and a rebuild keeps it there
+    series = {s["quantity"]: s for s in measurements.for_entity(conn, low["asset"])["series"]}
+    assert series["lube_oil_pressure"]["latest"]["method"] == "Operator round"
+    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [2.0, 2.1]
+    pipeline.rebuild(conn, pack)
+    conn.commit()
+    series = {s["quantity"]: s for s in measurements.for_entity(conn, low["asset"])["series"]}
+    assert sorted(v["value"] for v in series["lube_oil_pressure"]["values"]) == [2.0, 2.1]
+
+
+def test_a_failed_check_on_the_phone_needs_what_was_found_and_raises_a_finding(kestrel):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import ops as ops_api
+
+    conn, _ = kestrel
+    app = FastAPI()
+    app.include_router(ops_api.router)
+    app.dependency_overrides[ops_api.get_conn] = lambda: conn
+    api = TestClient(app)
+    comp = next(r for r in api.get("/rounds").json() if r["round"] == "Compression rounds")
+    check = api.get(f"/rounds/{comp['id']}").json()["points"][3]
+    url = f"/rounds/{comp['id']}/readings"
+    refused = api.post(url, json={"point": check["id"], "by": "olu", "passed": False})
+    assert refused.status_code == 400 and "say what you found" in refused.json()["detail"]
+    assert "enter the reading" in api.post(url, json={"point": "R-B1-01", "by": "olu"}).json()["detail"]
+    out = api.post(url, json={"point": check["id"], "by": "olu", "passed": False,
+                              "note": "oil weeping at the drain valve"}).json()
+    e = conn.execute("select * from exception_record where id = %s", (out["exception"]["id"],)).fetchone()
+    assert e["title"].endswith("failed: oil weeping at the drain valve")
+    assert e["evidence"]["finding"]["origin"] == "external"
+    assert [r["found"] for r in rounds.runs(conn) if r["id"] == comp["id"]] == [1]

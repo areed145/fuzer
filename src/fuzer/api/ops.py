@@ -417,6 +417,24 @@ def round_run(run_id: int, conn=Depends(get_conn)):
     return _exception_call(conn, rounds.run, run_id)
 
 
+class RoundTaken(BaseModel):
+    point: str
+    by: str
+    value: float | None = None
+    passed: bool | None = None
+    note: str | None = None
+
+
+@router.post("/rounds/{run_id}/readings")
+def round_reading(run_id: int, t: RoundTaken, conn=Depends(get_conn)):
+    """An operator's reading or check on a point of a round (P5.4b): kept as a measurement on its asset, and outside
+    its limits (or a failed check) a round_finding that routes a case to the IOC."""
+    from ..ops import rounds
+    out = _exception_call(conn, rounds.take, run_id, t.point, t.by, value=t.value, passed=t.passed, note=t.note)
+    conn.commit()
+    return out
+
+
 class FieldHandover(BaseModel):
     by: str
     to: str

@@ -6,15 +6,24 @@
                           role; a run whose shift is over is closed as done, partly done or missed
     runs(conn)            this shift's runs with how far each has got
     run(conn, id)         a run's points, each with what was taken
+    take(conn, ...)       an operator's reading or check on a point (P5.4b): kept on the run and, for a reading, as a
+                          measurement on its asset; outside its limits, or a failed check, raises one round_finding
+                          through the finding contract, which routes a case to the IOC
 
 Read from the records, never from equipment type: a site's rounds are its own export.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
-from ..core.exceptions import ExceptionError
+from ..core import findings
+from ..core.exceptions import ExceptionError, exception_type, raise_exception
 
 ROLE = "operator"
+METHOD = "Operator round"
+ROUND_FINDING = exception_type(
+    "round_finding", "Round finding", role="role:ops_lead", audience=("ioc", "field"),
+    description="A reading outside its limits, or a failed check, taken by an operator on a round.").name
 
 
 def points(conn) -> list[dict]:
@@ -114,3 +123,115 @@ def run(conn, run_id: int) -> dict:
         "select * from round_reading where run_id = %s order by id", (run_id,)).fetchall()}
     pts = [{**p, "taken": taken.get(p["id"])} for p in rounds(conn).get(r["round"], [])]
     return {**r, "points": pts, "taken": len(taken), "area": pts[0]["area"] if pts else None}
+
+
+def _quantity(what: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", (what or "reading").lower()).strip("_") or "reading"
+
+
+def _naive(at: datetime) -> datetime:
+    """A moment as the measurement table keeps a source's own times: the site's local clock, no zone."""
+    from .handover import _tz
+
+    return at.astimezone(_tz()).replace(tzinfo=None)
+
+
+def _record(run_id: int, point: dict) -> str:
+    return f"rounds:reading:{run_id}:{point['point_id'] or point['id']}"
+
+
+def _limits(p: dict) -> str:
+    lo, hi, unit = p["low"], p["high"], f" {p['unit']}" if p["unit"] else ""
+    if lo is not None and hi is not None:
+        return f"{lo:g} to {hi:g}{unit}"
+    return f"at least {lo:g}{unit}" if lo is not None else f"at most {hi:g}{unit}" if hi is not None else ""
+
+
+def _finding(r: dict, p: dict, value: float | None, passed: bool, note: str | None, by: str, at: datetime):
+    reading = p["kind"] == "reading"
+    side = None
+    if reading and p["high"] is not None and value > p["high"]:
+        side = "high"
+    elif reading and p["low"] is not None and value < p["low"]:
+        side = "low"
+    return findings.Finding(
+        "rounds.reading", findings.DETERMINISTIC if reading else findings.EXTERNAL,
+        method="A round reading outside its limits" if reading else "A failed check on a round",
+        start=at.isoformat(timespec="minutes"), data={"round": r["round"], "point": p["point_id"], "run": r["id"]},
+        items=(findings.fact("Round", r["round"]), findings.fact("Check", p["what"]),
+               findings.fact("Reading", value, p["unit"]) if reading else findings.fact("Result", "Failed"),
+               findings.fact("Limits", _limits(p)) if reading else None,
+               findings.fact("Outside", side) if side else None,
+               findings.fact("Note", note), findings.fact("Taken by", by), findings.at("Taken", at),
+               findings.asset("On", p["asset"])))
+
+
+def take(conn, run_id: int, point: str, by: str, value: float | None = None, passed: bool | None = None,
+         note: str | None = None, at: datetime | None = None) -> dict:
+    """An operator's reading (a number) or check (passed or not) on one point of an open round. Taking it again
+    corrects it. A reading is kept as a measurement on its asset; one outside its limits, or a failed check, raises
+    a round_finding on the point (one open per point, so a second bad reading adds to it) with the reading as
+    evidence. Returns the point as taken, with the exception it raised."""
+    by = (by or "").strip()
+    if not by:
+        raise ExceptionError("say who took it")
+    note = (note or "").strip() or None
+    at = at or datetime.now(UTC)
+    r = conn.execute("select * from round_run where id = %s for update", (run_id,)).fetchone()
+    if r is None:
+        raise ExceptionError(f"no round run {run_id}")
+    if r["state"] != "open":
+        raise ExceptionError(f"{r['round']} for that shift is closed ({r['state'].replace('_', ' ')})")
+    p = next((x for x in rounds(conn).get(r["round"], []) if point in (x["id"], x["point_id"])), None)
+    if p is None:
+        raise ExceptionError(f"{point} is not on {r['round']}")
+    if p["kind"] == "reading":
+        if value is None:
+            raise ExceptionError(f"enter the reading for {p['what']}")
+        value = float(value)
+        passed = (p["low"] is None or value >= p["low"]) and (p["high"] is None or value <= p["high"])
+    else:
+        if passed is None:
+            raise ExceptionError(f"say whether {p['what']} passed")
+        value = None
+        if not passed and not note:
+            raise ExceptionError("say what you found")
+    raised = None
+    if not passed:
+        raised = raise_exception(
+            conn, ROUND_FINDING, p["point_id"] or p["id"], f"{p['what']} on {p['asset_label'] or r['round']}"
+            + (f": {value:g}{' ' + p['unit'] if p['unit'] else ''}, limits {_limits(p)}" if value is not None else
+               f" failed: {note}"), by, refs=[p["asset"]] if p["asset"] else [], source="rounds",
+            finding=_finding(r, p, value, passed, note, by, at))
+    taken = conn.execute(
+        """
+        insert into round_reading (run_id, point, value, passed, note, by, at, exception_id)
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (run_id, point) do update set value = excluded.value, passed = excluded.passed,
+            note = excluded.note, by = excluded.by, at = excluded.at,
+            exception_id = coalesce(excluded.exception_id, round_reading.exception_id)
+        returning *
+        """, (run_id, p["id"], value, passed, note, by, at, raised and raised["id"])).fetchone()
+    if value is not None and p["asset"]:
+        conn.execute(
+            """
+            insert into measurement (record, quantity, fuzer_id, at, value, unit, method, location)
+            values (%s, %s, %s, %s, %s, %s, %s, %s)
+            on conflict (record, quantity) do update set value = excluded.value, at = excluded.at
+            """, (_record(run_id, p), _quantity(p["what"]), p["asset"], _naive(at),
+                  value, p["unit"], METHOD, r["round"]))
+    return {**p, "taken": taken, "exception": raised and {"id": raised["id"], "raised": raised["raised"]}}
+
+
+def measurements(conn) -> dict:
+    """Every reading taken on a round, as rows for the measurement table, so a rebuild keeps them on their asset."""
+    by_id = {p["id"]: p for p in points(conn)}
+    out = {}
+    for t in conn.execute("select * from round_reading where value is not null order by id"):
+        p = by_id.get(t["point"])
+        if p and p["asset"]:
+            q = _quantity(p["what"])
+            out[(_record(t["run_id"], p), q)] = (_record(t["run_id"], p), q, p["asset"],
+                                                 _naive(t["at"]), t["value"], p["unit"],
+                                                 None, None, METHOD, p["round"])
+    return out

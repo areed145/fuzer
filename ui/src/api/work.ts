@@ -831,6 +831,8 @@ export const workApi = {
   acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),
   rounds: () => request<RoundRun[]>("GET", "/rounds"),
   round: (id: number) => request<RoundDetail>("GET", `/rounds/${id}`),
+  takeRound: (id: number, t: { point: string; by: string; value?: number; passed?: boolean; note?: string }) =>
+    request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

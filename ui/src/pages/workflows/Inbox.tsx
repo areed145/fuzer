@@ -119,7 +119,7 @@ export function InboxPage() {
         <h2 id="waiting-jobs">Field jobs waiting in your queues <span className="muted small">{waitingJobs.length} · take one to make it yours</span></h2>
         {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
       </section>}
-      {d.roles.includes("operator") && !offline && <RoundsThisShift />}
+      {d.roles.includes("operator") && !offline && <RoundsThisShift person={person} />}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
       <HowYouAreTold person={person} />

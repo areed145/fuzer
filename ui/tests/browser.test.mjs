@@ -3940,7 +3940,7 @@ test("a job in progress is handed over at shift change and the incoming operator
 
 // P5.4a (#717): an operator's My work shows this shift's rounds, each with how far it has got, and opens one to its
 // points in order with their limits.
-test("an operator sees this shift's rounds and a round's points (#717)", async () => {
+test("an operator sees this shift's rounds and takes a round's readings and checks (#717, #718)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olu"));
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "olu", roles: ["operator"], mine: [], queue: [],
     counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
@@ -3954,10 +3954,26 @@ test("an operator sees this shift's rounds and a round's points (#717)", async (
       what: "No oil on the skid", kind: "check", unit: null, low: null, high: null, taken: null }] } }));
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(`${url}/#/inbox`);
-  const rounds = page.locator("section", { has: page.getByRole("heading", { name: /Rounds this shift/ }) });
+  const rounds = page.locator(`section[aria-labelledby="rounds-this-shift"]`);
   await rounds.getByText("1 of 2 taken").waitFor();
   await rounds.getByRole("button", { name: "Compression (Compression)" }).click();
   await rounds.getByText("40 to 62 barg").waitFor();
   await rounds.getByText("No oil on the skid").waitFor();
+  // P5.4b (#718): readings and checks are taken on the phone; a failed check needs what was found
+  const sent = [];
+  await page.route("**/rounds/4/readings", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  const save = rounds.getByRole("button", { name: "Save" });
+  assert.equal(await save.isDisabled(), true);
+  await rounds.getByLabel("Reading for Discharge pressure on B1-K-2001").fill("65.5");
+  await save.click();
+  await expectReports(sent, 1);
+  assert.deepEqual(sent[0], { point: "fz-rp1", by: "olu", value: 65.5 });
+  await rounds.getByRole("button", { name: "Found something" }).click();
+  const go = rounds.getByRole("button", { name: "Send to the IOC" });
+  assert.equal(await go.isDisabled(), true);
+  await rounds.getByLabel("What you found at No oil on the skid on B1-K-2001").fill("oil weeping at the drain");
+  await go.click();
+  await expectReports(sent, 2);
+  assert.deepEqual(sent[1], { point: "fz-rp2", by: "olu", passed: false, note: "oil weeping at the drain" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
