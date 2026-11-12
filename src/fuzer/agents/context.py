@@ -10,6 +10,7 @@ first message.
     attach(conn, answer_id, item_id, by)
                                     put an answer and its charts on a case, in one action, as an `attached` event
                                     (P4.5b); only a named person can
+    related(conn, fids)             the incidents, studies and lessons about these assets, newest first (P4.5c)
 
 Attaching only adds to the case's history: it changes nothing else on the case and nothing in a source system.
 """
@@ -94,3 +95,27 @@ def attach(conn, answer_id: str, item_id: int, by: str) -> dict:
     conn.execute("insert into work_event (item_id, kind, actor, data) values (%s, 'attached', %s, %s)",
                  (item_id, by, Jsonb(data)))  # the caller commits, as with a comment
     return {"item_id": item_id, **data}
+
+
+def related(conn, fids: list[str], limit: int = 8) -> dict:
+    """The incidents on these assets, the studies run on them, and the lessons for their equipment model or class
+    (approved first, then suggestions not yet reviewed), so the case and the asset reach them."""
+    from ..graph import knowledge, lessons, queries
+
+    fids = [f for f in dict.fromkeys(fids) if f]
+    seen: dict[str, dict] = {}
+    for f in fids:
+        for i in queries.incidents(conn, f, limit=limit)["items"]:
+            seen.setdefault(i["id"], i)
+    incidents = sorted(seen.values(), key=lambda i: str(i.get("start") or ""), reverse=True)[:limit]
+    studies = conn.execute(
+        "select id, kind, status, summary, created_by, created_at from study where params ->> 'target' = any(%(f)s) "
+        "or params ->> 'scope' = any(%(f)s) order by created_at desc limit %(n)s", {"f": fids, "n": limit}).fetchall()
+    scoped = [s for f in fids for s in knowledge.scope(conn, f)]
+    keys = {(r["kind"], r["key"]) for r in conn.execute(
+        "select kind, key from entity_key where fuzer_id = any(%s) and kind in ('equipment_model', 'equipment_class')",
+        (scoped,))} if scoped else set()
+    found = [{k: lsn[k] for k in ("id", "title", "status", "failure_mode", "scope_kind", "scope_key")}
+             for status in ("approved", "suggested") for lsn in lessons.listing(conn, status, 500)
+             if (lsn["scope_kind"], lsn["scope_key"]) in keys]
+    return {"subjects": fids, "incidents": incidents, "studies": studies, "lessons": found[:limit]}
