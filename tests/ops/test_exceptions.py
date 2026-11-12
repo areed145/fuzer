@@ -821,7 +821,8 @@ def test_every_module_that_declares_a_type_is_loaded_with_the_routing_table():
 
     declared = set()
     for f in PACKAGE.rglob("*.py"):
-        if re.search(r"^\s+return TYPES\.get\(\"\w+\"\) or exception_type\(|^[A-Z_]+ = exception_type\(|^exception_type\(",
+        if re.search(r"^\s+return TYPES\.get\(\"\w+\"\) or exception_type\(|^[A-Z_]+ = exception_type\(|^exception_type\("
+                     r"|^[A-Z_]+ = \{\w+: exception_type\(",
                      f.read_text(), re.MULTILINE):
             declared.add("fuzer." + ".".join(f.relative_to(PACKAGE).with_suffix("").parts))
     assert declared == set(port.DECLARED_IN)

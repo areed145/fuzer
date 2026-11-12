@@ -142,6 +142,9 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         """,
         (Jsonb(d.model_dump()), d.by, item_id),
     )
+    from ..graph import data_work
+
+    data_work.sync(conn, d.by)  # the answer closes its case in the steward's queue (P2.3)
     conn.commit()
     if item["kind"] == "match" or (item["kind"] in ("curve", "pid_connection") and d.decision != "reject"):
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
