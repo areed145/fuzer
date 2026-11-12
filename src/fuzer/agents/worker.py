@@ -141,13 +141,27 @@ def _over_cap(conn, item_id: int) -> str | None:
     return None
 
 
+def idle_brief(conn, ask=None) -> dict | None:
+    """With no agent step to run, write the oldest pending case brief (P4.3), when `agents.briefs` is on."""
+    from . import brief
+
+    if not settings.get(conn, "agents.briefs"):
+        return None
+    try:
+        return brief.next_one(conn, ask)
+    except Exception as e:  # a brief never stops the worker; the case still has its person
+        conn.rollback()
+        log.warning("case brief failed: %s", e)
+        return None
+
+
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
-        stop: Callable[[], bool] = lambda: False) -> None:
-    """Keep running agent steps; sleep `poll` seconds when there are none."""
+        stop: Callable[[], bool] = lambda: False, ask=None) -> None:
+    """Keep running agent steps; with none, write a pending case brief; sleep `poll` seconds when there is neither."""
     worker = worker or default_worker()
     with connect() as conn:
         while not stop():
-            if run_once(conn, agents, worker) is None:
+            if run_once(conn, agents, worker) is None and idle_brief(conn, ask) is None:
                 time.sleep(poll)
 
 
