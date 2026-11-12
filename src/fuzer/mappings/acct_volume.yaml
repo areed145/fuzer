@@ -1,0 +1,24 @@
+# Production accounting volumes: one row per closed (or preliminary) month and product, on the custody meters.
+# The authoritative figure a month's daily allocated production is reconciled against (analysis/accounting.py).
+source: accounting
+record_type: volume
+shape: events
+dataset: acct_volumes
+key: entry_id
+entity:
+  kind: accounting_volume
+  fields:
+    - period
+    - period_start
+    - period_end
+    - product
+    - unit
+    - status
+    - comment
+    - [timestamp, {from: period_end, keep: true}]
+    - [description, {template: "Accounted {product} {period}", keep: true}]
+    - [volume, {from: volume, as: number, keep: true}]
+links:
+  - rel: reports_on
+    when: facility
+    to: {kind: facility, from: facility}

@@ -31,7 +31,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import capacity, curves, docs, limits, measurements, pfd, pid, process
+from . import accounts, capacity, curves, docs, limits, measurements, pfd, pid, process
 from .common import (
     ACTIONS,
     CAUSES,
@@ -1156,6 +1156,8 @@ def generate(out, seed: int = 11) -> dict:
     capacity_truth = capacity.constrain(daily, measured)  # the limits bind in the history, not beside it
     _write_csv(out / "ec_day001.csv", daily)
     for name, rows in capacity.registers(seed).items():
+        _write_csv(out / f"{name}.csv", rows)
+    for name, rows in accounts.ledger(daily, FIELD, seed).items():  # the books, after the limits bind (#372)
         _write_csv(out / f"{name}.csv", rows)
     (out / "answer_keys" / "capacity.json").write_text(json.dumps(capacity_truth, indent=1))
     alarms, iows, limit_truth, designed = limits.okan_limits(model, points, af, seed)
