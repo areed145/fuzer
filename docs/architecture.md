@@ -15,7 +15,7 @@ flowchart LR
   c_analysis["Analyses<br><small>fuzer.analysis, 28 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 16 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
-  c_workflow["Work engine<br><small>fuzer.workflow, 9 modules</small>"]
+  c_workflow["Work engine<br><small>fuzer.workflow, 10 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 19 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 6 modules</small>"]
   c_api["API<br><small>fuzer.api, 18 modules</small>"]
@@ -159,6 +159,7 @@ flowchart TD
 | `refresh_all` | `0 2 * * *` | Load every export and rebuild. |
 | `claude_reading` | `0 3 * * *` | Claude reads new log entries and drawings (costs money). |
 | `work_tick` | `*/5 * * * *` | Work engine timers and SLAs: re-checks that are due, reminders and escalations. |
+| `work_notify` | `* * * * *` | Notifications: work sent, handed back, escalated or coming due, told to the person within a minute. |
 | `sre_scan` | `0 */6 * * *` | SRE every 6 hours: detect, group into upsets, prioritise, diagnose (capped) and hand off. |
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
@@ -223,11 +224,11 @@ Interactive charts the agents and the app build from Fuzer data. More in [agents
 
 BPMN processes that move work between agents and people. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `roles`, `runtime`, `work_drafts`, `work_items`
+- **Code:** [`src/fuzer/workflow`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow): `assignment`, `bpmn`, `canvas`, `definitions`, `engine`, `notify`, `roles`, `runtime`, `work_drafts`, `work_items`
 - **Uses:** core
-- **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_item`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
-- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event` (its `schema.sql`)
-- **Settings:** `work.agent_fallback_minutes` ([settings](settings.md))
+- **Writes:** `work_definition`, `work_draft`, `work_event`, `work_form`, `work_item`, `work_notification`, `work_notify_cursor`, `work_notify_pref`, `work_person`, `work_process`, `work_role`, `work_token` ([schema](schema.md))
+- **Owns:** `work_definition`, `work_form`, `work_person`, `work_person_cover`, `work_role`, `work_item`, `work_draft`, `work_process`, `work_token`, `work_event`, `work_notification`, `work_notify_cursor`, `work_notify_pref` (its `schema.sql`)
+- **Settings:** `notify.app_url`, `notify.from`, `work.agent_fallback_minutes`, `work.due_soon_minutes` ([settings](settings.md))
 - **Tests:** [`tests/workflow`](https://github.com/areed145/fuzer/tree/main/tests/workflow)
 
 ### Agents and MCP

@@ -307,6 +307,28 @@ test("a case's process diagram opens on the waiting step at a readable size, the
   assert.ok(parseFloat(gap) >= 12, `legend entries need space between them, got ${gap}`);
 });
 
+test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
+  const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-test"],
+    skills: { "maintenance-integrity/rotating": "3f9c0a1b2c4d" }, cost_usd: 0.42, seconds: 9,
+    tools: [{ agent: "maintenance-integrity", tool: "calc", args: { check: "vibration", ref: "20-K-2200B" } }] };
+  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Agent case", type: "upset", state: "open",
+    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
+    agent_spend: { usd: 2.1, cap_usd: 2 },
+    events: [{ id: 1, kind: "agent_result", actor: "agent:maintenance-integrity", element: "diagnose", at: "2026-11-09T09:05:00Z",
+      data: { step: "Diagnose", data: { diagnose: { answer: "Bearing wear on the drive end.", ledger } } } }] } }));
+  await page.goto(`${url}/#/cases/7`);
+  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Agent work", { exact: true }) }).first();
+  await card.waitFor();
+  await card.getByText("$2.10 of $2.00 cap", { exact: false }).waitFor();
+  await card.getByText("cap reached", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "claude-test" }).waitFor();
+  await card.getByRole("cell", { name: "$0.42" }).waitFor();
+  await card.getByRole("button", { name: "What Diagnose did" }).click();
+  await card.getByText("Bearing wear on the drive end.", { exact: true }).waitFor();
+  await card.getByRole("cell", { name: "calc", exact: true }).waitFor();
+  await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });
@@ -2551,6 +2573,66 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.goto(`${url}/#/inbox`);
   await page.getByRole("link", { name: "Shift handover", exact: true }).waitFor();
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
+});
+
+test("a dispatched operator sees what they were sent on My work and lands on the job from it (#604)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
+  const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  const read = [];
+  let notifications = [
+    { id: 3, kind: "dispatched", item_id: 41, token_id: null, text: "ines sent you 'Check the pump seal'. seal weeping",
+      link: "#/cases/41", channel: "in_app", delivery: null, created_at: "2026-11-12T06:05:00Z", read_at: null },
+    { id: 2, kind: "due_soon", item_id: 40, token_id: 9, text: "'Swap the filter' is due in 20 min.",
+      link: "#/cases/40", channel: "in_app", delivery: null, created_at: "2026-11-12T06:00:00Z", read_at: null },
+  ];
+  await page.route("**/work/notifications?*", (route) => route.fulfill({ json: { notifications,
+    unread: notifications.filter((n) => !n.read_at).length } }));
+  await page.route("**/work/notifications/read", (route) => {
+    const body = route.request().postDataJSON();
+    read.push(body);
+    notifications = notifications.map((n) => (!body.ids || body.ids.includes(n.id) ? { ...n, read_at: "now" } : n));
+    return route.fulfill({ json: { read: 1 } });
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "New for you (2)" }).waitFor();
+  await page.getByText("Due soon", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "ines sent you 'Check the pump seal'. seal weeping" }).click();
+  await page.waitForURL(/#\/cases\/41$/);
+  await expectReports(read, 1);
+  assert.deepEqual(read[0], { person: "olav", ids: [3] });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "New for you (1)" }).waitFor();
+  await page.getByRole("button", { name: "Mark all read" }).click();
+  await page.getByRole("heading", { name: /New for you/ }).waitFor({ state: "detached" });
+  assert.deepEqual(read[1], { person: "olav", ids: null });
+});
+
+test("a person chooses Slack with quiet hours on My work (#606)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
+  const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  const saved = [];
+  await page.route("**/work/people/olav/notify", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      if (!body.address) return route.fulfill({ status: 400, json: { detail: "slack needs env:NAME, the environment variable holding the webhook URL" } });
+      saved.push(body);
+      return route.fulfill({ json: body });
+    }
+    return route.fulfill({ json: { channel: "in_app", address: null, quiet_from: null, quiet_to: null } });
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "How you are told" }).waitFor();
+  await page.getByLabel("Also send to").selectOption("slack");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("alert").filter({ hasText: "env:NAME" }).waitFor();
+  await page.getByLabel("Webhook kept in").fill("env:OLAV_SLACK");
+  await page.getByLabel("Quiet from").fill("22:00");
+  await page.getByLabel("to", { exact: true }).fill("06:00");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.deepEqual(saved[0], { channel: "slack", address: "env:OLAV_SLACK", quiet_from: "22:00", quiet_to: "06:00", by: "olav" });
 });
 
 test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {
