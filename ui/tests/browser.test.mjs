@@ -909,6 +909,31 @@ test("Users loading failures recover explicitly and access-refresh errors remain
   assert.equal(await page.getByRole("button", { name: "Save account access", exact: true }).count(), 0);
 });
 
+test("a dataset shows its four quality measures with a trend, and marks the one that dropped (P2.6)", async () => {
+  const m = (key, label, now, best, trend, dropped = false) => ({ key, label, now, best, dropped, trend });
+  await page.route("**/sources/datasets/sap_equipment", (route) => route.fulfill({ json: {
+    dataset: { name: "sap_equipment", source: "sap", status: "active", load_mode: "snapshot", schedule: null },
+    connection: { id: 1, name: "files", type: "folder", enabled: true, secrets: {} },
+    runs: [], health: null, work_items: [{ id: 7, title: "sap_equipment: completeness fell from 97% to 41%", state: "open",
+      assignee: "bo", role: null, created_at: "2026-11-12T05:00:00Z" }], reviews: [], suggested_checks: [], next_load: null,
+    scorecard: { drop: 15, window_days: 30, at: "2026-11-12T05:00:00Z", measures: [
+      m("completeness", "Completeness", 41.2, 97.4, [97.4, 97.1, 41.2], true), m("validity", "Validity", 100, 100, [100, 100, 100]),
+      m("timeliness", "Timeliness", null, null, [null, null, null]), m("agreement", "Agreement", 98.5, 99, [99, 98.5, 98.5])] } } }));
+  await page.goto(`${url}/#/sources?view=dataset&name=sap_equipment`);
+  const card = page.getByRole("region", { name: "Quality scorecard", exact: true });
+  await card.getByText("41%", { exact: true }).waitFor();
+  await card.getByText("dropped", { exact: true }).waitFor();
+  await card.getByText("97 · 97 · 41 (best 97%)", { exact: false }).waitFor();
+  await card.getByText("can't be said yet", { exact: true }).waitFor();
+  assert.equal(await card.getByText("dropped", { exact: true }).count(), 1);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflows at ${width}`);
+    await card.scrollIntoViewIfNeeded();
+    await waveScreenshot(`scorecard-${width}`);
+  }
+});
+
 test("source load lifecycle confirms consequences, exposes progress and recovers without automatic replay", async () => {
   const detail = {
     dataset: { name: "sap_equipment", source: "sap", status: "active", load_mode: "snapshot", schedule: null },
@@ -3726,4 +3751,32 @@ test("Work performance shows per queue whether it keeps up and opens the cases b
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P5.5 (#684): the dispatch card says whether the job is ready, names each blocker, and a blocked job goes only
+// with a reason.
+test("the dispatch card shows what blocks a job and sends a blocked one only with a reason (#684)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 7, type: "leak", key: "walk-9", title: "Compressor B1-K-2001 valve noise", state: "open", source: "olga",
+    priority: 2, value_usd: null, subjects: ["fz-k2001"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
+    raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }, { name: "ines", roles: ["ops_lead"] }] }));
+  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
+    blockers: ["Spares: Compressor valve assembly: 2 in stock, 4 needed; on order (4500007101), due 2026-11-15",
+      "Spares: Rod packing set: 0 in stock, 2 needed; nothing on order"],
+    checks: [{ check: "spares", label: "Spares", ready: false, checked: true, note: null, blockers: [] }] } }));
+  const sent = [];
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByLabel("Dispatch to").selectOption("fred");
+  await page.getByText("Rod packing set: 0 in stock, 2 needed; nothing on order", { exact: false }).waitFor();
+  await page.getByText("not ready", { exact: true }).waitFor();
+  await page.getByLabel("What to do").fill("check the discharge valves");
+  const send = page.getByRole("button", { name: "Dispatch", exact: true });
+  assert.equal(await send.isDisabled(), true);  // blocked: a reason first
+  await page.getByLabel("Why send it anyway").fill("valves can be changed on the 15th, inspect now");
+  await send.click();
+  await expectReports(sent, 1);
+  assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
 });

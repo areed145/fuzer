@@ -497,7 +497,8 @@ def _due(conn, row: dict):
     return routing.due(conn, row)
 
 
-def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = None) -> dict:
+def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = None, *, override: str | None = None,
+             blockers: list[str] | None = None) -> dict:
     """Send an exception to someone (a person, `role:<role>`): open its case for them if it has none, else hand
     its case (or the case's open person step) to them. Publishes exception.dispatched. Dispatching is a fixed gate
     (P5.10): only a named person dispatches."""
@@ -506,7 +507,7 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     gates.require_person(conn, "field_dispatch", by, ref=f"exception:{exception_id}")
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # part of another's case: the event is dispatched once, through its host
-        return dispatch(conn, row["joined_to"], by, to, reason)
+        return dispatch(conn, row["joined_to"], by, to, reason, override=override, blockers=blockers)
     if row["state"] != OPEN:
         raise ExceptionError(f"exception {exception_id} is {row['state']}")
     t = types(conn).get(row["type"]) or ExceptionType(row["type"], row["type"])
@@ -519,8 +520,10 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         conn.execute("update exception_record set item_id = %s, updated_at = now() where id = %s", (item_id, row["id"]))
         _adopt(conn, _row(conn, exception_id), by)
     row = _row(conn, exception_id)
+    if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history
+        work.comment(conn, row["item_id"], by, f"Sent though not ready ({'; '.join(blockers or [])}). Why: {override}")
     events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row, t), "to": to, "by": by,
-                                                                            "reason": reason})
+                                                                            "reason": reason, "override": override})
     return row
 
 

@@ -470,12 +470,23 @@ def add_dataset(body: NewDataset, conn=Depends(get_conn)):
     return _do(conn, catalog.add_dataset, conn, body.name, body.system, body.by, body.reason, **body.values)
 
 
+@router.get("/datasets/{name}/scorecard")
+def dataset_scorecard(name: str, conn=Depends(get_conn)):
+    """The dataset's four quality measures (P2.6) now, their best of the window, and their trend."""
+    from ..core.jsonsafe import plain
+    from ..sources import catalog, scorecard
+
+    if not catalog.dataset(conn, name):
+        raise HTTPException(404, f"no dataset {name!r}")
+    return plain(scorecard.card(conn, name))
+
+
 @router.get("/datasets/{name}")
 def dataset_detail(name: str, conn=Depends(get_conn)):
     """One dataset with everything the Sources page tabs show: connection, mapping versions (with YAML), runs,
     latest profiles, checks, its source's match statistics, health and change history."""
     from ..core.jsonsafe import plain
-    from ..sources import catalog, connections, quality
+    from ..sources import catalog, connections, quality, scorecard
 
     d = catalog.dataset(conn, name)
     if not d:
@@ -496,10 +507,12 @@ def dataset_detail(name: str, conn=Depends(get_conn)):
         if d["connection_id"] else None,
         "next_load": quality.next_load(d["schedule"]),
         "suggested_checks": quality.suggest_checks(conn, name),
+        "scorecard": scorecard.card(conn, name),
         "work_items": [dict(r) for r in conn.execute(
-            "select id, title, state, assignee, role, created_at from work_item where type = 'source_issue' "
-            "and coalesce(payload->>'dataset', payload->'start'->>'dataset') = %s and state not in ('done', 'cancelled') "
-            "order by id desc", (name,))],
+            "select id, title, state, assignee, role, created_at from work_item where ((type = 'source_issue' "
+            "and coalesce(payload->>'dataset', payload->'start'->>'dataset') = %s) or id in (select item_id from "
+            "exception_record where type = 'source_quality_drop' and key = %s and state = 'open')) "
+            "and state not in ('done', 'cancelled') order by id desc", (name, name))],
         "reviews": [dict(r) for r in conn.execute(
             "select id, kind, created_at from review_item where subject = %s and kind in ('schema', 'check') "
             "and status = 'open'", (name,))],
