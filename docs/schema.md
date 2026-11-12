@@ -681,6 +681,20 @@ Per source after each rebuild (90 days kept): link coverage, how its records mat
 | `source` | text |  |
 | `stats` | jsonb |  |
 
+### `source_score`
+
+The source quality scorecard (P2.6, sources/scorecard.py): each dataset's four measures, 0-100, kept with every rebuild for 90 days so each has a trend; a drop raises a source_quality_drop case for its owner.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `dataset_id` | bigint |  |
+| `at` | timestamptz |  |
+| `completeness` | real |  |
+| `validity` | real |  |
+| `timeliness` | real |  |
+| `agreement` | real |  |
+
 ### `source_rule`
 
 Survivorship and matching rules (sources/rules.py): a field's own priority and conflict review, an entity kind's match thresholds. The default priority is the systems' rank. Seeded from the pack.
