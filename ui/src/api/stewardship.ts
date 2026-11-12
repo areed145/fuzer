@@ -6,6 +6,16 @@ export interface UnmatchedRef {
   open: { id: number; title: string; type: string; item_id: number | null }[];
 }
 export interface UnresolvedValue { source: string; rel: string; value: string; rows: number; aliased: boolean; built_at: string }
+/** A rule the register learned from stewards' answers (P6.5): a source's values that wrap a key the same way. */
+export interface LearnedShape { source: string; kind: string; prefix: string; suffix: string; rule: string }
+export interface LearnedProposal extends LearnedShape {
+  taught: number; examples: { id: number; value: string; kind: string; key: string }[]; would_answer: number; rows: number;
+  values: { value: string; rows: number; rel: string; fuzer_id: string; key: string }[];
+}
+export interface LearnedRule extends LearnedShape {
+  id: number; status: "accepted" | "rejected" | "withdrawn"; decided_by: string; decided_at: string; reason: string | null;
+  answers: number;
+}
 export interface StewardDecision {
   kind: "alias" | "must_link" | "cannot_link" | "merge" | "split" | "fix"; id: number | string; what: string; fuzer_id: string | null;
   source: string | null; by: string | null; at: string; reason: string | null; reversed: boolean;
@@ -76,6 +86,12 @@ export const stewardshipApi = {
     request<StewardDecision[]>("GET", "/stewardship/decisions", { q: q || undefined, current: current ? undefined : "false" }),
   addAlias: (value: string, fuzer_id: string, by: string, source?: string | null, reason?: string) =>
     request<Record<string, unknown>>("POST", "/stewardship/aliases", undefined, { value, fuzer_id, by, source: source ?? null, reason: reason ?? null }),
+  learnedRules: () => request<{ proposals: LearnedProposal[]; rules: LearnedRule[] }>("GET", "/stewardship/learned"),
+  decideLearned: (accept: boolean, r: LearnedShape, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", `/stewardship/learned/${accept ? "accept" : "reject"}`, undefined,
+      { source: r.source, kind: r.kind, prefix: r.prefix, suffix: r.suffix, by, reason: reason ?? null }),
+  withdrawLearned: (id: number, by: string, reason?: string) =>
+    request<Record<string, unknown>>("POST", `/stewardship/learned/${id}/withdraw`, undefined, { by, reason: reason ?? null }),
   retireAlias: (id: number, by: string, reason?: string) =>
     request<Record<string, unknown>>("POST", `/stewardship/aliases/${id}/retire`, undefined, { by, reason: reason ?? null }),
   undoPin: (left_ref: string, right_ref: string, by: string, reason?: string) =>

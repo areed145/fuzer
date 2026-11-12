@@ -155,7 +155,21 @@ name for the entity, by one of its keys. Exceptions match aliases as they are ra
 value. The Master data page lists refs on open exceptions that matched nothing (matching one there matches every
 open exception that carries it), the link values each source wrote that named nothing on the last rebuild (make one
 an alias), and the decision log: every alias and pinned match with who, when and why, searchable, each reversible
-(an alias is retired, a pin removed; audited in `source_audit`).
+(an alias is retired, a pin removed; audited in `source_audit`). A link value with an alias resolves to what the
+alias names before any resolver reads it, and a value a resolver reads as a kind with no key (an unreadable FLOC, say)
+counts as one that named nothing, so a steward sees it.
+
+**The register learns from stewards** (P6.5, `sources/learned.py`, table `learned_rule`). Compared letters and digits
+only, an alias's value is often one of the entity's names with something around it: a legacy system's prefix
+(`EQ-30000003` for SAP equipment 30000003), a suffix (`50000036-LEG`), or only other separators. A name is any key
+the entity has, or another source's record key for it (`sap:equipment`). When people have answered ten values from
+one source that wrap the same kind of name the same way, the Unresolved values tab proposes the rule, with the
+answers that taught it and the values it would answer now (each the one item whose name the value wraps). Accepted,
+it records an alias for each (created by `rule:<id>`, so each shows in the decision log and can be retired), the next
+rebuild links those records and the source's link coverage counts them; before each rebuild it answers what the last
+one left unresolved, so like values the source writes later resolve too. **Not a rule** keeps it from being proposed
+again; **Withdraw** retires the aliases it recorded and leaves the stewards' own. Rules only answer values that
+named nothing; match thresholds and survivorship are not learned (they stay a person's change in Sources).
 
 On an entity page a steward corrects the matching itself (`graph/curation.py`). **Same as…** finds another entity
 of the same kind and previews the merge (the records and keys it would have, the fields where the two disagree, any
