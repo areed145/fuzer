@@ -667,4 +667,8 @@ defs = dg.Definitions(
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},
+    # Each run executes its steps in its own process. The default multiprocess executor adds a second Python
+    # process per step on top of the run's, which doubled every run's memory on the 2 GB instance (OOM kills,
+    # 12 Nov); the instance has one CPU, so steps in parallel gained nothing.
+    executor=dg.in_process_executor,
 )
