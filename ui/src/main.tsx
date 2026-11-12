@@ -22,7 +22,6 @@ import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
-import { TurnaroundPage } from "./pages/Turnaround";
 import { TaskPage } from "./pages/workflows/Task";
 import { CasePage } from "./pages/workflows/Cases";
 import { TeamsPage } from "./pages/workflows/Teams";
@@ -82,6 +81,11 @@ function App() {
     // The Work board and the Cases list are views of All work now (#502); their links land on the same view.
     if (section === "board" || (section === "cases" && !path[1])) {
       location.replace(legacyWorkHref(section, query));
+      return;
+    }
+    // Turnaround is a window on the Plan now (#554): the revision opens beside the timeline.
+    if (section === "turnaround") {
+      location.replace(`#/plan?revision=${encodeURIComponent(query.get("revision") ?? "")}`);
       return;
     }
     // My jobs is part of My work now (#503).
@@ -168,9 +172,7 @@ function App() {
           ) : section === "handover" ? (
             <HandoverPage query={query} />
           ) : section === "plan" ? (
-            <PlanPage />
-          ) : section === "turnaround" ? (
-            <TurnaroundPage />
+            <PlanPage query={query} />
           ) : section === "cases" && path[1] ? (
             <CasePage key={path[1]} id={Number(path[1])} demo={query.get("demo") === "workflow"} />
           ) : section === "processes" && path[1] === "forms" && path[2] ? (
@@ -197,8 +199,8 @@ function App() {
             <UsersPage query={query} />
           ) : section === "routing" ? (
             <RoutingPage query={query} />
-          ) : section === "board" || section === "cases" || section === "field" ? (
-            null  /* redirecting to All work */
+          ) : section === "board" || section === "cases" || section === "field" || section === "turnaround" ? (
+            null  /* redirecting to All work, My work or Plan */
           ) : section === "review" ? (
             <Review query={query} stats={s} />
           ) : (
