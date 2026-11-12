@@ -384,3 +384,30 @@ def spe_chart(conn, scope, train_since: str, train_until: str, since: str, until
                       "fillcolor": "rgba(210,60,50,0.15)", "line": {"width": 0}, "layer": "below"} for a in r["anomalies"]]
     return Figure("spe", lay["title"]["text"], data, lay, {
         "anomalies": r["anomalies"][:10], "limit": r["limit"], "components": r["components"], "basis": r["basis"]}, r["sources"])
+
+
+def incident_repeats(conn, since: str | None = None, until: str | None = None, days: int = 730) -> Figure:
+    """Incidents per unit over the window (#350), repeats coloured, with the open linked corrective work by age band
+    beside them. Linked work is a proxy, not an action register."""
+    from ..analysis import incident_followup
+
+    out = incident_followup.repeats(conn, since, until, days)
+    if not out["units"]:
+        raise ChartError("no incident in that window")
+    units = out["units"]
+    data = [{"type": "bar", "name": "incidents", "x": [u["unit"] for u in units], "y": [u["incidents"] for u in units],
+             "meta": {"entity": [u["unit_id"] for u in units]},
+             "marker": {"color": ["rgba(210,60,50,0.85)" if u["repeat"] else "rgba(140,140,140,0.7)" for u in units]},
+             "text": [", ".join(f"{d} d" for d in u["days_between"]) or "once" for u in units],
+             "hovertemplate": "%{x}: %{y} incidents<br>days between: %{text}<extra></extra>"}]
+    bands = out["summary"]["open_by_age"]
+    data.append({"type": "bar", "name": "open linked orders by age", "x": list(bands), "y": list(bands.values()),
+                 "xaxis": "x2", "yaxis": "y2", "marker": {"color": "rgba(200,150,40,0.8)"}})
+    lay = layout(f"Repeat incidents and open linked work, {out['since']} to {out['until']}", None, "incidents")
+    lay |= {"grid": {"rows": 1, "columns": 2, "pattern": "independent"},
+            "xaxis2": {"title": {"text": f"open linked orders, age at {out['as_of']}"}},
+            "yaxis2": {"title": {"text": "orders"}, "rangemode": "tozero"}}
+    return Figure("incident_repeats", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "came_back_after_closed_work": [c for u in units for c in u["came_back_after_closed_work"]],
+        "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
+        [u["unit_id"] for u in units if u["unit_id"]][:10])

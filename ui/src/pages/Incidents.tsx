@@ -5,6 +5,7 @@ import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 import { TrendGrid } from "../Trend";
 import { loadPerson } from "../work";
+import { IncidentRepeats } from "./IncidentRepeats";
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
@@ -15,6 +16,7 @@ export function IncidentsPage() {
         No incidents yet.
       </Status>
       <RatingProgress />
+      <IncidentRepeats />
       {list.data && list.data.total > 0 && (
         <>
           <p className="small">

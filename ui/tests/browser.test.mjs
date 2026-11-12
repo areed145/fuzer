@@ -4728,3 +4728,41 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// #350: do problems come back on the same unit, and does the work raised for them close? Linked work is a proxy.
+test("Incidents show repeats per unit, work that closed before a repeat, and open linked work by age (#350)", async () => {
+  await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 0, items: [] } }));
+  await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
+  await page.route("**/incidents/repeats", (route) => route.fulfill({ json: {
+    since: "2024-01-01", until: "2025-12-31", as_of: "2025-12-30", follow_days: 30, source: "incidents and work orders",
+    note: "Linked work is a proxy, not an action register.",
+    units: [
+      { unit_id: "fz-tag-1", unit: "20-K-2300A", incidents: 3, repeat: true, days_between: [21, 335], lost_oil_sm3: 300,
+        came_back_after_closed_work: [{ incident: "fz-incident-3", start: "2025-06-24", after: "fz-incident-2", closed_orders: ["fz-work_order-1"] }],
+        items: [
+          { id: "fz-incident-1", start: "2024-06-11", description: "tripped on high discharge temp", linked_orders: 0, open_orders: 0 },
+          { id: "fz-incident-2", start: "2024-07-02", description: "tripped again", linked_orders: 1, open_orders: 0 },
+          { id: "fz-incident-3", start: "2025-06-24", description: "tripped", linked_orders: 1, open_orders: 1 }] },
+      { unit_id: "fz-tag-2", unit: "20-V-2001", incidents: 1, repeat: false, days_between: [], lost_oil_sm3: 20,
+        came_back_after_closed_work: [], items: [{ id: "fz-incident-4", start: "2024-11-05", description: "level trip", linked_orders: 0, open_orders: 0 }] },
+    ],
+    open_work: [{ id: "fz-work_order-2", order: "50000300", type: "PM01", status: "REL", open: true, start: "2025-07-01",
+      finish: null, age_days: 182, age_band: "over 180 days", incident: "fz-incident-3", link: "on_unit_after",
+      notification: null, description: "Replace discharge temperature switch" }],
+    closed_work: [],
+    summary: { incidents: 4, units: 2, repeat_units: 1, came_back_after_closed_work: 1, linked_orders: 2, open_orders: 1,
+      incidents_without_linked_work: 2, open_by_age: { "under 30 days": 0, "30 to 90 days": 0, "90 to 180 days": 0, "over 180 days": 1 } } } }));
+  await page.goto(`${url}/#/incidents`);
+  const card = page.locator(".incident-repeats");
+  await card.getByText("4 incidents on 2 units, 1 with more than one", { exact: false }).waitFor();
+  const unit = card.locator('tr[data-unit="20-K-2300A"]');
+  await unit.locator(".repeat-badge").waitFor();
+  await unit.getByText("21, 335").waitFor();
+  await unit.locator(".came-back").getByText("Came back on", { exact: false }).waitFor();
+  await card.locator('[data-band="over 180 days"]').getByText("over 180 days: 1").waitFor();
+  await card.getByText("182 days old, corrective order on the unit soon after", { exact: false }).waitFor();
+  await card.getByText("Linked work is a proxy, not an action register.", { exact: false }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

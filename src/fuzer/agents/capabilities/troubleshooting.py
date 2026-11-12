@@ -325,3 +325,22 @@ def plot_modes(scope: str | list[str], since: str, until: str, k: int | None = N
     if err:
         return err
     return _chart(lambda conn, **kw: troubleshooting.modes_chart(conn, sc, pack=mcp_server.PACK, **kw), {"since": since, "until": until, "k": k})
+
+
+@capability("hse-incident-management", "maintenance-integrity", kind="calc")
+def incident_repeats(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Repeat incidents and corrective work ageing (#350): per unit, its incidents in the window and the days between
+    them, the ones that came back after linked corrective work was recorded closed, and every linked order with the
+    age of what is still open. Linked work is a proxy, not an action register: an order raised for one of the
+    incident's notifications, or a corrective order on its unit within 30 days. Order status says what was recorded,
+    not that the action worked."""
+    from ...analysis import incident_followup
+    with db.connect() as conn:
+        return _plain(incident_followup.repeats(conn, since, until, days))
+
+
+@capability("hse-incident-management", kind="plot")
+def plot_incident_repeats(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Chart incidents per unit with repeats marked, beside the open linked corrective orders by age band."""
+    from ...plots import troubleshooting
+    return _chart(troubleshooting.incident_repeats, {"since": since, "until": until, "days": days})
