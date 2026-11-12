@@ -11,7 +11,7 @@ const pct = (score: number | null) => (score == null ? null : Math.round(score *
 /** The asset page's panel: one row per kind of context, and for each gap what it holds back. */
 export function AssetContextCard({ id }: { id: string }) {
   const c = useAsync(() => api.assetContext(id), [id]);
-  if (!c.data) return c.error ? <Status error={c.error} onRetry={c.reload} /> : null;
+  if (!c.data?.known) return c.error ? <Status error={c.error} onRetry={c.reload} /> : null;  // not part of an asset
   const a: AssetContext = c.data;
   const gaps = Object.fromEntries(a.gaps.map((g) => [g.check, g]));
   const score = pct(a.score);
