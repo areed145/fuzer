@@ -47,7 +47,7 @@ def next_window(conn, after: datetime) -> dict | None:
 
 def _vibration_eta(conn, tag: str, until: str | None) -> list[dict]:
     from . import rotating
-    from .condition import eta
+    from .condition import eta, projection
 
     v = rotating.vibration(conn, tag, until=until)
     if not v.get("daily") or v["zone"] == "D":
@@ -59,8 +59,7 @@ def _vibration_eta(conn, tag: str, until: str | None) -> list[dict]:
     e = eta(days, np.array([d["mm_s"] for d in v["daily"]]), v["zones"]["C/D"])
     if not e["reaches"]:
         return []
-    return [{"what": f"vibration reaches zone D ({v['zones']['C/D']:g} mm/s)", "point": v["point"],
-             "reaches": e["reaches"], "range": [e["early"], e["late"]] if e["early"] else None}]
+    return [projection(f"vibration reaches zone D ({v['zones']['C/D']:g} mm/s)", v["point"], e)]
 
 
 def remaining_life(conn, fid: str, until: str | None = None) -> dict:
