@@ -176,6 +176,13 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   suppression for planned work other than shutdowns. A person can set a window of their own on some assets with a
   reason (`POST /exceptions/suppressions`) and end it early (`POST /exceptions/suppressions/{id}/end`). A condition
   still holding when its window ends opens as usual on its next raise.
+- **Shelving.** A standing condition that can wait (a known seal weep until the next outage) can be shelved from
+  All work with a reason and an expiry, at most `exceptions.max_shelve_days` (30) ahead
+  (`POST /exceptions/{id}/shelve`). It leaves the open list, and shows under the **shelved** state with who shelved it
+  and why. New raises still add their evidence without bringing it back. When the expiry passes, the work tick puts
+  it back on the list and says so on its case. **Back on the list** does that early (`POST /exceptions/{id}/unshelve`).
+  A safety case type (an IOW breach) can't be shelved. Shelving an exception that joined another's case shelves the
+  event (its host), since the event is one row. The case itself is left as it is.
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
 - **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues

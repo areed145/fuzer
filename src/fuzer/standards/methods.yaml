@@ -449,6 +449,20 @@ instrument_health:
     drift: {value: 2, unit: "h", means: "Redundant transmitters apart for this long.", code: "fuzer.analysis.signals:DRIFT_HOURS"}
   vectors: [{worked: "tests/analysis/test_calcs.py::test_health_finds_the_hunting_level_transmitter"}]
 
+loop_oscillation:
+  title: Whether a control loop is cycling, with its period and amplitude
+  practice: Regularity of the autocorrelation's zero crossings (Thornhill, Huang and Zhang, 2003), with a check that the autocorrelation comes back one period on; the minimum cycles and that check are this registry's own.
+  inputs: [{name: Historian readings on the unit's points or one point, unit: each point's own}]
+  valid: A measurement a controller holds near one level (a level, temperature, pressure or flow), over a window of several cycles.
+  needs: A day or more of 5-minute readings, and at least four cycles in the window.
+  thresholds:
+    regular: {value: 1.0, means: "Regularity r over which the cycling is regular, not noise.", code: "fuzer.analysis.loops:REGULAR"}
+    min_cycles: {value: 4, means: "Cycles the window must hold before regularity is judged.", code: "fuzer.analysis.loops:MIN_CYCLES"}
+    acf_peak: {value: 0.4, means: "How high the autocorrelation must come back one period on.", code: "fuzer.analysis.loops:ACF_PEAK"}
+  vectors:
+    - {kernel: "fuzer.analysis.loops:regularity", args: [[10, 10, 10, 11, 9]], expect: 5.2705, says: "Half periods of 10, 10, 10, 11 and 9 samples: periods average 20 with a spread of 1.26, so r = 20 / 3.79 = 5.27, a regular cycle."}
+    - {worked: "tests/analysis/test_loops.py::test_the_test_separator_level_cycles_while_its_valve_sticks"}
+
 contactor_foaming:
   title: Contactor differential pressure against its clean level (foaming and fouling)
   practice: "GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing."
