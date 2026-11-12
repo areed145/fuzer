@@ -34,7 +34,7 @@ def said(row) -> dict:
 
 def test_train_b_tripped_on_the_bearing_vibration_it_showed_for_hours(conn):
     d = trips.diagnose(conn, fid(conn, "20-K-2200B"), "2024-03-14T03:20", pack=PACK)
-    assert d["value"] == "vibration" and d["cause"] == "high vibration" and d["train"].startswith("train B")
+    assert d["value"] == "vibration" and d["cause"] == "high vibration" and d["train"].startswith("train from 20-V-2101B")  # train B, from its piping
     first = d["first_out"]
     assert first["point"].endswith("20-VT-2200B.PV") and first["unit"] == "20-K-2200B" and first["lead_minutes"] >= 60
     assert any(x["point"].endswith("20-VT-2200B.PV") and x["value"] >= x["trip_setting"] for x in d["tripped_on"])
