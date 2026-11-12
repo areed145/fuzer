@@ -250,3 +250,102 @@ def on_case(conn, item_id: int, now: datetime | None = None) -> dict:
                      "installed at it or where it is installed, or the rest of its train by the piping; and open "
                      "change records about the same."}
 
+
+
+# ---- a limit changed with no change record (P3.9c) -----------------------------------------------------------------
+
+LOOKBACK_DAYS = 180  # limits changed within this long before now are checked
+BEFORE_DAYS, AFTER_DAYS = 90, 2  # a change record opened this long before the change, or this soon after, covers it
+SAY_TYPE = {"hihi": "high-high", "hi": "high", "lo": "low", "lolo": "low-low"}
+
+
+def unrecorded(conn, now: datetime | None = None) -> list[dict]:
+    """Alarm and IOW limits whose last change (the source's valid-from) falls in the last LOOKBACK_DAYS with no
+    change record about the point or what it stands for opened from BEFORE_DAYS before to AFTER_DAYS after it.
+    Only the latest change per limit is visible in the export, so only that one is claimed."""
+    from datetime import timedelta
+
+    from .exceptions import anchor_map
+
+    now = (now or datetime.now(UTC)).replace(tzinfo=None)
+    rows = conn.execute(
+        """
+        select pl.record, pl.limit_type, pl.point_id, pl.source, pl.basis, pl.value, pl.unit, pl.valid_from,
+               coalesce(tl.label, pt.label, pl.point_id) as point
+        from point_limit pl
+        left join entity_label pt on pt.fuzer_id = pl.point_id
+        left join edge h on h.rel = 'has_timeseries' and h.dst = pl.point_id
+        left join entity_label tl on tl.fuzer_id = h.src
+        where pl.valid_from >= %s and pl.valid_from <= %s and pl.valid_to is null
+        order by pl.valid_from, pl.record, pl.limit_type
+        """, (now - timedelta(days=LOOKBACK_DAYS), now)).fetchall()
+    if not rows:
+        return []
+    stands = anchor_map(conn, list({r["point_id"] for r in rows}))
+    recs = [c for c in changes(conn, open_only=False) if (c["state"] or "").lower() not in ("cancelled", "canceled",
+                                                                                            "rejected", "withdrawn")]
+    out = []
+    for r in rows:
+        when = r["valid_from"]
+        mine = stands.get(r["point_id"], set()) | {r["point_id"]}
+        cover = [c["label"] for c in recs if set(c["about"]) & mine and (o := _when(c["opened"])) is not None
+                 and when - timedelta(days=BEFORE_DAYS) <= o.replace(tzinfo=None) <= when + timedelta(days=AFTER_DAYS)]
+        if not cover:
+            out.append({**dict(r), "valid_from": when.isoformat(timespec="minutes"), "key": f"{r['record']}#{r['limit_type']}"})
+    return out
+
+
+def _change_type():
+    from ..core.exceptions import TYPES, exception_type
+
+    return TYPES.get("unrecorded_change") or exception_type(
+        "unrecorded_change", "Change with no record", role="role:engineer", audience=("ioc",), joins=False,
+        description="An alarm or integrity operating window limit that changed with no change record on file "
+                    "around it. A question: link the change record, or say why none was needed. It clears when a "
+                    "change record about it turns up.")
+
+
+CHANGE_TYPE = _change_type().name
+
+
+@detectors.register("unrecorded_changes", title="An alarm or IOW limit changed with no change record",
+                    kind=detectors.RULE, cadence="daily", raises=(CHANGE_TYPE,),
+                    needs={"change records": lambda conn, pack: conn.execute(
+                        "select 1 from entity where kind = 'change' and retired_at is null limit 1").fetchone()
+                        is not None},
+                    eval="test:tests/evals/test_safeguards_kestrel.py::"
+                         "test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up",
+                    found=lambda out: len(out["raised"]))
+def watch_changes(conn, by: str = "agent:safeguards", now: datetime | None = None) -> dict:
+    """Each limit changed with no change record raised as `unrecorded_change` for the engineer (keyed by the limit);
+    open ones that a change record now covers, or that left the lookback, are cleared."""
+    from ..core import work
+    from ..core.exceptions import ExceptionError, clear_exception, raise_exception
+
+    held = [r["key"] for r in conn.execute(
+        "select key from exception_record where type = %s and state = 'open'", (CHANGE_TYPE,))]
+    found_rows = unrecorded(conn, now)
+    raised, cleared, errors = [], [], []
+    for r in found_rows:
+        what = f"{SAY_TYPE.get(r['limit_type'], r['limit_type'])} {'alarm' if r['basis'] == 'alarm' else r['basis']}"
+        found = Finding(
+            "safeguards.unrecorded_change", DETERMINISTIC, method="Limit changes read against the change records",
+            start=r["valid_from"], data={"record": r["record"], "limit_type": r["limit_type"]},
+            items=(fact("Point", r["point"]), fact("Limit", f"{what}: {r['value']:g} {r['unit'] or ''}".strip()),
+                   at("Changed", r["valid_from"]), fact("Source", r["source"]),
+                   fact("Looked for", f"a change record about it opened from {BEFORE_DAYS} days before to "
+                                      f"{AFTER_DAYS} days after"),
+                   fact("Note", "Only the latest change to each limit is in the export.")))
+        try:
+            x = raise_exception(conn, CHANGE_TYPE, r["key"], f"{r['point']} {what} changed "
+                                f"{_when(r['valid_from']):%d %b %Y} with no change record", by, source="safeguards",
+                                refs=[r["point_id"]], priority=0.6, finding=found)
+        except (work.WorkError, ExceptionError) as e:
+            errors.append(f"{r['key']}: {e}")
+            continue
+        raised.append({"key": r["key"], "exception_id": x["id"], "item_id": x["item_id"], "new": x["raised"]})
+    for key in set(held) - {r["key"] for r in found_rows}:
+        clear_exception(conn, CHANGE_TYPE, key, by, reason="a change record covers it now")
+        cleared.append(key)
+    conn.commit()
+    return {"unrecorded": len(found_rows), "raised": raised, "cleared": cleared, "errors": errors}

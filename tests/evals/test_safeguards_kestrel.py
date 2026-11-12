@@ -75,3 +75,37 @@ def test_a_case_on_the_system_leads_its_evidence_with_the_bypass_and_the_open_ch
     got = work_item_safeguards(r["item_id"], conn=conn)
     assert [b["label"] for b in got["bypasses"]] == ["BYP-KR-032"] and got["bypasses"][0]["moc"] == "MOC-KR-0142"
     assert [c["label"] for c in got["changes"]] == ["MOC-KR-0142"]
+
+
+def test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up(kestrel_db):
+    """P3.9c (#343): the scrubber's high-high level alarm changed three days ago with no change record; the
+    discharge temperature high alarm changed under MOC-KR-0138, so it is not raised. Only the latest change to each
+    limit is in the export, so only that one is claimed."""
+    conn = kestrel_db
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    out = detectors.run(conn, resolve(conn), "unrecorded_changes")
+    assert not out["errors"], out
+    x = conn.execute("select * from exception_record where type = 'unrecorded_change' and state = 'open'").fetchall()
+    assert [r["title"].split(" changed")[0] for r in x] == ["B1-LT-2005 high-high alarm"], [r["title"] for r in x]
+    assert x[0]["item_id"]
+
+    tag = _fid(conn, "B1-LT-2005")  # the record turns up: a change about the transmitter, opened the day before
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-change-test', 'change')")
+    conn.execute("insert into entity_label (fuzer_id, label) values ('fz-change-test', 'MOC-KR-0150')")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-change-test', 'concerns', %s, "
+                 "'{test}', 1)", (tag,))
+    opened = conn.execute("select (pl.valid_from - interval '1 day')::text as t from point_limit pl join edge h "
+                          "on h.rel = 'has_timeseries' and h.dst = pl.point_id where h.src = %s and pl.limit_type = "
+                          "'hihi' and pl.valid_from > now() - interval '30 days'", (tag,)).fetchone()["t"]
+    conn.execute("insert into golden (fuzer_id, field, value, source, rule) values ('fz-change-test', 'opened', "
+                 "to_jsonb(%s::text), 'test', 'test'), ('fz-change-test', 'state', to_jsonb('approved'::text), 'test', "
+                 "'test')", (opened,))
+    try:
+        out = detectors.run(conn, resolve(conn), "unrecorded_changes")
+        assert out["cleared"] == [x[0]["key"]] and not out["raised"], out
+    finally:  # gone again, for the other tests on this database
+        for t in ("golden", "edge", "entity_label", "entity"):
+            conn.execute(f"delete from {t} where {'src' if t == 'edge' else 'fuzer_id'} = 'fz-change-test'")
+        conn.commit()
