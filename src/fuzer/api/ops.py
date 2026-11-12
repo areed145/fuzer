@@ -497,6 +497,85 @@ def closeout_discard(closeout_id: int, d: CloseoutDecision, conn=Depends(get_con
     return _exception_call(conn, closeout.discard, closeout_id, d.by, d.reason)
 
 
+# ---- the approved write-back queue (P5.7, #634) --------------------------------------------------------------------
+
+class WritebackIn(BaseModel):
+    by: str
+    system: str
+    kind: str
+    payload: dict[str, Any] = {}
+    record: str | None = None
+    action: str = "update"
+    key: str | None = None
+    item_id: int | None = None
+    title: str | None = None
+    subjects: list[str] = []
+
+
+class WritebackDecision(BaseModel):
+    by: str
+    payload: dict[str, Any] | None = None   # an approver's edits
+    reason: str | None = None
+    note: str | None = None
+
+
+@router.get("/writebacks")
+def writebacks(system: str | None = None, state: str | None = None, item_id: int | None = None,
+               conn=Depends(get_conn)):
+    """The write-back queue: every change proposed to a source system, newest first."""
+    from ..ops import writeback
+    return writeback.listing(conn, system, state, item_id)
+
+
+@router.get("/writebacks/{wid}")
+def writeback_detail(wid: int, conn=Depends(get_conn)):
+    """One write-back with who may approve it, when it goes by its system's cadence, and its history."""
+    from ..ops import writeback
+    return _exception_call(conn, writeback.detail, wid)
+
+
+@router.post("/writebacks")
+def writeback_propose(w: WritebackIn, conn=Depends(get_conn)):
+    """Propose a change to a source system: it waits for approval in the approver role's queue."""
+    from ..ops import writeback
+    return _exception_call(conn, writeback.propose, w.system, w.kind, w.payload, w.by, record=w.record,
+                           action=w.action, key=w.key, item_id=w.item_id, title=w.title, subjects=w.subjects)
+
+
+@router.post("/writebacks/{wid}/approve")
+def writeback_approve(wid: int, d: WritebackDecision, conn=Depends(get_conn)):
+    """A named person in one of the system's approver roles approves it; it goes by the system's cadence."""
+    from ..ops import writeback
+    return _exception_call(conn, writeback.approve, wid, d.by, d.payload)
+
+
+@router.post("/writebacks/{wid}/reject")
+def writeback_reject(wid: int, d: WritebackDecision, conn=Depends(get_conn)):
+    from ..ops import writeback
+    return _exception_call(conn, writeback.reject, wid, d.by, d.reason)
+
+
+@router.post("/writebacks/{wid}/confirm")
+def writeback_confirm(wid: int, d: WritebackDecision, conn=Depends(get_conn)):
+    """The system's owner says an exported change is applied: the case is released."""
+    from ..core import gates
+    from ..ops import writeback
+
+    if gates.machine(d.by):
+        raise HTTPException(403, "confirming a write-back by hand needs a named person")
+    return _exception_call(conn, writeback.confirm, wid, d.by, d.note)
+
+
+@router.post("/writebacks/{wid}/fail")
+def writeback_fail(wid: int, d: WritebackDecision, conn=Depends(get_conn)):
+    """The system's owner says an exported change could not be applied: back to the approver with the reason."""
+    from ..ops import writeback
+
+    if not (d.reason or "").strip():
+        raise HTTPException(400, "say why it could not be applied")
+    return _exception_call(conn, writeback.fail, wid, d.reason, d.by)
+
+
 # ---- shift handover (#467) -----------------------------------------------------------------------------------------
 
 class HandoverNotes(BaseModel):

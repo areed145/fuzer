@@ -327,6 +327,37 @@ export interface GateDecision {
   at: string;
 }
 
+/** A change proposed to a source system (P5.7): it is written only after a named approver approves it. */
+export interface Writeback {
+  id: number;
+  system: string;
+  kind: string;
+  record: string | null;
+  action: string;
+  payload: Record<string, unknown>;
+  state: "drafted" | "awaiting_approval" | "approved" | "sent" | "confirmed" | "failed" | "rejected";
+  drafted_by: string;
+  drafted_at: string;
+  approver_role: string | null;
+  item_id: number | null;
+  source_ref: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  due_at: string | null;
+  sent_at: string | null;
+  confirmed_at: string | null;
+  error: string | null;
+  reason: string | null;
+}
+
+export interface WritebackDetail extends Writeback {
+  label: string;
+  approvers: string[] | null;
+  cadence: string | null;
+  adapter: string;
+  history: { id: number; state: string; by: string; note: string | null; at: string }[];
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -511,7 +542,7 @@ export interface HandoverRow {
 export interface Closeout {
   id: number; exception_id: number; system: string; record: string; action: "complete" | "follow_up";
   draft: { text: string; status?: string | null; short_text?: string; [k: string]: unknown };
-  state: "draft" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
+  state: "draft" | "approved" | "sent" | "discarded"; item_id: number | null; created_by: string; created_at: string;
   decided_by: string | null; decided_at: string | null; applied_at: string | null;
 }
 
@@ -638,6 +669,16 @@ export const workApi = {
     request<Handover>("POST", `/handovers/${id}/acknowledge`, undefined, { by, note: note ?? null }),
   resolveRef: (id: number, by: string, ref: string, fuzer_id: string, remember: boolean, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/resolve`, undefined, { by, ref, fuzer_id, remember, reason: reason ?? null }),
+  writebacks: (f: { system?: string; state?: string; item_id?: number } = {}) => request<Writeback[]>("GET", "/writebacks", f),
+  writeback: (id: number) => request<WritebackDetail>("GET", `/writebacks/${id}`),
+  approveWriteback: (id: number, by: string, payload?: Record<string, unknown>) =>
+    request<Writeback>("POST", `/writebacks/${id}/approve`, undefined, { by, payload: payload ?? null }),
+  rejectWriteback: (id: number, by: string, reason: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/reject`, undefined, { by, reason }),
+  confirmWriteback: (id: number, by: string, note?: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/confirm`, undefined, { by, note: note ?? null }),
+  failWriteback: (id: number, by: string, reason: string) =>
+    request<Writeback>("POST", `/writebacks/${id}/fail`, undefined, { by, reason }),
   closeout: (id: number) => request<Closeout>("GET", `/closeouts/${id}`),
   approveCloseout: (id: number, by: string, text?: string, short_text?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/approve`, undefined, { by, text: text ?? null, short_text: short_text ?? null }),

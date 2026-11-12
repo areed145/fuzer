@@ -1456,6 +1456,46 @@ Shift handovers (#467, ops/handover.py): drafted from live work at each shift ch
 | `acknowledged_at` | timestamptz |  |
 | `acknowledged_note` | text |  |
 
+### `writeback`
+
+The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer proposes to a source system, and the only way one is written. drafted -> awaiting_approval -> approved -> sent -> confirmed, or failed (back to the approver with the source's reason) or rejected. `idem_key` makes a proposal, and a send, happen once.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `system` | text |  |
+| `kind` | text | notification, safety_notification, order, master_data, annotation, ... |
+| `record` | text, | the system's own key, when the change is to an existing record |
+| `action` | text |  |
+| `payload` | jsonb |  |
+| `idem_key` | text |  |
+| `state` | text |  |
+| `drafted_by` | text |  |
+| `drafted_at` | timestamptz |  |
+| `approver_role` | text |  |
+| `item_id` | bigint, | the approver's case |
+| `source_ref` | text, | what proposed it (closeout:12, review:4, ...) |
+| `approved_by` | text |  |
+| `approved_at` | timestamptz |  |
+| `due_at` | timestamptz, | when its cadence lets it go |
+| `sent_at` | timestamptz |  |
+| `confirmed_at` | timestamptz |  |
+| `failed_at` | timestamptz |  |
+| `attempts` | integer |  |
+| `error` | text |  |
+| `reason` | text |  |
+
+### `writeback_event`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `writeback_id` | bigint |  |
+| `state` | text |  |
+| `by` | text |  |
+| `note` | text |  |
+| `at` | timestamptz |  |
+
 ## Charts
 
 [`src/fuzer/plots/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/plots/schema.sql)
