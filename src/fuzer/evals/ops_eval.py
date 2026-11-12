@@ -51,7 +51,7 @@ def run(conn, pack, data_dir, since: str, until: str, live: bool = False, max_di
         "grouping": rep.get("grouping")}
     if not rep["upsets"]:
         say("warning: no injected upsets in this window, so recall, grouping and diagnosis can't be scored; "
-            "pick a window with upsets (e.g. 2024-11-04 to 2024-11-10 on Okan)")
+            "pick a window with upsets (pass --since and --until)")
 
     # diagnosis: hand off the period's upsets (scan stores them) and check the cause named
     say("2/4 diagnosis: scanning the period" + (" (live Claude)" if live else ""))

@@ -19,20 +19,22 @@ rises and then flattens. Past the optimum, extra gas only adds friction and buys
 
 Natural-flow (NF) wells don't use lift gas, and gas producers supply it.
 
-## The network (Okan)
-`trace_flow(network="lift_gas")` follows it; `gas_lift_network()` summarises it.
-- **Source.** Gas from the inlet separator is compressed by the GGCP trains (20-K-2x00A/B/C) into the
-  GGCP lift gas header (20-FT-3002 flow, 20-PT-3003 pressure). Compression bypass 20-XV-3100 can send
-  uncompressed gas to the header when trains are down, at a lower pressure.
-- **Headers.** The GGCP header feeds the PP-area jackets and NWP directly. It also feeds the ST1 and
-  ST2 headers (30-/40-FT-3002, -PT-3003) by pipeline, and they feed the jackets around the satellites.
-- **Jackets.** Each jacket has a gas lift manifold (GLM, located at the jacket) that feeds its gas
-  lifted wells. Some jackets get their lift gas **through another jacket's manifold** (shared
-  corridors to save pipe), so those wells sit further down the network, at lower pressure. Upsets
-  upstream hit them first and hardest. Production flows back along the same routes.
+## The network
+`trace_flow(network="lift_gas")` follows it; `gas_lift_network()` summarises it, with the facility's own tags.
+Read the layout from those tools, never from memory: every facility names its trains, headers and manifolds
+differently.
+- **Source.** Gas from the inlet separator is compressed by the compression trains into a lift gas header (a
+  flow and a pressure on it). A compression bypass, where there is one, can send uncompressed gas to the header
+  when trains are down, at a lower pressure.
+- **Headers.** The main header feeds nearby sites directly and may feed satellite headers by pipeline, which in
+  turn feed the sites around them.
+- **Manifolds.** Each site has a gas lift manifold (GLM) that feeds its gas lifted wells. Some sites get their
+  lift gas **through another site's manifold** (shared corridors to save pipe), so those wells sit further down
+  the network, at lower pressure. Upsets upstream hit them first and hardest. Production flows back along the
+  same routes.
 - **Data.**
   - Per well PI points: GLIR (injection rate), CASP (casing pressure), WHP, WHT and choke.
-  - Per jacket: the gas lift supply meter (FT-3001).
+  - Per site: the gas lift supply meter.
   - Well tests carry lift gas, oil, water cut and GOR.
   - Downtime with reason LIFT-GAS records lift gas shortfalls.
 

@@ -1167,6 +1167,8 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "assistant_memory.json").write_text(json.dumps(MEMORY_QUESTIONS, indent=1))
     (out / "wells.json").write_text(json.dumps(wells, indent=1))  # scenario reference, not a source
     # How the fake historian makes process values move together (fuzer.sources.process_model); not a source.
+    # Typical levels of the satellite headers' flows, which the historian draws rather than models.
+    model["levels"] = [["ST1 Lift Gas Header Flow", 720.0], ["ST2 Lift Gas Header Flow", 440.0]]
     (out / "process_model.json").write_text(json.dumps(model))
     (out / "answer_keys" / "curves.json").write_text(json.dumps(
         [{**curves.truth(c), "delivered_as": list(delivery[m]), "datasheet": f"DS-{m}",

@@ -24,13 +24,14 @@ class Pack:
     limits: dict
     reference_data: dict = field(default_factory=dict)
     data_notice: str | None = None  # how this asset's data must be labeled wherever it's shown
+    investigation: dict = field(default_factory=dict)  # the guided investigation, when the bundle has one
 
     def rule(self, field: str) -> dict:
         return {**self.survivorship["default"], **self.survivorship.get("fields", {}).get(field, {})}
 
 
 NO_PROJECT = ("No project to serve: this database holds none and FUZER_PROJECT isn't set. Initialise it from a seed "
-              "bundle, e.g. `fuzer init --bundle fakeplant/bundles/okan`")
+              "bundle: `fuzer init --bundle <folder>`")
 CACHE_SECONDS = 5.0
 
 
@@ -54,6 +55,7 @@ def pack_from_config(raw: dict) -> Pack:
         value=raw.get("value", {}),
         limits=raw.get("limits", {}),
         data_notice=raw.get("data_notice"),
+        investigation=raw.get("investigation") or {},
     )
 
 

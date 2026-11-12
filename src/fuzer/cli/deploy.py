@@ -16,7 +16,7 @@ from .demo_seed import register_projects, seed
 
 def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[str]]]:
     """The processes this instance runs. Dagster serves every project (a run per project); each project added
-    beside Okan gets its own agent worker, which runs that project's workflow agent steps."""
+    beside the first gets its own agent worker, which runs that project's workflow agent steps."""
     port = int(os.environ.get("PORT", "10000"))
     if not 1 <= port <= 65535:
         raise ValueError("PORT must be between 1 and 65535")
@@ -78,7 +78,13 @@ def read_projects(added: list[str]) -> None:
                   "Inspect recorded readings before a deliberate retry.", flush=True)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+
+    p = argparse.ArgumentParser(description="Run this instance: seed its first bundle, add the rest, serve.")
+    p.add_argument("--bundle", required=True,
+                   help="the seed bundle this database's first project comes from (its folder, with bundle.yaml)")
+    args = p.parse_args(argv)
     if not os.environ.get("FUZER_DATABASE_URL"):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
     home = Path(os.environ.get("DAGSTER_HOME", "/var/lib/fuzer/dagster"))
@@ -86,9 +92,9 @@ def main() -> None:
     (home / "dagster.yaml").touch(exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
     with db.connect() as conn:
-        seed(conn, Path(os.environ["FUZER_DATA_DIR"]))
+        first = seed(conn, Path(args.bundle))["name"]
         engine.load_defaults(conn)
-        added = register_projects(conn)
+        added = register_projects(conn, first)
     for name in added:
         with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
             engine.load_defaults(scoped)
