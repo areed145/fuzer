@@ -221,7 +221,7 @@ export interface SourceLoad {
 
 /** How a system's records contextualized themselves on the last rebuild (P2.1). */
 export interface SystemContext {
-  source: string; records: number; built_at: string | null; expects_match: boolean; needs_steward: number;
+  source: string; records: number; built_at: string | null; expects_match: string[]; needs_steward: number;
   share: number | null; target: number; decided: { key: number; score: number; pinned: number; new: number };
   links: { pct: number | null; resolved: number | null; total: number | null };
   steward: { to_confirm: number; disagree: number; unresolved: number; unmatched: number };

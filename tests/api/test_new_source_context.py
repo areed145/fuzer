@@ -54,7 +54,7 @@ def _run(conn, client) -> None:
     conn.commit()
 
     r = client.get("/sources/systems/inspect/context").json()
-    assert r["records"] == len(tags) + 1 and r["expects_match"]
+    assert r["records"] == len(tags) + 1 and r["expects_match"] == ["tag"]
     assert r["share"] < contextualized.TARGET, r  # under 10% needs a steward
     assert r["decided"]["key"] + r["decided"]["score"] >= 0.9 * len(tags)
     assert [u["label"] for u in r["unmatched"]] == ["99-X-9999"]  # the one the register lacks, named as written

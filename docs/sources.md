@@ -469,7 +469,8 @@ Each system's card on Sources says how its records contextualized themselves on 
 (`graph.contextualized`, `GET /sources/systems/{name}/context`): how many matched the register on their own (on a
 canonical key, or scored above the auto-accept threshold and let through by the human gate), how many are new, and
 how many need a steward: matches to confirm, values that disagree with another source, rows whose links named
-nothing, and records that matched nothing from a source whose records otherwise match the register. A new source
+nothing, and records that matched nothing of a kind whose records from that source otherwise match (never in the
+source that holds most of that kind, the register its items are matched to). A new source
 should leave under 10% for a steward. Every automatic match is listed with its confidence and basis; "Not this
 record" on the entity page reverses one, and the reversal is a pinned decision every later rebuild keeps.
 
