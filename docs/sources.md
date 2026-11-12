@@ -464,6 +464,15 @@ SAP needs changing), **the system is right** (the drawing needs a redline), or *
 A decision changes neither side; it is kept on reruns while the values stay the same, and a disagreement that comes
 back with different values is a new question. Questions no longer raised go stale.
 
+## Source quality scorecard
+Each dataset's Overview shows four measures, 0 to 100, kept with every rebuild so each has a trend
+(`sources.scorecard`, `GET /sources/datasets/{name}/scorecard`): **completeness** (the mean fill of its columns, from
+the latest profile), **validity** (the share of its checks passing, its key counted as one), **timeliness** (100 while
+a delivery is on time, then the expected interval over the age) and **agreement** (of its source's records that join
+an item another source also has, the share with no open disagreement). A measure that falls 15 points or more below
+its best of the last 30 days raises one `source_quality_drop` case for the dataset, assigned to the system's owner
+(else the dataset's, else the data steward), however many records it touches; it clears when the measures recover.
+
 ## How a new source matched
 Each system's card on Sources says how its records contextualized themselves on the last rebuild
 (`graph.contextualized`, `GET /sources/systems/{name}/context`): how many matched the register on their own (on a
