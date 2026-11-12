@@ -106,7 +106,7 @@ def water_diagnostic(conn, well: str) -> Figure:
     lay["yaxis"] = {"domain": bottom, "type": "log", "title": {"text": "WOR, |WOR'| (log)"}}
     lay["xaxis"] = {"anchor": "y", "title": {"text": "test date"}}
     lay["yaxis2"] = {"domain": top, "anchor": "x2", "title": {"text": "water cut (%)"}}
-    lay["xaxis2"] = {"anchor": "y2", "title": {"text": "cumulative oil since first test (Sm3)"}}
+    lay["xaxis2"] = {"anchor": "y2", "title": {"text": "cumulative oil since first test (Sm3, estimated from well tests)"}}
     lay["height"] = 620
     jumps = [(x[i], round(wor[i] - wor[i - 1], 3)) for i in range(1, len(wor))]
     third = max(2, len(wor) // 3)
@@ -114,6 +114,7 @@ def water_diagnostic(conn, well: str) -> Figure:
     late = linreg(yrs[-third:], [math.log(w) for w in wor[-third:]])[1] if min(wor[-third:]) > 0 else None
     return Figure("water_diagnostic", lay["title"]["text"], data, lay, {
         "well": name, "tests": len(tests), "cumulative_oil_sm3": round(run),
+        "cumulative_basis": "estimated from well tests (rate held between tests); no per-well allocation is loaded",
         "water_cut": {"first": rnd(tests[0]["water_cut"], 1), "latest": rnd(tests[-1]["water_cut"], 1)},
         "wor": {"first": rnd(wor[0]), "latest": rnd(wor[-1])},
         "log_wor_slope_per_year": {"early": rnd(early), "late": rnd(late)},
@@ -438,3 +439,29 @@ def intervention_gains(conn, since: str | None = None, until: str | None = None,
                                                if i["verdict"] == "unknown"],
         "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
         [i["id"] for i in said][:10])
+
+
+
+def gor_trend(conn, well: str) -> Figure:
+    """One well's GOR over its tests (#339), with the level of its first and latest tests and the water cut step if
+    one was found. A climb is a pattern for the engineer, not a mechanism."""
+    from ..analysis import well_diagnostics as wd
+
+    d = wd.diagnose(conn, well)
+    if d["verdict"] == "too_little_data":
+        raise ChartError(d["reason"])
+    pts = [p for p in d["points"] if p["gor"] is not None]
+    if not pts:
+        raise ChartError("no GOR on that well's tests")
+    x = [p["at"] for p in pts]
+    data = [{"type": "scatter", "mode": "lines+markers", "name": "GOR (Sm3/Sm3)", "x": x, "y": [p["gor"] for p in pts]}]
+    if d["gor_climb"]:
+        c, n = d["gor_climb"], d["thresholds"]["tests_for_a_gor_level"]
+        data += [{"type": "scatter", "mode": "lines", "name": f"first {n} tests' median", "x": [x[0], x[n - 1]],
+                  "y": [c["first_gor"]] * 2, "line": {"dash": "dot"}},
+                 {"type": "scatter", "mode": "lines", "name": f"latest {n} tests' median", "x": [x[-n], x[-1]],
+                  "y": [c["latest_gor"]] * 2, "line": {"dash": "dot", "color": "rgba(210,60,50,0.9)"}}]
+    lay = layout(f"{d['well']}: GOR over its well tests", None, "GOR (Sm3/Sm3)")
+    return Figure("gor_trend", lay["title"]["text"], data, lay, {
+        "verdict": d["verdict"], "gor_climb": d["gor_climb"], "water_cut_step": d["water_cut_step"],
+        "tests": d["tests"], "thresholds": d["thresholds"], "note": d["note"]}, [p["record"] for p in pts][-10:])

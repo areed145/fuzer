@@ -7,6 +7,7 @@ import { CostOfUnreliability } from "./CostOfUnreliability";
 import { InterventionGains } from "./InterventionGains";
 import { AgainstTheAccounts } from "./AgainstTheAccounts";
 import { BacklogBurn } from "./BacklogBurn";
+import { WellScreen } from "./WellScreen";
 import { AcrossAssets } from "./AcrossAssets";
 import { Badge, Disclosure, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
@@ -66,6 +67,7 @@ export function ScorecardPage({ query }: { query: URLSearchParams }) {
       </> : <Empty>No KPIs to show.</Empty>)}
       <AcrossAssets days={days} />
       <WellsAgainstForecast />
+      <WellScreen />
       <BacklogBurn />
       <CostOfUnreliability />
       <InterventionGains />
