@@ -77,7 +77,7 @@
     "F1-T-6005A": {"type": "vessel", "pressure": 0.1, "level": 55},
     "G1-H-7001": {"type": "controlled", "role": "outlet_temperature", "value": 232.0, "noise": 1.0},
     "G1-V-7005": {"type": "controlled", "role": "pressure", "value": 7.6, "noise": 0.05},
-    "H1-FT-8003": {"type": "controlled", "role": "flow", "value": 3.0, "noise": 0.4, "tau": 3}
+    "H1-FT-8003": {"type": "controlled", "role": "flare_flow", "value": 3.0, "noise": 0.4, "tau": 3}
   },
   "events": [
     {"unit": "train:B1", "kind": "trip", "start": "today-1d 03:10", "end": "today-1d 06:40"},

@@ -67,7 +67,7 @@ def test_roles_say_which_processes_use_them_and_what_waits(conn, client):
     after = role(client, "engineer")
     assert after["waiting"] == before["waiting"] + 1 and "cy" in after["people"]
     assert all(r["role"] in {"engineer", "ops_lead", "production_engineer", "data_steward",
-                             "maintenance_planner", "operator", "workflow_admin"} for r in client.get("/work/roles/summary").json())
+                             "maintenance_planner", "operator", "hse_specialist", "workflow_admin"} for r in client.get("/work/roles/summary").json())
 
 
 def test_removing_a_person_puts_their_claimed_work_back_in_its_queue(conn, client):

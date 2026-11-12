@@ -42,5 +42,7 @@ arrive:
   gas_lift_instability: {not_here: "its wells flow on their own; none is on gas lift"}
   # The sales gas's water content climbing from about 90 to 141 mg/Sm3 over its last three weekly samples
   quality_drift: {detector: quality_drift}
+  # The flare during yesterday's compressor trip, matched to the downtime and the operator's log entries
+  flare_event: {detector: flare_events}
   # The scrubber's high-high level alarm, changed three days ago with no change record on file around it
   unrecorded_change: {detector: unrecorded_changes}

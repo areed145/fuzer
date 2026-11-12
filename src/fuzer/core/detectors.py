@@ -40,7 +40,7 @@ ON = "detectors.on"  # the setting that switches detectors; detectors.on@<name> 
 MODULES = ("fuzer.ops.sre", "fuzer.analysis.limits", "fuzer.analysis.trips", "fuzer.analysis.rotating",
            "fuzer.analysis.records", "fuzer.sources.alerts", "fuzer.ops.opportunities", "fuzer.ops.safeguards",
            "fuzer.analysis.loops", "fuzer.analysis.well_tests",
-           "fuzer.analysis.gas_lift", "fuzer.analysis.quality")
+           "fuzer.analysis.gas_lift", "fuzer.analysis.quality", "fuzer.analysis.flare")
 
 POINTS = "select 1 from edge where rel = 'has_timeseries' limit 1"  # the need most detectors share
 
