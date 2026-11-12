@@ -51,6 +51,9 @@ HRPT-A1-VT1013C,HRPT-A1-P1003C,Mainline Pump C Vibration,C
 HRPT-A1-TT1014A,HRPT-A1-P1003A,Mainline Pump A Bearing Temperature,C
 HRPT-A1-TT1014B,HRPT-A1-P1003B,Mainline Pump B Bearing Temperature,C
 HRPT-A1-TT1014C,HRPT-A1-P1003C,Mainline Pump C Bearing Temperature,C
+HRPT-A1-JT1015A,HRPT-A1-P1003A,Mainline Pump A Motor Power,C
+HRPT-A1-JT1015B,HRPT-A1-P1003B,Mainline Pump B Motor Power,C
+HRPT-A1-JT1015C,HRPT-A1-P1003C,Mainline Pump C Motor Power,C
 HRPT-A1-PDT1007,HRPT-A1-F1007,Mainline Suction Strainer Differential Pressure,C
 HRPT-B1-PT2003,HRPT-B1-P2001A,Midline Suction Pressure,C
 HRPT-B1-PT2004,HRPT-B1-P2001A,Midline Discharge Pressure,C

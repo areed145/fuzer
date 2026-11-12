@@ -24,7 +24,7 @@ long before, which is what separates a machine fault from a process upset and fr
   lube oil pressure, high vibration, ...), or that it never got near running speed (ignition, fuel, starter or a
   start permissive). A failed start after a trip shows on the trip's diagnosis as `restart_attempts`.
 - `scan(since, until)`: every compressor train's trips in the window, diagnosed, each raised as a `machine_trip`
-  exception for the IOC. It joins the case already open on the train (the upset the stop raised), so the IOC works
+  exception for the IOC; `pump_scan` does the same for every pump train (a pipeline's mainline pumps). It joins the case already open on the train (the upset the stop raised), so the IOC works
   one case with the cause and the restart checklist on it, and the operator dispatched to the train sees the
   checklist on their field job.
 """
@@ -47,6 +47,7 @@ SUSTAIN = 2  # steps in a row past it
 REPEAT_DAYS = 30  # a second trip of the same family on the train within this: inspect, don't restart
 REVIEW_DAYS = 45  # any earlier trip within this: ask reliability to review
 CO = r"^ISO14224:CO([.]|$)"
+PU = r"^ISO14224:PU([.]|$)"  # pumps: a pump train trips and restarts the same way (P8.4, Gate C)
 
 # Cause families: what a first-out of that kind usually means, and the checks before a restart.
 FAMILIES = {
@@ -525,6 +526,16 @@ TYPE = _type().name
 
 def compressor_trains(conn) -> list[str]:
     """One machine per compression train (the first compressor of each), so each train is diagnosed once."""
+    return machine_trains(conn, CO)
+
+
+def pump_trains(conn) -> list[str]:
+    """One pump per pump train (each pump between headers is its own train, from piping)."""
+    return machine_trains(conn, PU)
+
+
+def machine_trains(conn, cls: str) -> list[str]:
+    """One machine of an ISO 14224 class (a regex on the class code) per train, so each train is diagnosed once."""
     rows = conn.execute(
         """
         select distinct i.dst as tag, l.label from edge i
@@ -532,7 +543,7 @@ def compressor_trains(conn) -> list[str]:
         join entity_label cl on cl.fuzer_id = c.dst
         join entity_label l on l.fuzer_id = i.dst
         where i.rel = 'installed_at' and i.valid_to is null and cl.label ~ %s order by l.label
-        """, (CO,)).fetchall()
+        """, (cls,)).fetchall()
     seen, out = set(), []
     for r in rows:
         try:
@@ -554,12 +565,29 @@ def compressor_trains(conn) -> list[str]:
                     found=lambda out: len(out["raised"]))
 def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") -> dict:
     """Diagnose every compression train's trips in the window and raise each as a `machine_trip` exception."""
+    return _scan(conn, pack, since, until, compressor_trains(conn), src, by)
+
+
+@detectors.register("pump_trips", title="A pump tripping, with its first cause", kind=detectors.RULE,
+                    cadence="5min", raises=("machine_trip",), classes=("pump",),
+                    roles=("power", "vibration", "bearing_temperature"),
+                    needs={"historian points": detectors.POINTS,
+                           "a pump on the piping": lambda conn, pack: bool(pump_trains(conn))},
+                    eval="test:tests/evals/test_trips_harrier.py::test_a_mainline_pump_trip_reaches_the_ioc_with_its_cause",
+                    found=lambda out: len(out["raised"]))
+def pump_scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") -> dict:
+    """Diagnose every pump train's trips in the window and raise each as a `machine_trip` exception: a pipeline's
+    mainline pumps trip on vibration, bearing temperature or suction pressure the way a compressor does."""
+    return _scan(conn, pack, since, until, pump_trains(conn), src, by)
+
+
+def _scan(conn, pack, since: str, until: str, trains: list[str], src=None, by: str = "agent:sre") -> dict:
     from ..core import work
     from ..core.exceptions import ExceptionError, raise_exception
 
     a, b = datetime.fromisoformat(since), datetime.fromisoformat(until)
     out = {"trains": 0, "trips": 0, "raised": [], "errors": []}
-    for m in compressor_trains(conn):
+    for m in trains:
         out["trains"] += 1
         try:
             found = stops(conn, pack, m, a, b, src)
@@ -582,7 +610,7 @@ def scan(conn, pack, since: str, until: str, src=None, by: str = "agent:sre") ->
             out["trips"] += 1
             sp = d["spurious"]
             found = Finding(
-                "trips.diagnosis", DETERMINISTIC, method="compressor_trip",
+                "trips.diagnosis", DETERMINISTIC, method="compressor_trip",  # the one trip diagnosis, any train
                 start=d["tripped_at"], checks=d["checklist"],
                 data={"verdict": d["verdict"], "tripped_at": d["tripped_at"], "sequence": d["sequence"][:6]},
                 items=(at("Tripped", d["tripped_at"]), fact("Train", d["train"]), asset("Likely source", d["culprit_id"]),

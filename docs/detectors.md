@@ -15,6 +15,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`multivariate`](#multivariate) A stretch a process area's own model cannot explain | Statistical | Once a day | `upset` | Any asset with the inputs |
 | [`iow_breaches`](#iow_breaches) Time outside an integrity operating window past its allowed time | Rule | On request | `iow_breach` | Any asset with the inputs |
 | [`compressor_trips`](#compressor_trips) A compression train tripping, with its first cause | Rule | Every 5 minutes | `machine_trip` | compressor |
+| [`pump_trips`](#pump_trips) A pump tripping, with its first cause | Rule | Every 5 minutes | `machine_trip` | pump |
 | [`machine_health`](#machine_health) A rotating machine whose condition needs attention | Model | Every hour | `machine_health` | compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine |
 | [`records_gaps`](#records_gaps) Downtime, the operator log and notifications that do not agree | Rule | Once a day | `records_gap` | Any asset with the inputs |
 | [`source_health`](#source_health) A dataset that failed, is held, is stale or fails its checks | Rule | Every 30 minutes | `source_issue` | Any asset with the inputs |
@@ -142,6 +143,18 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Measurement roles:** running status, casing vibration, bearing temperature, discharge temperature
 - **Needs:** historian points, a compression train
 - **Scored by:** `tests/analysis/test_trips.py::test_trips_reach_the_ioc_with_the_restart_checklist`, on the fake plant
+
+## pump_trips
+
+**A pump tripping, with its first cause.** Diagnose every pump train's trips in the window and raise each as a `machine_trip` exception: a pipeline's mainline pumps trip on vibration, bearing temperature or suction pressure the way a compressor does.
+
+- **Kind:** Rule
+- **Runs:** Every 5 minutes
+- **Raises:** `machine_trip`
+- **Equipment classes:** pump
+- **Measurement roles:** power, casing vibration, bearing temperature
+- **Needs:** historian points, a pump on the piping
+- **Scored by:** `tests/evals/test_trips_harrier.py::test_a_mainline_pump_trip_reaches_the_ioc_with_its_cause`, on the fake plant
 
 ## machine_health
 

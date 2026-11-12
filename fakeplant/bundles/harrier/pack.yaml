@@ -10,7 +10,7 @@ data_notice: Fictional, synthetic data for a third demonstration asset, not a li
 tag_grammar:
   area: '[A-H]\d'
   loop_digits: [4, 4]
-  function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, ST, PDT, XV, PV, PSV]
+  function_codes: [P, V, K, E, H, T, F, G, PT, TT, LT, FT, VT, ST, JT, PDT, XV, PV, PSV]
 
 # A pipeline has no wells, so the pack declares no well_grammar: nothing parses as a well.
 

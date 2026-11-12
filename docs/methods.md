@@ -270,7 +270,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 **Trip diagnosis from the first point to move.** ISO 13379-1 (symptom to cause).
 
-- **Valid for:** Compression trains with a run signal. Each point is judged against its own hours before the trip.
+- **Valid for:** Compression and pump trains with a run signal. Each point is judged against its own hours before the trip.
 - **Needs:** A trip of the train in the two days before the time asked about.
 - **Threshold `inspect_first`:** A second trip of the same family on the train within this: inspect, don't restart. (30 days)
 - **Threshold `review`:** Any earlier trip on the train within this: ask reliability to review. (45 days)

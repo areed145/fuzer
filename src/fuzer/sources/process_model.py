@@ -591,6 +591,7 @@ class Window:
         if var == "vibration":
             q = self.get(unit, "flow") / u["q_bep"]
             v = u.get("vibration", 1.8) * (1 + 1.2 * (q - 1) ** 2) * (1 + 0.05 * self.noise(unit + "v", 15))
+            v = v + sum((self.path(e["points"]) for e in self.ev(unit, "vibration_rise")), np.zeros_like(self.t))  # mm/s
             return self.lag(run * v + (1 - run) * 0.2, 3)
         if var == "bearing_temperature":
             q = self.get(unit, "flow") / u["q_bep"]
