@@ -10,7 +10,7 @@ A check with no records to read says so and does not block. A blocked job is sen
 people dispatch: the dispatch route and card), and the reason goes on the case's history.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 
 def _units(conn, subjects: list[str]) -> list[str]:
@@ -137,6 +137,99 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
             "checked": True, "note": None}
 
 
+LIVE = ("issued", "live", "active")
+IN_PLACE = ("applied", "verified")
+
+
+def _locations(conn, subjects: list[str]) -> list[str]:
+    """A job's subjects, what is installed at them and where they are installed: the places a permit can cover."""
+    if not subjects:
+        return []
+    return [r["id"] for r in conn.execute(
+        "select unnest(%(s)s::text[]) as id union select src from edge where rel = 'installed_at' "
+        "and dst = any(%(s)s) and valid_to is null union select dst from edge where rel = 'installed_at' "
+        "and src = any(%(s)s) and valid_to is null", {"s": subjects}).fetchall()]
+
+
+def _needs_permit(conn, job: int | None) -> tuple[bool, str | None]:
+    from ..core import settings
+
+    if job is None:
+        return False, None
+    row = conn.execute("select type from exception_record where id = %s", (job,)).fetchone()
+    kinds = {t.strip() for t in str(settings.get(conn, "readiness.permit_types") or "").split(",") if t.strip()}
+    return bool(row and row["type"] in kinds), row["type"] if row else None
+
+
+def permits(conn, subjects: list[str], job: int | None = None, now: datetime | None = None) -> dict:
+    """Permits to work on a job's location, each with its isolations. Ready unless the job's work type needs a permit
+    and none is issued and in date with every isolation in place."""
+    base = {"check": "permits", "label": "Permit"}
+    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
+        return {**base, "ready": True, "blockers": [], "permits": [], "checked": False, "needed": False,
+                "note": "No permit-to-work records are loaded, so no permit to check."}
+    now = now or datetime.now(UTC)
+    needed, kind = _needs_permit(conn, job)
+    rows = conn.execute(
+        """
+        select p.fuzer_id as id, pl.label, c.dst as location, ll.label as location_label,
+               max(case when g.field = 'permit_type' then g.value #>> '{}' end) as type,
+               max(case when g.field = 'state' then g.value #>> '{}' end) as state,
+               max(case when g.field = 'valid_from' then g.value #>> '{}' end) as valid_from,
+               max(case when g.field = 'valid_to' then g.value #>> '{}' end) as valid_to,
+               max(case when g.field = 'description' then g.value #>> '{}' end) as work,
+               (select coalesce(jsonb_agg(jsonb_build_object(
+                         'isolation', il.label, 'point', ip.value #>> '{}', 'method', im.value #>> '{}',
+                         'state', ist.value #>> '{}') order by il.label), '[]')
+                from edge i join entity_label il on il.fuzer_id = i.src
+                left join golden ip on ip.fuzer_id = i.src and ip.field = 'point'
+                left join golden im on im.fuzer_id = i.src and im.field = 'method'
+                left join golden ist on ist.fuzer_id = i.src and ist.field = 'state'
+                where i.rel = 'isolation_for' and i.dst = p.fuzer_id) as isolations
+        from edge c join entity p on p.fuzer_id = c.src and p.kind = 'permit'
+        left join entity_label pl on pl.fuzer_id = p.fuzer_id
+        left join entity_label ll on ll.fuzer_id = c.dst
+        left join golden g on g.fuzer_id = p.fuzer_id
+        where c.rel = 'covers' and c.dst = any(%s)
+        group by p.fuzer_id, pl.label, c.dst, ll.label
+        order by max(case when g.field = 'valid_to' then g.value #>> '{}' end) desc nulls last
+        """, (_locations(conn, subjects),)).fetchall()
+    found = []
+    for r in rows:
+        live = (r["state"] or "").lower() in LIVE
+        start, end = _when(r["valid_from"]), _when(r["valid_to"])
+        in_date = (start is None or start <= now) and (end is None or now <= end)
+        open_isolations = [i for i in r["isolations"] if (i["state"] or "").lower() not in IN_PLACE]
+        why = (None if live and in_date and not open_isolations
+               else f"{r['state'] or 'no state'}" if not live
+               else "expired" if end is not None and now > end
+               else "not yet valid" if not in_date
+               else "isolations not in place: " + "; ".join(
+                   f"{i['isolation']} {i['point'] or ''} ({i['state'] or 'no state'})".replace("  ", " ")
+                   for i in open_isolations))
+        found.append({**dict(r), "valid": why is None, "why_not": why})
+    valid = [p for p in found if p["valid"]]
+    blockers = []
+    if needed and not valid:
+        where = next((p["location_label"] for p in found), None)
+        say = "; ".join(f"{p['label']} {p['why_not']}" for p in found[:3])
+        blockers.append(f"{kind} work needs a valid permit" + (f" on {where}" if where else "") + ": "
+                        + (say if found else "no permit covers this location"))
+    note = None if found else "No permit covers this location."
+    return {**base, "ready": not blockers, "blockers": blockers, "permits": found, "checked": True,
+            "needed": needed, "note": note}
+
+
+def _when(v: str | None) -> datetime | None:
+    if not v:
+        return None
+    try:
+        t = datetime.fromisoformat(v.replace("Z", "+00:00").replace(" ", "T"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=UTC)
+
+
 def _n(x: float) -> str:
     return str(int(x)) if float(x).is_integer() else str(x)
 
@@ -145,7 +238,7 @@ def _spares(conn, subjects: list[str], job: int | None = None) -> dict:
     return spares(conn, subjects)
 
 
-CHECKS = (_spares, crew)
+CHECKS = (_spares, crew, permits)
 
 
 def check(conn, subjects: list[str], job: int | None = None) -> dict:

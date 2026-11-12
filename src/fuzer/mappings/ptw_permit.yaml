@@ -1,0 +1,20 @@
+# Permit-to-work permits (P5.5c, #683): what work a location is permitted for, by whom and when. state: requested,
+# approved, issued (live), suspended, closed or expired; a permit is valid while issued and inside valid_from..valid_to.
+source: ptw
+record_type: permit
+shape: records
+dataset: ptw_permits
+key: permit_no
+entity:
+  kind: permit
+  fields:
+    - permit_type
+    - state
+    - valid_from
+    - valid_to
+    - issued_to
+    - [description, {from: work, default: "", keep: true}]
+links:
+  - rel: covers
+    when: floc
+    to: {from: floc, as: floc}

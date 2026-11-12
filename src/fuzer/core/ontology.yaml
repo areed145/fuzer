@@ -78,6 +78,16 @@ kinds:
     group: Maintenance
     colour: "#7d8f69"
     description: A maintenance crew that work is planned against, with its crew size.
+  permit:
+    label: Permit to work
+    group: Maintenance
+    colour: "#c0634a"
+    description: A permit to work on a location, with its type, state and validity.
+  isolation:
+    label: Isolation
+    group: Maintenance
+    colour: "#a8553f"
+    description: A point a permit needs isolated, how, and whether it is in place.
   allocation_node:
     label: Allocation node
     group: Production
@@ -225,6 +235,18 @@ relations:
     description: A work order and the work center (crew) that does it.
     from: [work_order]
     to: [work_center]
+  covers:
+    label: covers
+    view: maintenance
+    description: A permit to work and the location it permits work on.
+    from: [permit]
+    to: [tag, equipment, area, facility]
+  isolation_for:
+    label: isolation for
+    view: maintenance
+    description: An isolation and the permit that needs it.
+    from: [isolation]
+    to: [permit]
   flows_to:
     label: flows to
     view: flow

@@ -40,6 +40,7 @@ from .common import (
     Tag,
     _add_days,
     _add_hours,
+    _permits,
     _purchase_orders,
     _spares,
     _work_center,
@@ -1122,6 +1123,9 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "sap_bom.csv", bom)
     _write_csv(out / "sap_purchase_orders.csv", _purchase_orders(materials))
     _write_csv(out / "sap_work_centers.csv", WORK_CENTERS)
+    permits, isolations = _permits(equipment)
+    _write_csv(out / "ptw_permits.csv", permits)
+    _write_csv(out / "ptw_isolations.csv", isolations)
     _write_csv(out / "pi_points.csv", points)
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
     _write_csv(out / "ec_downtime.csv", downtime)

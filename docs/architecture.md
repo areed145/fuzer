@@ -88,15 +88,18 @@ flowchart LR
   src_pi[/"pi"/]
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
+  src_ptw[/"ptw"/]
   src_sap[/"sap"/]
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
   kind_equipment(["equipment"])
+  kind_isolation(["isolation"])
   kind_log_entry(["log_entry"])
   kind_maintenance_plan(["maintenance_plan"])
   kind_material(["material"])
   kind_notification(["notification"])
+  kind_permit(["permit"])
   kind_pipeline(["pipeline"])
   kind_plant_hierarchy__facility__area__tag__well(["plant hierarchy: facility, area, tag, well"])
   kind_production_day(["production_day"])
@@ -122,6 +125,8 @@ flowchart LR
   src_pi --> kind_timeseries
   src_pi_af --> kind_plant_hierarchy__facility__area__tag__well
   src_pid --> kind_document
+  src_ptw --> kind_isolation
+  src_ptw --> kind_permit
   src_sap --> kind_equipment
   src_sap --> kind_maintenance_plan
   src_sap --> kind_material
@@ -213,7 +218,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `exception_kind`, `exception_record`, `field_photo`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat` (its `schema.sql`)
-- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
+- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts
