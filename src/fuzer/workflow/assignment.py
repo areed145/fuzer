@@ -27,6 +27,7 @@ from .runtime import (
     _owner,
     _Run,
     _update,
+    guard_agent_data,
 )
 
 
@@ -91,6 +92,7 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
         if worker is None and live:
             raise Conflict(f"an agent is working on step '{t['name'] or t['element']}' ({t['claimed_by']})")
     data = dict(data or {})
+    guard_agent_data(run, proc, data, f"step '{t['name'] or t['element']}'")
     proc["data"].update(data)
     kind = "agent_result" if t["kind"] == "agent" and is_agent(by) else "completed"
     run.event(kind, proc, t, step=t["name"] or t["element"], data=data, decision=data.get("decision"))

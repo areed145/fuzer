@@ -10,7 +10,8 @@ over; the agent gets the step's last checkpoint (`call.save(...)`) and `call.key
 anything it does outside Fuzer, so the work it had done isn't done twice. A step that raises is
 retried with backoff and then given to a person (engine.agent_failed).
 
-Agents propose; they never complete `requiresHuman` steps and have no tools that act on the plant.
+Agents propose; they never complete `requiresHuman` steps, never set the data a person decides (the engine refuses
+it, and the step goes to a person with the reason), and have no tools that act on the plant.
 """
 
 import logging
@@ -119,6 +120,9 @@ def run_once(conn, agents: dict[str, Agent], worker: str | None = None, now: dat
     except engine.Conflict as e:  # the lease ran out and another worker has it: its result counts, not ours
         log.warning("dropped result of step %s: %s", t["id"], e)
         return {"task_id": t["id"], "dropped": str(e)}
+    except engine.Forbidden as e:  # the result crossed the human-decision boundary (P4.4): a person takes the step
+        log.warning("refused result of step %s: %s", t["id"], e)
+        return engine.agent_failed(conn, t["id"], worker, f"refused: {e}", now, max_attempts=0)
 
 
 def run(connect: Callable, agents: dict[str, Agent], worker: str | None = None, poll: float = 5.0,
