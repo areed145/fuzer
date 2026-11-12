@@ -329,6 +329,49 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case opens with the specialist's brief above the decision, and the person says whether they followed it (P4.3)", async () => {
+  const posted = [];
+  let verdict = null;
+  const item = () => ({ id: 19, title: "Machine health on 20-K-2100C", type: "machine_health", state: "open", subjects: [],
+    created_by: "detector:machine_health", created_at: "2026-11-12T03:00:00Z", events: [], processes: [],
+    brief: { expected: true, due: "2026-11-13T03:00:00Z", verdict, entry: { pack: "maintenance-integrity/compression",
+      ledger: { cost_usd: 0.62 }, budget_usd: 0.5, over_budget: true, late: false, brief: {
+        what_happened: "Stage 1 ran within 4 % of its surge line for most of the week.",
+        evidence: [{ ref: "tag:20-FT-2101", says: "suction flow fell 12 %" }],
+        analysis: [{ method: "surge", says: "5th percentile margin 3.8 %" }],
+        similar: [{ case: "INC-2024-07", fixed_by: "anti-surge valve recalibrated" }],
+        proposal: { disposition: "Plan an anti-surge valve check", confidence: 0.72, why: "margin under 5 %" },
+        could_not_check: ["no OEM map revision date"] } } } });
+  await page.route("**/work/items/19", route => route.fulfill({ json: item() }));
+  await page.route("**/work/items/19/brief/verdict", route => {
+    const body = route.request().postDataJSON();
+    posted.push(body);
+    verdict = { by: body.by, at: "2026-11-12T04:00:00Z", followed: body.followed, note: body.note ?? null };
+    return route.fulfill({ json: verdict });
+  });
+  await page.goto(`${url}/#/cases/19`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
+  await page.reload();
+  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Specialist brief", { exact: true }) }).first();
+  await card.waitFor();
+  await card.getByText("Stage 1 ran within 4 % of its surge line", { exact: false }).waitFor();
+  await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
+  await card.getByText("72 % confident", { exact: false }).waitFor();
+  await card.getByText("no OEM map revision date", { exact: true }).waitFor();
+  await card.getByText("$0.62 of $0.50 budget", { exact: false }).waitFor();
+  await card.getByText("over budget", { exact: true }).waitFor();
+  await card.getByRole("button", { name: "Evidence, analysis and similar cases" }).click();
+  await card.getByRole("cell", { name: "anti-surge valve recalibrated" }).waitFor();
+  await card.getByLabel("Note on the proposal").fill("checked the valve first");
+  await card.getByRole("button", { name: "Partly followed" }).click();
+  await card.getByText("Partly followed by", { exact: false }).waitFor();
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].followed, "partly");
+  assert.equal(posted[0].note, "checked the valve first");
+  assert.equal(posted[0].by, "pat");
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("a case says why it stopped for a person, and Settings shows the gate policy (#622)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Alarm on P-101", type: "false_alarm",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));

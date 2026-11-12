@@ -440,6 +440,9 @@ export interface WorkItem {
   agents_configured?: boolean;
   /** What agents have spent on the case and its cap (USD; cap 0 means none), P4.4. */
   agent_spend?: { usd: number; cap_usd: number };
+  /** The owning specialist's brief (P4.3): whether one is expected, when it is due, the brief or why there is none,
+   * and the person's verdict on its proposal. */
+  brief?: CaseBriefView;
   /** Every exception the case works, each with its finding. */
   sources?: CaseSource[];
   id: number;
@@ -809,6 +812,8 @@ export const workApi = {
   bulkComplete: (taskIds: number[], by: string, action: string, reason?: string) =>
     request<{ done: number[]; refused: { task_id: number; error: string }[] }>(
       "POST", "/work/tasks/bulk-complete", undefined, { by, task_ids: taskIds, action, reason }),
+  briefVerdict: (itemId: number, by: string, followed: "yes" | "partly" | "no", note?: string) =>
+    request<unknown>("POST", `/work/items/${itemId}/brief/verdict`, undefined, { by, followed, note }),
   comment: (itemId: number, by: string, text: string) =>
     request<unknown>("POST", `/work/items/${itemId}/comment`, undefined, { by, text }),
   decideLesson: (id: number, decision: "approve" | "reject" | "edit", by: string, text?: string) =>
@@ -820,3 +825,28 @@ export const workApi = {
     request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),
   withdrawGroup: (key: string, by: string) => request<{ withdrawn: string }>("DELETE", "/review/groups", { key, by }),
 };
+
+export interface BriefSections {
+  what_happened?: string | null;
+  evidence?: { ref?: string; says?: string }[] | null;
+  analysis?: { method?: string; says?: string }[] | null;
+  similar?: { case?: string; fixed_by?: string }[] | null;
+  proposal?: { disposition?: string; confidence?: number | null; why?: string } | null;
+  could_not_check?: string[] | null;
+}
+
+export interface CaseBriefView {
+  expected: boolean;
+  due: string;
+  entry: null | {
+    missing?: string;
+    pack?: string;
+    brief?: BriefSections;
+    ledger?: { cost_usd?: number };
+    budget_usd?: number;
+    over_budget?: boolean;
+    late?: boolean;
+    at?: string;
+  };
+  verdict: null | { by: string; at: string; followed: "yes" | "partly" | "no"; note?: string | null };
+}

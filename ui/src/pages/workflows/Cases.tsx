@@ -9,6 +9,7 @@ import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText,
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
 import { AgentWork } from "../../AgentWork";
+import { CaseBrief } from "../../CaseBrief";
 import { CaseGates } from "../Gates";
 import { CaseWritebacks } from "../Writeback";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
@@ -184,6 +185,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
         <a href={href("/handover", { id: String(raised.handover_id) })}>Read it and acknowledge it</a>.</p>}
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
+      <CaseBrief it={it} person={person} readOnly={demo} reload={item.reload} />
       <CaseFindings sources={it.sources} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
