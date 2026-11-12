@@ -134,6 +134,43 @@ def plot_gas_lift_curve(well: str, breakeven: float = 0.5) -> dict[str, Any]:
     return _chart(production.gas_lift_curve, {"breakeven": breakeven}, {"well": well})
 
 
+@capability("production-surveillance", "wells-subsurface", kind="calc")
+def gas_lift_stability(well: str | None = None, days: int = 3) -> dict[str, Any]:
+    """Gas lift casing heading and instability (#341). Without a well: every gas lifted well's casing pressure, lift
+    gas and wellhead pressure over the last `days` through a regularity test (Thornhill, Huang and Zhang 2003),
+    heading wells first: `heading` when the casing pressure cycles regularly with a swing of 2 % of its level or
+    more, `unstable` when lift gas or wellhead pressure does without it, with the period, the swing and which signals
+    cycle together. With a well: that well alone. Candidates for the engineer; never a gas or choke change."""
+    from ...analysis import gas_lift_stability as gls
+    days = max(1, min(days, 14))
+    with db.connect() as conn:
+        if well:
+            fid, err = _resolve(conn, well)
+            if err:
+                return err
+            try:
+                d = gls.well(conn, fid, days)
+            except gls.CalcError as e:
+                return {"error": str(e)}
+            return _plain({k: v for k, v in d.items() if k != "series"})
+        return _plain(gls.screen(conn, days))
+
+
+@capability("production-surveillance", "wells-subsurface", kind="plot")
+def plot_gas_lift_heading(well: str, days: int = 3) -> dict[str, Any]:
+    """Chart one gas lifted well's casing pressure, wellhead pressure and lift gas over the last `days`: a heading
+    well's three cycle together."""
+    from ...plots import production
+    return _chart(production.gas_lift_heading, {"days": max(1, min(days, 14))}, {"well": well})
+
+
+@capability("production-surveillance", "wells-subsurface", kind="plot")
+def plot_gas_lift_screen(days: int = 3) -> dict[str, Any]:
+    """Chart the gas lifted wells ranked by casing pressure swing over the last `days`, heading wells marked."""
+    from ...plots import production
+    return _chart(production.gas_lift_screen, {"days": max(1, min(days, 14))})
+
+
 @capability("production-surveillance", "wells-subsurface", kind="plot")
 def plot_gas_lift_allocation(ref: str | None = None) -> dict[str, Any]:
     """Chart every gas lifted well's marginal response (oil per extra lift gas) grouped by lift gas
@@ -258,6 +295,25 @@ def test_staleness(max_days: int = 90) -> dict[str, Any]:
     from ...analysis import well_diagnostics as wd
     with db.connect() as conn:
         return _plain(wd.staleness(conn, max(1, min(max_days, 3650))))
+
+
+@capability("production-surveillance", kind="calc")
+def field_allocation_factor(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Well test against allocated oil, field-wide, month by month (#338): the oil the daily report books over what the
+    producing wells offer at their latest test within 120 days, cut by each well's own downtime, with the factor
+    ignoring downtime beside it and the median age of the tests used. Days with a facility or tag downtime, or a field
+    trip, are left out. Flags low or high (outside 0.90 to 1.10) and drifting (latest 3 months against the first 3 by
+    0.05 or more). Well status history isn't loaded. For one meter's factor, use calc allocation_factor."""
+    from ...analysis import well_test_factor
+    with db.connect() as conn:
+        return _plain(well_test_factor.trend(conn, since, until, days))
+
+
+@capability("production-surveillance", kind="plot")
+def plot_field_allocation_factor(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart allocated oil over the wells' tested offer each month, with the band and the age of the tests."""
+    from ...plots import production
+    return _chart(production.field_allocation_factor, {"since": since, "until": until, "days": days})
 
 
 @capability("wells-subsurface", "production-surveillance", kind="plot")
