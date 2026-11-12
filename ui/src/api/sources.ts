@@ -136,6 +136,8 @@ export interface DatasetDetail {
   connection_display: string | null;
   next_load: string | null;
   suggested_checks: SuggestedCheck[];
+  scorecard?: { measures: { key: string; label: string; now: number | null; best: number | null; dropped: boolean; trend: (number | null)[] }[];
+    drop: number; window_days: number; at: string | null };
   work_items: { id: number; title: string; state: string; assignee: string | null; role: string | null; created_at: string }[];
   reviews: { id: number; kind: string; created_at: string }[];
 }

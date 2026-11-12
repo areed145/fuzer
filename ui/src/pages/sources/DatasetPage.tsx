@@ -1,4 +1,4 @@
-import { ActionStatus, ConfirmAction, Button, PageHeader, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
+import { ActionStatus, ConfirmAction, Button, PageHeader, Stat, Table, Card as UICard, Input, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** One dataset's page (#225): what it is and how it's doing, its settings, mapping versions, runs, quality,
  * matching and history. */
 import { useState } from "react";
@@ -131,6 +131,7 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
       <ActionStatus busy={a.busy ? `${a.busy === "run" ? "Loading source records" : "Checking source"}; wait for the recorded result…` : null} error={a.error} />
       <p><a href={href("/sources", { view: "dataset", name: ds.name, tab: "runs" })}>Inspect recorded source runs</a>{" · "}
         <a href={href("/jobs")}>Inspect scheduler execution</a></p>
+      <Scorecard s={d.scorecard} />
       <Table variant="keyValue">
         <tbody>{facts.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody>
       </Table>
@@ -157,6 +158,23 @@ function Overview({ d, reload }: { d: DatasetDetail; reload: () => void }) {
         </p>
       )}
     </>
+  );
+}
+
+/** The source quality scorecard (P2.6): each measure now with its recent trend; one that fell well below its best is
+ * marked, and is an open case for the source's owner. */
+function Scorecard({ s }: { s: DatasetDetail["scorecard"] }) {
+  if (!s || s.measures.every((m) => m.now == null)) return null;
+  const pct = (v: number | null) => (v == null ? "–" : `${Math.round(v)}%`);
+  return (
+    <section aria-label="Quality scorecard">
+      <h3>Quality</h3>
+      <div className="scorecard">{s.measures.map((m) => (
+        <Stat key={m.key} label={m.label} value={pct(m.now)} detail={m.now == null ? "can't be said yet"
+          : <>{m.dropped && <UIBadge tone="warn">dropped</UIBadge>} {m.trend.filter((v) => v != null).slice(-6).map((v) => Math.round(v!)).join(" · ")}
+            {m.dropped && m.best != null && ` (best ${pct(m.best)})`}</>} />
+      ))}</div>
+    </section>
   );
 }
 

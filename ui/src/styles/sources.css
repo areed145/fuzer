@@ -21,3 +21,7 @@ pre.diff .same { color: var(--muted); }
   border-radius: 999px; cursor: pointer; font-size: 12px; }
 .key-picker .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .key-picker .chip code { color: inherit; background: none; }
+
+/* The source quality scorecard (P2.6): four measures, two to a row on a phone. */
+.scorecard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+@media (max-width: 720px) { .scorecard { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

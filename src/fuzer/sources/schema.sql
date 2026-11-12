@@ -217,6 +217,19 @@ create table if not exists source_match_stat (
 );
 create index if not exists source_match_stat_of on source_match_stat (source, id desc);
 
+-- The source quality scorecard (P2.6, sources/scorecard.py): each dataset's four measures, 0-100, kept with every
+-- rebuild for 90 days so each has a trend; a drop raises a source_quality_drop case for its owner.
+create table if not exists source_score (
+    id           bigserial primary key,
+    dataset_id   bigint not null references source_dataset (id) on delete cascade,
+    at           timestamptz not null default now(),
+    completeness real,
+    validity     real,
+    timeliness   real,
+    agreement    real
+);
+create index if not exists source_score_of on source_score (dataset_id, id desc);
+
 -- Survivorship and matching rules (sources/rules.py): a field's own priority and conflict review, an entity
 -- kind's match thresholds. The default priority is the systems' rank. Seeded from the pack.
 create table if not exists source_rule (
