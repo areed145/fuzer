@@ -141,9 +141,11 @@ def default_worker() -> str:
 
 def assistant_agents() -> dict[str, Agent]:
     """Agent steps run by the operations assistant's specialists (#80), read-only, one Claude call each.
-    The answer is kept as `<step id>` in the process data, for the person who reviews it next."""
+    The answer is kept as `<step id>` in the process data, for the person who reviews it next, with its ledger
+    (P4.4): the agents, skill and model versions, tools and cost behind it."""
 
     from .. import agents
+    from . import ledger
 
     def specialist(role: str) -> Agent:
         def run_step(call: AgentCall) -> dict:
@@ -153,7 +155,8 @@ def assistant_agents() -> dict[str, Agent]:
                       + (f"Step instructions / parameters: {call.instructions}\n" if call.instructions else "") +
                       f"Ask the {role} specialist to do this step and propose, not take, any action.")
             answer = agents.ask_sync(prompt)
-            return {call.element: {"answer": answer["answer"], "usage": answer["usage"]}}
+            return {call.element: {"answer": answer["answer"], "usage": answer["usage"],
+                                   "ledger": ledger.record(role, answer)}}
         return run_step
     from ..ops import daily_report
 

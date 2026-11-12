@@ -16,7 +16,7 @@ flowchart LR
   c_ops["Operations<br><small>fuzer.ops, 16 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 9 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 18 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 19 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 6 modules</small>"]
   c_api["API<br><small>fuzer.api, 18 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
@@ -234,7 +234,7 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `ledger`, `mcp_server`, `memory`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
