@@ -3362,3 +3362,38 @@ test("a report made without signal waits on the phone and is sent once with its 
   const made = Date.parse(posts[0].at);
   assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
 });
+
+test("an uncertain measurement role is confirmed or corrected from Review, and stays after rebuilds (P1.4b)", async () => {
+  const item = (id, proposed, label) => ({ id, kind: "role", subject: `fz-ts-${id}`, status: "open", label: null, payload: {
+    point_id: `fz-ts-${id}`, point: `KRGP:D1.TT400${id}.PV`, description: "Amine Reboiler Temperature", uom: "degC",
+    letters: "TT", asset: "fz-tag-1", asset_label: "D1-E-4006", proposed, proposed_label: label, confidence: 0.7,
+    basis: ["letters TT: temperature", "units degC: temperature", "on HE: usually outlet temperature"],
+    choices: [{ key: "outlet_temperature", label: "Outlet temperature" }, { key: "temperature", label: "Process temperature" },
+      { key: "pressure", label: "Process pressure" }] } });
+  await page.route("**/review?*", (route) => route.fulfill({ json: [item(6, "outlet_temperature", "Outlet temperature"),
+    item(7, "outlet_temperature", "Outlet temperature")] }));
+  const sent = {};
+  await page.route("**/review/*", (route) => {
+    const id = route.request().url().split("/").pop();
+    sent[id] = route.request().postDataJSON();
+    return route.fulfill({ json: { decided: Number(id) } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=role`);
+  const first = page.locator(".review", { hasText: "KRGP:D1.TT4006.PV" });
+  await first.getByText("on HE: usually outlet temperature").waitFor();
+  await first.getByText("70% sure").waitFor();
+  assert.equal(await first.getByRole("link", { name: "D1-E-4006" }).count(), 1);
+  assert.equal(await first.getByRole("button", { name: "Use this role" }).isDisabled(), true);  // nothing new picked
+  await first.getByLabel("Role").selectOption("temperature");
+  await first.getByRole("button", { name: "Use this role" }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "is process temperature from now on" }).waitFor();
+  assert.deepEqual([sent["6"].decision, sent["6"].value], ["choose", "temperature"]);
+  const second = page.locator(".review", { hasText: "KRGP:D1.TT4007.PV" });
+  await second.getByRole("button", { name: "Confirm outlet temperature" }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "is outlet temperature from now on" }).waitFor();
+  assert.equal(sent["7"].decision, "accept");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
