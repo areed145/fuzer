@@ -98,6 +98,8 @@ disk, and set these environment values (or sync the Blueprint):
 |---|---|
 | `FUZER_DATABASE_URL` | Existing `fuzer-db` internal connection string (injected by Blueprint) |
 | `DAGSTER_HOME` | `/var/lib/fuzer/dagster` |
+| `FUZER_GITHUB_ISSUES_TOKEN` | Optional: a fine-grained GitHub token for this repository with Issues: read and write. With it, a crash in any process (supervisor, API, workers, Dagster), a 500 and a failed Dagster run open an `auto-report` issue, deduplicated by fingerprint (`fuzer.core.bugreports`) |
+| `FUZER_GITHUB_ISSUES_REPO` | The repository those issues go to, as `owner/name` |
 
 Remove stale `FUZER_PROJECT`, `FUZER_PACK`, `FUZER_DATA_DIR`, `FUZER_TIMESERIES` or other asset-specific
 overrides: each deploy registers the `--bundle` facility as the database's first project from its seed bundle,

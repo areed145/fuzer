@@ -645,14 +645,18 @@ def new_exports(context: dg.SensorEvaluationContext, fuzer: Fuzer):
 
 
 @dg.run_failure_sensor(default_status=dg.DefaultSensorStatus.RUNNING,
-                       description="Posts failed runs to FUZER_ALERT_WEBHOOK when it is set.")
+                       description="Posts failed runs to FUZER_ALERT_WEBHOOK, and to GitHub issues, when they are set.")
 def alert_on_failure(context: dg.RunFailureSensorContext):
     message = f"Fuzer job '{context.dagster_run.job_name}' failed (run {context.dagster_run.run_id[:8]}): " \
               f"{context.failure_event.message}"
     context.log.error(message)
+    from ..core import bugreports
     from ..sources import alerts
 
     alerts.post(message)
+    job = context.dagster_run.job_name
+    bugreports.reporter.report(bugreports.Reported(message, f"dagster-run:{job}", kind=f"Dagster job {job} failed"),
+                               "alert_on_failure", wait=True)
 
 
 defs = dg.Definitions(
