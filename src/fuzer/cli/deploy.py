@@ -41,7 +41,7 @@ def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[st
 DAGSTER_SCHEMA = "dagster"
 DAGSTER_URL_ENV = "FUZER_DAGSTER_PG_URL"
 COMPUTE_LOG_DAYS = 14
-MAX_CONCURRENT_RUNS = 4
+MAX_CONCURRENT_RUNS = 2  # each run is a ~250 MB Python process; four with the rest filled the 2 GB instance
 MAX_RUNTIME_SECONDS = 4 * 3600  # the nightly rebuild is the longest run
 DAGSTER_YAML = f"""\
 # Written by fuzer.cli.deploy on every start: Dagster's run, event and schedule storage lives in the
@@ -66,6 +66,12 @@ run_monitoring:
   max_runtime_seconds: {MAX_RUNTIME_SECONDS}
   max_resume_run_attempts: 0
   poll_interval_seconds: 60
+# Fuzer defines no automation conditions or freshness policies: their daemons would only poll the database.
+auto_materialize:
+  enabled: false
+  use_sensors: false
+freshness:
+  enabled: false
 retention:
   schedule:
     purge_after_days: 14
