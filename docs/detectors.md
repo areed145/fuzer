@@ -22,6 +22,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
 | [`bypass_overdue`](#bypass_overdue) A safeguard still bypassed past its expiry | Rule | Every 30 minutes | `bypass_overdue` | Any asset with the inputs |
 | [`proof_test_overdue`](#proof_test_overdue) A safeguard past its proof test interval | Rule | Once a day | `proof_test_overdue` | Any asset with the inputs |
+| [`safeguard_demands`](#safeguard_demands) A safeguard failed on demand or was demanded more than designed | Rule | Once a day | `safeguard_demand` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
@@ -29,6 +30,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`quality_drift`](#quality_drift) A lab analyte at a sample point drifting off its own baseline | Rule | Once a day | `quality_drift` | Any asset with the inputs |
 | [`flare_events`](#flare_events) A flare above its baseline, matched to the records around it | Rule | Once a day | `flare_event` | Any asset with the inputs |
 | [`alarm_performance`](#alarm_performance) Alarm floods and bad actors against ISA-18.2 and EEMUA 191 | Rule | Once a day | `alarm_flood`, `alarm_bad_actor` | Any asset with the inputs |
+| [`deviation_reviews`](#deviation_reviews) A named deviation from the operating model past its review date | Rule | Once a day | `deviation_review_due` | Any asset with the inputs |
 
 ## excursions
 
@@ -231,6 +233,16 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Needs:** proof test intervals on the safeguard register
 - **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested`, on the fake plant
 
+## safeguard_demands
+
+**A safeguard failed on demand or was demanded more than designed.** Each safeguard that failed on a demand or is over its designed demand rate raised as `safeguard_demand` for the engineer (keyed by the safeguard); open ones back within the rate with no failure are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `safeguard_demand`
+- **Needs:** safeguard demand records
+- **Scored by:** `tests/evals/test_safeguards_kestrel.py::test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer`, on the fake plant
+
 ## unrecorded_changes
 
 **An alarm or IOW limit changed with no change record.** Each limit changed with no change record raised as `unrecorded_change` for the engineer (keyed by the limit); open ones that a change record now covers, or that left the lookback, are cleared.
@@ -305,3 +317,13 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `alarm_flood`, `alarm_bad_actor`
 - **Needs:** historian points, alarm limits
 - **Scored by:** `tests/analysis/test_alarm_performance.py::test_a_flood_is_one_case_and_a_bad_actor_is_raised_once`, on the fake plant
+
+## deviation_reviews
+
+**A named deviation from the operating model past its review date.** Each named deviation past its review date raised as `deviation_review_due` for its owner (keyed by part and key); open ones whose deviation was reviewed (a later date) or unnamed are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `deviation_review_due`
+- **Needs:** a named deviation
+- **Scored by:** `tests/evals/test_conformance.py::test_a_deviation_past_its_review_is_work_for_its_owner_until_it_is_reviewed`, on the fake plant

@@ -34,6 +34,8 @@ arrive:
   bypass_overdue: {detector: bypass_overdue}
   # The VRU suction scrubber's high-high level trip, last proof tested 420 days ago on a 12 month interval
   proof_test_overdue: {detector: proof_test_overdue}
+  # The VRU discharge temperature trip called on twice this year, designed for 0.1 a year (the demand log)
+  safeguard_demand: {detector: safeguard_demands}
   # The next alarm export: the origin surge tank's high-high level moved two days ago, and the only change record about
   # the transmitter (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
@@ -49,3 +51,7 @@ arrive:
   alarm_flood: {not_here: "the terminal's 36 alarmed tags never reach 10 alarms in 10 minutes in the replay"}
   # Crude tank C's level low alarm coming back every few hours, and alarms standing for days
   alarm_bad_actor: {detector: alarm_performance}
+  # A difference from the standard the terminal superintendent's ops lead named, whose review date has passed (P8.2)
+  deviation_review_due: {deviation: {part: settings, key: handover.shift_times, owner: ops_lead, review_by: "today-1d",
+                                     reason: "Ship loading crews hand over at 19:00, after the evening berthing window"},
+                         detector: deviation_reviews, about: model}

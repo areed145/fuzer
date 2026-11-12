@@ -288,3 +288,4 @@ create table if not exists operating_model_deviation (
     named_at timestamptz not null default now(),
     primary key (project, part, key)
 );
+alter table operating_model_deviation add column if not exists review_by date;  -- P8.2: when it is next reviewed

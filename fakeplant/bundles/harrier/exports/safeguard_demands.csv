@@ -1,0 +1,4 @@
+demand_id,safeguard_id,at,outcome,cause
+DEM-HR-003,SG-HR-002,today-77d 15:20,worked,VRU discharge temperature high-high; the compressor tripped
+DEM-HR-004,SG-HR-003,today-41d 11:05,spurious,Vibration probe signal fault; no vibration on the frame
+DEM-HR-005,SG-HR-002,today-1d 02:45,worked,VRU discharge temperature high-high; the compressor tripped

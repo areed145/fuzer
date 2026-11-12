@@ -1,0 +1,5 @@
+demand_id,safeguard_id,at,outcome,cause
+DEM-KR-007,SG-KR-002,today-96d 14:20,worked,Compressor vibration high-high; the train tripped
+DEM-KR-008,SG-KR-002,today-60d 09:12,spurious,Vibration probe signal fault; no vibration on the frame
+DEM-KR-009,SG-KR-004,today-35d 13:30,worked,Discharge temperature high-high; the train tripped
+DEM-KR-010,SG-KR-002,today-1d 03:10,worked,Compressor vibration high-high; the train tripped

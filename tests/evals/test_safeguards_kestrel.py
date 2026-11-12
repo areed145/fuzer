@@ -172,3 +172,38 @@ def test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested(kes
             conn.execute("insert into golden values (%(fuzer_id)s, %(field)s, %(value)s, %(source)s, %(rule)s)",
                          {**was, "value": Jsonb(was["value"])})
         conn.commit()
+
+
+def test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer(kestrel_db):
+    """P4.2e (#850): the compressor vibration trip was called on twice this year (96 days ago and yesterday's trip),
+    designed for 0.1 a year; the probe fault 60 days ago was spurious, so it is listed but not counted. The discharge
+    temperature trip's one demand is within what one year allows. A failed demand is raised on its own."""
+    conn = kestrel_db
+    got = {d["label"]: d for d in safeguards.demands(conn)}
+    assert set(got) == {"SG-KR-002", "SG-KR-004"}
+    vib = got["SG-KR-002"]
+    assert [e["demand"] for e in vib["demands"]] == ["DEM-KR-010", "DEM-KR-007"] and vib["over"]
+    assert [e["demand"] for e in vib["spurious"]] == ["DEM-KR-008"] and vib["designed_per_year"] == 0.1
+    assert not got["SG-KR-004"]["over"] and not got["SG-KR-004"]["failed"]
+    assert safeguards.demands(conn, [_fid(conn, "C1-H-3008")]) == []
+
+    engine.load_defaults(conn)
+    loop._people(conn)
+    conn.commit()
+    out = detectors.run(conn, resolve(conn), "safeguard_demands")
+    assert [r["safeguard"] for r in out["raised"]] == ["SG-KR-002"] and not out["errors"], out
+    x = conn.execute("select * from exception_record where type = 'safeguard_demand' and key = 'SG-KR-002'").fetchone()
+    assert "demanded 2 times in 365 days" in x["title"] and "B1-K-2001" in x["title"]
+    assert conn.execute("select role from work_item where id = %s", (x["item_id"],)).fetchone()["role"] == "engineer"
+
+    dem = _fid(conn, "DEM-KR-009")
+    conn.execute("update golden set value = to_jsonb('failed'::text) where fuzer_id = %s and field = 'outcome'", (dem,))
+    try:
+        out = detectors.run(conn, resolve(conn), "safeguard_demands")
+        assert sorted(r["safeguard"] for r in out["raised"]) == ["SG-KR-002", "SG-KR-004"]
+        t = conn.execute("select title from exception_record where type = 'safeguard_demand' and key = 'SG-KR-004'")
+        assert "failed to act on a demand" in t.fetchone()["title"]
+    finally:  # it worked, for the other tests on this database
+        conn.execute("update golden set value = to_jsonb('worked'::text) where fuzer_id = %s and field = 'outcome'",
+                     (dem,))
+        conn.commit()

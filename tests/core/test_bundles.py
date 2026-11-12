@@ -20,12 +20,12 @@ KESTREL = ROOT / "fakeplant" / "bundles" / "kestrel"
 KESTREL_DATASETS = {
     "sap_floc", "sap_equipment", "pi_points", "maximo_assets", "pi_af",
     "sap_notifications", "sap_work_orders", "sap_maintenance_plans", "sap_bom", "sap_materials", "sap_purchase_orders", "sap_work_centers", "ptw_permits", "ptw_isolations", "rounds_points", "teams_threads",
-    "safeguard_register", "safeguard_bypasses", "moc_changes",
+    "safeguard_register", "safeguard_bypasses", "safeguard_demands", "moc_changes",
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 412  # with 14 closed permits (P6.5), Operator rounds points, 4 Teams threads (P5.8),
-# 5 safeguards and 3 bypasses (P3.9a) and 3 change records (P3.9b)
+KESTREL_ENTITIES = 416  # with 14 closed permits (P6.5), Operator rounds points, 4 Teams threads (P5.8),
+# 5 safeguards and 3 bypasses (P3.9a), 3 change records (P3.9b) and 4 safeguard demands (P4.2e)
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 

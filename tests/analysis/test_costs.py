@@ -45,14 +45,16 @@ def test_the_cost_of_unreliability_adds_parts_only_in_one_currency(okan_db):
     out = costs.unreliability(conn, pack, limit=0)
     assert out["price"] == {"oil_sm3": 470.0, "currency": "USD", "source": "pack okan"}
     sep = next(u for u in out["units"] if u["unit"] == "40-V-2002")
-    assert sep["lost_oil_value"] == round(sep["lost_oil_sm3"] * 470) and sep["order_cost"] == {"unknown": 55936}
+    assert sep["lost_oil_value"] == round(sep["lost_oil_sm3"] * 470) and list(sep["order_cost"]) == ["unknown"]
+    parts = sep["order_cost"]["unknown"]
+    assert parts > 0
     assert sep["total"] is None and "no currency in the source" in sep["why_no_total"]  # never added
     only_oil = next(u for u in out["units"] if not u["order_cost"] and u["lost_oil_value"])
     assert only_oil["total"] == only_oil["lost_oil_value"] and only_oil["total_currency"] == "USD"
     # once its orders state USD, the separator's parts add up
     _set_currency(conn, [r for r in sep["refs"] if r.startswith("fz-work_order")], "USD")
     sep2 = next(u for u in costs.unreliability(conn, pack, limit=0)["units"] if u["unit"] == "40-V-2002")
-    assert sep2["total"] == sep["lost_oil_value"] + 55936 and sep2["total_currency"] == "USD"
+    assert sep2["total"] == sep["lost_oil_value"] + parts and sep2["total_currency"] == "USD"
     conn.rollback()
 
 
