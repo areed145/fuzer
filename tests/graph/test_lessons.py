@@ -59,3 +59,29 @@ def test_api(conn):
     rows = client.get("/lessons", params={"status": "all"}).json()
     assert rows
     assert client.post("/lessons/999999", json={"decision": "approve"}).status_code == 404
+
+
+def test_three_closed_cases_of_one_failure_mode_on_one_model_draft_a_lesson(conn):
+    """P6.2a: Fuzer's own closed cases are evidence too. Three cases closed as seal leaks on one compressor's model say
+    what was done, how often each action held and how often the problem came back (a re-check said the fix did not
+    hold on one; a repeat reopened another)."""
+    tag = queries.resolve_ref(conn, PACK, "20-K-2200B")
+    cases = []
+    for title, activity, held in (("Seal gas leak, drive end", "1", True), ("Seal gas leak again", "1", False),
+                                  ("Seal leak after restart", "2", None)):
+        item = conn.execute("insert into work_item (type, title, subjects, state, created_by) values ('machine_health', "
+                            "%s, %s, 'done', 'test') returning id", (title, [tag])).fetchone()["id"]
+        conn.execute("insert into case_disposition (item_id, disposition, failure_mode, cause, activity, outcome, held, by) "
+                     "values (%s, 'real', 'ELU', '3', %s, 'fixed', %s, 'user:ana')", (item, activity, held))
+        cases.append(item)
+    conn.execute("insert into case_repeat (again, first) values (%s, %s)", (cases[2], cases[2]))
+    conn.execute("insert into work_item (type, title, subjects, state, created_by) values ('machine_health', 'Still open', "
+                 "%s, 'open', 'test')", ([tag],))  # an open case is not evidence yet
+    lessons.suggest(conn)
+    (lesson,) = [x for x in lessons.listing(conn, None, 500) if x["failure_mode"] == "ELU"
+                 and any(e.get("case") in cases for e in x["evidence"])]
+    assert lesson["stats"]["cases"] == 3 and lesson["stats"]["fixed"] == 1
+    assert "closed cases" in lesson["draft"] and "Replace (2 of 3; held in 1)" in lesson["draft"]
+    assert "Repair (1 of 3; held in 0)" in lesson["draft"]
+    assert {e["case"] for e in lesson["evidence"] if "case" in e} == set(cases)
+    conn.commit()
