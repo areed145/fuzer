@@ -88,6 +88,32 @@ WORK_CENTERS = [  # SAP work centers (P5.5b): the crews work orders are planned 
 ]
 
 
+def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Permit-to-work permits and their isolations (P5.5c) on every seventh item now installed: most issued and in
+    date, some expired, and every third one still waiting on an isolation. Dated from the day it is generated."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    items = sorted({e["floc"]: e for e in equipment if e["floc"].count("-") == 2}.values(), key=lambda e: e["floc"])
+    permits, isolations = [], []
+    for n, e in enumerate(items[::7]):
+        expired = n % 4 == 3
+        start, end = (today - timedelta(days=9), today - timedelta(days=2)) if expired else \
+            (today - timedelta(days=1), today + timedelta(days=2))
+        no = f"PTW-{30000 + n}"
+        permits.append({"permit_no": no, "floc": e["floc"], "permit_type": "hot work" if n % 5 == 0 else "cold work",
+                        "state": "expired" if expired else "issued", "valid_from": f"{start.isoformat()} 06:00",
+                        "valid_to": f"{end.isoformat()} 18:00", "issued_to": "Mechanical maintenance crew",
+                        "work": f"Maintenance on {e['description'].lower()}"})
+        for k, (point, method) in enumerate([("inlet valve", "closed and locked"), ("outlet valve", "closed and locked"),
+                                             ("casing", "drained and vented")][: 2 + n % 2]):
+            last = k == 1 + n % 2
+            isolations.append({"isolation_id": f"ISO-{30000 + n}-{k + 1}", "permit_no": no,
+                               "point": f"{e['floc'].split('-', 1)[1]} {point}", "method": method,
+                               "state": "planned" if last and n % 3 == 0 else "applied"})
+    return permits, isolations
+
+
 def _work_center(text: str) -> str:
     """The crew a work order's text calls for: instrument work to INST, electrical to ELEC, the rest to MECH."""
     t = text.lower()

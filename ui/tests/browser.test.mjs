@@ -400,6 +400,26 @@ test("a standing condition is shelved with a reason and an expiry, and shows as 
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("Metrics lists every registered KPI with its value and drills by a grain to its records (P7.1b)", async () => {
+  const decl = { key: "context.completeness", label: "Asset context completeness", group: "Context", unit: "%",
+    definition: "Of what an asset's class usually has, the share it has.", formula: "mean over assets", standard: null,
+    grains: ["area", "class"], period: "now", better: "higher", records: "assets", dated: false };
+  await page.route("**/metrics", route => route.fulfill({ json: [decl] }));
+  await page.route("**/metrics/context.completeness*", route => {
+    const grain = new URL(route.request().url()).searchParams.get("grain");
+    return route.fulfill({ json: { ...decl, value: 71.4, as_of: null, note: null, grain, refs: ["E-1"],
+      rows: grain ? [{ key: "B1", label: "Train B1", value: 64.2, refs: ["E-1", "E-2"] }] : [] } });
+  });
+  await page.goto(`${url}/#/metrics`);
+  await page.getByRole("heading", { name: "Metrics" }).waitFor();
+  await page.getByText("71.4%").waitFor();
+  await page.getByRole("link", { name: "area" }).click();
+  await page.getByRole("heading", { name: "Asset context completeness" }).waitFor();
+  await page.getByRole("cell", { name: "Train B1" }).waitFor();
+  await page.getByRole("button", { name: "2 records" }).click();
+  assert.equal(await page.getByRole("link", { name: "E-2" }).getAttribute("href"), "#/e/E-2");
+});
+
 test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
   await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
     windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",
@@ -1365,7 +1385,11 @@ test("an asset says what is known, what is missing and what each gap holds back;
       { check: "limits", label: "Limits", has: false, expected: true },
       { check: "documents", label: "Documents", has: false, expected: false }],
     gaps: [{ check: "limits", label: "Limits", missing: "no alarm limits, IOWs or normal ranges", prevents: "excursion and IOW cases",
-      usual: "89% of heat exchangers have it", detectors: [{ name: "excursions", title: "Process excursions" }, { name: "iow_breaches", title: "IOW breaches" }] }] } }));
+      usual: "89% of heat exchangers have it", detectors: [{ name: "excursions", title: "Process excursions" }, { name: "iow_breaches", title: "IOW breaches" }] }],
+    suggestions: [{ target: "doc-pc", target_label: "Propane chiller datasheet", rel: "applies_to", confidence: 0.4,
+      kinds: ["class_guide"], basis: ["it applies to its equipment class"] }] } }));
+  const answers = [];
+  await page.route("**/entities/tag-e5002/placement", (route) => { answers.push(route.request().postDataJSON()); return route.fulfill({ json: { accepted: true } }); });
   await page.goto(`${url}/#/e/tag-e5002`);
   const panel = page.locator(".asset-context");
   await panel.getByText("Holds back Process excursions; IOW breaches; excursion and IOW cases. 89% of heat exchangers have it.").waitFor();
@@ -1373,6 +1397,12 @@ test("an asset says what is known, what is missing and what each gap holds back;
   assert.equal(await panel.getByText("Missing", { exact: true }).count(), 1);
   assert.equal(await panel.getByText("Not recorded", { exact: true }).count(), 1);
   assert.equal(await panel.getByRole("link", { name: "Open case", exact: true }).getAttribute("href"), "#/cases/41");
+  // a ranked suggestion for the gap, with its evidence; the steward's answer is posted (P2.1d)
+  await panel.getByText("it applies to its equipment class").waitFor();
+  await panel.getByRole("button", { name: "Yes", exact: true }).click();
+  for (let i = 0; i < 50 && !answers.length; i++) await page.waitForTimeout(50);
+  assert.deepEqual(answers[0] && { rel: answers[0].rel, target: answers[0].target, accept: answers[0].accept },
+    { rel: "applies_to", target: "doc-pc", accept: true });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `asset overflows at ${width}`);
@@ -1421,7 +1451,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
   assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/lessons", "#/studies"]);
+    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
@@ -3823,8 +3853,9 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
 });
 
-// P5.5b (#682): the dispatch card says how busy the job's crew is, and a full crew is a blocker naming its jobs.
-test("the dispatch card shows the crew's load and a full crew blocks the job (#682)", async () => {
+// P5.5b, P5.5c (#682, #683): the dispatch card says how busy the job's crew is and which permit covers it, and a full
+// crew is a blocker naming its jobs.
+test("the dispatch card shows the crew's load, its permit, and a full crew blocks the job (#682, #683)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
   const job = (id, title) => ({ id, type: "leak", key: `k${id}`, title, state: "open", source: "olga", priority: 2,
     value_usd: null, subjects: ["fz-g7006"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
@@ -3834,7 +3865,10 @@ test("the dispatch card shows the crew's load and a full crew blocks the job (#6
   const elec = { id: "fz-elec", label: "ELEC", description: "Electrical technicians", crew: 1, busy: 0, full: false, jobs: [] };
   await page.route("**/exceptions/8/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [],
     checks: [{ check: "spares", label: "Spares", ready: true, checked: false, note: "No BOM for this equipment, so no parts to check.", blockers: [] },
-      { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] }] } }));
+      { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] },
+      { check: "permits", label: "Permit", ready: true, checked: true, note: null, blockers: [], needed: true,
+        permits: [{ id: "fz-p", label: "PTW-24103", type: "electrical", state: "issued", valid_to: "2026-11-13 18:00",
+          location_label: "G1-G-7006", valid: true, why_not: null }] }] } }));
   await page.route("**/exceptions/9/readiness", (route) => route.fulfill({ json: { ready: false,
     blockers: ["Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #3 Look at the standby generator"],
     checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [],
@@ -3843,5 +3877,111 @@ test("the dispatch card shows the crew's load and a full crew blocks the job (#6
   await page.getByText("Generator batteries").waitFor();
   for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
   await page.getByText("Electrical technicians: 0 of 1 busy.", { exact: false }).waitFor();
+  await page.getByText("Permit PTW-24103 (electrical) valid to 2026-11-13 18:00.", { exact: false }).waitFor();
   await page.getByText("all 1 busy on open jobs: #3 Look at the standby generator", { exact: false }).waitFor();
+});
+
+// P5.11a (#708): on the phone, a job whose work type needs a permit shows "blocked: no valid permit" with the permit
+// and its isolations, and On site needs a reason before it starts anyway.
+test("a job with no valid permit shows blocked on the phone and starts only with a reason (#708)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const job = { id: 21, type: "upset", key: "k-2001", title: "Compressor B1-K-2001 discharge valve", source: "olga", state: "open",
+    priority: null, value_usd: null, subjects: ["fz-k"], unmatched: [], item_id: 51, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, first_seen: "2026-11-12T06:00:00Z", last_seen: "2026-11-12T06:00:00Z", label: "Process upset", due: null,
+    task_id: null, task_name: null, assets: [{ fuzer_id: "fz-k", label: "B1-K-2001", kind: "equipment", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false,
+    sent: { by: "ann", at: "2026-11-12T06:05:00Z", reason: "change the valve" }, sources: [],
+    permit: { needed: true, blocked: true,
+      blocker: "blocked: no valid permit (upset work on B1-K-2001): PTW-24101 isolations not in place: ISO-24101-3 B1-K-2001 cylinders (planned)",
+      permit: { label: "PTW-24101", type: "cold work", state: "issued", valid_from: "2026-11-11 06:00", valid_to: "2026-11-14 18:00",
+        work: "Change discharge valves on cylinder 3", location_label: "B1-K-2001", valid: false, why_not: "isolations not in place",
+        isolations: [{ isolation: "ISO-24101-1", point: "B1-XV-2001", method: "closed and locked", state: "applied" },
+          { isolation: "ISO-24101-3", point: "B1-K-2001 cylinders", method: "blown down and vented", state: "planned" }] } } };
+  const reports = [];
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  await page.route("**/exceptions/21/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "B1-K-2001 discharge valve" });
+  await card.getByText("blocked: no valid permit", { exact: true }).waitFor();
+  await card.getByText("Change discharge valves on cylinder 3").waitFor();
+  await card.getByText("planned", { exact: true }).waitFor();
+  const start = card.getByRole("button", { name: "On site" });
+  assert.equal(await start.isDisabled(), true);
+  await card.getByLabel("Why start without a valid permit").fill("walk round only, nothing opened");
+  await start.click();
+  await expectReports(reports, 1);
+  assert.deepEqual([reports[0].status, reports[0].override], ["on_site", "walk round only, nothing opened"]);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+// P5.11b (#709): two jobs in one area at once whose permits clash are flagged on Plan in plain words, and the same
+// conflict blocks the dispatch card.
+test("hot work beside a line break is flagged on Plan and at dispatch (#709)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const at = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const base = { source: "fuzer", source_key: null, area_id: "fz-area-c1", area_label: "TEG dehydration", crew: null, crew_hours: null,
+    deferment_usd: null, exception_id: null, notes: null, status: "scheduled", needs_shutdown: false, kind: "maintenance", parts_short: [] };
+  const say = "Hot work near a line break in TEG dehydration: hot work (PTW-24105) for this job and line break (PTW-24106) for “Open contactor manway”";
+  const items = [
+    { ...base, id: 1, title: "Weld reboiler fire tube support", subjects: ["fz-h"], assets: [{ fuzer_id: "fz-h", label: "C1-H-3008" }],
+      start_at: at(-2), end_at: at(6), clashes: [{ kind: "simops", with: 2, title: "Open contactor manway", say }] },
+    { ...base, id: 2, title: "Open contactor manway", subjects: ["fz-v"], assets: [{ fuzer_id: "fz-v", label: "C1-V-3001" }],
+      start_at: at(-1), end_at: at(5), clashes: [{ kind: "simops", with: 1, title: "Weld reboiler fire tube support", say: "Hot work near a line break" }] },
+  ];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: items }));
+  await page.goto(`${url}/#/plan`);
+  await page.getByText("2 with a clash").waitFor();
+  await page.getByRole("button", { name: /Weld reboiler fire tube support/ }).click();
+  await page.getByText("Simultaneous operations: Hot work near a line break in TEG dehydration: hot work (PTW-24105)", { exact: false }).waitFor();
+});
+
+// P5.11c (#710): at shift change the outgoing operator hands a job in progress over; the incoming one sees the note
+// at the top and accepts it.
+test("a job in progress is handed over at shift change and the incoming operator accepts it (#710)", async () => {
+  const base = { id: 31, type: "leak", key: "k31", title: "Compressor B1-K-2001 valve change", source: "olga", state: "open",
+    priority: null, value_usd: null, subjects: ["fz-k"], unmatched: [], item_id: 61, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, first_seen: "2026-11-12T06:00:00Z", last_seen: "2026-11-12T06:00:00Z", label: "Leak", due: null,
+    task_id: null, task_name: null, assets: [{ fuzer_id: "fz-k", label: "B1-K-2001", kind: "equipment", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], queued: false, sources: [],
+    field: [{ at: "2026-11-12T15:00:00Z", by: "fred", status: "on_site", note: null }],
+    sent: { by: "ann", at: "2026-11-12T14:00:00Z", reason: "change the valve" }, permit: null, handover: null };
+  const sent = [];
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [base], coming_up: [] } }));
+  await page.route("**/exceptions/31/handover", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: base }); });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "valve change" });
+  await card.getByRole("button", { name: "Hand over at shift change" }).click();
+  const go = card.getByRole("button", { name: "Hand over", exact: true });
+  assert.equal(await go.isDisabled(), true);
+  await card.getByLabel("Hand over to").fill("gina");
+  await card.getByLabel("What was done").fill("isolated and blown down");
+  await card.getByLabel("What is left").fill("fit the new discharge valve");
+  await card.getByLabel("Unsafe to leave").fill("cylinder 3 cover is off");
+  await go.click();
+  await expectReports(sent, 1);
+  assert.deepEqual(sent[0], { by: "fred", to: "gina", done: "isolated and blown down", left: "fit the new discharge valve",
+    unsafe: "cylinder 3 cover is off" });
+
+  const handed = { ...base, queued: true, handover: { from: "fred", to: "gina", at: "2026-11-12T17:55:00Z", done: "isolated and blown down",
+    left: "fit the new discharge valve", unsafe: "cylinder 3 cover is off", permit: null, mine_to_accept: true, waiting_on: null } };
+  const accepted = [];
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "gina"));
+  await page.unroute("**/exceptions/field?*");
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "gina", jobs: [handed], coming_up: [] } }));
+  await page.route("**/exceptions/31/handover/accept", (route) => { accepted.push(route.request().postDataJSON()); return route.fulfill({ json: base }); });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "gina"));
+  await page.reload();
+  const theirs = page.locator(".field-job", { hasText: "valve change" });
+  await theirs.getByText("Handed over to you by fred").waitFor();
+  await theirs.getByText("Unsafe to leave: cylinder 3 cover is off").waitFor();
+  assert.equal(await theirs.getByRole("button", { name: "Take it" }).count(), 0);
+  await theirs.getByRole("button", { name: "Accept the handover" }).click();
+  await expectReports(accepted, 1);
+  assert.deepEqual(accepted[0], { by: "gina" });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });

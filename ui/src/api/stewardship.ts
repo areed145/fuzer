@@ -47,6 +47,12 @@ export interface AssetContext {
   fuzer_id: string; label: string; description: string | null; class_name: string; area: string | null;
   criticality: string | null; score: number | null; blocked: string[]; gaps: ContextGap[]; of: string | null;
   known: { check: string; label: string; has: boolean; expected: boolean }[]; item_id: number | null;
+  suggestions?: PlacementSuggestion[];
+}
+/** A ranked proposal for what an asset's gaps lack (P2.1d): an area, a drawing or a document, with its evidence. */
+export interface PlacementSuggestion {
+  target: string; target_label: string; rel: "part_of" | "shown_on" | "applies_to"; confidence: number;
+  kinds: string[]; basis: string[];
 }
 export interface ContextRollup { name: string; assets: number; blocked: number; score: number | null; gaps: { check: string; label: string; assets: number }[] }
 export interface ContextTop {
@@ -78,6 +84,8 @@ export const stewardshipApi = {
     request<Record<string, unknown>>("POST", "/stewardship/pins/undo", undefined, { batch, by, reason: reason ?? null }),
   completenessGaps: () => request<CompletenessGap[]>("GET", "/stewardship/completeness"),
   assetContext: (id: string) => request<AssetContext | null>("GET", `/entities/${encodeURIComponent(id)}/context`),
+  answerPlacement: (id: string, rel: string, target: string, accept: boolean, by: string) =>
+    request<Record<string, unknown>>("POST", `/entities/${encodeURIComponent(id)}/placement`, undefined, { rel, target, accept, by }),
   contextSummary: () => request<ContextSummary>("GET", "/stewardship/context"),
   spellingGroups: () => request<SpellingGroup[]>("GET", "/stewardship/consistency"),
   conflictGaps: () => request<ConflictGap[]>("GET", "/stewardship/conflicts"),

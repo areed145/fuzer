@@ -267,6 +267,8 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
     ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
+        ...r.checks.flatMap((c) => (c.permits ?? []).filter((p) => p.valid).slice(0, 1)
+          .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
         ...r.checks.filter((c) => !c.checked).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
       <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>;

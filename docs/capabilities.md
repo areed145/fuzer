@@ -127,16 +127,16 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 
 | Agent | Tools |
 |---|---|
-| Orchestrator | 21 |
-| Production & Surveillance | 62 |
-| Wells & Subsurface | 52 |
-| Field Operations & Facilities | 81 |
-| Maintenance & Integrity | 63 |
-| Work Management & Supply Chain | 30 |
-| HSE & Incident Management | 37 |
-| Asset Performance & Reporting | 35 |
+| Orchestrator | 23 |
+| Production & Surveillance | 64 |
+| Wells & Subsurface | 54 |
+| Field Operations & Facilities | 83 |
+| Maintenance & Integrity | 65 |
+| Work Management & Supply Chain | 32 |
+| HSE & Incident Management | 39 |
+| Asset Performance & Reporting | 37 |
 
-## Shared (96)
+## Shared (98)
 
 Used by every agent or by several specialists.
 
@@ -165,6 +165,8 @@ Used by every agent or by several specialists.
 | `plot_backlog` | plot | as_of? | Chart open SAP work orders by priority and age, with overdue counts and notifications with no order in the summary. |
 | `plot_compliance` | plot | as_of?, horizon_days? | Chart PM and inspection plans by kind: overdue, due within the horizon and later, with the worst overdue plans in the summary. |
 | `plot_score_breakdown` | plot | ref | Chart what makes up an item's value score (#100): production, risk and compliance at stake, urgency and effort, to show why one card ranks above another. |
+| `list_metrics` | query |  | Every registered KPI: key, label, definition, formula, unit, standard, the grains it can be cut by and the records behind it. |
+| `get_metric` | query | key, grain?, at? | One registered KPI now: its value, with its definition and unit, and by a grain (one of the metric's grains: queue, type, area, class, facility, system, dataset) its rows and the cases or records behind each. |
 | `board` | query | area?, unit?, kind?, text?, since?, limit? | The work board (#99): outstanding work across SAP backlog, PMs and inspections, incidents and SRE upsets, workflow items, opportunities, reviews and projects, one card per piece of work, ranked by value (#100). |
 | `get_daily_ops_report` | query | day?, version? | The daily operations report for a production day (YYYY-MM-DD; default the latest): headline, production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line citing its records. |
 | `what_changed` | query | since, until?, limit? | What happened in the records between two times (plant time): new log events, notifications, work orders started and finished, downtime started and ended, incidents, equipment installed or removed, limits taking or ending effect, excursions and new well tests, with counts. |

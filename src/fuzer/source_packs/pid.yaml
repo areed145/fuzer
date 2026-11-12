@@ -3,4 +3,5 @@
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: pid}
-datasets: [pid_sheets]
+datasets: [pid_sheets, pid_line_list]
+optional: [pid_line_list]

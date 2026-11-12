@@ -4,14 +4,15 @@
 import { useState } from "react";
 import { api, type Handover } from "../api";
 import { Badge, Button, Card, PageHeader, Table, Empty } from "../ui";
-import { Status, href, useAsync } from "../lib";
+import { Status, entityHref, href, useAsync } from "../lib";
 import { usePerson, when } from "../work";
 import { caseHref, useAct } from "./workflows/shared";
 import { usePermission } from "../Auth";
 
 const citeHref = (c: string) => {
   const [kind, id] = c.split(":");
-  return kind === "case" ? caseHref(Number(id)) : kind === "exception" ? href("/exceptions") : undefined;
+  return kind === "case" ? caseHref(Number(id)) : kind === "exception" ? href("/exceptions")
+    : kind === "entity" ? entityHref(id) : undefined;
 };
 
 export function HandoverPage({ query }: { query: URLSearchParams }) {

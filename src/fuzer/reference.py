@@ -332,7 +332,34 @@ def detectors_md() -> str:
     return "\n".join(out) + "\n"
 
 
-PAGES = {"detectors.md": detectors_md, "methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
+def metrics_md() -> str:
+    """Every registered metric: what it measures, how, in what unit, by what grains, and the records behind it."""
+    from .core import metrics
+
+    reg = metrics.registry()
+    out = ["# Metrics", "", HEADER.format(what="the metric registry (`core/metrics.py`)"),
+           "Every KPI is declared once, with its definition, formula, unit, the standard it follows where there is one, "
+           "the grains it can be cut by and the records behind it. Pages, the daily report and agents read the same "
+           "registered metric (`GET /metrics/{key}`, the `get_metric` tool), so a number is the same wherever it "
+           "is shown, and every number drills to its cases or records. The Metrics page (under Investigate) lists them "
+           "with their value now and opens each one by any of its grains. A dated metric also takes `at`, the day "
+           "its period ends (`?at=YYYY-MM-DD`): the daily report reads it for its own day, so a report rebuilt later "
+           "keeps its number. No page computes a KPI of its own (`tests/core/test_page_kpis.py`).", "",
+           "| Metric | Group | Unit | Cut by | Period |", "|---|---|---|---|---|"]
+    for m in reg.values():
+        out.append(f"| [`{m.key}`](#{m.key.replace('.', '')}) {m.label} | {m.group} | {m.unit} | "
+                   f"{', '.join(m.grains) or '-'} | {m.period} |")
+    for m in reg.values():
+        out += ["", f"## {m.key}", "", f"**{m.label}.** {m.definition}", "", f"- **Formula:** {m.formula}",
+                f"- **Unit:** {m.unit} ({ {'higher': 'higher is better', 'lower': 'lower is better'}.get(m.better, 'neither better nor worse') })",
+                f"- **Records:** {m.records}"]
+        out += [f"- **Standard:** {m.standard}"] if m.standard else []
+        out += [f"- **Cut by:** {', '.join(m.grains)}"] if m.grains else []
+        out += ["- **Dated:** takes `at`, the day its period ends"] if m.dated else []
+    return "\n".join(out) + "\n"
+
+
+PAGES = {"metrics.md": metrics_md, "detectors.md": detectors_md, "methods.md": methods_md, "settings.md": settings_md, "cli.md": cli_md, "schema.md": schema_md, "architecture.md": architecture_md,
          "eval-results.md": eval_results_md}
 
 

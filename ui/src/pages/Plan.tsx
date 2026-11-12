@@ -106,7 +106,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
   return (
     <div className="plan-detail">
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
-        {c.kind === "bundle" ? "Bundle: " : "Clash: "}{c.say}</p>)}
+        {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{c.say}</p>)}
       {!!item.parts_short?.length && <p className="small">
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</p>}

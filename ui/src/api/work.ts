@@ -292,7 +292,10 @@ export interface Readiness {
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
       orders: { po: string; quantity: number; due: string }[] }[];
     centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
-      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[] }[];
+      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[];
+    needed?: boolean;
+    permits?: { id: string; label: string; type: string | null; state: string | null; valid_to: string | null;
+      location_label: string | null; valid: boolean; why_not: string | null }[] }[];
 }
 
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
@@ -704,7 +707,7 @@ export interface PlanItem {
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
   crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
   exception_id: number | null; notes: string | null; assets: { fuzer_id: string; label: string | null }[];
-  clashes: { kind: "same_asset" | "crew" | "bundle"; with: number; title: string; say: string }[];
+  clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
   /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
   parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
 }
@@ -739,6 +742,22 @@ export interface FieldJob extends ExceptionRow {
   sources: CaseSource[];
   /** Checks to make before the work, such as a compressor trip's restart checklist. */
   checklist?: string[];
+  /** The permit to work it runs under (P5.11a): null when no permit records are loaded. */
+  permit?: FieldPermit | null;
+  /** A handover at shift change still waiting to be accepted (P5.11c). */
+  handover?: FieldHandover | null;
+}
+
+export interface FieldHandover {
+  from: string; to: string; at: string; done: string; left: string; unsafe: string | null;
+  permit: FieldPermit["permit"]; mine_to_accept: boolean; waiting_on: string | null;
+}
+
+export interface FieldPermit {
+  needed: boolean; blocked: boolean; blocker: string | null;
+  permit: { label: string; type: string | null; state: string | null; valid_from: string | null; valid_to: string | null;
+    work: string | null; location_label: string | null; valid: boolean; why_not: string | null;
+    isolations: { isolation: string; point: string | null; method: string | null; state: string | null }[] } | null;
 }
 
 export const workApi = {
@@ -793,9 +812,13 @@ export const workApi = {
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
   fieldReport: (id: number, by: string, status: string, note?: string,
-    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string } = {}) =>
+    extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
-      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null }),
+      reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
+      override: extra.override ?? null }),
+  fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
+    request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
+  acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

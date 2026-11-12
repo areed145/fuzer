@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import (
     FileResponse,
 )
+from pydantic import BaseModel
 
 from ..graph import edges, knowledge, queries
 from . import deps
@@ -65,14 +66,39 @@ def entity_context(fuzer_id: str, conn=Depends(get_conn)):
     """What is known about the asset this entity is or belongs to, what is missing and what each gap prevents
     (P2.5); null for something that is not part of an asset."""
     from ..analysis import completeness
+    from ..core import pack as packs
     from ..core.jsonsafe import plain
 
-    out = completeness.of_asset(conn, fuzer_id)
+    out = completeness.of_asset(conn, fuzer_id, packs.current_pack(conn))
     if out:
         case = conn.execute("select item_id from exception_record where type = %s and key = %s and state = 'open'",
                             (completeness.TYPE.name, out["fuzer_id"])).fetchone()
         out["item_id"] = case["item_id"] if case else None
     return plain(out)
+
+
+class PlacementAnswer(BaseModel):
+    rel: str  # part_of, shown_on or applies_to
+    target: str
+    accept: bool
+    by: str
+    reason: str | None = None
+
+
+@router.post("/entities/{fuzer_id}/placement")
+def entity_placement(fuzer_id: str, body: PlacementAnswer, conn=Depends(get_conn)):
+    """A steward's answer to a suggestion on the asset's context panel (P2.1d): accepted, it is linked now and by
+    every rebuild after; rejected, it is never suggested or applied again."""
+    from ..graph import placement
+
+    if body.rel not in ("part_of", "shown_on", "applies_to"):
+        raise HTTPException(400, "rel is part_of, shown_on or applies_to")
+    for x in (fuzer_id, body.target):
+        if not conn.execute("select 1 from entity where fuzer_id = %s and merged_into is null", (x,)).fetchone():
+            raise HTTPException(404, f"no entity {x}")
+    out = placement.decide(conn, fuzer_id, body.rel, body.target, body.accept, body.by, body.reason)
+    conn.commit()
+    return out
 
 
 @router.get("/entities/{fuzer_id}/values")

@@ -24,7 +24,8 @@ gaps prevent the most, weighted by criticality, are open `context_gap` cases (`T
 and a case clears when its gaps are filled or it drops out of the top.
 
     assets(conn)             every asset, with its class, area, what it has and lacks, score and value
-    of_asset(conn, fid)      one asset's panel (the asset itself, or the asset a tag or equipment belongs to)
+    of_asset(conn, fid)      one asset's panel (the asset itself, or the asset a tag or equipment belongs to), with
+                             ranked suggestions for what its gaps lack (graph.placement)
     summary(conn)            completeness by area and by class, and the top gaps
     sync(conn)               the top gaps as open cases
 """
@@ -233,7 +234,7 @@ def asset_of(conn, fuzer_id: str) -> str | None:
     return None
 
 
-def of_asset(conn, fuzer_id: str) -> dict | None:
+def of_asset(conn, fuzer_id: str, pack=None) -> dict | None:
     """One asset's panel: what is known, what is missing and what each gap prevents. The asset's class is compared
     with every asset of that class, so the expectation is the same one the summary uses."""
     fid = asset_of(conn, fuzer_id)
@@ -244,7 +245,25 @@ def of_asset(conn, fuzer_id: str) -> dict | None:
         return None
     known = [{"check": c.key, "label": c.label, "has": row["has"][c.key], "expected": c.key in row["expected"]}
              for c in CHECKS]
-    return {**row, "known": known, "of": fuzer_id if fuzer_id != fid else None}
+    return {**row, "known": known, "of": fuzer_id if fuzer_id != fid else None,
+            "suggestions": suggestions(conn, fid, row, pack)}
+
+
+def suggestions(conn, fid: str, row: dict, pack=None) -> list[dict]:
+    """Ranked proposals for what its gaps lack (P2.1d): an area when it is in none, the sheets that show what it is
+    piped to when it is on no drawing, its class's guides and its neighbours' documents when no document names it.
+    A proposal a steward already answered is left out."""
+    from ..graph import placement
+
+    answered = {(r["rel"], r["target"]) for r in conn.execute(
+        "select rel, target from placement_decision where fuzer_id = %s", (fid,))}
+    out = []
+    if not row["area"] and pack is not None:
+        out += placement.parents(conn, pack, [fid]).get(fid, [])
+    want = tuple(k for k in ("drawing", "documents") if not row["has"][k])
+    if want:
+        out += placement.documents(conn, [fid], want).get(fid, [])
+    return [p for p in out if (p["rel"], p["target"]) not in answered]
 
 
 def summary(conn, top: int = TOP) -> dict:

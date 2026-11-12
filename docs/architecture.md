@@ -11,16 +11,16 @@ flowchart LR
   app(["The app (ui/)"])
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 34 modules</small>"]
-  c_graph["Graph and golden records<br><small>fuzer.graph, 28 modules</small>"]
+  c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 29 modules</small>"]
-  c_ops["Operations<br><small>fuzer.ops, 23 modules</small>"]
+  c_ops["Operations<br><small>fuzer.ops, 25 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
-  c_agents["Agents and MCP<br><small>fuzer.agents, 21 modules</small>"]
+  c_agents["Agents and MCP<br><small>fuzer.agents, 22 modules</small>"]
   c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
-  c_api["API<br><small>fuzer.api, 18 modules</small>"]
+  c_api["API<br><small>fuzer.api, 19 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 28 modules</small>"]
+  c_core["Core<br><small>fuzer.core, 29 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -88,15 +88,18 @@ flowchart LR
   src_pi[/"pi"/]
   src_pi_af[/"pi_af"/]
   src_pid[/"pid"/]
+  src_ptw[/"ptw"/]
   src_sap[/"sap"/]
   kind_document(["document"])
   kind_document_section(["document_section"])
   kind_downtime(["downtime"])
   kind_equipment(["equipment"])
+  kind_isolation(["isolation"])
   kind_log_entry(["log_entry"])
   kind_maintenance_plan(["maintenance_plan"])
   kind_material(["material"])
   kind_notification(["notification"])
+  kind_permit(["permit"])
   kind_pipeline(["pipeline"])
   kind_plant_hierarchy__facility__area__tag__well(["plant hierarchy: facility, area, tag, well"])
   kind_production_day(["production_day"])
@@ -122,6 +125,8 @@ flowchart LR
   src_pi --> kind_timeseries
   src_pi_af --> kind_plant_hierarchy__facility__area__tag__well
   src_pid --> kind_document
+  src_ptw --> kind_isolation
+  src_ptw --> kind_permit
   src_sap --> kind_equipment
   src_sap --> kind_maintenance_plan
   src_sap --> kind_material
@@ -187,10 +192,10 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
-- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `contextualized`, `criticality`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `review`, `roles`, `spatial`, `topology`
+- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `contextualized`, `criticality`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `placement`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `review`, `roles`, `spatial`, `structure`, `topology`
 - **Uses:** core, sources
-- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
-- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `unlinked`, `review_item`, `pinned_link`, `review_rule`, `match_score`, `match_calibration`, `reviewed_value`, `source_new_record`, `knowledge_index`, `lesson`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `measurement_role_pin`, `steward_fix`, `steward_proposal` (its `schema.sql`)
+- **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `llm_extraction`, `match_calibration`, `match_score`, `measurement_role`, `measurement_role_pin`, `ontology_kind`, `ontology_relation`, `pinned_link`, `placement_decision`, `register_summary`, `review_item`, `review_rule`, `reviewed_value`, `source_dataset`, `source_new_record`, `steward_fix`, `steward_proposal`, `unlinked` ([schema](schema.md))
+- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `unlinked`, `placement_decision`, `review_item`, `pinned_link`, `review_rule`, `match_score`, `match_calibration`, `reviewed_value`, `source_new_record`, `knowledge_index`, `lesson`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `measurement_role_pin`, `steward_fix`, `steward_proposal` (its `schema.sql`)
 - **Settings:** `stewardship.bulk_accept_at` ([settings](settings.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 
@@ -209,11 +214,11 @@ Signals, limits, calcs, hydraulics, studies and clustering over the graph and th
 
 The scheduled loop: SRE detection and grouping, hand-off, the board, daily reports, opportunities and studies. More in [workflow](workflow.md).
 
-- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `board`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `handover`, `intake`, `jobs`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `routing`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
+- **Code:** [`src/fuzer/ops`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops): `around`, `board`, `cascades`, `closeout`, `corrections`, `daily_report`, `disposition`, `exceptions`, `handover`, `intake`, `jobs`, `metrics`, `opportunities`, `performance`, `pipeline`, `plan`, `readiness`, `routing`, `simops`, `sre`, `sre_handoff`, `study`, `suppression`, `turnaround`, `writeback`
 - **Uses:** analysis, core, graph, plots, sources, workflow
 - **Writes:** `board_card`, `board_history`, `board_pin`, `board_project`, `case_disposition`, `case_repeat`, `daily_ops_report`, `detection`, `exception_kind`, `exception_record`, `field_photo`, `opportunity`, `plan_item`, `point_baseline`, `register_summary`, `review_item`, `shift_handover`, `source_closeout`, `source_correction`, `sre_run`, `sre_suppress`, `study`, `suppressed_finding`, `suppression`, `upset`, `work_item`, `writeback`, `writeback_event` ([schema](schema.md))
 - **Owns:** `sre_run`, `detector_run`, `detection`, `point_baseline`, `upset`, `sre_suppress`, `board_card`, `board_pin`, `board_history`, `board_project`, `daily_ops_report`, `opportunity`, `study`, `exception_record`, `field_photo`, `exception_kind`, `suppression`, `suppressed_finding`, `plan_item`, `source_closeout`, `shift_handover`, `writeback`, `writeback_event`, `source_correction`, `case_disposition`, `case_repeat` (its `schema.sql`)
-- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
+- **Settings:** `closeout.apply_to_exports`, `closeout.recheck_days`, `daily_report.close_cron`, `daily_report.mover_pct`, `exceptions.around_after_hours`, `exceptions.around_before_hours`, `exceptions.join_hours`, `exceptions.max_shelve_days`, `exceptions.suppress_planned_work`, `handover.shift_times`, `intake.sap_notifications`, `intake.sap_notifications.due_hours`, `intake.sap_notifications.max_age_days`, `opportunities.gas_lift_breakeven`, `opportunities.material`, `opportunities.stale_days`, `readiness.permit_types`, `sre.drift_rise`, `sre.group_gap_hours`, `sre.handoff.max_diagnoses`, `sre.handoff.max_usd`, `sre.handoff.min_detections`, `sre.hops`, `sre.learned_minutes`, `sre.lookback_hours`, `sre.merge_minutes`, `sre.spe_minutes`, `sre.step_minutes`, `studies.max_values` ([settings](settings.md))
 - **Tests:** [`tests/ops`](https://github.com/areed145/fuzer/tree/main/tests/ops)
 
 ### Charts
@@ -241,12 +246,12 @@ BPMN processes that move work between agents and people. More in [workflow](work
 
 The operations assistant, its specialists, and the MCP server with their tools. More in [agents](agents.md).
 
-- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `brief`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `ledger`, `mcp_server`, `memory`, `packs`, `service`, `worker`, `workflow`
+- **Code:** [`src/fuzer/agents`](https://github.com/areed145/fuzer/tree/main/src/fuzer/agents): `assistant`, `brief`, `capabilities.__main__`, `capabilities.catalog`, `capabilities.graph`, `capabilities.maintenance`, `capabilities.metrics`, `capabilities.operations`, `capabilities.plots`, `capabilities.production`, `capabilities.sources`, `capabilities.studies`, `capabilities.troubleshooting`, `capabilities.work`, `history`, `ledger`, `mcp_server`, `memory`, `packs`, `service`, `worker`, `workflow`
 - **Uses:** analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_conversation`, `assistant_fact`, `assistant_image`, `assistant_message`, `lesson`, `work_event`, `work_token` ([schema](schema.md))
 - **Owns:** `assistant_answer`, `assistant_conversation`, `assistant_message`, `assistant_image`, `assistant_fact` (its `schema.sql`)
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.model`, `agents.provider`, `agents.specialist_effort`, `agents.specialist_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 35, field-operations-facilities 81, hse-incident-management 37, maintenance-integrity 63, orchestrator 21, production-surveillance 62, wells-subsurface 52, work-management-supply-chain 30 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 37, field-operations-facilities 83, hse-incident-management 39, maintenance-integrity 65, orchestrator 23, production-surveillance 64, wells-subsurface 54, work-management-supply-chain 32 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals
@@ -264,7 +269,7 @@ Answer keys, the history replay and the ops eval that score it all. More in [eva
 
 The HTTP API the app uses. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
+- **Code:** [`src/fuzer/api`](https://github.com/areed145/fuzer/tree/main/src/fuzer/api): `assistant`, `auth`, `catalog`, `deps`, `entities`, `graph`, `home`, `hooks`, `investigation`, `jobs`, `knowledge`, `metrics`, `ontology`, `ops`, `security`, `settings`, `sources`, `stewardship`, `workflow`
 - **Uses:** agents, analysis, core, graph, ops, plots, sources, workflow
 - **Writes:** `access_login`, `access_session`, `feedback`, `pinned_link`, `value_ranking` ([schema](schema.md))
 - **Settings:** `access.session_hours`, `agents.case_cap_usd`, `demo.enabled` ([settings](settings.md))
@@ -283,7 +288,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `roles`, `settings`, `tags`, `taxonomy`, `units`, `work`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `metrics`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `roles`, `settings`, `tags`, `taxonomy`, `units`, `work`
 - **Uses:** nothing else in fuzer
 - **Writes:** `access_account`, `access_event`, `access_membership`, `access_project_grant`, `access_role`, `access_session`, `detector_run`, `event_outbox`, `gate_decision`, `gate_policy`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
 - **Owns:** `schema_version`, `access_account`, `access_role`, `access_membership`, `access_session`, `access_project_grant`, `access_login`, `access_event`, `setting`, `setting_history`, `project`, `ontology_kind`, `ontology_relation`, `ontology_audit`, `event_outbox`, `gate_policy`, `gate_decision` (its `schema.sql`)

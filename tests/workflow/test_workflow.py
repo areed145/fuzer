@@ -296,7 +296,12 @@ def test_publish_refuses_naming_the_element(conn, body, element, words):
                         (row["id"],)).fetchone()["n"] == 1
 
 
-def test_good_definition_and_starting_set_pass():
+def test_good_definition_and_starting_set_pass(monkeypatch):
+    # the shipped definitions lean on the built-in roles' default SLAs, which roles.refresh loads from the database:
+    # load them here so the result doesn't depend on whether a database test ran first (random order)
+    from fuzer.workflow import roles
+
+    monkeypatch.setattr(bpmn, "ROLE_SLA", {n: sla for n, (_, _, sla, _) in roles.BUILTIN.items() if sla})
     assert bpmn.check(_proc(GOOD)) == []
     for f in engine.DEFINITIONS_DIR.glob("*.bpmn"):
         assert bpmn.check(f.read_text()) == [], f.name

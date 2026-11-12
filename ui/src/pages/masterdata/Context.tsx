@@ -1,10 +1,11 @@
 /** Asset context completeness (P2.5): what Fuzer knows about each asset, what is missing and what each gap holds
  * back. The asset page shows one asset; Master data shows completeness by area and class and the top gaps, each an
  * open case in the data steward's queue. */
-import { api, type AssetContext, type ContextRollup } from "../../api";
-import { Badge, Card, Empty, Table } from "../../ui";
+import { api, type AssetContext, type ContextRollup, type PlacementSuggestion } from "../../api";
+import { Badge, Button, Card, Empty, Table } from "../../ui";
 import { Status, entityHref, useAsync } from "../../lib";
 import { caseHref } from "../workflows/shared";
+import { reviewer, useAction } from "../sources/common";
 
 const pct = (score: number | null) => (score == null ? null : Math.round(score * 100));
 
@@ -34,7 +35,38 @@ export function AssetContextCard({ id }: { id: string }) {
           );
         })}</tbody>
       </Table>
+      {!!a.suggestions?.length && <Suggestions id={a.fuzer_id} items={a.suggestions} onDone={c.reload} />}
     </Card>
+  );
+}
+
+const WHAT = { part_of: "Area", shown_on: "Drawing", applies_to: "Document" } as const;
+
+/** Ranked proposals for what the gaps lack (P2.1d), each with its evidence; an answer is kept by later rebuilds. */
+function Suggestions({ id, items, onDone }: { id: string; items: PlacementSuggestion[]; onDone: () => void }) {
+  const a = useAction();
+  return (
+    <>
+      <h3>Suggested</h3>
+      <Table density="compact">
+        <thead><tr><th>For</th><th>Suggestion</th><th>Why</th><th>Confidence</th><th /></tr></thead>
+        <tbody>{items.map((s) => {
+          const key = `${s.rel}-${s.target}`;
+          const answer = (accept: boolean) => void a.run(key, () => api.answerPlacement(id, s.rel, s.target, accept, reviewer()), onDone);
+          return (
+            <tr key={key}>
+              <td>{WHAT[s.rel]}</td>
+              <td><a href={entityHref(s.target)}>{s.target_label}</a></td>
+              <td className="small">{s.basis.join("; ")}</td>
+              <td>{Math.round(s.confidence * 100)}%</td>
+              <td><Button size="sm" disabled={!!a.busy} onClick={() => answer(true)}>Yes</Button>{" "}
+                <Button size="sm" variant="ghost" disabled={!!a.busy} onClick={() => answer(false)}>No</Button></td>
+            </tr>
+          );
+        })}</tbody>
+      </Table>
+      {a.error && <p className="error small">{a.error}</p>}
+    </>
   );
 }
 
