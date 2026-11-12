@@ -1,0 +1,15 @@
+# The compression specialist pack (P4.1): everything the compression specialist knows how to do, in one folder.
+# SKILL.md is its playbook; this file names what the playbook relies on, so a missing or renamed piece fails the
+# pack conformance test (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Compression
+owner: maintenance-integrity          # the agent that loads this pack
+classes: [CO]                         # ISO 14224 equipment classes it covers (standards/iso14224.yaml)
+tools: [calc, rotating_screen, plot_compressor_performance, plot_cooler_fouling, plot_vibration]
+charts: [plot_compressor_performance, plot_cooler_fouling, plot_vibration]
+methods: [compressor_performance, cooler_fouling, gas_performance, lube_oil, power_balance, protection, rod_load,
+          rotating_health, seal_gas, surge, surge_events, valve_health]
+detectors: [machine_health, compressor_trips]
+roles: [running_status, speed, suction_pressure, interstage_pressure, discharge_pressure, suction_temperature,
+        discharge_temperature, cylinder_discharge_temperature, suction_flow, anti_surge_valve_position, vibration,
+        shaft_vibration, axial_position, bearing_temperature, seal_vent_flow, lube_oil_pressure, lube_oil_temperature]
+eval: compression                     # each bundle's answer keys: evals/compression.yaml in the bundle
