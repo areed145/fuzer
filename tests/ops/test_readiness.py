@@ -1,5 +1,5 @@
 """Ready to dispatch (P5.5, #680): a job's spares from its equipment's BOM, stock and purchase orders, and its crew
-from the work center its work orders name, on Kestrel and Okan, read from the records and never from the equipment
+from the work center its work orders name, and its permits to work, on Kestrel and Okan, read from the records and never from the equipment
 type."""
 
 from datetime import date, timedelta
@@ -75,7 +75,7 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     out = readiness.check(conn, ["fz-nothing-here"])
     assert out["ready"] is True and out["checks"][0]["checked"] is False
     assert out["checks"][0]["note"].startswith("No BOM")
-    assert [c["check"] for c in out["checks"]] == ["spares", "crew"]
+    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits"]
 
 
 @pytest.fixture
@@ -149,6 +149,40 @@ def test_equipment_no_work_order_names_a_crew_for_is_not_blocked(kestrel):
     assert out["ready"] is True and out["checked"] is False and out["note"].startswith("No work orders")
 
 
+def test_work_that_needs_a_permit_waits_for_one_in_date_with_its_isolations_in_place(kestrel, client):
+    from fuzer.core import settings
+    from fuzer.graph import queries
+
+    conn, pack = kestrel
+    settings.set(conn, "readiness.permit_types", "upset,iow_breach,walkdown_check", by="test")
+    try:
+        def permit(tag: str, key: str) -> dict:
+            return readiness.permits(conn, [queries.resolve_ref(conn, pack, tag)], job(conn, key, queries.resolve_ref(
+                conn, pack, tag)))
+
+        k = permit("B1-K-2001", "K-2001 valves, permit")  # PTW-24101 is issued and in date, one isolation not applied
+        assert k["needed"] and not k["ready"] and [p["label"] for p in k["permits"]] == ["PTW-24101"]
+        [b] = k["blockers"]
+        assert b.startswith("walkdown_check work needs a valid permit") and "PTW-24101 isolations not in place" in b
+        assert "ISO-24101-3 B1-K-2001 cylinders (planned)" in b and "ISO-24101-1" not in b
+        assert permit("G1-G-7006", "G-7006 permit")["ready"]  # issued, in date, breaker locked out and verified
+        pump = permit("C1-P-3002B", "P-3002B permit")
+        assert not pump["ready"] and "PTW-24102 expired" in pump["blockers"][0]
+        fan = permit("B1-E-2010", "E-2010 permit")
+        assert not fan["ready"] and fan["blockers"][0].endswith("no permit covers this location")
+        sep = permit("A1-V-1001", "V-1001 permit")  # the turnaround's entry permit is only requested
+        assert not sep["ready"] and "PTW-24104 requested" in sep["blockers"][0]
+        e = job(conn, "K-2001 permit via api", queries.resolve_ref(conn, pack, "B1-K-2001"))
+        r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+        assert r.status_code == 409 and "Permit: walkdown_check work needs a valid permit" in r.text
+    finally:
+        settings.reset(conn, "readiness.permit_types", by="test")
+    # a work type that needs none still shows the permits, without blocking on them
+    out = readiness.permits(conn, [queries.resolve_ref(conn, pack, "B1-K-2001")],
+                            job(conn, "K-2001 look only", queries.resolve_ref(conn, pack, "B1-K-2001")))
+    assert out["ready"] and not out["needed"] and out["permits"][0]["why_not"].startswith("isolations not in place")
+
+
 def test_okan_spares_come_from_its_own_records(okan_db):
     conn = okan_db.conn
     short = conn.execute(
@@ -159,4 +193,7 @@ def test_okan_spares_come_from_its_own_records(okan_db):
     ordered = conn.execute("select count(*) as n from entity where kind = 'purchase_order'").fetchone()["n"]
     centers = readiness.crew(conn, [short])["centers"]
     assert centers and {c["label"] for c in centers} <= {"MECH", "INST", "ELEC"} and all(c["crew"] for c in centers)
+    held = conn.execute("select c.dst from edge c join entity p on p.fuzer_id = c.src and p.kind = 'permit' "
+                        "where c.rel = 'covers' limit 1").fetchone()["dst"]
+    assert readiness.permits(conn, [held])["permits"]
     assert ordered > 0

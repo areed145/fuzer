@@ -292,7 +292,10 @@ export interface Readiness {
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
       orders: { po: string; quantity: number; due: string }[] }[];
     centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
-      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[] }[];
+      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[];
+    needed?: boolean;
+    permits?: { id: string; label: string; type: string | null; state: string | null; valid_to: string | null;
+      location_label: string | null; valid: boolean; why_not: string | null }[] }[];
 }
 
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }

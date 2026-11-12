@@ -151,6 +151,9 @@ register(
     Setting("closeout.recheck_days", "int", 30, "Days after a real problem is closed out to ask whoever closed it "
             "whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat",
             "Work"),
+    Setting("readiness.permit_types", "str", "upset,iow_breach", "Work types (exception types, comma-separated) "
+            "that need a valid permit to work, with its isolations in place, on the job's location before they are "
+            "dispatched; the dispatch card shows permits for every job (P5.5c)", "Work"),
     Setting("stewardship.bulk_accept_at", "float", 0.0, "Offer to accept, in one step, Claude's master data proposals "
             "at or above this confidence (0: never; set it once the proposal evals show they hold at that level)",
             "Work", min=0, max=1),

@@ -1,0 +1,16 @@
+# Permit-to-work isolations (P5.5c, #683): each point a permit needs isolated, how, and whether it is in place.
+# state: planned, applied, verified or removed.
+source: ptw
+record_type: isolation
+shape: records
+dataset: ptw_isolations
+key: isolation_id
+entity:
+  kind: isolation
+  fields:
+    - point
+    - method
+    - state
+links:
+  - rel: isolation_for
+    to: {kind: permit, from: permit_no}
