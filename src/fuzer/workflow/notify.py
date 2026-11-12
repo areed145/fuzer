@@ -230,9 +230,15 @@ def quiet(pref: dict, now: datetime) -> bool:
     qf, qt = pref.get("quiet_from"), pref.get("quiet_to")
     if qf is None or qt is None or qf == qt:
         return False
-    from ..ops.handover import _tz
+    from zoneinfo import ZoneInfo
 
-    t = now.astimezone(_tz()).time().replace(tzinfo=None)
+    from ..core import projects
+
+    try:
+        tz = ZoneInfo(projects.field("timezone") or "UTC")
+    except Exception:  # no project timezone (or an unknown one): UTC
+        tz = ZoneInfo("UTC")
+    t = now.astimezone(tz).time().replace(tzinfo=None)
     return qf <= t < qt if qf < qt else (t >= qf or t < qt)
 
 
