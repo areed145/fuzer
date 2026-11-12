@@ -74,6 +74,9 @@ create table if not exists fuzer.access_event (
     data jsonb not null default '{}',
     at timestamptz not null default now()
 );
+-- The project an access event concerns (R.5); null for a deployment-wide one such as a sign-in.
+alter table fuzer.access_event add column if not exists project text;
+create index if not exists access_event_project on fuzer.access_event (project, at);
 
 -- Settings (#131): values people set, per project ('project:<name>') or for all ('global'); the registry
 -- in core/settings.py holds each setting's type, default and range. Every change is kept.

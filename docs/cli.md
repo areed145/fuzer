@@ -208,6 +208,19 @@ settings (#131): list, get, set, reset, or show a setting's history
 | `--by` | who is changing it (default: $USER) |
 | `--reason` | why, kept in the history |
 
+## `fuzer audit`
+
+the project's audit record (R.5): export a window, or show what it covers
+
+| Argument | What it does |
+|---|---|
+| `action` (export / coverage) |  |
+| `--since` | start of the window, ISO date or time (default: 30 days before --until) |
+| `--until` | end of the window, exclusive (default: now) |
+| `--format` (csv / json) | default csv |
+| `--out` | write here instead of standard output |
+| `--by` | who is exporting (default: $USER); the export is itself recorded |
+
 ## `fuzer operating-model`
 
 the operating model as a package (P8.1): export, apply, adopt, deviations, conformance, name a deviation
