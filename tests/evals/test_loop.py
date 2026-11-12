@@ -50,41 +50,7 @@ def test_a_type_that_cannot_complete_says_at_which_step(okan_db, monkeypatch):
     assert r["failed"] == "field" and "raw ids" in r["why"] and list(r["steps"]) == list(loop.STEPS[:5])
 
 
-def test_every_type_of_work_on_kestrel_completes_the_loop(monkeypatch):
+def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
     """The same loop on the second bundle, stood up from its seed bundle as a deployment would be."""
-    from pathlib import Path
-
-    from psycopg.conninfo import make_conninfo
-
-    from fuzer.core import bundles, db, settings
-    from fuzer.core import pack as packs
-    from fuzer.ops import pipeline
-    from fuzer.sources import ingest
-
-    name = "kestrel_loop"
-    admin = lambda: db.connect(autocommit=True, url=make_conninfo(db.database_url(), dbname="postgres"))
-    with admin() as a:
-        a.execute(f'drop database if exists "{name}" with (force)')
-        a.execute(f'create database "{name}"')
-    url = make_conninfo(db.database_url(), dbname=name)
-    monkeypatch.setenv("FUZER_DATABASE_URL", url)
-    monkeypatch.delenv("FUZER_PROJECT", raising=False)
-    packs.clear_cache()
-    settings._cache.clear()
-    settings._first.clear()
-    try:
-        with db.connect(url=url) as conn:
-            db.init_schema(conn)
-            first = bundles.init(conn, Path(__file__).resolve().parents[2] / "fakeplant" / "bundles" / "kestrel",
-                                 by="test")
-            ingest.ingest(conn, Path(first["data"]))
-            pipeline.rebuild(conn, packs.current_pack(conn))
-            conn.commit()
-            res = loop.run(conn)
-            assert len(res["types"]) >= 7 and not res["failed"], "\n".join(res["failed"])
-    finally:
-        packs.clear_cache()
-        settings._cache.clear()
-        settings._first.clear()
-        with admin() as a:
-            a.execute(f'drop database if exists "{name}" with (force)')
+    res = loop.run(kestrel_db)
+    assert len(res["types"]) >= 7 and not res["failed"], "\n".join(res["failed"])

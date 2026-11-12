@@ -11,16 +11,16 @@ flowchart LR
   app(["The app (ui/)"])
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 33 modules</small>"]
-  c_graph["Graph and golden records<br><small>fuzer.graph, 24 modules</small>"]
+  c_graph["Graph and golden records<br><small>fuzer.graph, 25 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 28 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 16 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 10 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 19 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 6 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 7 modules</small>"]
   c_api["API<br><small>fuzer.api, 18 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
-  c_core["Core<br><small>fuzer.core, 27 modules</small>"]
+  c_core["Core<br><small>fuzer.core, 28 modules</small>"]
   c_sources --> c_graph
   c_graph --> c_analysis
   c_sources --> c_analysis
@@ -181,10 +181,10 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 Resolves records into one entity per real thing, links them, and answers queries over the graph. More in [identity](identity.md).
 
-- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `spatial`, `topology`
+- **Code:** [`src/fuzer/graph`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph): `calibration`, `curation`, `data_work`, `edges`, `gaps`, `golden`, `incidents`, `investigation`, `knowledge`, `lessons`, `llm_links`, `measurements`, `ontology`, `operations`, `proposals`, `quality`, `queries.documents`, `queries.downtime`, `queries.maintenance`, `queries.network`, `queries.records`, `resolve`, `roles`, `spatial`, `topology`
 - **Uses:** core, sources
 - **Writes:** `assertion`, `crosswalk`, `edge`, `entity`, `golden`, `id_event`, `lesson`, `llm_extraction`, `match_calibration`, `match_score`, `ontology_kind`, `ontology_relation`, `pinned_link`, `register_summary`, `review_item`, `steward_fix`, `steward_proposal` ([schema](schema.md))
-- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `review_item`, `pinned_link`, `match_score`, `match_calibration`, `knowledge_index`, `lesson`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `steward_fix`, `steward_proposal` (its `schema.sql`)
+- **Owns:** `entity`, `id_event`, `crosswalk`, `entity_key`, `entity_label`, `register_summary`, `assertion`, `golden`, `edge`, `review_item`, `pinned_link`, `match_score`, `match_calibration`, `knowledge_index`, `lesson`, `value_ranking`, `feedback`, `geo_index`, `measurement`, `measurement_role`, `steward_fix`, `steward_proposal` (its `schema.sql`)
 - **Settings:** `stewardship.bulk_accept_at` ([settings](settings.md))
 - **Tests:** [`tests/graph`](https://github.com/areed145/fuzer/tree/main/tests/graph)
 
@@ -247,7 +247,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `replay`, `runs`, `steward_eval`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `replay`, `roles`, `runs`, `steward_eval`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_fact`, `golden`, `lesson`, `ops_eval`, `point_normal`, `source_record` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)
@@ -277,7 +277,7 @@ The fuzer command: up, eval, settings and the rest. More in [cli](cli.md).
 
 Database, settings, projects and packs, Claude calls, tags and units: used by everything. More in [deployment](deployment.md).
 
-- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `settings`, `tags`, `taxonomy`, `units`, `work`
+- **Code:** [`src/fuzer/core`](https://github.com/areed145/fuzer/tree/main/src/fuzer/core): `access`, `assistant`, `bundles`, `capabilities`, `db`, `detectors`, `events`, `exceptions`, `findings`, `gates`, `jsonsafe`, `labels`, `llm`, `methods`, `model`, `models`, `nel`, `ontology`, `pack`, `plan`, `pricing`, `projects`, `roles`, `settings`, `tags`, `taxonomy`, `units`, `work`
 - **Uses:** nothing else in fuzer
 - **Writes:** `access_account`, `access_event`, `access_membership`, `access_project_grant`, `access_role`, `access_session`, `detector_run`, `event_outbox`, `gate_decision`, `gate_policy`, `ontology_audit`, `ontology_kind`, `ontology_relation`, `project`, `schema_version`, `setting`, `setting_history`, `work_person` ([schema](schema.md))
 - **Owns:** `schema_version`, `access_account`, `access_role`, `access_membership`, `access_session`, `access_project_grant`, `access_login`, `access_event`, `setting`, `setting_history`, `project`, `ontology_kind`, `ontology_relation`, `ontology_audit`, `event_outbox`, `gate_policy`, `gate_decision` (its `schema.sql`)

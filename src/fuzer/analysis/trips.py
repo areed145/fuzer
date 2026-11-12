@@ -560,7 +560,7 @@ def compressor_trains(conn) -> list[str]:
 
 @detectors.register("compressor_trips", title="A compression train tripping, with its first cause", kind=detectors.RULE,
                     cadence="6h", raises=("machine_trip",), classes=("compressor",),
-                    roles=("running status", "vibration", "bearing temperature", "discharge temperature"),
+                    roles=("running_status", "vibration", "bearing_temperature", "discharge_temperature"),
                     needs={"historian points": detectors.POINTS,
                            "a compression train": lambda conn, pack: bool(compressor_trains(conn))},
                     eval="test:tests/analysis/test_trips.py::test_trips_reach_the_ioc_with_the_restart_checklist",

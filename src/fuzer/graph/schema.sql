@@ -275,6 +275,17 @@ create table if not exists measurement (
 );
 create index if not exists measurement_of on measurement (fuzer_id, quantity, at);
 
+-- What each historian point means for the asset it measures (P1.4, graph/roles.py): one role from core/roles.py,
+-- proposed with every rebuild from the point's description, instrument letters, units and the equipment it is on.
+create table if not exists measurement_role (
+    point_id   text primary key,            -- the timeseries entity
+    role       text not null,
+    asset      text,                        -- the equipment or well it is a role of (not the instrument)
+    confidence double precision not null,   -- 0-1; below core.roles.CONFIDENT a steward confirms it
+    basis      jsonb not null               -- what said so, in words
+);
+create index if not exists measurement_role_of on measurement_role (asset, role);
+
 -- #242: the EC DAY001 record of a day's allocated production is the `production_day` kind ("daily report" is the
 -- drafted narrative in daily_ops_report). Renamed in place so Fuzer IDs stay; idempotent.
 update entity set kind = 'production_day' where kind = 'daily_report';
