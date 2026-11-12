@@ -13,8 +13,12 @@ Separate what the records show from what they only suggest. Each finding carries
    lab samples. `detect_changes(ref)` dates steps and drifts on the well's PI points. Say when the latest test was;
    a stale test is a finding, not a current rate. `calc("test_check", well)` says whether the latest test is
    believable: `test_suspect` (its choke and pressures don't support it) means retest before trending it.
-3. **Decline and water.** `calc("decline", well)` with `plot_decline(well)`, and `plot_water_diagnostic(well)` for
-   water cut. State the fit window and how many tests it rests on.
+3. **Decline, water and gas.** `calc("decline", well)` with `plot_decline(well)`, and `plot_water_diagnostic(well)` for
+   water cut. State the fit window and how many tests it rests on. `well_diagnostics(well)` dates the first water cut
+   step (15 points over the tests before: a breakthrough suggestion) and a GOR climb (30 % from the first six tests to
+   the latest six), and `plot_gor_trend(well)` shows the GOR. Without a well it screens the field for both. Say that
+   cumulative oil is estimated from tests, and leave the mechanism (coning, a channel, a leak) as a question.
+   `test_staleness()` gives every well's latest test and its age; quote it before trusting a rate.
 4. **Lift.** On a gas lifted well, `calc("gas_lift", well)` and `plot_gas_lift_curve(well)`.
 5. **Interventions.** Fuzer has no well file. Recorded work comes from `maintenance_history(ref)`, `downtime(ref)`
    and `get_events(ref)`: slickline, shut-ins, choke changes, valve work. Give the dates and what changed in the

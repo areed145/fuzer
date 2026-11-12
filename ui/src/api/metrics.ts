@@ -192,6 +192,21 @@ export interface BacklogBurn {
       type: string | null; priority: string | null }[] };
 }
 
+/** Water breakthrough, gas and test age across the wells (#339). */
+export interface WellScreen {
+  wells_screened: number; source: string; note: string;
+  thresholds: { water_cut_step_points: number; gor_rise: number; stale_days: number };
+  patterns: { well_id: string; well: string; verdict: "water_cut_step" | "gor_climb"; tests: number;
+    water_cut_step: { at: string; record: string; cum_oil_sm3: number; water_cut_before_pct: number;
+      water_cut_after_pct: number; oil_before_sm3d: number | null; oil_after_sm3d: number | null } | null;
+    gor_climb: { first_gor: number; latest_gor: number; ratio: number } | null }[];
+  staleness: { as_of: string; max_days: number; note: string;
+    summary: { current: number; stale: number; no_test_on_file: number; wells: number; stale_share_pct: number | null;
+      median_age_days: number | null; oldest_days: number | null };
+    wells: { id: string; well: string; tests: number; latest_test: string | null; age_days: number | null;
+      status: "current" | "stale" | "no_test_on_file" }[] };
+}
+
 /** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
 export interface FleetScorecards {
   days: number;
@@ -203,6 +218,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  wellScreen: () => request<WellScreen>("GET", "/plant/well-screen"),
   backlogBurn: () => request<BacklogBurn>("GET", "/plant/backlog-burn"),
   plantAccounting: () => request<PlantAccounting>("GET", "/plant/accounting"),
   interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),

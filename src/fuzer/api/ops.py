@@ -349,6 +349,13 @@ def plant_backlog_burn(days: int = 365, conn=Depends(get_conn)):
     return backlog.burn(conn, days=max(31, min(days, 1825)))
 
 
+@router.get("/plant/well-screen")
+def plant_well_screen(conn=Depends(get_conn)):
+    """Wells whose water cut stepped up or whose GOR climbed, and how old each well's latest test is (#339)."""
+    from ..analysis import well_diagnostics as wd
+    return wd.screen(conn)
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids
