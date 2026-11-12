@@ -13,6 +13,7 @@ UNITS = PACKAGE / "units.yaml"
 # Fuzer itself ships no facility; these are the demo facilities that fakeplant owns.
 BUNDLES = ROOT / "fakeplant" / "bundles"
 MAPPINGS = PACKAGE / "mappings"
+SOURCE_PACKS = PACKAGE / "source_packs"  # the built-in sources as packs (P1.5)
 STANDARDS = PACKAGE / "standards"
 UI_DIST = ROOT / "ui" / "dist"  # the built web UI (cd ui && npm run build)
 
