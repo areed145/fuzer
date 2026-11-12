@@ -23,6 +23,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
 | [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
+| [`gas_lift_instability`](#gas_lift_instability) A gas-lifted well heading: its casing pressure surging regularly | Statistical | Once a day | `gas_lift_instability` | well |
 
 ## excursions
 
@@ -234,3 +235,15 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Equipment classes:** well
 - **Needs:** well tests
 - **Scored by:** `tests/analysis/test_well_tests.py::test_a_well_whose_water_cut_jumps_is_raised_until_a_newer_test_settles_it`, on the fake plant
+
+## gas_lift_instability
+
+**A gas-lifted well heading: its casing pressure surging regularly.** Each heading well raised as `gas_lift_instability` for the production engineer (keyed by the well), with the casing pressure's period and swing; open ones whose casing has settled are cleared.
+
+- **Kind:** Statistical
+- **Runs:** Once a day
+- **Raises:** `gas_lift_instability`
+- **Equipment classes:** well
+- **Measurement roles:** casing pressure, wellhead pressure
+- **Needs:** casing pressure on a well
+- **Scored by:** `tests/analysis/test_gas_lift.py::test_a_heading_well_is_raised_until_its_casing_settles`, on the fake plant
