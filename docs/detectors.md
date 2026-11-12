@@ -22,6 +22,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`bypass_overdue`](#bypass_overdue) A safeguard still bypassed past its expiry | Rule | Every 30 minutes | `bypass_overdue` | Any asset with the inputs |
 | [`unrecorded_changes`](#unrecorded_changes) An alarm or IOW limit changed with no change record | Rule | Once a day | `unrecorded_change` | Any asset with the inputs |
 | [`loop_oscillation`](#loop_oscillation) A measurement cycling as a hunting control loop does | Statistical | Once a day | `loop_candidate` | Any asset with the inputs |
+| [`well_tests`](#well_tests) A well test overdue, or a water cut or GOR shift on the latest test | Rule | Once a day | `well_test_review` | well |
 
 ## excursions
 
@@ -222,3 +223,14 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Measurement roles:** level, process pressure, differential pressure, process flow, process temperature, outlet temperature, suction pressure, discharge pressure, suction flow, fuel flow
 - **Needs:** historian points, measurement roles of what a controller holds
 - **Scored by:** `tests/analysis/test_loops.py::test_a_cycling_level_is_a_loop_candidate_until_it_stops`, on the fake plant
+
+## well_tests
+
+**A well test overdue, or a water cut or GOR shift on the latest test.** Each well flagged by `review` raised as `well_test_review` for the production engineer (keyed by the well); open ones a newer test no longer flags are cleared.
+
+- **Kind:** Rule
+- **Runs:** Once a day
+- **Raises:** `well_test_review`
+- **Equipment classes:** well
+- **Needs:** well tests
+- **Scored by:** `tests/analysis/test_well_tests.py::test_a_well_whose_water_cut_jumps_is_raised_until_a_newer_test_settles_it`, on the fake plant

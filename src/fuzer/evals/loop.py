@@ -23,7 +23,9 @@ window detectors through the SRE scan and hand-off, a source's sync, or the regi
 step runs that and takes the exception it raised. A type the bundle names no arrival for is raised by the loop itself
 and reported `synthetic`, so the report shows what is not yet covered. Before the run, the processes load and the
 cases opened before they did run them (`routing.adopt_open_cases`), as on the API's start. Work about a source rather
-than an asset (`about: source`) matches one of the project's sources instead of an asset (#747).
+than an asset (`about: source`) matches one of the project's sources instead of an asset (#747). A type that cannot
+arise on the bundle's asset type says why (`not_here: "a pipeline has no wells"`): it is reported under `not_here`,
+not run and not raised synthetically.
 """
 
 import re
@@ -507,6 +509,8 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     conn.commit()
     routes = [r for r in routing.routes(conn) if only is None or r["type"] in only]
     arrive = arrivals(conn) if arrive is None else arrive
+    not_here = {r["type"]: arrive[r["type"]]["not_here"] for r in routes if "not_here" in (arrive.get(r["type"]) or {})}
+    routes = [r for r in routes if r["type"] not in not_here]
     bare = [r["type"] for r in routes if not arrive.get(r["type"])]  # raised by the loop: each needs an asset of its own
     free = _assets(conn, len(bare)) if bare else []
     if len(free) < len(bare):
@@ -517,6 +521,6 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     # the work another type's own detector is about to raise
     routes.sort(key=lambda r: bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {}))))
     results = [run_type(conn, r, refs.get(r["type"]), run_id, arrive.get(r["type"])) for r in routes]
-    return {"types": results, "passed": sum(not r["failed"] for r in results),
+    return {"types": results, "passed": sum(not r["failed"] for r in results), "not_here": not_here,
             "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [
         f"{r['type']}: {r['failed']}: {r['why']}" for r in results if r["failed"]]}

@@ -54,6 +54,8 @@ arrive:
                    detector: bypass_overdue}
   # The test separator's level limit-cycling while its level valve sticks (February 2025)
   loop_candidate: {detector: loop_oscillation, until: "2025-02-14T00:00"}
+  # OK-J03-02's water breakthrough on its June 2025 test
+  well_test_review: {detector: well_tests, until: "2025-06-20T00:00"}
   # The next alarm export: train B's 2nd stage vibration high-high moved two days ago, and the only change record
   # about the probe (in the change register's first delivery) is from long before
   unrecorded_change: {deliver: deliveries/unrecorded-change, datasets: [dcs_alarms, moc_changes], incremental: true,
