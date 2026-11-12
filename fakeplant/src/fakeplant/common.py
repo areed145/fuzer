@@ -122,6 +122,26 @@ def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     return permits, isolations
 
 
+def _rounds(equipment: list[dict]) -> list[dict]:
+    """Operator rounds checklist points (P5.4a): one round per area, reading and checking up to four items installed
+    there now. Deterministic."""
+    items = sorted({e["floc"]: e for e in equipment if e["floc"].count("-") == 2}.values(), key=lambda e: e["floc"])
+    by_area: dict[str, list[dict]] = {}
+    for e in items:
+        by_area.setdefault(e["floc"].split("-")[1], []).append(e)
+    out = []
+    for area, es in sorted(by_area.items()):
+        for n, e in enumerate(es[:4]):
+            tag = e["floc"].split("-", 1)[1]
+            reading = n % 2 == 0
+            out.append({"point_id": f"R-{area}-{n + 1:02d}", "round": f"Area {area} rounds", "area": area,
+                        "sort": str(n + 1), "floc": e["floc"],
+                        "what": f"{tag} bearing temperature" if reading else f"{tag} leak-free, no unusual noise",
+                        "kind": "reading" if reading else "check", "unit": "degC" if reading else "",
+                        "low": "0" if reading else "", "high": "85" if reading else ""})
+    return out
+
+
 def _work_center(text: str) -> str:
     """The crew a work order's text calls for: instrument work to INST, electrical to ELEC, the rest to MECH."""
     t = text.lower()

@@ -88,6 +88,11 @@ kinds:
     group: Maintenance
     colour: "#a8553f"
     description: A point a permit needs isolated, how, and whether it is in place.
+  round_point:
+    label: Round point
+    group: Maintenance
+    colour: "#6b8fa3"
+    description: A point an operator reads or checks on a round, with its limits.
   allocation_node:
     label: Allocation node
     group: Production
@@ -247,6 +252,12 @@ relations:
     description: An isolation and the permit that needs it.
     from: [isolation]
     to: [permit]
+  checks:
+    label: checks
+    view: maintenance
+    description: A round point and the equipment it reads or checks.
+    from: [round_point]
+    to: [tag, equipment, area, facility]
   flows_to:
     label: flows to
     view: flow

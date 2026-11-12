@@ -4,7 +4,7 @@
  * own page; it is part of My work now, so an engineer sent on a field check finds it in the same place as everything
  * else waiting on them. */
 import { useEffect, useRef, useState } from "react";
-import { api, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
+import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
 import { Badge, Button, ButtonLink, Card, Input } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, flush, outbox, sendReport } from "../fieldOffline";
@@ -42,7 +42,7 @@ export function Outbox({ onSent }: { onSent: () => void }) {
     </Card>
   );
 }
-import { entityHref, href } from "../lib";
+import { entityHref, href, useAsync } from "../lib";
 import { Due, reportedBy, when } from "../work";
 import { FindingEvidence } from "../Finding";
 import { taskHref, useAct } from "./workflows/shared";
@@ -77,6 +77,82 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
       {error && <p role="alert" className="error">{error}</p>}
     </Card>
   );
+}
+
+/** This shift's operator rounds (P5.4): each round, its area and how far it has got; open one to take its readings
+ * and checks in order (P5.4b). A reading outside its limits, or a failed check, goes to the IOC as a case. */
+export function RoundsThisShift({ person }: { person: string }) {
+  const runs = useAsync(() => api.rounds(), []);
+  const [open, setOpen] = useState<number | null>(null);
+  const list = Array.isArray(runs.data) ? runs.data : [];
+  if (!list.length) return null;
+  return (
+    <section className="field-jobs" aria-labelledby="rounds-this-shift">
+      <h2 id="rounds-this-shift">Rounds this shift <span className="muted small">{list.length} · until {when(list[0].shift_end)}</span></h2>
+      <ul className="plain">{list.map((r) => <li key={r.id}>
+        <Button size="sm" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
+          {r.round}{r.area ? ` (${r.area})` : ""}</Button>{" "}
+        <RoundProgress run={r} />
+        {open === r.id && <RoundPoints id={r.id} person={person} canTake={r.state === "open"} onTaken={runs.reload} />}
+      </li>)}</ul>
+    </section>
+  );
+}
+
+function RoundProgress({ run }: { run: RoundRun }) {
+  return <span className="small">
+    <Badge tone={run.taken >= run.points ? "ok" : undefined}>{run.taken} of {run.points} taken</Badge>
+    {(run.found ?? 0) > 0 && <> <Badge tone="warn">{run.found} found something</Badge></>}
+  </span>;
+}
+
+function RoundPoints({ id, person, canTake, onTaken }: { id: number; person: string; canTake: boolean; onTaken: () => void }) {
+  const r = useAsync(() => api.round(id), [id]);
+  if (!r.data || !Array.isArray(r.data.points)) return null;
+  const taken = () => { r.reload(); onTaken(); };
+  return <ol className="small">{r.data.points.map((p) => <li key={p.id}>
+    <strong>{p.what}</strong> <span className="muted">{p.asset_label ?? ""}</span>
+    {p.kind === "reading" && (p.low != null || p.high != null) &&
+      <span className="muted"> · {p.low ?? "…"} to {p.high ?? "…"} {p.unit ?? ""}</span>}
+    {p.kind === "check" && <span className="muted"> · check</span>}
+    {p.taken && <> <Badge tone={p.taken.passed === false ? "warn" : "ok"}>
+      {p.kind === "reading" ? `${p.taken.value} ${p.unit ?? ""}`.trim() : p.taken.passed ? "Passed" : "Found something"}
+      {p.taken.passed === false && p.kind === "reading" ? ", outside its limits" : ""}</Badge>
+      {p.taken.exception_id != null && <span className="muted"> · sent to the IOC</span>}</>}
+    {canTake && <TakePoint run={id} point={p} person={person} onTaken={taken} />}
+  </li>)}</ol>;
+}
+
+function TakePoint({ run, point, person, onTaken }: { run: number; point: RoundPoint; person: string; onTaken: () => void }) {
+  const [value, setValue] = useState(point.taken?.value != null ? String(point.taken.value) : "");
+  const [note, setNote] = useState("");
+  const [failing, setFailing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = (t: { value?: number; passed?: boolean; note?: string }) => {
+    setError(null);
+    api.takeRound(run, { point: point.id, by: person, ...t }).then(() => { setFailing(false); setNote(""); onTaken(); },
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  const label = `${point.what}${point.asset_label ? ` on ${point.asset_label}` : ""}`;
+  if (point.kind === "reading") {
+    const n = Number(value);
+    return <div className="toolbar">
+      <Input width="sm" inputMode="decimal" aria-label={`Reading for ${label}`} placeholder={point.unit ?? "reading"}
+        value={value} onChange={(e) => setValue(e.target.value)} />
+      <Button size="sm" disabled={value.trim() === "" || !Number.isFinite(n)} onClick={() => send({ value: n })}>
+        {point.taken ? "Correct" : "Save"}</Button>
+      {error && <span className="error" role="alert">{error}</span>}
+    </div>;
+  }
+  return <div className="toolbar">
+    <Button size="sm" onClick={() => send({ passed: true })}>Passed</Button>
+    <Button size="sm" aria-expanded={failing} onClick={() => setFailing(!failing)}>Found something</Button>
+    {failing && <>
+      <Input aria-label={`What you found at ${label}`} value={note} onChange={(e) => setNote(e.target.value)} />
+      <Button size="sm" disabled={!note.trim()} onClick={() => send({ passed: false, note: note.trim() })}>Send to the IOC</Button>
+    </>}
+    {error && <span className="error" role="alert">{error}</span>}
+  </div>;
 }
 
 /** A handover at shift change, the outgoing note first (P5.11c). */

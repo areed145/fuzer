@@ -279,11 +279,16 @@ export interface PerfCell {
 
 export interface PerfRow {
   queue?: string; type?: string; weeks: PerfCell[]; keeping_up: "keeping_up" | "holding" | "falling_behind"; backlog_avg4: number;
+  /** The last four weeks' mean arrivals and closed, from the server like backlog_avg4. */
+  arrivals_avg4: number; closed_avg4: number;
 }
 
 export interface WorkPerformance {
   weeks: { start: string; end: string }[]; queues: PerfRow[]; types: PerfRow[];
   compliance: { as_of: string; summary: Record<string, { plans: number; overdue: number; on_time_pct: number }> } | null;
+  /** Operator rounds per shift, newest first (P5.4c). */
+  rounds?: { shift_start: string; shift_end: string; rounds: number; done: number; partly_done: number; missed: number;
+    open: number; not_taken: number; found: number }[];
 }
 
 export interface Readiness {
@@ -702,6 +707,18 @@ export interface ExceptionKind {
 }
 
 /** An item on the integrated plan, with its clashes (same asset, same person) and bundling chances. */
+/** A run of an operator round this shift (P5.4). */
+export interface RoundRun {
+  id: number; round: string; area: string | null; shift_start: string; shift_end: string; role: string;
+  points: number; taken: number; found?: number; state: "open" | "done" | "partly_done" | "missed";
+}
+export interface RoundPoint {
+  id: string; point_id: string; asset: string | null; asset_label: string | null; round: string; area: string | null;
+  what: string; kind: "reading" | "check"; unit: string | null; low: number | null; high: number | null;
+  taken: { value: number | null; passed: boolean | null; note: string | null; by: string; at: string; exception_id: number | null } | null;
+}
+export interface RoundDetail extends Omit<RoundRun, "points"> { points: RoundPoint[] }
+
 export interface PlanItem {
   id: number; kind: string; title: string; source: string | null; source_key: string | null; subjects: string[];
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
@@ -819,6 +836,10 @@ export const workApi = {
   fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
     request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
   acceptHandover: (id: number, by: string) => request<FieldJob>("POST", `/exceptions/${id}/handover/accept`, undefined, { by }),
+  rounds: () => request<RoundRun[]>("GET", "/rounds"),
+  round: (id: number) => request<RoundDetail>("GET", `/rounds/${id}`),
+  takeRound: (id: number, t: { point: string; by: string; value?: number; passed?: boolean; note?: string }) =>
+    request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t),
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string } = {}) => request<PlanItem[]>("GET", "/plan", f),
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string }>) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }),

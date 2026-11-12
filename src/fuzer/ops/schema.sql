@@ -481,3 +481,31 @@ create table if not exists case_repeat (
     first      bigint not null,         -- the case reopened as a repeat
     at         timestamptz not null default now()
 );
+
+-- Operator rounds (P5.4, ops/rounds.py): one run of each round per shift, for the operator role, and what was read
+-- or checked on it. A run past its shift's end is done (every point taken), partly done or missed.
+create table if not exists round_run (
+    id           bigserial primary key,
+    round        text not null,
+    shift_start  timestamptz not null,
+    shift_end    timestamptz not null,
+    role         text not null default 'operator',
+    points       integer not null,
+    state        text not null default 'open',   -- open | done | partly_done | missed
+    taken_by     text,
+    closed_at    timestamptz,
+    unique (round, shift_start)
+);
+create index if not exists round_run_open on round_run (state, shift_end);
+create table if not exists round_reading (
+    id            bigserial primary key,
+    run_id        bigint not null references round_run (id),
+    point         text not null,                 -- the round point's fuzer id
+    value         double precision,
+    passed        boolean,                       -- a check: passed or failed; a reading: inside its limits
+    note          text,
+    by            text not null,
+    at            timestamptz not null default now(),
+    exception_id  bigint,                        -- what an out-of-limit reading or a failed check raised
+    unique (run_id, point)
+);

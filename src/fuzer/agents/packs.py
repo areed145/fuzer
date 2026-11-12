@@ -7,7 +7,8 @@ on, and an eval of questions with answer keys:
     classes           the ISO 14224 equipment classes it covers (standards/iso14224.yaml)
     tools             the registered tools the playbook tells the agent to call
     charts            the plot tools whose charts it shows (a subset of tools)
-    methods           the registered methods (standards/methods.yaml) the playbook runs through `calc`
+    methods           the registered methods (standards/methods.yaml) the playbook runs, through `calc` or, for a
+                      method the registry gives its own tool, through that tool (which the pack must list)
     detectors         the registered detectors that raise its work
     briefs            the work types it briefs when a case opens on a subject of its classes (P4.3; optional)
     roles             the measurement roles it reads (core/roles.py), including every role its detectors read
@@ -108,7 +109,12 @@ def conformance(path: str) -> list[str]:
 
     if bad := sorted(m for m in pack["methods"] if not methods.known(m)):
         problems.append(f"methods not in the registry: {', '.join(bad)}")
-    problems += _diff("methods", pack["methods"], re.findall(r'calc\("([a-z_]+)"', pack["playbook"]))
+    known = [m for m in pack["methods"] if methods.known(m)]
+    by_tool = {m: methods.get(m).tool for m in known if methods.get(m).tool}  # run by their own tool, not `calc`
+    if bad := sorted(m for m, t in by_tool.items() if t not in pack["tools"]):
+        problems.append(f"methods whose tool it does not list: {', '.join(bad)}")
+    problems += _diff("methods", [m for m in pack["methods"] if m not in by_tool],
+                      re.findall(r'calc\("([a-z_]+)"', pack["playbook"]))
 
     found = detectors.registry()
     if bad := sorted(set(pack["detectors"]) - set(found)):

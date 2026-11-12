@@ -140,7 +140,15 @@ def measures(conn, now: datetime | None = None) -> dict:
     return {"weeks": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in span],
             "queues": [{"queue": q, "weeks": cells, **verdict(cells)} for q, cells in sorted(out["queue"].items())],
             "types": [{"type": t, "weeks": cells, **verdict(cells)} for t, cells in sorted(out["type"].items())],
-            "compliance": _compliance(conn)}
+            "compliance": _compliance(conn), "rounds": _rounds(conn)}
+
+
+def _rounds(conn) -> list[dict]:
+    """Operator rounds per shift (P5.4c): done, partly done, missed and the checks not taken."""
+    from . import rounds
+
+    return [{**r, "shift_start": r["shift_start"].isoformat(), "shift_end": r["shift_end"].isoformat()}
+            for r in rounds.per_shift(conn)]
 
 
 def verdict(cells: list[dict]) -> dict:
@@ -151,7 +159,11 @@ def verdict(cells: list[dict]) -> dict:
     closing = now["closed"]["n"] >= now["arrivals"]["n"]
     backlog_ok = now["backlog"]["n"] <= avg * 1.1 or now["backlog"]["n"] == 0
     state = "keeping_up" if closing and backlog_ok else "falling_behind" if not closing and not backlog_ok else "holding"
-    return {"keeping_up": state, "backlog_avg4": round(avg, 1)}
+    def mean(k: str) -> float:
+        return round(sum(c[k]["n"] for c in before) / len(before), 1) if before else 0.0
+
+    return {"keeping_up": state, "backlog_avg4": round(avg, 1), "arrivals_avg4": mean("arrivals"),
+            "closed_avg4": mean("closed")}
 
 
 def _compliance(conn) -> dict | None:

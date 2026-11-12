@@ -13,10 +13,7 @@ PAGES = Path(__file__).resolve().parents[2] / "ui" / "src" / "pages"
 KPI = re.compile(r"reduce\(.*\)\s*/|/\s*[A-Za-z_.()]+\)?\s*\*\s*100|100\s*\*\s*[A-Za-z_.]+\s*/")
 
 # path relative to ui/src/pages: the reason it is allowed for now
-KNOWN = {
-    "Performance.tsx": "the four-week arrivals and closed averages beside this week's counts (P7.2b); the backlog "
-                       "average already comes from the server as backlog_avg4, and these should follow it",
-}
+KNOWN: dict[str, str] = {}
 
 
 def test_no_page_computes_a_kpi():

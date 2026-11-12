@@ -54,3 +54,12 @@ def test_the_capabilities_page_lists_each_pack_from_its_manifest():
     section = page.split(f"### {p['title']}", 1)[1].split("###", 1)[0].split("## ", 1)[0]
     assert f"`{COMPRESSION}`" in section and "API 618" in section  # methods with the standards they cite
     assert all(f"`{d}`" in section for d in p["detectors"]) and all(f"`{r}`" in section for r in p["roles"])
+
+
+def test_a_method_with_its_own_tool_needs_that_tool_not_a_calc_call(monkeypatch):
+    alarms = "field-operations-facilities/alarms-and-instruments"
+    assert packs.conformance(alarms) == []  # alarm_performance runs through alarm_analysis, not calc
+    real = packs.load
+    monkeypatch.setattr(packs, "load", lambda path: {**real(path), "tools": [
+        t for t in real(path)["tools"] if t != "alarm_analysis"]})
+    assert "methods whose tool it does not list: alarm_performance" in packs.conformance(alarms)

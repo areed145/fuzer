@@ -1,0 +1,7 @@
+# Operator rounds: the points an operator reads or checks on each round, per area and equipment, with their limits.
+# A built-in source pack (P1.5, P5.4a): the datasets name built-in mapping files and readers, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: rounds}
+datasets: [rounds_points]
+optional: [rounds_points]
