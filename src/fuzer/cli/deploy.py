@@ -153,13 +153,33 @@ def _end_orphaned_runs() -> None:
           "queued scheduled runs", flush=True)
 
 
-def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None:
+HELD_UNTIL_READ = frozenset({"Dagster daemon"})  # its catch-up runs and the startup register rebuild together OOM'd 2 GB
+READ_WAIT_SECONDS = 15 * 60
+
+
+def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event, ready: threading.Event | None = None,
+              held: frozenset[str] = HELD_UNTIL_READ, wait: float = READ_WAIT_SECONDS) -> None:
+    """Run every task, restarting none: one exiting stops the deployment. Tasks in `held` start only once `ready`
+    is set (the startup readings finished) or `wait` seconds pass, so startup work doesn't all land at once."""
     children: list[tuple[str, subprocess.Popen]] = []
+    later = [t for t in tasks if ready is not None and t[0] in held]
+    deadline = time.monotonic() + wait
+
+    def start(name: str, command: list[str]) -> None:
+        print(f"Starting {name}", flush=True)
+        children.append((name, subprocess.Popen(command, start_new_session=True)))
+
     try:
         for name, command in tasks:
-            print(f"Starting {name}", flush=True)
-            children.append((name, subprocess.Popen(command, start_new_session=True)))
+            if (name, command) not in later:
+                start(name, command)
+        if later:
+            print(f"Holding {', '.join(n for n, _ in later)} until the startup readings finish", flush=True)
         while not stop.wait(1):
+            if later and (ready.is_set() or time.monotonic() >= deadline):
+                for name, command in later:
+                    start(name, command)
+                later = []
             for name, proc in children:
                 if proc.poll() is not None:
                     raise RuntimeError(f"{name} exited unexpectedly with code {proc.returncode}; "
@@ -181,8 +201,17 @@ def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None
                 proc.wait()
 
 
-def read_projects(added: list[str]) -> None:
-    """Enrich each project's loaded register without holding up API startup or replaying failures."""
+def read_projects(added: list[str], done: threading.Event | None = None) -> None:
+    """Enrich each project's loaded register without holding up API startup or replaying failures; set `done`
+    when finished, failed or not."""
+    try:
+        _read_projects(added)
+    finally:
+        if done is not None:
+            done.set()
+
+
+def _read_projects(added: list[str]) -> None:
     for name in [None, *added]:
         try:
             with db.connect() as conn:
@@ -219,8 +248,9 @@ def main(argv: list[str] | None = None) -> None:
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
-    threading.Thread(target=read_projects, args=(added,), name="startup-readings", daemon=True).start()
-    supervise(commands(added), stop)
+    read = threading.Event()
+    threading.Thread(target=read_projects, args=(added, read), name="startup-readings", daemon=True).start()
+    supervise(commands(added), stop, read)
 
 
 if __name__ == "__main__":
