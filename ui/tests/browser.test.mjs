@@ -2805,6 +2805,8 @@ test("a dispatched operator sees what they were sent on My work and lands on the
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
   const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  // the case the notification opens: without it the case page renders an empty list as a case and fails
+  await page.route("**/work/items/41", (route) => route.fulfill({ json: { ...demoTask.item, id: 41, processes: [], events: [] } }));
   const read = [];
   let notifications = [
     { id: 3, kind: "dispatched", item_id: 41, token_id: null, text: "ines sent you 'Check the pump seal'. seal weeping",
@@ -3394,4 +3396,148 @@ test("a report made without signal waits on the phone and is sent once with its 
   assert.ok(posts[0].client_id, "carries its id, so a resend is applied once");
   const made = Date.parse(posts[0].at);
   assert.ok(made >= before - 1000 && made <= posts[0].received - 1000, "keeps the time it was made, not when it was sent");
+});
+
+// P5.1a (#649): an ops lead covering two fields sees one ranked list on Home, overdue first whichever field it is in,
+// with what changed since they last looked, and reaches an item in another field in one click from Home.
+test("Home ranks an ops lead's work across both fields and opens one in the other field in one click (#649)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "local", configured: true, user: null,
+    project: "okan", projects: ["okan", "kestrel"] } }));
+  const row = (over) => ({ task_id: 9, item_id: 3, element: "triage", title: "Okan separator level", name: "Triage", type: "upset",
+    assignee: null, role: "ops_lead", kind: "user", requires_human: true, due_at: "2099-01-01T00:00:00Z", escalated_at: null,
+    error: null, created_at: "2026-11-12T05:00:00Z", overdue: false, claimed_by: null, priority: null, subjects: [],
+    process_id: 1, process_key: "upset", bulk: [], ...over });
+  const okan = row({});
+  const kestrel = row({ task_id: 77, item_id: 21, title: "Kestrel compressor trip", overdue: true, due_at: "2026-11-11T00:00:00Z" });
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ines", roles: ["ops_lead"], mine: [], queue: [okan],
+    counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
+  await page.route("**/work/inbox/fields?*", (route) => route.fulfill({ json: [
+    { project: "okan", roles: ["ops_lead"], mine: [], queue: [okan] },
+    { project: "kestrel", roles: ["ops_lead"], mine: [], queue: [kestrel] },
+  ] }));
+  let marked = null;
+  await page.route("**/work/home?*", (route) => {
+    marked = new URL(route.request().url()).searchParams.get("mark");
+    return route.fulfill({ json: { person: "ines", seen_at: "2026-11-12T04:00:00Z", changes: [
+      { id: 5, item_id: 3, kind: "commented", actor: "fred", at: "2026-11-12T05:30:00Z", data: { text: "gland weeping" },
+        title: "Okan separator level", type: "upset", state: "open" }] } });
+  });
+  await page.route("**/work/tasks/77", (route) => route.fulfill({ json: demoTask }));
+  await page.goto(`${url}/#/`);
+  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
+  await shift.getByText("1 more in your other field, ranked below").waitFor();
+  const titles = await shift.locator(".home-shift > li .work-title, .home-shift > li button").allInnerTexts();
+  assert.deepEqual(titles, ["Kestrel compressor trip", "Okan separator level"]);  // overdue first, whichever field
+  await shift.getByText("gland weeping", { exact: false }).waitFor();
+  assert.equal(marked, "true");  // this look is the new last look
+  await shift.getByRole("button", { name: "Kestrel compressor trip" }).click();
+  await page.waitForURL(/#\/inbox\/task\/77$/);
+  assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
+});
+
+// P5.1b (#650): a person watches a case from its page, and changes on what they watch show on Home under Watching,
+// apart from their own work and never assigned to them.
+test("watching a case shows its changes on Home under Watching, not as assigned work (#650)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  let watched = [];
+  const posts = [];
+  await page.route("**/work/watch*", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      posts.push(body);
+      watched = body.on ? [...watched, body.ref] : watched.filter((r) => r !== body.ref);
+      return route.fulfill({ json: { person: "fred", ref: body.ref, watching: body.on } });
+    }
+    return route.fulfill({ json: watched });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  await page.getByRole("button", { name: "Watch", exact: true }).click();
+  await page.getByRole("button", { name: "Watching", exact: true }).waitFor();
+  assert.deepEqual(posts, [{ person: "fred", ref: "case:7", on: true }]);
+  assert.equal(await page.getByRole("button", { name: "Watching", exact: true }).getAttribute("aria-pressed"), "true");
+
+  await page.route("**/work/home?*", (route) => route.fulfill({ json: { person: "fred", seen_at: "2026-11-12T04:00:00Z",
+    watching: ["case:7"], changes: [
+      { id: 6, item_id: 7, kind: "commented", actor: "pat", at: "2026-11-12T05:30:00Z", data: { text: "parts ordered" },
+        title: "Train B vibration", type: "upset", state: "open", watching: true }] } }));
+  await page.goto(`${url}/#/`);
+  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
+  await shift.getByRole("heading", { name: /^Watching/ }).waitFor();
+  await shift.getByText("parts ordered", { exact: false }).waitFor();
+  await shift.getByText("Nothing new on your work.").waitFor();  // watching is not her own work
+});
+
+// P5.1c (#651): an ops lead saves All work's filters as a view for their role, and another ops lead opens it from
+// the picker with the same view and filters.
+test("a view saved on All work for a role opens for everyone in that role with its filters (#651)", async () => {
+  await page.addInitScript(() => { if (!localStorage.getItem("fuzer.reviewer")) localStorage.setItem("fuzer.reviewer", "ines"); });
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ines", roles: ["ops_lead"] },
+    { name: "olu", roles: ["ops_lead"] }] }));
+  const saved = [];
+  const asked = [];
+  await page.route("**/work/views*", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      const v = { id: saved.length + 1, role: body.role, name: body.name, list: body.list, filters: body.filters,
+        created_by: body.person, created_at: "2026-11-12T06:00:00Z" };
+      saved.push(v);
+      return route.fulfill({ json: v });
+    }
+    asked.push(new URL(route.request().url()).searchParams.get("person"));
+    return route.fulfill({ json: saved });
+  });
+  await page.goto(`${url}/#/exceptions?list=back&type=upset`);
+  await page.getByRole("button", { name: "Save this view for a role", exact: true }).click();
+  await page.getByLabel("View name").fill("Upsets back from the field");
+  await page.getByRole("button", { name: "Save for every ops lead", exact: true }).click();
+  const picker = page.getByLabel("Saved views");
+  await picker.getByRole("option", { name: "Upsets back from the field (ops lead)" }).waitFor({ state: "attached" });
+  assert.deepEqual(saved.map((v) => [v.role, v.list, v.filters, v.created_by]),
+    [["ops_lead", "back", { type: "upset" }, "ines"]]);
+
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "olu"));
+  await page.goto(`${url}/#/exceptions`);
+  await page.reload();  // a fresh load as the other ops lead
+  await page.getByLabel("Saved views").selectOption({ label: "Upsets back from the field (ops lead)" });
+  await page.waitForURL(/list=back/);
+  assert.match(page.url(), /type=upset/);
+  assert.equal(asked.at(-1), "olu");  // the other ops lead's own picker
+});
+
+test("an uncertain measurement role is confirmed or corrected from Review, and stays after rebuilds (P1.4b)", async () => {
+  const item = (id, proposed, label) => ({ id, kind: "role", subject: `fz-ts-${id}`, status: "open", label: null, payload: {
+    point_id: `fz-ts-${id}`, point: `KRGP:D1.TT400${id}.PV`, description: "Amine Reboiler Temperature", uom: "degC",
+    letters: "TT", asset: "fz-tag-1", asset_label: "D1-E-4006", proposed, proposed_label: label, confidence: 0.7,
+    basis: ["letters TT: temperature", "units degC: temperature", "on HE: usually outlet temperature"],
+    choices: [{ key: "outlet_temperature", label: "Outlet temperature" }, { key: "temperature", label: "Process temperature" },
+      { key: "pressure", label: "Process pressure" }] } });
+  await page.route("**/review?*", (route) => route.fulfill({ json: [item(6, "outlet_temperature", "Outlet temperature"),
+    item(7, "outlet_temperature", "Outlet temperature")] }));
+  const sent = {};
+  await page.route("**/review/*", (route) => {
+    const id = route.request().url().split("/").pop();
+    sent[id] = route.request().postDataJSON();
+    return route.fulfill({ json: { decided: Number(id) } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=role`);
+  const first = page.locator(".review", { hasText: "KRGP:D1.TT4006.PV" });
+  await first.getByText("on HE: usually outlet temperature").waitFor();
+  await first.getByText("70% sure").waitFor();
+  assert.equal(await first.getByRole("link", { name: "D1-E-4006" }).count(), 1);
+  assert.equal(await first.getByRole("button", { name: "Use this role" }).isDisabled(), true);  // nothing new picked
+  await first.getByLabel("Role").selectOption("temperature");
+  await first.getByRole("button", { name: "Use this role" }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "is process temperature from now on" }).waitFor();
+  assert.deepEqual([sent["6"].decision, sent["6"].value], ["choose", "temperature"]);
+  const second = page.locator(".review", { hasText: "KRGP:D1.TT4007.PV" });
+  await second.getByRole("button", { name: "Confirm outlet temperature" }).click();
+  await page.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "is outlet temperature from now on" }).waitFor();
+  assert.equal(sent["7"].decision, "accept");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });

@@ -36,6 +36,24 @@ def _tag_point(conn, label: str, ending: str = "") -> dict | None:
     return next((p for p in pts if ending.lower() in (p["description"] or "").lower()), pts[0] if pts and not ending else None)
 
 
+def role_point(conn, fid: str, *wanted: str) -> dict | None:
+    """The point with the first of `wanted` measurement roles on a unit (or its instruments), as a series to read."""
+    from ..graph import roles
+    from ..sources.timeseries import _unit_points
+
+    pts = _unit_points(conn, fid, 30)
+    of = roles.of(conn, [p["id"] for p in pts])
+    return next((p for w in wanted for p in pts if of.get(p["id"]) == w), None)
+
+
+def driver_of(conn, tag: str) -> str | None:
+    """The machine driving a compressor: the driver (gas or steam turbine, engine or motor) in its train."""
+    from ..graph import roles
+    from .trips import DRIVERS, train
+
+    return next((m for m in train(conn, tag)["members"] if roles.classes(conn, m) & DRIVERS), None)
+
+
 def _stage_points(conn, stage_label: str) -> dict:
     """Suction and discharge pressure and temperature points for a compressor stage named like 20-K-2300A:
     discharge on the stage itself, suction pressure on its scrubber (20-V-2301A), suction temperature at the
@@ -45,8 +63,9 @@ def _stage_points(conn, stage_label: str) -> dict:
         raise CalcError("not a compressor stage tag (NN-K-N?00X)")
     area, series, n, train = m.groups()  # 20-K-2300A: series 2, stage 3, train A
     s = int(n)
-    out = {"pd": _tag_point(conn, stage_label, "Discharge Pressure"),
-           "td": _tag_point(conn, stage_label, "Discharge Temperature"),
+    stage = conn.execute("select fuzer_id from entity_label where label = %s", (stage_label,)).fetchone()["fuzer_id"]
+    out = {"pd": role_point(conn, stage, "discharge_pressure"),
+           "td": role_point(conn, stage, "discharge_temperature"),
            "ps": _tag_point(conn, f"{area}-V-{series}{s}01{train}", "Pressure"),
            "ts": _tag_point(conn, f"{area}-E-{series}{s - 1}50{train}", "Temperature") if s > 1 else None}
     for k in ("pd", "td", "ps"):
@@ -100,8 +119,7 @@ def cooler_fouling(conn, fid: str, days: int = 180, until: str | None = None, sr
     last cleaned and when it reaches its high limit at that rate. Flags `fouling` at `rise` degrees or more."""
     from . import limits, signals
 
-    label = _label(conn, fid)
-    p = _tag_point(conn, label.replace("-E-", "-TT-"), "Temperature") or _tag_point(conn, label, "Temperature")
+    p = role_point(conn, fid, "outlet_temperature", "temperature")
     if not p:
         raise CalcError("no outlet temperature point on that cooler")
     start, end = window_of(conn, days, until)

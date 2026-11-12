@@ -62,7 +62,7 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch" | "role";
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -98,6 +98,13 @@ export interface PidMismatchPayload {
   returned?: Returned;
 }
 
+/** A measurement role the proposer wasn't sure of (P1.4b): what the point says about itself and the role it proposed. */
+export interface RolePayload {
+  point_id: string; point: string | null; description: string | null; uom: string | null; letters: string | null;
+  asset: string | null; asset_label: string | null; proposed: string | null; proposed_label: string | null;
+  confidence: number; basis: string[]; choices: { key: string; label: string }[];
+}
+
 export interface HeldLoadPayload {
   dataset: string; failed: { kind: string; value: number; detail?: { examples?: string[] } }[];
 }
@@ -110,6 +117,7 @@ export type ReviewItem =
   | { id: number; kind: "check"; subject: string; status: string; label: null; payload: HeldLoadPayload }
   | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
   | { id: number; kind: "pid_mismatch"; subject: string; status: string; label: string | null; payload: PidMismatchPayload }
+  | { id: number; kind: "role"; subject: string; status: string; label: string | null; payload: RolePayload }
   | {
       id: number;
       kind: "conflict";
@@ -230,6 +238,18 @@ export interface WorkloadPerson {
 }
 
 /** A person's Inbox in one field (project), for the cross-field view (#497). */
+/** What changed on a person's work since they last looked at Home (P5.1). */
+export interface WorkHome {
+  person: string; seen_at: string | null;
+  changes: { id: number; item_id: number; kind: string; actor: string; at: string; data: Record<string, unknown>;
+    title: string; type: string; state: string; watching: boolean }[];
+  watching: string[];
+}
+
+export interface SavedWorkView {
+  id: number; role: string; name: string; list: string; filters: Record<string, string>; created_by: string; created_at: string;
+}
+
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
@@ -764,6 +784,14 @@ export const workApi = {
   setAway: (name: string, by: string, until: string | null, delegate?: string | null, note?: string | null) =>
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
+  workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
+  workViews: (person: string) => request<SavedWorkView[]>("GET", "/work/views", { person }),
+  saveWorkView: (person: string, role: string, name: string, list: string, filters: Record<string, string>) =>
+    request<SavedWorkView>("POST", "/work/views", undefined, { person, role, name, list, filters }),
+  removeWorkView: (id: number, person: string) => request("DELETE", `/work/views/${id}`, { person }),
+  watching: (person: string) => request<string[]>("GET", "/work/watch", { person }),
+  watch: (person: string, ref: string, on: boolean) =>
+    request<{ watching: boolean }>("POST", "/work/watch", undefined, { person, ref, on }),
   inboxFields: (person: string) => request<FieldInbox[]>("GET", "/work/inbox/fields", { person }),
   setCover: (name: string, roles: string[], projects: string[], by: string) =>
     request("PUT", `/work/people/${encodeURIComponent(name)}/cover`, undefined, { roles, projects, by }),

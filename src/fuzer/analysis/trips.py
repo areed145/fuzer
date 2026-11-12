@@ -35,7 +35,9 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from ..core import detectors
+from ..core import roles as vocabulary
 from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
+from ..graph import roles
 from .calcs import CalcError, _label, read
 
 STEP = 5  # minutes: the grid the sequence of events is read on
@@ -136,27 +138,31 @@ VERDICTS = {"inspect_first": "Inspect before restarting",
             "restart_after_checks": "Restart after checks"}
 
 
-def _family(desc: str, unit_label: str, direction: int) -> str:
-    """The cause family a point stands for, from what it measures and what it is on."""
-    d = (desc or "").lower()
-    if "vibration" in d:
+DRIVERS = {"GT", "ST", "TE", "CE", "EM", "EG"}  # ISO 14224 drivers: gas and steam turbines, engines, motors
+_DRIVER_ROLES = {"speed", "power", "exhaust_temperature", "fuel_flow"}
+
+
+def _family(role: str | None, classes, direction: int) -> str:
+    """The cause family a point stands for, from its measurement role and the class of what it is on."""
+    classes = set(classes or ())
+    quantity = vocabulary.ROLES[role].quantity if role in vocabulary.ROLES else None
+    if role in ("vibration", "shaft_vibration"):
         return "vibration"
-    if "bearing" in d:
+    if role == "bearing_temperature":
         return "bearing"
-    if "anti-surge" in d or "suction flow" in d:
+    if role in ("anti_surge_valve_position", "suction_flow"):
         return "surge"
-    if re.search(r"-(GT|EG|EM|DR)-", unit_label) or any(w in d for w in ("speed", "exhaust temperature", "fuel",
-                                                                          "output power")):
+    if classes & DRIVERS or role in _DRIVER_ROLES:
         return "driver"
-    if "level" in d:
+    if role == "level":
         return "liquid_carryover" if direction > 0 else "process"
-    if "cylinder" in d or ("discharge temperature" in d and "-K-" in unit_label):
+    if role == "cylinder_discharge_temperature" or (role == "discharge_temperature" and "CO" in classes):
         return "discharge_temperature"
-    if "temperature" in d and "-E-" in unit_label:
+    if quantity == "temperature" and "HE" in classes:
         return "cooling" if direction > 0 else "process"
-    if "suction pressure" in d or ("pressure" in d and "-V-" in unit_label):
+    if role == "suction_pressure" or (quantity == "pressure" and "VE" in classes):
         return "suction_pressure"
-    if "discharge pressure" in d or "interstage" in d:
+    if role in ("discharge_pressure", "interstage_pressure"):
         return "discharge_pressure" if direction > 0 else "process"
     return "process"
 
@@ -190,7 +196,7 @@ def train(conn, fid: str) -> dict:
     letter = m.group(1) if (m := re.search(r"\d([A-Z])$", label)) else ""
     lettered = lambda s: (re.search(r"\d([A-Z])$", s) or [None, ""])[1]
     members = [r for r in rows if lettered(r["label"]) == letter] if letter else rows
-    shared = [r for r in rows if letter and not lettered(r["label"]) and "-V-" in r["label"]]
+    shared = [r for r in rows if letter and not lettered(r["label"]) and "VE" in roles.classes(conn, r["fuzer_id"])]
     machines = [r["fuzer_id"] for r in members if conn.execute(
         """
         select 1 from edge i join edge c on c.src = i.src and c.rel = 'classified_as'
@@ -205,13 +211,16 @@ def train(conn, fid: str) -> dict:
 
 
 def _points(conn, units: list[str]) -> dict[str, dict]:
+    """The points on the train's units, each with its measurement role and the class codes of its unit."""
     from ..sources.timeseries import _unit_points
 
     out = {}
     for u in units:
-        ul = _label(conn, u)
+        ul, cls = _label(conn, u), sorted(roles.classes(conn, u))
         for p in _unit_points(conn, u, 30):
-            out[p["id"]] = {**p, "unit": u, "unit_label": ul}
+            out[p["id"]] = {**p, "unit": u, "unit_label": ul, "classes": cls, "role": None}
+    for pid, role in roles.of(conn, out).items():
+        out[pid]["role"] = role
     return out
 
 
@@ -221,10 +230,10 @@ def _run_signal(conn, pack, tr: dict, pts: dict[str, dict]) -> dict:
     from . import limits
 
     rules = {r["uom"]: r for r in limits.config(pack)["run_signals"] if "uom" in r}
-    for uom in ("rpm", "kW"):
-        p = next((p for p in sorted(pts.values(), key=lambda p: p["point"]) if p["uom"] == uom), None)
+    for role, above in (("speed", 1000), ("power", 20)):  # the default running level (rpm, kW) when no rule says
+        p = next((p for p in sorted(pts.values(), key=lambda p: p["point"]) if p["role"] == role), None)
         if p:
-            on = float(rules.get(uom, {"above": 1000 if uom == "rpm" else 20})["above"])
+            on = float(rules.get(p["uom"], {"above": above})["above"])
             return {"point": p, "on": on, "off": on / 3}
     sig = limits.run_signals(conn, pack, set(tr["machines"]))
     for m in tr["machines"]:
@@ -318,7 +327,7 @@ def diagnose(conn, fid: str, at: str | None = None, pack=None, src=None, history
                               "lead_minutes": int((t0 - datetime.fromisoformat(run_[0][0])).total_seconds() // 60),
                               "direction": "up" if d > 0 else "down", "from": round(med, 2),
                               "to": round(float(win[-1][1]), 2), "unit_of_measure": p["uom"],
-                              "family": _family(p["description"], p["unit_label"], d)})
+                              "family": _family(p["role"], p["classes"], d)})
                 break
         # at its trip setting in the quarter hour up to the trip (not after: a falling flow is the trip, not its cause)
         last = [x for t, x in v.items() if (t0 - timedelta(minutes=15)).isoformat(timespec="minutes") <= t <= t0.isoformat(timespec="minutes")]

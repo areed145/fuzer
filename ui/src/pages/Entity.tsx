@@ -30,6 +30,7 @@ import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard, TrendCard } from "../Trend";
 import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
+import { WatchButton } from "../Watch";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
@@ -91,6 +92,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
           <div className="row">
             <KindBadge kind={e.kind} />
             <span className="muted mono small">{e.fuzer_id}</span>
+            <WatchButton target={e.fuzer_id} label="asset" />
             {e.golden.description && <span>{fmt(e.golden.description.value)}</span>}
           </div>
         </div>
