@@ -1,0 +1,10 @@
+# Answer keys for the wells and artificial lift specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# OK-J08-04's October 2025 test read high on the test separator; OK-J07-05's lift valve leaks after April's slickline.
+- question: Can we trust OK-J08-04's October 2025 well test?
+  must_mention: [OK-J08-04, [test_suspect, suspect, retest, not believable], choke]
+  specialists: [wells-subsurface]
+- question: Why did OK-J07-05 make less oil after its April 2025 slickline job?
+  must_mention: [OK-J07-05, [lift curve, off_lift_curve], [gas lift valve, valve]]
+  specialists: [wells-subsurface]
+  charts: [gas_lift_curve]
