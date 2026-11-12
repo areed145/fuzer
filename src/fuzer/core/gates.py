@@ -128,6 +128,12 @@ def criticality(conn, fuzer_id: str | None) -> str | None:
     return (row["v"] or "").strip().upper() or None if row else None
 
 
+def most_critical(values) -> str | None:
+    """The most critical of several assets' ABC indicators: A outranks B outranks C (so the tightest gate applies
+    to a case on more than one asset). None when none is assessed."""
+    return min((v for v in values if v), default=None)
+
+
 def _pct(x: float) -> str:
     return f"{x * 100:.0f}%"
 

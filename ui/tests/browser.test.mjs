@@ -365,6 +365,38 @@ test("a case says why it stopped for a person, and Settings shows the gate polic
   assert.deepEqual(set[0].by_criticality, {});
 });
 
+test("a write-back waits on the case for a named approver and then for its batch (#636)", async () => {
+  await page.route("**/work/items/9", route => route.fulfill({ json: { id: 9, title: "Write back to SAP 10004002", type: "writeback",
+    state: "open", subjects: [], created_by: "agent:maintenance", created_at: "2026-11-12T06:00:00Z", events: [], processes: [] } }));
+  let row = { id: 21, system: "sap", kind: "notification", record: "10004002", action: "complete", payload: { text: "Gland repacked" },
+    state: "awaiting_approval", drafted_by: "agent:maintenance", drafted_at: "2026-11-12T06:00:00Z", approver_role: "maintenance_planner",
+    item_id: 9, source_ref: null, approved_by: null, approved_at: null, due_at: null, sent_at: null, confirmed_at: null, error: null,
+    reason: null };
+  const approvals = [];
+  await page.route(/\/writebacks\?/, route => route.fulfill({ json: [row] }));
+  await page.route(/\/writebacks\/21$/, route => route.fulfill({ json: { ...row, label: "Notification",
+    approvers: ["maintenance_planner", "ops_lead"], cadence: "in the next 15-minute batch", adapter: "export",
+    history: [{ id: 1, state: "awaiting_approval", by: "agent:maintenance", note: null, at: "2026-11-12T06:00:00Z" }] } }));
+  await page.route(/\/writebacks\/21\/approve$/, route => {
+    approvals.push(route.request().postDataJSON());
+    row = { ...row, state: "approved", approved_by: "pat", due_at: "2026-11-12T06:15:00Z" };
+    return route.fulfill({ json: row });
+  });
+  await page.goto(`${url}/#/cases/9`);
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "pat"));
+  await page.reload();
+  await page.getByRole("heading", { name: "Notification for SAP 10004002" }).waitFor();
+  await page.getByText("waiting for approval", { exact: true }).waitFor();
+  await page.getByText("then sent in the next 15-minute batch", { exact: false }).waitFor();
+  await page.getByLabel("Change to write").fill("Gland repacked; no leak");
+  await page.getByRole("button", { name: "Approve for SAP" }).click();
+  await page.getByText("approved, waiting for its batch", { exact: true }).waitFor();
+  assert.equal(approvals[0].by, "pat");
+  assert.equal(approvals[0].payload.text, "Gland repacked; no leak");
+  assert.equal(await page.getByRole("button", { name: "Approve for SAP" }).count(), 0);
+  await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+});
+
 test("Ask says up front when no AI provider is configured, without calling one (#404)", async () => {
   const posts = [];
   page.on("request", (request) => { if (request.method() !== "GET") posts.push(request.url()); });

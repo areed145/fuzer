@@ -8,13 +8,15 @@ source pack brought) drafts the update for that system:
     could_not_do  a follow-up record: what could not be done and why, so the work stays on that system's books
 
 How it goes back is the system's `closeout` setting (on Sources): `none` (nothing), `draft` (a case on the
-`closeout_role` queue to approve or edit first, run as the `source_closeout` process with that role's SLA, #509) or `send` (sent at once). SAP drafts to the maintenance
-planners unless its system says otherwise. An approved (or sent) update is published on the event outbox as
-`source.update` for that system's adapter to deliver.
+`closeout_role` queue to approve or edit first, run as the `source_closeout` process with that role's SLA, #509) or
+`send` (the write-back queue opens its own approval case). SAP drafts to the maintenance planners unless its system
+says otherwise. Either way it is a write-back (ops/writeback.py, P5.7): nothing goes to the system until a named
+planner approves it, it goes by the system's cadence, and the case is released once the system confirms it.
 
-The demo has no SAP to send to. With the `closeout.apply_to_exports` setting on, a sent update is applied to the
-system's export file instead (the status column of the record's row, or a new row for a follow-up), so the next
-load and intake see SAP move: a notification done in the field stops being held, and a follow-up is raised.
+The demo has no SAP to send to. With the `closeout.apply_to_exports` setting on, SAP's write-backs go through the
+demo adapter, which applies a sent update to the system's export file (the status column of the record's row, or a
+new row for a follow-up), so the next load and intake see SAP move: a notification done in the field stops being
+held, and a follow-up is raised.
 """
 
 import csv
@@ -23,7 +25,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import events, settings, work
+from ..core import settings, work
 from ..core.exceptions import ExceptionError
 
 MODES = ("none", "draft", "send")
@@ -31,7 +33,6 @@ DEFAULTS = {"sap": ("draft", "maintenance_planner")}  # a system that sets nothi
 CLOSED_STATUS = {"sap": "NOCO"}
 OPEN_STATUS = {"sap": "OSNO"}
 CASE_TYPE = "source_closeout"
-TOPIC = "source.update"
 log = logging.getLogger(__name__)
 
 
@@ -76,8 +77,14 @@ def on_field_report(conn, row: dict, by: str, status: str, note: str | None) -> 
         insert into source_closeout (exception_id, system, record, action, draft, created_by)
         values (%s, %s, %s, %s, %s, %s) returning *
         """, (row["id"], row["source"], draft["record"], draft["action"], Jsonb(draft), by)).fetchone())
-    if m == "send":
-        return _send(conn, out, by)
+    from . import writeback
+
+    if m == "send":  # no case of its own: the write-back queue opens the approval case
+        wb = writeback.propose(conn, row["source"], "notification", {"closeout_id": out["id"], **draft}, by,
+                               record=draft["record"], action=draft["action"], key=f"closeout:{out['id']}",
+                               subjects=row["subjects"], source_ref=f"closeout:{out['id']}", approver_role=role)
+        return dict(conn.execute("update source_closeout set item_id = %s where id = %s returning *",
+                                 (wb["item_id"], out["id"])).fetchone())
     what = "completion" if draft["action"] == "complete" else "follow-up"
     from . import routing
 
@@ -87,8 +94,16 @@ def on_field_report(conn, row: dict, by: str, status: str, note: str | None) -> 
         conn, CASE_TYPE, {**payload, "role": role, "source": row["source"]}, by, title, lane=role,
         subjects=row["subjects"], priority=row["priority"], plain={"role": role, "source": row["source"],
                                                                    "payload": payload})
+    writeback.propose(conn, row["source"], "notification", {"closeout_id": out["id"], **draft}, by,
+                      record=draft["record"], action=draft["action"], key=f"closeout:{out['id']}", item_id=item_id,
+                      source_ref=f"closeout:{out['id']}", approver_role=role)
     return dict(conn.execute("update source_closeout set item_id = %s where id = %s returning *",
                              (item_id, out["id"])).fetchone())
+
+
+def _writeback(conn, closeout_id: int) -> dict | None:
+    return conn.execute("select * from writeback where source_ref = %s order by id desc limit 1",
+                        (f"closeout:{closeout_id}",)).fetchone()
 
 
 def get(conn, closeout_id: int) -> dict:
@@ -107,20 +122,11 @@ def listing(conn, state: str | None = "draft", item_id: int | None = None, excep
         """, {"s": state, "i": item_id, "e": exception_id})]
 
 
-def _send(conn, c: dict, by: str) -> dict:
-    row = dict(conn.execute(
-        "update source_closeout set state = 'sent', decided_by = %s, decided_at = now() where id = %s returning *",
-        (by, c["id"])).fetchone())
-    events.publish(conn, TOPIC, f"{row['system']}/{row['record']}",
-                   {"closeout_id": row["id"], "system": row["system"], "exception_id": row["exception_id"],
-                    "approved_by": by, **row["draft"]})
-    return row
-
-
 def approve(conn, closeout_id: int, by: str, text: str | None = None, short_text: str | None = None) -> dict:
-    """Send a drafted close-out (with the planner's edits to its text), and finish its case. A write-back: only a
-    named person approves one (P5.10 fixed gate)."""
+    """Approve a drafted close-out (with the planner's edits to its text): its write-back goes by the system's
+    cadence, and the case is released once the system confirms it. Only a named approver (P5.7, P5.10)."""
     from ..core import gates
+    from . import writeback
 
     gates.require_person(conn, "write_back", by, ref=f"closeout:{closeout_id}")
     c = get(conn, closeout_id)
@@ -130,10 +136,12 @@ def approve(conn, closeout_id: int, by: str, text: str | None = None, short_text
     if edits:
         c = dict(conn.execute("update source_closeout set draft = draft || %s where id = %s returning *",
                               (Jsonb(edits), closeout_id)).fetchone())
-    row = _send(conn, c, by)
-    if c["item_id"]:
-        work.close_case(conn, c["item_id"], "done", by, reason=f"sent to {c['system']}")
-    return row
+    wb = _writeback(conn, closeout_id)
+    if wb is None:
+        raise ExceptionError(f"close-out {closeout_id} has no write-back to approve")
+    writeback.approve(conn, wb["id"], by, payload={"closeout_id": closeout_id, **c["draft"]})
+    return dict(conn.execute("update source_closeout set state = 'approved', decided_by = %s, decided_at = now() "
+                             "where id = %s returning *", (by, closeout_id)).fetchone())
 
 
 def discard(conn, closeout_id: int, by: str, reason: str | None = None) -> dict:
@@ -141,24 +149,31 @@ def discard(conn, closeout_id: int, by: str, reason: str | None = None) -> dict:
     c = get(conn, closeout_id)
     if c["state"] != "draft":
         raise ExceptionError(f"close-out {closeout_id} is {c['state']}, not a draft")
+    from . import writeback
+
     row = dict(conn.execute("update source_closeout set state = 'discarded', decided_by = %s, decided_at = now() "
                             "where id = %s returning *", (by, closeout_id)).fetchone())
-    if c["item_id"]:
+    if (wb := _writeback(conn, closeout_id)) is not None:
+        writeback.reject(conn, wb["id"], by, reason or "not sent")  # closes the case with it
+    elif c["item_id"]:
         work.close_case(conn, c["item_id"], "cancelled", by, reason=reason or "not sent")
     return row
 
 
 # ---- the demo's stand-in for the source system -------------------------------------------------------------------
 
-@events.subscriber(TOPIC)
-def apply_to_exports(conn, event: dict) -> None:
-    """Demo only (`closeout.apply_to_exports`): apply a sent update to the system's export file, as the system would."""
-    u = event["payload"]
+def apply_update(conn, u: dict) -> str | None:
+    """Demo only (`closeout.apply_to_exports`): apply a sent update to the system's export file, as the system would.
+    The write-back queue's demo adapter calls it. None when applied, else why not (kept on the close-out)."""
 
-    def skipped(why: str) -> None:  # kept on the close-out, so a sent update that changed nothing says why
+    def skipped(why: str) -> str:  # kept on the close-out, so a sent update that changed nothing says why
         log.warning("close-out %s not applied: %s", u.get("closeout_id"), why)
-        conn.execute("update source_closeout set applied_note = %s where id = %s", (why, u.get("closeout_id")))
+        conn.execute("update source_closeout set state = 'sent', applied_note = %s where id = %s",
+                     (why, u.get("closeout_id")))
+        return why
 
+    if u.get("action") not in ("complete", "follow_up"):
+        return skipped(f"the demo applies close-outs only, not {u.get('action')}")
     if not settings.get(conn, "closeout.apply_to_exports"):
         return skipped("closeout.apply_to_exports is off")
     found = _export_for(conn, u["system"], u["record"])
@@ -190,8 +205,9 @@ def apply_to_exports(conn, event: dict) -> None:
         w = csv.DictWriter(f, fieldnames=cols, lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
-    conn.execute("update source_closeout set applied_at = now(), applied_note = %s where id = %s",
-                 (str(path), u["closeout_id"]))
+    conn.execute("update source_closeout set state = 'sent', applied_at = now(), applied_note = %s where id = %s",
+                 (str(path), u.get("closeout_id")))
+    return None
 
 
 def projects_data() -> str | None:

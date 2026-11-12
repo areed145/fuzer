@@ -313,3 +313,7 @@ create table if not exists entity_alias (
     retired_by  text
 );
 create unique index if not exists entity_alias_current on entity_alias (norm) where retired_at is null;
+
+-- What a system takes back from Fuzer (P5.7, ops/writeback.py), from its source pack: accepts (kinds), approvers,
+-- kinds.<kind>.{approvers, cadence}, adapter (export | demo_csv) and limit per run. Unset: the queue's defaults.
+alter table source_system add column if not exists writeback jsonb;
