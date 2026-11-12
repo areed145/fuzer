@@ -61,6 +61,9 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`inspection_plan`](#inspection_plan) Condition inspection plan against the interval the wall loss supports | API 510 / API 570 | Inspection plan interval and dates (days); Wall thickness readings per CML (mm); Minimum required thickness (mm) | A condition inspection plan concerning the item. |
 | [`allocation_factor`](#allocation_factor) Allocation factor of a meter against the well tests upstream of it | Engineering practice | Meter flow (Sm³/d or kSm³/d); Well tests upstream (oil rate (Sm³/d or kSm³/d) | A well test within the test age for the wells upstream, and days with the meter flowing. |
 | [`meter_agreement`](#meter_agreement) A meter against the nearest other meter on the same stream | Engineering practice | Meter flow (Sm³/d or kSm³/d); Other meter's flow on the same stream (same) | Three days with both flowing in the window and seven in the month before it. |
+| [`proof_test`](#proof_test) A safeguard's last proof test against its proof test interval | IEC 61511-1 16.3 | Proof test interval on the safeguard register (months); Last proof test (date) | A proof test interval on the register; a safeguard with one and no test on file is overdue. |
+| [`demand_rate`](#demand_rate) A safeguard's demands over the last year against the demand rate it was designed for | IEC 61511-1 16.2.9 | The site's demand log (when (demands); Designed demand rate on the safeguard register (per year) | At least one demand in the window; with no designed rate on the register, the IEC 61508 low demand boundary. |
+| [`flare_relief`](#flare_relief) The equipment relieving into the flare during an episode, and the devices it relieved through | Engineering practice | Piping into the flare system (P&IDs and the line list) (lines); Pressure of each relieved item (its own) | A flare flow point, the piping into the flare's area and a pressure point on the relieved item. |
 
 ## Refusals
 
@@ -549,3 +552,34 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `drift`:** Change in the two meters' daily ratio against its level over the month before that reads as one of them drifting. (2 %)
 - **Threshold `baseline`:** The days before the window the ratio's level is taken over. (30 days)
 - **Worked example:** `tests/analysis/test_metering.py::test_the_check_meter_sees_the_sales_meter_step`, on the fake plant
+
+## proof_test
+
+**A safeguard's last proof test against its proof test interval.** IEC 61511-1 16.3.
+
+- **Valid for:** Any trip, interlock or shutdown on the safeguard register with a proof test interval.
+- **Needs:** A proof test interval on the register; a safeguard with one and no test on file is overdue.
+- **Run by:** `safeguard_status`
+- **Worked example:** `tests/evals/test_safeguards_kestrel.py::test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested`, on the fake plant
+
+## demand_rate
+
+**A safeguard's demands over the last year against the demand rate it was designed for.** IEC 61511-1 16.2.9.
+
+- **Valid for:** Safeguards in low demand mode with a demand log; a spurious trip is listed but is not a demand.
+- **Needs:** At least one demand in the window; with no designed rate on the register, the IEC 61508 low demand boundary.
+- **Run by:** `safeguard_status`
+- **Threshold `window`:** The demands read against the designed rate. (365 days)
+- **Threshold `low_demand`:** The demands a year a safeguard is taken to be designed for when the register gives none (the low demand boundary). (1)
+- **Worked example:** `tests/evals/test_safeguards_kestrel.py::test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer`, on the fake plant
+
+## flare_relief
+
+**The equipment relieving into the flare during an episode, and the devices it relieved through.** Engineering practice. API 521's relief paths as the piping into the flare system shows them; the item whose pressure rose over the hours before the episode is the likely source.
+
+- **Valid for:** A flare flow point with relief or vent devices piped into its area and a pressure measured on the item each relieves.
+- **Needs:** A flare flow point, the piping into the flare's area and a pressure point on the relieved item.
+- **Run by:** `flare_attribution`
+- **Threshold `rise`:** A relieved item's pressure up this share over the hours before the episode names it a likely source. (5 %)
+- **Threshold `before`:** The hours before the episode its pressure is taken over. (6 h)
+- **Worked example:** `tests/evals/test_flare_kestrel.py::test_the_flare_names_the_item_relieving_into_it_and_its_devices`, on the fake plant

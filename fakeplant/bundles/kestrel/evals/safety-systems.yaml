@@ -1,0 +1,11 @@
+# Answer keys for the safety systems and relief specialist pack's eval on this bundle (P4.2e), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: Is the suction scrubber B1-V-2005 still protected by its high-high level trip?
+  must_mention: [SG-KR-003, [bypass, bypassed], [overdue, expired], [proof test, tested]]
+  specialists: [hse-incident-management]
+- question: Has the compressor B1-K-2001's vibration trip been demanded more than it was designed for?
+  must_mention: [SG-KR-002, [twice, "2", two], [spurious, signal fault]]
+  specialists: [hse-incident-management]
+- question: Where did yesterday's flare at the knockout drum H1-V-8001 come from?
+  must_mention: [A1-V-1001, [A1-PV-1001, A1-PSV-1001], [pressure, rose]]
+  specialists: [hse-incident-management]

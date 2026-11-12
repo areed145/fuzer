@@ -220,3 +220,31 @@ def plot_accounting_reconciliation(since: str | None = None, until: str | None =
     1 % tolerance; months that can't be compared are listed, not drawn."""
     from ...plots import general
     return _chart(general.reconciliation, {"since": since, "until": until, "days": days})
+
+
+@capability("hse-incident-management", "maintenance-integrity", "field-operations-facilities", kind="query")
+def safeguard_status(ref: str | None = None, system: bool = True) -> dict[str, Any]:
+    """Safeguards on an item, or across the plant with no ref (P4.2e): each bypass in place (overdue or not, under
+    which change), each proof test against its interval (IEC 61511-1 16.3: overdue, or none on file), each safeguard
+    demanded in the last year against the rate it was designed for (over it, or failed on a demand; spurious trips
+    listed, not counted) and the open change records. `system` widens an item to the rest of its train, by its
+    piping. Read from the safeguard register, the bypass register and the demand log, never from tag names."""
+    from ...ops import safeguards
+    with db.connect() as conn:
+        subjects = None
+        if ref:
+            fid, err = _resolve(conn, ref)
+            if err:
+                return err
+            subjects = [fid]
+        tests = safeguards.proof_tests(conn, subjects, system=system)
+        demands = safeguards.demands(conn, subjects, system=system)
+        return _plain({
+            "ref": ref, "system": system,
+            "bypasses": safeguards.bypasses(conn, subjects, system=system),
+            "proof_tests_overdue": [p for p in tests if p["overdue"]],
+            "proof_tests_in_date": len([p for p in tests if not p["overdue"]]),
+            "demands": demands,
+            "changes": safeguards.changes(conn, subjects, system=system),
+            "not_held": "Fuzer holds no safety requirements specification, PFD calculation or proof test procedure; "
+                        "a demand rate is read against the rate on the register only."})

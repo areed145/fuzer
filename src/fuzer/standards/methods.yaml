@@ -567,3 +567,38 @@ meter_agreement:
     drift: {value: 2, unit: "%", means: "Change in the two meters' daily ratio against its level over the month before that reads as one of them drifting.", code: "fuzer.analysis.metering:DRIFT_PCT"}
     baseline: {value: 30, unit: days, means: "The days before the window the ratio's level is taken over.", code: "fuzer.analysis.metering:BASELINE_DAYS"}
   vectors: [{worked: "tests/analysis/test_metering.py::test_the_check_meter_sees_the_sales_meter_step"}]
+
+proof_test:
+  title: A safeguard's last proof test against its proof test interval
+  standard: IEC 61511-1
+  clause: "16.3"
+  tool: safeguard_status
+  inputs: [{name: Proof test interval on the safeguard register, unit: months}, {name: Last proof test, unit: date}]
+  valid: Any trip, interlock or shutdown on the safeguard register with a proof test interval.
+  needs: A proof test interval on the register; a safeguard with one and no test on file is overdue.
+  vectors: [{worked: "tests/evals/test_safeguards_kestrel.py::test_a_safeguard_past_its_proof_test_interval_is_work_until_it_is_tested"}]
+
+demand_rate:
+  title: A safeguard's demands over the last year against the demand rate it was designed for
+  standard: IEC 61511-1
+  clause: "16.2.9"
+  tool: safeguard_status
+  inputs: [{name: The site's demand log (when, worked, failed or spurious), unit: demands}, {name: Designed demand rate on the safeguard register, unit: per year}]
+  valid: Safeguards in low demand mode with a demand log; a spurious trip is listed but is not a demand.
+  needs: At least one demand in the window; with no designed rate on the register, the IEC 61508 low demand boundary.
+  thresholds:
+    window: {value: 365, unit: days, means: "The demands read against the designed rate.", code: "fuzer.ops.safeguards:DEMAND_DAYS"}
+    low_demand: {value: 1, means: "The demands a year a safeguard is taken to be designed for when the register gives none (the low demand boundary).", code: "fuzer.ops.safeguards:LOW_DEMAND"}
+  vectors: [{worked: "tests/evals/test_safeguards_kestrel.py::test_a_safeguard_demanded_more_than_designed_is_work_for_the_engineer"}]
+
+flare_relief:
+  title: The equipment relieving into the flare during an episode, and the devices it relieved through
+  practice: API 521's relief paths as the piping into the flare system shows them; the item whose pressure rose over the hours before the episode is the likely source.
+  tool: flare_attribution
+  inputs: [{name: Piping into the flare system (P&IDs and the line list), unit: lines}, {name: Pressure of each relieved item, unit: its own}]
+  valid: A flare flow point with relief or vent devices piped into its area and a pressure measured on the item each relieves.
+  needs: A flare flow point, the piping into the flare's area and a pressure point on the relieved item.
+  thresholds:
+    rise: {value: 5, unit: "%", means: "A relieved item's pressure up this share over the hours before the episode names it a likely source.", code: "fuzer.analysis.flare:RISE", scale: 100}
+    before: {value: 6, unit: h, means: "The hours before the episode its pressure is taken over."}
+  vectors: [{worked: "tests/evals/test_flare_kestrel.py::test_the_flare_names_the_item_relieving_into_it_and_its_devices"}]
