@@ -4,7 +4,7 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
-import { api, type FieldJob, type WorkInbox, type WorkNotification, type WorkRow } from "../../api";
+import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
@@ -114,6 +114,7 @@ export function InboxPage() {
       </section>}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
+      <HowYouAreTold person={person} />
     </section>
   );
 }
@@ -145,6 +146,44 @@ function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => vo
       <a href={n.link} onClick={onOpen}>{n.text}</a>
       <span className="small">{when(n.created_at)}</span>
     </li>
+  );
+}
+
+const CHANNEL: Record<NotifyPreference["channel"], string> = {
+  in_app: "Only here, on My work", email: "Email", teams: "Teams", slack: "Slack",
+};
+
+/** Where the person is told besides My work, and their quiet hours, when nothing is sent (P5.2b, #606). */
+function HowYouAreTold({ person }: { person: string }) {
+  const pref = useAsync(() => api.notifyPreference(person), [person]);
+  const [draft, setDraft] = useState<NotifyPreference | null>(null);
+  const [state, setState] = useState<{ error?: string; saved?: boolean }>({});
+  if (!pref.data) return null;
+  const p = draft ?? pref.data;
+  const change = (patch: Partial<NotifyPreference>) => { setDraft({ ...p, ...patch }); setState({}); };
+  const save = () => api.setNotifyPreference(person, p, person)
+    .then(() => { setDraft(null); setState({ saved: true }); pref.reload(); }, (e: Error) => setState({ error: e.message }));
+  const external = p.channel !== "in_app";
+  return (
+    <UICard className="" title="How you are told">
+      <div className="row small">
+        <label>Also send to{" "}
+          <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
+            {Object.entries(CHANNEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+        </label>
+        {external && <label>{p.channel === "email" ? "Address" : "Webhook kept in"}{" "}
+          <Input value={p.address ?? ""} placeholder={p.channel === "email" ? "name@company.com" : "env:NAME"}
+            onChange={(e) => change({ address: e.target.value })} /></label>}
+        {external && <label>Quiet from{" "}
+          <Input type="time" value={p.quiet_from?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_from: e.target.value || null })} /></label>}
+        {external && <label>to{" "}
+          <Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></label>}
+        <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
+        {state.error && <span role="alert" className="error">{state.error}</span>}
+        {state.saved && <span role="status">Saved.</span>}
+      </div>
+    </UICard>
   );
 }
 

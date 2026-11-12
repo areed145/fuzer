@@ -2556,6 +2556,33 @@ test("a dispatched operator sees what they were sent on My work and lands on the
   assert.deepEqual(read[1], { person: "olav", ids: null });
 });
 
+test("a person chooses Slack with quiet hours on My work (#606)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "olav"));
+  const inbox = { person: "olav", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  const saved = [];
+  await page.route("**/work/people/olav/notify", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      if (!body.address) return route.fulfill({ status: 400, json: { detail: "slack needs env:NAME, the environment variable holding the webhook URL" } });
+      saved.push(body);
+      return route.fulfill({ json: body });
+    }
+    return route.fulfill({ json: { channel: "in_app", address: null, quiet_from: null, quiet_to: null } });
+  });
+  await page.goto(`${url}/#/inbox`);
+  await page.getByRole("heading", { name: "How you are told" }).waitFor();
+  await page.getByLabel("Also send to").selectOption("slack");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("alert").filter({ hasText: "env:NAME" }).waitFor();
+  await page.getByLabel("Webhook kept in").fill("env:OLAV_SLACK");
+  await page.getByLabel("Quiet from").fill("22:00");
+  await page.getByLabel("to", { exact: true }).fill("06:00");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.deepEqual(saved[0], { channel: "slack", address: "env:OLAV_SLACK", quiet_from: "22:00", quiet_to: "06:00", by: "olav" });
+});
+
 test("Ontology header buttons stay on one line and All views explains its hidden link names (#399)", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));

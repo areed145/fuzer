@@ -257,6 +257,11 @@ register(
     Setting("sources.adx.token", "secret", "env:FUZER_ADX_TOKEN", "Where the ADX bearer token is kept", "Sources"),
     Setting("alerts.webhook", "secret", "env:FUZER_ALERT_WEBHOOK", "Where the URL failed scheduled runs are posted "
             "to (Teams, Slack or any JSON webhook) is kept", "Schedule"),
+    Setting("notify.smtp", "secret", "env:FUZER_SMTP_URL", "Where the mail server people are emailed through is "
+            "kept, as smtp://user:password@host:port (port 465: TLS; others: STARTTLS when offered)", "Schedule"),
+    Setting("notify.from", "str", "fuzer@localhost", "The address people's notification emails come from", "Schedule"),
+    Setting("notify.app_url", "str", "", "The application's address (https://fuzer.example.com), so an email or chat "
+            "message links to the case (empty: the message names the case without a link)", "Schedule"),
     Setting("access.session_hours", "int", 8, "Absolute signed-in session lifetime in hours", "Access",
             min=1, max=24, scopes=(GLOBAL,)),
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "
