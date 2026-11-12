@@ -94,6 +94,11 @@ def clear_exception(conn, type: str, key: str, by: str, reason: str | None = Non
     return _engine().clear(conn, type, key, by, reason=reason)
 
 
+def match(conn, refs) -> tuple[list[str], list[str]]:
+    """The register ids `refs` name, and the refs that matched nothing."""
+    return _engine().match(conn, refs)
+
+
 def reconcile(conn) -> dict:
     """Close open exceptions whose case finished, and put back the shelved ones whose expiry passed; the work tick
     runs it."""

@@ -8,7 +8,7 @@ import yaml
 
 from fuzer.core import bundles, db, detectors, settings
 from fuzer.core import pack as packs_
-from fuzer.sources import packs
+from fuzer.sources import packs, providers
 
 ROOT = Path(__file__).resolve().parents[2]
 SHIPPED = ROOT / "fakeplant" / "bundles"
@@ -56,6 +56,9 @@ def test_every_shipped_pack_conforms_on_both_bundles(project, bundle):
         for path in _shipped_packs():
             report = packs.conformance(conn, path)
             assert report["problems"] == [], (path.name, report)
+            if "detection_providers" in yaml.safe_load(path.read_text()):  # a push-only provider (P3.8): its alerts read
+                assert report["alerts"] and providers.providers(conn, report["system"])  # both bundles' share a system
+                continue
             assert report["loaded"]["records"] > 0 and report["loaded"]["loaded"]
             # one install put its datasets on Sources, its work types on Routing and its detectors on Detection
             assert {"datasets", "exception_types"} <= set(report["installed"])

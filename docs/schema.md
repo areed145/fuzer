@@ -804,6 +804,21 @@ Rules the register learned from stewards (P6.5, sources/learned.py): when people
 | `decided_at` | timestamptz |  |
 | `reason` | text |  |
 
+### `detection_provider`
+
+Detection providers (P3.8, sources/providers.py): an outside tool's alerts (condition monitoring, a predictive model, leak detection), mapped to the finding contract and raised as the work type it names.
+
+| Column | Type | Note |
+|---|---|---|
+| `system` | text |  |
+| `name` | text |  |
+| `label` | text |  |
+| `type` | text | the exception type its alerts raise |
+| `mapping` | jsonb | key, refs, title, severity, confidence, link, start, items, clear_when |
+| `enabled` | boolean |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ## Graph and golden records
 
 [`src/fuzer/graph/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/schema.sql)

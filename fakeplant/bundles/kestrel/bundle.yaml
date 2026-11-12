@@ -18,6 +18,6 @@ project:
   data: exports
   timeseries: synthetic
   timezone: America/Denver
-source_packs: [packs/measurement.yaml]
+source_packs: [packs/measurement.yaml, packs/healthwatch.yaml]
 roster: roster.yaml
 operating_model: {name: standard, version: 1}

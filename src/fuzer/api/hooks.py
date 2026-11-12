@@ -4,6 +4,9 @@
     {"type": "short_gas_day", "key": "MR-801:2026-11-09", "title": "...", "refs": ["tag:H1-FT-8010"], ...}
     {"type": "short_gas_day", "key": "MR-801:2026-11-09", "clear": true, "reason": "flow back"}
 
+    POST /hooks/{system}/alerts[?provider=name]   a detection provider's own alerts, one object or a list (P3.8),
+                                                  read through its mapping (sources/providers.py)
+
 The body is the `POST /exceptions` payload (or a clear), for the exception types the system brought. These routes
 are authenticated by the secret, not a session, so they are the one router outside AuthenticatedRoute besides
 /auth: a missing or wrong secret is refused before the body is read.
@@ -11,7 +14,7 @@ are authenticated by the secret, not a session, so they are the one router outsi
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .deps import get_conn
@@ -53,6 +56,22 @@ def hook(system: str, call: HookCall, conn=Depends(_secret)):
         raise HTTPException(422, "a raise needs a title")
     try:
         out = workflows.webhook(conn, system, call.model_dump())
+    except ExceptionError as e:
+        conn.rollback()
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return plain(out)
+
+
+@router.post("/{system}/alerts")
+def alerts(system: str, body: Any = Body(...), provider: str | None = None, conn=Depends(_secret)):
+    """A detection provider's alerts in its own shape: each raised, refreshed or cleared through its mapping."""
+    from ..core.exceptions import ExceptionError
+    from ..core.jsonsafe import plain
+    from ..sources import providers
+
+    try:
+        out = providers.alerts(conn, system, body, provider)
     except ExceptionError as e:
         conn.rollback()
         raise HTTPException(400, str(e)) from e

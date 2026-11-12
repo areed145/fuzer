@@ -1,0 +1,10 @@
+[
+  {"alert_id": "HW-KR-0001", "asset_tag": "B1-K-2001", "severity": "high", "probability": 87,
+   "message": "suction valve leak on cylinder 2", "pattern": "Valve cover temperature rising against its neighbours",
+   "detected_at": "today-1d 01:30", "rul_days": 21, "status": "open",
+   "url": "https://healthwatch.example/alerts/HW-KR-0001"},
+  {"alert_id": "HW-KR-0002", "asset_tag": "B9-K-9001", "severity": "medium", "probability": 62,
+   "message": "bearing temperature trend", "pattern": "Drive end bearing 6 degC above its baseline",
+   "detected_at": "today-1d 05:00", "rul_days": 60, "status": "open",
+   "url": "https://healthwatch.example/alerts/HW-KR-0002"}
+]

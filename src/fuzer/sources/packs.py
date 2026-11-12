@@ -7,6 +7,8 @@ A source pack is one YAML file (`fuzer_source_pack: 1`, see `_catalog_packs` for
     datasets:         what it exports, how each loads, the mapping in use and its quality checks
     exception_types:  the work types it raises, each with the role that owns it (they appear on Routing)
     exception_rules:  when a record raises that work
+    detection_providers: an outside detection tool's alerts mapped to findings, through POST /hooks/{system}/alerts
+                      (P3.8, providers.py)
     detectors:        the registered detectors it brings, switched on when the pack is installed (Detection)
     fixture:          a folder of sample exports, relative to the pack file: the fake source the conformance
                       suite loads, and what a project without the real system can try it on
@@ -160,8 +162,9 @@ def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
     system = (pack.get("system") or {}).get("name")
     out = {"pack": str(path), "system": system, "problems": problems, "installed": {}, "loaded": {}, "absent": []}
     datasets = [d for d in pack.get("datasets") or [] if isinstance(d, dict)]
-    if not datasets:
-        problems.append("the pack brings no datasets")
+    pushes = [p for p in pack.get("detection_providers") or [] if isinstance(p, dict)]
+    if not datasets and not pushes:
+        problems.append("the pack brings no datasets and no detection provider")
     for d in datasets:
         if not d.get("mappings") and not d.get("reader"):
             problems.append(f"dataset {d.get('name')!r} has no mapping or reader")
@@ -185,6 +188,10 @@ def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
         return out
     if set(again) - {"unchanged"}:
         problems.append(f"installing it again changed {sorted(set(again) - {'unchanged'})}")
+    if pushes:
+        out["alerts"] = _sample_alerts(conn, system, pushes, fixture, problems)
+    if not datasets:
+        return out
     optional = set(pack.get("optional") or [])
     out["absent"] = sorted(n for n in optional & named if ingest.dataset(fixture, n, conn) is None)
     wanted = sorted(named - set(out["absent"]))
@@ -203,4 +210,25 @@ def conformance(conn, path, *, fixture=None, by: str = "conformance") -> dict:
             problems.append(f"its fixture's datasets {outcome}: {', '.join(map(str, loaded[outcome]))}")
     if not loaded.get("records"):
         problems.append("its fixture loaded no records")
+    return out
+
+
+def _sample_alerts(conn, system: str, pushes: list[dict], fixture: Path, problems: list[str]) -> dict:
+    """A push-only provider's fixture is a sample of its alerts (`<provider>.json` or `alerts.json`, dates relative to
+    today as the bundles write them): each must read through its mapping."""
+    import json
+
+    from . import providers
+    from .relative_dates import resolve_all
+
+    out = {}
+    for p in pushes:
+        sample = next((f for f in (fixture / f"{p['name']}.json", fixture / "alerts.json") if f.is_file()), None)
+        if sample is None:
+            problems.append(f"provider {p['name']}: its fixture has no {p['name']}.json or alerts.json of sample alerts")
+            continue
+        res = providers.alerts(conn, system, resolve_all(json.loads(sample.read_text())), p["name"])
+        for e in res["errors"]:
+            problems.append(f"provider {p['name']}: {e}")
+        out[p["name"]] = len(res["alerts"])
     return out
