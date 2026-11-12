@@ -34,9 +34,12 @@ Then, in order:
 - **What limits it** (`calc("well_constraint", well)`): choke, back-pressure or lift, from the pressure ratio across
   the choke and the header pressure. `calc("dp_drift", well)`, charted with `plot_dp_drift(well)`, shows a
   restriction building in the flowline between tests. `detect_changes(well)` dates steps on the well's points.
-- **Interventions and gain**: recorded work comes from `maintenance_history(well)` and `downtime(well)`. Give the
-  dates and what the next test showed against the test before; with no test on both sides, the gain is unknown.
-  `opportunities()` lists scanned gains with their evidence.
+- **Interventions and gain**: recorded work comes from `maintenance_history(well)` and `downtime(well)`.
+  `intervention_gains(well)` sets each recorded intervention's oil rate after against the decline fitted through the
+  tests before, so the gain is net of decline and carries a 90 % range; charted with `plot_intervention_gains`.
+  Quote `gained`, `lost` or `no_clear_change` with the range; `unknown` (no test on one side, too few before, or a
+  gas well, whose tests carry no oil) stays unknown, never zero. `opportunities()` lists scanned gains with their
+  evidence.
 
 **Already in the queue.** A well whose rate or pressure leaves its model is an `upset` case from the models or
 hydraulics detectors, and a scanned gain is an `opportunity` case. Say when the well already has one.
