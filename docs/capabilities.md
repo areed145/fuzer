@@ -386,6 +386,7 @@ Called by agents as themselves through the workflow engine.
 | `deferment_attribution` | jacket, area or facility (or one well) | Engineering practice |  |
 | `vessel_loading` | separator, scrubber or meter tag with a rating | Engineering practice |  |
 | `corrosion_circuit` | pipeline, vessel or piping tag | API 570 7.1 |  |
+| `spares_coverage` | tag or equipment, equipment class or model, area or facility | ISO 14224 (equipment and failure data); ISO 55000 (criticality-based asset management) |  |
 | `inspection_plan` | vessel, exchanger or piping tag with an inspection plan | API 510 / API 570 |  |
 | `contactor_foaming` | amine or glycol contactor | Engineering practice |  |
 | `treated_gas` | contactor with a treated gas analyser | Engineering practice |  |

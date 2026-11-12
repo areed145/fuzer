@@ -92,7 +92,11 @@ A repeat failure is the same failure mode on the same unit more than once in the
    coincides with a repeat failure mode. A good answer names the machine, the status, the two or three
    findings that drive it with their numbers and dates, what is unknown, and the recommendation.
 8. **Spares:** `spare_parts(ref)` shows stock for the unit's BOM parts; a bad actor with no spares in
-   stock is a production risk.
+   stock is a production risk. `calc("spares_coverage", area, class or unit)` ranks the units in scope:
+   stock-outs first, A-critical before B and C, then the most failures (`critical_stock_out` when an A unit
+   lacks a part). A unit with no bill of materials is `unknown`, never covered. "Covered" means one or more on
+   the shelf, not enough: minimum stock and lead times are not recorded. A stock count is not a reservation;
+   ordering stays with supply chain.
 9. **What it costs:** `maintenance_spend(by)` gives work order cost by unit, ISO 14224 class or order type, per
    currency, with the orders that carry no cost counted. `cost_of_unreliability()` ranks units by the oil lost to the
    downtime they caused (at the pack's price) beside their corrective order cost. Quote the price and currency with
