@@ -151,6 +151,9 @@ register(
     Setting("closeout.recheck_days", "int", 30, "Days after a real problem is closed out to ask whoever closed it "
             "whether the fix held; the same failure on the same asset inside this window reopens the case as a repeat",
             "Work"),
+    Setting("readiness.permit_types", "str", "upset,iow_breach", "Work types (exception types, comma-separated) "
+            "that need a valid permit to work, with its isolations in place, on the job's location before they are "
+            "dispatched; the dispatch card shows permits for every job (P5.5c)", "Work"),
     Setting("stewardship.bulk_accept_at", "float", 0.0, "Offer to accept, in one step, Claude's master data proposals "
             "at or above this confidence (0: never; set it once the proposal evals show they hold at that level)",
             "Work", min=0, max=1),
@@ -165,6 +168,10 @@ register(
     Setting("exceptions.around_after_hours", "int", 6, "A case shows the alarms and operator log entries about its "
             "event's assets until this many hours after its latest finding (the checks and restart are logged after)",
             "Work", min=0, max=72),
+    Setting("exceptions.suppress_planned_work", "bool", True, "A machine's trip, health or upset detection about an "
+            "asset with planned work or a shutdown scheduled or in progress on it is counted under that window instead "
+            "of opening a case (never a safety case type). Off: only shutdowns, turnarounds and people's windows count",
+            "Work"),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
             "record (and during it) an operator log entry about the same plant counts as its log",
             "Work", min=0, max=168),

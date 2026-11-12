@@ -2,7 +2,7 @@
  * to the assets it is about; the ones no queue picked up wait here for someone to dispatch them. */
 import { useEffect, useState } from "react";
 import { api, type ExceptionRow, type Readiness } from "../api";
-import { Badge, Button, Card, Input, Select, Table, Empty } from "../ui";
+import { Badge, Button, Card, Disclosure, Input, Select, Table, Empty } from "../ui";
 import { Status, entityHref, href, useAsync } from "../lib";
 import { holder, reportedBy, usePerson, when } from "../work";
 import { useEntityNames } from "../useEntityNames";
@@ -58,7 +58,35 @@ export function ExceptionsPage({ query, view = "open", filters = {} }: {
         </Table>}
         <SampleTeam onAdded={people.reload} />
       </Card>
+      {view === "open" && <Suppressed />}
     </>
+  );
+}
+
+const WINDOW: Record<string, string> = { shutdown: "Shutdown", planned_work: "Planned work", person: "Set by a person" };
+
+/** What planned work, shutdowns and people's windows held back (P3.5b): counted, not lost. Nothing shows until
+ * something was held back. */
+function Suppressed() {
+  const s = useAsync(() => api.exceptionsSuppressed(), []);
+  const d = s.data;
+  if (!d?.findings) return null;
+  return (
+    <Card title={`Suppressed: ${d.findings} ${d.findings === 1 ? "finding" : "findings"}, raised ${d.raised} times`}>
+      {d.windows.length > 0 && <ul className="plain small">{d.windows.map((w) => (
+        <li key={`${w.kind}-${w.id}`}><strong>{WINDOW[w.kind] ?? w.kind}</strong>: {w.reason} · until {when(w.end_at)}
+          {" · "}{w.findings} held back</li>))}
+      </ul>}
+      <Disclosure label="What was held back">
+        <Table density="compact">
+          <thead><tr><th>Finding</th><th>Window</th><th>Raised</th><th>Last seen</th></tr></thead>
+          <tbody>{d.items.map((x) => (
+            <tr key={x.id}><td>{x.title}</td><td>{WINDOW[x.window_kind] ?? x.window_kind}: {x.reason}</td>
+              <td>{x.raised}</td><td>{when(x.last_seen)}</td></tr>))}
+          </tbody>
+        </Table>
+      </Disclosure>
+    </Card>
   );
 }
 
@@ -224,6 +252,8 @@ function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness
     ? <p className="small ready-note"><Badge tone="ok">ready</Badge>{" "}
       {[...r.checks.flatMap((c) => (c.centers ?? []).filter((w) => w.crew != null)
         .map((w) => `${w.description ?? w.label}: ${w.busy} of ${w.crew} busy.`)),
+        ...r.checks.flatMap((c) => (c.permits ?? []).filter((p) => p.valid).slice(0, 1)
+          .map((p) => `Permit ${p.label} (${p.type ?? "permit"}) valid to ${p.valid_to ?? "?"}.`)),
         ...r.checks.filter((c) => !c.checked).map((c) => c.note)].filter(Boolean).join(" ")}</p>
     : <div className="small ready-note" role="status"><Badge tone="warn">not ready</Badge>
       <ul className="plain">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>;

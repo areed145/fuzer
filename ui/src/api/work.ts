@@ -292,7 +292,10 @@ export interface Readiness {
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
       orders: { po: string; quantity: number; due: string }[] }[];
     centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
-      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[] }[];
+      full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[];
+    needed?: boolean;
+    permits?: { id: string; label: string; type: string | null; state: string | null; valid_to: string | null;
+      location_label: string | null; valid: boolean; why_not: string | null }[] }[];
 }
 
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
@@ -405,6 +408,17 @@ export interface CaseAround {
     start: string; end: string | null }[];
   log: { id: string; at: string; author: string | null; text: string | null }[];
   basis: string;
+}
+
+/** What suppression held back (P3.5b): the windows running now and every finding counted under one. */
+export interface SuppressedView {
+  findings: number;
+  raised: number;
+  windows: { kind: string; id: number; reason: string; start_at: string; end_at: string; created_by: string;
+    raised: number; findings: number }[];
+  items: { id: number; type: string; key: string; title: string; source: string | null; subjects: string[];
+    value_usd: number | null; window_kind: string; window_id: number; reason: string; raised: number;
+    first_seen: string; last_seen: string }[];
 }
 
 /** A change proposed to a source system (P5.7): it is written only after a named approver approves it. */
@@ -753,6 +767,7 @@ export const workApi = {
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
+  exceptionsSuppressed: () => request<SuppressedView>("GET", "/exceptions/suppressed"),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
   handover: (id: number) => request<Handover>("GET", `/handovers/${id}`),
   draftHandover: (by: string) => request<Handover | null>("POST", "/handovers/draft", undefined, { by, refresh: true }),

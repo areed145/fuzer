@@ -372,6 +372,20 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
+  await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
+    windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",
+      end_at: "2026-11-14T00:00:00Z", created_by: "sap", raised: 3, findings: 1 }],
+    items: [{ id: 1, type: "machine_trip", key: "B1@1", title: "Train B1 tripped", source: "trips", subjects: [],
+      value_usd: null, window_kind: "shutdown", window_id: 4, reason: "Train B1 shutdown", raised: 3,
+      first_seen: "2026-11-11T03:20:00Z", last_seen: "2026-11-11T05:20:00Z" }] } }));
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.getByRole("heading", { name: "Suppressed: 1 finding, raised 3 times" }).waitFor();
+  await page.getByText("Train B1 shutdown", { exact: false }).first().waitFor();
+  await page.getByRole("button", { name: "What was held back" }).click();
+  await page.getByRole("cell", { name: "Train B1 tripped" }).waitFor();
+});
+
 test("a case shows the alarms and operator log entries around its event (P3.5a)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Train B1 tripped", type: "machine_trip",
     state: "open", subjects: [], created_by: "trips", created_at: "2026-11-11T03:20:00Z", events: [], processes: [] } }));
@@ -3781,8 +3795,9 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
 });
 
-// P5.5b (#682): the dispatch card says how busy the job's crew is, and a full crew is a blocker naming its jobs.
-test("the dispatch card shows the crew's load and a full crew blocks the job (#682)", async () => {
+// P5.5b, P5.5c (#682, #683): the dispatch card says how busy the job's crew is and which permit covers it, and a full
+// crew is a blocker naming its jobs.
+test("the dispatch card shows the crew's load, its permit, and a full crew blocks the job (#682, #683)", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
   const job = (id, title) => ({ id, type: "leak", key: `k${id}`, title, state: "open", source: "olga", priority: 2,
     value_usd: null, subjects: ["fz-g7006"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
@@ -3792,7 +3807,10 @@ test("the dispatch card shows the crew's load and a full crew blocks the job (#6
   const elec = { id: "fz-elec", label: "ELEC", description: "Electrical technicians", crew: 1, busy: 0, full: false, jobs: [] };
   await page.route("**/exceptions/8/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [],
     checks: [{ check: "spares", label: "Spares", ready: true, checked: false, note: "No BOM for this equipment, so no parts to check.", blockers: [] },
-      { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] }] } }));
+      { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] },
+      { check: "permits", label: "Permit", ready: true, checked: true, note: null, blockers: [], needed: true,
+        permits: [{ id: "fz-p", label: "PTW-24103", type: "electrical", state: "issued", valid_to: "2026-11-13 18:00",
+          location_label: "G1-G-7006", valid: true, why_not: null }] }] } }));
   await page.route("**/exceptions/9/readiness", (route) => route.fulfill({ json: { ready: false,
     blockers: ["Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #3 Look at the standby generator"],
     checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [],
@@ -3801,5 +3819,6 @@ test("the dispatch card shows the crew's load and a full crew blocks the job (#6
   await page.getByText("Generator batteries").waitFor();
   for (const sel of await page.getByLabel("Dispatch to").all()) await sel.selectOption("fred");
   await page.getByText("Electrical technicians: 0 of 1 busy.", { exact: false }).waitFor();
+  await page.getByText("Permit PTW-24103 (electrical) valid to 2026-11-13 18:00.", { exact: false }).waitFor();
   await page.getByText("all 1 busy on open jobs: #3 Look at the standby generator", { exact: false }).waitFor();
 });
