@@ -38,10 +38,11 @@ class Method:
     standard: str | None = None   # the published standard, as the calculation applies it
     clause: str | None = None
     practice: str | None = None   # the engineering practice followed where no published standard applies
+    tool: str | None = None       # the tool that runs it, where that is not `calc`
     inputs: tuple = ()            # ({"name", "unit"}, ...)
     valid: str = ""               # where the method holds
     needs: str = ""               # the data it needs before it answers
-    thresholds: dict = field(default_factory=dict)  # name -> {"value", "unit", "means", "code"?}
+    thresholds: dict = field(default_factory=dict)  # name -> {"value", "unit", "means", "code"?, "scale"?, "index"?}
     vectors: tuple = ()           # ({"kernel", "args", "expect", "says"} | {"worked": "<test node>"}, ...)
 
     @property

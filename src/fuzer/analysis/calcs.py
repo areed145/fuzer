@@ -315,8 +315,10 @@ def pump_operation(conn, fid: str, days: int = 365, rho: float = 850.0, src=None
     return {"tag": tag, "label": _label(conn, tag), "curve": c, "start": start, "end": end, "ops": ops, "bep": bep,
             "by_month": by_month, "need": [p["id"] for p in need.values()]}
 
+HEAD_LOSS_PCT = 5.0  # % below the OEM curve at the same flow: internal wear
 
-def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = 5.0, until: str | None = None,
+
+def pump_curve(conn, fid: str, days: int = 365, tolerance_pct: float = HEAD_LOSS_PCT, until: str | None = None,
                recent_days: int = 30, min_readings: int = 40) -> dict:
     """A pump's head against its OEM curve at the same flow, as the median over its last `recent_days` of
     running: at least `min_readings` (about ten days at 6-hour readings), so a standby pump's starts and

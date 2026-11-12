@@ -20,6 +20,8 @@ from .calcs import CalcError, _label, _r, result
 BBL = 6.2898  # bbl per Sm3
 MMSCF = 28.3168  # kSm3 per MMscf
 NEAR = 90.0
+OVERLOADED = 100.0  # % of the standing rating
+BACK_DAYS = 90  # how far back the loading is compared with
 TEST_DAYS = 120  # a well test older than this doesn't count for the day's throughput
 
 
@@ -75,7 +77,7 @@ def _in_units(quantity: str, unit: str, flow: dict) -> float | None:
     return None
 
 
-def vessel_loading(conn, fid: str, until: str | None = None, back_days: int = 90) -> dict:
+def vessel_loading(conn, fid: str, until: str | None = None, back_days: int = BACK_DAYS) -> dict:
     from ..graph import operations
 
     day = date.fromisoformat((until or operations.as_of(conn))[:10])
@@ -99,7 +101,7 @@ def vessel_loading(conn, fid: str, until: str | None = None, back_days: int = 90
     if not loads:
         raise CalcError("the item's rating is in a unit Fuzer can't compare with well tests")
     worst = max(loads, key=lambda x: x["loading_pct"])
-    flag = "overloaded" if worst["loading_pct"] >= 100 else "near_capacity" if worst["loading_pct"] >= NEAR else None
+    flag = "overloaded" if worst["loading_pct"] >= OVERLOADED else "near_capacity" if worst["loading_pct"] >= NEAR else None
     cut = flow["water"] / (flow["oil"] + flow["water"]) * 100 if flow["oil"] + flow["water"] else None
     return result(worst["throughput"], worst["rating"], flag,
                   f"{worst['quantity'].replace('_', ' ')} through {_label(conn, fid)}: the latest test (within "
