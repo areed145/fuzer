@@ -149,7 +149,8 @@ def test_cadence_and_the_limit_per_run(conn):
         wb.approve(conn, r["id"], "ines", now=T0)
     conn.commit()
     out = wb.run(conn, T0 + timedelta(minutes=30))
-    assert out["sent"] == 1 and out["held"] == 1  # pi takes one write per run
+    # pi takes one write per run (other tests, in any order, may leave approved rows for sap, which has no such limit)
+    assert out["held"] == 1 and sorted(wb.get(conn, r["id"])["state"] for r in (a, b)) == ["approved", "sent"]
 
 
 def test_rejecting_cancels_the_case(conn):
