@@ -17,6 +17,7 @@ from fuzer.core.findings import (
     at,
     external,
     fact,
+    page,
     shown,
     text,
 )
@@ -86,3 +87,13 @@ def test_no_raiser_writes_its_own_evidence_keys():
     calls = [(where, kw) for where, kw in calls if where.split(":")[0] != "core/exceptions.py"]  # the port passes it on
     assert len(calls) >= 10, calls  # SRE, IOW, trips, machine health, records, sources, SAP, rules, webhooks, the API
     assert [where for where, kw in calls if "evidence" in kw or "finding" not in kw] == []
+
+
+def test_a_page_link_is_a_route_in_fuzer_and_reads_as_words():
+    item = page("Answer", "#/masterdata?tab=questions&item=3", "Answer it on Master data")
+    assert item.record() == {"label": "Answer", "value": "#/masterdata?tab=questions&item=3", "kind": "page",
+                             "text": "Answer it on Master data"}
+    assert page("Answer", None, "x") is None
+    with pytest.raises(FindingError):
+        page("Answer", "https://elsewhere.example/x", "x")  # never a link out of Fuzer
+    assert Finding("stewardship.match", EXTERNAL, items=(item,)).evidence()["finding"]["items"][0]["kind"] == "page"

@@ -15,6 +15,7 @@ steward's, not part of the pump's trip.
 """
 
 from ..core.exceptions import clear_exception, exception_type, open_keys, raise_exception
+from ..core.findings import EXTERNAL, Finding, fact, page
 
 ROLE = "role:data_steward"
 BY = "stewardship"
@@ -81,6 +82,21 @@ def refs(kind: str, p: dict) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def question_route(item_id: int, kind: str) -> str:
+    """Where the question is answered: its own tab on Master data, opened on it."""
+    return f"#/masterdata?tab=questions&kind={kind}&item={item_id}"
+
+
+def finding(item_id: int, kind: str, p: dict) -> Finding:
+    """The case's evidence: what kind of question, the score where there is one, and a link to answer it."""
+    return Finding(f"stewardship.{kind}", EXTERNAL, method=KINDS[kind][2], items=(
+        page("Answer", question_route(item_id, kind), "Answer it on Master data"),
+        fact("Match score", float(p["score"])) if kind == "match" and p.get("score") is not None else None,
+        fact("Field", p.get("field")) if kind == "conflict" else None,
+        fact("Dataset", p.get("dataset")) if kind in ("schema", "mapping", "check") else None,
+    ), data={"review_item": item_id, "kind": kind})
+
+
 def sync(conn, by: str = BY) -> dict:
     """Make the steward's open work match the open questions. Returns {raised, refreshed, cleared}."""
     out = {"raised": 0, "refreshed": 0, "cleared": 0}
@@ -91,7 +107,7 @@ def sync(conn, by: str = BY) -> dict:
         t, key, p = TYPES[r["kind"]].name, f"{r['kind']}:{r['subject']}", r["payload"] or {}
         live[t].add(key)
         row = raise_exception(conn, t, key, title(r["kind"], r["subject"], p)[:300], by, refs=refs(r["kind"], p),
-                              source=BY)
+                              source=BY, finding=finding(r["id"], r["kind"], p))
         out["raised" if row.get("raised") else "refreshed"] += 1
     for t, keys in live.items():
         for key in open_keys(conn, t) - keys:

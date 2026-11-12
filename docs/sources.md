@@ -121,7 +121,9 @@ match, sources that disagree, a drawing that disagrees with a system, a drawing 
 confirm, an export whose columns changed, a suggested mapping, and a load a check held. These cases are worked in
 the same engine as the IOC's, so they show in My work and All work. Each case is keyed to its question and synced
 at every rebuild. An answer clears the case, and so does a question that no longer arises, so the queue always
-matches the questions. Steward cases don't join the IOC's cases about the same asset.
+matches the questions. Steward cases don't join the IOC's cases about the same asset. The questions themselves are
+the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
+there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
 
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:

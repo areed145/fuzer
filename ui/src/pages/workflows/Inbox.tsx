@@ -85,7 +85,7 @@ export function InboxPage() {
         {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
-        {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
+        {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
       <ScenarioClock />

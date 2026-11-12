@@ -29,6 +29,13 @@ def test_every_open_question_is_a_case_in_the_stewards_queue(okan_db):
     # The match questions name both records and the tag they share.
     match = next(x for k, x in work.items() if k.startswith("match:"))
     assert match["title"].startswith("Same item? ") and " at " in match["title"]
+    # Its evidence links to the question, opened on it on Master data, and says what was scored.
+    item = conn.execute("select id from review_item where kind = 'match' and subject = %s",
+                        (match["key"].removeprefix("match:"),)).fetchone()["id"]
+    items = {i["label"]: i for i in match["evidence"]["finding"]["items"]}
+    assert items["Answer"] == {"label": "Answer", "kind": "page", "text": "Answer it on Master data",
+                               "value": f"#/masterdata?tab=questions&kind=match&item={item}"}
+    assert items["Match score"]["kind"] == "number"
     conn.rollback()
 
 
