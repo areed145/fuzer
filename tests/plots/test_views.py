@@ -64,6 +64,13 @@ def test_compare_periods_and_similar_cases(conn):
     quiet = cases.compare_periods(conn, fid(conn, "OK-J01-01"), ("2025-06-01T00:00", "2025-06-05T00:00"),
                                   ("2025-06-06T00:00", "2025-06-10T00:00"))
     assert quiet["value"] <= len(quiet["points"])
+    # P4.6: each window through the shared sufficiency check; a point it could not compare is listed, with why
+    assert choke["sufficiency"] == {"before": "sufficient", "after": "sufficient"} and min(choke["readings"]) >= 5
+    assert out["compared"] >= len(out["points"]) and out["not_compared"] == []
+    assert out["windows"]["after"] == ["2025-10-16T00:00", "2025-10-25T00:00"]
+    with pytest.raises(cases.CalcError, match="too little data in those windows to compare: .*before: 4 readings, fewer than the 5"):
+        cases.compare_periods(conn, fid(conn, "OK-J12-02"), ("2025-10-05T00:00", "2025-10-05T00:30"),
+                              ("2025-10-16T00:00", "2025-10-25T00:00"))
     sim = cases.similar_cases(conn, fid(conn, "20-K-2200B"))
     assert sim["cases"] and all("fixes" in c and "held" in c for c in sim["cases"])
     assert mcp_server.similar_cases("20-K-2200B")["incident"] == sim["incident"]

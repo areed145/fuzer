@@ -48,6 +48,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
 | [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
 | [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
+| [`period_comparison`](#period_comparison) Each measurement in two windows, before and after a change | Engineering practice | Historian readings on the point or the unit's points (each point's own) | Enough readings in each window for the shared sufficiency check; a point without them is listed as not compared. |
 
 ## Refusals
 
@@ -398,3 +399,15 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `every forecast (fuzer.analysis.forecast:trend_interval, arps_interval)`
 - **Test vector:** The line 1.4 + 0.8x at x = 6 is 6.2, and a new point there falls in 1.89 to 10.51 nine times in ten (t 2.353, s 1.095). (`trend_interval`)
 - **Test vector:** The same decline through scattered tests forecasts 36.79 at year 5 within 33.2 to 40.7. (`arps_interval`)
+
+## period_comparison
+
+**Each measurement in two windows, before and after a change.** Engineering practice. Medians and the change, with Welch's t on the means and each window's sample cut to its effective size for autocorrelation (n (1 - r1) / (1 + r1)); each window through the shared sufficiency check first. A significant change after a fix does not prove the fix caused it.
+
+- **Valid for:** Any measured point with readings in both windows; windows of similar operation compare best.
+- **Needs:** Enough readings in each window for the shared sufficiency check; a point without them is listed as not compared.
+- **Run by:** `compare_periods`
+- **Threshold `significant`:** The p value under which a change is called significant. (0.05)
+- **Threshold `min_readings`:** Readings each window needs before a point is compared. (5)
+- **Threshold `window_gap`:** A gap this long inside a window makes the comparison thin. (1 days)
+- **Worked example:** `tests/plots/test_views.py::test_compare_periods_and_similar_cases`, on the fake plant
