@@ -67,6 +67,7 @@ nav:
       - capabilities.md
       - methods.md
       - detectors.md
+      - metrics.md
       - settings.md
       - cli.md
       - schema.md
