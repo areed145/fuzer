@@ -9,6 +9,8 @@ Assets: one per dataset in the source catalog (#225; each loads only itself, as 
 - `dataset_schedules` sensor: a dataset with its own schedule (source_dataset.schedule, a cron) loads then.
 - `refresh_logs` hourly and `refresh_all` daily (02:00); `source_health` every 30 minutes tells owners about
   stale or broken sources (work items and the alert webhook).
+- `detect_5min`, `detect_30min`, `detect_hourly`, `detect_6h` and `detect_daily`: each detector tier (P3.2), its
+  detectors from their own watermarks (compressor trips every 5 minutes, machine health hourly, records daily).
 - `providers_poll` every 15 minutes reads each polled detection provider's alert table when it changed (P3.8c).
 - Each source asset has a check: its dataset's checks and health.
 - `claude_reading` nightly, off by default because it costs money. Turn it on in the UI.
@@ -35,6 +37,7 @@ from ..core.pack import Pack, load_pack, resolve
 from ..graph import llm_links
 from ..sources import ingest, llm_pids
 from . import pipeline
+from .cadence import TIERS as CADENCE_CRON
 
 PROJECT_TAG = "fuzer/project"
 
@@ -404,9 +407,6 @@ def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSett
         engine.load_defaults(conn)
         out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
         context.log.info(f"sre hand-off: {({k: v for k, v in out.items() if k != 'items'})}")
-        from ..core import detectors  # after the hand-off, so a trip joins the case its upset opened
-        ran = detectors.run(conn, pack, "compressor_trips", since=scanned["since"], until=scanned["until"])
-        context.log.info(f"compressor trips: {ran}")
         from . import board
         context.log.info(f"board: {board.refresh(conn, pack)}")
 
@@ -436,10 +436,6 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
         from ..analysis import hydraulics
         from . import board
         context.log.info(f"debottleneck options: {hydraulics.store_options(conn, pack)}")
-        from ..core import detectors
-        context.log.info(f"opportunity scan: {detectors.run(conn, pack, 'opportunities')}")
-        context.log.info(f"machine health: {detectors.run(conn, pack, 'machine_health')}")
-        context.log.info(f"records gaps: {detectors.run(conn, pack, 'records_gaps')}")
         board.refresh(conn, pack)
 
 
@@ -473,6 +469,30 @@ def source_health_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
 @dg.job(description="Source health: stale data, failed or held loads, failing checks -> exceptions, cases and alerts.")
 def source_health():
     source_health_op()
+
+
+def _tier_job(name: str):
+    """A detector tier's job (P3.2): its detectors, each from its own watermark, then the board."""
+    @dg.op(name=f"detect_{name}_op", description=f"Run the {name} tier's detectors from their watermarks (P3.2).")
+    def op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
+        from ..core import events
+        from . import board, cadence
+        with fuzer.connect() as conn:
+            pack = fuzer.pack_for(conn)
+            out = cadence.run_tier(conn, pack, name)
+            context.log.info(f"tier {name}: {out}")
+            if out["ran"]:
+                board.refresh(conn, pack)
+            context.log.info(f"events: {events.deliver(conn)}")
+            conn.commit()
+
+    @dg.job(name=f"detect_{name}", description=f"Detectors every {name}: each from its own watermark (P3.2).")
+    def job():
+        op()
+    return job
+
+
+DETECT = {name: _tier_job(name) for name in ("5min", "30min", "hourly", "6h", "daily")}
 
 
 @dg.op(description="Read each polled detection provider's alert table when it has changed (P3.8c).")
@@ -539,6 +559,7 @@ schedules = [
     per_project(day_close, settings.get(None, "daily_report.close_cron"), RUNNING),
     per_project(source_health, "*/30 * * * *", RUNNING),
     per_project(providers_poll, "*/15 * * * *", RUNNING),
+    *(per_project(job, CADENCE_CRON[name], RUNNING) for name, job in DETECT.items()),
 ]
 
 
@@ -624,7 +645,7 @@ defs = dg.Definitions(
     assets=[*SOURCES, register, claude_log_reads, claude_pid_reads, claude_doc_reads],
     asset_checks=[review_backlog, orphan_timeseries, tags_missing_from_sap, downtime_reason_codes, unmapped_site_codes,
                   document_revisions, flow_vs_piping, *SOURCE_CHECKS],
-    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll],
+    jobs=[refresh_all, refresh_logs, claude_reading, work_tick, work_notify, writeback_run, closeout_sweep, sre_scan, day_close, studies_job, source_health, providers_poll, *DETECT.values()],
     schedules=schedules,
     sensors=[new_exports, dataset_schedules, alert_on_failure],
     resources={"fuzer": Fuzer(), "claude": ClaudeSettings()},

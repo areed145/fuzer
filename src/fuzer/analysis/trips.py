@@ -546,7 +546,7 @@ def compressor_trains(conn) -> list[str]:
 
 
 @detectors.register("compressor_trips", title="A compression train tripping, with its first cause", kind=detectors.RULE,
-                    cadence="6h", raises=("machine_trip",), classes=("compressor",),
+                    cadence="5min", raises=("machine_trip",), classes=("compressor",),
                     roles=("running_status", "vibration", "bearing_temperature", "discharge_temperature"),
                     needs={"historian points": detectors.POINTS,
                            "a compression train": lambda conn, pack: bool(compressor_trains(conn))},

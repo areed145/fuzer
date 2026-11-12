@@ -167,6 +167,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | Setting | Type | Default | Range | What it is |
 |---|---|---|---|---|
 | `detectors.on` | bool | `True` |  | Run the detectors; set for one detector as detectors.on@<name> on the Detection page. |
+| `detectors.cadence` | choice | `` |  / 5min / 30min / hourly / 6h / daily | How often a scheduled detector runs, set for one detector as detectors.cadence@<name> (empty: the cadence it declares). Window detectors run in the SRE scan. |
 
 ## Demo
 

@@ -294,6 +294,9 @@ register(
             min=1, max=32, scopes=(GLOBAL,)),
     Setting("detectors.on", "bool", True, "Run the detectors; set for one detector as detectors.on@<name> on the "
             "Detection page", "Detection"),
+    Setting("detectors.cadence", "choice", "", "How often a scheduled detector runs, set for one detector as "
+            "detectors.cadence@<name> (empty: the cadence it declares). Window detectors run in the SRE scan",
+            "Detection", choices=("", "5min", "30min", "hourly", "6h", "daily")),
     Setting("demo.enabled", "bool", True, "Show the Demo tab and guided onboarding for all approved users. "
             "Hiding Demo does not change permissions or disable the underlying tools.", "Demo", scopes=(GLOBAL,)),
 )

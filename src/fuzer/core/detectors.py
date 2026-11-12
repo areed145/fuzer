@@ -31,7 +31,8 @@ from . import settings
 
 RULE, STATISTICAL, MODEL, AGENTIC = "rule", "statistical", "model", "agentic"
 KINDS = {RULE: "Rule", STATISTICAL: "Statistical", MODEL: "Model", AGENTIC: "Agentic"}
-CADENCES = {"30min": "Every 30 minutes", "6h": "Every 6 hours", "daily": "Once a day", "request": "On request"}
+CADENCES = {"5min": "Every 5 minutes", "30min": "Every 30 minutes", "hourly": "Every hour", "6h": "Every 6 hours",
+            "daily": "Once a day", "request": "On request"}
 RAN, NOT_APPLICABLE, FAILED, OFF = "ran", "not_applicable", "failed", "off"
 ON = "detectors.on"  # the setting that switches detectors; detectors.on@<name> for one
 
