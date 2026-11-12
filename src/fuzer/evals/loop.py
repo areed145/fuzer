@@ -21,7 +21,9 @@ Work arrives the way it does in production (P1.7c, Gate A): each bundle's `evals
 brings it in: a registered detector run as a schedule runs it (`detectors.run`) over the window the bundle names, the
 window detectors through the SRE scan and hand-off, a source's sync, or the register build's own questions. The arrive
 step runs that and takes the exception it raised. A type the bundle names no arrival for is raised by the loop itself
-and reported `synthetic`, so the report shows what is not yet covered.
+and reported `synthetic`, so the report shows what is not yet covered. Before the run, the processes load and the
+cases opened before they did run them (`routing.adopt_open_cases`), as on the API's start. Work about a source rather
+than an asset (`about: source`) matches one of the project's sources instead of an asset (#747).
 """
 
 import re
@@ -62,6 +64,12 @@ ARRIVE: dict[str, dict] = {
 # A source's sync that raises its own work, by the name a bundle's evals/loop.yaml uses.
 SOURCES = {"sap_notifications": lambda conn: __import__("fuzer.ops.intake", fromlist=["intake"]).sync_notifications(
     conn, enabled=True)}
+
+# A check production runs on a schedule or after each load that raises data work, by the name evals/loop.yaml uses.
+SYNCS = {
+    "source_health": lambda conn: __import__("fuzer.sources.alerts", fromlist=["alerts"]).check(conn, by="sources"),
+    "scorecard": lambda conn: __import__("fuzer.sources.scorecard", fromlist=["scorecard"]).sync(conn),
+}
 
 _ID = re.compile(r"\bfz-[\w-]+")  # a Fuzer id; a person reads names, never these
 
@@ -109,17 +117,37 @@ def _bring(conn, how: dict) -> str:
         return f"the {how['source']} sync"
     if how.get("build"):
         return "the register build"
+    if "sync" in how:
+        if how["sync"] not in SYNCS:
+            raise Step(f"no sync called {how['sync']}")
+        SYNCS[how["sync"]](conn)
+        return f"the {how['sync']} check"
     raise Step(f"evals/loop.yaml says neither a detector, a scan, a source nor the build: {how}")
 
 
-def _arrived(conn, kind: str, since, build: bool) -> dict | None:
-    """The exception that came in: open, about an asset, its own case (not joined to another), not the loop's."""
+def _arrived(conn, kind: str, since, build: bool, about: str = "asset") -> dict | None:
+    """The exception that came in: open, about an asset (or, for work about a source, about one of the project's
+    sources), its own case (not joined to another), not the loop's."""
     return conn.execute(
         """
         select * from exception_record where type = %s and state = 'open' and joined_to is null
-          and cardinality(subjects) > 0 and coalesce(source, '') <> %s and (%s or last_seen >= %s)
+          and (cardinality(subjects) > 0) = %s and coalesce(source, '') <> %s and (%s or last_seen >= %s)
         order by last_seen desc, id desc limit 1
-        """, (kind, BY, build, since)).fetchone()
+        """, (kind, about != "source", BY, build, since)).fetchone()
+
+
+def _source_of(conn, row: dict) -> str | None:
+    """The project source or dataset a piece of work about a source names: in its finding, else its key."""
+    from ..sources import catalog
+
+    names = set(catalog.datasets(conn)) | {r["source"] for r in conn.execute("select distinct source from crosswalk")}
+    names |= {r["name"] for r in conn.execute("select name from source_system")}
+    said = [str((e.get("data") or {}).get(k) or "") for e in (row.get("evidence") or []) if isinstance(e, dict)
+            for k in ("dataset", "source")]
+    for name in [*said, *(row["key"] or "").replace(":", " ").split()]:
+        if name in names or name.lower() in names:
+            return name
+    return None
 
 
 def _people(conn) -> None:
@@ -264,9 +292,13 @@ def run_type(conn, route: dict, ref: str, run_id: str = "", how: dict | None = N
         if how:
             what = _bring(conn, how)
             conn.commit()
-            found = _arrived(conn, route["type"], since, bool(how.get("build")))
+            found = _arrived(conn, route["type"], since, bool(how.get("build")), how.get("about", "asset"))
             if not found:
-                raise Step(f"{what} raised no {route['type']} of its own about an asset")
+                raise Step(f"{what} raised no {route['type']} of its own about {'a source' if how.get('about') == 'source' else 'an asset'}")
+            if how.get("about") == "source":
+                row = {**found, "raised": True, "about_source": _source_of(conn, found)}
+                out["arrived"] = what
+                return f"{what} raised it about the {row['about_source'] or found['key']} source"
             row = {**found, "raised": True}
             out["arrived"] = what
             return f"{what} raised it about {', '.join(_names(conn, found['subjects']))}"
@@ -281,6 +313,10 @@ def run_type(conn, route: dict, ref: str, run_id: str = "", how: dict | None = N
         return f"synthetic: raised by the loop about {ref}"
 
     def match():
+        if "about_source" in row:  # work about a source names one of the project's sources, not an asset
+            if not row["about_source"]:
+                raise Step(f"it names no source or dataset of this project ({row['key']})")
+            return f"matched the {row['about_source']} source"
         if row["unmatched"] or not row["subjects"]:
             raise Step(f"{', '.join(row['unmatched']) or ref} matched no asset")
         return f"matched {len(row['subjects'])} asset"
@@ -357,6 +393,7 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     from ..workflow import engine
 
     engine.load_defaults(conn)
+    routing.adopt_open_cases(conn, by=BY)  # as the API's start does: work raised before the processes loaded runs them
     _people(conn)
     conn.commit()
     routes = [r for r in routing.routes(conn) if only is None or r["type"] in only]

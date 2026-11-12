@@ -14,3 +14,12 @@ arrive:
   iow_breach: {detector: iow_breaches, start: "2025-07-12T00:00", end: "2025-07-16T00:00"}
   records_gap: {detector: records_gaps}
   sap_notification: {source: sap_notifications}
+  # The register build's own questions, open before the run (the stewards' queue holds them)
+  conflicting_sources: {build: true}
+  context_gap: {build: true}
+  criticality_not_assessed: {build: true}
+  drawing_disagreement: {build: true}
+  unmatched_record: {build: true}
+  # Work about a source rather than an asset: matched to one of the project's sources
+  unmatched_records: {build: true, about: source}
+  unresolved_links: {build: true, about: source}

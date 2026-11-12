@@ -38,6 +38,12 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
     arrived = {r["type"]: r["arrived"] for r in res["types"]}
     assert not {"upset", "iow_breach", "sap_notification", "machine_trip", "machine_health", "records_gap",
                 } & set(res["synthetic"]), arrived
+    # the register build's questions, raised before the processes loaded, run them once they do, as on the API's
+    # start (routing.adopt_open_cases); work about a source matches one of the project's sources (#747)
+    assert not {"conflicting_sources", "context_gap", "criticality_not_assessed", "drawing_disagreement",
+                "unmatched_record", "unmatched_records", "unresolved_links"} & set(res["synthetic"]), arrived
+    assert done["unresolved_links"]["steps"]["match"] == "matched the ptw source"
+    assert done["criticality_not_assessed"]["steps"]["route"] == "in the data_steward queue"
     assert done["upset"]["steps"]["route"] == "started upset" and done["upset"]["steps"]["count"].endswith("(Resolved)")
     assert done["sap_notification"]["steps"]["triage"] == "on the board, to dispatch"
     assert done["source_issue"]["steps"]["field"].startswith("skipped")  # data work stays at the desk

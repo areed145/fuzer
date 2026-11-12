@@ -16,11 +16,16 @@ for each type and why, and the command exits 1 when any type fails. It writes ca
 Work **arrives** the way it does in production (P1.7c, Gate A). Each bundle's `evals/loop.yaml` names what brings each
 type in and the window of the bundle's history where it does: a registered detector run as a schedule runs it
 (`compressor_trips`, `machine_health`, `iow_breaches`, `records_gaps`), the window detectors through the SRE scan and
-hand-off (upsets), or a source's sync (SAP notifications). Kestrel's windows are relative (`today-1d 03:10`) like its
+hand-off (upsets), a source's sync (SAP notifications), a scheduled data check (`sync: source_health`,
+`sync: scorecard`), or the register build's own questions (`build: true`: the stewards' questions, which run their
+queue process once the processes load, as on the API's start). Work about a source rather than an asset (records that
+match nothing, links that name nothing) says `about: source`, and its match step checks it names one of the project's
+sources. Kestrel's windows are relative (`today-1d 03:10`) like its
 process model. The arrive step takes the exception that came in, about an asset and with its own case; whatever else
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
-raised by the loop and listed as `synthetic`: today the steward questions the build raises (they open before the
-starting processes are loaded in the test fixtures) and the source and mapping types neither bundle produces.
+raised by the loop and listed as `synthetic`: today the source and mapping problems (stale or held loads, failed
+checks, drifted columns, a suggested mapping, a quality drop) and the questions neither bundle's build produces
+(curves and drawing lines to confirm, round findings), which #747 seeds next.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser

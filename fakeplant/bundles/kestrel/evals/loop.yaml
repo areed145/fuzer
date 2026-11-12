@@ -8,3 +8,12 @@ arrive:
   machine_health: {detector: machine_health}
   iow_breach: {detector: iow_breaches, start: "today-2d 00:00", end: "today"}
   sap_notification: {source: sap_notifications}
+  # The register build's own questions, open before the run (the stewards' queue holds them)
+  conflicting_sources: {build: true}
+  context_gap: {build: true}
+  criticality_not_assessed: {build: true}
+  measurement_role_to_confirm: {build: true}
+  unmatched_record: {build: true}
+  # Work about a source rather than an asset: matched to one of the project's sources
+  unmatched_records: {build: true, about: source}
+  unresolved_links: {build: true, about: source}
