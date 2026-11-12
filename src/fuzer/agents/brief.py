@@ -20,6 +20,10 @@ more is kept and says so.
     latest(conn, item_id)        the case's brief, or its reason for having none
     pending(conn)                open cases with no brief yet, oldest first
     next_one(conn, ask)          write the oldest pending brief, one worker per case; None when there is none
+    view(conn, item_id)          what the case page shows: whether one is expected, when it is due, the brief or why
+                                 there is none, and the person's verdict on it
+    verdict(conn, item_id, by, followed, note)
+                                 a person records whether they followed the proposal (yes, partly, no); for Phase 6
 
 The agent worker writes briefs when it has no agent step to run (`agents.briefs`, on by default), so steps a
 process is waiting on go first and briefs fill the idle time; the per-brief budget and the case cap bound the spend.
@@ -169,3 +173,40 @@ def next_one(conn, ask=None, now: datetime | None = None) -> dict | None:
             conn.execute("select pg_advisory_unlock(hashtext('agent_brief'), %s::int)", (item_id,))
             conn.commit()
     return None
+
+
+FOLLOWED = ("yes", "partly", "no")
+VERDICT = "brief_verdict"
+
+
+class VerdictRefused(PermissionError):
+    status = 403
+
+
+def view(conn, item_id: int) -> dict:
+    item = conn.execute("select id, type, created_at from work_item where id = %s", (item_id,)).fetchone()
+    entry = latest(conn, item_id)
+    v = conn.execute("select actor, at, data from work_event where item_id = %s and kind = %s order by id desc limit 1",
+                     (item_id, VERDICT)).fetchone()
+    return {"expected": item["type"] in briefed_types() or entry is not None, "due": due(dict(item)).isoformat(),
+            "entry": entry, "verdict": {"by": v["actor"], "at": v["at"].isoformat(), **v["data"]} if v else None}
+
+
+def verdict(conn, item_id: int, by: str, followed: str, note: str | None = None) -> dict:
+    """A named person says whether they followed the brief's proposal. Agents and systems cannot (D8, P4.4)."""
+    from ..core import gates
+
+    if gates.machine(by):
+        raise VerdictRefused(f"{by} is not a person: only the person who decided records whether they followed the brief")
+    if followed not in FOLLOWED:
+        raise ValueError(f"followed must be one of {', '.join(FOLLOWED)}")
+    entry = latest(conn, item_id)
+    if not entry or "brief" not in entry:
+        raise ValueError("this case has no brief to follow")
+    proposal = entry["brief"].get("proposal") or {}
+    data = {"followed": followed, "note": note, "disposition": proposal.get("disposition"),
+            "confidence": proposal.get("confidence"), "pack": entry.get("pack")}
+    with conn.transaction():
+        conn.execute("insert into work_event (item_id, kind, actor, element, data) values (%s, %s, %s, %s, %s)",
+                     (item_id, VERDICT, by, STEP, Jsonb(data)))
+    return {"by": by, **data}
