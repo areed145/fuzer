@@ -1,0 +1,2 @@
+safeguard_id,tag,protects,function,action,sil
+SG-OK-201,20-VT-2200B,20-K-2200B,GGCP train B 2nd stage high vibration trip,Trips the compressor train,1
