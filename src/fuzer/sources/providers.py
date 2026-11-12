@@ -20,12 +20,20 @@ A source pack declares them beside its work types:
         link: "{url}"                                        the provider's own page for it (http or https)
         items: [{label: Remaining useful life, from: rul_days, unit: d}]
         clear_when: {status: {in: [closed, resolved]}}       what clears it (none: alerts only raise)
+        poll: alerts                                         a table its connection holds, read on a schedule
+        feedback: true                                       offer each case's close-out back to it (a write-back)
 
 The provider sends its alerts as it writes them, one object or a list, to `POST /hooks/{system}/alerts` behind the
-system's webhook secret (`?provider=` when the system has more than one). Each becomes an external finding named for
+system's webhook secret (`?provider=` when the system has more than one), or, with `poll`, writes them to a table its
+system's connection can read (an export folder, a lake table), which `poll` reads every 15 minutes when it has
+changed. Each becomes an external finding named for
 the provider, with its severity, confidence and link, and goes through the exception contract, so a Fuzer detection
 open on the same asset hosts it (`ops.exceptions._host`). An alert whose asset reference matches nothing in the
 register is never dropped: it goes to the data steward's queue with its references kept, to match.
+
+Feedback (P3.8c, #706): a provider with `feedback: true` whose system takes `detection_feedback` write-backs is
+offered each close-out of a case its alert was on (real, false alarm, duplicate or data problem, with the failure
+mode), through the approved write-back queue (`ops.writeback`): a person approves it before anything is sent.
 
 Trust (P3.8b, #705): a person says how far each provider is trusted, for every equipment class or one, with a
 reason. `route` (the default) opens its case for the role its type names; `triage` opens it for
@@ -45,7 +53,7 @@ from ._catalog_common import CatalogError
 from .workflows import _check_refs, _check_when, _refs, fill, meets
 
 FIELDS = ("label", "type", "key", "refs", "title", "severity", "confidence", "start", "link", "items", "clear_when",
-          "enabled")
+          "poll", "feedback", "enabled")
 STEWARD = "role:data_steward"  # where an alert about an asset the register doesn't know goes
 MAX_ALERTS = 500  # in one call
 TRUST = {"route": "Route directly", "triage": "Triage first", "mute": "Muted"}
@@ -76,6 +84,10 @@ def check(p: dict) -> dict:
     items = p.get("items") or []
     if not all(isinstance(i, dict) and i.get("label") and i.get("from") for i in items):
         raise CatalogError(f"detection provider {name}: each item is {{label, from, unit}}")
+    if p.get("poll") is not None and not (isinstance(p["poll"], str) and re.fullmatch(r"[A-Za-z0-9_.\-]{1,128}", p["poll"])):
+        raise CatalogError(f"detection provider {name}: poll names a table its system's connection holds")
+    if not isinstance(p.get("feedback", False), bool):
+        raise CatalogError(f"detection provider {name}: feedback is true or false")
     return {"key": str(p["key"]), "refs": _check_refs(p["refs"]), "title": str(p["title"]),
             **({"severity": {"from": sev["from"], "map": {str(k).lower(): v for k, v in (sev.get("map") or {}).items()}}}
                if sev else {}),
@@ -83,7 +95,8 @@ def check(p: dict) -> dict:
             **{k: str(p[k]) for k in ("start", "link") if p.get(k)},
             **({"items": [{"label": i["label"], "from": i["from"], **({"unit": i["unit"]} if i.get("unit") else {})}
                           for i in items]} if items else {}),
-            **({"clear_when": _check_when(p["clear_when"])} if p.get("clear_when") else {})}
+            **({"clear_when": _check_when(p["clear_when"])} if p.get("clear_when") else {}),
+            **({"poll": p["poll"]} if p.get("poll") else {}), **({"feedback": True} if p.get("feedback") else {})}
 
 
 def set_provider(conn, system: str, p: dict, by: str) -> dict:
@@ -250,3 +263,58 @@ def alerts(conn, system: str, body, provider: str | None = None) -> dict:
             conn.rollback()
             errors.append(str(e))
     return {"provider": p["name"], "alerts": out, "errors": errors}
+
+
+def _table(conn, system: str, table: str, data_dir):
+    """The reader for `table` through the system's first enabled connection (None when it can't see one)."""
+    from pathlib import Path
+
+    from . import connections
+
+    rows = conn.execute("select c.* from source_connection c join source_system s on s.id = c.system_id "
+                        "where s.name = %s and c.enabled order by c.id", (system,)).fetchall()
+    for c in rows:
+        reader = connections.open_(dict(c)).connector({"name": table}, Path(data_dir))
+        if reader is not None:
+            return reader
+    return None
+
+
+def poll(conn, data_dir, system: str | None = None) -> list[dict]:
+    """Read each polled provider's alert table through its system's connection, when it has changed since the last
+    read, and raise, refresh or clear what it holds. One provider that can't be read is reported; the rest go on."""
+    out = []
+    for p in providers(conn, system):
+        table = p["mapping"].get("poll")
+        if not (p["enabled"] and table):
+            continue
+        reader = _table(conn, p["system"], table, data_dir)
+        if reader is None:
+            out.append({"provider": p["name"], "system": p["system"], "error": f"its connection holds no {table}"})
+            continue
+        mark = reader.fingerprint()
+        last = conn.execute("select fingerprint from provider_poll where system = %s and name = %s",
+                            (p["system"], p["name"])).fetchone()
+        if last and last["fingerprint"] == mark:
+            out.append({"provider": p["name"], "system": p["system"], "unchanged": True})
+            continue
+        res = alerts(conn, p["system"], list(reader.rows())[:MAX_ALERTS], p["name"])
+        conn.execute(
+            """
+            insert into provider_poll (system, name, fingerprint, alerts, errors) values (%s, %s, %s, %s, %s)
+            on conflict (system, name) do update set fingerprint = excluded.fingerprint, alerts = excluded.alerts,
+                errors = excluded.errors, polled_at = now()
+            """, (p["system"], p["name"], mark, len(res["alerts"]), Jsonb(res["errors"])))
+        conn.commit()
+        out.append({"system": p["system"], **res})
+    return out
+
+
+def feedback_for(conn, item_id: int) -> list[dict]:
+    """The provider alerts on a case whose provider takes feedback: (system, provider, type, key) for each."""
+    return [dict(r) for r in conn.execute(
+        """
+        select p.system, p.name as provider, p.label, r.type, r.key from exception_record r
+        join detection_provider p on p.type = r.type and p.system = r.source and p.enabled
+        where r.item_id = %s and coalesce((p.mapping->>'feedback')::boolean, false) order by r.id
+        """, (item_id,))]

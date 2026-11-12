@@ -137,7 +137,29 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))
     else:
         work.comment(conn, item_id, by, f"Close-out: {summary(row, v)}")
+    offer_feedback(conn, item_id, row, by)
     return row
+
+
+def offer_feedback(conn, item_id: int, row: dict, by: str) -> list[dict]:
+    """Offer the close-out to each detection provider whose alert was on the case and that takes feedback (P3.8c):
+    a `detection_feedback` write-back, approved by a person before it is sent. A system that doesn't take it is
+    skipped. Correcting the close-out offers the new one."""
+    from ..sources import providers
+    from . import writeback
+
+    out = []
+    for a in providers.feedback_for(conn, item_id):
+        payload = {"provider": a["provider"], "alert": a["key"], "case": item_id, "disposition": row["disposition"],
+                   "failure_mode": row.get("failure_mode"), "outcome": row.get("outcome"), "note": row.get("note")}
+        try:
+            out.append(writeback.propose(conn, a["system"], "detection_feedback", payload, by, record=a["key"],
+                                         key=f"feedback:{a['system']}:{a['key']}:{item_id}:{row['disposition']}",
+                                         title=f"Tell {a['label']} how alert {a['key']} closed: "
+                                               f"{DISPOSITIONS[row['disposition']].lower()}"))
+        except writeback.WritebackError:
+            continue  # its system takes no feedback
+    return out
 
 
 def summary(row: dict, v: dict) -> str:

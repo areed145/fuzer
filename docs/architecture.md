@@ -178,6 +178,7 @@ flowchart TD
 | `studies_job` | `*/5 * * * *` | Big correlation and clustering studies, queued from the API or an agent. |
 | `day_close` | `0 7 * * *` | Daily operations report: facts from the day's records, a new version when they change, the ops lead's review in the workflow (the reporter agent drafts it). |
 | `source_health` | `*/30 * * * *` | Source health: stale data, failed or held loads, failing checks -> exceptions, cases and alerts. |
+| `providers_poll` | `*/15 * * * *` | Detection providers: polled alert tables read when changed -> findings joined to cases. |
 
 ## Each component
 
@@ -187,8 +188,8 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 
 - **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_packs`, `_catalog_versions`, `adx`, `alerts`, `aliases`, `catalog`, `connections`, `connectors`, `curves`, `documents`, `extract`, `formats`, `impact`, `ingest`, `learned`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `packs`, `pi_web_api`, `preview`, `process_model`, `providers`, `quality`, `relative_dates`, `rules`, `scorecard`, `suggest`, `timeseries`, `workflows`
 - **Uses:** core
-- **Writes:** `curve_digitised`, `detection_provider`, `entity_alias`, `learned_rule`, `llm_extraction`, `mapping_version`, `provider_trust`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_exception_rule`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_score`, `source_system` ([schema](schema.md))
-- **Owns:** `source_record`, `llm_extraction`, `source_record_history`, `source_system`, `source_connection`, `source_dataset`, `mapping_version`, `source_run`, `source_profile`, `source_check`, `source_check_result`, `source_match_stat`, `source_score`, `source_rule`, `source_audit`, `equipment_curve`, `curve_digitised`, `source_exception_rule`, `entity_alias`, `learned_rule`, `detection_provider`, `provider_trust` (its `schema.sql`)
+- **Writes:** `curve_digitised`, `detection_provider`, `entity_alias`, `learned_rule`, `llm_extraction`, `mapping_version`, `provider_poll`, `provider_trust`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_exception_rule`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_score`, `source_system` ([schema](schema.md))
+- **Owns:** `source_record`, `llm_extraction`, `source_record_history`, `source_system`, `source_connection`, `source_dataset`, `mapping_version`, `source_run`, `source_profile`, `source_check`, `source_check_result`, `source_match_stat`, `source_score`, `source_rule`, `source_audit`, `equipment_curve`, `curve_digitised`, `source_exception_rule`, `entity_alias`, `learned_rule`, `detection_provider`, `provider_poll`, `provider_trust` (its `schema.sql`)
 - **Settings:** `providers.triage_role` ([settings](settings.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
