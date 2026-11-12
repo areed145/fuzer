@@ -6,7 +6,7 @@ from ...core import db
 from ...graph import queries
 from ...workflow import engine as work
 from ...workflow import work_drafts
-from ..mcp_server import AgentRole, _plain, _resolve, _work, capability
+from ..mcp_server import AgentRole, _chart, _plain, _resolve, _work, capability
 from . import ASKER
 
 
@@ -169,3 +169,24 @@ def draft_work_item(title: str, role: str, summary: str, evidence: list[str],
             return {"error": str(e)}
     return {"draft": draft["id"], "marker": f"[[work-draft:{draft['id']}]]", "queue": role,
             "note": "Put the marker on its own line. Nothing exists yet: say the person must confirm it."}
+
+
+@capability("asset-performance-reporting", "production-surveillance", "maintenance-integrity", kind="calc")
+def kpi_scorecard(until: str | None = None, days: int = 30) -> dict[str, Any]:
+    """How the plant is running (#353): production efficiency, deferred oil, flare, corrective backlog, preventive work
+    on time, failures and repeat failures for the `days` ending on `until` (YYYY-MM-DD; default the latest daily
+    report) against the same length before. Each KPI cites its window, unit, source and records; a KPI the records
+    can't say is unknown, never zero. Internal evidence, not an approved report."""
+    from ...analysis import kpis
+    with db.connect() as conn:
+        try:
+            return _plain(kpis.scorecard(conn, until, days))
+        except ValueError as e:
+            return {"error": str(e)}
+
+
+@capability("asset-performance-reporting", kind="plot")
+def plot_kpi_scorecard(until: str | None = None, days: int = 30) -> dict[str, Any]:
+    """Chart each KPI's change against the period before, coloured better or worse, unknown ones left as gaps."""
+    from ...plots import general
+    return _chart(general.scorecard, {"until": until, "days": days})
