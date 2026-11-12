@@ -326,6 +326,10 @@ unnamed. Okan adopts standard v1 with no deviations; Kestrel adopts it with one,
 (`handover.shift_times`, owned by ops_lead). `fuzer init` doesn't adopt by itself: applying resets a project's
 operating settings, so it is a step someone takes.
 
+A package moved between databases runs the same: Okan's model, changed away from the standard and exported, applied
+to a second copy of Okan that ran the standard, takes the loop eval the same way step for step
+(`tests/evals/test_loop_operating_model.py`).
+
 A package holds operating settings only (the Work, SRE, Signals, Alarms, Opportunities, Reports and Detection
 groups); one holding anything else, or without a version, is refused.
 
