@@ -37,7 +37,7 @@ def _case(conn, type_: str, subject: str) -> int:
 
 @pytest.fixture
 def classes(monkeypatch):
-    known = {"unit-co": "CO", "unit-pu": "PU"}
+    known = {"unit-co": "CO", "unit-pu": "PU", "unit-ve": "VE"}
     monkeypatch.setattr(detectors, "classes_of", lambda conn, units: {u: known[u] for u in units if u in known})
 
 
@@ -66,8 +66,13 @@ def test_the_owning_pack_briefs_a_new_case_with_its_ledger_and_cost(conn, classe
 
 
 def test_a_missing_brief_says_why(conn, classes):
-    pump = _case(conn, "machine_health", "unit-pu")  # no shipped pack covers pumps yet
-    assert "no specialist pack briefs a machine_health case" in brief.prepare(conn, pump, ask=None)["missing"]
+    vessel = _case(conn, "machine_health", "unit-ve")  # no shipped pack covers pressure vessels
+    assert "no specialist pack briefs a machine_health case" in brief.prepare(conn, vessel, ask=None)["missing"]
+    pump = _case(conn, "machine_health", "unit-pu")
+    assert brief.owner(conn, {"type": "machine_health", "subjects": ["unit-pu"]})["path"] == \
+        "maintenance-integrity/pumps-and-drivers"
+    assert brief.owner(conn, {"type": "machine_trip", "subjects": ["unit-pu"]}) is None  # it briefs machine health only
+    brief._record(conn, {"id": pump}, "system", {"missing": "test"})
 
     down = _case(conn, "machine_trip", "unit-co")
 

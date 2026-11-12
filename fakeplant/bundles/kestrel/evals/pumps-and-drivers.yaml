@@ -1,0 +1,10 @@
+# Answer keys for the pumps and drivers specialist pack's eval on this bundle (P4.2), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# This bundle's pumps have no OEM curve, flow meter or motor power on record, so the second question checks that the
+# specialist says what it cannot check rather than guessing.
+- question: Is the gas engine driving compressor B1-K-2001 running right, and what should we check?
+  must_mention: [B1-K-2001, [misfir, cold cylinder], [spark plug, coil, gas valve]]
+  specialists: [maintenance-integrity]
+- question: Is condensate transfer pump A1-P-1007A running to its curve, and is its motor overloaded?
+  must_mention: [A1-P-1007A, [no curve, no OEM curve, without a curve, not on record, cannot, can't, could not]]
+  specialists: [maintenance-integrity]
