@@ -42,6 +42,26 @@ class BundleError(ValueError):
     pass
 
 
+def find(name: str | Path) -> Path | None:
+    """A bundle's folder: `name` itself when it is a bundle folder or its bundle.yaml, else the shipped bundle of
+    that name (resources.BUNDLES/<name>), else None."""
+    from ..resources import BUNDLES
+
+    p = Path(name)
+    if (p / "bundle.yaml").is_file() or (p.name == "bundle.yaml" and p.is_file()):
+        return p
+    if isinstance(name, str) and NAME.fullmatch(name) and (BUNDLES / name / "bundle.yaml").is_file():
+        return BUNDLES / name
+    return None
+
+
+def shipped() -> list[str]:
+    """The names of the bundles shipped with this checkout."""
+    from ..resources import BUNDLES
+
+    return sorted(p.name for p in BUNDLES.iterdir() if (p / "bundle.yaml").is_file()) if BUNDLES.is_dir() else []
+
+
 def read(path: Path) -> dict:
     """The bundle at `path` (its folder or its bundle.yaml), validated: {name, project config, pack, digest}."""
     path = Path(path)

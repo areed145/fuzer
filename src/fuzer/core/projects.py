@@ -1,9 +1,9 @@
 """Projects (#131): one name picks the asset pack, data folder, mappings, time-series provider, timezone and
 cache, instead of an environment variable for each.
 
-A project's config is the `project` row in the database; `projects/<name>.yaml` in the repository is the
-fallback (a fresh database, CI, the demos) and seeds the row with `fuzer projects save <name>`. Paths are
-relative to the repository.
+A project's config is the `project` row in the database, stored by `fuzer init --bundle`. A shipped seed bundle of
+the same name (fakeplant/bundles/<name>) is the fallback when the database has no row (CI, the demos); Fuzer keeps
+no project files of its own (P1.6).
 
     fuzer --project okan eval --ops --full        # or FUZER_PROJECT=okan
 
@@ -16,12 +16,10 @@ import os
 import warnings
 from pathlib import Path
 
-import yaml
 from psycopg.types.json import Jsonb
 
 from ..resources import ROOT
 
-REPO = ROOT / "projects"
 FIELDS = {"data": "FUZER_DATA_DIR", "mappings": "FUZER_MAPPINGS",
           "timeseries": "FUZER_TIMESERIES", "timezone": "FUZER_TIMEZONE", "cache": "FUZER_CACHE_DIR"}
 
@@ -70,12 +68,18 @@ def active(conn) -> str | None:
 
 
 def repo_names() -> list[str]:
-    return sorted(p.stem for p in REPO.glob("*.yaml")) if REPO.is_dir() else []
+    """The shipped seed bundles, each a project a database can be initialised for."""
+    from . import bundles
+
+    return bundles.shipped()
 
 
 def repo_config(name: str) -> dict | None:
-    p = REPO / f"{name}.yaml"
-    return yaml.safe_load(p.read_text()) or {} if p.is_file() else None
+    """A shipped bundle's project config (with its pack), or None."""
+    from . import bundles
+
+    path = bundles.find(name) if bundles.NAME.fullmatch(name or "") else None
+    return bundles.read(path)["config"] if path is not None else None
 
 
 def _db_rows(conn) -> dict[str, dict]:
@@ -98,7 +102,7 @@ def names(conn=None) -> list[str]:
 
 
 def config(conn, name: str) -> dict:
-    """The database row, else the repository file; ProjectError if neither."""
+    """The database row, else the shipped bundle's; ProjectError if neither."""
     row = _db_rows(conn).get(name)
     cfg = row if row is not None else repo_config(name)
     if cfg is None:

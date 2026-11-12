@@ -186,7 +186,7 @@ uv run fakeplant historian                 # fake PI Web API + ADX on :8100
 Then set the servers once: `fuzer settings set sources.pi.url http://127.0.0.1:8100/piwebapi`,
 `sources.adx.url http://127.0.0.1:8100` and `sources.adx.database OKAN` (or `FUZER_PI_WEB_API_URL`,
 `FUZER_ADX_URL`, `FUZER_ADX_DATABASE` in `.env`), and the project's `timeseries: adx` (or `pi`) in
-`projects/<name>.yaml` or `fuzer projects save`. On the next `fuzer ingest` each server becomes a connection in
+its bundle or `fuzer projects save`. On the next `fuzer ingest` each server becomes a connection in
 the source catalog (`fuzer sources connections`) and `pi_points`, `pi_af` and `adx_series` move onto it: the point
 list and AF tree come from PI Web API and the series catalog from ADX, and trends and the troubleshooting brief
 read values from them. A second PI server is another connection (`fuzer sources add-connection`); passwords and
@@ -227,8 +227,8 @@ under each score's floor. CI runs it on the fake Okan plant.
 
 A **project** picks everything for one asset in one name: its pack, data folder, mappings, time-series
 provider and timezone (`fuzer --project okan …` or `FUZER_PROJECT=okan`; `fuzer projects list`). Its
-config is stored in the database, and `projects/<name>.yaml` is used when the database has none
-(`fuzer projects save <name>` stores it).
+config is stored in the database by `fuzer init --bundle`, and a shipped bundle of the same name is used
+when the database has none (`fuzer projects save <name>` stores it).
 
 **Settings.** Tunable values are declared once in `src/fuzer/core/settings.py`, each with a type, default,
 valid range and description, and set per project or for all projects. They are grouped as LLM providers
@@ -583,7 +583,7 @@ curl "localhost:8000/work/inbox?person=alice"
 
 | Path | What |
 |---|---|
-| `src/fuzer/packs/*.yaml` | Asset packs: tag grammar, aliases, thresholds; they seed the survivorship and match rules |
+| `fakeplant/bundles/<name>/` | Seed bundles: each facility's project config and asset pack (tag grammar, aliases, thresholds; they seed the survivorship and match rules) |
 | `src/fuzer/sources/catalog.py` | The source catalog: systems, connections, datasets, mapping versions, seed / export / import, audit |
 | `src/fuzer/sources/ingest.py` | Load each catalog dataset into `source_record`, with runs, profiles and checks |
 | `src/fuzer/sources/connections.py` | Connection types (folder, PI Web API, ADX): connector, test, discover |

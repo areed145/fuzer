@@ -163,13 +163,12 @@ def test_deploy_registers_okan_first_and_adds_each_other_bundle(tmp_path, capsys
     import shutil
 
     from fuzer.core import projects
-    from fuzer.core.pack import PACKS_DIR
 
     bundles = tmp_path / "bundles"
     shutil.copytree(demo_seed.BUNDLES / "kestrel", bundles / "kestrel")
     (bundles / "okan").mkdir()
     (bundles / "okan" / "bundle.yaml").write_text(
-        f"bundle: 1\nname: okan\npack: {PACKS_DIR / 'okan.yaml'}\nproject:\n  data: {tmp_path / 'okan'}\n")
+        f"bundle: 1\nname: okan\npack: {demo_seed.BUNDLES / 'okan' / 'pack.yaml'}\nproject:\n  data: {tmp_path / 'okan'}\n")
     (bundles / "broken").mkdir()
     (bundles / "broken" / "bundle.yaml").write_text("bundle: 1\nname: broken\n")  # no pack: reported, skipped
     with db.connect() as conn:

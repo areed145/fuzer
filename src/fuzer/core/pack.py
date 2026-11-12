@@ -4,9 +4,6 @@ import os
 import time
 from dataclasses import dataclass, field
 
-import yaml
-
-from ..resources import PACKS as PACKS_DIR
 from .tags import PatternWellGrammar, TagGrammar, WellGrammar
 
 
@@ -38,7 +35,7 @@ CACHE_SECONDS = 5.0
 
 
 def pack_from_config(raw: dict) -> Pack:
-    """A Pack from its YAML/JSON form (a file in src/fuzer/packs, or a seed bundle's pack stored in a project)."""
+    """A Pack from its YAML/JSON form (a seed bundle's pack.yaml, or the copy stored in its project)."""
     tg = raw["tag_grammar"]
     return Pack(
         name=raw["name"],
@@ -61,16 +58,19 @@ def pack_from_config(raw: dict) -> Pack:
 
 
 def load_pack(name: str) -> Pack:
-    """A packaged asset pack by name (src/fuzer/packs/<name>.yaml). Code serving requests uses `current_pack`,
-    which follows the project it runs for."""
-    path = PACKS_DIR / f"{name}.yaml"
-    if not path.is_file():
-        raise LookupError(f"no packaged asset pack {name!r}; a seed bundle's pack is stored in its project")
-    return pack_from_config(yaml.safe_load(path.read_text()))
+    """The pack of a shipped seed bundle, by bundle name (fakeplant/bundles/<name>), or of the bundle at a path.
+    Fuzer packages no packs of its own (P1.6). Code serving requests uses `current_pack`, which follows the
+    project it runs for."""
+    from . import bundles
+
+    path = bundles.find(name)
+    if path is None:
+        raise LookupError(f"no seed bundle {name!r}; a seed bundle's pack is stored in its project")
+    return bundles.read(path)["pack"]
 
 
 def for_project(cfg: dict) -> Pack:
-    """The pack a project config selects: the pack it carries (from a seed bundle), else a packaged pack by name."""
+    """The pack a project config selects: the pack it carries (from a seed bundle), else a shipped bundle's pack by name."""
     if cfg.get("pack_config"):
         return pack_from_config(cfg["pack_config"])
     return load_pack(cfg.get("pack") or cfg["name"])

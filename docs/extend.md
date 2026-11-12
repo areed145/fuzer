@@ -64,7 +64,7 @@ provider and a timezone. The [Okan field](walkthrough.md) is the reference proje
 ### 1. Write the asset pack
 
 Everything facility-specific lives in the pack, so no Python changes for a new site. Okan's is
-[`src/fuzer/packs/okan.yaml`](https://github.com/areed145/fuzer/blob/main/src/fuzer/packs/okan.yaml). A
+[`fakeplant/bundles/okan/pack.yaml`](https://github.com/areed145/fuzer/blob/main/fakeplant/bundles/okan/pack.yaml). A
 small pack looks like this (Kestrel Ridge, the second demo facility):
 
 ```yaml
@@ -131,21 +131,8 @@ the first project (in `public`); on a database that already holds one, it is add
 schema. Running `init` again with the same bundle is a no-op, and a changed bundle for the same project
 needs `--upgrade`.
 
-**From a project file.** Without a bundle, a project is seeded from `projects/<name>.yaml`:
-
-```yaml
-# projects/kestrel.yaml
-pack: kestrel                # a pack name in src/fuzer/packs, or a path to the pack file
-data: fakeplant/bundles/kestrel/exports
-timeseries: none             # synthetic, pi, adx or none
-timezone: America/Denver
-```
-
-```sh
-uv run fuzer projects save kestrel        # store it in the database
-uv run fuzer --project kestrel ingest
-uv run fuzer --project kestrel rebuild
-```
+Fuzer ships no packs or project files of its own (P1.6): every facility, the demos included, is a bundle.
+`fuzer projects save <name>` stores a shipped bundle's project (`fakeplant/bundles/<name>`) without `init`.
 
 ### 3. Load and check
 
