@@ -213,7 +213,7 @@ def permits(conn, subjects: list[str], job: int | None = None, now: datetime | N
     if needed and not valid:
         where = next((p["location_label"] for p in found), None)
         say = "; ".join(f"{p['label']} {p['why_not']}" for p in found[:3])
-        blockers.append(f"{kind} work needs a valid permit" + (f" on {where}" if where else "") + ": "
+        blockers.append(f"blocked: no valid permit ({kind} work" + (f" on {where}" if where else "") + "): "
                         + (say if found else "no permit covers this location"))
     note = None if found else "No permit covers this location."
     return {**base, "ready": not blockers, "blockers": blockers, "permits": found, "checked": True,
@@ -245,7 +245,7 @@ def check(conn, subjects: list[str], job: int | None = None) -> dict:
     """Every readiness check for a job on these subjects (`job`, the exception being sent, is not counted against
     itself): ready, or each blocker by name."""
     results = [c(conn, subjects, job) for c in CHECKS]
-    blockers = [f"{r['label']}: {b}" for r in results for b in r["blockers"]]
+    blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
     return {"ready": not blockers, "blockers": blockers, "checks": results}
 
 

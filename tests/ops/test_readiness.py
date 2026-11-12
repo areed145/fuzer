@@ -78,6 +78,18 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits"]
 
 
+@pytest.fixture(autouse=True)
+def fresh(request):
+    """Each test starts with nothing in the field or on the plan (tests run in random order)."""
+    yield
+    if "kestrel" in request.fixturenames:
+        conn = request.getfixturevalue("kestrel")[0]
+        conn.rollback()
+        conn.execute("update exception_record set state = 'closed' where state = 'open'")
+        conn.execute("update plan_item set status = 'cancelled' where status in ('proposed', 'scheduled', 'in_progress')")
+        conn.commit()
+
+
 @pytest.fixture
 def client(kestrel, monkeypatch):
     from fastapi import FastAPI
@@ -163,7 +175,7 @@ def test_work_that_needs_a_permit_waits_for_one_in_date_with_its_isolations_in_p
         k = permit("B1-K-2001", "K-2001 valves, permit")  # PTW-24101 is issued and in date, one isolation not applied
         assert k["needed"] and not k["ready"] and [p["label"] for p in k["permits"]] == ["PTW-24101"]
         [b] = k["blockers"]
-        assert b.startswith("walkdown_check work needs a valid permit") and "PTW-24101 isolations not in place" in b
+        assert b.startswith("blocked: no valid permit (walkdown_check work on ") and "PTW-24101 isolations not in place" in b
         assert "ISO-24101-3 B1-K-2001 cylinders (planned)" in b and "ISO-24101-1" not in b
         assert permit("G1-G-7006", "G-7006 permit")["ready"]  # issued, in date, breaker locked out and verified
         pump = permit("C1-P-3002B", "P-3002B permit")
@@ -174,13 +186,50 @@ def test_work_that_needs_a_permit_waits_for_one_in_date_with_its_isolations_in_p
         assert not sep["ready"] and "PTW-24104 requested" in sep["blockers"][0]
         e = job(conn, "K-2001 permit via api", queries.resolve_ref(conn, pack, "B1-K-2001"))
         r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
-        assert r.status_code == 409 and "Permit: walkdown_check work needs a valid permit" in r.text
+        assert r.status_code == 409 and "; blocked: no valid permit (walkdown_check" in r.text
     finally:
         settings.reset(conn, "readiness.permit_types", by="test")
     # a work type that needs none still shows the permits, without blocking on them
     out = readiness.permits(conn, [queries.resolve_ref(conn, pack, "B1-K-2001")],
                             job(conn, "K-2001 look only", queries.resolve_ref(conn, pack, "B1-K-2001")))
     assert out["ready"] and not out["needed"] and out["permits"][0]["why_not"].startswith("isolations not in place")
+
+
+def test_starting_a_job_with_no_valid_permit_is_a_gate_with_its_reason_on_the_case(kestrel, client):
+    from fuzer.core import settings
+    from fuzer.graph import queries
+    from fuzer.ops import exceptions
+
+    conn, pack = kestrel
+    settings.set(conn, "readiness.permit_types", "walkdown_check", by="test")
+    try:
+        e = job(conn, "P-3002B start", queries.resolve_ref(conn, pack, "C1-P-3002B"))  # its permit expired
+        why = "no valid permit: PTW-24102 expired, area gas test clear, inspection only"
+        assert client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred", "override": why}).is_success
+        [mine] = [j for j in exceptions.field_jobs(conn, "fred") if j["id"] == e]
+        assert mine["permit"]["blocked"] and mine["permit"]["blocker"].startswith("blocked: no valid permit")
+        assert mine["permit"]["permit"]["label"] == "PTW-24102" and mine["permit"]["permit"]["why_not"] == "expired"
+        r = client.post(f"/exceptions/{e}/report", json={"by": "fred", "status": "on_site"})
+        assert r.status_code == 400 and "blocked: no valid permit" in r.text and "Say why it starts anyway" in r.text
+        from fuzer.core.gates import GateRefused
+
+        with pytest.raises(GateRefused):  # a fixed gate: only a named person starts without a permit
+            client.post(f"/exceptions/{e}/report", json={"by": "agent:field", "status": "on_site", "override": "x"})
+        conn.rollback()
+        r = client.post(f"/exceptions/{e}/report", json={"by": "fred", "status": "on_site",
+                                                       "override": "visual check only, nothing opened"})
+        assert r.status_code == 200, r.text
+        said = [c["body"] for c in conn.execute(
+            "select data->>'text' as body from work_event where item_id = %s and kind = 'commented'",
+            (r.json()["item_id"],))]
+        assert any(s.startswith("Started without a valid permit (blocked: no valid permit") and
+                   s.endswith("Why: visual check only, nothing opened") for s in said)
+        # with a valid permit and its isolations verified, it just starts
+        ok = job(conn, "G-7006 start", queries.resolve_ref(conn, pack, "G1-G-7006"))
+        client.post(f"/exceptions/{ok}/dispatch", json={"by": "ioc-ann", "to": "fred", "override": "crew"})
+        assert client.post(f"/exceptions/{ok}/report", json={"by": "fred", "status": "on_site"}).status_code == 200
+    finally:
+        settings.reset(conn, "readiness.permit_types", by="test")
 
 
 def test_okan_spares_come_from_its_own_records(okan_db):

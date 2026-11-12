@@ -42,6 +42,7 @@ FIXED: dict[str, str] = {
     "limit_change": "Changing a limit or detector parameter",
     "publish": "Publishing a process, a skill or a lesson",
     "bypass_safeguard": "Bypassing a safeguard",
+    "field_start_without_permit": "Starting field work without a valid permit",
 }
 
 ALWAYS = None  # a threshold of None: always a person
