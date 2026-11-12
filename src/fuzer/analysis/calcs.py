@@ -706,8 +706,8 @@ CHECKS |= {
                        "used_by": {"agent": "calc"}},
     "failed_starts": {"fn": _cond("trips", "failed_starts"), "ref": "compressor or its train",
                       "used_by": {"agent": "calc"}},
-    "loop_oscillation": {"fn": lambda conn, fid, days=3, until=None: _cond("loops", "oscillation")(
-        conn, fid, days=days, until=until), "ref": "a controlled unit (vessel, heater, reboiler) or one point",
+    "loop_oscillation": {"fn": _cond("loops", "oscillation"),
+                         "ref": "a controlled unit (vessel, heater, reboiler) or one point",
                          "used_by": {"agent": "calc", "detector": None}},
 }
 
@@ -733,6 +733,9 @@ CHECKS |= {
     "corrosion_circuit": {"fn": lambda conn, fid, min_required_mm=None, until=None: _module("integrity", "corrosion_circuit")(
         conn, fid, min_required_mm=min_required_mm, until=until), "ref": "pipeline, vessel or piping tag",
         "used_by": {"agent": "calc", "detector": None}},
+    "inspection_plan": {"fn": lambda conn, fid, until=None: _module("integrity", "inspection_plan")(conn, fid, until=until),
+                        "ref": "vessel, exchanger or piping tag with an inspection plan",
+                        "used_by": {"agent": "calc", "detector": None}},
 }
 
 

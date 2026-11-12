@@ -1,0 +1,9 @@
+# Answer keys for the static equipment and integrity specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Okan's inspection records hold no minimum thickness for its vessels: a good answer says the remaining life needs one.
+- question: Is the GGCP inlet separator 20-V-2001 due an inspection, and how long can it run?
+  must_mention: [20-V-2001, overdue, [minimum thickness, minimum required thickness, retirement thickness, tmin]]
+  specialists: [maintenance-integrity]
+- question: Which flowline is losing wall fastest, and when does it need inspecting?
+  must_mention: [[remaining life, retire], [short-term, short term], 2026]
+  specialists: [maintenance-integrity]

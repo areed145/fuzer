@@ -1,5 +1,6 @@
 # Inspection thickness readings: wall thickness at a condition monitoring location (CML) on a vessel,
-# piping tag or pipeline, by ultrasonic (UT) or radiographic survey. Older surveys report in inches.
+# piping tag or pipeline, by ultrasonic (UT) or radiographic survey. Older surveys report in inches. Where the
+# inspection system records a CML's minimum required thickness (tmin, from the item's design), it lands beside it.
 source: inspection
 record_type: reading
 shape: measurements
@@ -14,3 +15,4 @@ measurements:
   location: cml
   values:
     - {quantity: wall_thickness, from: thickness, unit: {from: unit}}
+    - {quantity: minimum_required_thickness, from: tmin, unit: {from: unit}}

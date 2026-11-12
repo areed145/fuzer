@@ -1,0 +1,19 @@
+# The static equipment and integrity specialist pack (P4.2, pack 4): pressure vessels, exchangers and piping - wall
+# loss and remaining life, inspection intervals against the plan, and exchanger fouling, on API 510 and API 570 (with
+# API 580 for risk-based planning, named, not computed). SKILL.md is its playbook; this file names what the playbook
+# relies on, so a missing or renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py)
+# instead of an answer on a case.
+title: Static equipment and integrity
+owner: maintenance-integrity          # the agent that loads this pack
+classes: [VE, HE, PI]                 # ISO 14224: pressure vessels, heat exchangers, piping
+tools: [calc, limits, measurements, plot_cooler_fouling, plot_wall_thickness]
+charts: [plot_cooler_fouling, plot_wall_thickness]
+methods: [cooler_fouling, corrosion_circuit, inspection_plan, wall_loss]
+detectors: [drifts, iow_breaches]
+roles: [outlet_temperature, temperature, pressure, differential_pressure, vibration, bearing_temperature,
+        discharge_temperature]
+eval: static-equipment                # each bundle's answer keys: evals/static-equipment.yaml in the bundle
+# Each method that reads the asset's own measurements, and the roles it needs there (P4.1b). Wall loss and inspection
+# plans read inspection records and the maintenance plans, not measurement roles, so they are left out.
+needs:
+  cooler_fouling: [outlet_temperature]
