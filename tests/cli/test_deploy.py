@@ -1,3 +1,4 @@
+import os
 import signal
 import threading
 from contextlib import nullcontext
@@ -97,6 +98,7 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
     monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
+    monkeypatch.setattr(deploy, "configure_dagster", lambda home, url: calls.append("dagster"))
     monkeypatch.setattr(deploy, "seed", lambda conn, bundle: calls.append("seed") or {"name": "first"})
     monkeypatch.setattr(deploy, "register_projects", lambda conn, first: first == "first" and ["kestrel"])
     monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
@@ -115,4 +117,64 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
     monkeypatch.setattr(deploy, "supervise", lambda tasks, stop: calls.append("serve"))
     deploy.main(["--bundle", str(tmp_path)])
-    assert calls == ["seed", "background readers", "serve"]
+    assert calls == ["dagster", "seed", "background readers", "serve"]
+
+
+def test_dagster_url_searches_only_the_dagster_schema():
+    assert deploy.dagster_url("postgres://u:p@host:5432/fuzer") == \
+        "postgresql+psycopg2://u:p@host:5432/fuzer?options=-csearch_path%3Ddagster"
+    url = deploy.dagster_url("postgresql+psycopg://u@/fuzer?host=/tmp/pg&options=-cstatement_timeout%3D0")
+    assert url.startswith("postgresql+psycopg2://u@/fuzer?host=%2Ftmp%2Fpg&options=")
+    assert "-csearch_path%3Ddagster+-cstatement_timeout%3D0" in url
+
+
+def test_clear_disk_storage_drops_sqlite_and_old_run_output(tmp_path):
+    """The SQLite databases (and a killed process's journals) go; recent run output stays."""
+    now = 1_000_000_000.0
+    old = now - (deploy.COMPUTE_LOG_DAYS + 1) * 86400
+    files = {name: tmp_path / name for name in (
+        "history/runs.db", "history/runs.db-journal", "schedules/schedules.db", "storage/index.db",
+        "storage/run1.db", "storage/run1.db-wal", "storage/run1/compute_logs/a.out",
+        "storage/run2/compute_logs/b.out", "dagster.yaml")}
+    for f in files.values():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x")
+    os.utime(files["storage/run1/compute_logs/a.out"], (old, old))
+    deploy.clear_disk_storage(tmp_path, now=now)
+    assert sorted(str(f.relative_to(tmp_path)) for f in tmp_path.rglob("*") if f.is_file()) == \
+        ["dagster.yaml", "storage/run2/compute_logs/b.out"]
+    assert not (tmp_path / "storage" / "run1").exists()
+    deploy.clear_disk_storage(tmp_path / "absent")  # a first deploy has nothing to clear
+
+
+def test_configure_dagster_keeps_dagster_storage_in_postgres(monkeypatch, tmp_path):
+    from dagster import DagsterInstance
+
+    monkeypatch.delenv(deploy.DAGSTER_URL_ENV, raising=False)
+    url = db.database_url()
+    (tmp_path / "history").mkdir()
+    (tmp_path / "history" / "runs.db").write_text("corrupt")  # what the old disk storage left behind
+    try:
+        deploy.configure_dagster(tmp_path, url)
+        assert not (tmp_path / "history" / "runs.db").exists()
+        with DagsterInstance.from_config(str(tmp_path)) as instance:
+            assert type(instance.run_storage).__name__ == "PostgresRunStorage"
+            assert instance.get_runs() == []
+            instance.event_log_storage.store_event(_event())  # NOTIFY on write: fails under psycopg 3
+        with db.connect(url=url) as conn:
+            assert conn.execute("select to_regclass('dagster.runs') is not null as made").fetchone()["made"]
+            assert conn.execute("select to_regclass('public.runs') is null as clean").fetchone()["clean"]
+    finally:
+        with db.connect(autocommit=True, url=url) as conn:
+            conn.execute(f"drop schema if exists {deploy.DAGSTER_SCHEMA} cascade")
+
+
+def _event():
+    import time as clock
+
+    from dagster import DagsterEvent, DagsterEventType, EventLogEntry
+    from dagster._core.events import EngineEventData
+
+    return EventLogEntry(error_info=None, level="INFO", user_message="", run_id="r1", timestamp=clock.time(),
+                         dagster_event=DagsterEvent(DagsterEventType.ENGINE_EVENT.value, "job",
+                                                               event_specific_data=EngineEventData()))

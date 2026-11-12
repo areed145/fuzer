@@ -54,9 +54,15 @@ replacement; generating files only in a Render shell does not.
 
 The service uses a paid 2 GB plan for the API, Dagster webserver/daemon and agent
 worker, and a 1 GB persistent disk at `/var/lib/fuzer`. Review billing before
-syncing. It is intentionally **single-instance**: all processes share
-`DAGSTER_HOME=/var/lib/fuzer/dagster` (Dagster's SQLite run/event/schedule storage)
-on this disk. The Jobs page reads that same instance, including daemon heartbeats.
+syncing. It is intentionally **single-instance**. Every start writes
+`DAGSTER_HOME=/var/lib/fuzer/dagster/dagster.yaml` so Dagster's run, event and
+schedule storage lives in `fuzer-db` (schema `dagster`), not in SQLite on the disk:
+the API, webserver, daemon and every run process share it, and SQLite on a small
+network disk failed under them with `disk I/O error`. Only run output (compute
+logs, pruned after 14 days) stays on the disk, and the first start on this layout
+deletes the old SQLite files and the run history they held. Sensor and schedule
+ticks are purged after 14 days (skipped sensor ticks after 3). The Jobs page reads
+that same instance, including daemon heartbeats.
 Dagster's port 3000 listens on loopback only; Render exposes only the API on
 `$PORT`. The supervisor logs child output to Render, propagates shutdown, and
 exits if any required child dies so Render restarts the whole runtime.
