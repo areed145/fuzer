@@ -2817,3 +2817,56 @@ for (const [type, found] of Object.entries(FINDINGS)) {
     if (found.checks.length) await page.getByText(found.checks[0]).waitFor();  // the checks before the work, on the case
   });
 }
+
+// P0.2c (#578): every page has its empty, loading and failed states. A page never goes blank or crashes: with empty data
+// it shows its heading, while its reads are held it says it is loading, and when they fail it says so with a retry.
+const EVERY_PAGE = ["#/", "#/browse", "#/network", "#/ontology", "#/downtime", "#/ask", "#/incidents", "#/reports",
+  "#/lessons", "#/studies", "#/exceptions", "#/exceptions?list=ranked", "#/exceptions?list=progress", "#/inbox", "#/plan",
+  "#/masterdata", "#/review", "#/handover", "#/teams", "#/processes", "#/sources", "#/sources?view=systems", "#/jobs",
+  "#/settings", "#/users", "#/routing", "#/demo"];
+const SHELL = new Set(["/auth/me"]);
+
+for (const state of ["empty", "loading", "failed"]) {
+  test(`every page shows its ${state} state (#578)`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    if (state === "empty") {
+      // what the server answers for a facility with nothing in it, where that is not a bare list
+      const empties = {
+        "/ontology": { kinds: [], relations: [], groups: [], views: [], model: { kinds: [], relations: [] },
+          needs_definition: { kinds: [], relations: [], not_allowed: [] } },
+        "/network": { nodes: [], edges: [], truncated: false, rels: [] },
+        "/feedback/briefs": { incidents: 0, rated: 0, ratings: 0, useful_share: null, items: [] },
+        "/work/workload": { people: [], roles: {}, agents: [], agent_failures: [] },
+      };
+      await page.route("**/*", (route) => {
+        const path = new URL(route.request().url()).pathname;
+        return path in empties ? route.fulfill({ json: empties[path] }) : route.fallback();
+      });
+    } else {
+      await page.route("**/*", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.startsWith("/assets/") || path === "/" || /\.(svg|png|woff2?)$/.test(path) || SHELL.has(path)) return route.fallback();
+        if (state === "failed") return route.fulfill({ status: 503, json: { detail: "Service unavailable" } });
+        // loading: hold the read; the page must say it is loading meanwhile
+      });
+    }
+    const crashed = [];
+    for (const to of EVERY_PAGE) {
+      await page.goto(`${url}/${to}`);
+      await page.reload();
+      const main = page.locator("#main-content");
+      if (state === "loading") {
+        await main.getByText(/Loading|Checking/).first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no loading status`));
+      } else if (state === "failed") {
+        await main.getByRole("alert").first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no error shown`));
+      } else {
+        await page.getByRole("heading", { level: 1 }).first().waitFor({ timeout: 5000 }).catch(() => crashed.push(`${to}: no heading`));
+      }
+      if (await page.getByText("This page could not be displayed").count()) {
+        crashed.push(`${to}: crashed: ${await page.locator("#main-content .error, main .error").first().textContent().catch(() => "")}`);
+      }
+    }
+    errors.length = 0;
+    assert.deepEqual(crashed, []);
+  });
+}
