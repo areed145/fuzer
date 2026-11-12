@@ -5,7 +5,9 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ..core import db, llm, projects
 from ..core.pack import current_pack
@@ -34,6 +36,70 @@ def commands(added: list[str] | tuple[str, ...] = ()) -> list[tuple[str, list[st
     tasks.append(("API", [sys.executable, "-m", "uvicorn", "fuzer.api:app",
                           "--host", "0.0.0.0", "--port", str(port)]))
     return tasks
+
+
+DAGSTER_SCHEMA = "dagster"
+DAGSTER_URL_ENV = "FUZER_DAGSTER_PG_URL"
+COMPUTE_LOG_DAYS = 14
+DAGSTER_YAML = f"""\
+# Written by fuzer.cli.deploy on every start: Dagster's run, event and schedule storage lives in the
+# deployment's Postgres (schema {DAGSTER_SCHEMA}), not in SQLite on the persistent disk, which the API, webserver,
+# daemon and every run process would otherwise share. Only run output (compute logs) stays on the disk.
+storage:
+  postgres:
+    postgres_url:
+      env: {DAGSTER_URL_ENV}
+retention:
+  schedule:
+    purge_after_days: 14
+  sensor:
+    purge_after_days:
+      skipped: 3
+      failure: 14
+      success: 14
+"""
+
+
+def dagster_url(url: str) -> str:
+    """FUZER_DATABASE_URL as Dagster's SQLAlchemy URL, searching only the Dagster schema. The driver is pinned to
+    psycopg2 (which dagster-postgres is written for): SQLAlchemy 2.1 picks psycopg 3 for a bare postgresql://, and
+    Dagster's NOTIFY statements fail under psycopg 3's server-side parameters."""
+    parts = urlsplit(url)
+    scheme = "postgresql+psycopg2" if parts.scheme in ("postgres", "postgresql") or parts.scheme.startswith(
+        "postgresql+") else parts.scheme
+    query = dict(parse_qsl(parts.query))
+    query["options"] = " ".join(filter(None, [f"-csearch_path={DAGSTER_SCHEMA}", query.get("options")]))
+    return urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def clear_disk_storage(home: Path, now: float | None = None) -> None:
+    """Free the persistent disk of what Dagster kept there before its storage moved to Postgres: the SQLite run,
+    schedule and event databases (and any journals a killed process left), then run output older than
+    COMPUTE_LOG_DAYS. The run history they held is not carried over."""
+    cutoff = (now or time.time()) - COMPUTE_LOG_DAYS * 86400
+    for old in [home / "history", home / "schedules"]:
+        for f in old.glob("*.db*") if old.is_dir() else ():
+            f.unlink(missing_ok=True)
+    storage = home / "storage"
+    if not storage.is_dir():
+        return
+    for f in storage.glob("*.db*"):  # SQLite event logs: index.db and one <run_id>.db per run
+        f.unlink(missing_ok=True)
+    for f in storage.rglob("*"):
+        if f.is_file() and f.stat().st_mtime < cutoff:
+            f.unlink(missing_ok=True)
+    for d in sorted((d for d in storage.rglob("*") if d.is_dir()), key=lambda d: len(d.parts), reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
+
+
+def configure_dagster(home: Path, url: str) -> None:
+    """Point every Dagster process (and the Jobs page) at Postgres storage in its own schema."""
+    clear_disk_storage(home)
+    with db.connect(autocommit=True, url=url) as conn:
+        conn.execute(f'create schema if not exists "{DAGSTER_SCHEMA}"')
+    os.environ[DAGSTER_URL_ENV] = dagster_url(url)
+    (home / "dagster.yaml").write_text(DAGSTER_YAML)
 
 
 def supervise(tasks: list[tuple[str, list[str]]], stop: threading.Event) -> None:
@@ -85,12 +151,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--bundle", required=True,
                    help="the seed bundle this database's first project comes from (its folder, with bundle.yaml)")
     args = p.parse_args(argv)
-    if not os.environ.get("FUZER_DATABASE_URL"):
+    if not (url := os.environ.get("FUZER_DATABASE_URL")):
         raise SystemExit("Render runtime requires FUZER_DATABASE_URL; embedded Postgres is not used")
     home = Path(os.environ.get("DAGSTER_HOME", "/var/lib/fuzer/dagster"))
     home.mkdir(parents=True, exist_ok=True)
-    (home / "dagster.yaml").touch(exist_ok=True)
     os.environ["DAGSTER_HOME"] = str(home.resolve())
+    configure_dagster(home, url)
     with db.connect() as conn:
         first = seed(conn, Path(args.bundle))["name"]
         engine.load_defaults(conn)
