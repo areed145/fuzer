@@ -49,3 +49,9 @@ def test_jacket_alias_is_not_the_start_of_a_well():
     # J15 names the jacket, but in "J15-05" it is the start of a well written without its prefix (#459).
     assert [m.key for m in find_mentions("J15-05 choke opened 24 to 52%", PACK)] == []
     assert [m.key for m in find_mentions("Jacket J15 shut in for riser work", PACK)] == ["OKAN-75"]
+
+
+def test_a_pack_with_no_well_grammar_has_no_wells():
+    harrier = load_pack("harrier")  # a pipeline and terminal: its pack declares no well grammar
+    assert harrier.wells.parse("HRW-001") is None and harrier.wells.find_all("well 12-03H shut in") == []
+    assert "well" not in {m.kind for m in find_mentions("G1-K-7001 tripped at the VRU, HRW-001 shut in", harrier)}

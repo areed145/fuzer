@@ -255,7 +255,7 @@ compressor_trip:
   title: Trip diagnosis from the first point to move
   standard: "ISO 13379-1 (symptom to cause)"
   inputs: [{name: Run signal, unit: kW or rpm}, {name: Every point on the train, unit: various}, {name: Alarm and trip settings, unit: various}]
-  valid: Compression trains with a run signal. Each point is judged against its own hours before the trip.
+  valid: Compression and pump trains with a run signal. Each point is judged against its own hours before the trip.
   needs: A trip of the train in the two days before the time asked about.
   thresholds:
     inspect_first: {value: 30, unit: "days", means: "A second trip of the same family on the train within this: inspect, don't restart.", code: "fuzer.analysis.trips:REPEAT_DAYS"}

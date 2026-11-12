@@ -215,6 +215,64 @@ def work_skill_shortfalls(since: datetime | None = None, conn=Depends(get_conn))
     return shortfalls.gather(conn, since.isoformat() if since else None)
 
 
+class SkillDraft(BaseModel):
+    skill: str
+    playbook: str
+    by: str
+    cases: list[dict] = Field(default_factory=list)
+    questions: list[dict] = Field(default_factory=list)
+    note: str | None = None
+
+
+class SkillAct(BaseModel):
+    skill: str
+    by: str
+    version: int | None = None
+
+
+def _skill_call(fn, *args):
+    from ..agents import skill_versions
+
+    try:
+        return fn(*args)
+    except skill_versions.VersionRefused as e:
+        raise HTTPException(403, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from None
+
+
+@router.get("/work/skills/versions")
+def work_skill_versions(skill: str, conn=Depends(get_conn)):
+    """Every version of a skill's playbook (P6.4b), newest first, ending with the one shipped."""
+    from ..agents import skill_versions
+
+    return _skill_call(skill_versions.history, conn, skill)
+
+
+@router.post("/work/skills/versions")
+def work_skill_draft(d: SkillDraft, conn=Depends(get_conn)):
+    from ..agents import skill_versions
+
+    return _skill_call(skill_versions.draft, conn, d.skill, d.playbook, d.by, d.cases, d.questions, d.note)
+
+
+@router.post("/work/skills/publish")
+def work_skill_publish(a: SkillAct, conn=Depends(get_conn)):
+    from ..agents import skill_versions
+
+    if a.version is None:
+        raise HTTPException(422, "say which version to publish")
+    return _skill_call(skill_versions.publish, conn, a.skill, a.version, a.by)
+
+
+@router.post("/work/skills/rollback")
+def work_skill_rollback(a: SkillAct, conn=Depends(get_conn)):
+    """One action: the live version is rolled back and the one before it is live again."""
+    from ..agents import skill_versions
+
+    return _skill_call(skill_versions.rollback, conn, a.skill, a.by)
+
+
 @router.post("/work/items/{item_id}/comment")
 def work_item_comment(item_id: int, c: WorkComment, conn=Depends(get_conn)):
     return work.comment(conn, item_id, c.by, c.text, c.attachments)

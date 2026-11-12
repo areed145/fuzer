@@ -3,13 +3,11 @@ eval (P1.7) on the standard operating model, stood up from its seed bundle with 
 pump stations, a mainline, tanks, ship loading and a vapour recovery unit, and no wells."""
 
 from fuzer.evals import loop
-from fuzer.workflow import engine
 from fuzer.workflow import operating_model as om
 
 
 def test_every_type_of_work_on_harrier_completes_the_loop(harrier_db):
-    engine.load_defaults(harrier_db)  # the shipped processes, as on the API's start
-    adopted = om.adopt(harrier_db, by="test")
+    adopted = om.adopt(harrier_db, by="test")  # a bundle just stood up: adopt loads the shipped processes itself
     assert adopted["applied"] and adopted["deviations"] == 0 and adopted["unnamed"] == []  # standard v1, as it ships
 
     res = loop.run(harrier_db)

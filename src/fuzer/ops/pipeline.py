@@ -363,6 +363,7 @@ def first_scan(conn, pack: Pack, days: int = 7) -> dict | None:
         return res if "status" in res else {**{k: res[k] for k in keep}, "raised": len(res["raised"])}
 
     out["trips"] = ran("compressor_trips", ("trips",), since=out["sre"]["since"], until=out["sre"]["until"])
+    out["pump_trips"] = ran("pump_trips", ("trips",), since=out["sre"]["since"], until=out["sre"]["until"])
     out["machine_health"] = ran("machine_health", ("checked",))
     out["records_gaps"] = ran("records_gaps")  # downtime with no log or notification, and logged stops with none (#344)
     board.refresh(conn, pack)

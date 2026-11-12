@@ -72,3 +72,24 @@ create table if not exists assistant_fact (
 );
 create index if not exists assistant_fact_entities on assistant_fact using gin (entity_ids);
 create index if not exists assistant_fact_episode on assistant_fact (episode);
+
+-- Skill versions (P6.4b): a skill's playbook as drafted, published, retired or rolled back. Version 0 is the folder
+-- shipped under agents/skills and has no row; the published row, when there is one, is what the agents load.
+create table if not exists skill_version (
+    id           bigserial primary key,
+    skill        text not null,          -- the skill's path under agents/skills
+    version      int not null,
+    playbook     text not null,          -- the whole SKILL.md
+    status       text not null default 'draft'
+                 check (status in ('draft', 'published', 'retired', 'rolled_back', 'refused')),
+    cases        jsonb not null default '[]',   -- the shortfalls behind the change (P6.4a)
+    questions    jsonb not null default '[]',   -- eval questions drawn from them
+    note         text,
+    eval         jsonb not null default '{}',   -- the eval scores it was published on (P6.4d)
+    created_by   text not null,
+    created_at   timestamptz not null default now(),
+    published_by text,
+    published_at timestamptz,
+    unique (skill, version)
+);
+create unique index if not exists skill_version_live on skill_version (skill) where status = 'published';

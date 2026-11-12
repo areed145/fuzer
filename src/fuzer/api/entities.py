@@ -127,13 +127,6 @@ def limit_issues(conn=Depends(get_conn)):
     return limits.issues(conn, deps.pack())
 
 
-@router.get("/excursions")
-def excursions(since: str | None = None, basis: str | None = None, limit: int = 200, conn=Depends(get_conn)):
-    """Recorded excursions outside alarm limits, IOWs and learned ranges, newest first (#101)."""
-    from ..analysis import limits
-    return limits.recent(conn, since, basis, min(limit, 2000))
-
-
 @router.get("/entities/{fuzer_id}/measurements")
 def entity_measurements(fuzer_id: str, quantity: str | None = None, since: str | None = None,
                         until: str | None = None, conn=Depends(get_conn)):

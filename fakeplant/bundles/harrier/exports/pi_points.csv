@@ -8,6 +8,9 @@ HRPT:A1.VT1013C.PV,Mainline Pump C Vibration,mm/s,OPC
 HRPT:A1.TT1014A.PV,Mainline Pump A Bearing Temperature,degC,OPC
 HRPT:A1.TT1014B.PV,Mainline Pump B Bearing Temperature,degC,OPC
 HRPT:A1.TT1014C.PV,Mainline Pump C Bearing Temperature,degC,OPC
+HRPT:A1.JT1015A.PV,Mainline Pump A Motor Power,kW,OPC
+HRPT:A1.JT1015B.PV,Mainline Pump B Motor Power,kW,OPC
+HRPT:A1.JT1015C.PV,Mainline Pump C Motor Power,kW,OPC
 HRPT:A1.PDT1007.PV,Mainline Suction Strainer Differential Pressure,bar,OPC
 HRPT:A1.FT1010.PV,Origin Meter Crude Flow,sm3/d,OPC
 HRPT:B1.PT2003.PV,Midline Suction Pressure,barg,OPC

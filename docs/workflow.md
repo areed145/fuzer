@@ -324,7 +324,8 @@ Where a project differs from its model on purpose, the difference is named: why,
 `fuzer operating-model conformance` reports the model, whether it was applied as it is, and the deviations named and
 unnamed. Okan adopts standard v1 with no deviations; Kestrel adopts it with one, its crews' 07:00 and 19:00 handover
 (`handover.shift_times`, owned by ops_lead). `fuzer init` doesn't adopt by itself: applying resets a project's
-operating settings, so it is a step someone takes.
+operating settings, so it is a step someone takes. Adopting loads the shipped processes and forms first, as the
+API's start does, so a project stood up from its bundle a moment ago adopts without anyone publishing them by hand.
 
 A package moved between databases runs the same: Okan's model, changed away from the standard and exported, applied
 to a second copy of Okan that ran the standard, takes the loop eval the same way step for step
