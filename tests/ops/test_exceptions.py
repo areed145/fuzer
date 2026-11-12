@@ -223,6 +223,40 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
     conn.commit()
 
 
+PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ"
+         "AAAABJRU5ErkJggg==")
+
+
+def test_a_report_carries_a_reading_and_a_photo_the_ioc_sees(conn, types):
+    """P5.3b (#642): Done with a reading and a photo; the case's history says it in words and links the photo,
+    which the API serves back as the image the phone sent."""
+    from fuzer.api import ops as api
+    from fuzer.ops import exceptions as ex
+
+    types("leak", audience=("ioc", "field"))
+    e = raise_exception(conn, "leak", "walk-photo", "Leak at P-101 (photo)", "olga", refs=["tag:P-101"])
+    ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="look at the gland")
+    conn.commit()
+    with pytest.raises(ExceptionError, match="needs its unit"):
+        ex.report(conn, e["id"], "fred", "note", "hot", reading={"value": 72})
+    with pytest.raises(ExceptionError, match="JPEG, PNG or WebP"):
+        ex.report(conn, e["id"], "fred", "note", "x", photos=["data:text/html;base64,PGI+"])
+    conn.rollback()
+    row = api.exception_report(e["id"], api.FieldReport(by="fred", status="done", note="gland repacked",
+                                                        reading={"value": 72.5, "unit": "°C", "what": "Gland"},
+                                                        photos=[PIXEL]), conn)
+    [entry] = row["evidence"]["field"]
+    assert entry["reading"] == {"value": 72.5, "unit": "°C", "what": "Gland"} and len(entry["photos"]) == 1
+    said = conn.execute("select data from work_event where item_id = %s and kind = 'commented' order by id desc limit 1",
+                        (row["item_id"],)).fetchone()["data"]
+    assert said["text"] == "Field: Done: gland repacked (Gland 72.5 °C; 1 photo)"
+    assert said["attachments"] == [{"kind": "photo", "exception_id": e["id"], "photo_id": entry["photos"][0]}]
+    img = api.exception_photo(e["id"], entry["photos"][0], conn)
+    assert img.media_type == "image/png" and img.body.startswith(b"\x89PNG")
+    with pytest.raises(Exception, match="404"):
+        api.exception_photo(e["id"] + 999, entry["photos"][0], conn)
+
+
 def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types):
     """Dispatching a process case hands its open person step (the IOC's decision) to the operator; when they say
     done, or that they couldn't, it goes back to whoever had it, so it reappears in the IOC's Inbox."""

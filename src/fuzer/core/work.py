@@ -113,9 +113,9 @@ def roles_of(conn, person: str) -> list[str]:
     return _engine().roles_of(conn, person)
 
 
-def comment(conn, item_id: int, by: str, text: str) -> dict:
-    """A note on a case's history (what a field operator reported, say)."""
-    return _engine().comment(conn, item_id, by, text)
+def comment(conn, item_id: int, by: str, text: str, attachments: list[dict] | None = None) -> dict:
+    """A note on a case's history (what a field operator reported, say), with any photos it carries."""
+    return _engine().comment(conn, item_id, by, text, attachments)
 
 
 def process_routing(conn, process_key: str, data: dict | None = None) -> list[dict] | None:

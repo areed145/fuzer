@@ -229,6 +229,16 @@ create unique index if not exists exception_record_open on exception_record (typ
 alter table exception_record add column if not exists joined_to bigint;
 create index if not exists exception_record_joined on exception_record (joined_to) where joined_to is not null;
 create index if not exists exception_record_subjects on exception_record using gin (subjects);
+-- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
+create table if not exists field_photo (
+    id           bigserial primary key,
+    exception_id bigint not null,
+    by           text not null,
+    at           timestamptz not null default now(),
+    mime         text not null,
+    data         bytea not null
+);
+create index if not exists field_photo_exception on field_photo (exception_id);
 -- Source problems opened as work items before the exception contract become its open exceptions, so the next
 -- health check updates them instead of opening a second case.
 insert into exception_record (type, key, title, source, priority, evidence, item_id, first_seen, last_seen)
