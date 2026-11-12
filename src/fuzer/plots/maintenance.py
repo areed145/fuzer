@@ -343,3 +343,27 @@ def unreliability(conn, pack, since: str | None = None, until: str | None = None
         "units": [{k: r[k] for k in ("unit", "lost_oil_sm3", "lost_oil_value", "order_cost", "total",
                                      "total_currency", "why_no_total")} for r in rows[:10]],
         "source": out["source"], "note": out["note"]}, [r["id"] for r in rows[:10]])
+
+
+def backlog_burn(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """Work orders created against closed each month, and the open backlog at each month's end (#348)."""
+    from ..analysis import backlog
+
+    out = backlog.burn(conn, since, until, days)
+    months = out["months"]
+    if not months:
+        raise ChartError("no whole month in that window")
+    x = [m["month"] for m in months]
+    data = [{"type": "bar", "name": "created", "x": x, "y": [m["created"] for m in months],
+             "marker": {"color": "rgba(90,120,200,0.75)"}},
+            {"type": "bar", "name": "closed", "x": x, "y": [m["closed"] for m in months],
+             "marker": {"color": "rgba(40,150,90,0.75)"}},
+            {"type": "scatter", "mode": "lines+markers", "name": "open at month end", "x": x,
+             "y": [m["open_at_end"] for m in months], "line": {"color": "rgba(210,60,50,0.9)"}}]
+    lay = layout(f"Work orders created, closed and open, {out['since']} to {out['until']}", None, "work orders")
+    lay["barmode"] = "group"
+    return Figure("backlog_burn", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "lag": {k: v for k, v in out["lag"].items()
+                                           if k not in ("longest", "before", "without_refs")},
+        "since": out["since"], "until": out["until"], "source": out["source"], "note": out["note"]},
+        [r for m in months for r in m["refs"]["created"]][:10])

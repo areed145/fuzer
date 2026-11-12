@@ -341,6 +341,14 @@ def plant_accounting(days: int = 365, conn=Depends(get_conn)):
     return {"reconciliation": accounting.reconcile(conn, days=days), "unit_cost": accounting.unit_cost(conn, days=days)}
 
 
+@router.get("/plant/backlog-burn")
+def plant_backlog_burn(days: int = 365, conn=Depends(get_conn)):
+    """Work orders created against closed each month, the open backlog at each month's end, and the notification-to-
+    order lag (#348)."""
+    from ..analysis import backlog
+    return backlog.burn(conn, days=max(31, min(days, 1825)))
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

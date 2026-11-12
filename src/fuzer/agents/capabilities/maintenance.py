@@ -39,6 +39,24 @@ def work_order_backlog(as_of: str | None = None, limit: int = 20) -> dict[str, A
         return _plain(operations.work_order_backlog(conn, as_of, min(limit, 100)))
 
 
+@capability("work-management-supply-chain", "maintenance-integrity", kind="calc")
+def backlog_burn(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Is the backlog under control (#348)? Per month: work orders created (by start) against closed (by finish) and
+    the orders open at the month's end, with whether the backlog is growing, steady or shrinking; then the days from
+    a notification to the order raised for it (median, 90th percentile, longest). Orders with no notification are
+    counted and left out of the lag, never read as zero."""
+    from ...analysis import backlog
+    with db.connect() as conn:
+        return _plain(backlog.burn(conn, since, until, days))
+
+
+@capability("work-management-supply-chain", "maintenance-integrity", kind="plot")
+def plot_backlog_burn(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart work orders created and closed each month, with the open backlog at each month's end."""
+    from ...plots import maintenance
+    return _chart(maintenance.backlog_burn, {"since": since, "until": until, "days": days})
+
+
 @capability("maintenance-integrity", "field-operations-facilities", kind="query")
 def rotating_screen(at: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Every rotating machine (pumps, compressors, gas turbines, motors) through the rotating health checks at
