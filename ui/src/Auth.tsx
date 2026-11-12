@@ -95,7 +95,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <PageHeader>{heading}</PageHeader>
         {["sign-in", "sign-in-failed", "checking"].includes(state) &&
           <p>Explore the Okan facility, trace a recorded issue to its asset and supporting evidence, and read a cited finding.
-            The demonstration uses historical synthetic records, not a live plant.</p>}
+            The demonstration uses historical synthetic records.</p>}
         {ended ? <div role="alert"><p>{error}</p>{check("Reload sign-in")}</div>
           : error ? <div role="alert">
             <p>The sign-in service did not answer: {error}. Nothing was changed. Try again; if this continues,
@@ -114,7 +114,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               : pending.enabled
               ? "Your account is enabled, but its application roles do not include read access. Ask an owner to review your application roles."
               : "Ask an owner to enable your account and assign application access. A not-enabled account may be awaiting approval or deliberately disabled."}
-              {" "}Signing in does not grant privileges automatically.</p>
+              {" "}An owner grants access after you sign in.</p>
             <ol aria-label="Access next steps">
               <li>Microsoft sign-in is complete for this account.</li>
               <li>{state === "first-owner" ? "The deployment owner enters the setup code below. Anyone else waits for them to finish."
@@ -147,8 +147,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               {" "}If this continues, contact the deployment owner to check the application registration.</p>}
             <ButtonLink variant="primary" href={location.hash.startsWith("#/") && !signInResult
               ? `/auth/login?return_to=${encodeURIComponent(location.hash)}` : "/auth/login"}>Continue with Microsoft</ButtonLink>
-            <p className="muted small">Personal Microsoft and work/school accounts are supported. Microsoft handles your password,
-              passkeys and Authenticator. An owner approves access to this shared demonstration.</p>
+            <p className="small">Personal and work or school Microsoft accounts work. An owner approves access.</p>
           </>}
         <ActionStatus busy={busy ? "Setting up owner access..." : null} error={actionError} />
       </Card>

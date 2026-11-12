@@ -47,6 +47,7 @@ plain, conventional enterprise application for any asset type.
 7. **Colour means state.** Accent marks the current place and the main action. `ok`, `warn` and `danger`
    always come with words. Tinted callout boxes are for things to act on, not for introductions.
 8. **Empty means one line and at most one action.** "No incidents in this window." plus a link to widen it.
+   Use `Empty` from the UI kit for it, never a grey `<p className="muted">`, which the style lint counts.
 9. **Phones get the work, not a shrunken desk.** Tap targets at least 44 px, the area tabs on one line,
    and work lists as rows of title, asset and state rather than wide tables.
 

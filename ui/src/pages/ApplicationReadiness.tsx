@@ -17,13 +17,12 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
       recovering source data, open <a href={href("/sources")}>Sources</a>. Viewing this page makes no changes or AI calls.</p>
     <Button disabled={list.loading} onClick={list.reload}>Refresh configuration</Button>
     <Status loading={list.loading && !list.data} error={list.error} />
-    <p className="muted small">Scope: {list.data?.project ?? "global"}. These are configured values, not a snapshot of
-      every running worker. Refresh after making changes; no restart-completion tracking is available.</p>
+    <p className="small">Scope: {list.data?.project ?? "global"}. Configured values; refresh after a change.</p>
     <Card title="Deployment and sign-in">
       {deployment ? <>
         <Badge>{deployment.mode === "local" ? "Trusted local development" : deployment.configured ? "Microsoft configuration present" : "Sign-in configuration incomplete"}</Badge>
         <p>{deployment.mode === "local" ? "Attribution-only mode is limited to loopback development, not shared hosting."
-          : deployment.configured ? "Required sign-in references are present. This does not verify a real Microsoft login or role restrictions."
+          : deployment.configured ? "Required sign-in references are present. A real Microsoft sign-in is the test of them."
           : "Microsoft configuration is incomplete. Ask the deployment owner to configure sign-in in hosting."}</p>
         {deployment.bootstrap_present && <p role="status">Attention: the owner bootstrap secret is still present.
           After establishing an owner, remove FUZER_OWNER_BOOTSTRAP_TOKEN from hosting and apply the hosting change.</p>}
@@ -33,8 +32,8 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
       <ButtonLink href="https://areed145.github.io/fuzer/deployment/" target="_blank" rel="noreferrer">Deployment instructions ↗</ButtonLink>
     </Card>
     <Card title="Optional AI and application limits">
-      <p>The Okan guided investigation works without AI. Credential presence below does not verify reachability,
-        model access, account balance or a successful paid call. No paid probe is run here.</p>
+      <p>The Okan guided investigation works without AI. A present credential is checked only by a real paid call,
+        which this page never makes.</p>
       <ul>{["llm", "agents"].map((prefix) => {
         const provider = rows.find((s) => s.key === `${prefix}.provider`);
         const key = rows.find((s) => s.key === `${prefix}.api_key`);
@@ -50,7 +49,7 @@ export function ApplicationReadiness({ list }: { list: SettingsLoad }) {
     </Card>
     <Card title="Demo onboarding">
       <p>The Demo tab is {rows.find((s) => s.key === "demo.enabled")?.value === true ? "enabled" : "disabled or unavailable"}.
-        Administrators enable or hide it application-wide. It does not grant AI, workflow or configuration access.</p>
+        Administrators enable or hide it application-wide. AI, workflow and configuration access stay as they are.</p>
       <ButtonLink href={config("demo.enabled")}>Configure Demo</ButtonLink>
     </Card>
     <Card title="Apply changes and restart requirements">

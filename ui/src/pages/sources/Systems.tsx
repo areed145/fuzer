@@ -1,4 +1,4 @@
-import { Button, Input, Table, Card as UICard, Select , Badge as UIBadge, Disclosure } from "../../ui";
+import { Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
 import { useState } from "react";
@@ -29,12 +29,6 @@ export function Systems() {
   const cat = useAsync(() => api.catalog(), []);
   return (
     <>
-      <p className="muted small">
-        A system is where records come from (its name is what records say as their source). A connection is how Fuzer
-        reaches it: a folder of exports (empty path: the project's data folder), PI Web API or ADX. Secrets are
-        references such as <code>env:PI_PASSWORD</code>, never the value.
-        {" "}A deliberate test contacts the service, may read sample rows and saves its result; it does not load data or call AI.
-      </p>
       <NewSystem onDone={cat.reload} />
       <ImportPack onDone={cat.reload} />
       <Status loading={cat.loading && !cat.data} error={cat.error} />
@@ -73,9 +67,7 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
   if (!open) return <p className="small"><Button variant="link" onClick={() => setOpen(true)}>Import a source pack…</Button></p>;
   return (
     <UICard title="Import a source pack">
-      <p className="muted small">A pack is one system as a YAML file (download one from a system below). Importing is safe to
-        repeat: what is already here and the same is left alone, and a mapping that differs from one a person approved here
-        becomes a draft for review. Its exception types and rules come with it.</p>
+      <p className="small">Importing a pack is safe to repeat. A mapping that differs from an approved one becomes a draft.</p>
       <input type="file" accept=".yaml,.yml" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
       <textarea className="mono" rows={8} style={{ width: "100%" }} placeholder="fuzer_source_pack: 1 …" value={text}
         onChange={(e) => setText(e.target.value)} />
@@ -112,8 +104,7 @@ function SystemWork({ system }: { system: string }) {
   return (
     <>
       <h3>Work it brings</h3>
-      {!types.length && !rules.length && <p className="muted small">No exception types or rules yet: a source pack brings
-        them (<code>exception_types</code>, <code>exception_rules</code>).</p>}
+      {!types.length && !rules.length && <Empty className="small">No exception types or rules yet.</Empty>}
       {types.length > 0 && (
         <Table density="compact">
           <thead><tr><th>Exception type</th><th>Goes to</th><th>Seen by</th><th>Open</th></tr></thead>
@@ -236,7 +227,7 @@ function ConnectionRow({ c, system, reload }: { c: CatalogConnection; system: st
 
 function TableList({ tables, system, connection }: { tables: { table: string; dataset: string | null }[]; system: string;
                                                       connection: number }) {
-  if (!tables.length) return <p className="muted small">It holds no tables Fuzer can read.</p>;
+  if (!tables.length) return <Empty className="small">It holds no tables Fuzer can read.</Empty>;
   return (
     <ul className="small">
       {tables.map((t) => (
