@@ -30,7 +30,7 @@ the `measurement_role` table): what it means for the equipment or well it is on,
 instrument letters, its units and that equipment's class. `fuzer eval --roles` (`src/fuzer/evals/roles.py`) scores
 the proposals against the fake plant's `process_model.json`, which says which unit variable each point is; a unit
 that holds one value names its role there (`"role": "differential_pressure"`). It fails under 90% right, or when a
-wrong role was confident enough not to go to a steward. `tests/evals/test_roles.py` runs it on Okan and Kestrel.
+wrong role was confident enough not to go to a steward. `tests/evals/test_measurement_roles.py` runs it on Okan and Kestrel.
 
 ## Replaying history to score the detectors
 
