@@ -165,6 +165,10 @@ register(
     Setting("exceptions.around_after_hours", "int", 6, "A case shows the alarms and operator log entries about its "
             "event's assets until this many hours after its latest finding (the checks and restart are logged after)",
             "Work", min=0, max=72),
+    Setting("exceptions.suppress_planned_work", "bool", True, "A machine's trip, health or upset detection about an "
+            "asset with planned work or a shutdown scheduled or in progress on it is counted under that window instead "
+            "of opening a case (never a safety case type). Off: only shutdowns, turnarounds and people's windows count",
+            "Work"),
     Setting("records.log_tolerance_hours", "int", 12, "Records mismatch: hours either side of a downtime "
             "record (and during it) an operator log entry about the same plant counts as its log",
             "Work", min=0, max=168),

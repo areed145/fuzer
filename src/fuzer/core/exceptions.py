@@ -52,6 +52,7 @@ class ExceptionType:
     description: str = ""
     joins: bool = True                   # about an asset another open exception's case already works: join that case
     due_hours: str | None = None         # its due policy: priority -> hours ("1:24,2:72"), or a setting that holds one
+    suppress: bool = False               # a detection planned work or a shutdown on its asset explains: counted, no case
 
 
 TYPES: dict[str, ExceptionType] = {}

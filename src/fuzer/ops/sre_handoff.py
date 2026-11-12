@@ -31,7 +31,7 @@ from ..core.findings import DETERMINISTIC, Finding, asset, at, fact
 from ..core.jsonsafe import plain as _plain
 
 # Defaults; the values in effect are settings (#131): sre.handoff.min_detections, .max_diagnoses, .max_usd
-UPSET = exception_type("upset", "Process upset", process="upset", audience=("ioc", "field"),
+UPSET = exception_type("upset", "Process upset", process="upset", audience=("ioc", "field"), suppress=True,
                        description="Detections grouped into one upset by time and plant topology.").name
 MIN_DETECTIONS = 3  # a lone detection is evidence, not an upset worth a person's time
 MAX_DIAGNOSES = 10  # per run

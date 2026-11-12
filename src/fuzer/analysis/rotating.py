@@ -737,7 +737,7 @@ def _health_type():
     from ..core.exceptions import TYPES, exception_type
 
     return TYPES.get("machine_health") or exception_type(
-        "machine_health", "Machine health", role="role:engineer", audience=("ioc", "field"),
+        "machine_health", "Machine health", role="role:engineer", audience=("ioc", "field"), suppress=True,
         description="A rotating machine the fleet screen flags: vibration in zone C or D, near surge, a motor "
                     "past its service factor, head or efficiency loss, a valve or rod load problem. It clears, "
                     "closing its case, when the screen no longer flags it.")

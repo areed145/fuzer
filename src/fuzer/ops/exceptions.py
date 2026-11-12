@@ -374,6 +374,11 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
         if t.process and not row["joined_to"]:  # new evidence for the process already working it
             _case(conn, t, {**row, "evidence": evidence}, by, assignee, role)
         return {**row, "raised": False, "unmatched_note": _unmatched_note(conn, unmatched)}
+    if not (assignee or role):  # planned work or a shutdown on the asset explains it: counted, no case (P3.5b)
+        from . import suppression
+
+        if suppression.applies(conn, t) and (w := suppression.covering(conn, subjects, suppression._at(evidence))):
+            return suppression.record(conn, w, type, key, title, source or by, subjects, evidence, value_usd)
     host = _host(conn, t, type, key, subjects) if not (assignee or role) else None
     row = conn.execute(
         """

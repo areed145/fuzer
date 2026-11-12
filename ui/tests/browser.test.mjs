@@ -372,6 +372,20 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
+  await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
+    windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",
+      end_at: "2026-11-14T00:00:00Z", created_by: "sap", raised: 3, findings: 1 }],
+    items: [{ id: 1, type: "machine_trip", key: "B1@1", title: "Train B1 tripped", source: "trips", subjects: [],
+      value_usd: null, window_kind: "shutdown", window_id: 4, reason: "Train B1 shutdown", raised: 3,
+      first_seen: "2026-11-11T03:20:00Z", last_seen: "2026-11-11T05:20:00Z" }] } }));
+  await page.goto(`${url}/#/exceptions?list=open`);
+  await page.getByRole("heading", { name: "Suppressed: 1 finding, raised 3 times" }).waitFor();
+  await page.getByText("Train B1 shutdown", { exact: false }).first().waitFor();
+  await page.getByRole("button", { name: "What was held back" }).click();
+  await page.getByRole("cell", { name: "Train B1 tripped" }).waitFor();
+});
+
 test("a case shows the alarms and operator log entries around its event (P3.5a)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Train B1 tripped", type: "machine_trip",
     state: "open", subjects: [], created_by: "trips", created_at: "2026-11-11T03:20:00Z", events: [], processes: [] } }));
