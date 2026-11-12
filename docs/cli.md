@@ -226,6 +226,24 @@ the operating model as a package (P8.1): export, apply, adopt, deviations, confo
 | `--version` | with export: the model's version |
 | `--by` | who is applying it (default: $USER) |
 
+## `fuzer model-change`
+
+change control for the standard (P8.3): propose, promote, test-run, review, publish, rollout, rollback, versions, history
+
+| Argument | What it does |
+|---|---|
+| `action` (propose / promote / test-run / review / publish / rollout / rollback / versions / history) |  |
+| `--version` | with test-run, review, publish and rollout: the version |
+| `--changes` | with propose: a JSON file of {part: {key: value, or null to remove}} |
+| `--part` | with promote: the part of this project's deviation |
+| `--key` | with promote: the key of this project's deviation |
+| `--summary` | with propose and promote: what it changes and why |
+| `--approve` | with review: approve (default: reject) |
+| `--note` | with review: why |
+| `--target` | with rollout, rollback and history: the project (default: this one) |
+| `--reason` | with rollback: why |
+| `--by` | who is acting (default: $USER) |
+
 ## `fuzer onboarding`
 
 the onboarding journey (P8.4): each step ready, blocked or to do, and what each gap prevents

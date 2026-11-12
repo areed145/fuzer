@@ -83,6 +83,7 @@ def _has(conn, table: str) -> bool:
 def standing(conn, days: int = DAYS) -> dict:
     """This project against its operating model, and its work in practice over the last `days`."""
     from ..core import projects
+    from . import model_changes
     from . import operating_model as om
 
     project = projects.current(conn)
@@ -103,7 +104,7 @@ def standing(conn, days: int = DAYS) -> dict:
     unnamed = [r for r in rows if not r["named"]]
     verdict = ("drifted" if unnamed or overdue or not c["applied"] else "justified" if rows else "standard")
     return {"project": project, "model": c["model"], "version": c["version"],
-            "current": c["version"] == om.STANDARD_VERSION if c["model"] == om.STANDARD_NAME else None,
+            "current": c["version"] == model_changes.latest(conn, c["model"]),
             "applied": c["applied"], "deviations": rows, "named": c["named"], "unnamed": len(unnamed),
             "overdue": len(overdue), "stale": c["stale"], "verdict": verdict, "practice": _practice(conn, days)}
 
@@ -128,9 +129,12 @@ def fleet(allowed: list[str] | None, days: int = DAYS) -> dict:
 
 
 def _standard_version() -> int:
-    from . import operating_model as om
+    """The latest published version of the standard (P8.3)."""
+    from ..core import db
+    from . import model_changes
 
-    return om.STANDARD_VERSION
+    with db.connect() as conn:
+        return model_changes.latest(conn)
 
 
 @detectors.register("deviation_reviews", title="A named deviation from the operating model past its review date",
