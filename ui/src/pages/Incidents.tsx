@@ -6,6 +6,7 @@ import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
 import { TrendGrid } from "../Trend";
 import { loadPerson } from "../work";
 import { IncidentRepeats } from "./IncidentRepeats";
+import { FlareAttribution } from "./FlareAttribution";
 
 export function IncidentsPage() {
   const list = useAsync(() => api.incidents(), []);
@@ -17,6 +18,7 @@ export function IncidentsPage() {
       </Status>
       <RatingProgress />
       <IncidentRepeats />
+      <FlareAttribution />
       {list.data && list.data.total > 0 && (
         <>
           <p className="small">

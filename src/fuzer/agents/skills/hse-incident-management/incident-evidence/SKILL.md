@@ -27,6 +27,11 @@ Use only recorded evidence:
    not an action register, and that a repeat after closed work is a lead for review, not a failed action.
 6. `plot_flare(since, until)` shows recorded daily flare from DAY001 with an estimated CO2 per barrel. It is
    evidence for a review, not an emissions inventory or a compliance figure.
+   To explain flare spikes, use `flare_attribution()` (and `plot_flare_attribution()`): each episode above the
+   flare's own baseline with the downtime, log entries and detections around it, or its cause unknown, and how much
+   of the flare over the baseline the records explain. Causes are matched by time, so call them leads, not proven
+   causes; an open `flare_event` from the detector is the same episode. No permit limit is loaded: never say a flare
+   was within or over one.
 
 Report the record IDs and event dates, distinguish event time from observation time, and state when incident,
 corrective-action, or source coverage is incomplete. Do not infer a hazard, barrier state, exposure, compliance

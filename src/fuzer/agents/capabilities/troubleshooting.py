@@ -380,3 +380,24 @@ def plot_quality_trend(sample_point: str, analyte: str, days: int = 365) -> dict
         return {"error": f"no {analyte} sample at {sample_point!r}"}
     return _chart(troubleshooting.quality_trend, {"subject": subject, "sample_point": sample_point, "analyte": analyte,
                                                   "days": max(30, min(days, 1825))})
+
+
+@capability("hse-incident-management", "field-operations-facilities", kind="calc")
+def flare_attribution(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Flare event attribution over a review window (#351): the daily flare against the median of the days before
+    it, each flare episode (the flare_events detector's method) with the downtime, log entries and detections around
+    it or its cause unknown, and how much of the flare over the baseline those records explain, by downtime reason.
+    Causes are matched by time: a lead, not a proven cause. Evidence only: not an emissions inventory or a compliance
+    finding, and no permit limit is loaded."""
+    from ...analysis import flare_review
+    with db.connect() as conn:
+        out = flare_review.review(conn, since, until, max(7, min(days, 1825)))
+    return _plain(out | {"days": out["days"][-31:]})
+
+
+@capability("hse-incident-management", "field-operations-facilities", kind="plot")
+def plot_flare_attribution(since: str | None = None, until: str | None = None, days: int = 365) -> dict[str, Any]:
+    """Chart the daily flare against its baseline with each episode marked, filled when records around it were
+    found and hollow when its cause is unknown."""
+    from ...plots import troubleshooting
+    return _chart(troubleshooting.flare_attribution, {"since": since, "until": until, "days": max(7, min(days, 1825))})

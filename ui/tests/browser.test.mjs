@@ -5050,3 +5050,34 @@ test("Separator and export quality shows each analyte against itself, gaps and d
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// #351: what explains the flare? Each episode above the baseline with the records around it, or its cause unknown.
+test("Incidents show flare episodes with the records around them, or the cause unknown (#351)", async () => {
+  await page.route("**/incidents?*", (route) => route.fulfill({ json: { total: 0, items: [] } }));
+  await page.route("**/feedback/briefs", (route) => route.fulfill({ json: { incidents: 0, rated: 0, ratings: 0, items: [] } }));
+  await page.route("**/incidents/repeats", (route) => route.fulfill({ json: { units: [] } }));
+  const ep = (start, volume, causes) => ({ source: "daily_report", subject: "fz-production_day-1", label: start, point: null,
+    start: `${start}T00:00`, end: "", peak: volume + 40, baseline: 40, uom: "kSm3/d", volume, volume_unit: "kSm3",
+    attributed: causes.length > 0, causes });
+  await page.route("**/incidents/flare", (route) => route.fulfill({ json: {
+    since: "2025-01-01", until: "2025-12-31", source: "daily report", thresholds: { day_spike: 1.5, day_base: 30, spike: 3 },
+    note: "Evidence for the flaring report, not an emissions inventory or a compliance finding.",
+    days: [{ day: "2025-12-30", flare_ksm3: 40, baseline_ksm3: 40 }],
+    episodes: [
+      ep("2025-11-08", 170, []),
+      ep("2025-02-10", 1100, [{ kind: "downtime", id: "fz-downtime-1", at: "2025-02-10T08:00",
+        text: "EXT-EGP Escravos Gas Plant curtailed export" }])],
+    summary: { days: 365, flare_ksm3: 16383, episodes: 2, attributed: 1, unknown: 1, over_baseline_ksm3: 1270,
+      explained_ksm3: 1100, explained_share_pct: 86.6, by_reason_ksm3: { "EXT-EGP": 1100, unknown: 170 } } } }));
+  await page.goto(`${url}/#/incidents`);
+  const card = page.locator(".flare-attribution");
+  await card.locator(".flare-summary").getByText("2 episodes above the baseline (1 with records around them, 1 cause unknown)",
+    { exact: false }).waitFor();
+  await card.locator(".flare-summary").getByText("the records explain 86.6% of the", { exact: false }).waitFor();
+  await card.locator('li[data-start="2025-11-08"] .flare-cause').getByText("cause unknown").waitFor();
+  await card.locator('li[data-start="2025-02-10"]').getByText("Downtime 2025-02-10 08:00:", { exact: false }).waitFor();
+  await card.getByText("not an emissions inventory", { exact: false }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
