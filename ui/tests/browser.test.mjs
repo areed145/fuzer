@@ -372,6 +372,26 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
 
+test("Metrics lists every registered KPI with its value and drills by a grain to its records (P7.1b)", async () => {
+  const decl = { key: "context.completeness", label: "Asset context completeness", group: "Context", unit: "%",
+    definition: "Of what an asset's class usually has, the share it has.", formula: "mean over assets", standard: null,
+    grains: ["area", "class"], period: "now", better: "higher", records: "assets", dated: false };
+  await page.route("**/metrics", route => route.fulfill({ json: [decl] }));
+  await page.route("**/metrics/context.completeness*", route => {
+    const grain = new URL(route.request().url()).searchParams.get("grain");
+    return route.fulfill({ json: { ...decl, value: 71.4, as_of: null, note: null, grain, refs: ["E-1"],
+      rows: grain ? [{ key: "B1", label: "Train B1", value: 64.2, refs: ["E-1", "E-2"] }] : [] } });
+  });
+  await page.goto(`${url}/#/metrics`);
+  await page.getByRole("heading", { name: "Metrics" }).waitFor();
+  await page.getByText("71.4%").waitFor();
+  await page.getByRole("link", { name: "area" }).click();
+  await page.getByRole("heading", { name: "Asset context completeness" }).waitFor();
+  await page.getByRole("cell", { name: "Train B1" }).waitFor();
+  await page.getByRole("button", { name: "2 records" }).click();
+  assert.equal(await page.getByRole("link", { name: "E-2" }).getAttribute("href"), "#/e/E-2");
+});
+
 test("All work counts what planned work and shutdowns held back (P3.5b)", async () => {
   await page.route("**/exceptions/suppressed", route => route.fulfill({ json: { findings: 1, raised: 3,
     windows: [{ kind: "shutdown", id: 4, reason: "Train B1 shutdown", start_at: "2026-11-10T00:00:00Z",

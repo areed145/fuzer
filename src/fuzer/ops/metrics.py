@@ -22,13 +22,13 @@ def _rows(items: list[tuple[str, str, float | None, list]]) -> list[dict]:
 # --- production ------------------------------------------------------------------------------------------------------
 
 @metric("production.efficiency", "Production efficiency", group="Production", unit="%", grains=("facility",),
-        period="the 14 days to the latest daily report",
+        period="the 14 days to the latest daily report", dated=True,
         definition="Oil allocated to the facility against the most it could have delivered on the same days, the "
                    "binding system capacity each day.",
         formula="sum(allocated oil) / sum(dynamic maximum) x 100, over days with both",
         standard="ISO 20815 production efficiency",
         records="production days (daily reports) and the facility's system capacity measurements")
-def production_efficiency(conn, pack, grain=None) -> dict:
+def production_efficiency(conn, pack, grain=None, at=None) -> dict:
     from ..analysis import production_efficiency as pe
 
     rows, alloc, top, ends = [], 0.0, 0.0, []
@@ -37,7 +37,7 @@ def production_efficiency(conn, pack, grain=None) -> dict:
         "and f.kind = 'facility' and f.merged_into is null left join entity_label l on l.fuzer_id = f.fuzer_id "
         "where r.rel = 'reports_on' order by 2").fetchall():
         try:
-            out = pe.production_efficiency(conn, f["fuzer_id"])
+            out = pe.production_efficiency(conn, f["fuzer_id"], at)
         except ValueError:
             continue
         s = out["summary"]
