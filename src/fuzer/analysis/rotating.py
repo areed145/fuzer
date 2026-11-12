@@ -791,7 +791,7 @@ def _prognosis(conn, fid: str, until: str | None) -> dict:
 
 
 @detectors.register("machine_health", title="A rotating machine whose condition needs attention", kind=detectors.MODEL,
-                    cadence="daily", raises=("machine_health",),
+                    cadence="hourly", raises=("machine_health",),
                     classes=("compressor", "pump", "gas turbine", "electric motor", "turboexpander", "blower",
                              "steam turbine"),
                     roles=("vibration", "bearing_temperature", "suction_flow", "suction_pressure", "discharge_pressure"),

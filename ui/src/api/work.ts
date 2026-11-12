@@ -293,6 +293,8 @@ export interface WorkPerformance {
 
 export interface Readiness {
   ready: boolean; blockers: string[];
+  /** What whoever sends the job should know that never holds it: an open MOC on the equipment. */
+  warnings?: string[];
   checks: { check: string; label: string; ready: boolean; blockers: string[]; checked: boolean; note: string | null;
     parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
       orders: { po: string; quantity: number; due: string }[] }[];
@@ -767,6 +769,8 @@ export interface FieldJob extends ExceptionRow {
   /** The open step is in one of their roles (a Field check), so they can open it; another role's step handed to
    * them (an engineer's Triage) is reported back on from My jobs instead. */
   own_step: boolean;
+  /** What to know before starting that never holds the job: an open MOC on the equipment. */
+  warnings?: string[];
   /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
   queued: boolean;
   /** Each system's report of this event, when more than one reported it (#464). */

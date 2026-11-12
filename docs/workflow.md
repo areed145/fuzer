@@ -322,7 +322,8 @@ Times are in the project's timezone.
 | `claude_reading` | 03:00, off by default | Claude reads new log entries, drawings and documents (Batches API, capped) |
 | `work_tick` | every 5 minutes | Work-engine timers and SLA escalations |
 | `sre_scan` | every 6 hours | Detect, group into upsets, prioritise, diagnose (capped) and hand off |
-| `day_close` | `daily_report.close_cron` (07:00) | The daily operations report, debottleneck options, the opportunity scan |
+| `day_close` | `daily_report.close_cron` (07:00) | The daily operations report and debottleneck options |
+| `detect_5min` … `detect_daily` | each tier's schedule | Each scheduled detector in its tier, from its own watermark: compressor trips every 5 minutes, machine health hourly, records gaps and the opportunity scan daily (`detectors.cadence@<name>` moves one, P3.2) |
 | `studies_job` | every 5 minutes | Queued correlation and clustering studies |
 | `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
 | `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |

@@ -24,6 +24,18 @@ create table if not exists detector_run (
 );
 create index if not exists detector_run_of on detector_run (detector, id desc);
 
+-- One run of a detector tier's job (P3.2): what it cost, for the Jobs page.
+create table if not exists detector_tier_run (
+    id      bigserial primary key,
+    tier    text not null,                      -- 5min | 30min | hourly | 6h | daily (ops/cadence.py)
+    until   timestamp not null,
+    seconds double precision not null,
+    ran     integer not null,
+    failed  integer not null,
+    at      timestamptz not null default now()
+);
+create index if not exists detector_tier_run_at on detector_tier_run (tier, at desc);
+
 -- What the SRE's detectors found in the process data (sre.py): an ongoing one is extended, not raised again.
 create table if not exists detection (
     id          bigserial primary key,

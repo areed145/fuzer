@@ -14,8 +14,8 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`hydraulics`](#hydraulics) A flowline pressure drop still rising | Model | Once a day | `upset` | well |
 | [`multivariate`](#multivariate) A stretch a process area's own model cannot explain | Statistical | Once a day | `upset` | Any asset with the inputs |
 | [`iow_breaches`](#iow_breaches) Time outside an integrity operating window past its allowed time | Rule | On request | `iow_breach` | Any asset with the inputs |
-| [`compressor_trips`](#compressor_trips) A compression train tripping, with its first cause | Rule | Every 6 hours | `machine_trip` | compressor |
-| [`machine_health`](#machine_health) A rotating machine whose condition needs attention | Model | Once a day | `machine_health` | compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine |
+| [`compressor_trips`](#compressor_trips) A compression train tripping, with its first cause | Rule | Every 5 minutes | `machine_trip` | compressor |
+| [`machine_health`](#machine_health) A rotating machine whose condition needs attention | Model | Every hour | `machine_health` | compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine |
 | [`records_gaps`](#records_gaps) Downtime, the operator log and notifications that do not agree | Rule | Once a day | `records_gap` | Any asset with the inputs |
 | [`source_health`](#source_health) A dataset that failed, is held, is stale or fails its checks | Rule | Every 30 minutes | `source_issue` | Any asset with the inputs |
 | [`opportunities`](#opportunities) Production that the day's data says is there to be had | Model | Once a day | `opportunity` | well |
@@ -135,7 +135,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 **A compression train tripping, with its first cause.** Diagnose every compression train's trips in the window and raise each as a `machine_trip` exception.
 
 - **Kind:** Rule
-- **Runs:** Every 6 hours
+- **Runs:** Every 5 minutes
 - **Raises:** `machine_trip`
 - **Equipment classes:** compressor
 - **Measurement roles:** running status, casing vibration, bearing temperature, discharge temperature
@@ -147,7 +147,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 **A rotating machine whose condition needs attention.** The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates the open one), cleared when it doesn't. `act` machines come at priority 2, `watch` ones at 0.5 (left out with `watch_level=False`). Each carries its status, the flags in words, the first recommendation and the findings behind them, so the engineer the case reaches starts from the evidence.
 
 - **Kind:** Model
-- **Runs:** Once a day
+- **Runs:** Every hour
 - **Raises:** `machine_health`
 - **Equipment classes:** compressor, pump, gas turbine, electric motor, turboexpander, blower, steam turbine
 - **Measurement roles:** casing vibration, bearing temperature, suction flow, suction pressure, discharge pressure

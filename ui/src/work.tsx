@@ -93,6 +93,8 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "completed_process": return { text: <>process {d.state}: <strong>{d.outcome}</strong></> };
     case "state_changed": return { text: <>item is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
+    case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
+      <p className="small"><strong>{d.question}</strong></p><Markdown text={String(d.answer ?? "")} /></div> };
     case "cancelled": return { text: <>cancelled the process</>, body: d.reason && <p className="small">{d.reason}</p> };
     case "migrated": return { text: <>moved the process to v{d.version}</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };

@@ -329,6 +329,20 @@ test("a case shows what each agent did on it, its versions and cost, against the
   await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
 });
 
+test("a case links to Ask about it and shows an answer attached from Ask in its history (P4.5)", async () => {
+  await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Pump vibration rising", type: "machine_health",
+    state: "open", subjects: [], created_by: "detector:machine_health", created_at: "2026-11-09T09:00:00Z", processes: [],
+    events: [{ id: 1, kind: "attached", actor: "user:ana", at: "2026-11-09T10:00:00Z",
+      data: { answer_id: "a1", conversation_id: "c1", question: "Is it the bearing?", answer: "The 1x peak points at the coupling.", figures: [] } }] } }));
+  await page.goto(`${url}/#/cases/8`);
+  await page.getByRole("heading", { name: "Pump vibration rising" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Ask about this case", exact: true }).getAttribute("href"), "#/ask?case=8");
+  const entry = page.locator(".ev-attached");
+  await entry.getByText("attached an answer from Ask", { exact: false }).waitFor();
+  await entry.getByText("Is it the bearing?", { exact: true }).waitFor();
+  await entry.getByText("The 1x peak points at the coupling.", { exact: true }).waitFor();
+});
+
 test("a case opens with the specialist's brief above the decision, and the person says whether they followed it (P4.3)", async () => {
   const posted = [];
   let verdict = null;
@@ -551,6 +565,17 @@ test("Ask opened from a case names it, links back and sends it only with the fir
   await box.fill("Is it the bearing?");
   await box.press("Enter");
   await page.getByText("Looks like the coupling.").waitFor();
+  // P4.5b: one action puts the answer and its charts on the case
+  const attached = [];
+  await page.route("**/assistant/answers/*/attach", route => {
+    attached.push({ url: route.request().url(), body: route.request().postDataJSON() });
+    return route.fulfill({ json: { item_id: 9, figures: [] } });
+  });
+  await page.getByRole("button", { name: "Attach to case 9", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Attached to case 9" }).waitFor();
+  assert.equal(attached.length, 1);
+  assert.equal(attached[0].body.item_id, 9);
+  assert.match(attached[0].url, /\/assistant\/answers\/j\/attach$/);
   await box.fill("And the seal?");
   await Promise.all([page.waitForRequest("**/assistant/ask"), box.press("Enter")]);
   assert.equal(asked[0].case_id, 9);
@@ -4010,6 +4035,39 @@ test("a job with no valid permit shows blocked on the phone and starts only with
   await expectReports(reports, 1);
   assert.deepEqual([reports[0].status, reports[0].override], ["on_site", "walk round only, nothing opened"]);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+// An open MOC on the job's equipment (Adam, on #742): the dispatch card and the phone say so, and it holds nothing.
+test("an open MOC on the equipment is a warning at dispatch and on the phone, never a blocker (MOC)", async () => {
+  const warn = "Open MOC MOC-2025-031 on 10-V-2001: Proposed re-rate with new internals. Not approved; no change to operating limits";
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 31, type: "upset", key: "k31", title: "HP separator level control", state: "open", source: "olga", priority: 2,
+    value_usd: null, subjects: ["fz-sep"], unmatched: [], evidence: {}, item_id: null, assignee: null, role: null,
+    raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/exceptions/31/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], warnings: [warn],
+    checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByText("HP separator level control").waitFor();
+  await page.getByLabel("Dispatch to").first().selectOption("fred");
+  await page.getByText(warn).waitFor();
+  await page.getByText("ready", { exact: true }).waitFor();
+
+  await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const field = { ...job, item_id: 61, case_state: "open", assignee: "fred", label: "Process upset", due: null, task_id: null, task_name: null,
+    assets: [{ fuzer_id: "fz-sep", label: "10-V-2001", kind: "tag", lat: null, lon: null }],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null, end: null,
+      confidence: null, items: [], checks: [], subjects: [], value_usd: null }, history: [], field: [], queued: false, own_step: false,
+    sent: { by: "ines", at: "2026-11-12T06:05:00Z", reason: "check the level bridle" }, sources: [], permit: null, warnings: [warn] };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [field], coming_up: [] } }));
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`${url}/#/inbox`);
+  const card = page.locator(".field-job", { hasText: "HP separator level control" });
+  await card.getByText(warn).waitFor();
+  assert.equal(await card.getByRole("button", { name: "On site" }).isDisabled(), false);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 // P5.11b (#709): two jobs in one area at once whose permits clash are flagged on Plan in plain words, and the same

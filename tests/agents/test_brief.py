@@ -106,7 +106,8 @@ def test_a_brief_over_its_budget_says_so_and_types_no_pack_briefs_are_left_alone
 
 def test_a_brief_is_due_within_the_cadence_of_what_raises_its_type():
     from datetime import timedelta
-    assert brief.tier("machine_health") == timedelta(days=1)  # the daily machine health screen
+    assert brief.tier("machine_health") == timedelta(hours=1)  # the hourly machine health screen
+    assert brief.tier("machine_trip") == timedelta(minutes=30)  # trips run every 5 minutes; a brief takes 30
     assert brief.tier("no_such_type") == brief.DEFAULT_TIER
 
 
