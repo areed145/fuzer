@@ -1007,6 +1007,7 @@ export interface CaseBriefView {
     missing?: string;
     pack?: string;
     brief?: BriefSections;
+    lessons?: { id: number; title: string; failure_mode?: string | null; by?: string | null }[];
     ledger?: { cost_usd?: number };
     budget_usd?: number;
     over_budget?: boolean;
