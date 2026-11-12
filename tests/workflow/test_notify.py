@@ -119,3 +119,87 @@ def test_an_escalation_tells_the_new_holder_and_whoever_had_it(conn):
     engine.tick(conn, now=engine.utcnow() + timedelta(days=30))
     mine = [n for n in told(conn, "olav") if n["item_id"] == item and n["kind"] == "escalated"]
     assert mine and "escalated away from you" in mine[0]["text"]
+
+
+# --- channels (P5.2b, #606) ----------------------------------------------------------------------------------------
+
+def test_a_preference_says_where_and_is_checked(client):
+    bad = client.put("/work/people/pia/notify", json={"by": "pia", "channel": "slack", "address": "https://hooks"})
+    assert bad.status_code == 400 and "env:NAME" in bad.json()["detail"]
+    assert client.put("/work/people/pia/notify", json={"by": "pia", "channel": "email"}).status_code == 400
+    assert client.put("/work/people/pia/notify", json={"by": "pia", "channel": "email", "address": "pia@x",
+                                                       "quiet_from": "22:00"}).status_code == 400
+    ok = client.put("/work/people/pia/notify", json={"by": "pia", "channel": "email", "address": "pia@x"}).json()
+    assert ok["channel"] == "email" and ok["address"] == "pia@x"
+    assert client.get("/work/people/pia/notify").json()["channel"] == "email"
+    client.put("/work/people/pia/notify", json={"by": "pia", "channel": "in_app"})
+
+
+def test_slack_is_sent_with_a_link_and_held_in_quiet_hours(conn, monkeypatch):
+    from fuzer.core import settings
+
+    sent = []
+    monkeypatch.setenv("PIA_SLACK", "https://hooks.example/pia")
+    monkeypatch.setattr(notify.urllib.request, "urlopen",
+                        lambda req, timeout: sent.append((req.full_url, req.data.decode())))
+    settings.set(conn, "notify.app_url", "https://fuzer.example.com/", by="test")
+    conn.commit()
+    now = engine.utcnow()
+    hour = now.time().replace(minute=0, second=0, microsecond=0, tzinfo=None)
+    later = (now + timedelta(hours=2)).time().replace(minute=0, second=0, microsecond=0, tzinfo=None)
+    notify.set_preference(conn, "pia", "slack", "env:PIA_SLACK", hour, later, "pia")
+    item = case(conn, "Bleed the pump")
+    engine.dispatch_item(conn, item, "ines", "pia")
+    conn.commit()
+    n = next(n for n in told(conn, "pia") if n["item_id"] == item)
+    assert n["delivery"] == "held" and not sent  # quiet hours: still on My work, nothing sent
+
+    out = notify.send(conn, now + timedelta(hours=3))
+    assert out["sent"] >= 1
+    url, body = sent[-1]
+    assert url == "https://hooks.example/pia"
+    assert f"https://fuzer.example.com/#/cases/{item}" in body and "Bleed the pump" in body
+    assert next(n for n in told(conn, "pia") if n["item_id"] == item)["delivery"] == "sent"
+    notify.set_preference(conn, "pia", "in_app", None, None, None, "pia")
+
+
+def test_email_goes_through_the_mail_server_and_a_failure_is_kept(conn, monkeypatch):
+    mails = []
+
+    class SMTP:
+        def __init__(self, host, port, timeout):
+            self.host = host
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def has_extn(self, name):
+            return False
+
+        def login(self, user, password):
+            mails.append(("login", user, password))
+
+        def send_message(self, msg):
+            mails.append(("mail", msg["To"], msg.get_content()))
+
+    monkeypatch.setattr(notify.smtplib, "SMTP", SMTP)
+    monkeypatch.delenv("FUZER_SMTP_URL", raising=False)
+    notify.set_preference(conn, "olav", "email", "olav@example.com", None, None, "olav")
+    item = case(conn, "Grease the valve")
+    engine.dispatch_item(conn, item, "ines", "olav")
+    conn.commit()
+    n = next(n for n in told(conn, "olav") if n["item_id"] == item)
+    assert n["delivery"] == "failed"  # no mail server set: kept with the reason, still on My work
+    assert "notify.smtp" in conn.execute("select error from work_notification where id = %s", (n["id"],)).fetchone()["error"]
+
+    monkeypatch.setenv("FUZER_SMTP_URL", "smtp://fz%40x:pw@mail.example:587")
+    item = case(conn, "Grease the other valve")
+    engine.dispatch_item(conn, item, "ines", "olav")
+    conn.commit()
+    assert next(n for n in told(conn, "olav") if n["item_id"] == item)["delivery"] == "sent"
+    assert ("login", "fz@x", "pw") in mails
+    assert any(m[0] == "mail" and m[1] == "olav@example.com" and "Grease the other valve" in m[2] for m in mails)
+    notify.set_preference(conn, "olav", "in_app", None, None, None, "olav")

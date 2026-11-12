@@ -303,6 +303,16 @@ export interface WorkNotification {
   read_at: string | null;
 }
 
+/** How a person is told (P5.2b, #606): on My work only, or also by email, Teams or Slack, with quiet hours. */
+export interface NotifyPreference {
+  channel: "in_app" | "email" | "teams" | "slack";
+  address: string | null;
+  quiet_from: string | null;
+  quiet_to: string | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -598,6 +608,9 @@ export const workApi = {
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
   notifications: (person: string) =>
     request<{ notifications: WorkNotification[]; unread: number }>("GET", "/work/notifications", { person }),
+  notifyPreference: (person: string) => request<NotifyPreference>("GET", `/work/people/${encodeURIComponent(person)}/notify`),
+  setNotifyPreference: (person: string, p: NotifyPreference, by: string) =>
+    request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
   markNotificationsRead: (person: string, ids?: number[]) =>
     request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>

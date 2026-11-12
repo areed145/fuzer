@@ -38,6 +38,9 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `work.lease_seconds` | int | `900` | ≥ 30 | How long an agent holds a workflow task before another may take it. Replaces `FUZER_WORK_LEASE_SECONDS`. |
 | `work.agent_fallback_minutes` | int | `30` | ≥ 0 | Minutes an agent step may wait with no agent worker picking it up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever). |
 | `alerts.webhook` | secret | `env:FUZER_ALERT_WEBHOOK` |  | Where the URL failed scheduled runs are posted to (Teams, Slack or any JSON webhook) is kept. |
+| `notify.smtp` | secret | `env:FUZER_SMTP_URL` |  | Where the mail server people are emailed through is kept, as smtp://user:password@host:port (port 465: TLS; others: STARTTLS when offered). |
+| `notify.from` | str | `fuzer@localhost` |  | The address people's notification emails come from. |
+| `notify.app_url` | str | `` |  | The application's address (https://fuzer.example.com), so an email or chat message links to the case (empty: the message names the case without a link). |
 
 ## Work
 
