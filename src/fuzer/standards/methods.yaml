@@ -367,3 +367,40 @@ lead_in:
   thresholds:
     lead_in: {value: 12, unit: "h", means: "The stretch before the event that is compared with what came before it.", code: "fuzer.sources.timeseries:LEAD_IN_HOURS"}
   vectors: [{worked: "tests/sources/test_historian.py::test_live_ingest_loads_pi_and_adx_and_values_come_from_them"}]
+
+data_sufficiency:
+  title: Whether a series is enough to quote a result from
+  practice: One shared check (P4.6) on the readings behind a result, before any forecast or ranking is quoted; too few readings or too short a span is too little data, a long gap is quotable but thin.
+  tool: every forecast (fuzer.analysis.forecast:sufficiency)
+  inputs: [{name: Times of the readings, tests or days the result rests on, unit: dates}]
+  valid: Any time series, record list or set of tests a method projects or ranks from.
+  needs: The times of the readings; each caller sets its own minimum points, span and largest gap.
+  thresholds:
+    trend_min_days: {value: 7, unit: "days", means: "Daily values a condition trend needs before it projects a date to a limit.", code: "fuzer.analysis.condition:TREND_MIN_DAYS"}
+    trend_max_gap: {value: 7, unit: "days", means: "A longer gap between a trend's daily values (a stop, an outage) makes it thin.", code: "fuzer.analysis.condition:TREND_MAX_GAP_DAYS"}
+  vectors:
+    - kernel: fuzer.analysis.forecast:sufficiency
+      args: [["2026-01-01", "2026-01-02", "2026-01-03"], 7]
+      expect: {verdict: too_little_data, quotable: false, points: 3, span_days: 2}
+      says: Three readings where seven are needed is too little data, not a number.
+    - kernel: fuzer.analysis.forecast:sufficiency
+      args: [["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-20"], 7, 0, 7]
+      expect: {verdict: thin, quotable: true, points: 7, largest_gap_days: 14, window: ["2026-01-01", "2026-01-20"]}
+      says: Seven readings with a 14 day hole are quotable, but thin, and say why.
+
+forecast_range:
+  title: A forecast with its prediction range
+  practice: The 90 % prediction interval of a least squares fit (Student t on the residual scatter, widening away from the data); for an Arps decline, on log rate, where the fit is made. A forecast is an estimate, never a plan.
+  tool: every forecast (fuzer.analysis.forecast:trend_interval, arps_interval)
+  inputs: [{name: The series the fit was made on, unit: the series' own}, {name: Where to forecast, unit: the fit's time axis}]
+  valid: A fit to three or more points; the range assumes the scatter about the fit stays as it was.
+  needs: At least three points and a sufficiency verdict that is quotable.
+  vectors:
+    - kernel: fuzer.analysis.forecast:trend_interval
+      args: [[0, 1, 2, 3, 4], [1.0, 3.0, 2.0, 5.0, 4.0], 6]
+      expect: {value: 6.2, range: [1.886214, 10.513786], points: 5}
+      says: The line 1.4 + 0.8x at x = 6 is 6.2, and a new point there falls in 1.89 to 10.51 nine times in ten (t 2.353, s 1.095).
+    - kernel: fuzer.analysis.forecast:arps_interval
+      args: [{model: exponential, qi: 100.0, D: 0.2, b: 0.0}, [0, 1, 2, 3, 4], [100.0, 80.0, 70.0, 54.0, 45.0], 5]
+      expect: {value: 36.787944, range: [33.224857, 40.733142]}
+      says: The same decline through scattered tests forecasts 36.79 at year 5 within 33.2 to 40.7.

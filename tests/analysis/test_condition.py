@@ -98,6 +98,20 @@ def test_which_machines_make_the_april_turnaround(conn):
     assert fine["flag"] is None
 
 
+def test_every_projection_carries_its_range_and_the_shared_sufficiency_verdict(conn):
+    """P4.6: a date a trend reaches its limit comes with its 90 % range, its window and point count, and the shared
+    sufficiency verdict on the days behind it, whichever check made it."""
+    found = []
+    for ref in ("20-K-2300B", "20-GT-2000B", "20-K-2200B", "20-GT-2000A"):
+        found += [e for e in prognosis.remaining_life(conn, fid(conn, ref))["etas"] if e["reaches"] != "now"]
+    assert {e["check"] for e in found} >= {"seal_gas", "hot_section"}
+    for e in found:
+        assert {"range", "level", "window", "points", "sufficiency"} <= set(e), e["what"]
+        assert e["sufficiency"]["quotable"] and e["points"] == e["sufficiency"]["points"] > 0, e["what"]
+        if e["range"]:
+            assert e["range"][0] <= e["reaches"] <= (e["range"][1] or "9999"), e["what"]
+
+
 def test_the_screen_raises_the_new_findings_with_their_remaining_life(conn):
     s = rotating.screen(conn, limit=50)
     by = {m["machine"]: m for m in s["machines"]}

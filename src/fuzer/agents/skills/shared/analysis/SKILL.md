@@ -21,6 +21,10 @@ what would change the conclusion.
   `cluster_events` for recurring upset types. Name the features used; cluster labels are descriptions, not diagnoses.
 - **Too big to run now?** `start_study` keeps one and `get_study` reads it back.
 
+**Forecasts.** A forecast is an estimate, never a plan or a commitment. Quote it with its `range`, `window` and
+`points`; a date to a limit without its range is a guess. Every forecast carries `sufficiency`, the one shared check:
+`too_little_data` means say that and give no number, `thin` means quote it with the reasons it gives.
+
 **Sufficiency.** Say when too few points, a stopped unit or missing data limits a result. Report that rather than a
 number with false precision. On the synthetic historian, process values move as the generator shapes them, so results
 show the demo's upsets and not plant physics. Say that whenever a result rests on them.

@@ -48,6 +48,10 @@ def test_decline_fits_after_the_valve_repair(conn):
     assert s["fit_from"] >= "2024-11" and s["tests_in_fit"] >= 10
     assert 3 < s["effective_decline_pct_per_year"] < 20 and s["r2_log"] > 0.5
     assert s["forecast"]["oil_sm3"] > 0 and fig.layout["yaxis"]["type"] == "log"
+    f = s["forecast"]  # P4.6: the forecast carries its range, window, point count and sufficiency verdict
+    assert f["oil_range_sm3"][0] < f["oil_sm3"] < f["oil_range_sm3"][1]
+    assert f["rate_at_end_range_sm3d"][0] <= f["rate_at_end_sm3d"] <= f["rate_at_end_range_sm3d"][1]
+    assert f["sufficiency"]["verdict"] != "too_little_data" and f["points"] == s["tests_in_fit"] and f["window"]
     renders(fig)
 
 

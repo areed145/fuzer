@@ -46,6 +46,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`vessel_loading`](#vessel_loading) Offered load against a rating | Engineering practice | Well test rates of the wells upstream (Sm³/d); Rating (the rating's own) | A rating on record and wells upstream of the item. |
 | [`backlog_health`](#backlog_health) Open maintenance backlog by age, urgency and criticality | Engineering practice | Open work orders (created (orders) | At least one open order. |
 | [`lead_in`](#lead_in) Process values in the hours before an event against the hours before that | Engineering practice | Historian readings on the asset's points (each point's own) | Readings both before and inside the lead-in. |
+| [`data_sufficiency`](#data_sufficiency) Whether a series is enough to quote a result from | Engineering practice | Times of the readings (dates) | The times of the readings; each caller sets its own minimum points, span and largest gap. |
+| [`forecast_range`](#forecast_range) A forecast with its prediction range | Engineering practice | The series the fit was made on (the series' own); Where to forecast (the fit's time axis) | At least three points and a sufficiency verdict that is quotable. |
 
 ## Refusals
 
@@ -374,3 +376,25 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Run by:** `process_values`
 - **Threshold `lead_in`:** The stretch before the event that is compared with what came before it. (12 h)
 - **Worked example:** `tests/sources/test_historian.py::test_live_ingest_loads_pi_and_adx_and_values_come_from_them`, on the fake plant
+
+## data_sufficiency
+
+**Whether a series is enough to quote a result from.** Engineering practice. One shared check (P4.6) on the readings behind a result, before any forecast or ranking is quoted; too few readings or too short a span is too little data, a long gap is quotable but thin.
+
+- **Valid for:** Any time series, record list or set of tests a method projects or ranks from.
+- **Needs:** The times of the readings; each caller sets its own minimum points, span and largest gap.
+- **Run by:** `every forecast (fuzer.analysis.forecast:sufficiency)`
+- **Threshold `trend_min_days`:** Daily values a condition trend needs before it projects a date to a limit. (7 days)
+- **Threshold `trend_max_gap`:** A longer gap between a trend's daily values (a stop, an outage) makes it thin. (7 days)
+- **Test vector:** Three readings where seven are needed is too little data, not a number. (`sufficiency`)
+- **Test vector:** Seven readings with a 14 day hole are quotable, but thin, and say why. (`sufficiency`)
+
+## forecast_range
+
+**A forecast with its prediction range.** Engineering practice. The 90 % prediction interval of a least squares fit (Student t on the residual scatter, widening away from the data); for an Arps decline, on log rate, where the fit is made. A forecast is an estimate, never a plan.
+
+- **Valid for:** A fit to three or more points; the range assumes the scatter about the fit stays as it was.
+- **Needs:** At least three points and a sufficiency verdict that is quotable.
+- **Run by:** `every forecast (fuzer.analysis.forecast:trend_interval, arps_interval)`
+- **Test vector:** The line 1.4 + 0.8x at x = 6 is 6.2, and a new point there falls in 1.89 to 10.51 nine times in ten (t 2.353, s 1.095). (`trend_interval`)
+- **Test vector:** The same decline through scattered tests forecasts 36.79 at year 5 within 33.2 to 40.7. (`arps_interval`)

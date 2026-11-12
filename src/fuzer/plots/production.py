@@ -5,10 +5,12 @@ across a header."""
 import math
 from datetime import datetime, timedelta
 
-from ..analysis import calcs
+from ..analysis import calcs, forecast
 from ..analysis.calcs import YEAR, linreg, rate
 from ..core.labels import label as _label
 from . import ChartError, Figure, layout, rnd, stacked, thin
+
+DECLINE_MIN_TESTS = 4  # well tests a decline forecast rests on, as calcs.well_tests asks
 
 
 def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> Figure:
@@ -20,7 +22,18 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
     horizon = [last + timedelta(days=30.4 * m) for m in range(forecast_months + 1)]
     fit_x = [t0 + timedelta(days=d) for d in range(0, (horizon[-1] - t0).days + 1, 15)]
     q_fit = [rate(fit, (x - t0).days / YEAR) for x in fit_x]
-    cum = sum(rate(fit, (last - t0).days / YEAR + d / YEAR) for d in range(int(forecast_months * 30.4)))
+    ts, qs_fit = [(t["at"] - t0).days / YEAR for t in seg], [t["oil_rate"] for t in seg]
+    enough = forecast.sufficiency([t["at"] for t in seg], DECLINE_MIN_TESTS)
+    if not enough["quotable"]:
+        raise ChartError("too little data to forecast: " + "; ".join(enough["reasons"]))
+    t_last = (last - t0).days / YEAR
+    days = range(int(forecast_months * 30.4))
+    band = [forecast.arps_interval(fit, ts, qs_fit, t_last + d / YEAR) for d in days]
+    cum = sum(b["value"] for b in band)
+    cum_range = [round(sum(b["range"][i] for b in band)) for i in (0, 1)] if band and band[0]["range"] else None
+    end_band = forecast.arps_interval(fit, ts, qs_fit, (horizon[-1] - t0).days / YEAR)
+    edge = [x for x in fit_x if x >= last]
+    edge_band = [forecast.arps_interval(fit, ts, qs_fit, (x - t0).days / YEAR) for x in edge]
     name = _label(conn, well)
     data = [
         {"type": "scatter", "mode": "markers", "name": "tests used in the fit", "x": [t["at"].isoformat() for t in seg],
@@ -30,6 +43,12 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
         {"type": "scatter", "mode": "lines", "name": f"forecast {forecast_months} months", "line": {"dash": "dot"},
          "x": [x.isoformat()[:10] for x in fit_x if x >= last], "y": [q for x, q in zip(fit_x, q_fit) if x >= last]},
     ]
+    if edge_band and edge_band[0]["range"]:
+        xs = [x.isoformat()[:10] for x in edge]
+        data += [{"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [b["range"][1] for b in edge_band],
+                  "line": {"width": 0}, "showlegend": False, "hoverinfo": "skip"},
+                 {"type": "scatter", "mode": "lines", "name": "90 % range", "x": xs, "y": [b["range"][0] for b in edge_band],
+                  "line": {"width": 0}, "fill": "tonexty", "fillcolor": "rgba(120,120,120,0.15)"}]
     if start:
         data.insert(0, {"type": "scatter", "mode": "markers", "name": "before the last step change",
                         "x": [t["at"].isoformat() for t in tests[:start]], "y": [t["oil_rate"] for t in tests[:start]],
@@ -46,8 +65,11 @@ def decline(conn, well: str, model: str = "auto", forecast_months: int = 12) -> 
         "nominal_decline_per_year": rnd(fit["D"], 3), "effective_decline_pct_per_year": rnd(effective * 100, 1),
         "r2_log": rnd(fit["r2"], 3), "latest_test": {"at": last.isoformat()[:10], "oil_sm3d": rnd(seg[-1]["oil_rate"], 1)},
         "fit_rate_now_sm3d": rnd(rate(fit, (last - t0).days / YEAR), 1),
-        "forecast": {"months": forecast_months, "rate_at_end_sm3d": rnd(rate(fit, (horizon[-1] - t0).days / YEAR), 1),
-                     "oil_sm3": round(cum)}}, [well])
+        "forecast": {"months": forecast_months, "rate_at_end_sm3d": rnd(end_band["value"], 1),
+                     "rate_at_end_range_sm3d": [rnd(x, 1) for x in end_band["range"]] if end_band["range"] else None,
+                     "oil_sm3": round(cum), "oil_range_sm3": cum_range, "level": end_band["level"],
+                     "window": enough["window"], "points": enough["points"], "sufficiency": enough,
+                     "is": "an estimate from the fit, not a plan or a commitment"}}, [well])
 
 
 def water_diagnostic(conn, well: str) -> Figure:

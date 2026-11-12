@@ -21,7 +21,7 @@ from datetime import timedelta
 import numpy as np
 
 from .calcs import CalcError, _label, read, result, window_of
-from .condition import crossed, daily, eta, points_like, running, settings
+from .condition import crossed, daily, eta, points_like, projection, running, settings
 
 SOON_DAYS = 30  # a channel reaching its alarm within this is flagged as rising
 
@@ -54,7 +54,7 @@ def _channel(name, p, series, keep, lim, side, end) -> dict | None:
             "alarm": alarm, "trip": trip, "state": crossed(now, lim, side) or "normal",
             "per_week": round(to_alarm["per_day"] * 7, 3), "trend_r2": to_alarm["r2"],
             "reaches_alarm": to_alarm["reaches"], "reaches_trip": to_trip["reaches"],
-            "trip_range": [to_trip["early"], to_trip["late"]] if to_trip["early"] else None,
+            "trip_range": to_trip["range"], "trip_eta": to_trip,
             "data_from": days[0], "data_to": days[-1], "readings": len(series),
             "daily": [{"day": d, "value": round(float(y), 2)} for d, y in zip(days, ys)][-60:]}
 
@@ -95,6 +95,10 @@ def protection(conn, fid: str, days: int = 60, until: str | None = None, src=Non
     rank = {"trip": 0, "alarm": 1, "normal": 2}
     worst = min(channels, key=lambda c: (rank[c["state"]], c["reaches_alarm"] or "9999",
                                          -(c["now"] / c["alarm"] if c["alarm"] else 0)))
+    etas = [projection(f"{c['channel']} reaches its trip ({c['trip']:g} {c['unit']})", c["point"], c["trip_eta"])
+            for c in channels if c["reaches_trip"] and c["trip"] is not None]
+    for c in channels:
+        c["trip_sufficiency"] = c.pop("trip_eta")["sufficiency"]
     return result(worst["now"], worst["alarm"], flag,
                   "the API 670 protection channels (shaft vibration at the proximity probes, axial thrust position, "
                   "journal and thrust bearing temperatures), daily medians of hourly readings while the machine runs, "
@@ -104,9 +108,7 @@ def protection(conn, fid: str, days: int = 60, until: str | None = None, src=Non
                   channels=channels, flags=sorted(set(flags), key=order.index),
                   data_from=min(c["data_from"] for c in channels), data_to=max(c["data_to"] for c in channels),
                   readings=sum(c["readings"] for c in channels),
-                  etas=[{"what": f"{c['channel']} reaches its trip ({c['trip']:g} {c['unit']})", "point": c["point"],
-                         "reaches": c["reaches_trip"], "range": c["trip_range"]}
-                        for c in channels if c["reaches_trip"] and c["trip"] is not None])
+                  etas=etas)
 
 
 def seal_gas(conn, fid: str, days: int = 120, until: str | None = None, src=None) -> dict:
@@ -135,8 +137,8 @@ def seal_gas(conn, fid: str, days: int = 120, until: str | None = None, src=None
                   alarm=lim.get("hi"), high_high=lim.get("hihi"), state=state or "normal",
                   per_week=round(to_alarm["per_day"] * 7, 3), reaches_alarm=to_alarm["reaches"],
                   reaches_high_high=to_trip["reaches"],
-                  etas=[{"what": f"seal vent flow reaches its high-high ({lim['hihi']:g} {p['uom']})", "point": p["point"],
-                         "reaches": to_trip["reaches"], "range": [to_trip["early"], to_trip["late"]] if to_trip["early"] else None}]
+                  etas=[projection(f"seal vent flow reaches its high-high ({lim['hihi']:g} {p['uom']})", p["point"],
+                                   to_trip)]
                   if to_trip["reaches"] and "hihi" in lim else [],
                   data_from=days_[0], data_to=days_[-1], readings=len(ys),
                   daily=[{"day": d, "value": round(float(y), 2)} for d, y in zip(days_, ys)][-60:])
@@ -179,9 +181,8 @@ def lube_oil(conn, fid: str, days: int = 90, until: str | None = None, src=None)
         elif k == "t" and state:
             flags.append("lube_oil_hot")
         if t["reaches"] and trip is not None:
-            etas.append({"what": f"lube oil {'pressure' if k == 'p' else 'temperature'} reaches its trip "
-                                 f"({trip:g} {p['uom']})", "point": p["point"], "reaches": t["reaches"],
-                         "range": [t["early"], t["late"]] if t["early"] else None})
+            etas.append(projection(f"lube oil {'pressure' if k == 'p' else 'temperature'} reaches its trip "
+                                   f"({trip:g} {p['uom']})", p["point"], t))
     if not out:
         raise CalcError("the machine hardly ran in that window")
     main = out.get("p") or out["t"]
