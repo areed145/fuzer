@@ -110,6 +110,19 @@ create table if not exists unlinked (
     primary key (source, src, rel, dst)
 );
 
+-- Where a new item sits and which drawing and documents are about it (P2.1d, graph/placement.py): a steward's answer
+-- to a proposal (rel part_of, shown_on or applies_to), kept by every rebuild after it.
+create table if not exists placement_decision (
+    fuzer_id   text not null,
+    rel        text not null,
+    target     text not null,
+    accepted   boolean not null,
+    decided_by text not null,
+    decided_at timestamptz not null default now(),
+    reason     text,
+    primary key (fuzer_id, rel, target)
+);
+
 create table if not exists review_item (
     id         bigserial primary key,
     kind       text not null,  -- match, conflict, schema

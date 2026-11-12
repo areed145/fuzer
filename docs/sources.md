@@ -511,6 +511,17 @@ are one `unresolved_links` case per source and link type in the data steward's q
 values. Making each value an alias of the item it means on Master data, or fixing the source, resolves them, and the
 case clears on the next rebuild.
 
+## Where a new item sits
+An item in no area, and an asset on no drawing or named by no document, gets ranked proposals with a confidence and
+their evidence (`graph.placement`). A parent comes from the area code its tag names (by the pack's grammar), the areas
+of what it is piped, wired or shaft-coupled to (allocation flow and gas lift cross areas, so they don't count), and
+the area most of what a document naming it names is in. It applies at rebuild when two kinds of evidence agree at
+90% or more, or when its tag's name and its piping agree and nothing physical points elsewhere (`part_of`, source
+`fuzer:placement`). A drawing is suggested from the P&ID sheets that show what it is piped or wired to, and documents
+from its class's guides and the documents naming its neighbours; these are only ever suggested. Suggestions show on
+the asset's context panel with **Yes** and **No**; an answer (`placement_decision`) is kept by every rebuild after
+it, and a drawing a steward confirms counts as the asset being on that drawing.
+
 ## Corrections flow back to the source
 An answer on the Questions tab that says a source is wrong drafts the fix for that source's owner (`ops.corrections`):
 choosing a value on a conflict drafts a change to each system whose value differs, through the approved write-back
