@@ -88,6 +88,7 @@ def catalogue() -> str:
     (`uv run python -m fuzer.agents.capabilities > docs/capabilities.md`; a test keeps it current)."""
     from ...analysis import calcs
     from ...core import methods
+    from .. import packs
 
     by_agent = tools_by_agent()
     shared = [c for c in REGISTRY.values() if len([a for a in c.agents if a != "orchestrator"]) > 1]
@@ -124,6 +125,24 @@ def catalogue() -> str:
         tools = ", ".join(f"`{t}`" for t in skill.tools(REGISTRY))
         out.append(f"| `{skill.path}` | {owner} | {also} | {'; '.join(skill.personas) or 'all'} | {skill.purpose} "
                    f"| {tools} | {skill.data} | {skill.output} | {skill.boundary} |")
+    out += ["", "## Specialist packs", "",
+            "A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4.1, `agents/packs.py`); "
+            "each pack passes the pack conformance test. Each shipped bundle holds its answer keys in "
+            "`evals/<pack>.yaml`.", ""]
+    for path in packs.shipped():
+        p = packs.load(path)
+        cites = ", ".join(f"`{m}` ({methods.get(m).cites})" if methods.known(m) else f"`{m}`" for m in p["methods"])
+        out += [f"### {p['title']}", "",
+                f"- **Skill:** `{path}`, loaded by {AGENT_BY_ID[p['owner']].label}",
+                f"- **Equipment classes (ISO 14224):** {', '.join(p['classes'])}",
+                f"- **Methods:** {cites}",
+                f"- **Detectors:** {', '.join(f'`{d}`' for d in p['detectors'])}",
+                f"- **Briefs:** {', '.join(f'`{t}`' for t in p.get('briefs') or ()) or 'none'}",
+                f"- **Measurement roles:** {', '.join(f'`{r}`' for r in p['roles'])}",
+                f"- **Charts:** {', '.join(f'`{c}`' for c in p['charts'])}",
+                f"- **Eval:** {sum(len(q) for q in p['questions'].values())} questions with answer keys across "
+                f"{len(p['questions'])} bundles", ""]
+    out.pop()
     out += ["", "## Not available", "",
             "No agent can do these yet, whatever the question. A specialist asked for one says it is unavailable.", "",
             "| Agent | Capability | Waiting for |", "|---|---|---|"]

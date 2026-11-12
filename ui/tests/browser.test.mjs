@@ -3593,3 +3593,108 @@ test("an uncertain measurement role is confirmed or corrected from Review, and s
   assert.equal(sent["7"].decision, "accept");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+// P6.1a (#655): closing a case on a phone says what it was in the ISO 14224 terms, pre-filled from the case's words.
+test("a case closes out on a phone with what it was, its failure mode, cause and action pre-filled (#655)", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let item = { ...demoTask.item, state: "open", closed_at: null, processes: [], events: [] };
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+  const vocabulary = {
+    dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate", data_problem: "Data problem" },
+    outcomes: { fixed: "Fixed", monitoring: "Being monitored" },
+    failure_modes: { VIB: "Vibration", ELP: "External leakage - process medium" },
+    mechanisms: { "2.4": "Wear" }, causes: { "1": "Design-related causes", "3": "Failure related to operation / maintenance" },
+    activities: { "1": "Replace", "2": "Repair" },
+  };
+  let record = null;
+  const posts = [];
+  await page.route("**/work/items/7/closeout", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      posts.push(body);
+      record = { item_id: 7, ...body, mechanism: null, duplicate_of: null, at: "2026-11-12T06:00:00Z" };
+      item = { ...item, state: "done", closed_at: "2026-11-12T06:00:00Z" };
+      return route.fulfill({ json: record });
+    }
+    return route.fulfill({ json: { item_id: 7, record, vocabulary, repeats: [],
+      suggestion: { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" } } });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  const started = Date.now();
+  await page.getByRole("button", { name: "Close out", exact: true }).click();
+  await page.getByText("Filled in from what the case says.", { exact: false }).waitFor();
+  assert.equal(await page.getByLabel("Failure mode").inputValue(), "VIB");
+  assert.equal(await page.getByLabel("Action taken").inputValue(), "1");
+  assert.equal(await page.getByRole("button", { name: "Close the case" }).isDisabled(), true);  // the cause is still to say
+  await page.getByLabel("Cause").selectOption("3");
+  await page.getByLabel("Outcome").selectOption("fixed");
+  const box = await page.getByLabel("Cause").boundingBox();
+  assert.ok(box.height >= 44, `a 44 px target, got ${box.height}`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("button", { name: "Close the case" }).click();
+  await page.getByText("A real problem: Vibration, cause failure related to operation / maintenance, replace; fixed").waitFor();
+  assert.ok(Date.now() - started < 60_000);
+  assert.equal(posts.length, 1);
+  assert.deepEqual([posts[0].by, posts[0].disposition, posts[0].failure_mode, posts[0].cause, posts[0].activity, posts[0].outcome],
+    ["fred", "real", "VIB", "3", "1", "fixed"]);
+  assert.deepEqual(posts[0].suggested, { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
+// P6.1b (#656): when the re-check is due, whoever closed the problem out answers "did the fix hold?" on its case.
+test("whoever closed a problem out answers whether the fix held, and a no reopens the case (#656)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  let item = { ...demoTask.item, id: 7, type: "recheck", title: "Did the fix hold? P-301 leaking at the seal", state: "open",
+    closed_at: null, processes: [], events: [], payload: { recheck_of: 3 } };
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+  const answers = [];
+  await page.route("**/work/items/3/recheck", (route) => {
+    answers.push(route.request().postDataJSON());
+    item = { ...item, state: "done", closed_at: "2026-12-12T06:00:00Z" };
+    return route.fulfill({ json: { item_id: 3, held: false } });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  const card = page.locator(".recheck");
+  await card.getByRole("link", { name: "case 3" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Close out", exact: true }).count(), 0);  // a re-check isn't closed out itself
+  await card.getByLabel("Note").fill("weeping again");
+  await card.getByRole("button", { name: "No, it came back" }).click();
+  await card.getByRole("button", { name: "No, it came back" }).waitFor({ state: "detached" });
+  assert.deepEqual(answers, [{ by: "fred", held: false, note: "weeping again" }]);
+});
+
+// P7.2b (#661): from All work, an ops lead sees per queue whether it keeps up this week against the last four, and
+// opens the cases behind a number.
+test("Work performance shows per queue whether it keeps up and opens the cases behind a number (#661)", async () => {
+  const cell = (over = {}) => ({ arrivals: { n: 1, ids: [1] }, closed: { n: 1, ids: [1] }, backlog: { n: 0, ids: [] },
+    sla_misses: { n: 0, ids: [] }, escalations: { n: 0, ids: [] }, hand_backs: { n: 0, ids: [] }, repeats: { n: 0, ids: [] },
+    triage_h: 1.5, dispatch_h: 3, close_h: 48, ...over });
+  await page.route("**/work/performance", (route) => route.fulfill({ json: {
+    weeks: [0, 1, 2, 3, 4].map((k) => ({ start: `2026-10-${12 + 7 * k}T00:00:00Z`, end: "" })),
+    queues: [
+      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0,
+        weeks: [cell(), cell(), cell(), cell(), cell({ arrivals: { n: 3, ids: [11, 12, 13] }, closed: { n: 0, ids: [] },
+          backlog: { n: 3, ids: [11, 12, 13] }, hand_backs: { n: 1, ids: [11] } })] },
+      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, weeks: [cell(), cell(), cell(), cell(), cell()] },
+    ],
+    types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
+  } }));
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("link", { name: "How the work is running" }).click();
+  await page.getByRole("heading", { name: "Work performance" }).waitFor();
+  const row = page.getByRole("row").filter({ hasText: "operator" });
+  await row.getByText("falling behind").waitFor();
+  await page.getByRole("row").filter({ hasText: "maintenance planner" }).getByText("keeping up").waitFor();
+  await row.getByRole("button", { name: "3" }).first().click();
+  const cases = page.locator(".perf-cases");
+  await cases.getByText("operator: arrived this week").waitFor();
+  assert.deepEqual(await cases.getByRole("link").allInnerTexts(), ["case 11", "case 12", "case 13"]);
+  assert.equal(await cases.getByRole("link", { name: "case 11" }).getAttribute("href"), "#/cases/11");
+  await page.getByText("80% on time", { exact: false }).waitFor();
+  // All work stays the highlighted area while the view is open
+  assert.equal(await page.getByRole("link", { name: "All work", exact: true }).first().getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
