@@ -1,0 +1,11 @@
+# The engineering line list (P2.7): every process line on the P&IDs, from one tag to the next, whatever format the
+# sheet itself is in (a scan's piping is otherwise only known once it is read).
+source: pid
+record_type: edge
+shape: network
+dataset: pid_line_list
+key: line
+links:
+  - rel: pipes_to
+    from: {kind: tag, from: from_tag, as: tag}
+    to: {kind: tag, from: to_tag, as: tag}

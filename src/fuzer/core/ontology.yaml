@@ -267,6 +267,12 @@ relations:
     description: Piping between tags, read from P&IDs.
     from: [tag]
     to: [tag]
+  drives:
+    label: drives
+    view: flow
+    description: A driver (gas turbine, engine or motor) and the machine it turns, by shaft.
+    from: [tag]
+    to: [tag]
   controls:
     label: controls
     view: flow

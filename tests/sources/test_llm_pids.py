@@ -124,7 +124,7 @@ def test_tiles_stay_within_size_limit(setup):
 def test_every_drawn_sheet_but_smart_is_read(setup):
     conn, truth = setup
     formats = {r["source_key"]: r["f"] for r in conn.execute(
-        "select source_key, payload->>'format' as f from source_record where source = 'pid'")}
+        "select source_key, payload->>'format' as f from source_record where source = 'pid' and record_type = 'sheet'")}
     assert set(truth) == set(formats)  # every sheet is drawn
     assert llm_pids.run(conn, PACK, dry_run=True, force=True)["sheets"] == sum(1 for f in formats.values() if f != "smart")
 
