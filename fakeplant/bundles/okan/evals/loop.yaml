@@ -52,6 +52,9 @@ arrive:
   # The next delivery of the safeguard registers: train B's 2nd stage vibration trip still bypassed past its expiry
   bypass_overdue: {deliver: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses], rebuild: true,
                    detector: bypass_overdue}
+  # The same delivery: that trip last proof tested 430 days ago on a 12 month interval
+  proof_test_overdue: {deliver: deliveries/bypass-register, datasets: [safeguard_register, safeguard_bypasses],
+                       rebuild: true, detector: proof_test_overdue}
   # The test separator's level limit-cycling while its level valve sticks (February 2025)
   loop_candidate: {detector: loop_oscillation, until: "2025-02-14T00:00"}
   # OK-J03-02's water breakthrough on its June 2025 test

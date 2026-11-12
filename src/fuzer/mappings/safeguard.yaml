@@ -1,5 +1,6 @@
 # Safeguard register (P3.9a, #763): each safeguard (a trip, interlock or shutdown), the instrument it acts on and the
-# equipment it protects. What a bypass of it takes away is read from here, never from tag names.
+# equipment it protects. What a bypass of it takes away is read from here, never from tag names. Its proof test
+# interval and last proof test (P4.2e, #850) say when it is due to be tested again; a register without them loads.
 source: safeguards
 record_type: safeguard
 shape: records
@@ -11,6 +12,8 @@ entity:
     - function
     - action
     - sil
+    - proof_test_interval_months
+    - last_proof_test
 links:
   - rel: acts_on
     when: tag
