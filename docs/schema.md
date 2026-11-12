@@ -1035,6 +1035,22 @@ Agentic SRE runs (#96): each scheduled scan's window; the next run starts where 
 | `started_at` | timestamptz |  |
 | `finished_at` | timestamptz |  |
 
+### `detector_run`
+
+Each run of a registered detector (core/detectors.py): what it found, or why it did not apply on this asset.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `detector` | text |  |
+| `status` | text | ran \| not_applicable \| failed |
+| `note` | text, | "not applicable: missing X", or the failure |
+| `found` | integer |  |
+| `seconds` | double precision |  |
+| `since` | timestamp |  |
+| `until` | timestamp |  |
+| `at` | timestamptz |  |
+
 ### `detection`
 
 What the SRE's detectors found in the process data (sre.py): an ongoing one is extended, not raised again.

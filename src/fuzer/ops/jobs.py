@@ -357,8 +357,9 @@ def sre_scan_op(context: dg.OpExecutionContext, fuzer: Fuzer, claude: ClaudeSett
         engine.load_defaults(conn)
         out = sre_handoff.handoff(conn, pack, max_diagnoses=claude.max_upset_diagnoses, max_usd=claude.max_sre_usd)
         context.log.info(f"sre hand-off: {({k: v for k, v in out.items() if k != 'items'})}")
-        from ..analysis import trips  # after the hand-off, so a trip joins the case its upset opened
-        context.log.info(f"compressor trips: {trips.scan(conn, pack, scanned['since'], scanned['until'])}")
+        from ..core import detectors  # after the hand-off, so a trip joins the case its upset opened
+        ran = detectors.run(conn, pack, "compressor_trips", since=scanned["since"], until=scanned["until"])
+        context.log.info(f"compressor trips: {ran}")
         from . import board
         context.log.info(f"board: {board.refresh(conn, pack)}")
 
@@ -386,13 +387,12 @@ def day_close_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
             except ValueError as e:  # no DAY001 for that day yet
                 context.log.info(f"report {day}: {e}")
         from ..analysis import hydraulics
-        from . import board, opportunities
+        from . import board
         context.log.info(f"debottleneck options: {hydraulics.store_options(conn, pack)}")
-        context.log.info(f"opportunity scan: {opportunities.scan(conn, pack)}")
-        from ..analysis import rotating
-        context.log.info(f"machine health: {rotating.watch(conn)}")
-        from ..analysis import records
-        context.log.info(f"records gaps: {records.watch(conn)}")
+        from ..core import detectors
+        context.log.info(f"opportunity scan: {detectors.run(conn, pack, 'opportunities')}")
+        context.log.info(f"machine health: {detectors.run(conn, pack, 'machine_health')}")
+        context.log.info(f"records gaps: {detectors.run(conn, pack, 'records_gaps')}")
         board.refresh(conn, pack)
 
 
@@ -416,10 +416,9 @@ def studies_job():
 
 @dg.op(description="Tell owners about stale or broken sources, and close what cleared (#225).")
 def source_health_op(context: dg.OpExecutionContext, fuzer: Fuzer) -> None:
-    from ..core import events
-    from ..sources import alerts
+    from ..core import detectors, events
     with fuzer.connect() as conn:
-        out = alerts.check(conn)
+        out = detectors.run(conn, None, "source_health")
         conn.commit()
         context.log.info(f"source health: {out}, events: {events.deliver(conn)}")
 
