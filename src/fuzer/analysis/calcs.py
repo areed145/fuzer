@@ -736,6 +736,18 @@ CHECKS |= {
 }
 
 
+
+CHECKS |= {  # gas treating and dehydration (P4.2, pack 3)
+    "contactor_foaming": {"fn": _cond("treating", "contactor_foaming"), "ref": "amine or glycol contactor",
+                          "used_by": {"agent": "calc", "detector": None}},
+    "treated_gas": {"fn": _cond("treating", "treated_gas"), "ref": "contactor with a treated gas analyser",
+                    "used_by": {"agent": "calc", "detector": None}},
+    "regenerator": {"fn": _cond("treating", "regenerator"), "ref": "amine or glycol reboiler (or a stabilizer's)",
+                    "used_by": {"agent": "calc", "detector": None}},
+    "chiller": {"fn": _cond("treating", "chiller"), "ref": "low temperature separator",
+                "used_by": {"agent": "calc", "detector": None}},
+}
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes. Every check is a registered method (core.methods): the
     result carries it as `method`, and a check that can't answer raises a CalcError that names its refusal."""

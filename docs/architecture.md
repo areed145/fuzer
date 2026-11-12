@@ -12,7 +12,7 @@ flowchart LR
   c_api --> app
   c_sources["Sources and ingestion<br><small>fuzer.sources, 36 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 30 modules</small>"]
-  c_analysis["Analyses<br><small>fuzer.analysis, 30 modules</small>"]
+  c_analysis["Analyses<br><small>fuzer.analysis, 31 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 26 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 12 modules</small>"]
@@ -206,7 +206,7 @@ Resolves records into one entity per real thing, links them, and answers queries
 
 Signals, limits, calcs, hydraulics, studies and clustering over the graph and the process values. More in [analyses](analyses.md).
 
-- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `hydraulics`, `integrity`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `trips`, `value`, `values`
+- **Code:** [`src/fuzer/analysis`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis): `alarms`, `backlog`, `calcs`, `capacity_bounds`, `cases`, `clusters`, `completeness`, `compression`, `condition`, `drivers`, `equipment`, `facilities`, `flow_capacity`, `forecast`, `hydraulics`, `integrity`, `limits`, `loops`, `production_efficiency`, `prognosis`, `protection`, `recip`, `records`, `rotating`, `signals`, `studies`, `surveillance`, `treating`, `trips`, `value`, `values`
 - **Uses:** core, graph, sources
 - **Writes:** `debottleneck_option`, `excursion`, `point_normal` ([schema](schema.md))
 - **Owns:** `point_limit`, `point_normal`, `excursion`, `debottleneck_option` (its `schema.sql`)

@@ -462,3 +462,42 @@ loop_oscillation:
   vectors:
     - {kernel: "fuzer.analysis.loops:regularity", args: [[10, 10, 10, 11, 9]], expect: 5.2705, says: "Half periods of 10, 10, 10, 11 and 9 samples: periods average 20 with a spread of 1.26, so r = 20 / 3.79 = 5.27, a regular cycle."}
     - {worked: "tests/analysis/test_loops.py::test_the_test_separator_level_cycles_while_its_valve_sticks"}
+
+contactor_foaming:
+  title: Contactor differential pressure against its clean level (foaming and fouling)
+  practice: "GPSA Engineering Data Book (hydrocarbon treating and dehydration): foaming shows first as a sudden rise in column differential pressure, with carryover and off-spec gas; a slow climb is fouling or damaged packing."
+  inputs: [{name: Contactor differential pressure, unit: bar}, {name: Treated gas analyser (optional), unit: "mol% or mg/Sm³"}]
+  valid: Amine and glycol contactors with a differential pressure point, while gas flows through them.
+  needs: A week of differential pressure history before the last two days.
+  thresholds:
+    foaming: {value: 150, unit: "%", means: "Peak differential pressure as a share of the clean level, reached within a day, that reads as foaming.", code: "fuzer.analysis.treating:FOAM_TIMES", scale: 100}
+    fouling: {value: 125, unit: "%", means: "The last week's median as a share of the clean level that reads as fouling.", code: "fuzer.analysis.treating:FOUL_TIMES", scale: 100}
+  vectors: [{worked: "tests/analysis/test_treating.py::test_the_amine_contactor_foamed_after_the_restart"}]
+
+treated_gas:
+  title: Treated gas analyser against its operating window
+  practice: "GPSA Engineering Data Book; API 12GDU for glycol dehydration units. The limit is the site's recorded window (IOW, alarm settings or the learned range), not a number in the code."
+  inputs: [{name: Treated gas analyser, unit: "mol% or mg/Sm³"}, {name: Operating window, unit: same}]
+  valid: Contactors with a treated gas analyser (acid gas after an amine column, water after a glycol one).
+  needs: Seven days of analyser readings and an operating window on the point.
+  thresholds:
+    approaching: {value: 30, unit: days, means: "On course for the limit within this many days.", code: "fuzer.analysis.treating:SOON_DAYS"}
+  vectors: [{worked: "tests/analysis/test_treating.py::test_the_glycol_unit_lost_purity_as_its_reboiler_cooled"}]
+
+regenerator:
+  title: Reboiler temperature against its operating window
+  practice: "GPSA Engineering Data Book; API 12GDU for glycol dehydration units: too cold leaves the solvent under-stripped, too hot degrades it. The window is the site's recorded one."
+  inputs: [{name: Reboiler temperature, unit: "°C"}, {name: Operating window, unit: "°C"}]
+  valid: Amine, glycol and stabilizer reboilers with a temperature point.
+  needs: Seven days of temperature readings and an operating window on the point.
+  thresholds:
+    drifting: {value: 30, unit: days, means: "On course for a limit within this many days.", code: "fuzer.analysis.treating:SOON_DAYS"}
+  vectors: [{worked: "tests/analysis/test_treating.py::test_the_glycol_unit_lost_purity_as_its_reboiler_cooled"}]
+
+chiller:
+  title: Low temperature separator temperature against its operating window
+  practice: "GPSA Engineering Data Book (refrigeration, hydrocarbon dew point control): the separator temperature sets the dew point of the gas leaving it. The limit is the site's recorded window."
+  inputs: [{name: Separator temperature, unit: "°C"}, {name: Operating window, unit: "°C"}]
+  valid: Chilled (low temperature) separators of a dew point control unit with a temperature point.
+  needs: Seven days of temperature readings and an operating window on the point.
+  vectors: [{worked: "tests/analysis/test_treating.py::test_the_chiller_holds_the_dew_point"}]
