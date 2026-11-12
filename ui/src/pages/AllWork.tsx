@@ -5,7 +5,7 @@
 import "../styles/all-work.css";
 import { useEffect, useRef, useState } from "react";
 import { Input, PageHeader, Select } from "../ui";
-import { api } from "../api";
+import { api, type ExceptionRow } from "../api";
 import { href, useAsync, useDebounced } from "../lib";
 import { AssignPicker } from "./workflows/shared";
 import { ExceptionsPage, backFromField, waitingToDispatch, withTheField, type ExceptionView } from "./Exceptions";
@@ -29,6 +29,12 @@ const KEYS = new Set(WORK_LISTS.map((l) => l.key));
 /** A link to one view of All work, with that view's own filters. */
 export const workHref = (list: WorkList, query?: Record<string, string | undefined>) =>
   href("/exceptions", { list: list === "dispatch" ? undefined : list, ...query });
+
+/** How many open exceptions each of the IOC's views holds. Home shows the same numbers (#556). */
+export const iocCounts = (rows: ExceptionRow[], operators: Set<string>) => ({
+  dispatch: rows.filter(waitingToDispatch).length, field: rows.filter((r) => withTheField(r, operators)).length,
+  back: rows.filter(backFromField).length, open: rows.length,
+});
 
 /** Where an old Work board or Cases link lands: the same view, filters carried over. */
 export function legacyWorkHref(section: "board" | "cases", query: URLSearchParams): string {
@@ -54,9 +60,7 @@ export function AllWorkPage({ query }: { query: URLSearchParams }) {
   const people = useAsync(() => api.workPeople(), []);
   const operators = new Set((people.data ?? []).filter((p) => p.roles.includes("operator")).map((p) => p.name));
   const rows = open.data ?? [];
-  const counts: Partial<Record<WorkList, number>> = open.data ? {
-    dispatch: rows.filter(waitingToDispatch).length, field: rows.filter((r) => withTheField(r, operators)).length,
-    back: rows.filter(backFromField).length, open: rows.length } : {};
+  const counts: Partial<Record<WorkList, number>> = open.data ? iocCounts(rows, operators) : {};
   // On a phone the views scroll sideways; keep the open one in sight.
   const tabs = useRef<HTMLElement>(null);
   useEffect(() => {

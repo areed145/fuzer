@@ -13,7 +13,7 @@ Direct links select their owning primary destination.
 
 | Owner | Existing routes and surfaces | Boundary |
 |---|---|---|
-| Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, current priorities, the production Chart Show and brief readiness links. No embedded configuration. Search reuses Browse. |
+| Home | `#/`, legacy `#/?q=…` search entry, compatible `#/analytics` redirect | Orientation, the production Chart Show and brief readiness links. Work is summarized, not copied (#556): counts for the person's roles (My work for everyone, All work's views for the ops lead, Master data for the steward and configurers), each linking to the view that shows the same number, and the next few titles. No work rows, actions or embedded configuration. Search reuses Browse. |
 | Demo | `#/demo?step=…`, compatible `#/investigate/okan?step=…&evidence=…` | Guided orientation, Okan evidence walkthrough, registered agent capabilities and contextual entries to shared Work. No copied assistant, workflow editor, seeding or automatic execution. |
 | Explore | `#/browse`, `#/e/:id`, `#/map`, `#/network`, `#/ontology` | Assets and connected evidence. All entity links reuse the existing entity viewer. Ontology is configure-protected. |
 | Investigate | `#/ask`, `#/incidents`, `#/downtime`, `#/reports`, `#/studies`, `#/lessons` | Evidence, analysis, findings and conclusions. Keep existing specialist tools. Paid Ask remains AI-permission gated. |
@@ -37,7 +37,7 @@ Navigation grouping is presentation, not authorization: keep server permission c
 owner-only/configure/AI visibility rules.
 
 Explore secondary pages are Browse, Map, Network and configure-protected Ontology.
-Demo contains the guided tour and compatible Okan walkthrough. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
+Demo is one entry, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Investigate contains AI-gated Ask, Downtime, Incidents, Daily reports,
 Lessons and Studies. Work contains four entries: All work, My work, Plan and Master data (#554). Shift handover is
 reached from My work, which shows a banner from shift change until the incoming lead acknowledges it; `#/handover`
 still opens it. Turnaround is a window on Plan: `#/plan?revision=…` shades the revision's window on the timeline and

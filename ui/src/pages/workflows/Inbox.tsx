@@ -4,13 +4,25 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
-import { api, type WorkRow } from "../../api";
+import { api, type FieldJob, type WorkInbox, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
 import { switchProject } from "../../authState";
 import { SampleTeam, StepBadges, byUrgency, caseHref, priorityText, taskHref, useAct } from "./shared";
 import { ComingUp, FieldJobCard } from "../Field";
+
+/** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
+ * A field job's card carries its case's step, so that case is not counted twice. */
+export function myWorkCounts(d: WorkInbox, jobs: FieldJob[]) {
+  const onCard = new Set(jobs.map((j) => j.item_id).filter((id): id is number => id != null));
+  const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
+  return {
+    sent: jobs.filter((j) => !j.queued).length, mine: d.mine.length, queue: d.queue.length,
+    overdue: all.filter((r) => r.overdue).length, escalated: all.filter((r) => r.escalated_at).length,
+    top: [...all].sort(byUrgency).slice(0, 3),
+  };
+}
 
 export function InboxPage() {
   const [person] = usePerson();
@@ -45,7 +57,7 @@ export function InboxPage() {
   const escalated = all.filter((r) => r.escalated_at && keep(r)).sort(byUrgency);
   const mine = d.mine.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
   const queue = d.queue.filter((r) => !onCard.has(r.item_id) && !r.escalated_at && keep(r)).sort(byUrgency);
-  const overdue = all.filter((r) => r.overdue).length;
+  const counts = myWorkCounts(d, jobs);
   const undispatched = d.roles.includes("ops_lead")
     ? (exceptions.data ?? []).filter((r) => !r.item_id && !r.planned && r.state === "open").length : 0;
   const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
@@ -66,11 +78,11 @@ export function InboxPage() {
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
       <p className="row small">
-        {sent.length > 0 && <UIBadge className="badge">{sent.length} sent to you</UIBadge>}
-        <UIBadge className="badge">{d.mine.length} assigned to you</UIBadge>
-        <UIBadge className="badge">{d.queue.length} unclaimed in your roles ({d.roles.join(", ") || "none"})</UIBadge>
-        {overdue > 0 && <UIBadge className="badge late">{overdue} overdue</UIBadge>}
-        {escalated.length > 0 && <UIBadge className="badge late">{escalated.length} escalated</UIBadge>}
+        {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
+        <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
+        <UIBadge className="badge">{counts.queue} unclaimed in your roles ({d.roles.join(", ") || "none"})</UIBadge>
+        {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
+        {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
         {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
