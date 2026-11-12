@@ -127,7 +127,7 @@ DRIFT_TYPE = _type().name
                                                             "e.fuzer_id = m.fuzer_id and e.kind <> 'well' where "
                                                             "m.location is not null and m.quantity <> "
                                                             "'wall_thickness' limit 1"},
-                    eval="test:tests/analysis/test_quality.py::test_a_drifting_analyte_is_raised_until_it_comes_back",
+                    eval="test:tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back",
                     found=lambda out: len(out["raised"]))
 def watch(conn, until: str | None = None, by: str = "agent:quality") -> dict:
     """Each drift raised as `quality_drift` for the engineer (keyed by subject, sample point and analyte), with the

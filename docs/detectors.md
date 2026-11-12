@@ -257,4 +257,4 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Runs:** Once a day
 - **Raises:** `quality_drift`
 - **Needs:** lab results at a sample point
-- **Scored by:** `tests/analysis/test_quality.py::test_a_drifting_analyte_is_raised_until_it_comes_back`, on the fake plant
+- **Scored by:** `tests/analysis/test_quality_drift.py::test_a_drifting_analyte_is_raised_until_it_comes_back`, on the fake plant
