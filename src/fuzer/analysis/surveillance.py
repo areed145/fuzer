@@ -206,7 +206,7 @@ def deferment_attribution(conn, fid: str | None = None, at: str | None = None, d
         try:
             tests = calcs.well_tests(conn, w, at)
             last = tests[-1]
-            fit = calcs.decline_fit(conn, w, until=last["at"].isoformat())  # the tests before the latest
+            fit = calcs.decline_fit(conn, w, until=last["at"].isoformat(), product="oil")  # the tests before the latest
         except CalcError as e:
             unchecked.append({"well": _label(conn, w), "why": str(e)})
             continue

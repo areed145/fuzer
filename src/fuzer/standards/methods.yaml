@@ -13,8 +13,8 @@
 decline:
   title: Latest well test against the Arps decline
   standard: "Arps, Analysis of Decline Curves (1945)"
-  inputs: [{name: Well tests (oil rate), unit: Sm³/d}]
-  valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change.
+  inputs: [{name: Well tests (oil rate, or gas rate on a gas well), unit: Sm³/d or kSm³/d}]
+  valid: Wells on natural or artificial lift with a declining rate; the fit restarts after a step change. A well whose tests carry no oil is fitted on its gas rate.
   needs: At least four well tests.
   vectors:
     - kernel: fuzer.analysis.calcs:arps
