@@ -77,7 +77,7 @@ async def assistant_ask(q: Question):
     if any(len(b) > MAX_IMAGE_BYTES for _, b in images):
         raise HTTPException(400, "each image at most 5 MB")
     try:
-        return service.start(q.question.strip(), q.conversation_id, q.by, images, q.case_id, q.subject)
+        return service.start(q.question.strip(), q.conversation_id, q.by, images, item_id=q.case_id, subject=q.subject)
     except context.Unknown as e:
         raise HTTPException(404, str(e))
     except service.Busy as e:
