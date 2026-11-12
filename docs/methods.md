@@ -9,7 +9,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 | Method | Standard or practice | Inputs | Needs |
 |---|---|---|---|
-| [`decline`](#decline) Latest well test against the Arps decline | Arps, Analysis of Decline Curves (1945) | Well tests (oil rate) (Sm³/d) | At least four well tests. |
+| [`decline`](#decline) Latest well test against the Arps decline | Arps, Analysis of Decline Curves (1945) | Well tests (oil rate (Sm³/d or kSm³/d) | At least four well tests. |
 | [`gas_lift`](#gas_lift) Lift gas against the economic optimum of the well's lift curve | Engineering practice | Well tests (oil rate) (Sm³/d); Lift gas rate (kSm³/d) | At least four well tests with a lift gas rate. |
 | [`pump_curve`](#pump_curve) Pump head against the OEM curve at the same flow | Engineering practice | Flow (m³/h); Suction and discharge pressure (barg); OEM head curve (m) | A minimum count of running readings in the recent window. |
 | [`choke`](#choke) Choke effective Cv against its characteristic | Engineering practice | Choke opening (%); Upstream and downstream pressure (barg); Well test rates (Sm³/d) | Three or more readings since the trim was last replaced, else the latest readings before. |
@@ -73,7 +73,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 **Latest well test against the Arps decline.** Arps, Analysis of Decline Curves (1945).
 
-- **Valid for:** Wells on natural or artificial lift with a declining rate; the fit restarts after a step change.
+- **Valid for:** Wells on natural or artificial lift with a declining rate; the fit restarts after a step change. A well whose tests carry no oil is fitted on its gas rate.
 - **Needs:** At least four well tests.
 - **Test vector:** A rate of 100 falling 20 % a year, sampled yearly, fits back to qi 100 and D 0.2. (`arps`)
 

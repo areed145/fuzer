@@ -123,22 +123,34 @@ def rate(fit: dict, t: float) -> float:
     return fit["qi"] / (1 + fit["b"] * fit["D"] * t) ** (1 / fit["b"])
 
 
-def decline_fit(conn, well: str, model: str = "auto", until: str | None = None) -> dict:
-    """An Arps fit to a well's oil rate after its last step change: {tests, cuts, seg, t0, fit}."""
-    tests = [t for t in well_tests(conn, well, until) if t.get("oil_rate", 0) > 0]
-    qs = [t["oil_rate"] for t in tests]
+PRODUCTS = (("oil", "oil_rate", "Sm3/d"), ("gas", "gas_rate", "kSm3/d"))  # a well's product: oil if it makes any
+
+
+def decline_fit(conn, well: str, model: str = "auto", until: str | None = None, product: str | None = None) -> dict:
+    """An Arps fit to a well's rate after its last step change: {product, unit, tests, cuts, seg, t0, fit}. The rate is
+    the well's oil rate, or its gas rate when its tests carry no oil (a gas well); `product` asks for one. Each test
+    carries the fitted rate as `rate`."""
+    every = well_tests(conn, well, until)
+    for name, key, unit in PRODUCTS:
+        if product in (None, name) and (tests := [{**t, "rate": t[key]} for t in every if (t.get(key) or 0) > 0]):
+            break
+    else:
+        raise CalcError(f"no {product or 'oil or gas'} rate in that well's tests")
+    if len(tests) < 4:
+        raise CalcError(f"fewer than four well tests with a {name} rate on that well")
+    qs = [t["rate"] for t in tests]
     cuts = breaks(qs)
     start = cuts[-1] if cuts and len(qs) - cuts[-1] >= 4 else 0
     seg = tests[start:]
     t0 = seg[0]["at"]
-    fit = arps([(t["at"] - t0).days / YEAR for t in seg], [t["oil_rate"] for t in seg], model)
-    return {"tests": tests, "cuts": cuts, "start": start, "seg": seg, "t0": t0, "fit": fit}
+    fit = arps([(t["at"] - t0).days / YEAR for t in seg], [t["rate"] for t in seg], model)
+    return {"product": name, "unit": unit, "tests": tests, "cuts": cuts, "start": start, "seg": seg, "t0": t0, "fit": fit}
 
 
 def decline(conn, well: str, model: str = "auto", tolerance: float = 0.15, until: str | None = None) -> dict:
-    """The latest well test against the decline fitted through the tests before it. Flags `step_down` /
-    `step_up` when the latest test is a step change, else `below_decline` / `above_decline` beyond
-    `tolerance`."""
+    """The latest well test against the decline fitted through the tests before it, on the well's oil rate or, on a
+    gas well, its gas rate. Flags `step_down` / `step_up` when the latest test is a step change, else
+    `below_decline` / `above_decline` beyond `tolerance`."""
     d = decline_fit(conn, well, model, until)
     fit, seg, t0 = d["fit"], d["seg"], d["t0"]
     last = seg[-1]
@@ -146,15 +158,16 @@ def decline(conn, well: str, model: str = "auto", tolerance: float = 0.15, until
     n = len(d["tests"])
     step = d["cuts"] and d["cuts"][-1] == n - 1
     if step:
-        expected = d["tests"][-2]["oil_rate"]
-        flag = "step_down" if last["oil_rate"] < expected else "step_up"
+        expected = d["tests"][-2]["rate"]
+        flag = "step_down" if last["rate"] < expected else "step_up"
     else:
-        flag = ("below_decline" if last["oil_rate"] < (1 - tolerance) * expected else
-                "above_decline" if last["oil_rate"] > (1 + tolerance) * expected else None)
+        flag = ("below_decline" if last["rate"] < (1 - tolerance) * expected else
+                "above_decline" if last["rate"] > (1 + tolerance) * expected else None)
     basis = (f"step from the test before ({d['tests'][-2]['at']:%Y-%m-%d})" if step else
-             f"Arps {fit['model']} fit through {len(seg)} well tests since {t0:%Y-%m-%d}")
-    return result(_r(last["oil_rate"], 1), _r(expected, 1), flag, basis, [well, last["record"]],
-                  unit="Sm3/d", at=last["at"].isoformat()[:10], model=fit["model"], qi=_r(fit["qi"], 1), b=_r(fit["b"], 2),
+             f"Arps {fit['model']} fit through {len(seg)} well tests since {t0:%Y-%m-%d}") + f", on {d['product']} rate"
+    return result(_r(last["rate"], 1), _r(expected, 1), flag, basis, [well, last["record"]],
+                  unit=d["unit"], product=d["product"], at=last["at"].isoformat()[:10], model=fit["model"],
+                  qi=_r(fit["qi"], 1), b=_r(fit["b"], 2),
                   decline_per_year=_r(fit["D"], 3), effective_decline_pct_per_year=_r((1 - rate(fit, 1) / rate(fit, 0)) * 100, 1),
                   r2_log=_r(fit["r2"]), step_changes=[d["tests"][i]["at"].isoformat()[:10] for i in d["cuts"]])
 
