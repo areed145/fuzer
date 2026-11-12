@@ -243,6 +243,7 @@ def main(http: bool = False, host: str = "127.0.0.1", port: int = 8001) -> None:
 from .capabilities import (  # noqa: F401
     graph,
     maintenance,
+    metrics,
     operations,
     plots,
     production,
