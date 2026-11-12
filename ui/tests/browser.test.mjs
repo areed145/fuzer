@@ -1423,7 +1423,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
   assert.deepEqual(await investigate.locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/lessons", "#/studies"]);
+    ["#/downtime", "#/ask", "#/incidents", "#/reports", "#/metrics", "#/lessons", "#/studies"]);
   await page.goto(`${url}/#/work`);
   await page.waitForURL(/#\/inbox$/);
   await nav.locator('a[href="#/exceptions"][aria-current="page"]').waitFor();
