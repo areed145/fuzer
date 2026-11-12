@@ -606,14 +606,16 @@ def _when(conn, at) -> tuple[str, bool]:
 
 
 def report(conn, exception_id: int, by: str, status: str, note: str | None = None, *, reading: dict | None = None,
-           photos=(), client_id: str | None = None, at: str | None = None) -> dict:
+           photos=(), client_id: str | None = None, at: str | None = None, override: str | None = None) -> dict:
     """What a field operator says back: on site, done, could not do (with why) or a note. Kept on the exception's
     evidence (`field`) and its case's history, and published as exception.reported for the IOC. `done` on a case
     without a process closes it. `done` on a process case, or `could_not_do` on any, hands what was sent to them
     back to whoever sent it (the IOC's step goes back to its queue), so the IOC decides what happens next.
     A report can carry a reading (a number with its unit) and photos (P5.3b), which the IOC sees with it.
     A report the phone kept while it had no signal (P5.3c) comes with its `client_id` and the time it was made: it is
-    applied once (a resend changes nothing) and keeps that time."""
+    applied once (a resend changes nothing) and keeps that time.
+    "On site" starts the work: on a job whose work type needs a permit to work and has no valid one (P5.11a), it is
+    refused unless the person says why it starts anyway (`override`), a fixed human gate kept on the case."""
     if status not in FIELD_STATUSES:
         raise ExceptionError(f"status must be one of {FIELD_STATUSES}")
     if status in ("could_not_do", "note") and not (note or "").strip():
@@ -623,11 +625,27 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     row = _row(conn, exception_id, lock=True)
     if row["joined_to"]:  # the field reports on the event, which its host carries
         return report(conn, row["joined_to"], by, status, note, reading=reading, photos=photos, client_id=client_id,
-                      at=at)
+                      at=at, override=override)
     if client_id and any(f.get("client_id") == client_id for f in (row["evidence"] or {}).get("field") or []):
         return row  # already here: the phone sent it again after losing the answer
+    unpermitted = None
+    if status == "on_site":
+        from . import readiness
+
+        permit = readiness.permits(conn, list(row["subjects"] or []), row["id"])
+        if not permit["ready"]:
+            override = (override or "").strip()
+            if not override:
+                raise ExceptionError(f"{permit['blockers'][0]}. Say why it starts anyway.")
+            from ..core import gates
+
+            gates.require_person(conn, "field_start_without_permit", by, item_id=row["item_id"],
+                                 ref=f"exception:{row['id']}")
+            unpermitted = permit["blockers"][0]
     made, late = _when(conn, at)
     entry = {"at": made, "by": by, "status": status, "note": note}
+    if unpermitted:
+        entry["without_permit"] = {"blocker": unpermitted, "why": override}
     if client_id:
         entry["client_id"] = client_id
     if late:
@@ -650,6 +668,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
         text = f"Field: {said}" + (f": {note}" if note else "") + (f" ({'; '.join(extra)})" if extra else "")
         work.comment(conn, row["item_id"], by, text, [
             {"kind": "photo", "exception_id": exception_id, "photo_id": i} for i in entry.get("photos", [])])
+        if unpermitted:
+            work.comment(conn, row["item_id"], by, f"Started without a valid permit ({unpermitted}). Why: {override}")
         from . import routing
 
         # a queue_item case (#509) is a plain queue case run as a process: Done closes it as before
@@ -779,9 +799,23 @@ def field_jobs(conn, person: str) -> list[dict]:
                     "checklist": checklist,
                     "sources": sources if len(sources) > 1 else [],
                     "finding": mine, "history": history, "field": r["evidence"].get("field", []),
-                    "sent": sent})
+                    "sent": sent, "permit": _permit(conn, subjects, r["id"])})
     return out
 
+
+
+def _permit(conn, subjects: list[str], exception_id: int) -> dict | None:
+    """The permit to work a field job runs under (P5.11a): the valid one, else the nearest, with its isolations, and
+    whether starting is blocked. None when no permit records are loaded."""
+    from . import readiness
+
+    p = readiness.permits(conn, subjects, exception_id)
+    if not p["checked"]:
+        return None
+    shown = next((x for x in p["permits"] if x["valid"]), p["permits"][0] if p["permits"] else None)
+    return {"needed": p["needed"], "blocked": not p["ready"], "blocker": p["blockers"][0] if p["blockers"] else None,
+            "permit": shown and {k: shown[k] for k in ("label", "type", "state", "valid_from", "valid_to", "work",
+                                                       "location_label", "valid", "why_not", "isolations")}}
 
 
 # ---- exception types as data: other systems' exceptions without code ------------------------------------------
