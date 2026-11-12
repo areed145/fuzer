@@ -51,6 +51,11 @@ the registered detectors it brings (`detectors`, switched on when it is installe
 again with nothing changed, and its fixture loads through its own mappings with no dataset held or missing.
 `fuzer sources conformance FILE` runs it on the current project (use a scratch database), and
 `tests/sources/test_pack_conformance.py` runs it for every shipped pack on both Okan and Kestrel.
+The built-in sources are packs too: `src/fuzer/source_packs/<system>.yaml` names each system's datasets, its
+`optional` ones (loaded when a site exports them) and its detectors, and the full pack is assembled from the
+built-in mapping files, so a mapping still lives in one place. `fuzer sources conformance sap` runs one against the
+project's own exports, and the test runs the SAP, PI, PI AF, EC, DCS, LIMS, inspection, P&ID, operator log, IOW, GIS,
+Maximo, OEM and EDMS packs on both bundles.
 
 **The work a system brings** (#465, `sources/workflows.py`). A pack can also declare the exception types its
 system raises and the rules that turn its loaded records into exceptions, so onboarding a SCADA, LIMS or
