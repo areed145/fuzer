@@ -88,6 +88,16 @@ kinds:
     group: Maintenance
     colour: "#a8553f"
     description: A point a permit needs isolated, how, and whether it is in place.
+  safeguard:
+    label: Safeguard
+    group: Maintenance
+    colour: "#b5463a"
+    description: A trip, interlock or shutdown, the instrument it acts on and the equipment it protects.
+  bypass:
+    label: Bypass
+    group: Maintenance
+    colour: "#d08a3c"
+    description: A safeguard taken out of service, with its state, when it went in, its expiry and change record.
   round_point:
     label: Round point
     group: Maintenance
@@ -257,6 +267,24 @@ relations:
     description: An isolation and the permit that needs it.
     from: [isolation]
     to: [permit]
+  acts_on:
+    label: acts on
+    view: maintenance
+    description: A safeguard and the instrument it acts on.
+    from: [safeguard]
+    to: [tag, equipment]
+  protects:
+    label: protects
+    view: maintenance
+    description: A safeguard and the equipment it protects.
+    from: [safeguard]
+    to: [tag, equipment, area]
+  bypasses:
+    label: bypasses
+    view: maintenance
+    description: A bypass and the safeguard it takes out of service.
+    from: [bypass]
+    to: [safeguard]
   checks:
     label: checks
     view: maintenance
