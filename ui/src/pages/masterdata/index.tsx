@@ -3,7 +3,7 @@
  * decisions stewards made (aliases and pinned matches), each reversible. */
 import { useState } from "react";
 import { api } from "../../api";
-import { Badge, Button, ButtonLink, Card, Input, PageHeader, Table, Empty } from "../../ui";
+import { Badge, Button, Card, Input, PageHeader, Table, Empty } from "../../ui";
 import { Status, entityHref, href, useAsync } from "../../lib";
 import { usePerson, when } from "../../work";
 import { caseHref, useAct } from "../workflows/shared";
@@ -11,25 +11,27 @@ import { usePermission } from "../../Auth";
 import { MatchRef } from "./MatchRef";
 import { Gaps } from "./Gaps";
 import { ProposalsTab } from "./Proposals";
+import { Review } from "../Review";
 
-const TABS = [["unmatched", "Unmatched on open work"], ["unresolved", "Unresolved values"], ["gaps", "Gaps"],
-  ["proposals", "Claude's proposals"], ["decisions", "Decisions"]] as const;
+const TABS = [["unmatched", "Unmatched on open work"], ["questions", "Questions"], ["unresolved", "Unresolved values"],
+  ["gaps", "Gaps"], ["proposals", "Claude's proposals"], ["decisions", "Decisions"]] as const;
 
+/** Keeping the register matching the work, in one place (#505, P2.3): the questions the build leaves (possible
+ * matches, conflicting values, changed columns, drawing disagreements, ...) sit beside unmatched refs and the
+ * decision log. Each question is also a case in the data steward's queue. */
 export function MasterDataPage({ query }: { query: URLSearchParams }) {
-  const [tab, setTab] = useState<string>(query.get("tab") ?? "unmatched");
-  // Possible matches and conflicts are decided on Data review, reached from here (#554); P2.3 folds it in (#505).
+  const tab = TABS.some(([k]) => k === query.get("tab")) ? query.get("tab")! : "unmatched";
   const stats = useAsync(() => api.stats(), []);
-  const reviews = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
+  const questions = stats.data ? Object.values(stats.data.open_reviews).reduce((a, b) => a + b, 0) : 0;
   return (
     <section>
-      <PageHeader subtitle="Records that did not match the register."
-        actions={<ButtonLink href={href("/review")}>Data review{reviews ? ` (${reviews})` : ""}</ButtonLink>}>
-        Master data</PageHeader>
+      <PageHeader subtitle="Keeping the register matching the work.">Master data</PageHeader>
       <div className="tabs" role="tablist">
-        {TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
-          onClick={() => setTab(k)}>{label}</button>)}
+        {TABS.map(([k, label]) => <a key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : undefined}
+          href={href("/masterdata", { tab: k })}>{label}{k === "questions" && questions ? ` (${questions})` : ""}</a>)}
       </div>
-      {tab === "unmatched" ? <Unmatched /> : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps />
+      {tab === "unmatched" ? <Unmatched /> : tab === "questions" ? <Review query={query} stats={stats.data ?? undefined} />
+        : tab === "unresolved" ? <Unresolved /> : tab === "gaps" ? <Gaps />
         : tab === "proposals" ? <ProposalsTab /> : <Decisions />}
     </section>
   );

@@ -15,6 +15,7 @@ function Value({ item }: { item: FindingItem }) {
   if (kind === "asset") return <a href={entityHref(String(value))}>{item.text}</a>;
   if (kind === "flag") return <>{value ? "yes" : "no"}</>;
   if (kind === "time") return <time dateTime={String(value)}>{when(String(value))}</time>;
+  if (kind === "page" && String(value).startsWith("#/")) return <a href={String(value)}>{item.text ?? "Open"}</a>;
   return <>{typeof value === "number" ? number(value) : String(value)}{unit ? ` ${unit}` : ""}</>;
 }
 
