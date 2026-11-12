@@ -396,6 +396,44 @@ def test_an_agent_message_cannot_carry_a_decision(conn):
     assert engine.item(conn, out["item_id"])["processes"][0]["data"]["severity"] == "high"
 
 
+def test_agent_spend_is_counted_by_agent_type_and_asset_and_a_cap_stops_the_next_step(conn):
+    """P4.4: each agent step's ledger feeds the spend roll-up, and once a case's agent spend reaches its cap the next
+    agent step goes to a person with the spend and the cap on the case, instead of running."""
+    from fuzer.agents import ledger
+    from fuzer.core import settings
+
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "loop.bpmn").read_text())
+    out = engine.start(conn, "t_loop", {}, "alice", subjects=["unit-spend"])
+    settings.set(conn, "agents.case_cap_usd", 1.0, by="test")
+    try:
+        def reporter(call):
+            return {call.element: {"answer": "draft", "ledger": {"agent": "reporter", "cost_usd": 0.6}}}
+        worker.run_once(conn, {"reporter": reporter}, "w-spend")
+        engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise"})
+        worker.run_once(conn, {"reporter": reporter}, "w-spend")  # 0.6 spent: under the cap, it runs
+        assert ledger.case_spend(conn, out["item_id"]) == 1.2
+        engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise"})
+        ran = []
+        res = worker.run_once(conn, {"reporter": lambda call: ran.append(1) or {}}, "w-spend")
+        assert not ran and res["handed_to"]  # 1.2 of 1.0: the agent never ran, a person has the step
+        handed = events(conn, out["item_id"], "handed_off")[-1]["data"]["reason"]
+        assert "reached its cap: $1.20 of $1.00" in handed
+        s = ledger.spend(conn)
+        assert next(r for r in s["by_agent"] if r["agent"] == "reporter")["cost_usd"] >= 1.2
+        assert {k: v for k, v in next(r for r in s["by_asset"] if r["asset"] == "unit-spend").items()} == {
+            "asset": "unit-spend", "cost_usd": 1.2, "steps": 2, "cases": 1}
+        assert next(r for r in s["by_work_type"] if r["work_type"] == "t_loop")["cases"] >= 1
+        from fastapi.testclient import TestClient
+
+        from fuzer.api import app
+        client = TestClient(app)
+        assert client.get(f"/work/items/{out['item_id']}").json()["agent_spend"] == {"usd": 1.2, "cap_usd": 1.0}
+        assert client.get("/work/agent-spend").json()["total_usd"] >= 1.2
+    finally:
+        settings.reset(conn, "agents.case_cap_usd", by="test")
+
+
 def test_claimed_task_belongs_to_its_claimer(conn):
     publish_file(conn, (BPMN_DIR / "exclusive.bpmn").read_text())
     out = engine.start(conn, "t_exclusive", {}, "alice")

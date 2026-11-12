@@ -120,6 +120,8 @@ register(
             env="FUZER_AGENT_SPECIALIST_EFFORT", restart=True),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
+    Setting("agents.case_cap_usd", "float", 2.0, "Agent spend a case may reach (USD) before its next agent step goes "
+            "to a person, with the spend and the cap on the case (0: no cap)", "Agents", min=0),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
             "with its images and answers (0: keep them)", "Agents", min=0),
     Setting("assistant.concurrent_questions", "int", 1, "Questions the web assistant can run at once per server "
