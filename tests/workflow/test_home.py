@@ -40,3 +40,27 @@ def test_home_says_what_others_did_on_my_work_since_i_last_looked(conn):
     assert later["seen_at"] and [(c["item_id"], c["kind"], c["data"]["text"]) for c in later["changes"]] == [
         (mine, "commented", "gland weeping")]
     conn.commit()
+
+
+def test_a_watched_asset_and_case_show_under_watching_and_are_not_assigned(conn):
+    engine.mark_seen(conn, "fred")
+    conn.commit()
+    engine.watch(conn, "fred", "asset:P-200")
+    case = engine.create_item(conn, "manual", "Watched by number", by="pat", role="maintenance_planner")["id"]
+    engine.watch(conn, "fred", f"case:{case}")
+    about = engine.create_item(conn, "manual", "P-200 seal", by="pat", role="maintenance_planner",
+                               subjects=["asset:P-200"])["id"]
+    engine.create_item(conn, "manual", "Some other pump", by="pat", role="maintenance_planner", subjects=["asset:P-9"])
+    engine.comment(conn, case, "pat", "parts ordered")
+    conn.commit()
+    out = engine.home(conn, "fred")
+    assert out["watching"] == ["asset:P-200", f"case:{case}"]
+    seen = {(c["item_id"], c["kind"]) for c in out["changes"] if c["watching"]}
+    assert seen == {(about, "created"), (case, "created"), (case, "commented")}
+    item = conn.execute("select assignee from work_item where id = %s", (about,)).fetchone()
+    assert item["assignee"] is None  # watching is not holding
+    engine.watch(conn, "fred", "asset:P-200", on=False)
+    assert engine.watching(conn, "fred") == [f"case:{case}"]
+    with pytest.raises(ValueError):
+        engine.watch(conn, "fred", " ")
+    conn.commit()

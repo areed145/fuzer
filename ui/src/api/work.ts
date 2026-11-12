@@ -229,7 +229,8 @@ export interface WorkloadPerson {
 export interface WorkHome {
   person: string; seen_at: string | null;
   changes: { id: number; item_id: number; kind: string; actor: string; at: string; data: Record<string, unknown>;
-    title: string; type: string; state: string }[];
+    title: string; type: string; state: string; watching: boolean }[];
+  watching: string[];
 }
 
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
@@ -767,6 +768,9 @@ export const workApi = {
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
+  watching: (person: string) => request<string[]>("GET", "/work/watch", { person }),
+  watch: (person: string, ref: string, on: boolean) =>
+    request<{ watching: boolean }>("POST", "/work/watch", undefined, { person, ref, on }),
   inboxFields: (person: string) => request<FieldInbox[]>("GET", "/work/inbox/fields", { person }),
   setCover: (name: string, roles: string[], projects: string[], by: string) =>
     request("PUT", `/work/people/${encodeURIComponent(name)}/cover`, undefined, { roles, projects, by }),

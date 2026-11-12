@@ -1,7 +1,7 @@
 /** Home is my shift (P5.1a, #649): one ranked list of everything waiting on the person and overdue in their roles,
  * across every field they hold roles in, with what changed since they last looked and what is coming. A row in
  * another field opens there in one click (the tab switches field and lands on the item). */
-import { api, type WorkRow } from "../api";
+import { api, type WorkHome, type WorkRow } from "../api";
 import { Badge, Button, Card, Empty } from "../ui";
 import { Status, href, useAsync } from "../lib";
 import { Actor, Due, holder, usePerson, when } from "../work";
@@ -46,7 +46,9 @@ export function YourShift() {
   const c = here_.data ? myWorkCounts(here_.data, jobs) : null;
   const my = href("/inbox");
   const coming = (field.data?.coming_up ?? []).slice(0, 3);
-  const changes = since.data?.changes ?? [];
+  const all = since.data?.changes ?? [];
+  const changes = all.filter((x) => !x.watching);
+  const watched = all.filter((x) => x.watching);
   return (
     <Card className="home-card home-today" title="My work" as="section" actions={<a href={my}>Open My work</a>}>
       <Status loading={here_.loading && !here_.data} error={here_.error} onRetry={here_.reload} />
@@ -62,16 +64,24 @@ export function YourShift() {
         r={r} here={here} multi={projects.size > 1} />)}</ol> : <Empty className="small">Nothing waiting for you.</Empty>)}
       {rows.length > TOP && <p className="small"><a href={href("/inbox")}>{rows.length - TOP} more on My work</a></p>}
       <h3>Since you last looked <span className="muted small">{since.data?.seen_at ? when(since.data.seen_at) : "in the last day"}</span></h3>
-      {changes.length ? <ul className="plain small home-changes">{changes.slice(0, 8).map((c) => <li key={c.id}>
-        <a href={caseHref(c.item_id)}>{c.title}</a> · {SAID[c.kind] ?? c.kind.replace(/_/g, " ")} by <Actor who={c.actor} />
-        {typeof c.data.text === "string" && c.data.text ? <span className="muted">: {c.data.text.slice(0, 100)}</span> : null}
-        <span className="muted"> · {when(c.at)}</span></li>)}</ul> : <Empty className="small">Nothing new on your work.</Empty>}
+      {changes.length ? <Changes rows={changes} /> : <Empty className="small">Nothing new on your work.</Empty>}
+      {(watched.length > 0 || (since.data?.watching?.length ?? 0) > 0) && <>
+        <h3>Watching <span className="muted small">not assigned to you</span></h3>
+        {watched.length ? <Changes rows={watched} /> : <Empty className="small">Nothing new on what you watch.</Empty>}
+      </>}
       {coming.length > 0 && <>
         <h3>Coming up</h3>
         <ul className="plain small">{coming.map((i) => <li key={i.id}>{when(i.start_at)} · {i.title}</li>)}</ul>
       </>}
     </Card>
   );
+}
+
+function Changes({ rows }: { rows: WorkHome["changes"] }) {
+  return <ul className="plain small home-changes">{rows.slice(0, 8).map((c) => <li key={c.id}>
+    <a href={caseHref(c.item_id)}>{c.title}</a> · {SAID[c.kind] ?? c.kind.replace(/_/g, " ")} by <Actor who={c.actor} />
+    {typeof c.data.text === "string" && c.data.text ? <span className="muted">: {c.data.text.slice(0, 100)}</span> : null}
+    <span className="muted"> · {when(c.at)}</span></li>)}</ul>;
 }
 
 function ShiftRow({ r, here, multi }: { r: Row; here: string; multi: boolean }) {

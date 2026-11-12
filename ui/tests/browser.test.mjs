@@ -3329,3 +3329,36 @@ test("Home ranks an ops lead's work across both fields and opens one in the othe
   await page.waitForURL(/#\/inbox\/task\/77$/);
   assert.equal(await page.evaluate(() => localStorage.getItem("fuzer.project")), "kestrel");
 });
+
+// P5.1b (#650): a person watches a case from its page, and changes on what they watch show on Home under Watching,
+// apart from their own work and never assigned to them.
+test("watching a case shows its changes on Home under Watching, not as assigned work (#650)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [] } }));
+  let watched = [];
+  const posts = [];
+  await page.route("**/work/watch*", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      posts.push(body);
+      watched = body.on ? [...watched, body.ref] : watched.filter((r) => r !== body.ref);
+      return route.fulfill({ json: { person: "fred", ref: body.ref, watching: body.on } });
+    }
+    return route.fulfill({ json: watched });
+  });
+  await page.goto(`${url}/#/cases/7`);
+  await page.getByRole("button", { name: "Watch", exact: true }).click();
+  await page.getByRole("button", { name: "Watching", exact: true }).waitFor();
+  assert.deepEqual(posts, [{ person: "fred", ref: "case:7", on: true }]);
+  assert.equal(await page.getByRole("button", { name: "Watching", exact: true }).getAttribute("aria-pressed"), "true");
+
+  await page.route("**/work/home?*", (route) => route.fulfill({ json: { person: "fred", seen_at: "2026-11-12T04:00:00Z",
+    watching: ["case:7"], changes: [
+      { id: 6, item_id: 7, kind: "commented", actor: "pat", at: "2026-11-12T05:30:00Z", data: { text: "parts ordered" },
+        title: "Train B vibration", type: "upset", state: "open", watching: true }] } }));
+  await page.goto(`${url}/#/`);
+  const shift = page.locator("section.home-card").filter({ has: page.getByRole("heading", { name: "My work", exact: true }) });
+  await shift.getByRole("heading", { name: /^Watching/ }).waitFor();
+  await shift.getByText("parts ordered", { exact: false }).waitFor();
+  await shift.getByText("Nothing new on your work.").waitFor();  // watching is not her own work
+});

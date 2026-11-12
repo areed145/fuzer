@@ -218,6 +218,29 @@ def work_home(person: str, mark: bool = False, conn=Depends(get_conn)):
     return out
 
 
+class Watch(BaseModel):
+    person: str
+    ref: str          # an asset's fuzer id, or case:<id>
+    on: bool = True
+
+
+@router.get("/work/watch")
+def work_watching(person: str, conn=Depends(get_conn)):
+    """What a person watches (P5.1b)."""
+    return work.watching(conn, person)
+
+
+@router.post("/work/watch")
+def work_watch(body: Watch, conn=Depends(get_conn)):
+    """Watch an asset or a case, or stop (P5.1b): its changes show on Home under Watching, never assigned."""
+    try:
+        out = work.watch(conn, body.person, body.ref, body.on)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    conn.commit()
+    return out
+
+
 class NotificationsRead(BaseModel):
     person: str
     ids: list[int] | None = None   # None: all of theirs
