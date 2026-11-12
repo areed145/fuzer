@@ -17,15 +17,21 @@ its decisions here. Agent steps get a scripted answer; nothing calls a model.
 The eval writes to the database it runs on (cases open and close), so run it on a copy: a test database or
 `fuzer eval --loop` against a scratch project.
 
-Today work arrives synthetically, through the front door every source uses; later epics make each type arrive from
-its own source or detector and add its type to the run.
+Work arrives the way it does in production (P1.7c, Gate A): each bundle's `evals/loop.yaml` says, per type, what
+brings it in: a registered detector run as a schedule runs it (`detectors.run`) over the window the bundle names, the
+window detectors through the SRE scan and hand-off, a source's sync, or the register build's own questions. The arrive
+step runs that and takes the exception it raised. A type the bundle names no arrival for is raised by the loop itself
+and reported `synthetic`, so the report shows what is not yet covered.
 """
 
 import re
 from datetime import timedelta
+from pathlib import Path
+
+import yaml
 
 from ..core import work
-from ..core.exceptions import raise_exception
+from ..core.exceptions import clear_exception, raise_exception
 from ..core.findings import external
 from ..core.jsonsafe import plain
 
@@ -53,11 +59,67 @@ ARRIVE: dict[str, dict] = {
     "upset": {"incident_id": "{key}", "ongoing": True},
 }
 
+# A source's sync that raises its own work, by the name a bundle's evals/loop.yaml uses.
+SOURCES = {"sap_notifications": lambda conn: __import__("fuzer.ops.intake", fromlist=["intake"]).sync_notifications(
+    conn, enabled=True)}
+
 _ID = re.compile(r"\bfz-[\w-]+")  # a Fuzer id; a person reads names, never these
 
 
 class Step(Exception):
     """A loop step that did not complete, with what was wrong."""
+
+
+def arrivals(conn) -> dict[str, dict]:
+    """How each type arrives on this project's bundle: its evals/loop.yaml `arrive` map, or none."""
+    from ..core import bundles
+    from ..core.pack import resolve
+
+    folder = bundles.find(resolve(conn).name)  # this database's own pack (not one cached for another database)
+    path = Path(folder) / "evals" / "loop.yaml" if folder else None
+    from ..sources.relative_dates import resolve_all
+
+    if not (path and path.is_file()):
+        return {}
+    return resolve_all((yaml.safe_load(path.read_text()) or {}).get("arrive", {}))  # `today-1d 03:10` reads as a date
+
+
+def _bring(conn, how: dict) -> str:
+    """Run what brings a type in, as production runs it. Returns what ran, in words."""
+    from ..core import detectors
+    from ..core.pack import resolve
+
+    pack, how = resolve(conn), dict(how)
+    if "detector" in how:
+        name = how.pop("detector")
+        out = detectors.run(conn, pack, name, **how)
+        if isinstance(out, dict) and out.get("status") in (detectors.OFF, detectors.NOT_APPLICABLE):
+            raise Step(f"{name} did not run: {out['note']}")
+        return name
+    if how.get("scan") == "sre":  # the window detectors raise upsets through the SRE scan and its hand-off
+        from ..ops import sre, sre_handoff
+
+        sre.scan(conn, pack, how["since"], how["until"])
+        sre_handoff.handoff(conn, pack, max_diagnoses=0)
+        return "the SRE scan's window detectors"
+    if "source" in how:
+        if how["source"] not in SOURCES:
+            raise Step(f"no source sync called {how['source']}")
+        SOURCES[how["source"]](conn)
+        return f"the {how['source']} sync"
+    if how.get("build"):
+        return "the register build"
+    raise Step(f"evals/loop.yaml says neither a detector, a scan, a source nor the build: {how}")
+
+
+def _arrived(conn, kind: str, since, build: bool) -> dict | None:
+    """The exception that came in: open, about an asset, its own case (not joined to another), not the loop's."""
+    return conn.execute(
+        """
+        select * from exception_record where type = %s and state = 'open' and joined_to is null
+          and cardinality(subjects) > 0 and coalesce(source, '') <> %s and (%s or last_seen >= %s)
+        order by last_seen desc, id desc limit 1
+        """, (kind, BY, build, since)).fetchone()
 
 
 def _people(conn) -> None:
@@ -117,6 +179,25 @@ def _work_through(conn, item_id: int) -> None:
     raise Step(f"still open after {MAX_STEPS} decisions: '{_waiting(conn, item_id)[0]['element']}' keeps coming back")
 
 
+def _set_aside(conn, since, kept: int | None) -> int:
+    """What an arrival brought in besides the exception the loop worked (the other breaches a scan found), cleared
+    with its case, so it doesn't host the next type's work: in production a person works each, here none is ours."""
+    rows = conn.execute("select id, type, key, item_id from exception_record where state = 'open' and first_seen >= %s "
+                        "and id <> %s", (since, kept or 0)).fetchall()
+    for r in rows:
+        if r["item_id"] and conn.execute("select 1 from work_item where id = %s and closed_at is null",
+                                         (r["item_id"],)).fetchone():
+            work.close_case(conn, r["item_id"], "cancelled", BY, reason="Brought in with another (loop eval).")
+        clear_exception(conn, r["type"], r["key"], BY, reason="Brought in with another (loop eval).")
+    conn.commit()
+    return len(rows)
+
+
+def _names(conn, ids) -> list[str]:
+    return [r["label"] for r in conn.execute("select label from entity_label where fuzer_id = any(%s) order by label",
+                                             (list(ids),))] or list(ids)
+
+
 def _row(conn, exception_id: int) -> dict:
     return conn.execute("select * from exception_record where id = %s", (exception_id,)).fetchone()
 
@@ -159,14 +240,15 @@ def _routed(conn, row: dict, route: dict) -> str:
 def _readable(job: dict) -> None:
     """What the operator reads: a title, assets by name, the finding as labelled values, and no raw ids."""
     said = [job["title"], *(a.get("name") or a.get("label") or "" for a in job["assets"]),
-            *(f"{i['label']} {i.get('value')}" for i in job["finding"]["items"])]
+            *(f"{i['label']} {i.get('text') if i.get('kind') == 'asset' else i.get('value')}"  # an asset reads by name
+              for i in job["finding"]["items"])]
     if not job["assets"]:
         raise Step("the field job names no asset to go to")
     if bad := [s for s in said if _ID.search(str(s))]:
         raise Step(f"the field job shows raw ids: {bad[:3]}")
 
 
-def run_type(conn, route: dict, ref: str, run_id: str = "") -> dict:
+def run_type(conn, route: dict, ref: str, run_id: str = "", how: dict | None = None) -> dict:
     """One type through the loop. Returns {type, starts, steps: {step: what happened}, failed: step or None,
     why: the failure}."""
     from ..ops import exceptions as ex
@@ -175,9 +257,20 @@ def run_type(conn, route: dict, ref: str, run_id: str = "") -> dict:
     field = "field" in t.audience
     out = {"type": route["type"], "starts": route["starts"], "steps": {}, "failed": None, "why": None}
     row: dict = {}
+    since = conn.execute("select now() as t").fetchone()["t"]
 
     def arrive():
         nonlocal row
+        if how:
+            what = _bring(conn, how)
+            conn.commit()
+            found = _arrived(conn, route["type"], since, bool(how.get("build")))
+            if not found:
+                raise Step(f"{what} raised no {route['type']} of its own about an asset")
+            row = {**found, "raised": True}
+            out["arrived"] = what
+            return f"{what} raised it about {', '.join(_names(conn, found['subjects']))}"
+        out["arrived"] = "synthetic"
         key = f"loop:{route['type']}:{run_id}"
         said = {k: v.format(key=key) if isinstance(v, str) else v for k, v in ARRIVE.get(route["type"], {}).items()}
         row = raise_exception(conn, route["type"], key, f"Loop eval: {t.label}", BY, refs=[ref],
@@ -185,11 +278,11 @@ def run_type(conn, route: dict, ref: str, run_id: str = "") -> dict:
         conn.commit()
         if not row.get("raised"):
             raise Step("an open exception of this type and key was already there")
-        return f"raised about {ref}"
+        return f"synthetic: raised by the loop about {ref}"
 
     def match():
         if row["unmatched"] or not row["subjects"]:
-            raise Step(f"{ref} matched no asset")
+            raise Step(f"{', '.join(row['unmatched']) or ref} matched no asset")
         return f"matched {len(row['subjects'])} asset"
 
     def triage():
@@ -252,11 +345,14 @@ def run_type(conn, route: dict, ref: str, run_id: str = "") -> dict:
             conn.rollback()
             out["failed"], out["why"] = name, str(e) if isinstance(e, Step) else f"{type(e).__name__}: {e}"
             break
+    if how and not out["failed"]:
+        out["set_aside"] = _set_aside(conn, since, row.get("id"))
     return out
 
 
-def run(conn, only: list[str] | None = None) -> dict:
-    """Every type in the routing table (or `only` these) through the loop on this database."""
+def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict:
+    """Every type in the routing table (or `only` these) through the loop on this database. `arrive` is how each type
+    comes in (the bundle's evals/loop.yaml when not given; {} raises every type synthetically)."""
     from ..ops import routing
     from ..workflow import engine
 
@@ -268,6 +364,8 @@ def run(conn, only: list[str] | None = None) -> dict:
     if len(refs) < len(routes):
         raise ValueError(f"the register has {len(refs)} free tagged assets for {len(routes)} types")
     run_id = conn.execute("select to_char(now(), 'YYYYMMDDHH24MISSUS') as t").fetchone()["t"]  # one key per run
-    results = [run_type(conn, r, ref, run_id) for r, ref in zip(routes, refs, strict=True)]
-    return {"types": results, "passed": sum(not r["failed"] for r in results), "failed": [
+    arrive = arrivals(conn) if arrive is None else arrive
+    results = [run_type(conn, r, ref, run_id, arrive.get(r["type"])) for r, ref in zip(routes, refs, strict=True)]
+    return {"types": results, "passed": sum(not r["failed"] for r in results),
+            "synthetic": [r["type"] for r in results if r.get("arrived") == "synthetic"], "failed": [
         f"{r['type']}: {r['failed']}: {r['why']}" for r in results if r["failed"]]}

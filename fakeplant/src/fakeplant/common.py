@@ -64,6 +64,23 @@ def _spares(equipment: list[dict]) -> tuple[list[dict], list[dict]]:
     return materials, bom
 
 
+def _purchase_orders(materials: list[dict]) -> list[dict]:
+    """SAP purchase orders (P5.5a): every other material out of stock is on order, due in a few days to a few weeks
+    (dated from the day it is generated), and a few delivered orders show what came in."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    out = []
+    for n, m in enumerate(materials):
+        if m["stock"] == "0" and n % 2 == 0:
+            out.append({"ebeln": f"45000{n:05d}", "matnr": m["matnr"], "quantity": "2",
+                        "delivery_date": (today + timedelta(days=3 + n % 20)).isoformat(), "status": "open", "vendor": m["manufacturer"]})
+        elif n % 9 == 0:
+            out.append({"ebeln": f"45000{n:05d}", "matnr": m["matnr"], "quantity": "1",
+                        "delivery_date": (today - timedelta(days=5 + n % 30)).isoformat(), "status": "delivered", "vendor": m["manufacturer"]})
+    return out
+
+
 def _add_hours(when: str, n: int) -> str:
     from datetime import datetime, timedelta
 

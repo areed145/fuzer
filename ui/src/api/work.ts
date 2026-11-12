@@ -286,6 +286,13 @@ export interface WorkPerformance {
   compliance: { as_of: string; summary: Record<string, { plans: number; overdue: number; on_time_pct: number }> } | null;
 }
 
+export interface Readiness {
+  ready: boolean; blockers: string[];
+  checks: { check: string; label: string; ready: boolean; blockers: string[]; checked: boolean; note: string | null;
+    parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
+      orders: { po: string; quantity: number; due: string }[] }[] }[];
+}
+
 export interface FieldInbox { project: string; roles: string[]; mine: WorkRow[]; queue: WorkRow[] }
 
 export interface Workload {
@@ -780,8 +787,9 @@ export const workApi = {
   removeExceptionKind: (name: string) => request<unknown>("DELETE", `/exceptions/types/${encodeURIComponent(name)}`),
   splitException: (id: number, by: string, reason?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/split`, undefined, { by, reason: reason ?? null }),
-  dispatch: (id: number, by: string, to: string, reason?: string) =>
-    request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
+  dispatch: (id: number, by: string, to: string, reason?: string, override?: string) =>
+    request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null, override: override ?? null }),
+  exceptionReadiness: (id: number) => request<Readiness>("GET", `/exceptions/${id}/readiness`),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
   workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),

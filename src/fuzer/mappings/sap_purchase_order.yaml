@@ -1,0 +1,17 @@
+# SAP purchase order lines for materials: what is on order, how many and when it is due (P5.5a, #681).
+# status: open until the goods are received (GR), then delivered.
+source: sap
+record_type: purchase_order
+shape: records
+dataset: sap_purchase_orders
+key: ebeln
+entity:
+  kind: purchase_order
+  fields:
+    - [quantity, {from: quantity, as: number, keep: true}]
+    - delivery_date
+    - status
+    - vendor
+links:
+  - rel: orders
+    to: {kind: material, from: matnr}

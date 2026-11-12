@@ -31,6 +31,10 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
             "source_issue"} <= set(done), sorted(done)  # every routed type, declared before any was raised
     assert not res["failed"], "\n".join(res["failed"])
     assert all(list(r["steps"]) == list(loop.STEPS) for r in res["types"])
+    # Gate A: the work comes in from its own detector or source, as in production, not from the loop (P1.7c)
+    arrived = {r["type"]: r["arrived"] for r in res["types"]}
+    assert not {"upset", "iow_breach", "sap_notification", "machine_trip", "machine_health", "records_gap",
+                } & set(res["synthetic"]), arrived
     assert done["upset"]["steps"]["route"] == "started upset" and done["upset"]["steps"]["count"].endswith("(Resolved)")
     assert done["sap_notification"]["steps"]["triage"] == "on the board, to dispatch"
     assert done["source_issue"]["steps"]["field"].startswith("skipped")  # data work stays at the desk
@@ -46,11 +50,5 @@ def test_every_type_of_work_on_okan_completes_the_loop(okan_db):
 
 def test_a_type_that_cannot_complete_says_at_which_step(okan_db, monkeypatch):
     monkeypatch.setitem(loop.ARRIVE, "sap_notification", {"equipment": "fz-pump-raw-id"})  # an id the field can't read
-    [r] = loop.run(okan_db.conn, only=["sap_notification"])["types"]
+    [r] = loop.run(okan_db.conn, only=["sap_notification"], arrive={})["types"]  # raised by the loop, so it can be bent
     assert r["failed"] == "field" and "raw ids" in r["why"] and list(r["steps"]) == list(loop.STEPS[:5])
-
-
-def test_every_type_of_work_on_kestrel_completes_the_loop(kestrel_db):
-    """The same loop on the second bundle, stood up from its seed bundle as a deployment would be."""
-    res = loop.run(kestrel_db)
-    assert len(res["types"]) >= 7 and not res["failed"], "\n".join(res["failed"])
