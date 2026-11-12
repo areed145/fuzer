@@ -47,3 +47,12 @@ def test_a_forecast_range_widens_away_from_the_data():
     near, far = forecast.trend_interval(xs, ys, 2), forecast.trend_interval(xs, ys, 10)
     assert near["range"][1] - near["range"][0] < far["range"][1] - far["range"][0]
     assert forecast.trend_interval(xs[:2], ys[:2], 3)["range"] is None
+
+
+def test_a_slope_band_reaching_past_the_calendar_gives_no_date_instead_of_failing():
+    """A clean but tiny rise (a reading that barely moves for a month) heads for its limit in billions of years: no
+    date, not an overflow that stops the screen it is part of (seen on Harrier, P8.4)."""
+    ys = np.array([1.0 + 1e-12 * i for i in range(20)])
+    e = condition.eta(_days(20), ys, 5.0)
+    assert e["per_day"] > 0 and e["r2"] >= 0.5
+    assert e["reaches"] is None and e["range"] is None

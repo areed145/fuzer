@@ -12,6 +12,7 @@ from .forecast import LEVEL, sufficiency
 
 T90 = 1.645  # the 90 % two-sided band on a fitted slope
 TREND_MIN_DAYS = 7  # daily values a trend needs before it projects to a limit
+HORIZON_DAYS = 36525  # a limit further off than a century at today's rate is not dated
 TREND_MAX_GAP_DAYS = 7  # a longer gap between daily values (a stop, a data outage) makes the trend thin
 
 
@@ -101,8 +102,8 @@ def eta(days: list[str], ys: np.ndarray, limit: float | None, side: str = "hi", 
         return out
     last, gap = datetime.fromisoformat(days[-1]), limit - now
 
-    def day(s: float) -> str | None:
-        return (last + timedelta(days=gap / s)).date().isoformat() if s * gap > 0 else None
+    def day(s: float) -> str | None:  # beyond HORIZON_DAYS is no date: a trend that slow says nothing about when
+        return (last + timedelta(days=gap / s)).date().isoformat() if s * gap > 0 and gap / s <= HORIZON_DAYS else None
     out["reaches"] = day(slope)
     out["early"] = day(slope + (T90 * se if up else -T90 * se))
     out["late"] = day(slope - (T90 * se if up else -T90 * se))
