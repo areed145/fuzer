@@ -75,7 +75,19 @@ def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(
     out = readiness.check(conn, ["fz-nothing-here"])
     assert out["ready"] is True and out["checks"][0]["checked"] is False
     assert out["checks"][0]["note"].startswith("No BOM")
-    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits"]
+    assert [c["check"] for c in out["checks"]] == ["spares", "crew", "permits", "simops"]
+
+
+@pytest.fixture(autouse=True)
+def fresh(request):
+    """Each test starts with nothing in the field or on the plan (tests run in random order)."""
+    yield
+    if "kestrel" in request.fixturenames:
+        conn = request.getfixturevalue("kestrel")[0]
+        conn.rollback()
+        conn.execute("update exception_record set state = 'closed' where state = 'open'")
+        conn.execute("update plan_item set status = 'cancelled' where status in ('proposed', 'scheduled', 'in_progress')")
+        conn.commit()
 
 
 @pytest.fixture(autouse=True)
@@ -147,8 +159,8 @@ def test_a_job_waits_for_a_free_crew_and_the_blocker_names_the_jobs_holding_it(k
     second = job(conn, "G-7006 batteries", gen)
     out = client.get(f"/exceptions/{second}/readiness").json()
     assert out["ready"] is False
-    assert out["blockers"] == [f"Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #{first} Look at "
-                               "G-7006 load test"]
+    assert f"Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #{first} Look at G-7006 load test" in \
+        out["blockers"]
     assert client.post(f"/exceptions/{second}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 409
     # the first one is not held up by itself, and a compressor's mechanical crew (3) still has room
     assert client.get(f"/exceptions/{first}/readiness").json()["checks"][1]["ready"] is True
@@ -230,6 +242,36 @@ def test_starting_a_job_with_no_valid_permit_is_a_gate_with_its_reason_on_the_ca
         assert client.post(f"/exceptions/{ok}/report", json={"by": "fred", "status": "on_site"}).status_code == 200
     finally:
         settings.reset(conn, "readiness.permit_types", by="test")
+
+
+def test_hot_work_beside_a_line_break_is_flagged_on_plan_and_at_dispatch(kestrel, client):
+    from datetime import UTC, datetime
+
+    from fuzer.graph import queries
+    from fuzer.ops import plan
+
+    conn, pack = kestrel
+    reboiler, contactor = (queries.resolve_ref(conn, pack, t) for t in ("C1-H-3008", "C1-V-3001"))
+    now = datetime.now(UTC)
+    burner = plan.propose(conn, "maintenance", "Weld reboiler fire tube support", "planner-pat",
+                          now - timedelta(hours=2), now + timedelta(hours=6), refs=[reboiler], status="scheduled")
+    manway = plan.propose(conn, "maintenance", "Open contactor manway for tray check", "planner-pat",
+                          now - timedelta(hours=1), now + timedelta(hours=5), refs=[contactor], status="scheduled")
+    assert burner["area_id"] and burner["area_id"] == manway["area_id"]  # both in the TEG dehydration area
+    shown = {i["id"]: i for i in plan.items(conn, subject=None)}
+    said = [c["say"] for c in shown[burner["id"]]["clashes"] if c["kind"] == "simops"]
+    assert len(said) == 1 and said[0].startswith("Hot work near a line break in ")
+    assert "hot work (PTW-24105) for this job and line break (PTW-24106)" in said[0]
+    assert [c["with"] for c in shown[manway["id"]]["clashes"] if c["kind"] == "simops"] == [burner["id"]]
+    # the IOC sending someone to the reboiler now hears it before they go
+    e = job(conn, "Reboiler burner flame-out", reboiler)
+    ready = client.get(f"/exceptions/{e}/readiness").json()
+    sim = next(c for c in ready["checks"] if c["check"] == "simops")
+    assert not sim["ready"] and {c["kind"] for c in sim["conflicts"]} == {"same_asset", "simops"}
+    assert any(b.startswith("Hot work near a line break in ") for b in sim["blockers"])
+    assert any("“Weld reboiler fire tube support” is on" in b for b in sim["blockers"])
+    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+    assert r.status_code == 409 and "Simultaneous operations: Hot work near a line break" in r.text
 
 
 def test_okan_spares_come_from_its_own_records(okan_db):

@@ -3857,3 +3857,24 @@ test("a job with no valid permit shows blocked on the phone and starts only with
   assert.deepEqual([reports[0].status, reports[0].override], ["on_site", "walk round only, nothing opened"]);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+// P5.11b (#709): two jobs in one area at once whose permits clash are flagged on Plan in plain words, and the same
+// conflict blocks the dispatch card.
+test("hot work beside a line break is flagged on Plan and at dispatch (#709)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const at = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const base = { source: "fuzer", source_key: null, area_id: "fz-area-c1", area_label: "TEG dehydration", crew: null, crew_hours: null,
+    deferment_usd: null, exception_id: null, notes: null, status: "scheduled", needs_shutdown: false, kind: "maintenance", parts_short: [] };
+  const say = "Hot work near a line break in TEG dehydration: hot work (PTW-24105) for this job and line break (PTW-24106) for “Open contactor manway”";
+  const items = [
+    { ...base, id: 1, title: "Weld reboiler fire tube support", subjects: ["fz-h"], assets: [{ fuzer_id: "fz-h", label: "C1-H-3008" }],
+      start_at: at(-2), end_at: at(6), clashes: [{ kind: "simops", with: 2, title: "Open contactor manway", say }] },
+    { ...base, id: 2, title: "Open contactor manway", subjects: ["fz-v"], assets: [{ fuzer_id: "fz-v", label: "C1-V-3001" }],
+      start_at: at(-1), end_at: at(5), clashes: [{ kind: "simops", with: 1, title: "Weld reboiler fire tube support", say: "Hot work near a line break" }] },
+  ];
+  await page.route("**/plan?*", (route) => route.fulfill({ json: items }));
+  await page.goto(`${url}/#/plan`);
+  await page.getByText("2 with a clash").waitFor();
+  await page.getByRole("button", { name: /Weld reboiler fire tube support/ }).click();
+  await page.getByText("Simultaneous operations: Hot work near a line break in TEG dehydration: hot work (PTW-24105)", { exact: false }).waitFor();
+});
