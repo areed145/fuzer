@@ -57,6 +57,8 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`regenerator`](#regenerator) Reboiler temperature against its operating window | Engineering practice | Reboiler temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
 | [`chiller`](#chiller) Low temperature separator temperature against its operating window | Engineering practice | Separator temperature (°C); Operating window (°C) | Seven days of temperature readings and an operating window on the point. |
 | [`inspection_plan`](#inspection_plan) Condition inspection plan against the interval the wall loss supports | API 510 / API 570 | Inspection plan interval and dates (days); Wall thickness readings per CML (mm); Minimum required thickness (mm) | A condition inspection plan concerning the item. |
+| [`allocation_factor`](#allocation_factor) Allocation factor of a meter against the well tests upstream of it | Engineering practice | Meter flow (Sm³/d or kSm³/d); Well tests upstream (oil rate (Sm³/d or kSm³/d) | A well test within the test age for the wells upstream, and days with the meter flowing. |
+| [`meter_agreement`](#meter_agreement) A meter against the nearest other meter on the same stream | Engineering practice | Meter flow (Sm³/d or kSm³/d); Other meter's flow on the same stream (same) | Three days with both flowing in the window and seven in the month before it. |
 
 ## Refusals
 
@@ -505,3 +507,25 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Needs:** A condition inspection plan concerning the item.
 - **Threshold `longest_interval`:** The supported interval is half the remaining life, at most this long. (10 years)
 - **Worked example:** `tests/analysis/test_static_equipment.py::test_the_amine_contactor_plan_outlasts_its_wall`, on the fake plant
+
+## allocation_factor
+
+**Allocation factor of a meter against the well tests upstream of it.** Engineering practice. API MPMS Chapter 20.1 (allocation measurement): the measured volume at a reference meter divided by the sum of the wells' theoretical volumes (their latest tests, while flowing). Off one, the tests are stale or the meter reads wrong, and every well's allocated volume carries the error.
+
+- **Valid for:** Meters on the allocation network with wells upstream and a flow point; oil for a liquid meter, formation gas (lift gas left out) for a gas meter. A meter downstream of processing carries shrinkage and fuel, so read it against its own previous factor.
+- **Needs:** A well test within the test age for the wells upstream, and days with the meter flowing.
+- **Threshold `band_low`:** Below this the meter reads low or the tests overstate the wells. (90 %)
+- **Threshold `band_high`:** Above this the meter reads high or the tests understate the wells. (110 %)
+- **Threshold `shift`:** Change in the factor since the window before (in points) that is flagged inside the band. (5 %)
+- **Threshold `test_age`:** A well test older than this doesn't count towards a day's offer. (120 days)
+- **Worked example:** `tests/analysis/test_metering.py::test_the_sales_meter_allocates_low_once_it_drifts`, on the fake plant
+
+## meter_agreement
+
+**A meter against the nearest other meter on the same stream.** Engineering practice. API MPMS Chapter 21.1 and 5 (flow measurement, meter proving and check metering): a custody meter is checked against a check meter on the same stream; the ratio of the two holds while both read true, and a step in it is one of them drifting.
+
+- **Valid for:** Meters with another meter of the same phase within four steps up or down the allocation network.
+- **Needs:** Three days with both flowing in the window and seven in the month before it.
+- **Threshold `drift`:** Change in the two meters' daily ratio against its level over the month before that reads as one of them drifting. (2 %)
+- **Threshold `baseline`:** The days before the window the ratio's level is taken over. (30 days)
+- **Worked example:** `tests/analysis/test_metering.py::test_the_check_meter_sees_the_sales_meter_step`, on the fake plant

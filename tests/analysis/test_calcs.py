@@ -78,10 +78,11 @@ def test_every_check_returns_evidence_and_names_its_users(conn):
              "gas_performance": fid(conn, "20-K-2200A"), "power_balance": fid(conn, "20-GT-2000A"),
              "exhaust_spread": fid(conn, "20-GT-2000C"), "hot_section": fid(conn, "20-GT-2000B"),
              "remaining_life": fid(conn, "20-K-2300B"), "failed_starts": k, "loop_oscillation": fid(conn, "10-V-2003"),
-             "inspection_plan": fid(conn, "20-V-2001")}
+             "inspection_plan": fid(conn, "20-V-2001"), "allocation_factor": fid(conn, "10-FT-3001")}
     # Okan has no reciprocating compressor or gas engine: tests/analysis/test_recip.py (Kestrel)
     recip = {"rod_load", "valve_health", "engine_cylinders"}
     recip |= {"contactor_foaming", "treated_gas", "regenerator", "chiller"}  # no gas treating: test_treating.py (Kestrel)
+    recip |= {"meter_agreement"}  # no two meters on one stream: test_metering.py (Kestrel)
     assert set(refs) | recip == set(calcs.CHECKS)
     options = {"compressor_trip": {"until": "2024-03-14T03:20"}}
     for check, ref in refs.items():

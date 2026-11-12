@@ -274,6 +274,15 @@ SKILL_CATALOG = (
         "One event told first cause first, the knock-ons with their lags, upsets to merge and recurring cascades.",
         "Recommends merges and where to send one operator; the IOC merges cases and dispatches. " + _OPERATE),
     SkillDefinition(
+        f"{_PROD}/metering-and-balances", (_PROD,),
+        (PRODUCTION_ENGINEER, PRODUCTION_SURVEILLANCE),
+        "Meter flow points, the allocation network around each meter, the well tests upstream and the other meters "
+        "on the same stream.",
+        "Each meter's allocation factor against the tests upstream and its agreement with the check meter on its "
+        "stream, which meter is suspect and why, and what could not be checked (proving records, composition).",
+        "Advises; proving, recalibration, a meter factor change or a correction to allocated volumes is the "
+        "measurement engineer's call."),
+    SkillDefinition(
         f"{_FIELD}/gas-treating", (_FIELD,),
         (FACILITIES_ENGINEER, FIELD_OPERATOR),
         "Contactor differential pressure, treated gas analysers, reboiler and chiller temperatures, and their "

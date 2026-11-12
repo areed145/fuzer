@@ -751,6 +751,14 @@ CHECKS |= {  # gas treating and dehydration (P4.2, pack 3)
                 "used_by": {"agent": "calc", "detector": None}},
 }
 
+CHECKS |= {  # metering and balances (P4.2, pack 8)
+    "allocation_factor": {"fn": _cond("metering", "allocation_factor"), "ref": "meter on the allocation network",
+                          "used_by": {"agent": "calc", "detector": None}},
+    "meter_agreement": {"fn": _cond("metering", "meter_agreement"), "ref": "meter with another on the same stream",
+                        "used_by": {"agent": "calc", "detector": None}},
+}
+
+
 def run(conn, check: str, fid: str, **options) -> dict:
     """One check by name, with only the options it takes. Every check is a registered method (core.methods): the
     result carries it as `method`, and a check that can't answer raises a CalcError that names its refusal."""

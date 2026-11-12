@@ -511,3 +511,27 @@ inspection_plan:
   thresholds:
     longest_interval: {value: 10, unit: "years", means: "The supported interval is half the remaining life, at most this long.", code: "fuzer.analysis.integrity:MAX_INTERVAL"}
   vectors: [{worked: "tests/analysis/test_static_equipment.py::test_the_amine_contactor_plan_outlasts_its_wall"}]
+
+allocation_factor:
+  title: Allocation factor of a meter against the well tests upstream of it
+  practice: "API MPMS Chapter 20.1 (allocation measurement): the measured volume at a reference meter divided by the sum of the wells' theoretical volumes (their latest tests, while flowing). Off one, the tests are stale or the meter reads wrong, and every well's allocated volume carries the error."
+  inputs: [{name: Meter flow, unit: "Sm³/d or kSm³/d"}, {name: Well tests upstream (oil rate, GOR or gas rate), unit: "Sm³/d or kSm³/d"}]
+  valid: Meters on the allocation network with wells upstream and a flow point; oil for a liquid meter, formation gas (lift gas left out) for a gas meter. A meter downstream of processing carries shrinkage and fuel, so read it against its own previous factor.
+  needs: A well test within the test age for the wells upstream, and days with the meter flowing.
+  thresholds:
+    band_low: {value: 90, unit: "%", means: "Below this the meter reads low or the tests overstate the wells.", code: "fuzer.analysis.metering:AF_LOW", scale: 100}
+    band_high: {value: 110, unit: "%", means: "Above this the meter reads high or the tests understate the wells.", code: "fuzer.analysis.metering:AF_HIGH", scale: 100}
+    shift: {value: 5, unit: "%", means: "Change in the factor since the window before (in points) that is flagged inside the band.", code: "fuzer.analysis.metering:AF_SHIFT", scale: 100}
+    test_age: {value: 120, unit: days, means: "A well test older than this doesn't count towards a day's offer.", code: "fuzer.analysis.metering:TEST_DAYS"}
+  vectors: [{worked: "tests/analysis/test_metering.py::test_the_sales_meter_allocates_low_once_it_drifts"}]
+
+meter_agreement:
+  title: A meter against the nearest other meter on the same stream
+  practice: "API MPMS Chapter 21.1 and 5 (flow measurement, meter proving and check metering): a custody meter is checked against a check meter on the same stream; the ratio of the two holds while both read true, and a step in it is one of them drifting."
+  inputs: [{name: Meter flow, unit: "Sm³/d or kSm³/d"}, {name: Other meter's flow on the same stream, unit: same}]
+  valid: Meters with another meter of the same phase within four steps up or down the allocation network.
+  needs: Three days with both flowing in the window and seven in the month before it.
+  thresholds:
+    drift: {value: 2, unit: "%", means: "Change in the two meters' daily ratio against its level over the month before that reads as one of them drifting.", code: "fuzer.analysis.metering:DRIFT_PCT"}
+    baseline: {value: 30, unit: days, means: "The days before the window the ratio's level is taken over.", code: "fuzer.analysis.metering:BASELINE_DAYS"}
+  vectors: [{worked: "tests/analysis/test_metering.py::test_the_check_meter_sees_the_sales_meter_step"}]

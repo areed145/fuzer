@@ -416,7 +416,7 @@ def test_skills_are_valid():
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
     assert found == ["alarms-and-instruments", "analysis", "answering", "back-pressure", "charts",
                      "compression", "constraint-management", "gas-lift", "gas-treating", "incident-evidence", "integrity", "job-readiness",
-                     "operations-summary", "production-efficiency", "production-engineering",
+                     "metering-and-balances", "operations-summary", "production-efficiency", "production-engineering",
                      "production-surveillance", "pumps-and-drivers", "reliability", "shift-handover", "static-equipment", "troubleshooting", "turnarounds", "upset-correlation",
                      "well-review", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
