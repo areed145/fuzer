@@ -26,6 +26,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `agents.specialist_effort` | choice | `medium` | low / medium / high / xhigh / max | Effort for the specialists. Takes effect on restart. Replaces `FUZER_AGENT_SPECIALIST_EFFORT`. |
 | `agents.fallbacks` | bool | `True` |  | On a policy decline, let the API re-run the request on a fallback model. Takes effect on restart. Replaces `FUZER_AGENT_FALLBACKS`. |
 | `agents.case_cap_usd` | float | `2.0` | ≥ 0 | Agent spend a case may reach (USD) before its next agent step goes to a person, with the spend and the cap on the case (0: no cap). |
+| `agents.briefs` | bool | `True` |  | Have the owning specialist brief each new case of a type a pack briefs, when the agent worker has no step to run. |
 | `agents.brief_cap_usd` | float | `0.5` | ≥ 0 | What one agent brief on a case may cost (USD); a brief that costs more says so on the case (0: no budget). |
 | `assistant.retention_days` | int | `0` | ≥ 0 | Days the assistant keeps a conversation after its last message, with its images and answers (0: keep them). |
 | `assistant.concurrent_questions` | int | `1` | 1 to 8 | Questions the web assistant can run at once per server process; prevents overlapping model/tool workloads. |
