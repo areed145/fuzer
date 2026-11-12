@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, type PerfCell, type PerfRow } from "../api";
 import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, href, useAsync } from "../lib";
+import { when } from "../work";
 
 const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: string }> = {
   keeping_up: { text: "keeping up", tone: "ok" },
@@ -67,6 +68,19 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
           <li key={kind}><strong>{kind}</strong> {s.on_time_pct}% on time · {s.overdue} of {s.plans} plans overdue</li>
         ))}</ul>
         <p className="small muted">Maintenance and inspection plans as of {d.compliance.as_of}.</p>
+      </Card>}
+      {d?.rounds && d.rounds.length > 0 && <Card title="Operator rounds per shift">
+        <Table density="compact" className="phone-rows">
+          <thead><tr><th>Shift</th><th>Done</th><th>Partly done</th><th>Missed</th><th>Checks not taken</th><th>Found something</th></tr></thead>
+          <tbody>{d.rounds.map((r) => <tr key={r.shift_start}>
+            <td>{when(r.shift_start)}{r.open ? <span className="small muted"> · {r.open} under way</span> : null}</td>
+            <td data-label="Done">{r.done} of {r.rounds}</td>
+            <td data-label="Partly done">{r.partly_done}</td>
+            <td data-label="Missed">{r.missed ? <Badge tone="warn">{r.missed}</Badge> : 0}</td>
+            <td data-label="Checks not taken">{r.not_taken}</td>
+            <td data-label="Found something">{r.found}</td>
+          </tr>)}</tbody>
+        </Table>
       </Card>}
     </section>
   );

@@ -53,6 +53,7 @@ def fresh(kestrel):
     conn = kestrel[0]
     conn.rollback()
     conn.execute("update exception_record set state = 'cleared' where type = 'round_finding'")
+    conn.execute("delete from measurement where method = 'Operator round'")
     conn.execute("delete from round_reading")
     conn.execute("delete from round_run")
     conn.commit()
@@ -160,3 +161,32 @@ def test_a_failed_check_on_the_phone_needs_what_was_found_and_raises_a_finding(k
     assert e["title"].endswith("failed: oil weeping at the drain valve")
     assert e["evidence"]["finding"]["origin"] == "external"
     assert [r["found"] for r in rounds.runs(conn) if r["id"] == comp["id"]] == [1]
+
+
+def _inside(p: dict) -> float:
+    return ((p["low"] or 0) + (p["high"] if p["high"] is not None else (p["low"] or 0) + 2)) / 2
+
+
+def test_rounds_done_partly_done_and_missed_are_counted_per_shift_and_in_the_handover(kestrel):
+    from fuzer.ops import handover, performance
+
+    conn, _ = kestrel
+    now = datetime.now(UTC)
+    first = rounds.open_shift(conn, now)
+    by = {r["round"]: r for r in rounds.runs(conn, now)}
+    comp, dehy = by["Compression rounds"], by["Dehydration rounds"]
+    for p in rounds.rounds(conn)["Compression rounds"]:  # every point: done
+        rounds.take(conn, comp["id"], p["point_id"], "olu", value=_inside(p) if p["kind"] == "reading" else None,
+                    passed=True if p["kind"] == "check" else None)
+    rounds.take(conn, dehy["id"], rounds.rounds(conn)["Dehydration rounds"][0]["point_id"], "olu", value=1e6)  # 1 of 3
+    later = first["shift_end"] + timedelta(minutes=5)
+    rounds.open_shift(conn, later)
+    [this, last] = rounds.per_shift(conn, now=later)[:2]
+    assert this["open"] == 3 and this["shift_start"] == first["shift_end"]
+    assert (last["rounds"], last["done"], last["partly_done"], last["missed"], last["not_taken"], last["found"]) == (
+        3, 1, 1, 1, 2 + 2, 1)  # dehydration left 2 of 3, utilities all 2
+    lines = [x["text"] for x in handover.facts(conn, first["shift_start"], first["shift_end"])["sections"]["Rounds"]]
+    assert lines == ["Compression rounds: done", "Dehydration rounds: partly done, 2 of 3 checks not taken; "
+                     "1 found something", "Utilities rounds: missed"]
+    shown = {r["shift_start"]: r for r in performance.measures(conn)["rounds"]}
+    assert shown[first["shift_start"].isoformat()]["missed"] == 1

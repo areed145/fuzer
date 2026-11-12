@@ -284,6 +284,9 @@ export interface PerfRow {
 export interface WorkPerformance {
   weeks: { start: string; end: string }[]; queues: PerfRow[]; types: PerfRow[];
   compliance: { as_of: string; summary: Record<string, { plans: number; overdue: number; on_time_pct: number }> } | null;
+  /** Operator rounds per shift, newest first (P5.4c). */
+  rounds?: { shift_start: string; shift_end: string; rounds: number; done: number; partly_done: number; missed: number;
+    open: number; not_taken: number; found: number }[];
 }
 
 export interface Readiness {

@@ -9,6 +9,8 @@
     take(conn, ...)       an operator's reading or check on a point (P5.4b): kept on the run and, for a reading, as a
                           measurement on its asset; outside its limits, or a failed check, raises one round_finding
                           through the finding contract, which routes a case to the IOC
+    per_shift(conn)       rounds done, partly done and missed per shift, with the checks not taken (P5.4c), for Work
+                          performance; of_shift(conn, start, end) the same in words for the shift handover
 
 Read from the records, never from equipment type: a site's rounds are its own export.
 """
@@ -234,4 +236,52 @@ def measurements(conn) -> dict:
             out[(_record(t["run_id"], p), q)] = (_record(t["run_id"], p), q, p["asset"],
                                                  _naive(t["at"]), t["value"], p["unit"],
                                                  None, None, METHOD, p["round"])
+    return out
+
+
+def _state(points: int, taken: int, closed: bool) -> str:
+    if taken >= points:
+        return "done"
+    if not closed:
+        return "open"
+    return "partly_done" if taken else "missed"
+
+
+def per_shift(conn, limit: int = 14, now: datetime | None = None) -> list[dict]:
+    """The last `limit` shifts with rounds, newest first: how many rounds were done, partly done, missed or still
+    open, the checks not taken on the ones closed, and the checks that found something."""
+    now = now or datetime.now(UTC)
+    _close_past(conn, now)
+    rows = conn.execute(
+        """
+        select r.shift_start, r.shift_end, count(*)::int as rounds,
+               count(*) filter (where r.state = 'done')::int as done,
+               count(*) filter (where r.state = 'partly_done')::int as partly_done,
+               count(*) filter (where r.state = 'missed')::int as missed,
+               count(*) filter (where r.state = 'open')::int as open,
+               coalesce(sum(greatest(r.points - x.taken, 0)) filter (where r.state <> 'open'), 0)::int as not_taken,
+               coalesce(sum(x.found), 0)::int as found
+        from round_run r, lateral (select count(*) as taken, count(*) filter (where t.passed is false) as found
+                                   from round_reading t where t.run_id = r.id) x
+        group by r.shift_start, r.shift_end order by r.shift_start desc limit %s
+        """, (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def of_shift(conn, start: datetime, end: datetime) -> list[dict]:
+    """Each round of the shift that started in [start, end), as the handover says it: done, partly done (with the
+    checks not taken) or missed, and what it found."""
+    out = []
+    for r in conn.execute(
+        """
+        select r.id, r.round, r.points, r.closed_at, r.shift_end,
+               (select count(*) from round_reading t where t.run_id = r.id)::int as taken,
+               (select count(*) from round_reading t where t.run_id = r.id and t.passed is false)::int as found
+        from round_run r where r.shift_start >= %s and r.shift_start < %s order by r.round
+        """, (start, end)).fetchall():
+        state = _state(r["points"], r["taken"], True)
+        said = {"done": "done", "partly_done": f"partly done, {r['points'] - r['taken']} of {r['points']} checks not "
+                                              "taken", "missed": "missed"}[state]
+        out.append({"id": r["id"], "state": state, "text": f"{r['round']}: {said}"
+                    + (f"; {r['found']} found something" if r["found"] else "")})
     return out

@@ -3977,3 +3977,23 @@ test("an operator sees this shift's rounds and takes a round's readings and chec
   assert.deepEqual(sent[1], { point: "fz-rp2", by: "olu", passed: false, note: "oil weeping at the drain" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
+
+// P5.4c (#719): Work performance counts each shift's operator rounds: done, partly done, missed and the checks not
+// taken.
+test("Work performance counts rounds done, partly done and missed per shift (#719)", async () => {
+  await page.route("**/work/performance", (route) => route.fulfill({ json: { weeks: [], queues: [], types: [], compliance: null,
+    rounds: [{ shift_start: "2026-11-12T06:00:00Z", shift_end: "2026-11-12T18:00:00Z", rounds: 3, done: 0, partly_done: 0,
+      missed: 0, open: 3, not_taken: 0, found: 0 },
+    { shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", rounds: 3, done: 1, partly_done: 1, missed: 1,
+      open: 0, not_taken: 5, found: 1 }] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/performance`);
+  const card = page.locator(".ui-card", { hasText: "Operator rounds per shift" });
+  await card.getByText("3 under way").waitFor();
+  const last = card.getByRole("row").nth(2);
+  await last.getByText("1 of 3").waitFor();
+  assert.equal(await last.locator('[data-label="Checks not taken"]').innerText(), "5");
+  assert.equal(await last.locator('[data-label="Missed"]').innerText(), "1");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
