@@ -28,7 +28,7 @@ process model. The arrive step takes the exception that came in, about an asset 
 the same run brought in is set aside, so it doesn't host the next type's work. A type the bundle names nothing for is
 raised by the loop and listed as `synthetic`: today the questions a bundle's build doesn't produce (curves and drawing
 lines to confirm, round findings, and on one bundle a measurement role or a drawing disagreement), which #747 seeds
-next. Deliveries run after the other types, since the rebuild after a load runs the detectors too.
+next (Gate A passed with this gap logged). Deliveries run after the other types, since the rebuild after a load runs the detectors too.
 
 The Okan run keeps the job each field type handed the operator in `ui/tests/fixtures/loop-field-jobs.json`
 (rewrite it with `FUZER_WRITE_FIXTURES=1`; the test fails when the API's job shape drifts from it), and the browser

@@ -325,6 +325,7 @@ Times are in the project's timezone.
 | `day_close` | `daily_report.close_cron` (07:00) | The daily operations report, debottleneck options, the opportunity scan |
 | `studies_job` | every 5 minutes | Queued correlation and clustering studies |
 | `source_health` | every 30 minutes | Stale, failed or held sources and failing checks become work items for their owners |
+| `providers_poll` | every 15 minutes | Each polled detection provider's alert table, read when it has changed |
 | `alert_on_failure` sensor | on any failed run | Posts it to the alert webhook (`alerts.webhook`) |
 
 Asset checks: on the register (review backlog, PI points attached, tags in SAP, downtime reason codes, document

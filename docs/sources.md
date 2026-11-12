@@ -118,6 +118,13 @@ sets how far a provider is trusted, for every equipment class or one, with a rea
 - **Triage first**: its case goes to `providers.triage_role`, for a person to look at before it goes on.
 - **Muted**: its alerts are kept and counted under Exceptions → Suppressed, with no case.
 
+A provider that doesn't push can be polled instead (P3.8c): `poll` names a table its system's connection holds (an
+export folder, a lake table), and `providers_poll` reads it every 15 minutes when its fingerprint has changed. With
+`feedback: true`, and a system whose `writeback` accepts `detection_feedback`, each close-out of a case the
+provider's alert was on is offered back to it as a write-back: the disposition, failure mode, outcome and note. A
+person approves it before anything is sent. `fakeplant/bundles/kestrel/packs/corrwatch.yaml` is a second fake
+provider added this way, with no code: a corrosion surveillance service that writes a CSV and takes feedback.
+
 Where an alert is about assets in classes set differently, the most trusting setting wins. Joining a Fuzer case
 already open on the asset works the same at every level except muted.
 

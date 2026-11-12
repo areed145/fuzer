@@ -1,0 +1,2 @@
+alert_id,vessel,state,level,rate_mm_y,remaining_mm,raised,report
+CW-KR-0007,B1-V-2005,open,warning,0.42,3.1,today-3d 09:00,https://corrwatch.example/alerts/CW-KR-0007
