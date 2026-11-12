@@ -109,3 +109,24 @@ def test_a_limit_changed_with_no_change_record_is_a_question_until_one_turns_up(
         for t in ("golden", "edge", "entity_label", "entity"):
             conn.execute(f"delete from {t} where {'src' if t == 'edge' else 'fuzer_id'} = 'fz-change-test'")
         conn.commit()
+
+
+def test_two_jobs_on_a_system_with_a_bypassed_safeguard_clash(kestrel_db):
+    """P5.11b with P3.9 (#707): two jobs at once on the same system while one of its safeguards is bypassed are a
+    simultaneous-operations conflict, said with the bypass; the system comes from the piping, not the tag names."""
+    from fuzer.ops import simops
+
+    conn = kestrel_db
+    compressor = simops.job(conn, "Replace K-2001 valve", [_fid(conn, "B1-K-2001")])
+    scrubber = simops.job(conn, "Inspect scrubber level bridle", [_fid(conn, "B1-V-2005")])
+    said = [c for c in simops.conflicts(conn, compressor, scrubber, same_asset=False) if c["kind"] == "bypass"]
+    assert [c["bypass"] for c in said] == ["BYP-KR-031"]
+    assert said[0]["say"].startswith("“Inspect scrubber level bridle” is on the same system, where a safeguard is "
+                                     "bypassed: ") and "BYP-KR-031" in said[0]["say"]
+    # a job elsewhere shares no bypass with it
+    contactor = simops.job(conn, "Contactor manway", [_fid(conn, "C1-V-3001")])
+    assert not [c for c in simops.conflicts(conn, compressor, contactor) if c["kind"] == "bypass"]
+    # the reboiler's own bypass (BYP-KR-032) doesn't reach the contactor's system either
+    reboiler = simops.job(conn, "Reboiler burner", [_fid(conn, "C1-H-3008")])
+    assert [b["label"] for b in reboiler["bypasses"]] == ["BYP-KR-032"]
+    assert not [c for c in simops.conflicts(conn, reboiler, contactor) if c["kind"] == "bypass"]
