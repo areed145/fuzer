@@ -220,7 +220,7 @@ function Group({ title, rows, person, picked, toggle, hint }: {
   return (
     <UICard className="">
       <h2>{title} <span className="muted small">{rows.length}{hint ? ` · ${hint}` : ""}</span></h2>
-      <Table variant="results">
+      <Table variant="results" className="phone-rows">
         <tbody>{rows.map((r) => <Row key={`${r.task_id ?? "i"}-${r.item_id}`} r={r} person={person} picked={picked} toggle={toggle} />)}</tbody>
       </Table>
     </UICard>

@@ -3158,3 +3158,45 @@ for (const state of ["empty", "loading", "failed"]) {
     assert.deepEqual(crashed, []);
   });
 }
+
+// P5.3a (#641): the field's pages on a 390 px phone are rows and single-column forms, with every control a 44 px
+// tap target and nothing wider than the screen: My work, the job, the task and the case.
+test("My work, the job, the task and the case fit a 390 px phone with 44 px targets (#641)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  const source = { id: 7, type: "sap_notification", key: "k-1", title: "Pump P-101 vibration", source: "sap", state: "open",
+    first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", joined_to: null, subjects: [], label: "SAP notification",
+    finding: FINDINGS.sap_notification };
+  const job = { ...source, priority: null, unmatched: [], item_id: 7, case_state: "open", assignee: "fred", role: null,
+    raised_count: 1, due: "2026-11-12T12:00:00Z", task_id: null, task_name: null,
+    assets: [{ fuzer_id: "fz-p-101", label: "P-101 export pump", kind: "pump", lat: 1, lon: 2 }], checklist: [], sources: [],
+    history: [], field: [{ at: "2026-11-12T06:00:00Z", by: "fred", status: "on_site", note: null }], queued: false,
+    sent: { reason: "Check the drive-end bearing", by: "ines", at: "2026-11-12T05:50:00Z" } };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+  const row = { ...demoTask.task, type: "upset", title: demoTask.item.title, subjects: [], bulk: [], priority: 2, escalated_at: null,
+    error: null, created_at: "2026-11-12T05:00:00Z", overdue: false, claimed_by: null };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["engineer"],
+    mine: [{ ...row, item_id: 8, assignee: "fred", due_at: "2026-11-12T12:00:00Z" }],
+    queue: [{ ...row, item_id: 9, task_id: 43, title: "Another case in the queue", due_at: null }],
+    counts: { mine: { total: 1 }, queue: { total: 1 } } } }));
+  await page.route("**/work/tasks/42", (route) => route.fulfill({ json: { ...demoTask, sources: [source] } }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoTask.item, processes: [], events: [],
+    sources: [source], due: null, closed_at: null, created_at: "2026-11-12T05:00:00Z" } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const small = async (path, ready) => {
+    await page.goto(`${url}/#${path}`);
+    await page.getByRole("heading", { name: ready }).first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits 390 px`);
+    return page.evaluate(() => [...document.querySelectorAll("#main-content button, #main-content input:not([type=hidden]), "
+      + "#main-content select, #main-content textarea, #main-content a.ui-button")]
+      .filter((el) => el.offsetParent !== null)
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.height < 44 || r.width < 44)
+      .map(({ el, r }) => `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") || el.textContent || el.getAttribute("placeholder") || "").trim().slice(0, 30)}" ${Math.round(r.width)}x${Math.round(r.height)}`));
+  };
+  const found = {
+    "My work": await small("/inbox", "Pump P-101 vibration"),
+    task: await small("/inbox/task/42", "Review recorded evidence"),
+    case: await small("/cases/7", "Loaded shared case"),
+  };
+  assert.deepEqual(found, { "My work": [], task: [], case: [] });
+});
