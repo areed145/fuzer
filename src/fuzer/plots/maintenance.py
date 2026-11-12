@@ -289,3 +289,57 @@ def peers(conn, fid: str) -> Figure:
     lay["xaxis"] = {"tickangle": -60}
     return Figure("peers", lay["title"]["text"], data, lay, {
         k: out[k] for k in ("value", "flag", "class_name", "class_median_failures_per_year", "outliers", "basis")}, out["sources"])
+
+
+def spend(conn, since: str | None = None, until: str | None = None, by: str = "unit", days: int = 365) -> Figure:
+    """Work order cost ranked by unit, class or order type (P7.3c, #335): one trace per currency, an unknown currency
+    labelled unknown, never summed with another."""
+    from ..analysis import costs
+
+    try:
+        out = costs.spend(conn, since, until, by, days, limit=0)
+    except ValueError as e:
+        raise ChartError(str(e)) from e
+    if not out["orders"]:
+        raise ChartError("no work orders started in that window")
+    data = []
+    for cur in out["currencies"]:
+        rows = sorted((r for r in out["rows"] if r["currency"] == cur and r["cost"]), key=lambda r: -r["cost"])[:15]
+        name = "cost, currency unknown" if cur == costs.UNKNOWN else f"cost ({cur})"
+        data.append({"type": "bar", "orientation": "h", "name": name, "x": [r["cost"] for r in rows],
+                     "y": [r["label"] for r in rows], "meta": {"entity": [r["id"] for r in rows]},
+                     "hovertemplate": f"%{{y}}: %{{x:,.0f}} {cur}<extra></extra>"})
+    lay = layout(f"Work order cost by {by}, {out['since']} to {out['until']}",
+                 "cost (" + ", ".join(out["currencies"]) + ")", None)
+    lay["yaxis"] = {"autorange": "reversed"}
+    return Figure("spend", lay["title"]["text"], data, lay, {k: out[k] for k in (
+        "since", "until", "by", "orders", "orders_without_cost", "without_cost_pct", "currencies", "totals",
+        "mixed_currencies", "source", "note")}, [r["id"] for r in out["rows"][:10] if r["id"]])
+
+
+def unreliability(conn, pack, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """The cost of unreliability by unit (P7.3c, #352): lost oil at the pack's price beside corrective order cost,
+    each labelled with its currency; the parts are shown side by side, not stacked, unless they share one."""
+    from ..analysis import costs
+
+    out = costs.unreliability(conn, pack, since, until, days, limit=15)
+    rows = out["units"]
+    if not rows:
+        raise ChartError("no downtime caused by a unit and no corrective orders in that window")
+    p = out["price"]
+    data = [{"type": "bar", "orientation": "h", "name": f"lost oil ({p['currency']} at {p['oil_sm3']:g} per Sm3)",
+             "x": [r["lost_oil_value"] for r in rows], "y": [r["unit"] for r in rows],
+             "meta": {"entity": [r["id"] for r in rows]},
+             "hovertemplate": f"%{{y}}: %{{x:,.0f}} {p['currency']} of lost oil<extra></extra>"}]
+    for cur in out["order_currencies"]:
+        data.append({"type": "bar", "orientation": "h",
+                     "name": "corrective orders, currency unknown" if cur == costs.UNKNOWN else f"corrective orders ({cur})",
+                     "x": [r["order_cost"].get(cur, 0) for r in rows], "y": [r["unit"] for r in rows],
+                     "hovertemplate": f"%{{y}}: %{{x:,.0f}} {cur} of corrective orders<extra></extra>"})
+    lay = layout(f"Cost of unreliability by unit, {out['since']} to {out['until']}", "cost", None, barmode="group")
+    lay["yaxis"] = {"autorange": "reversed"}
+    return Figure("unreliability", lay["title"]["text"], data, lay, {
+        "since": out["since"], "until": out["until"], "price": p, "order_currencies": out["order_currencies"],
+        "units": [{k: r[k] for k in ("unit", "lost_oil_sm3", "lost_oil_value", "order_cost", "total",
+                                     "total_currency", "why_no_total")} for r in rows[:10]],
+        "source": out["source"], "note": out["note"]}, [r["id"] for r in rows[:10]])

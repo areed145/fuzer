@@ -300,6 +300,14 @@ def plant_forecast_vs_actual(well: str | None = None, days: int = 365, conn=Depe
     return out
 
 
+@router.get("/plant/cost-of-unreliability")
+def plant_cost_of_unreliability(days: int = 365, conn=Depends(get_conn)):
+    """Per unit, oil lost to the downtime it caused at the pack's price beside its corrective order cost, each in its
+    currency, ranked; never summed across currencies (P7.3c, #352)."""
+    from ..analysis import costs
+    return costs.unreliability(conn, deps.pack(), days=max(30, min(days, 1095)))
+
+
 @router.get("/work/performance")
 def work_performance(conn=Depends(get_conn)):
     """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids

@@ -86,7 +86,35 @@ export interface ForecastVsActual {
   note: string;
 }
 
+/** A unit's cost of unreliability (P7.3c, #352): lost oil at the pack's price beside corrective order cost, each in
+ * its own currency; a total only when both share one. */
+export interface UnreliabilityUnit {
+  id: string;
+  unit: string;
+  description: string | null;
+  lost_oil_sm3: number;
+  lost_oil_value: number;
+  order_cost: Record<string, number>;
+  orders: number;
+  orders_without_cost: number;
+  total: number | null;
+  total_currency: string | null;
+  why_no_total: string | null;
+}
+
+export interface CostOfUnreliability {
+  since: string;
+  until: string;
+  price: { oil_sm3: number; currency: string; source: string };
+  order_currencies: string[];
+  units: UnreliabilityUnit[];
+  units_total: number;
+  source: string;
+  note: string;
+}
+
 export const metricsApi = {
+  costOfUnreliability: () => request<CostOfUnreliability>("GET", "/plant/cost-of-unreliability"),
   forecastVsActual: () => request<ForecastVsActual>("GET", "/plant/forecast-vs-actual"),
   plantScorecard: (days: number, until?: string | null) =>
     request<PlantScorecard>("GET", `/plant/scorecard?days=${days}${until ? `&until=${encodeURIComponent(until)}` : ""}`),
