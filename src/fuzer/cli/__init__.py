@@ -115,6 +115,21 @@ def parser() -> argparse.ArgumentParser:
     st.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is changing it (default: $USER)")
     st.add_argument("--reason", default=None, help="why, kept in the history")
 
+    om = sub.add_parser("operating-model", help="the operating model as a package (P8.1): export, apply, adopt, "
+                        "deviations, conformance, name a deviation")
+    om.add_argument("action", choices=["export", "apply", "adopt", "deviations", "conformance", "name", "unname",
+                                       "applied"])
+    om.add_argument("package", nargs="?", default=None,
+                    help="a package folder, or `standard` (export: the folder to write; deviations and conformance: "
+                    "default the model the project's bundle follows, apply: default `standard`)")
+    om.add_argument("--part", help="with name and unname: roles, work_types, settings, processes or forms")
+    om.add_argument("--key", help="with name and unname: the role, work type, setting, process or form")
+    om.add_argument("--reason", help="with name: why this project differs there")
+    om.add_argument("--owner", help="with name: the role or person who owns the difference")
+    om.add_argument("--name", default="standard", help="with export: the model's name")
+    om.add_argument("--version", type=int, default=1, help="with export: the model's version")
+    om.add_argument("--by", default=os.environ.get("USER", "cli"), help="who is applying it (default: $USER)")
+
     bd = sub.add_parser("board", help="the work board (#99): refresh it, or show the top cards")
     bd.add_argument("action", choices=["refresh", "show"])
     bd.add_argument("--limit", type=int, default=20)
@@ -374,6 +389,27 @@ def main(argv=None):
                 _projects(conn, args)
             elif args.cmd == "settings":
                 _settings(conn, args)
+            elif args.cmd == "operating-model":
+                from ..workflow import operating_model as om
+
+                if args.action == "export":
+                    if not args.package:
+                        raise SystemExit("export: give the folder to write")
+                    _print(om.export(conn, Path(args.package), args.name, args.version))
+                elif args.action == "apply":
+                    _print(om.apply(conn, args.package or "standard", args.by))
+                elif args.action == "adopt":
+                    _print(om.adopt(conn, args.by))
+                elif args.action == "deviations":
+                    _print(om.deviations(conn, args.package or om.conformance_package(conn)))
+                elif args.action == "conformance":
+                    _print(om.conformance(conn, args.package))
+                elif args.action == "name":
+                    _print(om.name(conn, args.part, args.key, args.reason, args.owner, args.by))
+                elif args.action == "unname":
+                    _print({"unnamed": om.unname(conn, args.part, args.key)})
+                else:
+                    _print(om.applied(conn))
             elif args.cmd == "board":
                 from ..ops import board
 
