@@ -877,6 +877,20 @@ Reviewer choices (source = 'review'). What each source says is re-derived from i
 | `confidence` | real |  |
 | `props` | jsonb |  |
 
+### `unlinked`
+
+"Not this link" (P2.1c, graph/contextualized.py): a source's statement of a link a steward said is wrong. The edge build leaves that source's statement out on every rebuild (another source stating the same link keeps it).
+
+| Column | Type | Note |
+|---|---|---|
+| `source` | text |  |
+| `src` | text |  |
+| `rel` | text |  |
+| `dst` | text |  |
+| `decided_by` | text |  |
+| `decided_at` | timestamptz |  |
+| `reason` | text |  |
+
 ### `review_item`
 
 | Column | Type | Note |

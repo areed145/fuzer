@@ -101,3 +101,39 @@ def test_a_new_source_contextualizes_itself_on_kestrel(request):
     conn = request.getfixturevalue("kestrel")
     with TestClient(api.app) as client:
         _run(conn, client)
+
+
+def _unlink(conn, client) -> None:
+    """Not this link: one link a source alone states is left out of every later build, and comes back when taken back."""
+    e = conn.execute("select src, rel, dst, sources[1] as source from edge where cardinality(sources) = 1 "
+                     "and rel = 'has_timeseries' and valid_to is null order by src, dst limit 1").fetchone()
+    listed = client.get(f"/sources/systems/{e['source']}/context").json()["links"]
+    assert listed["listed"] and all(x["basis"] and x["confidence"] > 0 for x in listed["listed"])
+    body = {"src": e["src"], "rel": e["rel"], "dst": e["dst"], "by": "ana", "reason": "that point is on the spare"}
+    assert client.post(f"/sources/systems/{e['source']}/links/unlink", json=body).status_code == 200
+    gone = "select 1 from edge where src = %s and rel = %s and dst = %s"
+    for _ in range(2):
+        pipeline.rebuild(conn, packs.current_pack(conn))
+        conn.commit()
+        assert conn.execute(gone, (e["src"], e["rel"], e["dst"])).fetchone() is None
+    after = client.get(f"/sources/systems/{e['source']}/context").json()["links"]
+    assert [(u["src"], u["dst"]) for u in after["unlinked"]] == [(e["src"], e["dst"])]
+    assert client.post(f"/sources/systems/{e['source']}/links/relink", json=body).status_code == 200
+    pipeline.rebuild(conn, packs.current_pack(conn))
+    conn.commit()
+    assert conn.execute(gone, (e["src"], e["rel"], e["dst"])).fetchone()
+
+
+def test_not_this_link_is_remembered_on_okan(okan_db):
+    from fuzer import api
+
+    with TestClient(api.app) as client:
+        _unlink(okan_db.conn, client)
+
+
+def test_not_this_link_is_remembered_on_kestrel(request):
+    from fuzer import api
+
+    conn = request.getfixturevalue("kestrel")
+    with TestClient(api.app) as client:
+        _unlink(conn, client)

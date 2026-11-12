@@ -21,11 +21,14 @@ and the steward's share is what the build could not decide:
     pinned       a steward already decided (not counted against the source: it is a decision, not a question)
 
 Every automatic match is listed with its confidence and basis; "Not this record" on the entity page reverses one, and
-the reversal is a pinned decision the next rebuild keeps (graph.curation).
+the reversal is a pinned decision the next rebuild keeps (graph.curation). Every link the source states is listed the
+same way, with how it was resolved; "Not this link" leaves the source's statement of it out of every later build
+(`unlinked`), while another source stating the same link keeps it.
 
     report(conn, source)     the summary and the automatic decisions
     sync(conn)               records that matched nothing, one `unmatched_records` case per source
     accept_new(conn, source, by, refs=None)   one answer for the group: they are new items (remembered)
+    unlink(conn, source, src, rel, dst, by)   "Not this link": the source's statement of it is left out (remembered)
     TARGET                   the share needing a steward a new source should stay under (P2.1: 10%)
 """
 
@@ -99,9 +102,28 @@ def report(conn, source: str) -> dict:
                "unresolved": unresolved, "unmatched": len(unmatched)}
     need = min(n, sum(steward.values())) if n else 0
     auto = [r for r in rows if r["others"] and r["method"] in ("key", "score")]
+    links = conn.execute(
+        """
+        select e.src, e.rel, e.dst, e.confidence, coalesce(ls.label, e.src) as src_label,
+               coalesce(ld.label, e.dst) as dst_label, d.kind as dst_kind, cardinality(e.sources) > 1 as shared
+        from edge e join entity d on d.fuzer_id = e.dst
+        left join entity_label ls on ls.fuzer_id = e.src left join entity_label ld on ld.fuzer_id = e.dst
+        where %s = any(e.sources) and e.valid_to is null
+        order by e.confidence, e.rel, 5 limit %s
+        """, (source, LISTED)).fetchall()
+    undone = [dict(r) for r in conn.execute(
+        "select u.src, u.rel, u.dst, coalesce(ls.label, u.src) as src_label, coalesce(ld.label, u.dst) as dst_label, "
+        "u.decided_by, u.decided_at from unlinked u left join entity_label ls on ls.fuzer_id = u.src "
+        "left join entity_label ld on ld.fuzer_id = u.dst where u.source = %s order by u.decided_at desc", (source,))]
     return {
         "source": source, "records": n, "built_at": stats.get("built_at"), "decided": decided,
-        "expects_match": sorted(expects), "links": {k: coverage.get(k) for k in ("pct", "resolved", "total")},
+        "expects_match": sorted(expects), "links": {
+            **{k: coverage.get(k) for k in ("pct", "resolved", "total")}, "by_rel": coverage.get("by_rel") or {},
+            "listed": [{"src": r["src"], "rel": r["rel"], "dst": r["dst"], "src_label": r["src_label"],
+                        "dst_label": r["dst_label"], "dst_kind": r["dst_kind"],
+                        "confidence": round(float(r["confidence"]), 4), "with_others": r["shared"],
+                        "basis": "named by its key" if r["confidence"] >= 1 else "read from text"} for r in links],
+            "unlinked": undone},
         "steward": steward, "needs_steward": need, "share": round(need / n, 4) if n else None, "target": TARGET,
         "automatic": [{"ref": f"{r['source']}:{r['record_type']}:{r['source_key']}", "source_key": r["source_key"],
                        "fuzer_id": r["fuzer_id"], "label": r["label"] or r["fuzer_id"], "kind": r["kind"],
@@ -170,3 +192,31 @@ def undo_new(conn, source: str, by: str) -> dict:
     """Take back "these are new" for a source: its records count as unmatched again."""
     n = conn.execute("delete from source_new_record where source = %s", (source,)).rowcount
     return {"undone": n, "sync": sync(conn, by)}
+
+
+# ---- "Not this link" (P2.1c) --------------------------------------------------------------------------------------
+
+def unlink(conn, source: str, src: str, rel: str, dst: str, by: str, reason: str | None = None) -> dict:
+    """A link the source states is wrong: the next rebuilds leave the source's statement out (remembered)."""
+    from ..sources._catalog_common import CatalogError, _audit
+
+    if not conn.execute("select 1 from edge where src = %s and rel = %s and dst = %s and %s = any(sources)",
+                        (src, rel, dst, source)).fetchone():
+        raise CatalogError(f"{source} states no such link")
+    conn.execute("insert into unlinked (source, src, rel, dst, decided_by, reason) values (%s, %s, %s, %s, %s, %s) "
+                 "on conflict do nothing", (source, src, rel, dst, by, reason))
+    _audit(conn, by, "link", {"name": f"{source}: {src} {rel} {dst}"}, "unlink",
+           new={"source": source, "src": src, "rel": rel, "dst": dst}, reason=reason)
+    return {"unlinked": {"source": source, "src": src, "rel": rel, "dst": dst}}
+
+
+def relink(conn, source: str, src: str, rel: str, dst: str, by: str) -> dict:
+    """Take back "Not this link": the next rebuild states it again."""
+    from ..sources._catalog_common import _audit
+
+    n = conn.execute("delete from unlinked where source = %s and src = %s and rel = %s and dst = %s",
+                     (source, src, rel, dst)).rowcount
+    if n:
+        _audit(conn, by, "link", {"name": f"{source}: {src} {rel} {dst}"}, "relink",
+               old={"source": source, "src": src, "rel": rel, "dst": dst})
+    return {"relinked": n}

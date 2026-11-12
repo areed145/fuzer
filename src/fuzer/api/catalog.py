@@ -238,6 +238,30 @@ def system_records_are_new_undo(name: str, body: Who, conn=Depends(get_conn)):
     return _do(conn, contextualized.undo_new, conn, name, body.by)
 
 
+class Link(Who):
+    src: str
+    rel: str
+    dst: str
+
+
+@router.post("/systems/{name}/links/unlink")
+def system_unlink(name: str, body: Link, conn=Depends(get_conn)):
+    """Not this link (P2.1c): the system's statement of it is left out from the next rebuild on. Remembered."""
+    from ..graph import contextualized
+
+    return {**_do(conn, contextualized.unlink, conn, name, body.src, body.rel, body.dst, body.by, body.reason),
+            "rebuild": deps.rebuilder.request()}
+
+
+@router.post("/systems/{name}/links/relink")
+def system_relink(name: str, body: Link, conn=Depends(get_conn)):
+    """Take back "Not this link"."""
+    from ..graph import contextualized
+
+    return {**_do(conn, contextualized.relink, conn, name, body.src, body.rel, body.dst, body.by),
+            "rebuild": deps.rebuilder.request()}
+
+
 @router.post("/packs")
 def import_pack(body: PackImport, conn=Depends(get_conn)):
     """Install a source pack in one step: its system, connections, datasets, mappings and checks, the work types it
