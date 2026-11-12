@@ -116,3 +116,32 @@ def test_a_person_attaches_an_answer_and_its_charts_to_the_case_in_one_action(co
     state = conn.execute("select state from work_item where id = %s", (item,)).fetchone()["state"]
     assert state == "open"  # attaching changes nothing else on the case
     conn.commit()  # the route's connection commits after it
+
+
+def test_a_case_and_its_asset_reach_their_incidents_studies_and_lessons(okan_db):
+    """P4.5c: incidents on the asset, studies run on it, lessons for its equipment model or class."""
+    from fuzer.core.pack import load_pack
+    from fuzer.graph import knowledge, queries
+
+    c = okan_db.conn
+    k = queries.resolve_ref(c, load_pack("okan"), "20-K-2200B")
+    key = c.execute("select kind, key from entity_key where fuzer_id = any(%s) and kind in ('equipment_model', "
+                    "'equipment_class') limit 1", (list(knowledge.scope(c, k)),)).fetchone()
+    assert key, "the compressor has a model or class to scope lessons by"
+    try:
+        c.execute("insert into lesson (scope_kind, scope_key, failure_mode, title, draft, status) values "
+                  "(%s, %s, 'VIB', 'Check the coupling first', '- check alignment', 'approved')", (key["kind"], key["key"]))
+        c.execute("insert into lesson (scope_kind, scope_key, failure_mode, title, draft) values "
+                  "('equipment_model', 'nothing-like-it', 'VIB', 'Elsewhere', '-')")
+        c.execute("insert into study (kind, params, status, summary, created_by) values ('correlate', %s, 'done', "
+                  "'suction pressure leads vibration', 'user:ana')", (Jsonb({"target": k}),))
+        r = context.related(c, [k, k, ""])
+        assert r["subjects"] == [k]
+        assert len(r["incidents"]) >= 1 and len({i["id"] for i in r["incidents"]}) == len(r["incidents"])
+        starts = [str(i["start"]) for i in r["incidents"]]
+        assert starts == sorted(starts, reverse=True)
+        assert [s["summary"] for s in r["studies"]] == ["suction pressure leads vibration"]
+        assert [lsn["title"] for lsn in r["lessons"]] == ["Check the coupling first"]
+        assert context.related(c, []) == {"subjects": [], "incidents": [], "studies": [], "lessons": []}
+    finally:
+        c.rollback()

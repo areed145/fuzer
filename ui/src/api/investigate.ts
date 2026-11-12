@@ -333,6 +333,14 @@ export interface AssistantConversation {
   subject?: string | null; // or the asset
 }
 
+/** The incidents, studies and lessons about a case's subjects or an asset (P4.5c). */
+export interface RelatedWork {
+  subjects: string[];
+  incidents: Incident[];
+  studies: { id: number; kind: string; status: string; summary: string | null; created_by: string; created_at: string }[];
+  lessons: { id: number; title: string; status: string; failure_mode: string; scope_kind: string; scope_key: string }[];
+}
+
 /** What a conversation opened from a case or an asset is about (P4.5a). */
 export interface AskContext {
   item_id: number | null;
@@ -475,6 +483,7 @@ export const investigateApi = {
       question, conversation_id: conversationId, by,
       images: images.map(({ media_type, data }) => ({ media_type, data })), ...about,
     }),
+  related: (about: { case?: number; subject?: string }) => request<RelatedWork>("GET", "/related", about),
   askContext: (about: { case?: number; subject?: string }) => request<AskContext>("GET", "/assistant/context", about),
   figure: (id: string) => request<FigureData>("GET", `/figures/${encodeURIComponent(id)}`),
   assistantCatalog: () => request<AssistantCatalog>("GET", "/assistant/agents"),

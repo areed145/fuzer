@@ -20,6 +20,7 @@ import { InboxPage } from "./pages/workflows/Inbox";
 import { AllWorkPage, legacyWorkHref } from "./pages/AllWork";
 import { PerformancePage } from "./pages/Performance";
 import { MetricsPage } from "./pages/Metrics";
+import { ScorecardPage } from "./pages/Scorecard";
 import { HandoverPage } from "./pages/Handover";
 import { MasterDataPage } from "./pages/masterdata";
 import { PlanPage } from "./pages/Plan";
@@ -191,6 +192,8 @@ function App() {
             <ProcessesPage />
           ) : section === "teams" ? (
             <TeamsPage query={query} />
+          ) : section === "scorecard" ? (
+            <ScorecardPage query={query} />
           ) : section === "metrics" ? (
             <MetricsPage metricKey={path[1]} query={query} />
           ) : section === "reports" ? (
