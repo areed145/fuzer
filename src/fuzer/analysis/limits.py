@@ -714,13 +714,3 @@ def _excursion_out(r: dict) -> dict:
     return {"start": _iso(r["start"]), "end": _iso(r["end"]), "limit_type": r["limit_type"], "basis": r["basis"],
             "level": r["level"], "limit": r["limit_value"], "peak": r["peak"], "minutes_outside": r["minutes_outside"],
             "allowed_minutes": r["allowed_minutes"], "record": r["record"], "work_item_id": r["work_item_id"]}
-
-
-def recent(conn, since: str | None = None, basis: str | None = None, limit: int = 200) -> list[dict]:
-    """Stored excursions, newest first, with the point's name."""
-    return [{"point_id": r["point_id"], "point": r["label"], **_excursion_out(r)} for r in conn.execute(
-        """
-        select x.*, l.label from excursion x left join entity_label l on l.fuzer_id = x.point_id
-        where (%(since)s::timestamp is null or x.start >= %(since)s::timestamp) and (%(basis)s::text is null or x.basis = %(basis)s)
-        order by x.start desc limit %(limit)s
-        """, {"since": since, "basis": basis, "limit": limit})]

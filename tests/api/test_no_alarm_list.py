@@ -47,3 +47,4 @@ def test_no_route_lists_alarms_or_acknowledges_one():
     paths = {r.path for r in flat(app.routes)}
     assert {p for p in paths if "alarm" in p} == {"/plant/alarm-performance"}
     assert {p for p in paths if re.search(r"\back", p)} == {"/handovers/{handover_id}/acknowledge"}
+    assert not {p for p in paths if "excursion" in p}  # no plant-wide list of excursions, alarm ones among them
