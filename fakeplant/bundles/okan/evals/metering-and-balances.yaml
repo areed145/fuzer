@@ -1,0 +1,8 @@
+# Answer keys for the metering and balances specialist pack's eval on this bundle (P4.2), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+- question: What is the allocation factor at the oil export fiscal meter 10-FT-3001?
+  must_mention: [10-FT-3001, allocation factor, ["0.9", "90"], [well test, tests]]
+  specialists: [production-surveillance]
+- question: Can the oil export fiscal meter 10-FT-3001 be checked against another meter?
+  must_mention: [10-FT-3001, [no other meter, no check meter, not checked against]]
+  specialists: [production-surveillance]
