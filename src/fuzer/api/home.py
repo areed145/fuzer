@@ -15,7 +15,7 @@ from .security import AuthenticatedRoute
 router = APIRouter(route_class=AuthenticatedRoute)
 
 
-@router.get("/", include_in_schema=False)
+@router.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)  # HEAD: Render's port probe
 def root():
     """The web UI once built (cd ui && npm run build), otherwise the API docs."""
     index = UI_DIST / "index.html"

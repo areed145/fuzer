@@ -19,6 +19,8 @@ values), and each of its datasets with how it loads, the mapping in use and its 
       - {name: schedule_slip, label: Schedule slip, role: role:planner}
     exception_rules:
       - {name: late, dataset: project_schedules, type: schedule_slip, when: {percent_complete: {lt: 50}}, ...}
+    detection_providers:              an outside tool's alerts mapped to findings (P3.8, providers.py)
+      - {name: healthwatch, label: ..., type: health_alert, key: "{alert_id}", refs: [...], title: "...", ...}
 
 Importing is safe to repeat: what is already there and the same is left alone. A new dataset's mapping is approved
 (the pack is the reviewed setup); a mapping that differs from one a person approved here becomes a draft for review,
@@ -71,7 +73,7 @@ def export_pack(conn, system: str) -> str:
         if checks:
             item["checks"] = checks
         datasets.append(item)
-    from . import workflows
+    from . import providers, workflows
 
     pack = {"fuzer_source_pack": VERSION,
             "system": {"name": s["name"], **{k: s[k] for k in SYSTEM_FIELDS if s.get(k) is not None}},
@@ -85,6 +87,8 @@ def export_pack(conn, system: str) -> str:
                                    for t in types]
     if rules := workflows.rules(conn, system):
         pack["exception_rules"] = [workflows.as_pack(r) for r in rules]
+    if found := providers.providers(conn, system):
+        pack["detection_providers"] = [providers.as_pack(p) for p in found]
     return _dump(plain(pack))
 
 
@@ -110,7 +114,7 @@ def import_pack(conn, text: str, by: str, reason: str | None = None,
     """Add or bring up to date the pack's system, connections, datasets, mappings, checks, exception types and
     rules. `config` changes a connection's config on the way in ({connection name: {key: value}}), e.g. where its
     folder is here. With `data_dir`, a folder connection's folder must be there before anything is written."""
-    from . import quality, workflows
+    from . import providers, quality, workflows
 
     try:
         pack = yaml.safe_load(text or "")
@@ -208,6 +212,13 @@ def import_pack(conn, text: str, by: str, reason: str | None = None,
                 raise CatalogError(f"dataset {d['name']!r}: {e}") from e
             report["checks"].append(f"{d['name']}: {c['kind']}" + (f" {c['column']}" if c.get("column") else ""))
     report["exception_types"] = workflows.define_types(conn, name, pack.get("exception_types") or [], by)
+    have = {p["name"]: providers.as_pack(p) for p in providers.providers(conn, name)}
+    for p in pack.get("detection_providers") or []:
+        row = providers.set_provider(conn, name, p, by)
+        if have.get(p["name"]) == providers.as_pack(row):
+            report["unchanged"].append(f"provider {p['name']}")
+        else:
+            report.setdefault("detection_providers", []).append(p["name"])
     held = {r["name"]: workflows.as_pack(r) for r in workflows.rules(conn, name)}
     for r in pack.get("exception_rules") or []:
         if not isinstance(r, dict) or not r.get("name"):

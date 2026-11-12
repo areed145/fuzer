@@ -1,0 +1,19 @@
+# The gas treating and dehydration specialist pack (P4.2, pack 3): amine contactors and regenerators, glycol (TEG)
+# dehydration, and refrigeration dew point control, on the GPSA Engineering Data Book's practice. SKILL.md is its
+# playbook; this file names what the playbook relies on, so a missing or renamed piece fails the pack conformance test
+# (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Gas treating and dehydration
+owner: field-operations-facilities    # the agent that loads this pack
+classes: [VE, HE, HB]                 # ISO 14224: pressure vessels (contactors, chillers), heat exchangers, heaters
+tools: [calc, limits, measurements, plot_operating_window, plot_trend]
+charts: [plot_operating_window, plot_trend]
+methods: [chiller, contactor_foaming, regenerator, treated_gas]
+detectors: [drifts, iow_breaches]
+roles: [differential_pressure, composition, temperature, outlet_temperature, vibration, bearing_temperature,
+        discharge_temperature]
+eval: gas-treating                    # each bundle's answer keys: evals/gas-treating.yaml in the bundle
+# Each method that reads the asset itself, and the roles it needs measured there (P4.1b). The regenerator and the
+# chiller read whichever of temperature or outlet temperature the unit has, so neither names one it must have.
+needs:
+  contactor_foaming: [differential_pressure]
+  treated_gas: [composition]

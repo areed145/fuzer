@@ -681,7 +681,7 @@ export interface ReviewGroup {
 
 export interface FindingItem {
   label: string; value: string | number | boolean; unit?: string;
-  kind: "text" | "number" | "flag" | "time" | "asset" | "page";
+  kind: "text" | "number" | "flag" | "time" | "asset" | "page" | "link";
   /** An asset's tag and description, or a page link's words. */
   text?: string | null;
 }

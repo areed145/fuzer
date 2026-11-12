@@ -64,6 +64,7 @@ def test_every_data_and_execution_route_is_protected_before_validation(runtime):
             response = client.request(method, url)
             assert response.status_code == 401, (method, url, response.text)
     assert client.get("/health").status_code == 200
+    assert client.head("/").status_code != 405  # Render probes the port with HEAD /
     assert client.get("/auth/me").json()["user"] is None
 
 

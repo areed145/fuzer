@@ -23,6 +23,8 @@ dependencies = [
     # Scheduled loads, rebuilds and Claude reading (fuzer jobs).
     "dagster==1.13.26",
     "dagster-webserver==1.13.26",
+    # The deployed runtime keeps Dagster's run, event and schedule storage in its Postgres, not SQLite on a disk.
+    "dagster-postgres==0.29.26",
     # Embedded Postgres for local runs when FUZER_DATABASE_URL is not set.
     "pgserver>=0.1.4",
     # Delta Lake tables in the lake connector.

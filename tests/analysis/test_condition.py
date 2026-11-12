@@ -126,3 +126,16 @@ def test_the_screen_raises_the_new_findings_with_their_remaining_life(conn):
     assert "dry gas seal" in row["title"] and "seal cartridge" in said["Recommended first"]
     assert said["Next window"] == "turnaround OK-TAR-2026 from 2026-04-06"
     assert said["Makes the window"] == "before the window" and "high-high" in said["Remaining life"]
+
+
+def test_a_check_asked_as_of_a_past_time_answers_for_that_time_not_today(conn):
+    """`calcs.run` hands a check the options its analysis names, `until` and `days` among them, though the check
+    itself is a wrapper that names none (#676 review): asked as of the March 2024 trips, protection answers for then."""
+    from fuzer.analysis import calcs
+
+    k = fid(conn, "20-K-2200B")
+    then = calcs.run(conn, "protection", k, until="2024-03-12", days=30)
+    direct = protection.protection(conn, k, until="2024-03-12", days=30)
+    assert then["flag"] == direct["flag"] == "thrust_wear"
+    assert then["channels"] == direct["channels"]
+    assert calcs.run(conn, "protection", k)["channels"] != then["channels"]

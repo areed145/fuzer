@@ -1,0 +1,10 @@
+[
+  {"alert_id": "HW-OK-0001", "asset_tag": "20-K-2200B", "severity": "critical", "probability": 91,
+   "message": "shaft vibration trending into zone D", "pattern": "1x vibration up 40% in a week with phase shift",
+   "detected_at": "2024-03-04T08:00", "rul_days": 9, "status": "open",
+   "url": "https://healthwatch.example/alerts/HW-OK-0001"},
+  {"alert_id": "HW-OK-0002", "asset_tag": "99-K-9900", "severity": "low", "probability": 40,
+   "message": "lube oil temperature drift", "pattern": "Oil return 3 degC above baseline",
+   "detected_at": "2024-03-04T10:00", "rul_days": 120, "status": "open",
+   "url": "https://healthwatch.example/alerts/HW-OK-0002"}
+]

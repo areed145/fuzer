@@ -91,6 +91,26 @@ missing or wrong secret is refused before the body is read. The Sources page sho
 brings with how many are open, its rules, and whether its webhook secret resolves.
 `fakeplant/bundles/kestrel/packs/measurement.yaml` is Kestrel's gas measurement system as such a pack.
 
+**Detection providers** (P3.8). A pack can bring an outside detection tool instead of, or as well as, datasets:
+vendor condition monitoring, an equipment-specific predictive model, leak detection, corrosion or well
+surveillance. Its `detection_providers` entry names the work type its alerts raise and how to read the tool's own
+alert JSON:
+- `key`, `refs` (as exception rules write them) and `title`;
+- `severity` mapped to a priority from 0 to 1;
+- `confidence`, with a `scale` to bring it to 0 to 1;
+- `start` and `link` (the tool's own page for the alert, shown as a link out);
+- extra `items`;
+- `clear_when`.
+
+The tool posts its alerts, one object or a list, to `POST /hooks/{system}/alerts` (`?provider=` when the system has
+more than one) behind the system's webhook secret. Each alert becomes an external finding that names the provider,
+and goes through the exception contract. A Fuzer detection open on the same asset therefore hosts it, and the
+event stays one case. An alert whose asset matches nothing in the register goes to the data steward's queue with its
+references kept, so it is never dropped. A push-only pack conforms when it installs twice unchanged and its fixture's
+sample alerts (`<provider>.json` or `alerts.json`) all read. `fakeplant/bundles/*/packs/healthwatch.yaml` is a fake
+predictive health service for compressors on both bundles. Its alert joins the machine health case on B1-K-2001
+(Kestrel) and 20-K-2200B (Okan).
+
 **One finding contract** (P1.1). Whatever raises work hands over the same record, a `Finding`
 (`fuzer.core.findings`): its detector, its origin (`deterministic` for a rule or a calculation, `agentic` for an
 agent, `external` for another system's own detection or record), the method and the standard behind it, the time
