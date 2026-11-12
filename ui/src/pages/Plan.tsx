@@ -2,7 +2,7 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { useMemo, useState } from "react";
-import { api, type PlanItem } from "../api";
+import { api, type AtRisk, type PlanItem } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty } from "../ui";
 import { Status, entityHref, useAsync } from "../lib";
 import { TurnaroundPanel } from "./Turnaround";
@@ -89,6 +89,7 @@ export function PlanPage({ query }: { query: URLSearchParams }) {
           </li>)}</ul>
         </Card>
       ))}
+      <AtRiskCard from={from} />
       </div>
       {revision !== null && (turnaround ? <TurnaroundPanel scope={turnaround} person={person} onChange={changed} />
         : <aside className="plan-panel"><Status loading={scope.loading} error={scope.error} onRetry={scope.reload} /></aside>)}
@@ -124,5 +125,40 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       </div> : <p className="small">Choose who you are to change the plan.</p>}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
+  );
+}
+
+const QUANTITY: Record<string, string> = { oil_rate: "Oil", gas_rate: "Gas", condensate_rate: "Condensate" };
+const amount = (r: { quantity: string; value: number; unit: string | null }) =>
+  `${QUANTITY[r.quantity] ?? r.quantity.replace(/_/g, " ")} ${r.value.toLocaleString()}${r.unit ? ` ${r.unit}` : ""}`;
+
+/** Production at risk from planned shutdowns over the next 90 days (P5.9a): an estimate for planners, each number
+ * with the durations it used. */
+function AtRiskCard({ from }: { from: string }) {
+  const risk = useAsync(() => api.planAtRisk(new Date(Math.max(Date.now(), new Date(from).getTime())).toISOString(), 90), [from]);
+  const [open, setOpen] = useState<number | null>(null);
+  const d: AtRisk | undefined = risk.data && Array.isArray(risk.data.windows) ? risk.data : undefined;
+  return (
+    <Card title="Production at risk from planned shutdowns" className="plan-at-risk">
+      <Status loading={risk.loading && !d} error={risk.error} onRetry={risk.reload} />
+      {d && (d.windows.length ? <>
+        <p className="small">The next {d.days} days. {d.basis} An estimate for planning, not a schedule.</p>
+        <ul className="plain">{d.windows.map((w, n) => <li key={w.start} className="plan-risk-window">
+          <Button variant="link" className="plan-label" aria-expanded={open === n} onClick={() => setOpen(open === n ? null : n)}>
+            <strong>{short(w.start)}–{short(w.end)}</strong>{" "}
+            <span>{w.at_risk.length ? w.at_risk.map(amount).join(", ") : "no tested wells behind it"}</span>{" "}
+            <span className="muted small">{w.wells.length} wells · {w.items.length} {w.items.length === 1 ? "job" : "jobs"}</span>
+          </Button>
+          {open === n && <div className="small">
+            <ul>{w.items.map((i) => <li key={i.id}>{i.title}: {i.hours} h down
+              {i.units.length ? ` (${i.units.map((u) => u.label).join(", ")})` : " (not on the flow network)"}
+              {i.assumed && <span className="muted"> · assumed</span>}</li>)}</ul>
+            {w.assumptions.map((a) => <p key={a}>Assumption: {a}.</p>)}
+            {!!w.untested.length && <p>No test on record, so not counted: {w.untested.join(", ")}.</p>}
+            <p>{w.wells.map((x) => `${x.label} ${x.hours} h`).join(" · ")}</p>
+          </div>}
+        </li>)}</ul>
+      </> : <Empty>No shutdowns planned in the next {d.days} days.</Empty>)}
+    </Card>
   );
 }

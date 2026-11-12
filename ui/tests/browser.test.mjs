@@ -4132,3 +4132,31 @@ test("the task form editor previews, survives a failed save, and recovers a miss
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.9a (#337): Plan shows production at risk per shutdown window, with the hours each job is down and any assumed
+// duration said beside the number.
+test("Plan shows production at risk per shutdown window with the durations used (#337)", async () => {
+  await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/plan/at-risk?*", (route) => route.fulfill({ json: { start: "2026-11-12T00:00:00Z", end: "2027-02-10T00:00:00Z", days: 90,
+    basis: "Wells behind each unit on the flow network, at their latest test rate, for the time the unit is down; a well is counted once however many overlapping jobs take it down.",
+    windows: [{ start: "2026-11-22T00:00:00Z", end: "2026-11-25T00:00:00Z", untested: ["KR 14-01H"],
+      assumptions: ["SAP maintenance plans give a due date, not an outage length: one day is assumed"],
+      items: [{ id: 1, title: "Compressor valve change", kind: "shutdown", hours: 48, assumed: null, start: "2026-11-22T00:00:00Z",
+        end: "2026-11-24T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 },
+      { id: 2, title: "Compressor 4000-hour service", kind: "maintenance", hours: 24, assumed: "SAP maintenance plans give a due date, not an outage length: one day is assumed",
+        start: "2026-11-24T00:00:00Z", end: "2026-11-25T00:00:00Z", units: [{ id: "fz-k", label: "B1-K-2001" }], wells: 2 }],
+      wells: [{ id: "w1", label: "KR 12-03H", hours: 72, rates: { gas_rate: { value: 841, unit: "kSm3/d", at: "2026-11-01" } } },
+        { id: "w2", label: "KR 14-01H", hours: 72, rates: {} }],
+      at_risk: [{ quantity: "gas_rate", value: 2523, unit: "kSm3" }] }] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/plan`);
+  const card = page.locator(".plan-at-risk");
+  await card.getByText("Gas 2,523 kSm3").waitFor();
+  await card.getByText("counted once", { exact: false }).waitFor();
+  await card.getByRole("button", { name: /Gas 2,523 kSm3/ }).click();
+  await card.getByText("Compressor valve change: 48 h down (B1-K-2001)").waitFor();
+  await card.getByText("Assumption: SAP maintenance plans give a due date, not an outage length: one day is assumed.").waitFor();
+  await card.getByText("No test on record, so not counted: KR 14-01H.").waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});

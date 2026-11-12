@@ -912,6 +912,14 @@ def _plan_call(conn, fn, *args, **kwargs):
     return out
 
 
+@router.get("/plan/at-risk")
+def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn)):
+    """Production at risk from planned shutdowns (P5.9a): each window of overlapping outages over the horizon, the
+    wells behind the units going down at their latest test rate, counted once per window, with the durations used."""
+    from ..ops import at_risk
+    return _plan_call(conn, at_risk.windows, start, days=max(1, min(days, 366)))
+
+
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
                subject: str | None = None, conn=Depends(get_conn)):
