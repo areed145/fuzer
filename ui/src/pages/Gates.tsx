@@ -37,6 +37,7 @@ export function HumanGates() {
   const policy = useAsync(() => api.gatePolicy(), []);
   if (!policy.data) return <Status loading={policy.loading} error={policy.error} />;
   const p = policy.data;
+  if (!Array.isArray(p.fixed) || !Array.isArray(p.confidence)) return null;  // an older server without gates
   return (
     <UICard className="" title="Human gates">
       <p>Always a person, whatever the confidence: {p.fixed.map((f) => f.label.toLowerCase()).join("; ")}.
