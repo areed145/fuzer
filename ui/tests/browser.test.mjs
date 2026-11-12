@@ -958,8 +958,8 @@ test("optional Demo preserves existing primary destinations and specialist route
   // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
   assert.equal(await page.getByRole("navigation", { name: "Demo pages", exact: true }).count(), 0);
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
-  await breadcrumb.getByText("Okan investigation", { exact: true }).waitFor();
-  assert.equal(await breadcrumb.getByText("Okan investigation", { exact: true }).count(), 1);
+  await breadcrumb.getByText("Guided investigation", { exact: true }).waitFor();
+  assert.equal(await breadcrumb.getByText("Guided investigation", { exact: true }).count(), 1);
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
   const investigate = page.getByRole("navigation", { name: "Investigate pages", exact: true });
   await investigate.waitFor();
@@ -1501,7 +1501,7 @@ test("Okan loading and transport errors keep recovery and navigation usable", as
   });
   await page.goto(`${url}/#/investigate/okan`);
   await page.getByRole("status").filter({ hasText: "Loading" }).waitFor();
-  await page.getByRole("heading", { name: "Okan investigation", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Guided investigation", exact: true }).waitFor();
   release();
   await page.getByRole("alert").waitFor();
   await page.getByRole("button", { name: "Try again", exact: true }).waitFor();

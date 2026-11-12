@@ -33,15 +33,16 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
   return (
     <section className="investigation">
       <PageHeader subtitle="Follow one issue from an asset to its source records and a finding you can check.">
-        Okan investigation
+        Guided investigation
       </PageHeader>
       <div className="investigation-context">
-        <Badge>Synthetic demo data</Badge> <span className="small">March 2024, with April follow-up</span>
+        <Badge>Synthetic demo data</Badge>
+        {result.data && <span className="small"> {monthOf(result.data.since)}, with follow-up</span>}
       </div>
       <Status loading={result.loading && !result.data} error={result.error} />
       {result.error && (
         <EmptyState title="The investigation could not be opened">
-          <p>Its loaded Okan records may be unavailable. Nothing was generated or changed.</p>
+          <p>Its loaded records may be unavailable. Nothing was generated or changed.</p>
           <Button onClick={result.reload}>Try again</Button>{" "}
           <ButtonLink href={href("/")}>Return home</ButtonLink>
         </EmptyState>
@@ -85,14 +86,20 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
   );
 }
 
+/** "March 2024" from an ISO date, read as a calendar date (no timezone shift). */
+function monthOf(day: string): string {
+  const [y, m] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 function Issue({ data }: { data: Investigation }) {
   return (
     <>
       <h3>{data.title}</h3>
-      <p>Start with <strong>{data.asset_label}</strong>, the train B compressor named in this Okan scenario.
+      <p>Start with <strong>{data.asset_label}</strong>, the asset this scenario is about.
         What do the linked records say happened, what production loss was recorded, and what maintenance followed?</p>
       <div className="investigation-stats">
-        <Stat label="Investigation window" value="March 2024" detail="Event dates, not today's operating state" />
+        <Stat label="Investigation window" value={monthOf(data.since)} detail="Event dates, not today's operating state" />
         <Stat label="Connected evidence" value={data.evidence.length} detail="Loaded records, not an AI-generated answer" />
         <Stat label="What you will learn" value="Trace the evidence" detail="Asset → records → finding and limitations" />
       </div>
