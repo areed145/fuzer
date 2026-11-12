@@ -207,6 +207,19 @@ export interface WellScreen {
       status: "current" | "stale" | "no_test_on_file" }[] };
 }
 
+/** Flare episodes and the records around them (#351). */
+export interface FlareReview {
+  since: string; until: string; source: string; note: string;
+  thresholds: { day_spike: number; day_base: number; spike: number };
+  days: { day: string; flare_ksm3: number; baseline_ksm3: number | null }[];
+  episodes: { source: "point" | "daily_report"; subject: string; label: string; point: string | null; start: string;
+    end: string; peak: number; baseline: number; uom: string | null; volume: number; volume_unit: string | null;
+    attributed: boolean; causes: { kind: "downtime" | "log_entry" | "detection"; id: string; at: string; text: string }[] }[];
+  summary: { days: number; flare_ksm3: number; episodes: number; attributed: number; unknown: number;
+    over_baseline_ksm3: number; explained_ksm3: number; explained_share_pct: number | null;
+    by_reason_ksm3: Record<string, number> };
+}
+
 /** Separator and export quality from the lab (#342). */
 export interface PlantQuality {
   since: string; until: string; source: string; note: string; limits: null; limit_basis: string; gap_factor: number;
@@ -265,6 +278,7 @@ export interface FleetScorecards {
 
 export const metricsApi = {
   fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  incidentFlare: () => request<FlareReview>("GET", "/incidents/flare"),
   plantQuality: () => request<PlantQuality>("GET", "/plant/quality"),
   gasLiftStability: () => request<GasLiftStability>("GET", "/plant/gas-lift-stability"),
   alarmPerformance: () => request<AlarmPerformance>("GET", "/plant/alarm-performance"),

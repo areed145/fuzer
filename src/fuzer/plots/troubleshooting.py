@@ -445,3 +445,29 @@ def quality_trend(conn, subject: str, sample_point: str, analyte: str, since: st
         k: d[k] for k in ("sample_point", "analyte", "unit", "samples", "first_half_median", "change_pct", "gaps",
                           "below_detection", "drift", "limits", "limit_basis", "note")} | {
         "events": [{k: e[k] for k in ("start", "end", "on", "reason")} for e in d["events"]]}, [subject])
+
+
+def flare_attribution(conn, since: str | None = None, until: str | None = None, days: int = 365) -> Figure:
+    """The daily flare against the median of the days before it (#351), with each flare episode marked: filled when
+    downtime, a log entry or a detection around it was found, hollow when its cause is unknown."""
+    from ..analysis import flare_review
+
+    out = flare_review.review(conn, since, until, days)
+    if not out["days"]:
+        raise ChartError("no daily flare volume in that window")
+    x = [d["day"] for d in out["days"]]
+    eps = [e for e in out["episodes"] if e["volume_unit"] == "kSm3"]
+    data = [{"type": "bar", "name": "flare (kSm3/d)", "x": x, "y": [d["flare_ksm3"] for d in out["days"]],
+             "marker": {"color": "rgba(230,120,40,0.6)"}},
+            {"type": "scatter", "mode": "lines", "name": "baseline (median of the days before)", "x": x,
+             "y": [d["baseline_ksm3"] for d in out["days"]], "line": {"dash": "dot", "color": "rgba(90,90,90,0.8)"}},
+            {"type": "scatter", "mode": "markers", "name": "episode", "x": [e["start"][:10] for e in eps],
+             "y": [e["peak"] for e in eps],
+             "marker": {"size": 11, "symbol": ["circle" if e["attributed"] else "circle-open" for e in eps],
+                        "color": "rgba(210,60,50,0.9)"},
+             "text": ["; ".join(c["text"][:60] for c in e["causes"][:2]) or "cause unknown" for e in eps]}]
+    lay = layout(f"Flare and its episodes, {out['since']} to {out['until']}", None, "kSm3/d")
+    return Figure("flare_attribution", lay["title"]["text"], data, lay, {
+        "summary": out["summary"], "thresholds": out["thresholds"], "note": out["note"],
+        "episodes": [{k: e[k] for k in ("start", "volume", "attributed")} | {"causes": [c["kind"] for c in e["causes"]]}
+                     for e in out["episodes"]]}, [c["id"] for e in out["episodes"] for c in e["causes"]][:10])

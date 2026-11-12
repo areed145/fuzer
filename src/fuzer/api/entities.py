@@ -269,6 +269,13 @@ def entity_conversations(fuzer_id: str, limit: int = 20, conn=Depends(get_conn))
     return queries.conversations(conn, fuzer_id, min(limit, 100))
 
 
+@router.get("/incidents/flare")
+def incidents_flare(days: int = 365, conn=Depends(get_conn)):
+    """The daily flare against its baseline and each flare episode with the records around it (#351)."""
+    from ..analysis import flare_review
+    return flare_review.review(conn, days=max(7, min(days, 1825)))
+
+
 @router.get("/incidents/repeats")
 def incident_repeats(days: int = 730, conn=Depends(get_conn)):
     """Repeat incidents per unit and the age of open linked corrective work (#350); linked work is a proxy."""
