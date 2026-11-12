@@ -98,7 +98,7 @@ create table if not exists fuzer.setting_history (
 create index if not exists setting_history_key on fuzer.setting_history (key, id);
 
 -- Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone);
--- projects/<name>.yaml in the repository is the fallback when there is no row.
+-- a shipped seed bundle of the same name is the fallback when there is no row.
 create table if not exists fuzer.project (
     name       text primary key,
     config     jsonb not null,

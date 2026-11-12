@@ -110,7 +110,7 @@ Settings (#131): values people set, per project ('project:<name>') or for all ('
 
 ### `project`
 
-Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone); projects/<name>.yaml in the repository is the fallback when there is no row.
+Projects (#131): what one name selects (pack, data folder, mappings, time-series provider, timezone); a shipped seed bundle of the same name is the fallback when there is no row.
 
 | Column | Type | Note |
 |---|---|---|

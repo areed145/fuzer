@@ -9,7 +9,9 @@ ROOT = PACKAGE.parents[1]  # the repository (src/fuzer -> .)
 SCHEMA_MODULES = ("core", "workflow", "sources", "graph", "analysis", "ops", "plots", "agents", "evals")
 SCHEMAS = tuple(PACKAGE / m / "schema.sql" for m in SCHEMA_MODULES)
 UNITS = PACKAGE / "units.yaml"
-PACKS = PACKAGE / "packs"
+# Seed bundles shipped with this checkout (#376, P1.6): one folder per facility, each with its bundle.yaml and pack.
+# Fuzer itself ships no facility; these are the demo facilities that fakeplant owns.
+BUNDLES = ROOT / "fakeplant" / "bundles"
 MAPPINGS = PACKAGE / "mappings"
 STANDARDS = PACKAGE / "standards"
 UI_DIST = ROOT / "ui" / "dist"  # the built web UI (cd ui && npm run build)
