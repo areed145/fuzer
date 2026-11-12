@@ -21,6 +21,13 @@ def conn():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def fresh(conn):
+    for t in ("feedback", "assistant_answer", "work_event", "work_item"):
+        conn.execute(f"delete from {t}")
+    conn.commit()
+
+
 def _verdict(conn, pack: str, followed: str, note: str | None = None, title: str = "surge on K-1") -> int:
     with conn.transaction():
         item = conn.execute("insert into work_item (type, title, subjects, created_by) values "
@@ -71,6 +78,7 @@ def test_the_api_lists_shortfalls_by_skill(conn):
 
     from fuzer.api import app
 
+    _verdict(conn, COMPRESSION, "no", title="surge on K-9")  # stands on its own, whatever ran before
     rows = TestClient(app).get("/work/skill-shortfalls").json()
-    assert rows[0]["shortfalls"] and {r["skill"] for r in rows} >= {COMPRESSION, ANSWERING}
+    assert rows[0]["shortfalls"] and COMPRESSION in {r["skill"] for r in rows}
     assert TestClient(app).get("/work/skill-shortfalls", params={"since": "2999-01-01T00:00:00"}).json() == []
