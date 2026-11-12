@@ -4,10 +4,11 @@ becomes "1234.5", "31.12.2024 14:00" with date_format "%d.%m.%Y %H:%M" becomes "
 local time in the system's timezone moves to the project's (FUZER_TIMEZONE). Encoding is the CSV reader's.
 """
 
-import os
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+from ..core import projects
 
 _COMMA_NUM = re.compile(r"^-?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$")
 _DIGITS = re.compile(r"^[\d\s./:T-]+$")
@@ -20,7 +21,7 @@ class Formats:
                  project_tz: str | None = None):
         self.comma = decimal == ","
         self.date_format = date_format or None
-        src, dst = timezone or None, project_tz or os.environ.get("FUZER_TIMEZONE") or None
+        src, dst = timezone or None, project_tz or projects.field("timezone")
         self.shift = (ZoneInfo(src), ZoneInfo(dst)) if src and dst and src != dst else None
         self.active = self.comma or bool(self.date_format)
         self._date_cols: dict[str, bool] = {}

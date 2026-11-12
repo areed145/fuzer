@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from fuzer.api import investigation
 from fuzer.core.pack import load_pack
-from fuzer.graph.investigation import InvestigationUnavailable, okan_investigation
+from fuzer.graph.investigation import InvestigationUnavailable, guided_investigation
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def client(okan_db):
 def test_seeded_journey_has_cited_evidence_without_ai_or_mutations(okan_db, client):
     conn = okan_db.conn
     before = conn.execute("select count(*) as n from source_record").fetchone()["n"]
-    response = client.get("/demo/okan/investigation")
+    response = client.get("/demo/investigation")
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["asset_label"] == "20-K-2200B"
@@ -48,11 +48,11 @@ def test_http_adapter_enforces_read_only_transaction(okan_db, client, monkeypatc
         conn.commit()
         conn.execute("update entity set kind = kind")
 
-    monkeypatch.setattr(investigation, "okan_investigation", accidental_write)
+    monkeypatch.setattr(investigation, "guided_investigation", accidental_write)
     with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
-        client.get("/demo/okan/investigation")
+        client.get("/demo/investigation")
     for method in ("post", "put", "patch", "delete"):
-        assert getattr(client, method)("/demo/okan/investigation").status_code == 405
+        assert getattr(client, method)("/demo/investigation").status_code == 405
 
 
 def test_demo_configuration_read_is_bounded_and_read_only(okan_db, client, monkeypatch):
@@ -67,10 +67,10 @@ def test_demo_configuration_read_is_bounded_and_read_only(okan_db, client, monke
 
 def test_missing_records_are_explicit_not_success_shaped(okan_db, client, monkeypatch):
     def unavailable(conn, pack):
-        raise InvestigationUnavailable("The March 2024 Okan incidents are not available in this register.")
+        raise InvestigationUnavailable("The March 2024 incidents on 20-K-2200B are not available in this register.")
 
-    monkeypatch.setattr(investigation, "okan_investigation", unavailable)
-    response = client.get("/demo/okan/investigation")
+    monkeypatch.setattr(investigation, "guided_investigation", unavailable)
+    response = client.get("/demo/investigation")
     assert response.status_code == 404
     assert "not available" in response.json()["detail"]
 
@@ -80,7 +80,7 @@ def test_partial_evidence_does_not_invent_production_impact(okan_db, monkeypatch
 
     monkeypatch.setattr(queries, "incident_timeline", lambda *_: [])
     monkeypatch.setattr(queries, "maintenance", lambda *_, **kw: {"recent": []})
-    result = okan_investigation(okan_db.conn, load_pack("okan"))
+    result = guided_investigation(okan_db.conn, load_pack("okan"))
     assert result.evidence  # raw operator logs still work without model enrichment
     assert not any("Sm3" in f.text for f in result.findings)
     assert any("production impact is not established" in text for text in result.limitations)
@@ -96,7 +96,7 @@ def test_missing_volume_is_unknown_not_zero_and_shared_evidence_is_counted_once(
         return [{**r, "lost_oil_sm3": None} for r in rows] * 2
 
     monkeypatch.setattr(queries, "incident_timeline", incomplete)
-    result = okan_investigation(okan_db.conn, load_pack("okan"))
+    result = guided_investigation(okan_db.conn, load_pack("okan"))
     assert len({e.id for e in result.evidence}) == len(result.evidence)
     assert not any("Sm3" in f.text for f in result.findings)
     assert any("complete total cannot be reported" in text for text in result.limitations)
@@ -107,7 +107,26 @@ def test_missing_asset_and_incidents_have_no_synthetic_fallback(okan_db, monkeyp
 
     monkeypatch.setattr(queries, "incidents", lambda *_, **kw: {"items": []})
     with pytest.raises(InvestigationUnavailable, match="incidents are not available"):
-        okan_investigation(okan_db.conn, load_pack("okan"))
+        guided_investigation(okan_db.conn, load_pack("okan"))
     monkeypatch.setattr(queries, "resolve_ref", lambda *_: None)
     with pytest.raises(InvestigationUnavailable, match="asset is not loaded"):
-        okan_investigation(okan_db.conn, load_pack("okan"))
+        guided_investigation(okan_db.conn, load_pack("okan"))
+
+
+def test_the_journey_comes_from_the_bundle_not_code(okan_db, client, monkeypatch):
+    """P1.6b: the asset, window and title are the pack's `investigation:`; the earlier URL naming the pack still
+    works, another pack's name does not, and a pack without one says so instead of showing Okan's."""
+    import dataclasses
+
+    from fuzer.api import deps
+
+    assert client.get("/demo/okan/investigation").json()["asset_label"] == "20-K-2200B"
+    response = client.get("/demo/other/investigation")
+    assert response.status_code == 404 and "this project is 'okan'" in response.json()["detail"]
+    data = client.get("/demo/investigation").json()
+    assert data["title"] == load_pack("okan").investigation["title"]
+    assert data["limitations"][0].startswith(load_pack("okan").data_notice)
+    bare = dataclasses.replace(load_pack("okan"), investigation={})
+    monkeypatch.setattr(deps, "pack", lambda: bare)
+    response = client.get("/demo/investigation")
+    assert response.status_code == 404 and "no guided investigation in its bundle" in response.json()["detail"]

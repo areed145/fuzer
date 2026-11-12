@@ -11,7 +11,7 @@ import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 import { href } from "./lib";
 import { fuzerModdle, subsetModule } from "./bpmnSubset";
-import { Button, Input, Select as UISelect } from "./ui";
+import { Button, Input, Select as UISelect, Empty } from "./ui";
 import { workflowComponents } from "./workflowComponents";
 
 export interface ModelerContext {
@@ -165,7 +165,7 @@ function Properties({ modeler, ctx }: { modeler: Modeler; ctx: ModelerContext })
   if (!el || is(bo, "bpmn:Participant") || is(bo, "bpmn:Collaboration") || is(bo, "bpmn:Process")) {
     body = <ProcessProps ed={ed} ctx={ctx} />;
   } else if (el.type === "label") {
-    body = <p className="muted small">A label. Select its element to edit it.</p>;
+    body = <Empty className="small">A label. Select its element to edit it.</Empty>;
   } else {
     body = <ElementProps ed={ed} el={el} ctx={ctx} />;
   }
@@ -228,7 +228,7 @@ const human = (s: string) => s.replace(/_/g, " ");
 
 function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
   const p = ed.process;
-  if (!p) return <p className="muted small">No process in this diagram.</p>;
+  if (!p) return <Empty className="small">No process in this diagram.</Empty>;
   const thresholds: { name: string; value: string }[] = (p.extensionElements?.values ?? [])
     .filter((v: any) => v.$type === "fuzer:Threshold").map((v: any) => ({ name: v.name ?? "", value: v.value ?? "" }));
   const saveThresholds = (rows: { name: string; value: string }[]) => {
@@ -251,8 +251,7 @@ function ProcessProps({ ed, ctx }: { ed: Editing; ctx: ModelerContext }) {
       <Select label="Owner role" value={p.ownerRole} options={ctx.roles.person} blank="engineer (default)"
         onChange={(v) => ed.setOn(p, { ownerRole: v })} hint="Gets a step that can't go on (a failing condition, say)." />
       <Thresholds rows={thresholds} onSave={saveThresholds} />
-      <p className="muted small">Select a step to edit it. Drag named components onto the canvas;
-        advanced BPMN tools offer the other supported event and lane options.</p>
+      <Empty className="small">Select a step to edit it.</Empty>
     </>
   );
 }
@@ -310,7 +309,7 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
       )}
       {is(bo, "bpmn:ExclusiveGateway") && <GatewayProps ed={ed} el={el} />}
       {is(bo, "bpmn:ParallelGateway") && (
-        <p className="muted small">Several flows out: every branch runs. Several flows in: waits for all of them.</p>
+        <p className="small">Several flows out: every branch runs. Several flows in: waits for all of them.</p>
       )}
       {is(bo, "bpmn:SequenceFlow") && <FlowProps ed={ed} el={el} />}
       {is(bo, "bpmn:BoundaryEvent") && (
@@ -320,7 +319,7 @@ function ElementProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerConte
       )}
       {def && is(def, "bpmn:TimerEventDefinition") && <TimerProps ed={ed} el={el} def={def} />}
       {def && is(def, "bpmn:MessageEventDefinition") && <MessageProps ed={ed} el={el} def={def} />}
-      {is(bo, "bpmn:StartEvent") && <p className="muted small">A process has exactly one start event; the start data is what the process is started with.</p>}
+      {is(bo, "bpmn:StartEvent") && <p className="small">A process has exactly one start event; the start data is what the process is started with.</p>}
     </>
   );
 }
@@ -406,7 +405,7 @@ function ServiceTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: a
 function GatewayProps({ ed, el }: { ed: Editing; el: any }) {
   const bo = el.businessObject;
   const outs: any[] = el.outgoing ?? [];
-  if (outs.length < 2) return <p className="muted small">Draw two or more flows out, each with a condition (or one as the default).</p>;
+  if (outs.length < 2) return <p className="small">Draw two or more flows out, each with a condition (or one as the default).</p>;
   return (
     <div className="prop">
       <span>Branches</span>
@@ -434,7 +433,7 @@ function FlowProps({ ed, el }: { ed: Editing; el: any }) {
   const bo = el.businessObject;
   const src = el.source?.businessObject;
   if (!is(src, "bpmn:ExclusiveGateway")) return null;
-  if (src.default === bo) return <p className="muted small">The default branch of {src.name || src.id}: taken when no other condition is true.</p>;
+  if (src.default === bo) return <p className="small">The default branch of {src.name || src.id}: taken when no other condition is true.</p>;
   return <Text label="Condition" value={bo.conditionExpression?.body} mono placeholder='approval == "approved"'
     onCommit={(v) => ed.set(el, { conditionExpression: ed.expr(v) })} />;
 }

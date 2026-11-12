@@ -6,7 +6,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from ..core import db, projects
+from ..core import bundles, db, projects
 from ..core.pack import load_pack, resolve
 from ..ops import pipeline
 from ..resources import ROOT
@@ -24,7 +24,7 @@ def parser() -> argparse.ArgumentParser:
     u = sub.add_parser("up", help="start everything: data, register, drawings, web UI (the one command you need)")
     u.add_argument("--fresh", action="store_true", help="start over: empty the database (and make new fake data)")
     u.add_argument("--port", type=int, default=8000)
-    u.add_argument("--demo", choices=["okan"], help="the Okan field")
+    u.add_argument("--demo", choices=bundles.shipped(), help="a shipped seed bundle to serve, with its exports")
     u.add_argument("--no-jobs", action="store_true", help="don't start Dagster (schedules: SRE scans, studies, refreshes)")
     u.add_argument("--jobs-port", type=int, default=3000, help="port for the Dagster UI")
     u.add_argument("--no-worker", action="store_true",
@@ -234,7 +234,6 @@ def main(argv=None):
             if args.cmd == "reset":
                 db.reset(conn)
             elif args.cmd == "init":
-                from ..core import bundles
 
                 try:
                     _print(bundles.init(conn, Path(args.bundle), by=args.by, upgrade=args.upgrade))
@@ -311,14 +310,9 @@ def main(argv=None):
                 if not keys.is_dir():
                     raise SystemExit(f"No answer keys at {keys}. Set FUZER_DATA_DIR or pass --keys.")
                 if args.memory:
-                    if (keys / "assistant_memory.json").is_file():
-                        cases = json.loads((keys / "assistant_memory.json").read_text())
-                    else:  # exports generated before the memory eval: the built-in Okan cases
-                        try:
-                            from fakeplant.okan import MEMORY_QUESTIONS as cases
-                        except ImportError:
-                            raise SystemExit(f"No assistant_memory.json in {keys}.") from None
-                        _say(f"no assistant_memory.json in {keys}: using the built-in Okan cases")
+                    if not (keys / "assistant_memory.json").is_file():
+                        raise SystemExit(f"No assistant_memory.json in {keys}; regenerate the exports.")
+                    cases = json.loads((keys / "assistant_memory.json").read_text())
                     res = evaluate.memory(conn, pack, cases, say=_say)
                     if args.out:
                         Path(args.out).write_text(json.dumps(res, indent=2, default=str))
@@ -489,8 +483,8 @@ def _assistant(args) -> None:
 
 
 def data_dir() -> str:
-    """Where source exports land: $FUZER_DATA_DIR, else ./data."""
-    return os.environ.get("FUZER_DATA_DIR") or "data"
+    """Where source exports land: the project's data folder (from its bundle), else ./data."""
+    return projects.field("data") or "data"
 
 
 def _bench(conn, pack) -> dict:

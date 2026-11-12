@@ -62,9 +62,10 @@ def load(data_dir) -> "ProcessModel | None":
 class ProcessModel:
     def __init__(self, spec: dict):
         self.seed = int(spec.get("seed", 0))
+        self.levels = [tuple(x) for x in spec.get("levels", [])]  # typical levels of uncovered points, by description
         # The site's air temperature (degC): its mean, diurnal and annual swings and the day of the year it peaks.
-        # Okan's offshore tropics are the default; an onshore plant inland sets its own. `coolant` is what the
-        # coolers reject heat to: "sea" (seawater at `sea_mean` +- `sea_annual`, Okan's default) or "air" (ambient).
+        # Offshore tropics are the default; an onshore plant inland sets its own. `coolant` is what the
+        # coolers reject heat to: "sea" (seawater at `sea_mean` +- `sea_annual`, the default) or "air" (ambient).
         self.climate = {"mean": 27.5, "diurnal": 2.5, "annual": 1.5, "peak_day": 80, "coolant": "sea",
                         "sea_mean": 26.5, "sea_annual": 1.5, **spec.get("climate", {})}
         self.points: dict[str, tuple[str, str]] = {k: tuple(v) for k, v in spec["points"].items()}

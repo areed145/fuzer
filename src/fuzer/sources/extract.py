@@ -106,7 +106,7 @@ def _tag_or_well(v: str, pack: Pack):
 
 def _place(v: str, pack: Pack):
     """A plant location written in any of the styles planners and contractors use: a name the pack knows
-    ("ggcp"), the facility, a FLOC (OKAN-20, OKAN-20-K2200B), an area code (20), a tag in any spacing
+    ("ggcp"), the facility, a FLOC (FAC-20, FAC-20-K2200B), an area code (20), a tag in any spacing
     (20-K-2200B, 20K2200B, 20 K 2200B) or a well (OK-J12-07, OK J12 07). None when it names nothing known."""
     v = str(v or "").strip()
     if not v:

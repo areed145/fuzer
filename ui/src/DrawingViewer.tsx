@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { api, type DrawingMark, type MarkStatus } from "./api";
 import { projectUrl } from "./authState";
 import { entityHref, useAsync } from "./lib";
-import { Button , Card as UICard, Disclosure } from "./ui";
+import { Button, Card as UICard, Disclosure, Empty } from "./ui";
 
 const STATUS: { key: MarkStatus; label: string; dashed?: boolean }[] = [
   { key: "linked", label: "Linked to the register" },
@@ -95,7 +95,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         </div>
       </div>
       {highlight.length > 0 && (
-        <p className="muted small">
+        <p className="small">
           {found
             ? "Ringed: where this is on the sheet."
             : "The drawing mentions this, but its position on the sheet wasn't read."}
@@ -104,7 +104,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
       {!compact && <div className="drawing-lists">
         <div>
           <h3>Read from the drawing</h3>
-          {g.marks.length === 0 && <p className="muted small">Nothing read yet.</p>}
+          {g.marks.length === 0 && <Empty className="small">Nothing read yet.</Empty>}
           <ul>
             {shown.map(({ m, i }) => (
               <li
@@ -129,7 +129,7 @@ export function DrawingViewer({ id, highlight = [], title, compact = false }: {
         </div>
         <div>
           <h3>Piping</h3>
-          {g.connections.length === 0 && <p className="muted small">No lines read.</p>}
+          {g.connections.length === 0 && <Empty className="small">No lines read.</Empty>}
           <ul>
             {g.connections.map((c, i) => (
               <li key={i}>

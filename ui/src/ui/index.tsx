@@ -107,6 +107,10 @@ export function Badge({ tone = "muted", className = "", ...props }: HTMLAttribut
 export function Stat({ label, value, detail }: { label: ReactNode; value: ReactNode; detail?: ReactNode }) {
   return <div className="ui-stat"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
 }
+/** Empty means one line and at most one action (docs/ui-style.md, rule 8): "No incidents in this window." */
+export function Empty({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <p className={`ui-empty-line ${className}`.trim()}>{children}</p>;
+}
 export function EmptyState({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return <div className="ui-empty"><strong>{title}</strong>{children && <div>{children}</div>}</div>;
 }

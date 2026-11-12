@@ -17,8 +17,6 @@ COPY --from=ui-build /app/ui/dist /app/ui/dist
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    FUZER_DATA_DIR=/app/fakeplant/data/okan \
-    FUZER_TIMESERIES=synthetic \
     DAGSTER_HOME=/var/lib/fuzer/dagster
 
-CMD ["python", "-m", "fuzer.cli.deploy"]
+CMD ["python", "-m", "fuzer.cli.deploy", "--bundle", "/app/fakeplant/bundles/okan"]

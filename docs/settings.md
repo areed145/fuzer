@@ -35,6 +35,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 |---|---|---|---|---|
 | `daily_report.close_cron` | str | `0 7 * * *` |  | When the day is closed and its report drafted (cron). Takes effect on restart. Replaces `FUZER_DAY_CLOSE_CRON`. |
 | `work.lease_seconds` | int | `900` | ≥ 30 | How long an agent holds a workflow task before another may take it. Replaces `FUZER_WORK_LEASE_SECONDS`. |
+| `work.agent_fallback_minutes` | int | `30` | ≥ 0 | Minutes an agent step may wait with no agent worker picking it up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever). |
 | `alerts.webhook` | secret | `env:FUZER_ALERT_WEBHOOK` |  | Where the URL failed scheduled runs are posted to (Teams, Slack or any JSON webhook) is kept. |
 
 ## Database

@@ -5,12 +5,19 @@
     <bundle>/exports/         its source exports (optional: a deployment can point the project elsewhere)
 
     bundle: 1                 # manifest version
-    name: kestrel             # the project this database will hold
+    name: plant               # the project this database will hold
     description: ...
     pack: pack.yaml           # relative to the bundle
     project:                  # project config (see core.projects): data, timeseries, timezone, ...
       data: exports           # paths are relative to the bundle
       timeseries: none
+    source_packs: [packs/measurement.yaml]   # optional: the source packs (sources/_catalog_packs) it brings
+    roster: roster.yaml       # optional: the roster template, the human workflow roles it staffs and their seats
+    operating_model: {name: standard, version: 1}   # optional: the operating model it follows
+
+A bundle carries its source packs, roster template and operating model reference (P1.6); `init` validates and
+stores them with the project. It installs nothing and assigns nobody: people are assigned to roles by their
+accounts, and a source pack is installed from Sources.
 
 `fuzer init --bundle <folder>` validates the bundle and stores the project with its pack in the `project` table.
 From then on the API, MCP tools, jobs and CLI resolve the pack from the database (`pack.current_pack`), not from
@@ -99,11 +106,67 @@ def read(path: Path) -> dict:
             project[k] = str((root / project[k]).resolve())
             if k == "data" and not Path(project[k]).is_dir() and str(project[k]).startswith(str(root) + "/"):
                 raise BundleError(f"{manifest}: its exports folder {m['project'][k]} is missing")
-    digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack}, sort_keys=True, default=str).encode())
+    source_packs, raw_packs = _source_packs(manifest, root, m.get("source_packs"))
+    roster = _roster(manifest, root, m.get("roster"))
+    model = _operating_model(manifest, m.get("operating_model"))
+    digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack, "source_packs": raw_packs, "roster": roster},
+                                       sort_keys=True, default=str).encode())
     cfg = {**project, "pack": pack.name, "pack_config": raw_pack,
            "bundle": {"version": m["bundle"], "name": name, "digest": digest.hexdigest()[:16],
-                      "description": m.get("description") or ""}}
+                      "description": m.get("description") or "", "source_packs": source_packs,
+                      "roster": roster, "operating_model": model}}
     return {"name": name, "config": cfg, "pack": pack, "root": str(root)}
+
+
+def _yaml(manifest: Path, path: Path, what: str):
+    if not path.is_file():
+        raise BundleError(f"{manifest}: {what} {path.name} is missing")
+    try:
+        return yaml.safe_load(path.read_text())
+    except yaml.YAMLError as e:
+        raise BundleError(f"{path} isn't valid YAML: {e}") from None
+
+
+def _source_packs(manifest: Path, root: Path, listed) -> tuple[list[dict], list]:
+    """The source packs a bundle brings: [{system, path}] and their contents (for the digest)."""
+    if listed is None:
+        return [], []
+    if not isinstance(listed, list) or not all(isinstance(p, str) for p in listed):
+        raise BundleError(f"{manifest}: source_packs must be a list of pack files")
+    out, raw = [], []
+    for rel in listed:
+        doc = _yaml(manifest, root / rel, "source pack")
+        if not isinstance(doc, dict) or doc.get("fuzer_source_pack") != 1 or not (doc.get("system") or {}).get("name"):
+            raise BundleError(f"{manifest}: {rel} is not a source pack (fuzer_source_pack: 1 with a system name)")
+        out.append({"system": doc["system"]["name"], "path": str((root / rel).resolve())})
+        raw.append(doc)
+    return out, raw
+
+
+def _roster(manifest: Path, root: Path, rel) -> list[dict]:
+    """The roster template: [{role, seats}], the human workflow roles the facility staffs. Role names are
+    checked against the workflow's roles where the roster is used, not here (core sits below workflow)."""
+    if rel is None:
+        return []
+    doc = _yaml(manifest, root / str(rel), "roster template")
+    roles = (doc or {}).get("roles") if isinstance(doc, dict) else None
+    if not isinstance(roles, list) or not roles:
+        raise BundleError(f"{manifest}: roster template {rel} must list roles: [{{role, seats}}]")
+    out = []
+    for r in roles:
+        if not isinstance(r, dict) or not isinstance(r.get("role"), str) or not isinstance(r.get("seats", 1), int) \
+                or r.get("seats", 1) < 1:
+            raise BundleError(f"{manifest}: roster template {rel}: each role needs a name and a whole number of seats")
+        out.append({"role": r["role"], "seats": r.get("seats", 1)})
+    return out
+
+
+def _operating_model(manifest: Path, ref) -> dict | None:
+    if ref is None:
+        return None
+    if not isinstance(ref, dict) or not isinstance(ref.get("name"), str) or not isinstance(ref.get("version"), int):
+        raise BundleError(f"{manifest}: operating_model must name a model and its version ({{name, version}})")
+    return {"name": ref["name"], "version": ref["version"]}
 
 
 def _holds_data(conn) -> bool:

@@ -2,7 +2,7 @@ import "../styles/investigation.css";
 import { useEffect, useRef } from "react";
 import { api, type Investigation, type InvestigationRecord } from "../api";
 import { href, Status, timestamp, useAsync } from "../lib";
-import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Stat } from "../ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader, Stat, Empty } from "../ui";
 
 const STEPS = [
   { key: "issue", label: "Understand the issue" },
@@ -19,7 +19,7 @@ const kindLabel = (kind: string) => ({
 }[kind] ?? kind.replace(/_/g, " "));
 
 export function InvestigationPage({ query }: { query: URLSearchParams }) {
-  const result = useAsync(() => api.okanInvestigation(), []);
+  const result = useAsync(() => api.guidedInvestigation(), []);
   const selected = STEPS.findIndex((s) => s.key === query.get("step"));
   const index = selected < 0 ? 0 : selected;
   const step = STEPS[index];
@@ -63,7 +63,7 @@ export function InvestigationPage({ query }: { query: URLSearchParams }) {
             </ol>
           </nav>
           <Card className="investigation-stage">
-            <p className="muted small">Step {index + 1} of {STEPS.length}</p>
+            <p className="small">Step {index + 1} of {STEPS.length}</p>
             <h2 id="investigation-step" tabIndex={-1} ref={heading}>{step.label}</h2>
             {step.key === "issue" && <Issue data={result.data} />}
             {step.key === "asset" && <Asset data={result.data} />}
@@ -114,7 +114,7 @@ function Asset({ data }: { data: Investigation }) {
             <div key={f.name}><dt>{f.name}</dt><dd>{f.value} <Badge>{f.source}</Badge></dd></div>
           ))}
         </dl>
-      ) : <p className="muted">No descriptive asset fields are available.</p>}
+      ) : <Empty>No descriptive asset fields are available.</Empty>}
       <h3>Asset provenance</h3>
       <Provenance records={data.asset_records} />
       <p>Next, compare the operator accounts, maintenance records and recorded downtime.
@@ -124,7 +124,7 @@ function Asset({ data }: { data: Investigation }) {
 }
 
 function Provenance({ records }: { records: InvestigationRecord[] }) {
-  if (!records.length) return <p className="muted">No direct source-record link is available for this derived record.</p>;
+  if (!records.length) return <Empty>No direct source-record link is available for this derived record.</Empty>;
   return (
     <ul className="investigation-provenance">
       {records.map((r) => (
@@ -167,7 +167,7 @@ function EvidenceCard({ evidence: e, number, selected }: {
       {e.lost_oil_sm3 !== null && <p><strong>{e.lost_oil_sm3.toLocaleString()} Sm³ recorded lost oil</strong>
         {" "}(standard cubic metres, not Sm³/day)</p>}
       <Provenance records={e.records} />
-      <p className="muted small">Register record: <code>{e.label}</code></p>
+      <p className="small">Register record: <code>{e.label}</code></p>
     </article>
   );
 }

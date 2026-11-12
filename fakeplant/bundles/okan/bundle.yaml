@@ -11,3 +11,5 @@ project:
   data: ../../data/okan
   timeseries: synthetic
   fakeplant: {asset: okan, seed: 11}
+roster: roster.yaml
+operating_model: {name: standard, version: 1}

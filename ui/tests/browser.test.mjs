@@ -554,7 +554,7 @@ test("reader Settings and Sources do not request protected configuration or conn
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   assert.equal(await nav.getByRole("link", { name: "Sources", exact: true }).count(), 0);
   assert.equal(await nav.getByRole("link", { name: "Jobs", exact: true }).count(), 0);
-  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
   await nav.getByRole("link", { name: "Investigate", exact: true }).click();
@@ -952,7 +952,7 @@ test("optional Demo preserves existing primary destinations and specialist route
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
   assert.deepEqual(await nav.locator("a > span:first-child").allTextContents(), ["Home", "Demo", "Explore", "Investigate", "Work", "Sources", "Jobs", "Settings"]);
-  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan`);
   await nav.locator('a[href="#/demo"][aria-current="page"]').waitFor();
   // Demo is one entry (#556): the tour starts the walkthrough, which keeps its URL.
@@ -996,7 +996,7 @@ test("optional Demo preserves existing primary destinations and specialist route
 });
 
 test("primary destination navigation keeps page headings and active context aligned", async () => {
-  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.locator("a").first().waitFor();
@@ -1038,7 +1038,7 @@ test("fresh Microsoft visitor gets a responsive sign-in entry without preloading
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: null } }));
   const protectedRequests = [];
   page.on("request", (request) => {
-    if (["/stats", "/jobs", "/assistant/ask", "/demo/okan/investigation"].includes(new URL(request.url()).pathname)) {
+    if (["/stats", "/jobs", "/assistant/ask", "/demo/investigation"].includes(new URL(request.url()).pathname)) {
       protectedRequests.push(request.url());
     }
   });
@@ -1068,7 +1068,7 @@ test("approved reader completes the keyless journey with trusted identity and no
   await page.route("**/stats", (route) => route.fulfill({ json: {
     facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
   } }));
-  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   const administrative = [];
   page.on("request", (request) => {
     if (/^\/(jobs|sources|settings)(\/|$)/.test(new URL(request.url()).pathname)) administrative.push(request.url());
@@ -1199,7 +1199,7 @@ test("expired server session exits protected pages and preserves a sign-in recov
   await page.route("**/auth/me", (route) => route.fulfill({ json: {
     mode: "microsoft", configured: true, user: expired ? null : signedInUser,
   } }));
-  await page.route("**/demo/okan/investigation", (route) => {
+  await page.route("**/demo/investigation", (route) => {
     expired = true;
     return route.fulfill({ status: 401, json: { detail: "Sign in with Microsoft to continue" } });
   });
@@ -1216,7 +1216,7 @@ test("Okan journey connects Demo, asset, source evidence and a cited finding wit
   await page.route("**/stats", (route) => route.fulfill({ json: {
     facility: "OKAN", pack: "okan", records: 100, entities: { tag: 1 }, edges: 1, open_reviews: {}, rebuild: {},
   } }));
-  await page.route("**/demo/okan/investigation", (route) => {
+  await page.route("**/demo/investigation", (route) => {
     methods.push(route.request().method());
     return route.fulfill({ json: investigation });
   });
@@ -1252,7 +1252,7 @@ test("Okan journey connects Demo, asset, source evidence and a cited finding wit
 test("Okan deep links support mobile, keyboard, dark theme and history without overflow", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.route("**/demo/okan/investigation", (route) => route.fulfill({ json: investigation }));
+  await page.route("**/demo/investigation", (route) => route.fulfill({ json: investigation }));
   await page.goto(`${url}/#/investigate/okan?step=evidence&evidence=fz-downtime`);
   // The linked evidence is shown, not folded, and its heading takes focus.
   await page.locator("article.investigation-evidence h3").waitFor();
@@ -1267,7 +1267,7 @@ test("Okan deep links support mobile, keyboard, dark theme and history without o
 
 test("Okan unavailable records and network failures have retry and exit paths", async () => {
   let ready = false;
-  await page.route("**/demo/okan/investigation", (route) => ready
+  await page.route("**/demo/investigation", (route) => ready
     ? route.fulfill({ json: investigation })
     : route.fulfill({ status: 404, json: { detail: "The March Okan records are not loaded." } }));
   await page.goto(`${url}/#/investigate/okan`);
@@ -1284,7 +1284,7 @@ test("Demo visibility fails explicitly, recovers and follows global refresh with
     reads++;
     return route.fulfill(failed ? { status: 429, json: { detail: "Server busy" } } : { json: { enabled } });
   });
-  await page.route("**/demo/okan/investigation", route => {
+  await page.route("**/demo/investigation", route => {
     investigations++;
     return route.fulfill({ json: investigation });
   });
@@ -1495,7 +1495,7 @@ test("Demo page mounts and global refresh stay below default authenticated admis
 test("Okan loading and transport errors keep recovery and navigation usable", async () => {
   let release;
   const held = new Promise((resolve) => { release = resolve; });
-  await page.route("**/demo/okan/investigation", async (route) => {
+  await page.route("**/demo/investigation", async (route) => {
     await held;
     await route.abort("failed");
   });
@@ -2315,7 +2315,8 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   const handed = [];
   const step = { id: 77, process_id: 9, element: "diagnose", name: "Diagnose", kind: "agent", state: "waiting", flow: null,
     role: "field-operations-facilities", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0,
-    error: null, created_at: new Date().toISOString(), finished_at: null, finished_by: null, unclaimed: true };
+    error: null, created_at: new Date().toISOString(), finished_at: null, finished_by: null, unclaimed: true,
+    fallback_at: new Date(Date.now() + 30 * 60_000).toISOString() };
   await page.route("**/work/items/7", (route) => route.fulfill({ json: { id: 7, title: "Upset case", type: "upset", state: "open",
     subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", events: [], agents_configured: false,
     payload: { start: "2025-12-30T00:00", first_detection: "excursions:alarm:lo" },
@@ -2324,6 +2325,8 @@ test("a fresh demo offers a sample IOC team, an agent step with no worker can be
   await page.route("**/work/tasks/77/hand-off", (route) => { handed.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
   await page.goto(`${url}/#/cases/7`);
   await page.getByText("No AI provider is configured for agents").waitFor();  // straight away, not after 10 minutes
+  // and it says when the step goes to a person if nobody picks it up (P0.3)
+  await page.getByRole("note").filter({ hasText: "It goes to a person queue at" }).waitFor();
   await page.getByRole("button", { name: "Take it over" }).click();
   await expectReports(handed, 1);
   assert.equal(handed[0].to, "riley");

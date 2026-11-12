@@ -1,4 +1,4 @@
-import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure } from "../../ui";
+import { ActionStatus, Button, ConfirmAction, PageHeader, Card as UICard, Input, Disclosure, Empty } from "../../ui";
 /** One step to do: its form and the evidence behind it, claim / release / hand off, where it sits in its process, and
  * the case's history. */
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
@@ -58,9 +58,9 @@ export function TaskPage({ id, demo = false }: { id: number; demo?: boolean }) {
           {typeof v.data.upset_id === "number" && <UpsetPanel upsetId={v.data.upset_id} itemId={v.item.id} person={person}
             canMerge={waiting && operate && !demo} onMerged={refresh} />}
           {demo && !operate ? <p>Read-only task inspection. Changes require operate access and applicable workflow roles.</p> : !waiting ? (
-            <p className="muted">This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</p>
+            <Empty>This step is {t.state}{t.finished_by ? ` (by ${t.finished_by})` : ""}.</Empty>
           ) : t.kind === "agent" ? (
-            <p className="muted">The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
+            <p>The {t.role} agent has this step{t.claimed_by ? ` (worker ${t.claimed_by})` : ""}. Hand it to a person to take it over.</p>
           ) : (
             <UICard className="">
               <div className="actions">
@@ -128,7 +128,7 @@ function HandOff({ id, person, requiresHuman, onDone, demo = false, action: a, d
           onConfirm={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)} />
           : <Button disabled={!to || !!a.busy} onClick={() => a.run("h", () => api.handOff(id, person, to, reason || undefined), onDone)}>Hand off</Button>}
       </div>
-      {requiresHuman && <p className="muted">This step needs a person: it can't go to an agent.</p>}
+      {requiresHuman && <p className="small">This step needs a person: it can't go to an agent.</p>}
     </Disclosure>
   );
 }

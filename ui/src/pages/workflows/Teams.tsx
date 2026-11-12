@@ -38,9 +38,6 @@ export function TeamsPage({ query, administration = false }: { query: URLSearchP
       {!administration && <p>This operational view shows coverage and workload, not account access.
         {configure && <> Manage roles, assignments and coverage in <a href={href("/users", { view: "workflow", role: focus ?? undefined })}>Users</a>.</>}
         {" "}<a href={href("/exceptions", { list: "progress" })}>Open work cases</a></p>}
-      <p className="muted">Who does the work. Each step goes to a role; a role's default SLA covers steps that set none, overdue
-        steps move along its escalation, and its assignment decides whether steps wait to be claimed or go to someone. People
-        away hand their steps to whoever covers for them.</p>
       {uncovered.length > 0 && (
         <p className="notice small">No one available for {uncovered.map((r) => <strong key={r.name}>{r.name} </strong>)}: their steps
           will wait. {administration ? "Assign an available person below." : "Ask a configuration administrator to update coverage in Users."}</p>
@@ -152,7 +149,7 @@ function NewRole({ person, reload }: { person: string; reload: () => void }) {
       <Input aria-label="New workflow role description" width="lg" placeholder="what it's for" value={desc} onChange={(e) => setDesc(e.target.value)} />
       <Select aria-label="Workflow role kind" value={kind} onChange={(e) => setKind(e.target.value as "person" | "agent")}><option value="person">people</option><option value="agent">an agent</option></Select>
       <ConfirmAction label="Add workflow role" disabled={!name.trim()} busy={!!a.busy}
-        consequence={`Add ${name} as a ${kind === "person" ? "human routing" : "separate automated agent"} role? This does not grant application permissions. Owners span human roles only.`}
+        consequence={`Add ${name} as a ${kind === "person" ? "human routing" : "separate automated agent"} role? Application permissions stay as they are. Owners span human roles only.`}
         onConfirm={() => a.run("add", () => api.setRole(name, { kind, description: desc || null }, person), () => { setName(""); setDesc(""); reload(); })} />
       <ActionStatus busy={a.busy ? "Adding workflow role..." : null} error={a.error} />
     </div>
@@ -189,7 +186,7 @@ function People({ people, roles, person, reload, inspect, editable, focus }: { p
         <CoverEditor name="" roles={roles} reload={reload} />
       </Disclosure>}
       {editable && <Disclosure label={<>Add a legacy roster identity</>}>
-      <p>Use an existing stable account identity for Microsoft users. A roster entry is not a sign-in account or access grant.</p>
+      <p>Use an existing stable account identity for Microsoft users. A roster entry gives no sign-in or access.</p>
       <div className="row">
         <Input aria-label="Roster identity" placeholder="add a person" value={name} onChange={(e) => setName(e.target.value)} />
         <ConfirmAction label="Add roster identity" disabled={!name.trim() || people.some(p => p.name === name.trim())} busy={!!a.busy}
@@ -240,7 +237,7 @@ function PersonCard({ p, roles, people, person, reload, inspect }: { p: Workload
                 {people.filter((x) => x.name !== p.name && x.account_enabled !== false).map((x) => <option key={x.name} value={x.name}>{x.display_name || x.name} covers</option>)}
               </Select>
               <ConfirmAction label="Set away" disabled={!until || !Number.isFinite(new Date(until).getTime())} busy={!!a.busy}
-                consequence={`Set ${p.name} away until ${until}? Waiting work is handed to ${delegate || "its role queues"}. Application access does not change.`}
+                consequence={`Set ${p.name} away until ${until}? Waiting work is handed to ${delegate || "its role queues"}. Application access stays as it is.`}
                 onConfirm={() => a.run("away", () => api.setAway(p.name, person, new Date(until).toISOString(), delegate || null), () => { setAwayOpen(false); reload(); })} />
               <Button disabled={!!a.busy} onClick={() => setAwayOpen(false)}>Cancel away change</Button>
             </span>
@@ -306,7 +303,7 @@ function CoverEditor({ name, roles, covers, coverRoles, reload }: {
     </fieldset>
     <ConfirmAction label={covers == null ? "Make overarching" : "Save fields covered"} busy={!!a.busy}
       disabled={!target || !picked.length || (!every && !chosen.length)}
-      consequence={`${target} will hold ${picked.join(", ")} in ${where}, on top of each field's roster. Application access does not change.`}
+      consequence={`${target} will hold ${picked.join(", ")} in ${where}, on top of each field's roster. Application access stays as it is.`}
       onConfirm={() => a.run("cover", () => api.setCover(target, picked, every ? [] : chosen, person), () => { if (!name) setWho(""); reload(); })} />
     {covers != null && <> <ConfirmAction label="Stop working across fields" busy={!!a.busy}
       consequence={`${target} keeps only the roles this field's roster gives them. What they hold stays with them.`}

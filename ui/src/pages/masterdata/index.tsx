@@ -3,7 +3,7 @@
  * decisions stewards made (aliases and pinned matches), each reversible. */
 import { useState } from "react";
 import { api } from "../../api";
-import { Badge, Button, ButtonLink, Card, Input, PageHeader, Table } from "../../ui";
+import { Badge, Button, ButtonLink, Card, Input, PageHeader, Table, Empty } from "../../ui";
 import { Status, entityHref, href, useAsync } from "../../lib";
 import { usePerson, when } from "../../work";
 import { caseHref, useAct } from "../workflows/shared";
@@ -41,7 +41,7 @@ function Unmatched() {
   const operate = usePermission("operate");
   const a = useAct();
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
-  if (!rows.data.length) return <p className="muted">Every open exception matched the register.</p>;
+  if (!rows.data.length) return <Empty>Every open exception matched the register.</Empty>;
   return (
     <Card title="Refs on open exceptions that matched nothing">
       <p className="small muted">Matching one here matches every open exception that carries it, and remembering it makes the
@@ -71,7 +71,7 @@ function Unresolved() {
   const operate = usePermission("operate");
   const a = useAct();
   if (!rows.data) return <Status loading={rows.loading} error={rows.error} />;
-  if (!rows.data.length) return <p className="muted">Every link value the last rebuild read named something in the register.</p>;
+  if (!rows.data.length) return <Empty>Every link value the last rebuild read named something in the register.</Empty>;
   return (
     <Card title="Link values that named nothing (last rebuild)">
       <p className="small muted">Make one an alias of the entity it means and the next rebuild links those records to it.</p>

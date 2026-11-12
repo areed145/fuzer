@@ -148,7 +148,8 @@ def test_reader_cannot_mutate_spend_or_configure(runtime):
     signed_in(runtime)
     assert runtime.get("/demo/config").json() == {"enabled": True}
     assert runtime.get("/assistant/agents").status_code == 200
-    assert runtime.get("/demo/okan/investigation").status_code == 200
+    assert runtime.get("/demo/investigation").status_code == 200
+    assert runtime.get("/demo/okan/investigation").status_code == 200  # the earlier URL, naming the project's pack
     assert runtime.get("/ontology/declared").status_code == 200
     assert len(runtime.get("/assistant/agents").json()["agents"]) == 8  # the roster is readable, asking is not
     # where work goes is readable, and explaining an intake writes nothing (#509)
@@ -317,7 +318,7 @@ def test_paid_get_bool_spellings_and_server_resource_bounds(runtime, monkeypatch
         assert runtime.get(f"/sources/connections/1/tables/test?claude={value}").status_code == 403
     monkeypatch.setattr(security, "_active", 4)
     with settings.Overrides({"access.api_concurrency": 4}):
-        response = runtime.get("/demo/okan/investigation")
+        response = runtime.get("/demo/investigation")
         assert response.status_code == 429 and response.headers["retry-after"]
     monkeypatch.setattr(security, "_active", 0)
     monkeypatch.setattr(security, "MAX_BODY", 128)

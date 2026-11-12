@@ -5,11 +5,12 @@ A project's config is the `project` row in the database, stored by `fuzer init -
 the same name (fakeplant/bundles/<name>) is the fallback when the database has no row (CI, the demos); Fuzer keeps
 no project files of its own (P1.6).
 
-    fuzer --project okan eval --ops --full        # or FUZER_PROJECT=okan
+    fuzer --project <name> eval --ops --full      # or FUZER_PROJECT=<name>
 
-For one release, activating a project fills in the old variables (FUZER_DATA_DIR, FUZER_MAPPINGS,
-FUZER_TIMESERIES, FUZER_TIMEZONE, FUZER_CACHE_DIR) from it, so code that still reads them works; a variable
-already set in the environment wins, with a warning.
+Activating a project changes no environment variable (P1.6): code asks `field()` for the project's data folder,
+mappings, time-series provider, timezone and cache, which reads them from the project. The old variables
+(FUZER_DATA_DIR, FUZER_MAPPINGS, FUZER_TIMESERIES, FUZER_TIMEZONE, FUZER_CACHE_DIR) are deprecated: set in the
+environment they still override the database's first project, with a warning, and never a project added beside it.
 """
 
 import os
@@ -52,7 +53,7 @@ def scope(conn, name: str):
 
 
 def use(conn, name: str):
-    """`with projects.use(conn, "kestrel"):` runs the block, and every connection it opens, for that project."""
+    """`with projects.use(conn, name):` runs the block, and every connection it opens, for that project."""
     from . import db
 
     return db.use(scope(conn, name))
@@ -121,49 +122,59 @@ _fields: dict[tuple, tuple[float, dict]] = {}
 FIELD_SECONDS = 5.0
 
 
-def field(name: str) -> str | None:
-    """A project setting with an old process-wide variable (data, mappings, timeseries, timezone, cache) for the
-    project this code runs for. A project added beside the first takes its own config, whatever the process's
-    environment says, so one deployment serves several projects; the first project keeps the variable, then its
-    config. Paths come back absolute."""
+def _cached_config(project: str | None) -> dict | None:
+    """A project's config (None: the database's first project), re-read every few seconds; None without one."""
     import time
 
     from . import db
 
+    key = (os.environ.get("FUZER_DATABASE_URL") or (db._server.get_uri() if db._server else None), project)
+    hit = _fields.get(key)
+    if not hit or time.monotonic() - hit[0] >= FIELD_SECONDS:
+        try:
+            with db.connect() as conn:
+                name = project or active(conn)
+                cfg = config(conn, name) if name else None
+        except Exception:  # no such project, or no database to ask: nothing configured
+            cfg = None
+        hit = _fields[key] = (time.monotonic(), cfg)
+    return hit[1]
+
+
+_warned: set[str] = set()
+
+
+def field(name: str) -> str | None:
+    """A project setting (data, mappings, timeseries, timezone, cache) of the project this code runs for, read
+    from its config, so one deployment serves several projects without environment variables. The deprecated
+    process-wide variable still overrides the database's first project (with a warning), never a project added
+    beside it. Paths come back absolute."""
+    from . import db
+
     var = FIELDS[name]
     s = db.scope()
-    if s.project and s.schema != db.PROJECT_SCHEMA:
-        key = (os.environ.get("FUZER_DATABASE_URL") or (db._server.get_uri() if db._server else None), s)
-        hit = _fields.get(key)
-        if not hit or time.monotonic() - hit[0] >= FIELD_SECONDS:
-            with db.connect() as conn:
-                hit = _fields[key] = (time.monotonic(), config(conn, s.project))
-        value = hit[1].get(name)
-        if value is not None:
-            return _path(value) if name in ("data", "mappings", "cache") else str(value)
+    project = s.project or os.environ.get("FUZER_PROJECT")
+    first = not s.project or s.schema == db.PROJECT_SCHEMA
+    if first and os.environ.get(var):
+        if project and var not in _warned:
+            _warned.add(var)
+            warnings.warn(f"{var} is deprecated and overrides project {project}'s {name}; set it in the project "
+                          "instead (P1.6)", DeprecationWarning, stacklevel=2)
+        return os.environ[var]
+    cfg = _cached_config(project)
+    value = (cfg or {}).get(name)
+    if value is None:
         return None
-    return os.environ.get(var) or None
+    return _path(value) if name in ("data", "mappings", "cache") else str(value)
 
 
 def activate(conn, name: str) -> dict:
-    """Make `name` this process's project: FUZER_PROJECT, and the old path/provider variables from its config.
-    `pack.current_pack` reads the pack from the project at runtime (#376)."""
+    """Make `name` this process's project: its connections search the project's schema and `field()` reads the
+    project's config. No environment variable is written (P1.6)."""
     from . import db
 
     cfg = config(conn, name)
-    os.environ["FUZER_PROJECT"] = name
-    db.set_default(db.Scope(name, schema_of(cfg)))  # this process's connections search the project's schema
-    if schema_of(cfg) != db.PROJECT_SCHEMA:
-        return cfg  # an added project's settings come from its config (`field`), never the process's variables
-    for field, var in FIELDS.items():
-        if field == "pack" or cfg.get(field) is None:
-            continue
-        value = _path(cfg[field]) if field in ("data", "mappings", "cache") else str(cfg[field])
-        if os.environ.get(var) and os.environ[var] != value:
-            warnings.warn(f"{var} is set ({os.environ[var]}) and overrides project {name}'s {field} ({value}); "
-                          f"set it in the project instead (#131)", stacklevel=2)
-            continue
-        os.environ[var] = value
+    db.set_default(db.Scope(name, schema_of(cfg)))
     return cfg
 
 

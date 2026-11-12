@@ -97,8 +97,8 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
     monkeypatch.setenv("FUZER_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
     monkeypatch.setattr(deploy.db, "connect", lambda: nullcontext(object()))
-    monkeypatch.setattr(deploy, "seed", lambda conn, folder: calls.append("seed"))
-    monkeypatch.setattr(deploy, "register_projects", lambda conn: ["kestrel"])
+    monkeypatch.setattr(deploy, "seed", lambda conn, bundle: calls.append("seed") or {"name": "first"})
+    monkeypatch.setattr(deploy, "register_projects", lambda conn, first: first == "first" and ["kestrel"])
     monkeypatch.setattr(deploy.engine, "load_defaults", lambda conn: None)
     monkeypatch.setattr(deploy.projects, "use", lambda conn, name: nullcontext())
     monkeypatch.setattr(deploy.signal, "signal", lambda *args: None)
@@ -114,5 +114,5 @@ def test_main_starts_readers_in_background_before_supervising(monkeypatch, tmp_p
 
     monkeypatch.setattr(deploy.threading, "Thread", Thread)
     monkeypatch.setattr(deploy, "supervise", lambda tasks, stop: calls.append("serve"))
-    deploy.main()
+    deploy.main(["--bundle", str(tmp_path)])
     assert calls == ["seed", "background readers", "serve"]
