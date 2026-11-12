@@ -71,11 +71,6 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
   return (
     <section>
       {!embedded && <PageHeader>Work board</PageHeader>}
-      <p className="muted">
-        Every outstanding piece of work ranked by value: SAP backlog, PMs and inspections, incidents and upsets the SRE
-        found, workflow items, opportunities, reviews and projects. One card per piece of work; open "Why" for its
-        value, pins and rank history.
-      </p>
       <div className="row">
         <div className="tabs">
           {VIEWS.map(([v, label]) => (
@@ -98,7 +93,7 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
         <ProjectButton />
       </div>
       {view === "new" && (
-        <p className="muted small">{lastVisit ? `Cards first seen since ${lastVisit.replace("T", " ")}.` : "First visit: everything is new."}</p>
+        <p className="small">{lastVisit ? `Cards first seen since ${lastVisit.replace("T", " ")}.` : "First visit: everything is new."}</p>
       )}
       {group && facets && (
         <div className="chips">
@@ -123,7 +118,7 @@ export function BoardPage({ query, filters }: { query: URLSearchParams; filters?
       </Status>
       {board.data && board.data.total > 0 && (
         <>
-          <p className="muted small">
+          <p className="small">
             {board.data.total.toLocaleString()} cards · page {page} of {Math.ceil(board.data.total / board.data.per_page)}
           </p>
           <ol className="board">
@@ -184,7 +179,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         </Table>
       )}
       {c.breakdown.unknown && c.breakdown.unknown.length > 0 && (
-        <p className="muted small">Not known: {c.breakdown.unknown.join(", ")}</p>
+        <p className="small">Not known: {c.breakdown.unknown.join(", ")}</p>
       )}
       <p className="small">
         Records:{" "}
@@ -198,7 +193,7 @@ function Detail({ card: c, reload }: { card: BoardCard; reload: () => void }) {
         })}
       </p>
       {hist.data && hist.data.length > 1 && (
-        <p className="muted small">
+        <p className="small">
           Rank: {hist.data.map((h) => `${h.rank} (${h.at.slice(0, 10)})`).join(" → ")}
         </p>
       )}

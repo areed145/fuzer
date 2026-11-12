@@ -107,22 +107,22 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
         </label>
       </div>
 
-      <p className="muted">
+      <p className="small">
         {kind === "match"
-          ? "Fuzer thinks these records might be the same physical item, but isn't sure. Your answer is saved and kept on every rerun."
+          ? "These records might be the same item. Your answer is kept on every rerun."
           : kind === "mapping"
-            ? "Tables Fuzer has no mapping for. It guessed what each column means; check the meanings, edit the mapping if needed, and accept to load the table."
+            ? "Check what each column means, edit the mapping if needed, and accept to load the table."
           : kind === "curve"
-            ? "Curves Claude read off OEM datasheets. Compare its reading with the sheet; accept, correct, or reject. Only accepted curves are used in charts."
+            ? "Compare Claude's reading with the datasheet. Only accepted curves are used in charts."
           : kind === "schema"
-            ? "A dataset lost or changed columns since it was last loaded, so it is on hold: its records stay as they were. Accept if the change is expected."
+            ? "This dataset's columns changed, so it is on hold. Accept if the change is expected."
           : kind === "pid_connection"
-            ? "Lines that leave one P&ID for another, where the other drawing doesn't show them. Check both sheets: accept links the two items, reject leaves them unlinked."
+            ? "Check both sheets: accept links the two items, reject leaves them unlinked."
           : kind === "pid_mismatch"
-            ? "Places where a P&ID and another system disagree: an alarm or trip setting that differs from the DCS or AF, or an instrument SAP files under a different item. Check the drawing and the system, then record which one needs changing. Recording a decision changes neither."
+            ? "Check the drawing and the system, then record which one needs changing."
           : kind === "check"
-            ? "A dataset's last load was held: it repeated keys or failed a check that holds the load, so its records stay as they were. Fix it at the source (or the check), then load it again from its page."
-            : "Sources disagree on a value. Pick the right one; your choice always wins from now on."}
+            ? "The last load was held. Fix it at the source, then load it again from its page."
+            : "Pick the right value. Your choice wins from now on."}
       </p>
 
       {toast && (
@@ -210,7 +210,7 @@ function MatchCard({ id, p, onDecide }: { id: number; p: MatchPayload; onDecide:
         <h3>Same item? <span className="muted small">#{id}</span></h3>
         <Score value={p.score} />
       </div>
-      <p className="muted small">{p.why.charAt(0).toUpperCase() + p.why.slice(1)}.{" "}
+      <p className="small">{p.why.charAt(0).toUpperCase() + p.why.slice(1)}.{" "}
         Match score {p.score.toFixed(2)}
         {p.review_min != null && p.auto_accept != null
           ? `; scores from ${p.review_min.toFixed(2)} to ${p.auto_accept.toFixed(2)} come here for a person to decide, higher ones match on their own`
@@ -268,7 +268,7 @@ function MappingCard({ id, p, onDecide }: { id: number; p: MappingPayload; onDec
           {s.kind ? ` of ${s.kind}` : ""} · key {s.key ? <span className="mono">{s.key}</span> : "none found"} · {p.connector}
         </span>
       </div>
-      <p className="muted small mono">{p.path}</p>
+      <p className="small mono">{p.path}</p>
       <Table variant="compare">
         <thead>
           <tr>
@@ -338,7 +338,7 @@ function SchemaCard({ id, p, onDecide }: { id: number; p: SchemaPayload; onDecid
         </h3>
         <span className="muted small">{p.connector}</span>
       </div>
-      <p className="muted small mono">{p.path}</p>
+      <p className="small mono">{p.path}</p>
       <Table variant="compare">
         <thead>
           <tr>
@@ -390,7 +390,7 @@ function ConflictCard({ id, label, description, p, onDecide }: {
           · {p.field} <span className="muted small">#{id}</span>
         </h3>
       </div>
-      {description && <p className="muted small">{description}</p>}
+      {description && <p className="small">{description}</p>}
       <ul className="choices">
         {distinct.map((v) => {
           const from = p.values.filter((x) => fmt(x.value) === fmt(v.value));
@@ -472,7 +472,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
             {p.doc_number}</a> : p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
         </span>
       </div>
-      <p className="muted small">{p.title}{r.notes && ` · ${r.notes}`}</p>
+      <p className="small">{p.title}{r.notes && ` · ${r.notes}`}</p>
       <div className="mini-curves">
         {Object.entries(r.series).map(([name, pts]) => (
           <MiniCurve key={name} name={name} unit={r.units[name]} xUnit={r.units.x} pts={pts} />
@@ -512,7 +512,7 @@ function PidConnectionCard({ id, p, onDecide }: { id: number; p: PidConnectionPa
     <UICard className="review">
       <h3>Connected across drawings? <span className="muted small">#{id}</span></h3>
       <p>{p.question}</p>
-      <p className="muted small">Line {p.line}: {p.sheet} shows it {p.direction === "to" ? "leaving for" : "arriving from"}{" "}
+      <p className="small">Line {p.line}: {p.sheet} shows it {p.direction === "to" ? "leaving for" : "arriving from"}{" "}
         {p.other_sheet}.</p>
       <div className="row">
         <ButtonLink href={href("/", { q: p.sheet })}>Find {p.sheet}</ButtonLink>
@@ -531,7 +531,7 @@ const MISMATCH_TITLE = { alarm: "Alarm setting differs from the drawing", alarm_
 /** A drawing and the DCS, AF or SAP disagree (#475): which side needs changing. Recording it changes neither. */
 function PidMismatchCard({ id, label, p, onDecide }: { id: number; label: string | null; p: PidMismatchPayload; onDecide: OnDecide }) {
   const { busy, feedback, run } = useBusy(onDecide,
-    "It records which side needs changing for the team to act on. It does not change the drawing, the DCS, AF or SAP.");
+    "It records which side needs changing for the team to act on. The drawing, the DCS, AF and SAP stay as they are.");
   const system = p.check === "placement" ? "SAP" : "the alarm";
   return (
     <UICard className="review">

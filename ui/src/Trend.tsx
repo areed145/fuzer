@@ -185,7 +185,7 @@ export function TrendCard({ id, direct = false }: { id: string; direct?: boolean
       {one && (
         <>
           <Trend s={one} upsets={d!.upsets} wide />
-          <p className="muted small">
+          <p className="small">
             min {one.min} · max {one.max} · mean {one.mean} · last {one.last} {one.uom}
           </p>
         </>
@@ -215,7 +215,7 @@ export function MeasurementsCard({ id }: { id: string }) {
       <div className="trend-grid">
         {series.map((s) => <MeasurementChart key={`${s.quantity}|${s.location}|${s.of.id}`} s={s} self={id} />)}
       </div>
-      {m.data?.truncated && <p className="muted small">Showing the latest readings only.</p>}
+      {m.data?.truncated && <p className="small">Showing the latest readings only.</p>}
     </UICard>
   );
 }

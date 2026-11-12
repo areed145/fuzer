@@ -3,7 +3,7 @@
  * elsewhere, shutdown-only maintenance plans, the worst bad actors), and what is missing (spares out of stock).
  * Planned work is pulled into the window with one button. `#/turnaround` redirects to `#/plan?revision=…`. */
 import { api, type PlanItem, type TurnaroundScope } from "../api";
-import { Badge, Button, Card } from "../ui";
+import { Badge, Button, Card, Empty } from "../ui";
 import { entityHref, href } from "../lib";
 import { useAct } from "./workflows/shared";
 
@@ -23,7 +23,7 @@ export function TurnaroundPanel({ scope: t, person, onChange }: {
     <aside className="plan-panel" aria-labelledby="turnaround-heading">
       <h2 id="turnaround-heading">Turnaround {t.revision ?? ""}{" "}
         <a className="small" href={href("/plan")} aria-label="Close the turnaround">Close</a></h2>
-      {!t.revision ? <p className="muted">No work order names a revision.</p> : <>
+      {!t.revision ? <Empty>No work order names a revision.</Empty> : <>
         <p className="row small">
           {t.window ? <Badge>{day(t.window.start)} to {day(t.window.end)}</Badge> : <Badge tone="warn">not on the plan yet</Badge>}
           <Badge>{t.scoped_work.length} orders</Badge>

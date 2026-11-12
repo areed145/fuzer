@@ -4,7 +4,7 @@
  * once `stewardship.bulk_accept_at` is set. */
 import { useState } from "react";
 import { api, type Proposal } from "../../api";
-import { Badge, Button, Card, Select, Table, Disclosure } from "../../ui";
+import { Badge, Button, Card, Select, Table, Disclosure, Empty } from "../../ui";
 import { Status, entityHref, useAsync } from "../../lib";
 import { usePerson } from "../../work";
 import { usePermission } from "../../Auth";
@@ -50,8 +50,8 @@ export function ProposalsTab() {
       </div>
       {a.error && <p role="alert" className="error small">{a.error}</p>}
       <Status loading={rows.loading && !rows.data} error={rows.error} />
-      {rows.data && !rows.data.proposals.length && <p className="muted">{status === "open"
-        ? "No open proposals. Ask Claude to look at what is unmatched, unsure or inconsistent." : `No ${status} proposals.`}</p>}
+      {rows.data && !rows.data.proposals.length && <Empty>{status === "open"
+        ? "No open proposals. Ask Claude to look at what is unmatched, unsure or inconsistent." : `No ${status} proposals.`}</Empty>}
       {rows.data && rows.data.proposals.length > 0 && <Table density="compact">
         <thead><tr><th>Question</th><th>Claude</th><th>Why</th><th /></tr></thead>
         <tbody>{rows.data.proposals.map((p) => <Row key={p.id} p={p} done={rows.reload} />)}</tbody>

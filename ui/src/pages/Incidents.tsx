@@ -1,5 +1,5 @@
 import "../styles/events.css";
-import { Button, PageHeader , Card as UICard, Badge as UIBadge} from "../ui";
+import { Button, PageHeader, Card as UICard, Badge as UIBadge, Empty } from "../ui";
 import { useState } from "react";
 import { api, type Brief, type Incident } from "../api";
 import { KindBadge, Status, entityHref, href, useAsync } from "../lib";
@@ -17,7 +17,7 @@ export function IncidentsPage() {
       <RatingProgress />
       {list.data && list.data.total > 0 && (
         <>
-          <p className="muted small">
+          <p className="small">
             {list.data.total.toLocaleString()} incidents{list.data.total > list.data.items.length && `, showing the latest ${list.data.items.length}`}
           </p>
           <IncidentList items={list.data.items} />
@@ -71,9 +71,6 @@ function RatingProgress() {
           {r.data.useful_share !== null && ` · ${Math.round(r.data.useful_share * 100)}% of ratings useful`}
         </span>
       </h2>
-      <p className="muted small">
-        Open a past incident, read its brief as if you were on shift, and say whether it would have helped.
-      </p>
       {next.length > 0 && (
         <ul className="plain">
           {next.map((i) => (
@@ -135,7 +132,6 @@ function IncidentPanels({ id }: { id: string }) {
         {reading.data && reading.data.length > 0 && (
           <>
             <h2>Suggested reading</h2>
-            <p className="muted small">Manual and guide sections for this unit that cover these failure modes.</p>
             <ul className="plain">
               {reading.data.map((r) => (
                 <li key={r.id} className="small">
@@ -148,7 +144,6 @@ function IncidentPanels({ id }: { id: string }) {
           </>
         )}
         <h2>Similar past incidents</h2>
-        <p className="muted small">Same unit or equipment class, ranked by shared failure modes and event types.</p>
         <Status loading={similar.loading && !similar.data} empty={similar.data?.length === 0}>
           None found.
         </Status>
@@ -180,7 +175,7 @@ function BriefCard({ id }: { id: string }) {
           <div>
             <h3>Suggested checks</h3>
             {b.suggested_checks.length === 0 ? (
-              <p className="muted small">No approved lessons or reading for this unit yet.</p>
+              <Empty className="small">No approved lessons or reading for this unit yet.</Empty>
             ) : (
               <ol className="small">
                 {b.suggested_checks.map((c, n) => (
@@ -253,7 +248,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
         What moved <span className="muted small">12 h before {pv.centre.replace("T", " ")} vs. before that</span>
       </h3>
       {moved.length === 0 ? (
-        <p className="muted small">No point moved more than 10%.{pv.errors && ` ${pv.errors.length} points couldn't be read.`}</p>
+        <Empty className="small">No point moved more than 10%.{pv.errors && ` ${pv.errors.length} points couldn't be read.`}</Empty>
       ) : (
         <ul className="plain small">
           {moved.map((s) => (
@@ -269,7 +264,7 @@ function Moved({ pv }: { pv: Brief["process_values"] }) {
           ))}
         </ul>
       )}
-      {pv.note && <p className="muted small">{pv.note}</p>}
+      {pv.note && <p className="small">{pv.note}</p>}
     </>
   );
 }

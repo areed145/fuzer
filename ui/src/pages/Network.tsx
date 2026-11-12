@@ -1,4 +1,4 @@
-import { Button, ButtonLink, PageHeader, Input , Card as UICard, Disclosure } from "../ui";
+import { Button, ButtonLink, PageHeader, Input, Card as UICard, Disclosure, Empty } from "../ui";
 import { useMemo } from "react";
 import { api, type GraphNode, type RelationDef, type Subgraph } from "../api";
 import { ALL_RELS, GraphCanvas, REL_VIEWS, kindColor, subgraphElements } from "../graph";
@@ -142,7 +142,7 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
         )}
       </div>
       {none ? (
-        <p className="muted">Pick at least one link type to draw.</p>
+        <Empty>Pick at least one link type to draw.</Empty>
       ) : (
         <Status loading={net.loading && !net.data} error={net.error} empty={net.data?.edges.length === 0}>
           No links of {on.length === 1 ? "this type" : "these types"}{asOf ? " on this date" : ""}.
@@ -163,18 +163,18 @@ export function Network({ query = new URLSearchParams() }: { query?: URLSearchPa
             </label>
           )}
           {visible.edges.length === 0 ? (
-            <p className="muted">Every link here joins a kind you have hidden.</p>
+            <Empty>Every link here joins a kind you have hidden.</Empty>
           ) : (
             <div className="graph-layout">
               <GraphCanvas elements={elements} layout="flow" selectedId={selected}
                 onSelect={(id) => set({ node: id && known(id) ? id : undefined })} height={640} />
               <UICard className="graph-panel" as="aside">
                 {node ? <NodePanel node={node} onFocus={node.id !== shownFocus ? () => set({ focus: node.id }) : undefined} />
-                  : <p className="muted small">Click a node to see what it is.</p>}
+                  : <Empty className="small">Click a node to see what it is.</Empty>}
               </UICard>
             </div>
           )}
-          {net.data.truncated && <p className="muted small">Too many links to draw; showing the first 5,000.</p>}
+          {net.data.truncated && <p className="small">Too many links to draw; showing the first 5,000.</p>}
         </>
       )}
     </section>

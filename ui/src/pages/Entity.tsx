@@ -246,7 +246,6 @@ function Fields({ e }: { e: EntityDetail }) {
   return (
     <UICard  as="section">
       <h2>Values</h2>
-      <p className="muted small">The chosen value, which source it came from, and what every other source says.</p>
       <Table variant="keyValue" headingCase="verbatim">
         <tbody>
           {fields.map((f) => {
@@ -297,7 +296,6 @@ function Records({ e }: { e: EntityDetail }) {
   return (
     <UICard  as="section">
       <h2>Source records</h2>
-      <p className="muted small">Every record in every system that Fuzer decided is this same thing.</p>
       {!e.records.length && <p>No direct source records are linked. This may be a derived record; inspect Values and Links for supporting provenance.</p>}
       <Table variant="list">
         <tbody>
