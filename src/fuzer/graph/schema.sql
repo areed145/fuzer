@@ -123,6 +123,21 @@ create table if not exists pinned_link (
 alter table pinned_link add column if not exists batch text;
 alter table pinned_link add column if not exists reason text;
 
+-- Standing answers (P2.3c): one answer for a group of like questions that also decides new ones as they arrive.
+create table if not exists review_rule (
+    id           bigserial primary key,
+    group_key    text not null,
+    kind         text not null,
+    decision     text not null,
+    source       text,
+    value        jsonb,
+    set_by       text not null,
+    set_at       timestamptz not null default now(),
+    withdrawn_by text,
+    withdrawn_at timestamptz
+);
+create unique index if not exists review_rule_standing on review_rule (group_key) where withdrawn_at is null;
+
 -- Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
 create table if not exists match_score (
     kind        text not null,
