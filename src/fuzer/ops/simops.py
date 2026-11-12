@@ -4,12 +4,15 @@ before either is sent. Read from the records, never from equipment type:
     same asset   two jobs on the same equipment at once
     hazard       two jobs in the same area whose permits to work clash: hot work beside a line break or a confined
                  space entry, or anything under a lift (the permit's type names the hazard)
+    bypass       two jobs on the same system while one of its safeguards is bypassed (P3.9): the system is the
+                 equipment, its train and what drives it, from the piping (safeguards.reach), never from tag names
 
 A job is an open exception sent to the field or a plan item, with its subjects, its area and its time. The check runs
 in readiness at dispatch (a conflict blocks until a person says why it goes anyway) and on Plan, beside the asset and
 crew clashes, so the planner and the ops lead see the same words.
 
-Not yet: a safeguard bypassed on the same system (P3.9, not built).
+A bypass counts while it is in place now; a plan item further out is checked against today's bypasses, which is the
+cautious reading (a bypass due out before the job may still be in).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -66,10 +69,12 @@ def _label(conn, ids: list[str]) -> str:
 def job(conn, title: str, subjects: list[str], area: str | None = None, ref: dict | None = None) -> dict:
     """A job as the check sees it: its title, subjects, area and the hazards its permits bring."""
     from .plan import _area
+    from .safeguards import bypasses
 
     subjects = list(subjects or [])
     return {"title": title, "subjects": subjects, "area": area if area is not None else _area(conn, subjects),
-            "hazards": _hazards(conn, subjects), "ref": ref or {}}
+            "hazards": _hazards(conn, subjects), "ref": ref or {},
+            "bypasses": bypasses(conn, subjects, system=True) if subjects else []}
 
 
 def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
@@ -78,6 +83,11 @@ def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
     shared = [s for s in a["subjects"] if s in b["subjects"]]
     if same_asset and shared:
         out.append({"kind": "same_asset", "say": f"“{b['title']}” is on {_label(conn, shared)} at the same time"})
+    theirs = {x["id"] for x in b.get("bypasses") or []}
+    for x in a.get("bypasses") or []:
+        if x["id"] in theirs:
+            out.append({"kind": "bypass", "bypass": x["label"], "say": (
+                f"“{b['title']}” is on the same system, where a safeguard is bypassed: {x['say']}")})
     if a["area"] and a["area"] == b["area"]:
         area = _label(conn, [a["area"]])
         for x in a["hazards"]:
