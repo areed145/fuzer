@@ -238,7 +238,13 @@ def _spares(conn, subjects: list[str], job: int | None = None) -> dict:
     return spares(conn, subjects)
 
 
-CHECKS = (_spares, crew, permits)
+def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
+    from . import simops
+
+    return simops.at_dispatch(conn, subjects, job)
+
+
+CHECKS = (_spares, crew, permits, _simops)
 
 
 def check(conn, subjects: list[str], job: int | None = None) -> dict:

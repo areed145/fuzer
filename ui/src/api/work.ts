@@ -705,7 +705,7 @@ export interface PlanItem {
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
   crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
   exception_id: number | null; notes: string | null; assets: { fuzer_id: string; label: string | null }[];
-  clashes: { kind: "same_asset" | "crew" | "bundle"; with: number; title: string; say: string }[];
+  clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
   /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
   parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
 }
