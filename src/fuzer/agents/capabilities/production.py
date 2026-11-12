@@ -209,3 +209,27 @@ def plot_forecast_vs_actual(well: str | None = None, since: str | None = None, u
     under their forecast."""
     from ...plots import production
     return _chart(production.forecast_vs_actual, {"since": since, "until": until, "days": days}, {"well": well})
+
+
+@capability("wells-subsurface", "production-surveillance", "asset-performance-reporting", kind="calc")
+def intervention_gains(well: str | None = None, since: str | None = None, until: str | None = None,
+                       days: int = 730) -> dict[str, Any]:
+    """Did the well work pay off (#340)? Each recorded intervention (a well-category downtime: slickline, scale
+    squeeze, valve change, survey) with oil rate, water cut and GOR before and after. The oil gain is net of the
+    decline fitted through the tests before, with its 90 % range: gained, lost or no_clear_change. An intervention
+    with no test on one side, or too few before to net out decline, is unknown, never zero. Attribution is not proof."""
+    from ...analysis import interventions as iv
+    with db.connect() as conn:
+        fid = None
+        if well:
+            fid, err = _resolve(conn, well)
+            if err:
+                return err
+        return _plain(iv.gains(conn, since, until, fid, days))
+
+
+@capability("wells-subsurface", "asset-performance-reporting", kind="plot")
+def plot_intervention_gains(since: str | None = None, until: str | None = None, days: int = 730) -> dict[str, Any]:
+    """Chart each intervention's oil gain net of decline, with its range; unknown ones are listed, not drawn."""
+    from ...plots import production
+    return _chart(production.intervention_gains, {"since": since, "until": until, "days": days})

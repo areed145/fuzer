@@ -113,7 +113,48 @@ export interface CostOfUnreliability {
   note: string;
 }
 
+/** One well intervention's result, net of decline (P7.5a, #340). */
+export interface InterventionGain {
+  id: string;
+  well_id: string;
+  well: string;
+  start: string;
+  reason: string | null;
+  verdict: "gained" | "lost" | "no_clear_change" | "unknown";
+  why?: string | null;
+  tests_before: number;
+  tests_after: number;
+  oil_before_sm3d?: number;
+  oil_after_sm3d?: number;
+  oil_expected_sm3d?: number;
+  oil_range_sm3d?: [number, number] | null;
+  gain_sm3d?: number;
+  water_cut_change_pct: number | null;
+  gor_change: number | null;
+}
+
+export interface InterventionGains {
+  since: string;
+  until: string;
+  source: string;
+  interventions: InterventionGain[];
+  summary: { interventions: number; said: number; unknown: number; gained: number; lost: number;
+    no_clear_change: number; net_gain_sm3d: number | null };
+  note: string;
+}
+
+/** Across assets (P7.5b): each granted project's scorecard; the projects left out are named (D6). */
+export interface FleetScorecards {
+  days: number;
+  projects: { project: string; scorecard?: PlantScorecard; error?: string }[];
+  left_out: string[];
+  kpis: { key: string; label: string; unit: string; better: string }[];
+  note: string;
+}
+
 export const metricsApi = {
+  fleetScorecards: (days: number) => request<FleetScorecards>("GET", `/plant/scorecard/fleet?days=${days}`),
+  interventionGains: () => request<InterventionGains>("GET", "/plant/intervention-gains"),
   costOfUnreliability: () => request<CostOfUnreliability>("GET", "/plant/cost-of-unreliability"),
   forecastVsActual: () => request<ForecastVsActual>("GET", "/plant/forecast-vs-actual"),
   plantScorecard: (days: number, until?: string | null) =>
