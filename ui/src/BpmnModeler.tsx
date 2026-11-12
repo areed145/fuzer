@@ -343,6 +343,17 @@ function LaneProps({ ed, el, ctx }: { ed: Editing; el: any; ctx: ModelerContext 
   );
 }
 
+// Human gates (P5.10): the fixed gates a person's step can be, and the confidence gates on an agent's (core/gates.py).
+const FIXED_GATES: Record<string, string> = {
+  close_safety_case: "Closing a safety or environmental case", field_dispatch: "Dispatching people to the field",
+  write_back: "Writing back to a source system", limit_change: "Changing a limit or detector parameter",
+  publish: "Publishing a process, a skill or a lesson", bypass_safeguard: "Bypassing a safeguard",
+};
+const CONFIDENCE_GATES: Record<string, string> = {
+  auto_match: "An automatic match", auto_close: "An automatic close as duplicate or false alarm",
+  agent_disposition: "An agent's proposed disposition", agent_draft: "An agent's draft",
+};
+
 function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any; ctx: ModelerContext }) {
   const bo = el.businessObject;
   const laneRole = lane?.role;
@@ -355,6 +366,9 @@ function UserTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: any;
         onCommit={(v) => ed.set(el, { "fuzer:assignee": v })} hint="A person's name, or leave it to the role's queue." />
       <Check label="Needs a person" checked={!!bo.requiresHuman} onChange={(v) => ed.set(el, { "fuzer:requiresHuman": v || undefined })}
         hint="Approvals, closing safety items, anything reaching outside Fuzer. No agent can claim, complete or be handed it." />
+      <Select label="Gate" value={bo.gate} options={Object.keys(FIXED_GATES)} labels={FIXED_GATES} blank="(not a gate)"
+        onChange={(v) => ed.set(el, { "fuzer:gate": v })}
+        hint={bo.dispatch ? "This step sends people to the field, so it must be the field dispatch gate." : "A gate step: always a person, whatever an agent's confidence."} />
       <Text label="SLA" value={bo.sla} mono placeholder="PT4H" onCommit={(v) => ed.set(el, { "fuzer:sla": v })}
         hint="ISO 8601 duration (PT4H, P1D). Every person's task needs one, or a timer on its edge." />
       <Select label="Escalate to" value={bo.escalateTo} options={ctx.roles.person} blank="(nobody)"
@@ -394,6 +408,12 @@ function ServiceTaskProps({ ed, el, lane, ctx }: { ed: Editing; el: any; lane: a
         hint="A worker claims the step, runs this agent and records its result." />
       <Select label="If the agent keeps failing" value={bo.fallbackRole} options={ctx.roles.person} blank="the process owner"
         onChange={(v) => ed.set(el, { "fuzer:fallbackRole": v })} hint="The role that gets the step after the retries." />
+      <Select label="Confidence gate" value={bo.gate} options={Object.keys(CONFIDENCE_GATES)} labels={CONFIDENCE_GATES}
+        blank="(none: the result goes on)" onChange={(v) => ed.set(el, { "fuzer:gate": v })}
+        hint="The agent's result goes on only at or above the policy's threshold for the asset's criticality (Settings)." />
+      {bo.gate && <Select label="Below it, stops at" value={bo.gateRole} options={ctx.roles.person}
+        blank={bo.fallbackRole ? `${human(bo.fallbackRole)} (the fallback role)` : "the process owner"}
+        onChange={(v) => ed.set(el, { "fuzer:gateRole": v })} hint="The role whose queue gets it, with the reason." />}
       {bo.requiresHuman && (
         <Check label="Needs a person" checked onChange={() => ed.set(el, { "fuzer:requiresHuman": undefined })}
           hint="An agent's task can't need a person: untick this or make it a person's task." />

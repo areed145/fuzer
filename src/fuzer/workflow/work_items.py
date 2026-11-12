@@ -49,9 +49,20 @@ def _closes_with_case(conn, item_id: int, by: str) -> bool:
     return bool(procs) and all(str(run.defn(run.proc(r["id"])).attrs.get("closeWithCase", "")).lower() == "true"
                                for r in procs)
 
+def safety_gate(conn, item_id: int, state: str, by: str) -> None:
+    """Closing a safety or environmental case is a fixed gate (P5.10): only a named person closes one."""
+    from ..core import gates
+
+    if state not in ("done", "cancelled"):
+        return
+    row = conn.execute("select type from work_item where id = %s", (item_id,)).fetchone()
+    if row and row["type"] in gates.safety_case_types(conn):
+        gates.require_person(conn, "close_safety_case", by, item_id=item_id, ref=f"case:{item_id}")
+
 @_op
 def transition(conn, item_id: int, state: str, by: str, reason: str | None = None) -> dict:
     """Move an item that has no running process to another state (done and cancelled close it)."""
+    safety_gate(conn, item_id, state, by)
     item = _item(conn, item_id, lock=True)
     if _has_process(conn, item_id):
         if state in ("done", "cancelled") and _closes_with_case(conn, item_id, by):
@@ -68,6 +79,7 @@ def transition(conn, item_id: int, state: str, by: str, reason: str | None = Non
 def cancel_item(conn, item_id: int, by: str, reason: str | None = None) -> dict:
     """Cancel a case whatever moves it: its running processes are cancelled (their open steps with them), else the
     item itself moves to cancelled. The reason goes on its history."""
+    safety_gate(conn, item_id, "cancelled", by)
     run = _Run(conn, by)
     item = _item(conn, item_id, lock=True)
     if item["state"] in ("done", "cancelled"):
@@ -251,8 +263,11 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
     A step that declares `fuzer:dispatch` (the upset's Triage: `triage=field_check`) has its own way to the field:
     sending it to someone outside its role completes it with that data and the reason as `field_ask`, and the step
     the process reaches (its Field check) is handed to them. The IOC's decision stays with the IOC, and the field's
-    part shows on the process diagram."""
+    part shows on the process diagram. Dispatching is a fixed gate (P5.10): only a named person dispatches."""
+    from ..core import gates
     from .assignment import complete, hand_off
+
+    gates.require_person(conn, "field_dispatch", by, item_id=item_id, ref=f"case:{item_id}")
 
     step = conn.execute("select id, process_id, element, role, assignee from work_token where item_id = %s "
                         "and kind = 'user' and state in ('ready', 'waiting') order by due_at nulls last, id limit 1",

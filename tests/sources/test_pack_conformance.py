@@ -1,5 +1,6 @@
 """P1.5: the source pack contract and the conformance suite every pack must pass, on both bundles."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -100,3 +101,67 @@ def test_a_pack_that_breaks_the_contract_is_named_and_writes_nothing(project, tm
         report = packs.conformance(conn, _variant(tmp_path, **changes))
         assert any(problem in p for p in report["problems"]), report["problems"]
         assert conn.execute("select count(*) as n from source_system where name = 'measurement'").fetchone()["n"] == 0
+
+
+# ---- the built-in sources as packs (P1.5b) ------------------------------------------------------
+
+
+def test_every_built_in_mapping_and_reader_belongs_to_a_pack():
+    from fuzer.resources import MAPPINGS
+    from fuzer.sources.ingest import READERS
+
+    covered = set()
+    for name in packs.builtin_names():
+        for d in yaml.safe_load(packs.builtin(name))["datasets"]:
+            covered |= {(m["source"], m["record_type"]) for m in d["mappings"]}
+            assert d.get("reader") is None or d["name"] in READERS
+    every = {(r["source"], r["record_type"]) for r in map(yaml.safe_load, map(Path.read_text, MAPPINGS.glob("*.yaml")))}
+    assert every - covered == set()
+
+
+ROADMAP = ["sap", "pi", "pi_af", "ec", "dcs", "lims", "inspection", "pid", "oplog", "iow", "gis", "maximo", "oem", "edms"]
+
+
+@pytest.mark.parametrize("bundle", ["okan", "kestrel"])
+def test_the_built_in_packs_conform_on_both_bundles(project, okan_data, bundle):
+    exports = okan_data if bundle == "okan" else SHIPPED / "kestrel" / "exports"
+    results = {}
+    with project(bundle) as conn:
+        for name in packs.builtin_names():
+            results[name] = packs.conformance(conn, name, fixture=exports)
+    failing = {n: r["problems"] for n, r in results.items() if r["problems"]}
+    assert not {n: p for n, p in failing.items() if n in ROADMAP}, failing
+    for name in ROADMAP:
+        assert results[name]["loaded"]["records"] > 0, (name, results[name])
+
+
+# ---- the walkthrough in docs/extend.md (P1.5d): the pack it writes is built from the page and must conform ----
+
+DOC = ROOT / "docs" / "extend.md"
+
+
+def _files(text: str) -> dict[str, str]:
+    """Every fenced block with a title under the walkthrough's heading: its path and its contents."""
+    section = text.split("## Write a source pack", 1)[1].split("\n## ", 1)[0]
+    return {m[1]: m[2] for m in re.finditer(r'```\w+ title="([^"]+)"\n(.*?)```', section, re.DOTALL)}
+
+
+def test_the_walkthrough_writes_a_pack_and_its_fixture():
+    files = _files(DOC.read_text())
+    assert set(files) == {"lab/pack.yaml", "lab/samples/water_cut_samples.csv"}
+
+
+@pytest.mark.parametrize("bundle", ["kestrel", "okan"])
+def test_the_walkthrough_pack_conforms(project, tmp_path, bundle):
+    for path, body in _files(DOC.read_text()).items():
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text(body)
+    with project(bundle) as conn:
+        report = packs.conformance(conn, tmp_path / "lab" / "pack.yaml")
+        assert report["problems"] == [], report
+        assert report["loaded"]["records"] == 4
+        assert report["installed"]["exception_types"] == ["water_cut_jump"]
+        from fuzer.sources import workflows
+
+        ran = workflows.evaluate(conn, ["water_cut_samples"])["lab/high_water_cut"]
+        assert ran["raised"] + ran["refreshed"] == 1, ran  # LS-003, raised when its fixture loaded

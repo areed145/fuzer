@@ -71,6 +71,12 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 .home-list li > a, .home-list li > div { min-width: 0; overflow-wrap: anywhere; }
 .home-list li > div { display: grid; gap: 2px; }
 .home-priorities li { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+/* My work: what the person was told (P5.2). Each line is a 44px target that opens its case. */
+.notification-list { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
+.notification-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.notification-list li > a { display: flex; align-items: center; min-height: 44px; min-width: 0; overflow-wrap: anywhere; }
+.notification-list li > span { color: var(--muted); white-space: nowrap; }
+@media (max-width: 640px) { .notification-list li { grid-template-columns: auto minmax(0, 1fr); } .notification-list li > span { grid-column: 2; } }
 .home-headline { margin-bottom: 12px; }
 .home-subsection { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .home-subsection h3 { font-size: 13px; }
@@ -82,3 +88,7 @@ ul.ranking li { text-transform: none; grid-template-columns: 1fr 70px 60px; }
 /* Home's charts sit side by side on a desk screen and stack on a phone; no carousel. */
 .home-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 @media (max-width: 1000px) { .home-charts { grid-template-columns: 1fr; } }
+/* A case's gate decisions (P5.10): went ahead or stopped, the reason, then the numbers. */
+.gate-list { display: grid; gap: 8px; margin: 0; padding: 0; }
+.gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
+.gate-list li > .small { grid-column: 2; color: var(--muted); }

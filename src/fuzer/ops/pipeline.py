@@ -203,6 +203,10 @@ def rebuild(conn, pack: Pack) -> dict:
         (Jsonb(queries.ontology(conn, cached=False)),),
     )
     lap("summary")
+    from ..graph import data_work
+
+    stats["steward_work"] = data_work.sync(conn)  # every open question is a case in the steward's queue (P2.3)
+    lap("steward work")
     conn.commit()
     lap("commit")
     stats["seconds"] = timings

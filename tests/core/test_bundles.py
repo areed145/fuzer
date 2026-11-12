@@ -23,7 +23,7 @@ KESTREL_DATASETS = {
     "oplogs", "ec_downtime", "dcs_alarms", "iow_register", "inspection_readings", "lims_results",
     "ec_well_tests", "ec_network", "oem_curves", "pid_sheets", "documents",
     "gis_facilities", "gis_pipelines", "gis_wells"}
-KESTREL_ENTITIES = 353
+KESTREL_ENTITIES = 355
 OKAN = ROOT / "fakeplant" / "bundles" / "okan"
 
 
@@ -251,7 +251,11 @@ def test_kestrel_boots_from_its_bundle_with_nothing_from_okan(kestrel_url, servi
         kinds = {r["kind"]: r["n"] for r in conn.execute(
             "select kind, count(*) as n from entity where merged_into is null and retired_at is null group by kind")}
         assert kinds["facility"] == 1 and kinds["area"] == 8 and kinds["tag"] == 82 and kinds["well"] == 2
-        assert kinds["equipment"] == 51  # Maximo's eight assets merged into SAP's by serial, despite its formats
+        # Maximo's eight assets merge into SAP's by serial, despite its formats. Of the five planted without one
+        # (P2.2), two merge on maker and description, the glycol pump's driver merges wrongly into the pump at the
+        # pack's 0.90 (until calibration raises Maximo's threshold), the stabilizer reboiler waits for a person
+        # and the pump's motor stays its own item.
+        assert kinds["equipment"] == 53
         # Its own work, drawings, map and documents: what the IOC triages and the field operator is sent with.
         assert kinds["notification"] == 12 and kinds["work_order"] == 21 and kinds["log_entry"] == 24
         assert kinds["pipeline"] == 2 and kinds["document"] >= 17 and kinds["well_test"] == 24

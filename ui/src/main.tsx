@@ -12,7 +12,6 @@ import { SettingsPage } from "./pages/Settings";
 import { SourcesPage } from "./pages/sources";
 import { StudiesPage } from "./pages/Studies";
 import { Entity } from "./pages/Entity";
-import { Review } from "./pages/Review";
 import { DowntimePage } from "./pages/Downtime";
 import { IncidentsPage } from "./pages/Incidents";
 import { LessonsPage } from "./pages/Lessons";
@@ -86,6 +85,11 @@ function App() {
     // Turnaround is a window on the Plan now (#554): the revision opens beside the timeline.
     if (section === "turnaround") {
       location.replace(`#/plan?revision=${encodeURIComponent(query.get("revision") ?? "")}`);
+      return;
+    }
+    // Data review is the Questions tab of Master data now (#505, P2.3); its links land on the same kind.
+    if (section === "review") {
+      location.replace(href("/masterdata", { tab: "questions", ...Object.fromEntries(query.entries()) }));
       return;
     }
     // My jobs is part of My work now (#503).
@@ -199,10 +203,8 @@ function App() {
             <UsersPage query={query} />
           ) : section === "routing" ? (
             <RoutingPage query={query} />
-          ) : section === "board" || section === "cases" || section === "field" || section === "turnaround" ? (
-            null  /* redirecting to All work, My work or Plan */
-          ) : section === "review" ? (
-            <Review query={query} stats={s} />
+          ) : section === "board" || section === "cases" || section === "field" || section === "turnaround" || section === "review" ? (
+            null  /* redirecting to All work, My work, Plan or Master data */
           ) : (
             <EmptyState title="Page not found"><a href={href("/")}>Return home</a> or use the navigation to choose a page.</EmptyState>
           )}

@@ -51,6 +51,11 @@ the registered detectors it brings (`detectors`, switched on when it is installe
 again with nothing changed, and its fixture loads through its own mappings with no dataset held or missing.
 `fuzer sources conformance FILE` runs it on the current project (use a scratch database), and
 `tests/sources/test_pack_conformance.py` runs it for every shipped pack on both Okan and Kestrel.
+The built-in sources are packs too: `src/fuzer/source_packs/<system>.yaml` names each system's datasets, its
+`optional` ones (loaded when a site exports them) and its detectors, and the full pack is assembled from the
+built-in mapping files, so a mapping still lives in one place. `fuzer sources conformance sap` runs one against the
+project's own exports, and the test runs the SAP, PI, PI AF, EC, DCS, LIMS, inspection, P&ID, operator log, IOW, GIS,
+Maximo, OEM and EDMS packs on both bundles.
 
 **The work a system brings** (#465, `sources/workflows.py`). A pack can also declare the exception types its
 system raises and the rules that turn its loaded records into exceptions, so onboarding a SCADA, LIMS or
@@ -109,6 +114,16 @@ and one component renders every finding on the case, the task and the phone, wit
 by tag and description. `data` holds only the variables the type's process routes on and is never shown. A webhook
 or `POST /exceptions` body keeps sending `evidence` in the sender's own keys; `findings.external` turns it into a
 finding in one place. A test fails when a raiser under `src/fuzer` passes anything else.
+
+**Data problems are routed work** (P2.3, `graph/data_work.py`). Every open question the build leaves becomes a case in
+the data steward's queue, with its own work type on the Routing page and the role's SLA. That covers a possible
+match, sources that disagree, a drawing that disagrees with a system, a drawing line or datasheet curve to
+confirm, an export whose columns changed, a suggested mapping, and a load a check held. These cases are worked in
+the same engine as the IOC's, so they show in My work and All work. Each case is keyed to its question and synced
+at every rebuild. An answer clears the case, and so does a question that no longer arises, so the queue always
+matches the questions. Steward cases don't join the IOC's cases about the same asset. The questions themselves are
+the **Questions** tab of Master data, which replaced the separate Data review page (#505; old `#/review` links land
+there). Each case's evidence links to its question, opened on it (a `page()` item in the finding).
 
 **Master data stewardship** (#476, Work > Master data). Work only routes when it matches the register, so the
 register is maintained, not just built. An exception whose ref matched nothing shows **Match…** beside the ref:
@@ -177,6 +192,27 @@ coverage and open reviews. A problem opens one `source_issue` work item for the 
 system's owner, else `role:data_steward`) and posts to the alert webhook; the item closes when the problem
 clears. Rules (`rules.py`): survivorship priority and match thresholds come from the catalog at each rebuild,
 seeded from the pack (a rule nobody edited follows the pack).
+
+**Calibrated match confidence** (P2.2, `graph/calibration.py`). Equipment that shares no serial with another
+system's record is scored on its tag, maker and description. Each rebuild keeps every scored pair with what it
+did (`match_score`): merged, sent to review, ambiguous or left apart. **Measure**, on the Rules page (or
+`fuzer sources calibrate`), labels those pairs from the stewards' match decisions and the project's answer key
+(`answer_keys/matches.json` in its data folder). It then gives each source what its scores are worth:
+
+- its precision and recall at each threshold, with the lower bound of the 95% interval,
+- a calibrated probability per score (isotonic),
+- a straight-through threshold at 99% measured precision,
+- a review floor that rejects no true match it saw.
+
+A pair belongs to the register being matched in, the less trusted of its two systems by rank, so a contractor
+register is measured on its own records. A record that fits two items always goes to a person, so it is counted
+but not measured. **Use the measured thresholds** sets each source's match rule (`equipment/<source>`, audited),
+and a pair is held to the stricter of its two sources' thresholds from the next rebuild. The cautious direction
+(a higher straight-through threshold, a lower review floor) is adopted on any evidence. The other direction
+needs at least 30 labelled pairs, since 100% of ten pairs is not 99%. On Kestrel, the glycol pump's driver
+(same maker, a close name, the pump's tag) goes straight into the pump at the pack's 0.90. Measuring puts
+Maximo's threshold above it, and the next rebuild sends it to a person. `tests/graph/test_calibration.py` holds
+straight-through at 99% or better on both bundles.
 
 **Before and after a change.** `fuzer sources impact` runs a proposed mapping beside the one in use over the
 stored records and diffs what they make: entities and links added or removed, fields changed, golden values that

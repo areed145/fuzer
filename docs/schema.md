@@ -181,6 +181,36 @@ The event outbox (core/events.py): what happened, written in the transaction tha
 | `attempts` | integer |  |
 | `last_error` | text |  |
 
+### `gate_policy`
+
+Human gates as policy (P5.10, #619; core/gates.py). The fixed gates are code and never configurable; a confidence gate's thresholds (per asset criticality) and the safety case types are data here, over the shipped defaults.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `settings` | jsonb |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
+### `gate_decision`
+
+Every automatic or agent decision a gate saw: its confidence, the threshold applied and whether the gate fired (stopped it for a person), with the reason a person reads on the case.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `kind` | text |  |
+| `actor` | text |  |
+| `ref` | text |  |
+| `item_id` | bigint |  |
+| `confidence` | double precision |  |
+| `threshold` | double precision |  |
+| `criticality` | text |  |
+| `could_not_check` | text[] |  |
+| `fired` | boolean |  |
+| `reason` | text |  |
+| `at` | timestamptz |  |
+
 ## Work engine
 
 [`src/fuzer/workflow/schema.sql`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/schema.sql)
@@ -356,6 +386,48 @@ One row per step a process reached. Rows stay once done, so they are also the pa
 | `element` | text |  |
 | `data` | jsonb |  |
 | `at` | timestamptz |  |
+
+### `work_notification`
+
+Telling the assignee (P5.2, #604): dispatch, hand-back, escalation, automatic assignment and due-soon each tell the person concerned (workflow/notify.py), read from work_event by a cursor so every path that moves work is covered. `key` makes each one once. Every notification shows in the person's list on My work; `delivery` is its send on their chosen channel (null: in-app only; queued, held for quiet hours, sent, failed).
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `key` | text |  |
+| `person` | text |  |
+| `kind` | text | dispatched, handed_back, escalated, assigned, due_soon |
+| `item_id` | bigint |  |
+| `token_id` | bigint |  |
+| `text` | text |  |
+| `link` | text |  |
+| `channel` | text |  |
+| `delivery` | text |  |
+| `error` | text |  |
+| `created_at` | timestamptz |  |
+| `sent_at` | timestamptz |  |
+| `read_at` | timestamptz |  |
+
+### `work_notify_cursor`
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | int |  |
+| `last_event` | bigint |  |
+
+### `work_notify_pref`
+
+How each person wants to be told: in_app, email, teams or slack, at `address` (an email address, or for Teams and Slack where their webhook URL is kept: env:NAME), and quiet hours in the project's timezone when nothing external is sent (held until they end; it still shows in-app).
+
+| Column | Type | Note |
+|---|---|---|
+| `name` | text |  |
+| `channel` | text |  |
+| `address` | text |  |
+| `quiet_from` | time |  |
+| `quiet_to` | time |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
 
 ## Sources and ingestion
 
@@ -797,6 +869,32 @@ Reviewer match decisions; applied on every rerun.
 | `rule` | text |  |
 | `decided_by` | text |  |
 | `decided_at` | timestamptz |  |
+
+### `match_score`
+
+Every pair the matcher scored on the last rebuild, with what it did (P2.2): what calibration measures against labels.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `left_ref` | text |  |
+| `right_ref` | text |  |
+| `sources` | text[] |  |
+| `score` | double precision |  |
+| `outcome` | text |  |
+
+### `match_calibration`
+
+The last calibration per entity kind and source (P2.2): measured precision at each threshold, the calibrated probability for a score, and the thresholds it recommends.
+
+| Column | Type | Note |
+|---|---|---|
+| `kind` | text |  |
+| `source` | text |  |
+| `result` | jsonb |  |
+| `labels` | text |  |
+| `measured_at` | timestamptz |  |
+| `measured_by` | text |  |
 
 ### `knowledge_index`
 

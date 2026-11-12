@@ -199,3 +199,42 @@ create table if not exists work_event (
 );
 create index if not exists work_event_item on work_event (item_id, id);
 create index if not exists work_event_process on work_event (process_id, id);
+
+-- Telling the assignee (P5.2, #604): dispatch, hand-back, escalation, automatic assignment and due-soon each tell the
+-- person concerned (workflow/notify.py), read from work_event by a cursor so every path that moves work is covered.
+-- `key` makes each one once. Every notification shows in the person's list on My work; `delivery` is its send on
+-- their chosen channel (null: in-app only; queued, held for quiet hours, sent, failed).
+create table if not exists work_notification (
+    id         bigserial primary key,
+    key        text not null unique,
+    person     text not null,
+    kind       text not null,   -- dispatched, handed_back, escalated, assigned, due_soon
+    item_id    bigint,
+    token_id   bigint,
+    text       text not null,
+    link       text not null,
+    channel    text not null default 'in_app',
+    delivery   text,
+    error      text,
+    created_at timestamptz not null default now(),
+    sent_at    timestamptz,
+    read_at    timestamptz
+);
+create index if not exists work_notification_person on work_notification (person, id);
+create index if not exists work_notification_delivery on work_notification (id) where delivery in ('queued', 'held');
+create table if not exists work_notify_cursor (
+    id         int primary key default 1 check (id = 1),
+    last_event bigint not null
+);
+-- How each person wants to be told: in_app, email, teams or slack, at `address` (an email address, or for Teams and
+-- Slack where their webhook URL is kept: env:NAME), and quiet hours in the project's timezone when nothing external
+-- is sent (held until they end; it still shows in-app).
+create table if not exists work_notify_pref (
+    name       text primary key,
+    channel    text not null default 'in_app',
+    address    text,
+    quiet_from time,
+    quiet_to   time,
+    updated_by text,
+    updated_at timestamptz not null default now()
+);

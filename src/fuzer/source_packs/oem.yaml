@@ -1,0 +1,8 @@
+# OEM data: equipment performance curves and compressor maps.
+# A built-in source pack (P1.5): the datasets name built-in mapping files and readers, assembled by
+# fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
+fuzer_source_pack: 1
+system: {name: oem}
+datasets: [oem_curves, oem_compressor_maps]
+optional: [oem_compressor_maps]
+detectors: [machine_health]

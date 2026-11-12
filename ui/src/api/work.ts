@@ -289,6 +289,44 @@ export interface CaseRow {
   process_key: string | null; escalated: boolean;
 }
 
+/** Something a person was told (P5.2, #604): work sent, handed back, escalated or assigned to them, or coming due. */
+export interface WorkNotification {
+  id: number;
+  kind: "dispatched" | "handed_back" | "escalated" | "assigned" | "due_soon";
+  item_id: number | null;
+  token_id: number | null;
+  text: string;
+  link: string;
+  channel: string;
+  delivery: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+/** How a person is told (P5.2b, #606): on My work only, or also by email, Teams or Slack, with quiet hours. */
+export interface NotifyPreference {
+  channel: "in_app" | "email" | "teams" | "slack";
+  address: string | null;
+  quiet_from: string | null;
+  quiet_to: string | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
+}
+
+/** A gate's decision on a case (P5.10): whether an automatic or agent decision went ahead or stopped for a person. */
+export interface GateDecision {
+  id: number;
+  kind: string;
+  actor: string;
+  confidence: number | null;
+  threshold: number | null;
+  criticality: string | null;
+  could_not_check: string[];
+  fired: boolean;
+  reason: string;
+  at: string;
+}
+
 export interface WorkInbox {
   person: string;
   roles: string[];
@@ -353,6 +391,8 @@ export interface WorkProcess {
 export interface WorkItem {
   /** False when no agents provider is configured: no agent worker runs, so agent steps wait for a person. */
   agents_configured?: boolean;
+  /** What agents have spent on the case and its cap (USD; cap 0 means none), P4.4. */
+  agent_spend?: { usd: number; cap_usd: number };
   /** Every exception the case works, each with its finding. */
   sources?: CaseSource[];
   id: number;
@@ -496,8 +536,8 @@ export interface JoinedException {
 /** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
 export interface FindingItem {
   label: string; value: string | number | boolean; unit?: string;
-  kind: "text" | "number" | "flag" | "time" | "asset";
-  /** An asset's tag and description. */
+  kind: "text" | "number" | "flag" | "time" | "asset" | "page";
+  /** An asset's tag and description, or a page link's words. */
   text?: string | null;
 }
 
@@ -580,6 +620,13 @@ export const workApi = {
       "DELETE", `/work/people/${encodeURIComponent(name)}`, { by }),
   workRoleSummary: () => request<WorkRoleSummary[]>("GET", "/work/roles/summary"),
   inbox: (person: string) => request<WorkInbox>("GET", "/work/inbox", { person }),
+  notifications: (person: string) =>
+    request<{ notifications: WorkNotification[]; unread: number }>("GET", "/work/notifications", { person }),
+  notifyPreference: (person: string) => request<NotifyPreference>("GET", `/work/people/${encodeURIComponent(person)}/notify`),
+  setNotifyPreference: (person: string, p: NotifyPreference, by: string) =>
+    request<NotifyPreference>("PUT", `/work/people/${encodeURIComponent(person)}/notify`, undefined, { ...p, by }),
+  markNotificationsRead: (person: string, ids?: number[]) =>
+    request<{ read: number }>("POST", "/work/notifications/read", undefined, { person, ids: ids ?? null }),
   exceptions: (f: { state?: string; type?: string; subject?: string; audience?: string } = {}) =>
     request<ExceptionRow[]>("GET", "/exceptions", f),
   handovers: () => request<HandoverRow[]>("GET", "/handovers"),
@@ -620,6 +667,7 @@ export const workApi = {
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
+  workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
   workDefinitionXml: (id: number) => requestText(`/work/definitions/${id}/bpmn`),
   workDefinitions: (processKey?: string) => request<WorkDefinition[]>("GET", "/work/definitions", { process_key: processKey }),
   generateWorkflow: (id: number, description: string, by: string) =>

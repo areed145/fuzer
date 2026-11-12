@@ -17,8 +17,8 @@ ACTIONS = {
     "import-pack": "FILE: install a source pack: its system, connections, datasets, mappings, checks, work types "
                    "and detectors; safe to repeat (--config CONNECTION.key=value changes a connection's config, "
                    "e.g. its folder here)",
-    "conformance": "FILE: run the source pack conformance suite (installs the pack and loads its fixture on this "
-                   "project; use a scratch database)",
+    "conformance": "FILE|SYSTEM: run the source pack conformance suite (installs the pack and loads its fixture on "
+                   "this project; a built-in pack such as sap loads the project's exports; use a scratch database)",
     "approve": "make a draft mapping version the one in use",
     "rollback": "put an older mapping version back in use (as a new version)",
     "discard": "set a draft mapping version aside without using it",
@@ -54,6 +54,9 @@ ACTIONS = {
     "rank": "SYSTEM N: a system's place in the default priority (lower wins)",
     "impact": "what a mapping change would do (a file, or a version id), before it is approved",
     "why": "FUZER_ID FIELD: the records, mapping versions and runs behind a golden value",
+    "calibrate": "[KEYS] measure the last rebuild's match scores per source against the stewards' decisions and "
+                 "an answer key folder (default: answer_keys in the data folder); --adopt sets each source's "
+                 "thresholds from it (P2.2)",
 }
 
 
@@ -75,6 +78,7 @@ def add_parser(sub) -> None:
     so.add_argument("--column", default=None, help="add-check: the column it looks at")
     so.add_argument("--blocking", action="store_true", help="add-check: a failure holds the load")
     so.add_argument("--now", action="store_true", help="profile: profile it now")
+    so.add_argument("--adopt", action="store_true", help="calibrate: set each source's match thresholds from it")
     so.add_argument("--reason", default=None, help="why (kept in the audit log)")
     so.add_argument("--by", default=os.environ.get("USER", "cli"))
 
@@ -149,8 +153,10 @@ def run(conn, pack, data: Path, args) -> object:
             out = [packs.install(conn, Path(f).read_text(), by, why, cfg) for f in _need(args, 1, "a pack file")]
         elif a == "conformance":
             from ..sources import packs
+            from . import data_dir
 
-            out = [packs.conformance(conn, f) for f in _need(args, 1, "a pack file")]
+            out = [packs.conformance(conn, f, fixture=data_dir() if f in packs.builtin_names() else None)
+                   for f in _need(args, 1, "a pack file or built-in pack")]
             if any(r["problems"] for r in out):
                 raise SystemExit("\n".join(f"{r['pack']}: {p}" for r in out for p in r["problems"]))
         elif a == "approve":
@@ -246,6 +252,13 @@ def run(conn, pack, data: Path, args) -> object:
         elif a == "why":
             fid, field = _need(args, 2, "a Fuzer ID and a field")[:2]
             return impact.why(conn, pack, fid, field)
+        elif a == "calibrate":
+            from ..graph import calibration
+
+            measured = calibration.measure_from_keys(conn, Path(args.names[0]) if args.names else data / "answer_keys", by)
+            out = {s: {k: v for k, v in r.items() if k not in ("curve", "calibrated")} for s, r in measured.items()}
+            if args.adopt:
+                out = {"measured": out, "adopted": calibration.adopt(conn, by, reason=why)}
     except (catalog.CatalogError, quality.CheckError, rules.RuleError, impact.ImpactError,
             ingest.DatasetNotFound, ingest.DatasetUnavailable, connections.ConnectionError_) as e:
         conn.rollback()

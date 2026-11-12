@@ -279,7 +279,7 @@ function AddResult({ r }: { r: AddTableResult }) {
                   : <>the {c.kind} check failed ({c.value}). See the dataset's Quality tab.</>}
               </li>
             ))}
-            {!checks && <li>its columns changed: answer the schema item on the <a href={href("/review", { kind: "schema" })}>Review</a> page.</li>}
+            {!checks && <li>its columns changed: answer the schema item on the <a href={href("/masterdata", { tab: "questions", kind: "schema" })}>Questions</a> tab of Master data.</li>}
           </ul>
         </>
       )}

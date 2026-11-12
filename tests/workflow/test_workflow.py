@@ -353,6 +353,87 @@ def test_agent_cannot_complete_requires_human_step(conn):
     assert engine.item(conn, out["item_id"])["state"] == "done"
 
 
+def test_an_agent_cannot_set_what_a_person_decides_on_any_tool_surface(conn):
+    """P4.4: the human-decision boundary is the server's. Whichever way an agent hands in data (finishing its step
+    directly, through the worker, through the MCP work tools, or as a message), it cannot set the decision keys or
+    any key a person has already set on the process; what it proposes goes under its own keys."""
+    from fuzer.agents.capabilities import work as work_tools
+
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "loop.bpmn").read_text())
+    out = engine.start(conn, "t_loop", {}, "alice")
+    draft = task(conn, out["item_id"], "draft")
+    # The engine: a reserved decision key on the agent's own step is refused, and nothing changes.
+    with pytest.raises(engine.Forbidden, match="a person decides"):
+        engine.complete(conn, draft["id"], "agent:reporter", {"draft": "text", "decision": "ok"})
+    assert task(conn, out["item_id"], "draft")["state"] == "waiting"
+    assert "decision" not in engine.item(conn, out["item_id"])["processes"][0]["data"]
+    engine.complete(conn, draft["id"], "agent:reporter", {"draft": "text"})
+    # A key the person set (their review sent it back) can't be overwritten by the agent on the next round.
+    engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise", "note": "tighten"})
+    again = task(conn, out["item_id"], "draft")
+    with pytest.raises(engine.Forbidden, match="note"):
+        engine.complete(conn, again["id"], "agent:reporter", {"draft": "v2", "note": "looks fine now"})
+    # The MCP work tool: the same refusal, as an error the agent reads.
+    got = work_tools.complete_work(again["id"], "reporter", {"draft": "v2", "approved": True})
+    assert "a person decides" in got["error"]
+    # The worker: a result that crosses the boundary goes to a person with the reason, never into the data.
+    res = worker.run_once(conn, {"reporter": lambda call: {"decision": "ok"}}, "w-boundary")
+    assert res["handed_to"]
+    step = conn.execute("select kind, error from work_token where id = %s", (again["id"],)).fetchone()
+    assert step["kind"] == "user" and "a person decides" in step["error"]
+    data = engine.item(conn, out["item_id"])["processes"][0]["data"]
+    assert data["decision"] == "revise" and data["note"] == "tighten"
+
+
+def test_an_agent_message_cannot_carry_a_decision(conn):
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "messages.bpmn").read_text())
+    out = engine.start(conn, "t_messages", {"incident_id": "inc-boundary"}, "alice")
+    with pytest.raises(engine.Forbidden, match="approved"):
+        engine.send_message(conn, "evidence", "inc-boundary", {"severity": "high", "approved": True}, "agent:troubleshooter")
+    assert engine.send_message(conn, "evidence", "inc-boundary", {"severity": "high"}, "agent:troubleshooter")["delivered"]
+    assert engine.item(conn, out["item_id"])["processes"][0]["data"]["severity"] == "high"
+
+
+def test_agent_spend_is_counted_by_agent_type_and_asset_and_a_cap_stops_the_next_step(conn):
+    """P4.4: each agent step's ledger feeds the spend roll-up, and once a case's agent spend reaches its cap the next
+    agent step goes to a person with the spend and the cap on the case, instead of running."""
+    from fuzer.agents import ledger
+    from fuzer.core import settings
+
+    quiet(conn)
+    publish_file(conn, (BPMN_DIR / "loop.bpmn").read_text())
+    out = engine.start(conn, "t_loop", {}, "alice", subjects=["unit-spend"])
+    settings.set(conn, "agents.case_cap_usd", 1.0, by="test")
+    try:
+        def reporter(call):
+            return {call.element: {"answer": "draft", "ledger": {"agent": "reporter", "cost_usd": 0.6}}}
+        worker.run_once(conn, {"reporter": reporter}, "w-spend")
+        engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise"})
+        worker.run_once(conn, {"reporter": reporter}, "w-spend")  # 0.6 spent: under the cap, it runs
+        assert ledger.case_spend(conn, out["item_id"]) == 1.2
+        engine.complete(conn, task(conn, out["item_id"], "review")["id"], "olga", {"decision": "revise"})
+        ran = []
+        res = worker.run_once(conn, {"reporter": lambda call: ran.append(1) or {}}, "w-spend")
+        assert not ran and res["handed_to"]  # 1.2 of 1.0: the agent never ran, a person has the step
+        handed = events(conn, out["item_id"], "handed_off")[-1]["data"]["reason"]
+        assert "reached its cap: $1.20 of $1.00" in handed
+        s = ledger.spend(conn)
+        assert next(r for r in s["by_agent"] if r["agent"] == "reporter")["cost_usd"] >= 1.2
+        assert {k: v for k, v in next(r for r in s["by_asset"] if r["asset"] == "unit-spend").items()} == {
+            "asset": "unit-spend", "cost_usd": 1.2, "steps": 2, "cases": 1}
+        assert next(r for r in s["by_work_type"] if r["work_type"] == "t_loop")["cases"] >= 1
+        from fastapi.testclient import TestClient
+
+        from fuzer.api import app
+        client = TestClient(app)
+        assert client.get(f"/work/items/{out['item_id']}").json()["agent_spend"] == {"usd": 1.2, "cap_usd": 1.0}
+        assert client.get("/work/agent-spend").json()["total_usd"] >= 1.2
+    finally:
+        settings.reset(conn, "agents.case_cap_usd", by="test")
+
+
 def test_claimed_task_belongs_to_its_claimer(conn):
     publish_file(conn, (BPMN_DIR / "exclusive.bpmn").read_text())
     out = engine.start(conn, "t_exclusive", {}, "alice")

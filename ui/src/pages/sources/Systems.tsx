@@ -1,7 +1,7 @@
 import { Button, Input, Table, Card as UICard, Select, Badge as UIBadge, Disclosure, Empty } from "../../ui";
 /** Systems of record and their connections (#225): edit a system, add, test, edit and delete connections, and
  * see what each connection holds. */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api, type Catalog, type CatalogConnection, type CatalogSystem, type Json, type PackReport } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { TestSteps, reviewer, useAction } from "./common";
@@ -85,13 +85,44 @@ export function ImportPack({ onDone }: { onDone: () => void }) {
         <Button variant="link" onClick={() => { setOpen(false); setReport(null); }}>Close</Button>
       </div>
       {a.error && <p className="error small">{a.error}</p>}
-      {report && (
-        <Table variant="list" density="compact">
-          <tbody>{Object.entries(report).map(([k, v]) => <tr key={k}><th>{k.replace(/_/g, " ")}</th><td>{v.join(", ")}</td></tr>)}</tbody>
-        </Table>
-      )}
+      {report && <PackInstalled report={report} />}
     </UICard>
   );
+}
+
+/** What installing a pack did (P1.5): each thing it added, under the page that owns it, linked there. */
+export function PackInstalled({ report }: { report: PackReport }) {
+  const list = (k: string) => report[k] ?? [];
+  const links = (items: string[], to: (x: string) => string) =>
+    items.map((x, i) => <span key={x}>{i > 0 && ", "}<a href={to(x)}>{x}</a></span>);
+  const rows: [string, string, ReactNode][] = [];
+  const add = (page: string, what: string, items: string[], to?: (x: string) => string) => {
+    if (items.length) rows.push([page, what, to ? links(items, to) : items.join(", ")]);
+  };
+  add("Sources", "System", list("system").map((x) => x.replace(/^system /, "")), () => href("/sources", { view: "systems" }));
+  add("Sources", "Connections", list("connections"));
+  add("Sources", "Datasets", list("datasets"), (d) => href("/sources", { view: "dataset", name: d }));
+  add("Sources", "Mappings", list("mappings"));
+  add("Sources", "Drafts to review", list("drafts"));
+  add("Sources", "Checks", list("checks"));
+  add("Routing", "Types of work", list("exception_types"), (t) => href("/routing", { type: t }));
+  add("Routing", "Rules", list("exception_rules"));
+  add("Detection", "Switched on", list("detectors"), () => href("/settings", { view: "detection" }));
+  const unchanged = list("unchanged");
+  return <div className="pack-installed" role="status">
+    <p className="small">{rows.length ? "Installed." : "Nothing changed: everything in the pack was already here."}</p>
+    {["Sources", "Routing", "Detection"].map((page) => {
+      const mine = rows.filter((r) => r[0] === page);
+      return mine.length > 0 && <div key={page}>
+        <h4>On {page}</h4>
+        <Table variant="list" density="compact">
+          <tbody>{mine.map(([, what, items]) => <tr key={what}><th scope="row">{what}</th><td>{items}</td></tr>)}</tbody>
+        </Table>
+      </div>;
+    })}
+    {unchanged.length > 0 && <Disclosure label={`${unchanged.length} already in place`}>
+      <p className="small">{unchanged.join(", ")}</p></Disclosure>}
+  </div>;
 }
 
 /** The work a system brings (#465): its exception types with how many are open, the rules that raise them from its

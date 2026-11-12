@@ -11,14 +11,56 @@ from .definitions import (
     SYSTEM,
     TASK_KINDS,
     Conflict,
+    Forbidden,
     NotFound,
     WorkError,
     _definition,
     _event,
     _op,
     _published,
+    is_agent,
     utcnow,
 )
+
+# Process data only a person decides (P4.4): an agent proposes, it never fills these in.
+HUMAN_KEYS = frozenset({"decision", "approved", "approval", "approved_by", "disposition"})
+
+
+def _form_keys(schema) -> set[str]:
+    """The field keys a form-js schema declares, nested groups included."""
+    out: set[str] = set()
+    for c in (schema or {}).get("components", []) if isinstance(schema, dict) else []:
+        if c.get("key"):
+            out.add(c["key"])
+        out |= _form_keys(c)
+    return out
+
+
+def human_keys(run: "_Run", proc: dict) -> set[str]:
+    """The process data that belongs to people: the reserved decision keys, every field on a person step's form in
+    this process's definition, and every key a person has already set on this process."""
+    from .definitions import form
+
+    keys = set(HUMAN_KEYS)
+    for n in run.defn(proc).nodes.values():
+        if n.type == "userTask" and n.attrs.get("form"):
+            keys |= _form_keys((form(run.conn, n.attrs["form"]) or {}).get("schema"))
+    for e in run.conn.execute("select actor, data from work_event where process_id = %s and kind = 'completed'",
+                              (proc["id"],)):
+        if not is_agent(e["actor"]) and e["actor"] != SYSTEM:
+            keys |= set((e["data"] or {}).get("data") or {})  # the event keeps the form data under "data"
+    return keys
+
+
+def guard_agent_data(run: "_Run", proc: dict, data: dict, what: str) -> None:
+    """Refuse an agent writing data a person owns (P4.4): the human-decision boundary is the server's, not the
+    prompt's. An agent puts what it proposes under its own keys; a person decides."""
+    if not is_agent(run.actor):
+        return
+    taken = sorted(set(data) & human_keys(run, proc))
+    if taken:
+        raise Forbidden(f"{run.actor} can't set {', '.join(taken)} in {what}: a person decides those; "
+                        "put the proposal under your own keys")
 
 
 class _Run:
@@ -360,6 +402,7 @@ def _send(run: _Run, name: str, key: str, payload: dict, process_key: str | None
         t = run.conn.execute("select * from work_token where id = %s", (w["id"],)).fetchone()
         if t["state"] != "waiting" or proc["state"] != "running":
             continue
+        guard_agent_data(run, proc, payload, f"message '{name}'")
         proc["data"].update(payload)
         run.event("message", proc, t, name=name, correlation_key=key, payload=payload, delivered=True)
         _fire(run, proc, t)
@@ -569,7 +612,9 @@ def close_item(conn, item_id: int, state: str, by: str, reason: str | None = Non
     """Finish or cancel a case from outside its process (its condition cleared, the field did it): a case without a
     process moves to `state`; one with a process has its open steps ended with the reason and the case moves to
     `state` with it, as when the process reaches its end (#509: a queue case is a process now)."""
-    from .work_items import transition
+    from .work_items import safety_gate, transition
+
+    safety_gate(conn, item_id, state, by)
 
     if not conn.execute("select 1 from work_process where item_id = %s and state = 'running' and parent_token is null",
                         (item_id,)).fetchone():

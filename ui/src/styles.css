@@ -263,3 +263,6 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+
+/* What installing a source pack added (P1.5): long dataset names wrap on a phone rather than scroll. */
+.pack-installed td { overflow-wrap: anywhere; }

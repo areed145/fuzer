@@ -120,6 +120,8 @@ register(
             env="FUZER_AGENT_SPECIALIST_EFFORT", restart=True),
     Setting("agents.fallbacks", "bool", True, "On a policy decline, let the API re-run the request on a fallback model",
             "Agents", env="FUZER_AGENT_FALLBACKS", restart=True),
+    Setting("agents.case_cap_usd", "float", 2.0, "Agent spend a case may reach (USD) before its next agent step goes "
+            "to a person, with the spend and the cap on the case (0: no cap)", "Agents", min=0),
     Setting("assistant.retention_days", "int", 0, "Days the assistant keeps a conversation after its last message, "
             "with its images and answers (0: keep them)", "Agents", min=0),
     Setting("assistant.concurrent_questions", "int", 1, "Questions the web assistant can run at once per server "
@@ -130,6 +132,8 @@ register(
             "Schedule", restart=True, env="FUZER_DAY_CLOSE_CRON"),
     Setting("work.lease_seconds", "int", 900, "How long an agent holds a workflow task before another may take it",
             "Schedule", min=30, env="FUZER_WORK_LEASE_SECONDS"),
+    Setting("work.due_soon_minutes", "int", 60, "Tell the person holding a step this many minutes before it is "
+            "due (0: never)", "Work", min=0, max=1440),
     Setting("work.agent_fallback_minutes", "int", 30, "Minutes an agent step may wait with no agent worker picking it "
             "up before it goes to its fallback role's person queue, with the reason on the case (0: wait forever)",
             "Schedule", min=0),
@@ -253,6 +257,11 @@ register(
     Setting("sources.adx.token", "secret", "env:FUZER_ADX_TOKEN", "Where the ADX bearer token is kept", "Sources"),
     Setting("alerts.webhook", "secret", "env:FUZER_ALERT_WEBHOOK", "Where the URL failed scheduled runs are posted "
             "to (Teams, Slack or any JSON webhook) is kept", "Schedule"),
+    Setting("notify.smtp", "secret", "env:FUZER_SMTP_URL", "Where the mail server people are emailed through is "
+            "kept, as smtp://user:password@host:port (port 465: TLS; others: STARTTLS when offered)", "Schedule"),
+    Setting("notify.from", "str", "fuzer@localhost", "The address people's notification emails come from", "Schedule"),
+    Setting("notify.app_url", "str", "", "The application's address (https://fuzer.example.com), so an email or chat "
+            "message links to the case (empty: the message names the case without a link)", "Schedule"),
     Setting("access.session_hours", "int", 8, "Absolute signed-in session lifetime in hours", "Access",
             min=1, max=24, scopes=(GLOBAL,)),
     Setting("access.api_concurrency", "int", 4, "Maximum simultaneous authenticated API requests per server process; "

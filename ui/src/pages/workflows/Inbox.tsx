@@ -4,7 +4,7 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
  * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
  * pages for "what is waiting on me"; `#/field` redirects here. */
 import { useEffect, useState } from "react";
-import { api, type FieldJob, type WorkInbox, type WorkRow } from "../../api";
+import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync } from "../../lib";
 import { Due, ScenarioClock, holder, usePerson, when } from "../../work";
 import { useAuth } from "../../Auth";
@@ -77,6 +77,7 @@ export function InboxPage() {
         <span>{handover.lines ?? 0} lines{handover.notes_by ? `, notes from ${handover.notes_by}` : ""}.</span>
         <ButtonLink variant="primary" href={href("/handover", { id: String(handover.id) })}>Read and acknowledge</ButtonLink>
       </Notice>}
+      <NewForYou person={person} />
       <p className="row small">
         {counts.sent > 0 && <UIBadge className="badge">{counts.sent} sent to you</UIBadge>}
         <UIBadge className="badge">{counts.mine} assigned to you</UIBadge>
@@ -84,7 +85,7 @@ export function InboxPage() {
         {counts.overdue > 0 && <UIBadge className="badge late">{counts.overdue} overdue</UIBadge>}
         {counts.escalated > 0 && <UIBadge className="badge late">{counts.escalated} escalated</UIBadge>}
         {undispatched > 0 && <a className="badge late" href={href("/exceptions")}>{undispatched} exceptions waiting to be dispatched</a>}
-        {reviews > 0 && <a className="badge" href={href("/review")}>{reviews} data items to review</a>}
+        {reviews > 0 && <a className="badge" href={href("/masterdata", { tab: "questions" })}>{reviews} data items to review</a>}
         {d.covering?.length ? <UIBadge className="badge">covering for {d.covering.join(", ")}</UIBadge> : null}
       </p>
       <ScenarioClock />
@@ -113,7 +114,76 @@ export function InboxPage() {
       </section>}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
       <OtherFields person={person} />
+      <HowYouAreTold person={person} />
     </section>
+  );
+}
+
+/** What the person was told since they last looked (P5.2, #604): each line opens its case and counts as read. */
+function NewForYou({ person }: { person: string }) {
+  const told = useAsync(() => api.notifications(person), [person]);
+  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at);
+  if (!unread.length) return null;
+  const read = (ids?: number[]) => api.markNotificationsRead(person, ids).then(told.reload, told.reload);
+  return (
+    <UICard className="new-for-you" title={`New for you (${told.data?.unread ?? unread.length})`}
+      actions={<Button onClick={() => read()}>Mark all read</Button>}>
+      <ul className="notification-list">
+        {unread.slice(0, 8).map((n) => <NotificationLine key={n.id} n={n} onOpen={() => void read([n.id])} />)}
+      </ul>
+    </UICard>
+  );
+}
+
+const KIND: Record<WorkNotification["kind"], string> = {
+  dispatched: "Sent to you", handed_back: "Handed back", escalated: "Escalated", assigned: "Assigned", due_soon: "Due soon",
+};
+
+function NotificationLine({ n, onOpen }: { n: WorkNotification; onOpen: () => void }) {
+  return (
+    <li>
+      <UIBadge className={`badge ${n.kind === "escalated" || n.kind === "due_soon" ? "late" : ""}`}>{KIND[n.kind]}</UIBadge>
+      <a href={n.link} onClick={onOpen}>{n.text}</a>
+      <span className="small">{when(n.created_at)}</span>
+    </li>
+  );
+}
+
+const CHANNEL: Record<NotifyPreference["channel"], string> = {
+  in_app: "Only here, on My work", email: "Email", teams: "Teams", slack: "Slack",
+};
+
+/** Where the person is told besides My work, and their quiet hours, when nothing is sent (P5.2b, #606). */
+function HowYouAreTold({ person }: { person: string }) {
+  const pref = useAsync(() => api.notifyPreference(person), [person]);
+  const [draft, setDraft] = useState<NotifyPreference | null>(null);
+  const [state, setState] = useState<{ error?: string; saved?: boolean }>({});
+  if (!pref.data) return null;
+  const p = draft ?? pref.data;
+  const change = (patch: Partial<NotifyPreference>) => { setDraft({ ...p, ...patch }); setState({}); };
+  const save = () => api.setNotifyPreference(person, p, person)
+    .then(() => { setDraft(null); setState({ saved: true }); pref.reload(); }, (e: Error) => setState({ error: e.message }));
+  const external = p.channel !== "in_app";
+  return (
+    <UICard className="" title="How you are told">
+      <div className="row small">
+        <label>Also send to{" "}
+          <Select value={p.channel} onChange={(e) => change({ channel: e.target.value as NotifyPreference["channel"] })}>
+            {Object.entries(CHANNEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+        </label>
+        {external && <label>{p.channel === "email" ? "Address" : "Webhook kept in"}{" "}
+          <Input value={p.address ?? ""} placeholder={p.channel === "email" ? "name@company.com" : "env:NAME"}
+            onChange={(e) => change({ address: e.target.value })} /></label>}
+        {external && <label>Quiet from{" "}
+          <Input type="time" value={p.quiet_from?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_from: e.target.value || null })} /></label>}
+        {external && <label>to{" "}
+          <Input type="time" value={p.quiet_to?.slice(0, 5) ?? ""} onChange={(e) => change({ quiet_to: e.target.value || null })} /></label>}
+        <Button variant="primary" disabled={!draft} onClick={save}>Save</Button>
+        {state.error && <span role="alert" className="error">{state.error}</span>}
+        {state.saved && <span role="status">Saved.</span>}
+      </div>
+    </UICard>
   );
 }
 

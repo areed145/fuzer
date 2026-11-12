@@ -112,3 +112,42 @@ def detectors_tune(name: str, key: str, t: TuneIn, conn=Depends(get_conn)):
                               reset=t.reset)
     except (detectors.DetectorError, settings.SettingError) as e:
         raise HTTPException(400, str(e)) from e
+
+
+# --- human gates (P5.10, #619) -------------------------------------------------------------------------------------
+
+class GateIn(BaseModel):
+    by: str = "anonymous"
+    default: float | None = None                 # None: always a person
+    by_criticality: dict[str, float | None] = {}
+
+
+class SafetyTypesIn(BaseModel):
+    by: str = "anonymous"
+    case_types: list[str]
+
+
+@router.get("/settings/gates")
+def gate_policy(conn=Depends(get_conn)):
+    """Where a person must decide: the fixed gates (never configurable), the safety case types and each confidence
+    gate's threshold per asset criticality (None: always a person)."""
+    from ..core import gates
+
+    return gates.policy(conn)
+
+
+@router.put("/settings/gates/safety-case-types")
+def gate_safety_types(b: SafetyTypesIn, conn=Depends(get_conn)):
+    from ..core import gates
+
+    return {"safety_case_types": gates.set_safety_case_types(conn, b.case_types, b.by)}
+
+
+@router.put("/settings/gates/{kind}")
+def gate_set(kind: str, g: GateIn, conn=Depends(get_conn)):
+    from ..core import gates
+
+    try:
+        return gates.set_threshold(conn, kind, g.default, g.by_criticality, g.by)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e

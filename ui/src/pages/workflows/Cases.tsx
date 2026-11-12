@@ -8,6 +8,8 @@ import { Actor, DataView, Due, EntityLinks, ScenarioClock, describe, holder, use
 import { AgentIdle, AssignPicker, StepBadges, byUrgency, caseHref, priorityText, processHref, taskHref, useAct } from "./shared";
 import { DemoContext } from "../../DemoContext";
 import { CaseFindings } from "../../Finding";
+import { AgentWork } from "../../AgentWork";
+import { CaseGates } from "../Gates";
 import { usePermission } from "../../Auth";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
@@ -181,6 +183,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
       {typeof raised.closeout_id === "number" && <CloseoutPanel id={raised.closeout_id} person={person} readOnly={demo}
         reload={item.reload} />}
       <CaseFindings sources={it.sources} />
+      <CaseGates id={it.id} />
       {!closed && !demo && <CaseActions it={it} person={person} reload={item.reload} />}
       {open.length > 0 && (
         <UICard className="">
@@ -201,6 +204,7 @@ export function CasePage({ id, demo = false }: { id: number; demo?: boolean }) {
           {takeOver.error && <p role="alert" className="error small">{takeOver.error}</p>}
         </UICard>
       )}
+      <AgentWork it={it} />
       {it.processes.map((p) => <ProcessDiagram key={p.id} p={p} person={demo ? undefined : person} reload={item.reload} />)}
       {Object.keys(payload).length > 0 && (
         <Disclosure className="card" open={typeof raised.summary === "string"} label={<>Details</>}><DataView data={payload} /></Disclosure>

@@ -27,6 +27,7 @@ from .runtime import (
     _owner,
     _Run,
     _update,
+    guard_agent_data,
 )
 
 
@@ -78,7 +79,7 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
     run = _Run(conn, by, now)
     proc, t = _locked_task(run, token_id)
     _waiting_task(t)
-    if t["requires_human"] and is_agent(by):
+    if (t["requires_human"] or _fixed_gate(run, proc, t)) and is_agent(by):
         raise Forbidden(f"step '{t['name'] or t['element']}' needs a person; {by} can't complete it")
     if t["kind"] in ("user", "fix") and t["assignee"] and t["assignee"] != by:
         raise Conflict(f"step '{t['name'] or t['element']}' is claimed by {t['assignee']}")
@@ -91,6 +92,11 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
         if worker is None and live:
             raise Conflict(f"an agent is working on step '{t['name'] or t['element']}' ({t['claimed_by']})")
     data = dict(data or {})
+    guard_agent_data(run, proc, data, f"step '{t['name'] or t['element']}'")
+    node = run.defn(proc).nodes[t["element"]]
+    if t["kind"] == "agent" and is_agent(by) and node.attrs.get("gate"):
+        if (stop := _gate(run, proc, t, node, by, data)) is not None:
+            return stop
     proc["data"].update(data)
     kind = "agent_result" if t["kind"] == "agent" and is_agent(by) else "completed"
     run.event(kind, proc, t, step=t["name"] or t["element"], data=data, decision=data.get("decision"))
@@ -103,6 +109,40 @@ def complete(conn, token_id: int, by: str, data: dict | None = None, worker: str
     run.flush()
     return {"task_id": token_id, "process_id": proc["id"], "item_id": proc["item_id"], "process_state": proc["state"]}
 
+def _fixed_gate(run: _Run, proc: dict, t: dict) -> str | None:
+    node = run.defn(proc).nodes.get(t["element"]) if proc else None
+    return node.fixed_gate if node else None
+
+def _gate(run: _Run, proc: dict, t: dict, node, by: str, data: dict) -> dict | None:
+    """A confidence gate on an agent step (P5.10, `fuzer:gate`): the agent's result goes ahead when its confidence
+    meets the policy's threshold for the case's asset criticality; else (or when it says it could not check
+    something) the step stops at a person, its role's queue, with the agent's proposal and the reason. None: go on."""
+    from ..core import gates
+
+    item = run.conn.execute("select subjects from work_item where id = %s", (proc["item_id"],)).fetchone()
+    subject = (item or {}).get("subjects") or []
+    crit = max((c for c in (gates.criticality(run.conn, s) for s in subject) if c), default=None)  # A before B
+    raw = data.get("confidence")
+    try:
+        confidence = float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        confidence = None
+    missed = data.get("could_not_check") or []
+    out = gates.check(run.conn, node.attrs["gate"], confidence, actor=by, criticality=crit,
+                      could_not_check=[missed] if isinstance(missed, str) else list(missed),
+                      ref=f"task:{t['id']}", item_id=proc["item_id"])
+    if out["proceed"]:
+        data["gate"] = {"decision": out["decision_id"], "reason": out["reason"]}
+        return None
+    role = node.attrs.get("gateRole") or node.attrs.get("fallbackRole") or _owner(run, proc)
+    _update(run, t, kind="user", role=role, assignee=None, claimed_by=None, lease_until=None, requires_human=True,
+            due_at=t["due_at"] or run.now + DEFAULT_SLA)
+    run.event("gated", proc, t, step=node.label, proposal=data, reason=out["reason"], decision=out["decision_id"],
+              to=f"role:{role}")
+    run.flush()
+    return {"task_id": t["id"], "process_id": proc["id"], "item_id": proc["item_id"], "process_state": proc["state"],
+            "gated": True, "reason": out["reason"], "to": f"role:{role}"}
+
 @_op
 def claim(conn, token_id: int, by: str, now: datetime | None = None) -> dict:
     run = _Run(conn, by, now)
@@ -110,7 +150,7 @@ def claim(conn, token_id: int, by: str, now: datetime | None = None) -> dict:
     _waiting_task(t)
     if t["kind"] == "agent":
         raise Conflict("agent steps are claimed by workers; hand it off to take it over")
-    if t["requires_human"] and is_agent(by):
+    if (t["requires_human"] or _fixed_gate(run, proc, t)) and is_agent(by):
         raise Forbidden(f"step '{t['name'] or t['element']}' needs a person")
     if t["assignee"] and t["assignee"] != by:
         raise Conflict(f"already claimed by {t['assignee']}")
@@ -143,7 +183,7 @@ def hand_off(conn, token_id: int, by: str, to: str, reason: str | None = None, n
     n = run.defn(proc).nodes[t["element"]]
     if to.startswith("agent:"):
         role = to.split(":", 1)[1]
-        if t["requires_human"]:
+        if t["requires_human"] or n.fixed_gate:
             raise Forbidden(f"step '{n.label}' needs a person; it can't go to an agent")
         if role not in bpmn.AGENT_ROLES:
             raise WorkError(f"unknown agent '{role}'")
