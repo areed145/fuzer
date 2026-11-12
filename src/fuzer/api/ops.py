@@ -277,6 +277,14 @@ def case_recheck(item_id: int, r: Recheck, conn=Depends(get_conn)):
     return row
 
 
+@router.get("/work/performance")
+def work_performance(conn=Depends(get_conn)):
+    """How the work is running (P7.2a): this week against the last four, per queue and work type, with the case ids
+    behind each count."""
+    from ..ops import performance
+    return performance.measures(conn)
+
+
 @router.get("/closeout/missing")
 def closeout_missing(conn=Depends(get_conn)):
     """Closed cases with no close-out yet (P6.1a)."""

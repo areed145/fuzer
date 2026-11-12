@@ -61,7 +61,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Work",
     items: [
-      { label: "All work", section: "exceptions", also: ["board", "cases"] },
+      { label: "All work", section: "exceptions", also: ["board", "cases", "performance"] },
       // Handover is reached from My work, Turnaround is a window on Plan, Data review from Master data (#554).
       { label: "My work", section: "inbox", also: ["work", "teams", "field", "handover"], badge: "work" },
       { label: "Plan", section: "plan", also: ["turnaround"] },

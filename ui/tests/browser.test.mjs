@@ -3578,3 +3578,38 @@ test("whoever closed a problem out answers whether the fix held, and a no reopen
   await card.getByRole("button", { name: "No, it came back" }).waitFor({ state: "detached" });
   assert.deepEqual(answers, [{ by: "fred", held: false, note: "weeping again" }]);
 });
+
+// P7.2b (#661): from All work, an ops lead sees per queue whether it keeps up this week against the last four, and
+// opens the cases behind a number.
+test("Work performance shows per queue whether it keeps up and opens the cases behind a number (#661)", async () => {
+  const cell = (over = {}) => ({ arrivals: { n: 1, ids: [1] }, closed: { n: 1, ids: [1] }, backlog: { n: 0, ids: [] },
+    sla_misses: { n: 0, ids: [] }, escalations: { n: 0, ids: [] }, hand_backs: { n: 0, ids: [] }, repeats: { n: 0, ids: [] },
+    triage_h: 1.5, dispatch_h: 3, close_h: 48, ...over });
+  await page.route("**/work/performance", (route) => route.fulfill({ json: {
+    weeks: [0, 1, 2, 3, 4].map((k) => ({ start: `2026-10-${12 + 7 * k}T00:00:00Z`, end: "" })),
+    queues: [
+      { queue: "operator", keeping_up: "falling_behind", backlog_avg4: 0,
+        weeks: [cell(), cell(), cell(), cell(), cell({ arrivals: { n: 3, ids: [11, 12, 13] }, closed: { n: 0, ids: [] },
+          backlog: { n: 3, ids: [11, 12, 13] }, hand_backs: { n: 1, ids: [11] } })] },
+      { queue: "maintenance_planner", keeping_up: "keeping_up", backlog_avg4: 0, weeks: [cell(), cell(), cell(), cell(), cell()] },
+    ],
+    types: [], compliance: { as_of: "2026-11-12", summary: { PM: { plans: 10, overdue: 2, on_time_pct: 80 } } },
+  } }));
+  await page.goto(`${url}/#/exceptions`);
+  await page.getByRole("link", { name: "How the work is running" }).click();
+  await page.getByRole("heading", { name: "Work performance" }).waitFor();
+  const row = page.getByRole("row").filter({ hasText: "operator" });
+  await row.getByText("falling behind").waitFor();
+  await page.getByRole("row").filter({ hasText: "maintenance planner" }).getByText("keeping up").waitFor();
+  await row.getByRole("button", { name: "3" }).first().click();
+  const cases = page.locator(".perf-cases");
+  await cases.getByText("operator: arrived this week").waitFor();
+  assert.deepEqual(await cases.getByRole("link").allInnerTexts(), ["case 11", "case 12", "case 13"]);
+  assert.equal(await cases.getByRole("link", { name: "case 11" }).getAttribute("href"), "#/cases/11");
+  await page.getByText("80% on time", { exact: false }).waitFor();
+  // All work stays the highlighted area while the view is open
+  assert.equal(await page.getByRole("link", { name: "All work", exact: true }).first().getAttribute("aria-current"), "page");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
