@@ -5,7 +5,9 @@
 One small web server, two faces over the same signals:
 
 - PI Web API (`/piwebapi/...`): data server and point list (with point attributes through /batch),
-  AF server, database, element tree and element attributes, and interpolated / recorded values.
+  AF server, database, element tree and element attributes, and interpolated / recorded values. Bad values
+  and interface outages planted in `instrument_faults.json` come back as PI system digital states, and
+  recorded values are the swinging-door compressed archive (#868).
 - ADX REST v1 (`POST /v1/rest/query`): a `SeriesCatalog` table (one row per PI point landed in ADX:
   series id, PI point, description, units, values table) and a `PiValues` table (SeriesId,
   Timestamp, Value; one raw sample every 5 minutes). Queries are a small subset of KQL: `where`
@@ -32,10 +34,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from fuzer.sources import connectors
+from fuzer.sources import connectors, instruments
 from fuzer.sources.timeseries import SyntheticProvider
 
 RAW_STEP_MINUTES = 5
@@ -118,6 +121,28 @@ class Plant:
                     out[lp[0]].add(_time(str(r[when])))
         return {k: sorted(v) for k, v in out.items()}
 
+    def states(self, point: str, start: datetime, end: datetime) -> list[tuple[float, float, str]]:
+        """Digital states stored instead of values (instrument faults, interface outages): [(from, to, state)]."""
+        return self._signal.states(point, start, end)
+
+    def recorded(self, point: str, start: datetime, end: datetime) -> list[dict]:
+        """What the PI archive holds: the raw 5-minute values after swinging-door compression (deviation
+        `compdev` from the point list, else 0.2 % of the point's level), and a digital state event where a
+        state starts, the next good value ending it."""
+        vals = self.values(point, start, end, RAW_STEP_MINUTES)
+        states = [(a, b, x) for a, b, x in self.states(point, start, end)]
+        if not vals and not states:
+            return []
+        level = float(np.median(np.abs([v for _, v in vals]))) if vals else 0.0
+        dev = float(self.points[point].get("compdev") or 0) or max(0.002 * level, 0.001)
+        secs = np.array([instruments.epoch(t) for t, _ in vals])
+        v = np.array([x for _, x in vals])
+        items = [(vals[i][0], {"Timestamp": _iso(vals[i][0]), "Value": vals[i][1], "Good": True})
+                 for i in instruments.swinging_door(secs, v, dev)] if vals else []
+        items += [(max(instruments.naive(a), start), _state(max(instruments.naive(a), start), x))
+                  for a, b, x in states]
+        return [i for _, i in sorted(items, key=lambda x: x[0])]
+
     def values(self, point: str, start: datetime, end: datetime, step_minutes: int) -> list[tuple[datetime, float]]:
         p = self.points[point]
         near = [u for lp in set(loops(point, self.grammar)) for u in self.upsets.get(lp, [])
@@ -125,6 +150,15 @@ class Plant:
         return [(_time(t), v) for t, v in
                 self._signal.values(point, p.get("engunits") or "", start, end, step_minutes, near,
                                     p.get("descriptor") or "")]
+
+
+# PI's system digital states the fake historian stores (name: code in the System state set).
+SYSTEM_STATES = {"I/O Timeout": 246, "Bad Input": 307, "Comm Fail": 313}
+
+
+def _state(t: datetime, name: str) -> dict:
+    return {"Timestamp": _iso(t), "Value": {"Name": name, "Value": SYSTEM_STATES.get(name, 307), "IsSystem": True},
+            "Good": False, "Questionable": False, "Substituted": False}
 
 
 def app(data_dir) -> FastAPI:
@@ -240,16 +274,24 @@ def app(data_dir) -> FastAPI:
             step = _interval_minutes(interval)
         except ValueError as e:
             return JSONResponse({"Errors": [str(e)]}, status_code=400)
-        vals = plant.values(name, _time(startTime), _time(endTime), step)
-        return {"Items": [{"Timestamp": _iso(t), "Value": v, "UnitsAbbreviation": plant.points[name].get("engunits"),
-                           "Good": True, "Questionable": False, "Substituted": False} for t, v in vals]}
+        start, end = _time(startTime), _time(endTime)
+        vals = dict(plant.values(name, start, end, step))
+        states = plant.states(name, start, end)
+        items, t = [], start
+        while t <= end:
+            if t in vals:
+                items.append({"Timestamp": _iso(t), "Value": vals[t], "UnitsAbbreviation": plant.points[name].get("engunits"),
+                              "Good": True, "Questionable": False, "Substituted": False})
+            elif state := next((x for a, b, x in states if a <= instruments.epoch(t) < b), None):
+                items.append(_state(t, state))
+            t += timedelta(minutes=step)
+        return {"Items": items}
 
     @api.get(f"{base}/streams/{{web_id}}/recorded")
     def recorded(web_id: str, startTime: str, endTime: str, maxCount: int = 1000):
         if (name := stream(web_id)) is None:
             return missing("PI Point")
-        vals = plant.values(name, _time(startTime), _time(endTime), RAW_STEP_MINUTES)[:maxCount]
-        return {"Items": [{"Timestamp": _iso(t), "Value": v, "Good": True} for t, v in vals]}
+        return {"Items": plant.recorded(name, _time(startTime), _time(endTime))[:maxCount]}
 
     @api.post(f"{base}/batch")
     async def batch(request: Request):

@@ -37,6 +37,20 @@ liquid carryover between vessels. On Okan, 998 points are modelled; the rest,
 and the Okan asset, keep the per-point signals. A month of 12 points reads
 in about 20 ms.
 
+Instruments and the historian (#868): real readings also carry what the instruments and the historian did
+to them, so a fake plant can list planted faults in `instrument_faults.json`, which is also their answer
+key (`sources/instruments.py`). A reading can freeze at its last value, stick (following the process at
+2% of its true change), turn noisy, pin at the top of its range, drift for days and be recalibrated, or
+be stored as a digital state (Bad Input, Comm Fail) instead of a value. An interface outage stores
+I/O Timeout on every point of one jacket's RTU for an hour or more. Faults apply in absolute time like
+the model. The synthetic provider leaves bad values out, as the PI reader does, and the analyses line
+values up by time, not by order. The fake PI serves the states as PI system digital states (`Good`
+false), and `recorded` returns the archive after swinging-door compression (the point's `compdev`, else
+0.2% of its level). Okan plants about 25 faults and 3 outages from June 2024 to December 2025, away from
+the quarter its normal ranges are learned on. They go on transmitters with no alarm or IOW that aren't a
+run signal, so limits, excursions and operating modes are unchanged. Instrument health finds every
+frozen, stuck, noisy and pinned fault. Drift needs a redundant twin to find, and a gap is only a gap.
+
 ## Operating limits, IOWs and excursions
 
 An excursion needs a limit, and "high" depends on what the unit is doing. Limits are data, per PI

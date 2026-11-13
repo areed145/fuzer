@@ -466,8 +466,15 @@ def _all_points(conn) -> list[dict]:
 
 
 def _values(src, p: dict, start: datetime, end: datetime, step: int, n: int) -> np.ndarray:
-    v = np.array([x for _, x in src.series({**p, "upsets": []}, start, end, step)][:n], dtype=float)
-    return np.pad(v, (0, n - len(v)), constant_values=np.nan)
+    """n values on the grid from `start` every `step` minutes, NaN where the historian has none: a series
+    may leave out times (bad values, an interface outage), so values go by their time, not their order."""
+    v = np.full(n, np.nan)
+    t0 = start.replace(second=0, microsecond=0)
+    for t, x in src.series({**p, "upsets": []}, start, end, step):
+        i, rem = divmod(int((datetime.fromisoformat(t).replace(tzinfo=t0.tzinfo) - t0).total_seconds()) // 60, step)
+        if not rem and 0 <= i < n:
+            v[i] = x
+    return v
 
 
 def learn(conn, pack, start: str, end: str, step: int = 60, src=None, point_ids: list[str] | None = None) -> dict:
