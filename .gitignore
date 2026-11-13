@@ -4,6 +4,7 @@ __pycache__/
 .fuzer/
 data/
 !evals/3w/data/
+!evals/pronto/data/
 *.egg-info/
 node_modules/
 ui/dist/
