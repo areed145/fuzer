@@ -1,7 +1,7 @@
 /** How the work is running (P7.2b, #661): one compact view, reached from All work. Per queue, whether it is keeping
  * up this week against the last four, and the measures behind that; every number opens the cases behind it. */
 import { useState } from "react";
-import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow } from "../api";
+import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
 import { Badge, Button, Card, Empty, PageHeader, Table, Tabs } from "../ui";
 import { Status, href, useAsync } from "../lib";
 import { when } from "../work";
@@ -16,7 +16,8 @@ const COUNTS: [keyof PerfCell, string][] = [["sla_misses", "SLA misses"], ["esca
 
 export function PerformancePage({ query }: { query: URLSearchParams }) {
   const data = useAsync(() => api.workPerformance(), []);
-  const by = query.get("by") === "type" ? "type" : query.get("by") === "detector" ? "detector" : "queue";
+  const views = ["type", "detector", "skill"] as const;
+  const by = views.find((v) => v === query.get("by")) ?? "queue";
   const [open, setOpen] = useState<{ label: string; ids: number[] } | null>(null);
   const d = data.data;
   const rows: PerfRow[] = d ? (by === "type" ? d.types : d.queues) : [];
@@ -31,8 +32,9 @@ export function PerformancePage({ query }: { query: URLSearchParams }) {
         { key: "queue", label: "By queue", href: href("/performance"), current: by === "queue" },
         { key: "type", label: "By work type", href: href("/performance", { by: "type" }), current: by === "type" },
         { key: "detector", label: "By detector", href: href("/performance", { by: "detector" }), current: by === "detector" },
+        { key: "skill", label: "By skill", href: href("/performance", { by: "skill" }), current: by === "skill" },
       ]} />
-      {by === "detector" ? <Detectors /> : <>
+      {by === "detector" ? <Detectors /> : by === "skill" ? <Skills /> : <>
       <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
       {d && (rows.length ? (
         <Table density="compact" className="perf-table phone-rows">
@@ -141,3 +143,54 @@ function Detectors() {
   </>;
 }
 
+
+const SKILL_VERDICT: Record<SkillEarning["verdict"], { text: string; tone?: "ok" | "warn" | "muted" }> = {
+  earning: { text: "Earning its keep", tone: "ok" },
+  mixed: { text: "Mixed" },
+  needs_change: { text: "Needs a change", tone: "warn" },
+  too_few: { text: "Too few verdicts", tone: "muted" },
+};
+const spaced = (s: string) => s.replace(/-/g, " ");
+const money = (v: number | null) => (v === null ? "–" : `$${v.toFixed(2)}`);
+
+/** Per specialist skill (P7.4b, #955): the briefs it wrote and what they cost a case, how far the person who decided
+ * followed them, how engineers rated the answers, and its edits; each opens its waiting change. */
+function Skills() {
+  const data = useAsync(() => api.skillPerformance(), []);
+  const d = data.data;
+  const active = d ? d.skills.filter((s) => s.briefs || s.verdicts || s.edits.published || s.edits.waiting) : [];
+  return <>
+    <Status loading={data.loading && !d} error={data.error} onRetry={data.reload} />
+    {d && (active.length ? <Table density="compact" className="perf-table phone-rows">
+      <thead><tr>
+        <th>Skill</th><th>Verdict</th><th>Briefs</th><th>Followed</th><th>Answers useful</th><th>Cost per case</th>
+        <th>Edits</th><th />
+      </tr></thead>
+      <tbody>{active.map((s) => <tr key={s.skill}>
+        <td><strong>{spaced(s.name)}</strong><div className="small muted">{spaced(s.owner)}</div></td>
+        <td data-label="Verdict"><Badge tone={SKILL_VERDICT[s.verdict].tone}>{SKILL_VERDICT[s.verdict].text}</Badge>
+          {s.verdicts ? <div className="small muted">{s.short} of {s.verdicts} fell short</div> : null}</td>
+        <td data-label="Briefs">{s.briefs}</td>
+        <td data-label="Followed">{pct(s.followed_rate)}
+          {s.followed.partly + s.followed.no ? <div className="small muted">
+            {s.followed.partly} partly, {s.followed.no} not</div> : null}</td>
+        <td data-label="Answers useful">{pct(s.useful_rate)}
+          {s.rated.useful + s.rated.not_useful ? <span className="small muted"> of {s.rated.useful + s.rated.not_useful}</span> : null}</td>
+        <td data-label="Cost per case">{money(s.brief_cost_per_case)}</td>
+        <td data-label="Edits">{s.edits.live_version ? `v${s.edits.live_version} live` : s.edits.published ? `${s.edits.published} published` : "–"}
+          {s.edits.live_since ? <div className="small muted">since {when(s.edits.live_since)}</div> : null}</td>
+        <td>{s.edits.review_case
+          ? <a href={href(`/cases/${s.edits.review_case}`)}>Review change v{s.edits.waiting}</a> : null}</td>
+      </tr>)}</tbody>
+    </Table> : <Empty>No brief or rated answer yet.</Empty>)}
+    {d && d.specialists.length > 0 && <Card title="Agent spend per specialist">
+      <Table density="compact" className="phone-rows">
+        <thead><tr><th>Specialist</th><th>Steps</th><th>Cases</th><th>Spend (USD)</th><th>Per case (USD)</th></tr></thead>
+        <tbody>{d.specialists.map((s) => <tr key={s.specialist}>
+          <td>{spaced(s.specialist)}</td><td data-label="Steps">{s.steps}</td><td data-label="Cases">{s.cases}</td>
+          <td data-label="Spend (USD)">{s.cost_usd.toFixed(2)}</td><td data-label="Per case (USD)">{money(s.cost_per_case)}</td>
+        </tr>)}</tbody>
+      </Table>
+    </Card>}
+  </>;
+}

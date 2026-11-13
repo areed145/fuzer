@@ -207,6 +207,15 @@ def work_agent_spend(since: datetime | None = None, until: datetime | None = Non
     return ledger.spend(conn, since, until)
 
 
+@router.get("/work/performance/skills")
+def work_performance_skills(conn=Depends(get_conn)):
+    """How the specialists' skills are performing (P7.4b): per skill, its briefs and their cost per case, how far they
+    were followed, its answer ratings and edits; per specialist, its agent steps and cost per case."""
+    from ..agents import earning
+
+    return earning.skills(conn)
+
+
 @router.get("/work/skill-shortfalls")
 def work_skill_shortfalls(since: datetime | None = None, conn=Depends(get_conn)):
     """Where each skill fell short (P6.4a): briefs not followed and answers rated not useful, with the cases."""

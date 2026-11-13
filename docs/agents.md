@@ -209,6 +209,19 @@ close-outs the view says there are too few to tell. Each count opens its cases, 
 Detection page. A case whose finding records no origin counts as "not recorded". On a bundle, cases raised from
 replayed history open at the wall-clock time, so hours to case means something only on live data.
 
+The **By skill** view (P7.4b, `agents/earning.py`) covers each skill a specialist owns. Shared skills are loaded by
+every agent, so nothing counts against them. Per skill it shows:
+
+- the case briefs its pack wrote and their agent cost per case;
+- how far the person who decided followed each brief's proposal (the latest verdict: yes, partly or no);
+- how engineers rated the assistant answers its specialist worked on. As with the shortfalls (P6.4a), an answer counts
+  against every skill its specialists own;
+- its published versions, and a drafted change waiting for review, linked to the case that holds the review.
+
+A skill **needs a change** when at least `MIN_RATED` (5) of its briefs and answers have a verdict and half or more fell
+short. It is **earning its keep** under a quarter. Below it, a card gives each specialist's agent steps, the cases they
+were on and the spend per case, from the ledgers (P4.4).
+
 ## Views and agent tools
 
 **Charts:**
