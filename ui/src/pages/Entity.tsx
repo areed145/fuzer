@@ -1,7 +1,7 @@
 import { projectUrl } from "../authState";
 import "../styles/entity.css";
 import { Bar, Button, ButtonLink, PageHeader, Table, Tabs, Input, Select , Card as UICard, Badge as UIBadge} from "../ui";
-import { Suspense, lazy, useState, type ReactNode } from "react";
+import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type Edge, type EntityDetail } from "../api";
 import { DrawingViewer } from "../DrawingViewer";
 import { NotThisRecord, SameAs } from "./masterdata/Curation";
@@ -33,10 +33,12 @@ import { MemoryCard } from "../Memory";
 import { WorkHere } from "../WorkHere";
 import { WatchButton } from "../Watch";
 import { Related } from "../Related";
+import { kindColor } from "../kinds";
 import { Dates, KindBadge, SourceBadge, Status, entityHref, fieldLabel, fmt, href, timestamp, useAsync } from "../lib";
 
 // The graph tab pulls in Cytoscape; load it only when opened.
 const EntityGraph = lazy(() => import("./EntityGraph").then((m) => ({ default: m.EntityGraph })));
+const GraphCanvas = lazy(() => import("../graph").then((m) => ({ default: m.GraphCanvas })));
 
 // How each edge reads from this entity's point of view: [outgoing, incoming].
 const REL_LABELS: Record<string, [string, string]> = {
@@ -184,7 +186,6 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
             </UICard>
           )}
           {e.kind === "timeseries" && <TrendCard id={fid} />}
-          {e.kind !== "timeseries" && (e.edge_counts["out:has_timeseries"] ?? 0) > 0 && <TrendCard id={fid} direct />}
           {MAINTAINED.includes(e.kind) && (
             <><IncidentsCard id={fid} />
             <Related about={{ subject: fid }} incidents={false} /></>
@@ -193,6 +194,9 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
           {[...MAINTAINED, "well", "facility"].includes(e.kind) && <DowntimeCard id={fid} />}
           {["tag", "equipment", "well"].includes(e.kind) && <ConversationsCard id={fid} />}
           {e.kind !== "event" && <Events id={fid} />}
+          <Suspense fallback={null}>
+            <EntityMap id={fid} />
+          </Suspense>
           {!operated && <div className="grid">
             <Fields e={e} />
             <Records e={e} />
@@ -202,6 +206,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
 
       {view === "trends" && (
         <>
+          {(e.edge_counts["out:has_timeseries"] ?? 0) > 0 && <TrendCard id={fid} direct />}
           <MeasurementsCard id={fid} />
           {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={fid} />}
           {e.kind === "well" && <DepthCard id={fid} />}
@@ -211,10 +216,7 @@ export function Entity({ id, tab }: { id: string; tab: string }) {
       {view === "connections" && (
         <>
           <Links edges={e.edges} counts={e.edge_counts} asOf={asOf} />
-          {hasFlow && <Trace id={fid} asOf={asOf || undefined} />}
-          <Suspense fallback={null}>
-            <EntityMap id={fid} />
-          </Suspense>
+          {hasFlow && <Trace id={fid} label={e.label ?? fid} kind={e.kind} asOf={asOf || undefined} />}
           {e.kind !== "document" && <LinkedDrawings id={fid} />}
         </>
       )}
@@ -439,46 +441,49 @@ function LinkList({ items }: { items: Edge[] }) {
   );
 }
 
-const TRACE_DEPTH = 2;  // what feeds it and what feeds those; the rest of the network on request
+const TRACE_NEAR = 2;  // what feeds it and what it feeds, two steps each way; the whole network on request
+const TRACE_ALL = 10;
 
-function Trace({ id, asOf }: { id: string; asOf?: string }) {
-  const [direction, setDirection] = useState<"up" | "down">("up");
-  const rows = useAsync(() => api.trace(id, direction, asOf), [id, direction, asOf]);
+/** What flows into this asset (left) and where its flow goes (right), drawn left to right. */
+function Trace({ id, label, kind, asOf }: { id: string; label: string; kind: string; asOf?: string }) {
   const [all, setAll] = useState(false);
-  const near = rows.data?.filter((r) => r.depth <= TRACE_DEPTH) ?? [];
-  const shown = all ? rows.data ?? [] : near;
-  const more = (rows.data?.length ?? 0) - near.length;
+  const depth = all ? TRACE_ALL : TRACE_NEAR;
+  const flow = useAsync(() => Promise.all([api.trace(id, "up", asOf, depth), api.trace(id, "down", asOf, depth)]),
+    [id, asOf, depth]);
+  const elements = useMemo(() => {
+    if (!flow.data) return [];
+    const [up, down] = flow.data;
+    const nodes = new Map([[id, { id, label, kind }]]);
+    const edges = new Map<string, { src: string; dst: string }>();
+    for (const [rows, upstream] of [[up, true], [down, false]] as const) {
+      for (const r of rows) {
+        nodes.set(r.fuzer_id, { id: r.fuzer_id, label: r.label ?? r.fuzer_id, kind: r.kind });
+        const [src, dst] = upstream ? [r.fuzer_id, r.parent ?? id] : [r.parent ?? id, r.fuzer_id];
+        edges.set(`${src}>${dst}`, { src, dst });
+      }
+    }
+    // The same element shape graph.tsx draws (subgraphElements), built here so the canvas stays in its own chunk.
+    return [
+      ...[...nodes.values()].map((n) => ({ data: { ...n, color: kindColor(n.kind), size: n.id === id ? 34 : 22,
+        root: n.id === id } })),
+      ...[...edges.values()].map((x, i) => ({ classes: "", data: { id: `e${i}`, source: x.src, target: x.dst,
+        rel: "flows_to", ended: false, label: "flows to" } })),
+    ];
+  }, [flow.data, id, label, kind]);
+  const empty = flow.data && elements.length <= 1;
   return (
     <UICard  as="section">
       <div className="row spread">
-        <h2>Flow trace {asOf && <span className="muted small">on {asOf}</span>}</h2>
-        <div className="tabs">
-          <Button className={direction === "up" ? "on" : ""} onClick={() => setDirection("up")}>
-            Upstream
-          </Button>
-          <Button className={direction === "down" ? "on" : ""} onClick={() => setDirection("down")}>
-            Downstream
-          </Button>
-        </div>
+        <h2>Flow {asOf && <span className="muted small">on {asOf}</span>}</h2>
+        <Button variant="link" onClick={() => setAll(!all)}>{all ? "Show nearest only" : "Show whole network"}</Button>
       </div>
-      <Status loading={rows.loading && !rows.data} error={rows.error} empty={rows.data?.length === 0}>
-        Nothing {direction}stream{asOf ? " on this date" : ""}.
+      <Status loading={flow.loading && !flow.data} error={flow.error} onRetry={flow.reload} empty={!!empty}>
+        Nothing flows in or out{asOf ? " on this date" : ""}.
       </Status>
-      <ul className="trace">
-        {shown.map((r) => (
-          <li key={`${r.fuzer_id}-${r.depth}`} style={{ paddingLeft: `${(r.depth - 1) * 20}px` }}>
-            <span className="muted">{direction === "up" ? "↑" : "↓"}</span>
-            <a href={entityHref(r.fuzer_id)} className="mono">
-              {r.label ?? r.fuzer_id}
-            </a>
-            <KindBadge kind={r.kind} />
-            <Dates from={r.valid_from} to={r.valid_to} />
-          </li>
-        ))}
-      </ul>
-      {more > 0 && <Button variant="link" onClick={() => setAll(!all)}>
-        {all ? "Show nearest only" : `Show all ${rows.data!.length}`}
-      </Button>}
+      {flow.data && !empty && <Suspense fallback={<Status loading />}>
+        <GraphCanvas elements={elements} layout="flow" selectedId={id} height={all ? 600 : 320}
+          onSelect={(to) => { if (to && to !== id) location.hash = entityHref(to); }} />
+      </Suspense>}
     </UICard>
   );
 }

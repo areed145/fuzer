@@ -84,7 +84,8 @@ def _trace_sql(direction: str) -> str:
                or ((e.valid_from is null or e.valid_from <= %(as_of)s::date)
                    and (e.valid_to is null or e.valid_to > %(as_of)s::date)))
     )
-    select w.fuzer_id, w.depth, w.valid_from, w.valid_to, en.kind, l.label
+    select w.fuzer_id, w.depth, w.valid_from, w.valid_to, en.kind, l.label,
+           w.path[array_length(w.path, 1) - 1] as parent  -- the step before it on this path, to draw the flow
     from walk w
     join entity en using (fuzer_id)
     left join entity_label l using (fuzer_id)
