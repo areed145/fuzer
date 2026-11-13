@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type Closeouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust } from "../api";
+import { api, type Closeouts, type DetectorCloseouts, type DetectorParam, type DetectorRow, type EquipmentClass, type ProviderRow, type Trust } from "../api";
 import { Status, notifyChanged, useAsync } from "../lib";
 import { loadPerson } from "../work";
 import { ActionStatus, Badge, Button, Card, Field, Input, Select, Table } from "../ui";
@@ -43,6 +43,24 @@ function CloseoutRates({ c }: { c: Closeouts }) {
   if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
   return <span>Confirmed {pct(c.confirmed_rate)}, false alarm {pct(c.false_alarm_rate)}
     <div className="muted small">{c.closed} of {c.cases} cases closed out</div></span>;
+}
+
+/** A detector's close-outs: what share was noise (false alarms and duplicates), per class when it has cases on more
+ * than one. */
+function DetectorRates({ c }: { c: DetectorCloseouts }) {
+  if (!c.cases) return <span className="muted">No cases yet</span>;
+  if (!c.closed) return <span className="muted">{c.cases} open, none closed out</span>;
+  return <span>Confirmed {pct(c.confirmed_rate)}, noise {pct(c.noise_rate)}
+    <div className="muted small">{c.false_alarm} false alarm{c.false_alarm === 1 ? "" : "s"}, {c.duplicate} duplicate
+      {c.duplicate === 1 ? "" : "s"}; {c.closed} of {c.cases} cases closed out</div></span>;
+}
+
+function ClassRates({ d, classes }: { d: DetectorRow; classes: EquipmentClass[] }) {
+  const rows = d.closeouts?.by_class.filter((r) => r.closed) ?? [];
+  if (rows.length < 2) return null;
+  const name = (code: string) => (code ? classes.find((x) => x.code === code)?.name ?? code : "Not classified");
+  return <p className="small">Close-outs by class: {rows.map((r, i) => <span key={r.class}>{i ? "; " : ""}
+    <b>{name(r.class)}</b> {r.closed} closed, noise {pct(r.noise_rate)}</span>)}</p>;
 }
 
 /** The detectors on this asset: on or off, whether they apply, their last run and replay score, and their
@@ -142,11 +160,12 @@ function DetectorLine({ d, classes, project, person, open, toggle, saved }: {
       <td><State d={d} />{!d.applicable && d.note && <div className="muted small">{d.note}</div>}</td>
       <td><LastRun d={d} /></td>
       <td><Score d={d} /></td>
-      <td>{d.closeouts && <CloseoutRates c={d.closeouts} />}</td>
+      <td>{d.closeouts && <DetectorRates c={d.closeouts} />}</td>
       <td><Button size="sm" onClick={toggle}>{open ? "Close" : "Change"}</Button></td>
     </tr>
     {open && <tr className="setting-edit">
       <td colSpan={8}>
+        <ClassRates d={d} classes={classes} />
         <Switch d={d} project={project} person={person} saved={saved} />
         {d.settings.map((s) => <Param key={s.key} d={d} s={s} classes={classes} person={person} saved={saved} />)}
       </td>

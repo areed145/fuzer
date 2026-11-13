@@ -869,7 +869,7 @@ test("Detection under Settings switches a detector and sets a threshold for one 
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
-test("Detection shows close-out rates beside each detector and mutes a noisy provider for one class (P3.8b)", async () => {
+test("Detection shows close-out rates beside each detector, duplicates counted as noise (P6.3a), and mutes a noisy provider for one class (P3.8b)", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
     user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
   await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
@@ -880,7 +880,8 @@ test("Detection shows close-out rates beside each detector and mutes a noisy pro
     trust_levels: { route: "Route directly", triage: "Triage first", mute: "Muted" },
     detectors: [{ name: "trips", title: "A machine that tripped", kind_label: "Rule", cadence_label: "Every 30 minutes",
       raises: ["machine_trip"], about: "", on: true, switched: null, applicable: true, note: null, last_run: null,
-      score: null, eval: "test:trips", settings: [], closeouts: rates(10, 8, 6, 2) }],
+      score: null, eval: "test:trips", settings: [], closeouts: { ...rates(10, 8, 6, 1), duplicate: 1, data_problem: 0,
+        noise: 2, noise_rate: 0.25, by_class: [] } }],
     providers: [{ system: "healthwatch", name: "healthwatch", label: "HealthWatch predictive health", type: "health_alert",
       enabled: true, closeouts: rates(4, 4, 1, 3),
       trust: [{ class: "", trust: "triage", reason: "new vendor", updated_by: "ana", updated_at: "2026-11-12T00:00:00" }] }] };
@@ -891,7 +892,8 @@ test("Detection shows close-out rates beside each detector and mutes a noisy pro
     return route.fulfill({ json: {} });
   });
   await page.goto(`${url}/#/settings?view=detection`);
-  await page.getByText("Confirmed 75%, false alarm 25%", { exact: false }).waitFor();
+  await page.getByText("Confirmed 75%, noise 25%", { exact: false }).waitFor();
+  await page.getByText("1 false alarm, 1 duplicate", { exact: false }).waitFor();
   await page.getByText("Confirmed 25%, false alarm 75%", { exact: false }).waitFor();
   await page.getByText("Triage first", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Change" }).nth(1).click();

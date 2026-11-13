@@ -204,13 +204,22 @@ export interface DetectorRow {
   } | null;
   eval: string | null;
   settings: DetectorParam[];
-  closeouts: Closeouts;
+  closeouts: DetectorCloseouts;
 }
 
 /** How the cases a detector or provider raised were closed out (P3.8b). */
 export interface Closeouts {
   cases: number; closed: number; real: number; false_alarm: number;
   confirmed_rate: number | null; false_alarm_rate: number | null;
+}
+
+/** A registered detector's close-outs, with duplicates counted as noise beside false alarms, and per equipment class
+ * (P6.3a). */
+export interface DetectorTally extends Closeouts {
+  duplicate: number; data_problem: number; noise: number; noise_rate: number | null;
+}
+export interface DetectorCloseouts extends DetectorTally {
+  by_class: (DetectorTally & { class: string })[];
 }
 
 export type Trust = "route" | "triage" | "mute";

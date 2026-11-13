@@ -57,6 +57,8 @@ def parser() -> argparse.ArgumentParser:
     lk.add_argument("--model", default=None, help="model id (default: the setting llm.model)")
     lk.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     lk.add_argument("--per-request", type=int, default=20, help="log entries per request")
+    lk.add_argument("--twins", action="store_true",
+                    help="pids: read the scans of sheets that also come as DEXPI, to compare with the exact file")
     ps = sub.add_parser("pid-score", help="score image reading against the fake data's answer key")
     ps.add_argument("--truth", default=None, help="answer key (default: pid_truth.json in the exports folder)")
     ps.add_argument("--record", action="store_true", help="save the scores to evals/runs/ as the new baseline")
@@ -333,7 +335,7 @@ def main(argv=None):
                 if args.source in ("logs", "all"):
                     result["logs"] = llm_links.run(conn, pack, per_request=args.per_request, **common)
                 if args.source in ("pids", "all"):
-                    result["pids"] = llm_pids.run(conn, pack, **common)
+                    result["pids"] = llm_pids.run(conn, pack, twins=args.twins, **common)
                 if args.source in ("docs", "all"):
                     from ..sources import llm_docs
                     result["docs"] = llm_docs.run(conn, pack, **common)
