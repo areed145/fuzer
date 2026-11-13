@@ -137,6 +137,33 @@ def patterns(conn) -> list[dict]:
     return [{**dict(r), "needed": need, "ready": r["confirmed"] >= need, "rule": rules.get(r["pattern"])} for r in rows]
 
 
+def promotions(conn, limit: int = 30) -> dict:
+    """What the Detection page shows (P3.4b): the latest watch proposals with their verdicts, the patterns confirmed
+    ones read into, and the rules drafted from them (live ones, and the latest retired)."""
+    props = [dict(r) for r in conn.execute(
+        """
+        select p.id, p.subject, p.start, p."end", p.since, p.until, p.why, p.ruled_out, p.cited, p.model, p.run_at,
+               p.verdict, p.verdict_by, p.verdict_at, p.pattern, p.event_kind, l.label as area_name
+        from watch_proposal p left join lateral (select label from entity_label where fuzer_id = p.area limit 1) l
+          on true
+        order by (p.verdict is null) desc, p.run_at desc, p.id desc limit %s
+        """, (limit,))]
+    rules = [dict(r) for r in conn.execute(
+        "select * from promoted_rule order by (status = 'retired'), coalesce(published_at, drafted_at) desc limit 20")]
+    return {"proposals": props, "patterns": patterns(conn), "rules": rules,
+            "unreviewed": conn.execute("select count(*) as n from watch_proposal where verdict is null").fetchone()["n"]}
+
+
+def rescore(conn, rule_id: int, score: dict) -> dict:
+    """Keep a draft's score, worked out where the replay is (`watch_eval.score_drafts`)."""
+    row = conn.execute("update promoted_rule set score = %s where id = %s returning *",
+                       (json.dumps(score, default=str), rule_id)).fetchone()
+    if not row:
+        raise PromoteError(f"no rule #{rule_id}")
+    conn.commit()
+    return dict(row)
+
+
 def fit(examples: list[dict]) -> dict:
     """A rule's threshold and duration from its confirmed examples (each with shift_z and minutes)."""
     zs = [abs(e["shift_z"]) for e in examples if e.get("shift_z") is not None]
@@ -186,10 +213,14 @@ def publish(conn, rule_id: int, by: str, reason: str | None = None) -> dict:
 
 
 def retire(conn, rule_id: int, by: str, reason: str | None = None) -> dict:
-    row = conn.execute("update promoted_rule set status = 'retired', reason = coalesce(%s, reason) where id = %s "
-                       "returning *", (reason, rule_id)).fetchone()
+    """A person retires a rule (a published one stops running); its pattern can be drafted again. Agents can't."""
+    if not by or by.startswith("agent:"):
+        raise PromoteError("a person retires a rule, never an agent")
+    row = conn.execute("update promoted_rule set status = 'retired', reason = coalesce(%s, reason), retired_by = %s, "
+                       "retired_at = now() where id = %s and status <> 'retired' returning *",
+                       (reason, by, rule_id)).fetchone()
     if not row:
-        raise PromoteError(f"no rule #{rule_id}")
+        raise PromoteError(f"no live rule #{rule_id}")
     conn.commit()
     return dict(row)
 

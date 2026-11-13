@@ -593,3 +593,5 @@ create table if not exists promoted_rule (
     reason       text
 );
 create unique index if not exists promoted_rule_live on promoted_rule (pattern) where status in ('draft', 'published');
+alter table promoted_rule add column if not exists retired_by text;
+alter table promoted_rule add column if not exists retired_at timestamptz;

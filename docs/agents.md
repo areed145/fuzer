@@ -184,6 +184,14 @@ train), so once the rule catches the pattern the question isn't asked and nothin
 that catches the held-out July 2025 trip. The alarm limits catch that climb too, so on a full scan the watch already
 leaves it alone: the test shows the promotion with the rule as the only detector.
 
+On the Detection page (Settings), **Watch findings and promoted rules** lists the latest proposals with Confirm and
+Reject, the patterns with how many are confirmed against how many are needed and a Draft button once there are enough,
+and each rule with its fit, its replay score and who drafted, published or retired it. Publishing or retiring takes a
+reason, and the server refuses an agent either. A draft made on the page is unscored, because the replay is an eval:
+`fuzer eval --promoted --since … --until …` scores each unscored draft on the bundle and the page shows it. A person's
+verdict names no event kind, so that score counts every upset in the window, not only the pattern's kind. On a real asset
+there is no replay, and the reviewer has the confirmed examples and the fit to go on.
+
 ## Views and agent tools
 
 **Charts:**

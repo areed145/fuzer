@@ -209,3 +209,18 @@ def rule_scorer(conn, pack, data_dir, window: tuple[str, str], src=None):
     if not data_dir or not (Path(data_dir) / "process_model.json").is_file():
         return None
     return lambda spec, kinds: rule_score(conn, pack, spec, window, data_dir, kinds, src)
+
+
+def score_drafts(conn, pack, data_dir, window: tuple[str, str], src=None) -> list[dict]:
+    """Score each drafted rule that has no score yet on the bundle's replay over `window` (drafts made on the Detection
+    page are unscored: the replay is an eval, run from the command line)."""
+    from ..ops import promote
+
+    scorer = rule_scorer(conn, pack, data_dir, window, src)
+    if scorer is None:
+        raise ValueError("no process_model.json in the data folder: a draft is scored against a fake plant's events")
+    out = []
+    for r in conn.execute("select * from promoted_rule where status = 'draft' and score is null order by id").fetchall():
+        kinds = {e.get("event_kind") for e in r["examples"] or [] if e.get("event_kind")}
+        out.append(promote.rescore(conn, r["id"], scorer(r["spec"], kinds)))
+    return out

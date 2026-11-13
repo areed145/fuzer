@@ -103,3 +103,70 @@ def test_a_confirmed_pattern_becomes_a_published_rule_and_the_watch_stops_spendi
         conn.execute("delete from promoted_rule")
         conn.execute("delete from watch_proposal")
         conn.commit()
+
+
+@pytest.mark.integration
+def test_the_detection_page_confirms_drafts_and_publishes_a_rule(okan_db, okan_data):
+    """P3.4b: the same climb through the Detection page's API. A person confirms the proposals, drafts the pattern's
+    rule, the replay scores it from the command line, and a person publishes it with a reason, then retires it."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import settings as api
+
+    conn = okan_db.conn
+    app = FastAPI()
+    app.include_router(api.router)
+    app.dependency_overrides[api.get_conn] = lambda: conn
+    web = TestClient(app)
+    pid = conn.execute("select m.point_id from measurement_role m join entity_label l on l.fuzer_id = m.asset "
+                       "where m.role = 'discharge_temperature' and l.label = '20-K-2300A'").fetchone()["point_id"]
+    name = conn.execute("select label from entity_label where fuzer_id = %s", (pid,)).fetchone()["label"]
+    area = next(a for a in watch.areas(conn) if pid in watch._plant(conn, a["id"])[1])
+    try:
+        for a, b in [*FIT, ("2024-06-20T03:00", "2024-06-20T04:00")]:  # the fourth: a quiet hour, not real
+            day = T(a[:10])
+            watch.keep(conn, {"area": area["id"], "subject": name, "start": T(a), "end": T(b), "evidence": [pid],
+                              "why": "discharge temperature climbing with no change in load", "cited": True},
+                       day, day.replace(hour=23, minute=59))
+        conn.commit()
+        got = web.get("/settings/detection/promotions").json()
+        assert got["unreviewed"] == 4 and got["patterns"] == [] and got["rules"] == []
+        ids = sorted(p["id"] for p in got["proposals"])
+
+        assert web.post(f"/settings/detection/patterns/{PATTERN}/draft", json={"by": "ana"}).status_code == 400
+        for i in ids[:2]:
+            assert web.put(f"/settings/detection/proposals/{i}/verdict", json={"real": True, "by": "ana"}).json()[
+                "pattern"] == PATTERN
+        no = web.put(f"/settings/detection/proposals/{ids[3]}/verdict", json={"real": False, "by": "ana"}).json()
+        assert no["verdict"] == "rejected" and no["pattern"] is None
+        early = web.post(f"/settings/detection/patterns/{PATTERN}/draft", json={"by": "ana"})
+        assert early.status_code == 400 and "2 confirmed, 3 needed" in early.json()["detail"]
+        web.put(f"/settings/detection/proposals/{ids[2]}/verdict", json={"real": True, "by": "ana"})
+        p = web.get("/settings/detection/promotions").json()
+        assert p["unreviewed"] == 0 and [(x["pattern"], x["confirmed"], x["ready"]) for x in p["patterns"]] == [
+            (PATTERN, 3, True)]
+
+        rule = web.post(f"/settings/detection/patterns/{PATTERN}/draft", json={"by": "ana"}).json()
+        assert rule["status"] == "draft" and rule["score"] is None  # the replay is an eval: unscored on the page
+        scored = watch_eval.score_drafts(conn, PACK, okan_data, HELD_OUT)
+        sc = scored[0]["score"]  # a person's verdict names no event kind, so every upset in the window counts
+        assert [r["id"] for r in scored] == [rule["id"]] and sc["kinds"] == [] and sc["detected"] >= 1, sc
+        assert web.get("/settings/detection/promotions").json()["rules"][0]["score"] == sc
+
+        url = f"/settings/detection/rules/{rule['id']}"
+        assert web.put(f"{url}/publish", json={"by": "ana", "reason": "no"}).status_code == 422  # a reason is required
+        bot = web.put(f"{url}/publish", json={"by": "agent:watch", "reason": "it scores well"})
+        assert bot.status_code == 400 and "never an agent" in bot.json()["detail"]
+        out = web.put(f"{url}/publish", json={"by": "ana", "reason": "the climb precedes every trip"}).json()
+        assert (out["status"], out["published_by"]) == ("published", "ana")
+        assert detectors.missing(conn, PACK, detectors.get("promoted_rules")) == []
+        gone = web.put(f"{url}/retire", json={"by": "ana", "reason": "the seal was replaced"}).json()
+        assert (gone["status"], gone["retired_by"]) == ("retired", "ana")
+        assert web.put(f"{url}/retire", json={"by": "ana", "reason": "again"}).status_code == 400
+        assert web.get("/settings/detection/promotions").json()["patterns"][0]["rule"] is None  # can be drafted again
+    finally:
+        conn.rollback()
+        conn.execute("delete from promoted_rule")
+        conn.execute("delete from watch_proposal")
+        conn.commit()
