@@ -57,6 +57,13 @@ kinds:
     description: >-
       Something an in-line inspection run found at a station along a line: metal loss, a dent, a weld anomaly,
       or a fitting it used as a reference.
+  completion_component:
+    label: Completion component
+    group: Physical
+    colour: "#7a52b8"
+    description: >-
+      A piece of a well's completion (casing, liner, tubing, a packer, a nipple, a frac stage) between a top and a
+      base measured depth.
   well:
     label: Well
     group: Physical
@@ -220,7 +227,7 @@ relations:
     label: part of
     view: physical
     description: Containment in the physical, document or schedule hierarchy.
-    from: [area, tag, well, document_section, activity, pipeline_segment]
+    from: [area, tag, well, document_section, activity, pipeline_segment, completion_component]
     to: [facility, area, tag, well, document, activity, pipeline]
   installed_at:
     label: installed at

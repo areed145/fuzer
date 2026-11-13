@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- KR 12-04H definitive survey as the directional contractor delivered it: WITSML 1.4.1, depths in feet. -->
+<trajectorys xmlns="http://www.witsml.org/schemas/1series" version="1.4.1.1">
+ <trajectory uidWell="W-KR1204H" uidWellbore="WB-KR1204H-00" uid="TRJ-KR1204H-DEF">
+  <nameWell>KR 12-04H</nameWell>
+  <nameWellbore>KR 12-04H</nameWellbore>
+  <name>Definitive survey</name>
+  <definitive>true</definitive>
+   <trajectoryStation uid="TS001">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>tie in point</typeTrajStation>
+    <md uom="ft">0.00</md>
+    <incl uom="dega">0.0</incl>
+    <azi uom="dega">0.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS002">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">492.13</md>
+    <incl uom="dega">0.42</incl>
+    <azi uom="dega">218.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS003">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">984.25</md>
+    <incl uom="dega">0.4</incl>
+    <azi uom="dega">225.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS004">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">1476.38</md>
+    <incl uom="dega">0.42</incl>
+    <azi uom="dega">208.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS005">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">1968.50</md>
+    <incl uom="dega">0.49</incl>
+    <azi uom="dega">211.4</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS006">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">2460.63</md>
+    <incl uom="dega">0.56</incl>
+    <azi uom="dega">208.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS007">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">2952.76</md>
+    <incl uom="dega">0.53</incl>
+    <azi uom="dega">211.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS008">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">3444.88</md>
+    <incl uom="dega">0.58</incl>
+    <azi uom="dega">217.4</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS009">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">3937.01</md>
+    <incl uom="dega">0.61</incl>
+    <azi uom="dega">232.7</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS010">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">4429.13</md>
+    <incl uom="dega">0.76</incl>
+    <azi uom="dega">211.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS011">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">4921.26</md>
+    <incl uom="dega">0.73</incl>
+    <azi uom="dega">216.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS012">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">5413.39</md>
+    <incl uom="dega">0.79</incl>
+    <azi uom="dega">210.2</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS013">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">5905.51</md>
+    <incl uom="dega">0.92</incl>
+    <azi uom="dega">236.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS014">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6233.60</md>
+    <incl uom="dega">0.0</incl>
+    <azi uom="dega">181.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS015">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6332.02</md>
+    <incl uom="dega">2.88</incl>
+    <azi uom="dega">180.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS016">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6430.45</md>
+    <incl uom="dega">5.95</incl>
+    <azi uom="dega">181.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS017">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6528.87</md>
+    <incl uom="dega">9.1</incl>
+    <azi uom="dega">181.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS018">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6627.30</md>
+    <incl uom="dega">11.86</incl>
+    <azi uom="dega">182.2</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS019">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6725.72</md>
+    <incl uom="dega">15.01</incl>
+    <azi uom="dega">180.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS020">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6824.15</md>
+    <incl uom="dega">18.01</incl>
+    <azi uom="dega">180.7</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS021">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">6922.57</md>
+    <incl uom="dega">21.01</incl>
+    <azi uom="dega">182.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS022">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7021.00</md>
+    <incl uom="dega">24.11</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS023">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7119.42</md>
+    <incl uom="dega">26.93</incl>
+    <azi uom="dega">181.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS024">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7217.85</md>
+    <incl uom="dega">29.9</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS025">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7316.27</md>
+    <incl uom="dega">33.01</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS026">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7414.70</md>
+    <incl uom="dega">35.95</incl>
+    <azi uom="dega">181.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS027">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7513.12</md>
+    <incl uom="dega">39.09</incl>
+    <azi uom="dega">182.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS028">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7611.55</md>
+    <incl uom="dega">42.11</incl>
+    <azi uom="dega">182.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS029">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7709.97</md>
+    <incl uom="dega">45.1</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS030">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7808.40</md>
+    <incl uom="dega">47.92</incl>
+    <azi uom="dega">181.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS031">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">7906.82</md>
+    <incl uom="dega">50.96</incl>
+    <azi uom="dega">180.7</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS032">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8005.25</md>
+    <incl uom="dega">53.86</incl>
+    <azi uom="dega">181.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS033">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8103.67</md>
+    <incl uom="dega">56.93</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS034">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8202.10</md>
+    <incl uom="dega">60.14</incl>
+    <azi uom="dega">181.4</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS035">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8300.52</md>
+    <incl uom="dega">63.13</incl>
+    <azi uom="dega">182.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS036">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8398.95</md>
+    <incl uom="dega">66.14</incl>
+    <azi uom="dega">181.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS037">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8497.38</md>
+    <incl uom="dega">68.92</incl>
+    <azi uom="dega">181.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS038">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8595.80</md>
+    <incl uom="dega">71.91</incl>
+    <azi uom="dega">181.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS039">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8694.23</md>
+    <incl uom="dega">75.04</incl>
+    <azi uom="dega">182.1</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS040">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8792.65</md>
+    <incl uom="dega">78.1</incl>
+    <azi uom="dega">181.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS041">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8891.08</md>
+    <incl uom="dega">81.05</incl>
+    <azi uom="dega">182.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS042">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">8989.50</md>
+    <incl uom="dega">83.88</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS043">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">9087.93</md>
+    <incl uom="dega">87.12</incl>
+    <azi uom="dega">182.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS044">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">9514.44</md>
+    <incl uom="dega">89.9</incl>
+    <azi uom="dega">181.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS045">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">9842.52</md>
+    <incl uom="dega">89.21</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS046">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">10170.60</md>
+    <incl uom="dega">89.4</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS047">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">10498.69</md>
+    <incl uom="dega">90.17</incl>
+    <azi uom="dega">181.4</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS048">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">10826.77</md>
+    <incl uom="dega">89.48</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS049">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">11154.86</md>
+    <incl uom="dega">89.87</incl>
+    <azi uom="dega">181.2</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS050">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">11482.94</md>
+    <incl uom="dega">89.15</incl>
+    <azi uom="dega">181.2</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS051">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">11811.02</md>
+    <incl uom="dega">90.09</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS052">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">12139.11</md>
+    <incl uom="dega">89.18</incl>
+    <azi uom="dega">181.8</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS053">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">12467.19</md>
+    <incl uom="dega">90.18</incl>
+    <azi uom="dega">181.7</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS054">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">12795.28</md>
+    <incl uom="dega">89.42</incl>
+    <azi uom="dega">181.5</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS055">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">13123.36</md>
+    <incl uom="dega">89.16</incl>
+    <azi uom="dega">181.0</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS056">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">13451.44</md>
+    <incl uom="dega">90.17</incl>
+    <azi uom="dega">181.6</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS057">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">13779.53</md>
+    <incl uom="dega">89.63</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS058">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">14107.61</md>
+    <incl uom="dega">89.52</incl>
+    <azi uom="dega">181.9</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS059">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">14435.70</md>
+    <incl uom="dega">89.99</incl>
+    <azi uom="dega">181.2</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS060">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">14763.78</md>
+    <incl uom="dega">89.3</incl>
+    <azi uom="dega">181.3</azi>
+   </trajectoryStation>
+   <trajectoryStation uid="TS061">
+    <dTimStn>2023-08-02T12:00:00-06:00</dTimStn>
+    <typeTrajStation>MWD</typeTrajStation>
+    <md uom="ft">15091.86</md>
+    <incl uom="dega">89.29</incl>
+    <azi uom="dega">181.6</azi>
+   </trajectoryStation>
+ </trajectory>
+</trajectorys>

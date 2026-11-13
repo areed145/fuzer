@@ -10,14 +10,14 @@ flowchart LR
   systems[("Source systems<br>SAP, PI, EC, P&IDs, logs")] --> c_sources
   app(["The app (ui/)"])
   c_api --> app
-  c_sources["Sources and ingestion<br><small>fuzer.sources, 39 modules</small>"]
+  c_sources["Sources and ingestion<br><small>fuzer.sources, 40 modules</small>"]
   c_graph["Graph and golden records<br><small>fuzer.graph, 31 modules</small>"]
   c_analysis["Analyses<br><small>fuzer.analysis, 58 modules</small>"]
   c_ops["Operations<br><small>fuzer.ops, 31 modules</small>"]
   c_plots["Charts<br><small>fuzer.plots, 5 modules</small>"]
   c_workflow["Work engine<br><small>fuzer.workflow, 15 modules</small>"]
   c_agents["Agents and MCP<br><small>fuzer.agents, 27 modules</small>"]
-  c_evals["Evals<br><small>fuzer.evals, 11 modules</small>"]
+  c_evals["Evals<br><small>fuzer.evals, 12 modules</small>"]
   c_api["API<br><small>fuzer.api, 21 modules</small>"]
   c_cli["Command line<br><small>fuzer.cli, 4 modules</small>"]
   c_core["Core<br><small>fuzer.core, 32 modules</small>"]
@@ -81,6 +81,7 @@ From the mapping files in `src/fuzer/mappings` (source → entity kind). Claude'
 flowchart LR
   src_accounting[/"accounting"/]
   src_adx[/"adx"/]
+  src_drilling[/"drilling"/]
   src_ec[/"ec"/]
   src_edms[/"edms"/]
   src_gis[/"gis"/]
@@ -100,6 +101,7 @@ flowchart LR
   kind_accounting_volume(["accounting_volume"])
   kind_bypass(["bypass"])
   kind_change(["change"])
+  kind_completion_component(["completion_component"])
   kind_conversation(["conversation"])
   kind_demand(["demand"])
   kind_document(["document"])
@@ -129,6 +131,7 @@ flowchart LR
   src_accounting --> kind_accounting_volume
   src_accounting --> kind_ledger_entry
   src_adx --> kind_timeseries
+  src_drilling --> kind_completion_component
   src_ec --> kind_downtime
   src_ec --> kind_plant_hierarchy__facility__area__tag__well
   src_ec --> kind_production_day
@@ -215,7 +218,7 @@ flowchart TD
 
 The source catalog (systems, connections, datasets, mapping versions, runs) drives loading; connectors read each table; mappings turn rows into records, entities and links; Claude reads logs, P&IDs and documents. More in [sources](sources.md).
 
-- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_packs`, `_catalog_versions`, `adx`, `alerts`, `aliases`, `catalog`, `connections`, `connectors`, `curves`, `dexpi`, `documents`, `extract`, `formats`, `impact`, `ingest`, `instruments`, `learned`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `packs`, `pi_web_api`, `preview`, `process_model`, `providers`, `quality`, `relative_dates`, `rules`, `scorecard`, `suggest`, `teams`, `timeseries`, `workflows`
+- **Code:** [`src/fuzer/sources`](https://github.com/areed145/fuzer/tree/main/src/fuzer/sources): `_catalog_common`, `_catalog_entities`, `_catalog_io`, `_catalog_packs`, `_catalog_versions`, `adx`, `alerts`, `aliases`, `catalog`, `connections`, `connectors`, `curves`, `dexpi`, `documents`, `extract`, `formats`, `impact`, `ingest`, `instruments`, `learned`, `llm_curves`, `llm_docs`, `llm_pids`, `mapper`, `mappings`, `onboard`, `packs`, `pi_web_api`, `preview`, `process_model`, `providers`, `quality`, `relative_dates`, `rules`, `scorecard`, `suggest`, `teams`, `timeseries`, `witsml`, `workflows`
 - **Uses:** core
 - **Writes:** `curve_digitised`, `detection_provider`, `entity_alias`, `learned_rule`, `llm_extraction`, `mapping_version`, `provider_poll`, `provider_trust`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_exception_rule`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_score`, `source_system` ([schema](schema.md))
 - **Owns:** `source_record`, `llm_extraction`, `source_record_history`, `source_system`, `source_connection`, `source_dataset`, `mapping_version`, `source_run`, `source_profile`, `source_check`, `source_check_result`, `source_match_stat`, `source_score`, `source_rule`, `source_audit`, `equipment_curve`, `curve_digitised`, `source_exception_rule`, `entity_alias`, `learned_rule`, `detection_provider`, `provider_poll`, `provider_trust` (its `schema.sql`)
@@ -292,7 +295,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
 
 Answer keys, the history replay and the ops eval that score it all. More in [evals](evals.md).
 
-- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `wells3w`
+- **Code:** [`src/fuzer/evals`](https://github.com/areed145/fuzer/tree/main/src/fuzer/evals): `evaluate`, `loop`, `ops_eval`, `packs_eval`, `pid2graph`, `pronto`, `replay`, `roles`, `runs`, `steward_eval`, `sweep`, `wells3w`
 - **Uses:** agents, analysis, core, graph, ops, sources, workflow
 - **Writes:** `assistant_answer`, `assistant_fact`, `golden`, `lesson`, `llm_extraction`, `ops_eval`, `point_normal`, `source_record`, `work_event`, `work_item` ([schema](schema.md))
 - **Owns:** `ops_eval` (its `schema.sql`)

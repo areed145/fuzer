@@ -546,7 +546,9 @@ def unrecorded(conn, now: datetime | None = None) -> list[dict]:
                coalesce(tl.label, pt.label, pl.point_id) as point
         from point_limit pl
         left join entity_label pt on pt.fuzer_id = pl.point_id
-        left join edge h on h.rel = 'has_timeseries' and h.dst = pl.point_id
+        left join lateral (  -- the tag the historian names the point for, before an AF element's attribute on it
+            select h.src from edge h where h.rel = 'has_timeseries' and h.dst = pl.point_id and h.valid_to is null
+            order by coalesce(h.props ? 'attribute', false), h.confidence desc, h.src limit 1) h on true
         left join entity_label tl on tl.fuzer_id = h.src
         where pl.valid_from >= %s and pl.valid_from <= %s and pl.valid_to is null
         order by pl.valid_from, pl.record, pl.limit_type
