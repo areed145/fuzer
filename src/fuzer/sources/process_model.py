@@ -34,8 +34,8 @@ def minutes(t: datetime | str) -> float:
 
 
 @lru_cache(maxsize=4)
-def _load(path: str, mtime: float, today: date) -> "ProcessModel":
-    return ProcessModel(read(Path(path), today))
+def _load(path: str, mtime: float, day: str) -> "ProcessModel":  # `day` keys the cache: a new day reads it again
+    return ProcessModel(read(Path(path)))
 
 
 def read(path, today: date | None = None) -> dict:
@@ -56,7 +56,7 @@ def load(data_dir) -> "ProcessModel | None":
     if not data_dir:
         return None
     p = Path(data_dir) / "process_model.json"
-    return _load(str(p), p.stat().st_mtime, date.today()) if p.is_file() else None
+    return _load(str(p), p.stat().st_mtime, _today()) if p.is_file() else None
 
 
 class ProcessModel:
@@ -656,3 +656,9 @@ class Window:
         if u.get("closes_with_field", True) and u.get("normal", 100) > 0:
             pos = pos * (1 - self.shutdown())
         return self.lag(pos, 2)
+
+
+def _today() -> str:
+    from .relative_dates import day
+
+    return day()

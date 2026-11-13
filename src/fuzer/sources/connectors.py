@@ -40,7 +40,7 @@ BATCH_ROWS = 50_000
 def _stat(paths: list[Path], root: Path) -> str:
     parts = [f"{p.relative_to(root)}:{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in paths]
     if any(_relative(p) for p in paths):  # its dates move with the calendar: a new day reads it again
-        parts.append(dt.date.today().isoformat())
+        parts.append(relative_dates.day())
     return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
 
@@ -64,7 +64,7 @@ def _resolved(rows, path: Path):
     if not _relative(path):
         yield from rows
         return
-    today = dt.date.today()
+    today = relative_dates._anchors(None)
     for r in rows:
         yield relative_dates.resolve_all(r, today)
 
