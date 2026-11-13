@@ -19,6 +19,9 @@ def test_a_providers_alert_joins_fuzers_detection_and_an_unknown_asset_goes_to_t
     engine.load_defaults(conn)
     loop._people(conn)
     packs.install(conn, PACK.read_text(), "test")
+    [k] = exceptions.match(conn, ["tag:B1-K-2001"])[0]  # the module shares one database: start from no open work on
+    for x in conn.execute("select type, key from exception_record where state = 'open' and %s = any(subjects)", (k,)):
+        exceptions.clear(conn, x["type"], x["key"], "test", reason="a fresh start, whatever ran before in the module")
     loop._bring(conn, loop.arrivals(conn)["machine_health"])
     health = conn.execute("select * from exception_record where type = 'machine_health' and key = 'B1-K-2001' "
                           "and state = 'open'").fetchone()

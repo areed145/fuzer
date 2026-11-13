@@ -1,6 +1,7 @@
 # Energy Components network edges, dated. Production / allocation flow is flows_to; edges with
 # service "lift_gas" are the gas lift network (compressors -> headers -> gas lift manifolds -> wells),
-# kept as lift_gas_to so a production trace never wanders into it.
+# kept as lift_gas_to so a production trace never wanders into it. `service` is kept on the edge, and
+# graph/products.py says what each edge carries from it, or from the nodes when it is empty (#205).
 source: ec
 record_type: edge
 shape: network
@@ -11,9 +12,11 @@ links:
     to: {from: to, as: ec_node}
     valid_from: valid_from
     valid_to: valid_to
+    props: {service: service}
   - rel: lift_gas_to
     when: {service: lift_gas}
     from: {from: from, as: ec_node}
     to: {from: to, as: ec_node}
     valid_from: valid_from
     valid_to: valid_to
+    props: {service: service}
