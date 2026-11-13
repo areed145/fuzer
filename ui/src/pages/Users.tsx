@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type AccessAccount, type AccessAdministration, type AccessRole, type WorkRoleRow } from "../api";
+import { api, type AccessAccount, type AccessAdministration, type AccessRole, type DocumentGroups, type WorkRoleRow } from "../api";
 import { refreshAccess, useAuth, usePermission } from "../Auth";
 import { href, notifyChanged, Status, useAsync } from "../lib";
 import { ActionStatus, Badge, Button, Card, ConfirmAction, EmptyState, Field, Input, PageHeader, Select, Disclosure } from "../ui";
@@ -51,6 +51,10 @@ function Administration({ query }: { query: URLSearchParams }) {
     return matchesStatus && [account.display_name, account.actor, ...account.roles].join(" ").toLowerCase().includes(search.trim().toLowerCase());
   }) ?? [];
   const enabledOwners = data.data?.accounts.filter(account => account.enabled && account.owner).length ?? 0;
+  const project = useAuth()?.project ?? "";
+  const documents = useAsync(() => project ? api.documentGroups(project) : Promise.resolve(null), [project]);
+  const groups = [...new Set(Object.values(documents.data?.restricted ?? {}))].sort();
+  const restricted = (message?: string) => { changed(message); documents.reload(); };
   return <div>
     <ActionStatus>{message && <p>{message}</p>}</ActionStatus>
     <Status loading={data.loading} error={data.error} />
@@ -61,6 +65,8 @@ function Administration({ query }: { query: URLSearchParams }) {
           {enabledOwners < 2 && " Ask a second trusted account holder to sign in, then review owner access for recovery."}</p>
         <p className="small">Owner status grants every application capability and all human workflow roles.</p>
       </Card>
+      {project && <RestrictedDocuments key={JSON.stringify(documents.data?.restricted ?? {})} project={project}
+        data={documents.data} loading={documents.loading} error={documents.error} reload={restricted} />}
       <h2>Accounts</h2>
       <div className="row account-filters">
         <Field label="Find accounts" width="full"><Input type="search" width="full" value={search}
@@ -77,7 +83,7 @@ function Administration({ query }: { query: URLSearchParams }) {
       {accounts.map((account) => <AccountCard key={`${account.id}:${account.enabled}:${account.owner}:${account.roles.join(",")}`}
         account={account} data={data.data!} workflow={workflow.data?.roles}
         assigned={workflow.data?.people.find(p => p.name === account.actor)?.assigned_roles ?? []}
-        reload={changed} />)}
+        groups={groups} reload={changed} />)}
       <Disclosure label={<>Application role definitions</>}>
       <h2>Application roles</h2>
       {data.data.roles.map((role) => <RoleCard key={role.name + role.permissions.join(",") + role.description}
@@ -90,8 +96,9 @@ function Administration({ query }: { query: URLSearchParams }) {
   </div>;
 }
 
-function AccountCard({ account, data, workflow, assigned, reload }: {
-  account: AccessAccount; data: AccessAdministration; workflow?: WorkRoleRow[]; assigned: string[]; reload: (message?: string) => void;
+function AccountCard({ account, data, workflow, assigned, groups, reload }: {
+  account: AccessAccount; data: AccessAdministration; workflow?: WorkRoleRow[]; assigned: string[]; groups: string[];
+  reload: (message?: string) => void;
 }) {
   const [enabled, setEnabled] = useState(account.enabled);
   const [owner, setOwner] = useState(account.owner);
@@ -137,6 +144,7 @@ function AccountCard({ account, data, workflow, assigned, reload }: {
     </Disclosure>
     <ActionStatus busy={busy ? "Saving account access..." : null} error={error}>{saved && <p>Account access saved.</p>}</ActionStatus>
     {!account.owner && account.enabled && <AccountAreas account={account} reload={reload} />}
+    {!account.owner && account.enabled && groups.length > 0 && <AccountGroups account={account} groups={groups} reload={reload} />}
     {workflow && <AccountAssignments key={assigned.join(",")}
       account={account} roles={workflow.filter(r => r.kind === "person")} assigned={assigned} reload={reload} />}
   </Card>;
@@ -203,6 +211,87 @@ function AreasEditor({ account, project, saved, reload }: {
         : `Let ${account.display_name} act on work anywhere in ${project}?`}
       onConfirm={save} />
     <ActionStatus busy={busy ? "Saving areas..." : null} error={error} />
+  </>;
+}
+
+function RestrictedDocuments({ project, data, loading, error, reload }: {
+  project: string; data?: DocumentGroups | null; loading: boolean; error?: string; reload: (message?: string) => void;
+}) {
+  const saved = data?.restricted ?? {};
+  const [restricted, setRestricted] = useState<Record<string, string>>(saved);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const wanted = Object.fromEntries(Object.entries(restricted).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+  const dirty = JSON.stringify(Object.entries(wanted).sort()) !== JSON.stringify(Object.entries(saved).sort());
+  const count = Object.keys(wanted).length;
+  const save = async () => {
+    setBusy(true); setFailure("");
+    try {
+      await api.setDocumentGroups(project, wanted);
+      reload(count ? `${count} document ${count === 1 ? "class is" : "classes are"} now restricted in ${project}.`
+        : `Every document class is open in ${project} again.`);
+      notifyChanged();
+    } catch (e) { setFailure(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return <Card title={`Restricted documents in ${project}`}>
+    <p>Restrict a document class, such as licensed OEM manuals, to a group. People outside the group can't see those
+      documents anywhere: pages, search, files or the assistant. Owners see everything. Leave the group empty to keep a class open.</p>
+    <Status loading={loading} error={error} />
+    {data && !data.classes.length && <p>This project's register has no documents yet.</p>}
+    {data && data.classes.length > 0 && <fieldset disabled={busy}><legend>Group that may see each class</legend>
+      {data.classes.map((c) => <Field key={c.doc_type} label={`${c.doc_type.replaceAll("_", " ")} (${c.documents})`}>
+        <Input value={restricted[c.doc_type] ?? ""} placeholder="Open to everyone"
+          onChange={(event) => setRestricted({ ...restricted, [c.doc_type]: event.target.value })} />
+      </Field>)}
+    </fieldset>}
+    <ConfirmAction label="Save restrictions" busy={busy} disabled={!dirty}
+      consequence={count ? `Restrict ${count} document ${count === 1 ? "class" : "classes"} in ${project}? People outside each group stop seeing those documents at once.`
+        : `Open every document class in ${project} to everyone who can read it?`}
+      onConfirm={save} />
+    <ActionStatus busy={busy ? "Saving restrictions..." : null} error={failure} />
+  </Card>;
+}
+
+function AccountGroups({ account, groups, reload }: { account: AccessAccount; groups: string[]; reload: (message?: string) => void }) {
+  const project = useAuth()?.project ?? "";
+  if (!project) return null;
+  const saved = account.groups?.[project] ?? [];
+  return <Disclosure label={<>Document groups in {project} ({saved.length})</>}>
+    <GroupsEditor key={saved.join(",")} account={account} project={project} groups={groups} saved={saved} reload={reload} />
+  </Disclosure>;
+}
+
+function GroupsEditor({ account, project, groups, saved, reload }: {
+  account: AccessAccount; project: string; groups: string[]; saved: string[]; reload: (message?: string) => void;
+}) {
+  const [chosen, setChosen] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = [...chosen].sort().join() !== [...saved].sort().join();
+  const save = async () => {
+    setBusy(true); setError("");
+    try {
+      await api.setGroups(account.id, project, chosen);
+      reload(chosen.length ? `${account.display_name} is now in ${chosen.join(", ")} in ${project}.`
+        : `${account.display_name} is in no document groups in ${project}.`);
+      notifyChanged();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  };
+  return <>
+    <p>{saved.length ? `Sees documents restricted to ${saved.join(", ")}.` : "Sees no restricted documents."}</p>
+    <fieldset disabled={busy}><legend>Groups</legend>
+      {groups.map((group) => <label key={group}>
+        <Input type="checkbox" checked={chosen.includes(group)}
+          onChange={(event) => setChosen(event.target.checked ? [...chosen, group] : chosen.filter((value) => value !== group))} />
+        {group}
+      </label>)}
+    </fieldset>
+    <ConfirmAction label="Save groups" busy={busy} disabled={!dirty}
+      consequence={`Put ${account.display_name} in ${chosen.join(", ") || "no groups"} in ${project}? They see exactly the restricted documents of those groups.`}
+      onConfirm={save} />
+    <ActionStatus busy={busy ? "Saving groups..." : null} error={error} />
   </>;
 }
 
