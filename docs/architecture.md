@@ -228,7 +228,7 @@ The source catalog (systems, connections, datasets, mapping versions, runs) driv
 - **Uses:** core
 - **Writes:** `curve_digitised`, `detection_provider`, `entity_alias`, `learned_rule`, `llm_extraction`, `mapping_version`, `provider_poll`, `provider_trust`, `review_item`, `source_audit`, `source_check`, `source_check_result`, `source_connection`, `source_dataset`, `source_exception_rule`, `source_match_stat`, `source_profile`, `source_record`, `source_record_history`, `source_rule`, `source_run`, `source_score`, `source_system` ([schema](schema.md))
 - **Owns:** `source_record`, `llm_extraction`, `source_record_history`, `source_system`, `source_connection`, `source_dataset`, `mapping_version`, `source_run`, `source_profile`, `source_check`, `source_check_result`, `source_match_stat`, `source_score`, `source_rule`, `source_audit`, `equipment_curve`, `curve_digitised`, `source_exception_rule`, `entity_alias`, `learned_rule`, `detection_provider`, `provider_poll`, `provider_trust` (its `schema.sql`)
-- **Settings:** `providers.triage_role` ([settings](settings.md))
+- **Settings:** `notify.app_url`, `providers.triage_role` ([settings](settings.md))
 - **Tests:** [`tests/sources`](https://github.com/areed145/fuzer/tree/main/tests/sources)
 
 ### Graph and golden records

@@ -6,6 +6,7 @@ and by the scheduled health check.
 """
 
 import json
+import logging
 import urllib.request
 
 from ..core import detectors, events, settings
@@ -21,6 +22,12 @@ SAY = {"failed": "failed to load", "held": "is held (its schema or a blocking ch
        "stale": "is stale (no new delivery within its expected hours)"}
 
 
+def app_link(link: str) -> str:
+    """`link` (such as "#/jobs") on the application's address (notify.app_url); empty when it isn't set."""
+    base = (settings.get(None, "notify.app_url") or "").rstrip("/")
+    return f"{base}/{link}" if base else ""
+
+
 def post(text: str) -> bool:
     """Post a message to the alert webhook (Teams / Slack / any JSON webhook) when one is set."""
     url = settings.secret(None, "alerts.webhook")
@@ -29,7 +36,8 @@ def post(text: str) -> bool:
     req = urllib.request.Request(url, data=json.dumps({"text": text}).encode(), headers={"Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=10)
-    except OSError:
+    except OSError as e:
+        logging.getLogger(__name__).warning("The alert webhook refused a message (%s): %s", e, text[:200])
         return False
     return True
 
