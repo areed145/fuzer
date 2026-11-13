@@ -261,7 +261,7 @@ class Window:
                 r = u.get("recycle", 0.3)
                 ts = (1 - r) * ts + r * self.get(u["recycle_cooler"], "outlet_temperature")
             ratio = (u["p_discharge"] + 1) / (u["p_suction"] + 1)
-            td = (ts + 273.15) * ratio ** 0.27 - 273.15
+            td = (ts + 273.15) * ratio ** u.get("t_exponent", 0.27) - 273.15  # (k - 1) / (k eta_p) for its gas
             extra = sum((self.path(e["points"]) for e in self.ev(unit, "discharge_temperature")), np.zeros_like(self.t))
             vib_excess = np.maximum(self.get(unit, "vibration") - u.get("vibration", 2.2) * 1.3, 0)
             hot = run * (td + extra + 12 * self._surging(unit, 10)) + 3.5 * self.lag(vib_excess, 30)
