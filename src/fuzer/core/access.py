@@ -31,7 +31,6 @@ ACTOR_PREFIX = "user:"
 DEMO_ID = "demo"
 DEMO_TENANT = "fuzer-demo"  # never a UUID, so no Microsoft identity can collide with it
 DEMO_NAME = "Demo account"
-DEMO_PROJECTS = ("okan", "kestrel", "harrier")
 DEMO_DENIED = frozenset({"configure"})
 DEMO_SESSION_HOURS = 12
 
@@ -246,18 +245,22 @@ def demo_enabled() -> bool:
     return len(os.environ.get("FUZER_DEMO_TOKEN", "")) >= 32
 
 
-def demo_projects() -> list[str]:
+def demo_projects(conn) -> list[str]:
+    """The stored projects the demo account is granted: those named in FUZER_DEMO_PROJECTS, else every one."""
+    from . import projects
+
+    stored = projects.stored(conn)
     value = os.environ.get("FUZER_DEMO_PROJECTS")
-    names = [n.strip() for n in value.split(",")] if value is not None else list(DEMO_PROJECTS)
-    return [n for n in names if n]
+    if value is None:
+        return stored
+    wanted = {n.strip() for n in value.split(",") if n.strip()}
+    return [n for n in stored if n in wanted]
 
 
 def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
     """Sign in as the demo account with the deployment's FUZER_DEMO_TOKEN. The account is created enabled with the
-    operator role in the demo projects that exist; an owner can disable it or change its roles on Users, and a
+    operator role in the demo projects (demo_projects); an owner can disable it or change its roles on Users, and a
     disabled demo account stays signed out. It never owns or configures (see principal)."""
-    from . import projects
-
     expected = os.environ.get("FUZER_DEMO_TOKEN", "")
     if not demo_enabled() or not hmac.compare_digest(token.encode(), expected.encode()):
         raise AccessError("Demo sign-in is not available")
@@ -266,9 +269,8 @@ def demo_sign_in(conn, token: str) -> tuple[Principal, str]:
         "values (%s, %s, %s, %s, true, false) on conflict (id) do nothing returning id",
         (DEMO_ID, DEMO_TENANT, DEMO_ID, DEMO_NAME)).fetchone()
     if created:
-        stored = set(projects.stored(conn))
         first = _default_project(conn)
-        granted = [n for n in demo_projects() if n in stored]
+        granted = demo_projects(conn)
         for name in granted:
             if name == first:
                 conn.execute("insert into access_membership (account_id, role) values (%s, 'operator') "

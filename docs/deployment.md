@@ -207,7 +207,8 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
   cookie and CSRF value; a wrong token is refused and leaves no account or session.
   `scripts/demo_login.py` does this and saves a Playwright storage state for screenshots.
 - The first sign-in creates the account enabled with the `operator` role in the
-  projects named by `FUZER_DEMO_PROJECTS` (default `okan,kestrel,harrier`) that exist.
+  projects named by `FUZER_DEMO_PROJECTS` (comma-separated; default every project the
+  database holds, which on the demo deployment are Okan, Kestrel and Harrier).
   It cannot open other projects unless an owner grants them.
 - It can never be an owner or hold `configure`, whatever roles an owner gives it, so
   it cannot manage users, settings, sources or routing. It gets no `ai` permission
