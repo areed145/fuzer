@@ -34,7 +34,7 @@ export function YourShift() {
   const fields = useAsync(() => (person ? api.inboxFields(person) : Promise.resolve(null)), [person]);
   const here_ = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   const since = useAsync(() => (person ? api.workHome(person, true) : Promise.resolve(null)), [person]);
-  const field = useAsync(() => (person ? api.fieldJobs(person) : Promise.resolve(null)), [person]);
+  const field = useAsync(() => (person ? api.fieldJobsBrief(person) : Promise.resolve(null)), [person]);
   if (!person) return <Card className="home-card home-today" title="My work" as="section"><Empty className="small">Choose your name under “You are” in the menu.</Empty></Card>;
   // This field's own work, plus every other field they hold roles in (the server lists only those they may open).
   const local: Row[] = here_.data ? [...here_.data.mine, ...here_.data.queue].map((r) => ({ ...r, project: here })) : [];

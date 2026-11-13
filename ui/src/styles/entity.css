@@ -6,6 +6,10 @@
   .entity .grid { grid-template-columns: minmax(0, 1fr); }
 }
 .entity-status { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; margin: 0 0 16px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.flow-networks { gap: 6px 20px; margin: 0 0 8px; }
+.flow-network { display: inline-flex; align-items: center; gap: 6px; }
+.flow-network::before { content: ""; width: 22px; border-top: 2px solid var(--text); }
+.flow-network.allocation::before { border-top: 2px dashed var(--muted); }
 .asof { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 table.ui-table--keyValue th { width: 120px; }
 table.ui-table--keyValue.ui-table-heading-capitalize th { text-transform: capitalize; }

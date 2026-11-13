@@ -90,9 +90,12 @@ export interface PidConnectionPayload {
 
 /** Where a drawing and the DCS, AF or SAP disagree (#475): an alarm and trip setting, or where an instrument sits. */
 export interface PidMismatchPayload {
-  check: "alarm" | "alarm_unset" | "placement"; sheet: string; document: string | null; tag: string;
+  check: "alarm" | "alarm_unset" | "placement" | "twin" | "flow"; sheet: string; document: string | null; tag: string;
   fuzer_id: string; point: string | null; detail: string; question: string; type?: string;
   drawn_on?: string; register?: { parent: string; sources: string[] }[];
+  /** A flow link (check "flow"): the flow network and the drawn piping disagree on whether `from` reaches `to`. */
+  direction?: "flow_only" | "drawn_only"; from?: string; to?: string; to_id?: string | null;
+  drawn_path?: string[][]; sheets?: string[]; systems?: string[];
   /** The disagreement in the one finding shape (P1.1); absent on questions raised before it. */
   finding?: Finding;
   returned?: Returned;
@@ -867,6 +870,8 @@ export const workApi = {
   discardCloseout: (id: number, by: string, reason?: string) =>
     request<Closeout>("POST", `/closeouts/${id}/discard`, undefined, { by, reason: reason ?? null }),
   fieldJobs: (person: string) => request<{ person: string; jobs: FieldJob[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person }),
+  /** The same jobs without what is looked up per job, for a page that only counts them. */
+  fieldJobsBrief: (person: string) => request<{ person: string; jobs: Pick<FieldJob, "item_id" | "queued">[]; coming_up: PlanItem[] }>("GET", "/exceptions/field", { person, brief: "true" }),
   fieldReport: (id: number, by: string, status: string, note?: string,
     extra: { reading?: FieldReading; photos?: string[]; client_id?: string; at?: string; override?: string } = {}) =>
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,

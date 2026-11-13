@@ -112,6 +112,13 @@ def _draft(conn, item: dict) -> int:
                                      role="role:data_steward", data={"review_item": item["id"]}, subjects=subjects,
                                      source=BY)
             row = _insert(conn, item, "correction", "alarms", fuzer_id=fid, wrong=p.get("detail"), item_id=case["id"])
+        elif p.get("check") == "flow":  # the flow network links what the drawings don't, or misses what they do
+            payload = {"from": p.get("from"), "to": p.get("to"), "detail": p.get("detail"),
+                       "drawn_path": p.get("drawn_path"), "record": p.get("tag")}
+            title = f"Flow link {p.get('from')} to {p.get('to')} should match {p.get('sheet')}: {p.get('detail')}"
+            out = _write(conn, item, system, "master_data", payload, title, by, subjects)
+            row = _insert(conn, item, "master_data", system, fuzer_id=fid, wrong=p.get("detail"),
+                          right=p.get("drawn_path"), **out)
         else:  # a register that has the instrument under another item than the drawing shows
             payload = {"tag": p.get("tag"), "detail": p.get("detail"), "drawn_on": p.get("drawn_on"),
                        "record": p.get("tag")}

@@ -26,6 +26,7 @@ from ..graph import (
     roles,
     spatial,
 )
+from ..graph.queries.network import flow_disagreements
 from ..graph.resolve import replace_open_reviews, resolve, resolve_keyed, retire_unused, sync_labels
 from ..sources import curves, learned, llm_docs, llm_pids, mappings, quality, rules
 from ..sources.extract import extract, link_part_numbers
@@ -178,7 +179,10 @@ def rebuild(conn, pack: Pack) -> dict:
     stats |= curves.build(conn, pack, maps, endpoint)
     stats |= limits.build(conn, pack, maps, endpoint, extra=llm_pids.design_limits(conn, pid_sheets, pack))
     # where a drawing and the DCS, AF or SAP disagree: questions for a person, never a change to either (#475)
-    replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack), pack))
+    # ...and where the flow network and the drawn piping disagree inside one area: a link to check, not to write
+    flows = flow_disagreements(conn, lambda label: next((m.area for m in pack.tags.find_all(label)), None))
+    replace_open_reviews(conn, "pid_mismatch", llm_pids.mismatches(conn, pid_sheets, limits.drawing_issues(conn, pack),
+                                                                   pack, flows))
     stats |= roles.build(conn, pack)  # what each historian point means for its asset (P1.4)
     lap("measurements")
 
