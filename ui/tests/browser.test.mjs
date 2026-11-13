@@ -962,6 +962,7 @@ async function usersFixture(user = { ...signedInUser, owner: true }) {
   await page.route("**/auth/access", route => { administration.push(route.request().url()); return route.fulfill({ json: { accounts, roles, permissions } }); });
   await page.route("**/work/roles/catalog", route => route.fulfill({ json: workflow }));
   await page.route("**/work/people", route => route.fulfill({ json: people }));
+  await page.route("**/auth/projects/*/document-groups", route => route.fulfill({ json: { restricted: {}, classes: [] } }));
   await page.route("**/work/workload", route => route.fulfill({ json: { people, agents: [], agent_failures: [], roles: {} } }));
   await page.route("**/auth/accounts/*", route => {
     const body = route.request().postDataJSON(), id = new URL(route.request().url()).pathname.split("/").at(-1);
@@ -5492,4 +5493,48 @@ test("R.7 an owner narrows an account to areas of this project, confirmed, and c
   await card.getByRole("button", { name: "Confirm Save areas", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "North operator acts on work across all of okan again." }).waitFor();
   assert.deepEqual(writes.at(-1), { areas: [] });
+});
+
+test("R.5 an owner restricts licensed manuals to a group, confirmed, and puts a person in it", async () => {
+  await usersFixture();
+  const operator = { id: "op", actor: "user:op", display_name: "North operator", enabled: true, owner: false,
+    roles: ["operator"], areas: {}, groups: {} };
+  let restricted = {};
+  const writes = [];
+  await page.route("**/auth/me", route => route.fulfill({ json: { mode: "microsoft", configured: true, project: "okan",
+    user: { ...signedInUser, owner: true } } }));
+  await page.route("**/auth/access", route => route.fulfill({ json: { accounts: [operator], roles: [
+    { name: "operator", description: "Review and act", permissions: ["read", "operate"] }], permissions: { read: "Browse evidence", operate: "Operate shared work" } } }));
+  await page.route("**/auth/projects/okan/document-groups", route => {
+    if (route.request().method() === "PUT") {
+      restricted = route.request().postDataJSON().restricted;
+      writes.push({ restricted });
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: { restricted, classes: [{ doc_type: "oem_manual", documents: 22 }, { doc_type: "procedure", documents: 3 }] } });
+  });
+  await page.route("**/auth/accounts/op/projects/okan/groups", route => {
+    const body = route.request().postDataJSON();
+    writes.push(body);
+    operator.groups = body.groups.length ? { okan: body.groups } : {};
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto(`${url}/#/users`);
+  const card = page.locator(".access-account").filter({ has: page.getByRole("heading", { name: /North operator/ }) });
+  await card.getByRole("button", { name: "Areas in okan (all)", exact: true }).waitFor();
+  assert.equal(await card.getByRole("button", { name: /Document groups/ }).count(), 0);  // no groups yet: nothing to grant
+  await page.getByLabel("oem manual (22)").fill("licensed");
+  await page.getByRole("button", { name: "Save restrictions", exact: true }).click();
+  assert.equal(writes.length, 0);  // nothing changes before the confirmation
+  await page.getByRole("button", { name: "Confirm Save restrictions", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "1 document class is now restricted in okan." }).waitFor();
+  assert.deepEqual(writes, [{ restricted: { oem_manual: "licensed" } }]);
+  await card.getByRole("button", { name: "Document groups in okan (0)", exact: true }).click();
+  await card.getByText("Sees no restricted documents.").waitFor();
+  await card.getByRole("checkbox", { name: "licensed", exact: true }).check();
+  await card.getByRole("button", { name: "Save groups", exact: true }).click();
+  await card.getByRole("button", { name: "Confirm Save groups", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "North operator is now in licensed in okan." }).waitFor();
+  assert.deepEqual(writes.at(-1), { groups: ["licensed"] });
+  await card.getByText("Sees documents restricted to licensed.").waitFor();
 });

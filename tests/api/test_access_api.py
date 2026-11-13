@@ -625,7 +625,9 @@ def _manual_and_procedure(conn):
     def doc(doc_type):
         return conn.execute("select g.fuzer_id from golden g join entity e on e.fuzer_id = g.fuzer_id "
                             "and e.kind = 'document' and e.merged_into is null "
-                            "where g.field = 'doc_type' and g.value #>> '{}' = %s order by 1 limit 1",
+                            "where g.field = 'doc_type' and g.value #>> '{}' = %s and not exists (select 1 from golden s "
+                            "where s.fuzer_id = g.fuzer_id and s.field = 'status' and s.value #>> '{}' = 'superseded') "
+                            "order by 1 limit 1",  # knowledge search leaves superseded revisions out
                             (doc_type,)).fetchone()["fuzer_id"]
     manual, procedure = doc("oem_manual"), doc("procedure")
     section = conn.execute("select src from edge where rel = 'part_of' and dst = %s limit 1", (manual,)).fetchone()["src"]
@@ -663,11 +665,11 @@ def test_restricted_documents_are_hidden_everywhere_from_people_outside_their_gr
     words = " ".join(title.split()[:2])
     assert client.get(f"/entities/{manual}").status_code == 200  # nothing restricted: open, as before
     assert manual in _ids(client.get("/entities", params={"q": words, "kind": "document"}).json())
-    assert {manual, section} & _ids(client.get("/knowledge/search", params={"q": words, "limit": 50}).json())
+    assert {manual, section} & _ids(client.get("/knowledge/search", params={"q": title, "limit": 50}).json())
     token = ASKER.set(person.actor)
     try:
         assert manual in _ids(mcp_server.search(words, kind="document"))
-        assert {manual, section} & _ids(mcp_server.search_knowledge(words, limit=20))
+        assert {manual, section} & _ids(mcp_server.search_knowledge(title, limit=20))
     finally:
         ASKER.reset(token)
     assert client.put(f"/auth/projects/{project}/document-groups",
@@ -686,14 +688,14 @@ def test_restricted_documents_are_hidden_everywhere_from_people_outside_their_gr
     assert manual not in _ids(client.get("/lookup", params={"text": title}).json())
     found = client.get("/entities", params={"q": words, "kind": "document"}).json()
     assert manual not in _ids(found)
-    passages = client.get("/knowledge/search", params={"q": words, "limit": 50}).json()
+    passages = client.get("/knowledge/search", params={"q": title, "limit": 50}).json()
     assert not ({manual, section} & _ids(passages))
     assert client.get(f"/entities/{procedure}").status_code == 200  # an open class stays open
     token = ASKER.set(person.actor)
     try:
         assert manual not in _ids(mcp_server.search(words, kind="document"))
         assert mcp_server.get_entity(manual) == {"error": "nothing found; try the search tool"}
-        assert not ({manual, section} & _ids(mcp_server.search_knowledge(words, limit=20)))
+        assert not ({manual, section} & _ids(mcp_server.search_knowledge(title, limit=20)))
         assert "error" not in mcp_server.get_entity(procedure)
     finally:
         ASKER.reset(token)
