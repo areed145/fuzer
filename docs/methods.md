@@ -475,7 +475,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 
 **Alarm system performance over a window.** ANSI/ISA-18.2 and EEMUA 191.
 
-- **Valid for:** Points with an enabled DCS or AF alarm limit; the alarm journal is each reading past a limit while the unit runs, until a real journal is loaded.
+- **Valid for:** Points with an enabled DCS or AF alarm limit; the alarms are the DCS alarm and event journal's where one covers the window (#859), else each reading past a limit while the unit runs.
 - **Needs:** Enabled alarm limits and readings over the window.
 - **Run by:** `alarm_analysis`
 - **Threshold `target_per_hour`:** Alarms per hour an operator can handle, about one every 10 minutes. (6)

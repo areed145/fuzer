@@ -134,3 +134,39 @@ def test_trip_causes_vibration_and_ambient_read_roles_not_descriptions_or_tag_na
         assert seen() == before
     finally:
         conn.rollback()
+
+
+def test_trains_stages_and_siblings_come_from_piping_with_every_name_scrambled(conn):
+    """P1.4 close-out (#676): with every equipment and tag label replaced by an opaque one (no area number, no -K-,
+    -V- or -E- letters and no trailing train letter), each compressor's train, its stage's scrubber and cooler, the
+    same stage on the other trains and the stage's points come out the same. Structure is read from the piping and
+    the drives, never from a name."""
+    from fuzer.analysis import equipment
+    from fuzer.graph import structure
+
+    machines = [fid(conn, ref) for ref in ("20-K-2100A", "20-K-2200B", "20-K-2300A", "20-K-2100C")]
+    assert all(machines)
+
+    def ids(x):  # a structure answer without its names, wording and train keys (which quote a label): ids only
+        if isinstance(x, dict):
+            return {k: ids(v) for k, v in x.items() if k not in ("name", "basis", "label", "key", "sibling_trains")}
+        if isinstance(x, list | tuple):
+            return sorted((ids(v) for v in x), key=repr)
+        return x
+
+    def seen() -> dict:
+        out = {}
+        for m in machines:
+            s = structure.stage(conn, m)
+            out[m] = {"train": ids(structure.train(conn, m)), "stage": ids(s),
+                      "points": {k: (v or {}).get("id") for k, v in equipment._stage_points(conn, m).items()}}
+        return out
+
+    before = seen()
+    assert all(v["train"]["known"] and v["stage"]["scrubber"] for v in before.values()), before
+    try:
+        conn.execute("update entity_label set label = 'X' || md5(label) where fuzer_id in "
+                     "(select fuzer_id from entity where kind in ('equipment', 'tag'))")
+        assert seen() == before
+    finally:
+        conn.rollback()

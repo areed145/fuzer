@@ -46,6 +46,9 @@ point, dated and with their source record, in `point_limit`:
   a `limits` block over each attribute) and DCS / SCADA alarm exports (`dcs_alarm.yaml`: one row per
   alarm, the DCS's names for the types mapped, enabled flag, priority, last change). When both give
   one, the first source in the pack's `limits.priority` counts (Okan: the DCS, which actually alarms).
+  Where the DCS also exports its alarm and event journal (`dcs_alarm_journal.yaml`, #859: ALARM, ACK, RTN,
+  SHELVE, SUPPRESS and STATE events to the second), the alarm analyses count the alarms it logged over the
+  windows it covers, matched to points through these limits, instead of deriving them from readings.
 - **Integrity operating windows** (API RP 584, `iow_window.yaml`): class (critical / standard /
   informational), low and high limit, time allowed outside ("2 h", "24 hours"), damage mechanism and
   response, effective and superseded dates. A register written against an instrument tag counts for

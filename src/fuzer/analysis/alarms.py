@@ -1,8 +1,9 @@
 """Alarms, trips and states (#105 D).
 
 - `alarm_analysis(scope, since, until)`: ISA-18.2 / EEMUA 191 measures over the alarms that sounded. The
-  alarm source is each point going past an enabled DCS / AF alarm limit (#101, `limits.excursions` on the
-  alarm basis), since there is no alarm journal yet; one from the operator logs or PI can be added. It gives
+  alarms come from the loaded DCS alarm and event journal where it covers the window (#859), else from each point
+  going past an enabled DCS / AF alarm limit (#101, `limits.excursions` on the alarm basis); `alarm_source` says
+  which (`alarm_journal.sounded`). It gives
   alarms per hour and per 10 minutes, flood periods (over 10 in 10 minutes), chattering (3 or more on one
   point within a minute of each other's end), standing alarms (on for 24 h or more), and the top bad-actor
   points.
@@ -47,13 +48,13 @@ def _window(since: str, until: str) -> tuple[datetime, datetime]:
 
 
 def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=None, top: int = 10) -> dict:
-    from . import limits
+    from . import alarm_journal
 
     flood, target, standing_h, chatter_n = (settings.get(conn, f"alarms.{k}") for k in (
         "flood_per_10min", "target_per_hour", "standing_hours", "chatter"))
     a, b = _window(since, until)
     pids = _scope_points(conn, scope)
-    ex = [x for x in limits.excursions(conn, pack, pids, a, b, 10, src) if x["basis"] == "alarm"]
+    ex, origin = alarm_journal.sounded(conn, pack, pids, a, b, src)
     hours = (b - a).total_seconds() / 3600
     starts = sorted(x["start"] for x in ex)
     floods, i = [], 0
@@ -78,11 +79,14 @@ def alarm_analysis(conn, pack, scope: str | None, since: str, until: str, src=No
                 for x in ex if ((x["end"] or b) - x["start"]) >= timedelta(hours=standing_h)]
     rate = len(ex) / hours if hours else 0
     worst = sorted(by_point.items(), key=lambda kv: -len(kv[1]))[:top]
+    basis = ("the alarms the DCS alarm and event journal logged (#859)" if origin["source"] == "journal" else
+             "each point going past an enabled DCS / AF alarm limit while its unit runs (#101) is an alarm, since no "
+             "alarm journal covers the window")
     return result(round(rate, 2), target, "flood" if floods else "overloaded" if rate > target else None,
-                  "each point going past an enabled DCS / AF alarm limit while its unit runs (#101) is an alarm; "
-                  f"flood: over {flood} in 10 minutes; standing: on {standing_h:g} h or more; chattering: {chatter_n} or "
+                  f"{basis}; flood: over {flood} in 10 minutes; standing: on {standing_h:g} h or more; chattering: {chatter_n} or "
                   "more on one point within a minute of clearing", [x["point_id"] for x in ex][:20],
-                  unit="alarms per hour", window=[since, until], alarms=len(ex), points_alarming=len(by_point),
+                  unit="alarms per hour", window=[since, until], alarm_source=origin["source"],
+                  **{k: origin[k] for k in ("shelved", "suppressed") if k in origin}, alarms=len(ex), points_alarming=len(by_point),
                   flood_per_10min=flood, peak_10_min=max((f["alarms"] for f in floods), default=_peak(starts)), floods=_plain(floods[:10]),
                   chattering=chatter[:10], standing=_plain(sorted(standing, key=lambda s: -s["hours"])[:10]),
                   bad_actors=[{"point": p, "alarms": len(xs), "share": round(len(xs) / max(len(ex), 1), 3)} for p, xs in worst])

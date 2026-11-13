@@ -440,7 +440,7 @@ asset pack's catalogs as defaults; codes found in neither are reported by the
 | Time-series metadata | PI points, AF attributes | ADX tables, SCADA, OPC UA nodes |
 | Measurements (sparse, landed) | Well tests, LIMS results, inspection thickness readings (CMLs) | Vibration routes, emissions / LDAR surveys |
 | Limits (per point, dated) | PI AF limit traits, DCS alarm exports, IOW registers | Safe operating limits, trip setpoints from cause & effect, equipment design envelopes |
-| Events (time + text + references) | Logs, downtime, notifications, DAY001 | Teams threads, alarm journals, trips |
+| Events (time + text + references) | Logs, downtime, notifications, DAY001, DCS alarm and event journals | Teams threads, SCADA event logs |
 | Cases (records with a workflow) | Notifications, work orders | Management of change, permits to work, isolations, HAZOP / LOPA actions, inspection findings |
 | Documents | Manuals, guides, procedures | Any PDF / Office file, datasheets, inspection reports |
 | Geospatial features | none | GIS wells, pads, pipelines, rights-of-way, facility outlines |
@@ -478,11 +478,11 @@ identities, history, review and the graph stay as they are.
 | PI AF | JSON export of element tree + attributes, or PI Web API | |
 | PI points | CSV point list, or PI Web API; ADX series catalog | |
 | Energy Components | JSON of network nodes and dated edges | EC database views |
-| P&IDs | Smart: tag list. Text PDF: extracted text. Image: flagged `needs_ocr` | DEXPI parsing, OCR (Azure Document Intelligence), Claude vision, line tracing |
+| P&IDs | Smart: tag list, or a DEXPI 1.x XML file (`dexpi` in the manifest entry). Text PDF: extracted text. Image: flagged `needs_ocr` | DEXPI 2 connections, OCR (Azure Document Intelligence), Claude vision, line tracing |
 | Operator logs | CSV of entries | Claude for hard mentions and event extraction |
 | EC DAY001 daily reports | CSV of DAY001 rows | Comments read by Claude into links and events |
 | EC downtime / deferment | CSV: `downtime` with reason codes, lost oil, comments | EC database views |
-| DCS alarms, IOW registers | CSV exports landed as point limits | DCS and AF limit traits read live |
+| DCS alarms, IOW registers | CSV exports landed as point limits; the DCS alarm and event journal (`dcs_alarm_journal`) as events the alarm analyses count | DCS and AF limit traits read live |
 | Lab, well tests, inspection | LIMS results, EC well tests, CML readings as measurements | |
 | GIS | GeoJSON wells, facilities, pipelines | Feature services |
 | Production accounting, cost ledger | CSV of monthly accounted volumes (`acct_volumes`) and booked cost by element and currency (`acct_cost_ledger`); reconciled against DAY001 (analysis/accounting.py) | Accounting system views; sales and nominations |
@@ -490,12 +490,21 @@ identities, history, review and the graph stay as they are.
 | Teams channels | (planned) | Selected channels via Microsoft Graph; thread summaries and links |
 
 ## Piping from P&IDs
-Smart P&IDs carry piping (DEXPI-style from / to / line number) and the Claude
+Smart P&IDs carry piping (from / to / line number) and the Claude
 drawing reader returns connections read off scans; both become directional
 `pipes_to` links between tags, kept apart from Energy Components' `flows_to`
-(allocation). The Network page switches between the two, flow traces can
+(allocation). A smart sheet can come as the DEXPI XML a P&ID tool exports (`sources/dexpi.py`, #858): the
+manifest entry names the file (`"dexpi": "pid/<sheet>.xml"`) and the sheet's area, and the reader takes the tags
+(equipment, piping components, instrumentation functions), positions and line numbers, and turns each piping
+segment into hops between tagged items: a nozzle stands for its equipment, an off-page connector for the item it
+names. Kestrel's flare and sales metering sheet ships this way. The Network page switches between the two, flow traces can
 follow either, and a comparison lists EC flows with no piping path on the P&IDs
 and piping between EC nodes with no EC flow path (API and a Dagster check).
+
+How well the drawing reader reads a P&ID it didn't make is scored against PID2Graph (`evals/pid2graph/`, CC BY-SA
+4.0, its own licence and attribution beside it): the 12 real OPEN100 drawings and 20 synthetic ones, each with a graph
+of its symbols (class and box) and lines. `fuzer.evals.pid2graph` collapses a graph to which symbol pipes to which,
+and scores a reading's symbols (same class, box overlap at least 0.5) and connections for precision and recall.
 
 An engineering line list (`pid_line_list`, optional in the P&ID source pack: line, from tag, to tag) gives the same
 `pipes_to` links for every line, whatever format its sheet is in, so a scanned sheet's piping is known before it is

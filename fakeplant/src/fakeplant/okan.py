@@ -28,10 +28,10 @@ import json
 import math
 import random
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import accounts, capacity, curves, docs, limits, measurements, pfd, pid, process
+from . import accounts, capacity, curves, docs, journal, limits, measurements, pfd, pid, process
 from .common import (
     ACTIONS,
     CAUSES,
@@ -145,6 +145,23 @@ DAMAGE = {"P": ["D01", "D02", "D03", "D05"], "K": ["D01", "D04", "D09", "D06"], 
           "E": ["D04", "D08"], "V": ["D07", "D08", "D02"], "XV": ["D03", "D08"], "FT": ["D07"], "PT": ["D07"]}
 MOTORS = {"P": ("260", "1.15")}  # electric motor drivers: rated kW and service factor (NEMA MG 1), per function
 FAILURE_RATE = {"P": 0.8, "K": 1.2, "GT": 0.9, "E": 0.3, "V": 0.2}
+# The alarm journal's span (#859): the last four months of the history.
+JOURNAL_FROM, JOURNAL_TO = datetime(2025, 9, 1), datetime(2026, 1, 1)
+CONSOLES = {"10": "PP", "20": "GGCP", "30": "ST1", "40": "ST2", "50": "NWP"}
+
+
+def _console(tag: str) -> str:
+    """The control room console a DCS tag or well SCADA point is on: plant areas by number, a jacket (area 61 to 84)
+    and its wells by the platform that hosts them, NWP's wells on NWP."""
+    if m := re.match(r"OK_J(\d\d)_", tag):
+        return CONSOLES[HOST[int(m.group(1))]]
+    if tag.startswith("OK_NWP"):
+        return "NWP"
+    if tag[:2].isdigit() and 61 <= int(tag[:2]) <= 60 + JACKETS:
+        return CONSOLES[HOST[int(tag[:2]) - 60]]
+    return CONSOLES.get(tag[:2], "PP")
+
+
 AUTHORS = ["GGCP CRO", "PP CRO", "OIM", "Production Engineer", "Night Supervisor", "Field Operator"]
 
 
@@ -1256,6 +1273,9 @@ def generate(out, seed: int = 11) -> dict:
     sheets += pfd_sheets
     pid_truth |= pfd_truth
     _write_csv(out / "dcs_alarms.csv", alarms)
+    # The DCS alarm and event journal (#859) for the last months of the history, from the same model and limits.
+    alarm_log = journal.journal(model, alarms, points, JOURNAL_FROM, JOURNAL_TO, _console)
+    _write_csv(out / "dcs_alarm_journal.csv", alarm_log)
     _write_csv(out / "iow_register.csv", iows)
     (out / "answer_keys" / "limits.json").write_text(json.dumps(limit_truth, indent=1))
     (out / "pi_af.json").write_text(json.dumps(af, indent=1))
@@ -1296,7 +1316,7 @@ def generate(out, seed: int = 11) -> dict:
             "pipelines": len(lines), "gis_facilities": len(feats), "gis_wells": len(well_feats),
             "unlabelled_pipeline_ends": sum(1 for s in spatial_truth if s["rel"] != "located_at"),
             "well_tests": len(tests), "lab_results": len(lab), "thickness_readings": len(readings),
-            "dcs_alarms": len(alarms), "iows": len(iows), "jde_assets": legacy["jde"],
+            "dcs_alarms": len(alarms), "alarm_journal_events": len(alarm_log), "iows": len(iows), "jde_assets": legacy["jde"],
             "maximo_assets": legacy["maximo"], "match_pairs": legacy["match_pairs"]}
 
 

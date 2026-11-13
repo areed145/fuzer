@@ -32,6 +32,11 @@ flare and the sales gas custody meter H1-FT-8010. C1-FT-3005 is the dry gas chec
 TEG reboiler's burner fouling (C1-TT-3008 falling, wet sales gas at C1-AT-3011 and in the lab), the inlet filter
 coalescer loading up with too few elements in stock, and an overdue standby generator load test.
 
+Each bundle's `exports/dcs_alarm_journal.csv` is written from its process model by
+`uv run fakeplant journal fakeplant/bundles/<name>` (the last 100 days, in relative dates); Okan's covers September to
+December 2025 and is written by `fakeplant generate`. Rerun the command after changing a bundle's process model or
+alarm export.
+
 Kestrel has the same kinds of sources as Okan, each loaded by the same built-in mapping: SAP floc, equipment,
 notifications, work orders (with turnaround KR-TAR-2027), maintenance plans, BOM and materials; Maximo; PI points
 and AF; operator logs, EC downtime, well tests and network; DCS alarms, IOW register, inspection and LIMS
@@ -55,3 +60,4 @@ suggested mapping keys it on meter and day and lands the readings on each tag an
 | `docs.py` | Manuals, troubleshooting guides and procedures |
 | `incoming.py` | Tables with messy headers and no mapping, for suggested mappings |
 | `lake.py` | Tables as lake-style Parquet folders |
+| `journal.py` | The DCS alarm and event journal (#859): ALARM, ACK, RTN, SHELVE, SUPPRESS and STATE events from the process model against the DCS alarm export, with chattering, shelving, state-based suppression and first-out alarms on trips |

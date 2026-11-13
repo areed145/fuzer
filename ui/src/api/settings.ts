@@ -142,6 +142,20 @@ export const settingsApi = {
   onboarding: () => request<Onboarding>("GET", "/onboarding"),
   conformance: (days = 28) => request<Conformance>("GET", `/standards/conformance?days=${days}`),
   modelVersions: () => request<ModelVersions>("GET", "/standards/versions"),
+  proposeModelChange: (body: { changes?: Record<string, Record<string, unknown>>; summary: string; by: string;
+    promote?: { part: string; key: string; project?: string } }) =>
+    request<ModelVersion>("POST", "/standards/versions", undefined, body),
+  testRunModelChange: (version: number) =>
+    request<NonNullable<ModelVersion["test_run"]>>("POST", `/standards/versions/${version}/test-run`, undefined, {}),
+  reviewModelChange: (version: number, approve: boolean, note: string, by: string) =>
+    request<ModelVersion>("POST", `/standards/versions/${version}/review`, undefined, { approve, note, by }),
+  publishModelChange: (version: number, by: string) =>
+    request<ModelVersion>("POST", `/standards/versions/${version}/publish`, undefined, { by }),
+  rolloutModel: (project: string, version: number, by: string) =>
+    request<ModelRollout>("POST", "/standards/rollouts", undefined, { project, version, by }),
+  rollbackModel: (project: string, reason: string, by: string) =>
+    request<{ project: string; to: { name: string; version: number } }>("POST",
+      `/standards/rollouts/${encodeURIComponent(project)}/rollback`, undefined, { reason, by }),
   gatePolicy: () => request<GatePolicy>("GET", "/settings/gates"),
   setGate: (kind: string, by: string, def: number | null, byCriticality: Record<string, number | null>) =>
     request<GatePolicy["confidence"][number]>("PUT", `/settings/gates/${kind}`, undefined,
