@@ -62,6 +62,14 @@ create table if not exists fuzer.access_project_grant (
     role       text references fuzer.access_role(name),
     primary key (account_id, project, role)
 );
+-- Area grants (R.7, D7): narrow what an account may act on in one project to areas of its register (area or
+-- facility fuzer ids). No rows: the whole project. Reading is never narrowed.
+create table if not exists fuzer.access_area_grant (
+    account_id text references fuzer.access_account(id) on delete cascade,
+    project    text not null,
+    area       text not null,
+    primary key (account_id, project, area)
+);
 create table if not exists fuzer.access_login (
     token_hash text primary key,
     flow jsonb not null,
