@@ -32,6 +32,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import accounts, capacity, curves, docs, instruments, journal, limits, measurements, pfd, pid, process
+from . import text as messy_text
 from .common import (
     ACTIONS,
     CAUSES,
@@ -609,6 +610,8 @@ def generate(out, seed: int = 11) -> dict:
             if mrng.random() < 0.6:
                 work(None, tag, f"{year}-{mrng.randint(1, 12):02d}-{mrng.randint(1, 28):02d}",
                      mrng.choice(["A04", "A05"]), "PM02", f"Preventive maintenance {e['description'].lower()}")
+
+    background = {n["qmnum"] for n in notifications} | {o["aufnr"] for o in orders}  # messed up later (text.py)
 
     # Story 1: train B 2nd stage bearing wear -> vibration -> trips -> lift gas shortfall -> lost oil.
     hit = ["J07", "J12", "J15"]
@@ -1248,6 +1251,9 @@ def generate(out, seed: int = 11) -> dict:
     _write_csv(out / "sap_floc.csv", floc)
     _write_csv(out / "sap_equipment.csv", equipment)
     _write_csv(out / "pid_line_list.csv", line_list)
+    # Messy text (#890): authors' styles, duplicate and misfiled notifications, orders closed without saying what was done.
+    (out / "answer_keys" / "records_text.json").write_text(json.dumps(
+        messy_text.apply(notifications, orders, logs, log_truth, background, equipment, seed + 53), indent=1))
     _write_csv(out / "sap_notifications.csv", notifications)
     _write_csv(out / "sap_work_orders.csv", orders)
     _write_csv(out / "sap_materials.csv", materials)
