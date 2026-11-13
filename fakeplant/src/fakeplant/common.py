@@ -122,11 +122,29 @@ def _reservations(orders: list[dict], bom: list[dict], materials: list[dict], po
     return out, key
 
 
-WORK_CENTERS = [  # SAP work centers (P5.5b): the crews work orders are planned against
-    {"arbpl": "MECH", "description": "Mechanical maintenance crew", "crew_size": "6", "shift": "days"},
-    {"arbpl": "INST", "description": "Instrument technicians", "crew_size": "2", "shift": "days"},
-    {"arbpl": "ELEC", "description": "Electrical technicians", "crew_size": "2", "shift": "days"},
+WORK_CENTERS = [  # SAP work centers (P5.5b): the crews work orders are planned against, with their calendar (#361)
+    {"arbpl": "MECH", "description": "Mechanical maintenance crew", "crew_size": "6", "shift": "days",
+     "hours_per_day": "8", "days_per_week": "5"},
+    {"arbpl": "INST", "description": "Instrument technicians", "crew_size": "2", "shift": "days",
+     "hours_per_day": "8", "days_per_week": "5"},
+    {"arbpl": "ELEC", "description": "Electrical technicians", "crew_size": "2", "shift": "days",
+     "hours_per_day": "8", "days_per_week": "5"},
 ]
+
+
+def _planned_work(orders: list[dict]) -> None:
+    """Each work order's planned work (SAP operation work ARBEI, hours) and how many people it takes (ANZZL), #361:
+    from what the work is, deterministic so no story's draws move. An overhaul takes four people for a week or more;
+    a statutory inspection or a replacement two for days; a check one for a day."""
+    for o in orders:
+        t = o["text"].lower()
+        people, hours = (
+            (4, 160) if o["activity_code"] == "A05" or "overhaul" in t else
+            (3, 96) if "retube" in t else
+            (2, 48) if o["activity_code"] in ("A06",) or "inspection" in t else
+            (2, 24) if o["activity_code"] == "A01" or "replace" in t else
+            (1, 8) if o["activity_code"] in ("A04", "A03") else (2, 16))
+        o["arbei"], o["anzzl"] = str(hours), str(people)
 
 
 def _permits(equipment: list[dict]) -> tuple[list[dict], list[dict]]:

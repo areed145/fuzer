@@ -551,3 +551,29 @@ def step_fit(conn, test: str) -> Figure:
         "window": got["window"], "method": got["method"], "synthetic": got["synthetic"], "boundary": got["boundary"]},
         [got["loop_id"]])
 
+
+def crew_load(conn, as_of: str | None = None, weeks: int = 26) -> Figure:
+    """Crew load (#361): each work center's planned hours per week ahead as bars, its weekly capacity as a line."""
+    from ..analysis import calcs
+    from ..analysis import crew_load as cl
+
+    try:
+        out = cl.load(conn, as_of, weeks)
+    except calcs.CalcError as e:
+        raise ChartError(str(e)) from e
+    shown = [c for c in out["centers"] if c["weekly"]]
+    if not shown:
+        raise ChartError("no work scheduled ahead with planned hours in that window")
+    data = []
+    for c in shown:
+        data.append({"type": "bar", "name": f"{c['center']} planned hours", "x": [w["week"] for w in c["weekly"]],
+                     "y": [w["hours"] for w in c["weekly"]]})
+        data.append({"type": "scatter", "mode": "lines", "name": f"{c['center']} capacity",
+                     "x": [w["week"] for w in c["weekly"]], "y": [w["capacity"] for w in c["weekly"]],
+                     "line": {"dash": "dash", "width": 1.5}})
+    lay = layout(f"Crew load from {out['as_of']}, {weeks} weeks ahead", "week starting", "hours")
+    lay["barmode"] = "group"
+    return Figure("crew_load", lay["title"]["text"], data, lay, {
+        "verdict": out["verdict"], "conflicts": out["conflicts"][:10], "unit_conflicts": out["unit_conflicts"][:10],
+        "crew_weeks": out["summary"]["crew_weeks"], "note": out["note"]}, [c["id"] for c in shown])
+

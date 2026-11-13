@@ -10,3 +10,5 @@ entity:
     - description
     - [crew_size, {from: crew_size, as: number, keep: true}]
     - shift
+    - [hours_per_day, {from: hours_per_day, as: number}]  # the crew's calendar (#361), where the export has it
+    - [days_per_week, {from: days_per_week, as: number}]

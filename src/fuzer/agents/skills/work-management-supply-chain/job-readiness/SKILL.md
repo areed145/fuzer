@@ -16,14 +16,17 @@ Readiness is a list of what the records show and what they don't. It is never a 
    many days), or not on order (and whether the planned delivery time would still fit). Lead with the late lines and
    the ones too late to order. `spare_parts(ref)` gives materials with stock on hand; 0 means none in stock.
    `turnaround_scope` lists out-of-stock spares for scoped units. A delivery date is the order's own, not a promise.
-4. **Priority.** `value_score(kinds=["work_order"])` ranks work by value with its inputs; `bad_actors()` shows
+4. **Crews.** `crew_load(as_of, weeks)` gives each work center's backlog in crew-weeks and the days the work scheduled
+   ahead needs more people than the crew has, naming the crew, dates and orders; `plot_crew_load(as_of, weeks)` charts
+   the weekly load against capacity. Orders without planned hours are listed as unplanned, not estimated.
+5. **Priority.** `value_score(kinds=["work_order"])` ranks work by value with its inputs; `bad_actors()` shows
    repeat failures among the units.
 
 **Report each job as:** recorded as ready, missing, and unknown.
 
-**Unknown here.** Fuzer has no crew calendars, resource loading, vendor performance, transport or site-access
-records. So it cannot detect schedule conflicts beyond two orders on a unit in the same dates, and it cannot confirm
-that anything will arrive beyond an order's own delivery date. Say so; don't estimate.
+**Unknown here.** Fuzer has no crew skills, contractor or leave rosters, vendor performance, transport or
+site-access records. A crew's capacity is its size and calendar, not who is on site, and nothing confirms that a part
+will arrive beyond an order's own delivery date. Say so; don't estimate.
 
 Planners, schedulers and supply chain own priorities, schedules, reservations and logistics. Offer options and
 evidence for them to approve; never state that work is scheduled, committed or ordered.

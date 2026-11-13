@@ -338,3 +338,26 @@ def material_readiness(as_of: str | None = None, ref: str | None = None) -> dict
         except calcs.CalcError as e:
             return {"error": str(e), **e.refusal()}
 
+
+@capability("work-management-supply-chain", "maintenance-integrity", kind="calc")
+def crew_load(as_of: str | None = None, weeks: int = 26) -> dict[str, Any]:
+    """Crew load (#361): per work center, open orders, planned hours and the backlog in crew-weeks (open planned hours
+    over the crew's weekly hours); the weekly load against capacity over the `weeks` ahead; crew conflicts (the days
+    the orders scheduled ahead need more people than the crew has, naming the crew, the dates and the orders); and
+    unit conflicts (orders on one unit on the same days). An order past its start is backlog, not schedule; one with
+    no planned hours is listed, never guessed. People approve schedules and commitments."""
+    from ...analysis import calcs
+    from ...analysis import crew_load as cl
+    with db.connect() as conn:
+        try:
+            return _plain(cl.load(conn, as_of, max(1, min(weeks, 52))))
+        except calcs.CalcError as e:
+            return {"error": str(e), **e.refusal()}
+
+
+@capability("work-management-supply-chain", kind="plot")
+def plot_crew_load(as_of: str | None = None, weeks: int = 26) -> dict[str, Any]:
+    """Chart each crew's planned hours per week ahead against its weekly capacity, with the weeks over capacity."""
+    from ...plots import general
+    return _chart(general.crew_load, {"as_of": as_of, "weeks": max(1, min(weeks, 52))})
+

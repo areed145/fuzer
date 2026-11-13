@@ -43,6 +43,7 @@ from .common import (
     _add_hours,
     _lead_times,
     _permits,
+    _planned_work,
     _purchase_orders,
     _reservations,
     _rounds,
@@ -1257,6 +1258,7 @@ def generate(out, seed: int = 11) -> dict:
     (out / "answer_keys" / "records_text.json").write_text(json.dumps(
         messy_text.apply(notifications, orders, logs, log_truth, background, equipment, seed + 53), indent=1))
     _write_csv(out / "sap_notifications.csv", notifications)
+    _planned_work(orders)
     _write_csv(out / "sap_work_orders.csv", orders)
     _lead_times(materials)
     _write_csv(out / "sap_materials.csv", materials)
