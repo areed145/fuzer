@@ -154,48 +154,48 @@ def _locations(conn, subjects: list[str]) -> list[str]:
 
 
 def _needs_permit(conn, job: int | None) -> tuple[bool, str | None]:
-    from ..core import settings
-
     if job is None:
         return False, None
     row = conn.execute("select type from exception_record where id = %s", (job,)).fetchone()
-    kinds = {t.strip() for t in str(settings.get(conn, "readiness.permit_types") or "").split(",") if t.strip()}
-    return bool(row and row["type"] in kinds), row["type"] if row else None
+    return bool(row and row["type"] in _permit_kinds(conn)), row["type"] if row else None
 
 
-def permits(conn, subjects: list[str], job: int | None = None, now: datetime | None = None) -> dict:
-    """Permits to work on a job's location, each with its isolations. Ready unless the job's work type needs a permit
-    and none is issued and in date with every isolation in place."""
-    base = {"check": "permits", "label": "Permit"}
-    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
-        return {**base, "ready": True, "blockers": [], "permits": [], "checked": False, "needed": False,
-                "note": "No permit-to-work records are loaded, so no permit to check."}
-    now = now or datetime.now(UTC)
-    needed, kind = _needs_permit(conn, job)
-    rows = conn.execute(
-        """
-        select p.fuzer_id as id, pl.label, c.dst as location, ll.label as location_label,
-               max(case when g.field = 'permit_type' then g.value #>> '{}' end) as type,
-               max(case when g.field = 'state' then g.value #>> '{}' end) as state,
-               max(case when g.field = 'valid_from' then g.value #>> '{}' end) as valid_from,
-               max(case when g.field = 'valid_to' then g.value #>> '{}' end) as valid_to,
-               max(case when g.field = 'description' then g.value #>> '{}' end) as work,
-               (select coalesce(jsonb_agg(jsonb_build_object(
-                         'isolation', il.label, 'point', ip.value #>> '{}', 'method', im.value #>> '{}',
-                         'state', ist.value #>> '{}') order by il.label), '[]')
-                from edge i join entity_label il on il.fuzer_id = i.src
-                left join golden ip on ip.fuzer_id = i.src and ip.field = 'point'
-                left join golden im on im.fuzer_id = i.src and im.field = 'method'
-                left join golden ist on ist.fuzer_id = i.src and ist.field = 'state'
-                where i.rel = 'isolation_for' and i.dst = p.fuzer_id) as isolations
-        from edge c join entity p on p.fuzer_id = c.src and p.kind = 'permit'
-        left join entity_label pl on pl.fuzer_id = p.fuzer_id
-        left join entity_label ll on ll.fuzer_id = c.dst
-        left join golden g on g.fuzer_id = p.fuzer_id
-        where c.rel = 'covers' and c.dst = any(%s)
-        group by p.fuzer_id, pl.label, c.dst, ll.label
-        order by max(case when g.field = 'valid_to' then g.value #>> '{}' end) desc nulls last
-        """, (_locations(conn, subjects),)).fetchall()
+_PERMITS = """
+    select p.fuzer_id as id, pl.label, c.dst as location, ll.label as location_label,
+           max(case when g.field = 'permit_type' then g.value #>> '{}' end) as type,
+           max(case when g.field = 'state' then g.value #>> '{}' end) as state,
+           max(case when g.field = 'valid_from' then g.value #>> '{}' end) as valid_from,
+           max(case when g.field = 'valid_to' then g.value #>> '{}' end) as valid_to,
+           max(case when g.field = 'description' then g.value #>> '{}' end) as work,
+           (select coalesce(jsonb_agg(jsonb_build_object(
+                     'isolation', il.label, 'point', ip.value #>> '{}', 'method', im.value #>> '{}',
+                     'state', ist.value #>> '{}') order by il.label), '[]')
+            from edge i join entity_label il on il.fuzer_id = i.src
+            left join golden ip on ip.fuzer_id = i.src and ip.field = 'point'
+            left join golden im on im.fuzer_id = i.src and im.field = 'method'
+            left join golden ist on ist.fuzer_id = i.src and ist.field = 'state'
+            where i.rel = 'isolation_for' and i.dst = p.fuzer_id) as isolations
+    from edge c join entity p on p.fuzer_id = c.src and p.kind = 'permit'
+    left join entity_label pl on pl.fuzer_id = p.fuzer_id
+    left join entity_label ll on ll.fuzer_id = c.dst
+    left join golden g on g.fuzer_id = p.fuzer_id
+    where c.rel = 'covers' and c.dst = any(%s)
+    group by p.fuzer_id, pl.label, c.dst, ll.label
+    order by max(case when g.field = 'valid_to' then g.value #>> '{}' end) desc nulls last, p.fuzer_id, c.dst
+"""
+_NO_PERMITS = {"check": "permits", "label": "Permit", "ready": True, "blockers": [], "permits": [], "checked": False,
+               "needed": False, "note": "No permit-to-work records are loaded, so no permit to check."}
+
+
+def _permit_kinds(conn) -> set[str]:
+    from ..core import settings
+
+    return {t.strip() for t in str(settings.get(conn, "readiness.permit_types") or "").split(",") if t.strip()}
+
+
+def _read_permits(rows: list[dict], needed: bool, kind: str | None, now: datetime) -> dict:
+    """What the permits covering a job's location say: each with why it is not valid, and the blocker if the job's
+    work type needs one and none is."""
     found = []
     for r in rows:
         live = (r["state"] or "").lower() in LIVE
@@ -218,8 +218,44 @@ def permits(conn, subjects: list[str], job: int | None = None, now: datetime | N
         blockers.append(f"blocked: no valid permit ({kind} work" + (f" on {where}" if where else "") + "): "
                         + (say if found else "no permit covers this location"))
     note = None if found else "No permit covers this location."
-    return {**base, "ready": not blockers, "blockers": blockers, "permits": found, "checked": True,
-            "needed": needed, "note": note}
+    return {"check": "permits", "label": "Permit", "ready": not blockers, "blockers": blockers, "permits": found,
+            "checked": True, "needed": needed, "note": note}
+
+
+def permits(conn, subjects: list[str], job: int | None = None, now: datetime | None = None) -> dict:
+    """Permits to work on a job's location, each with its isolations. Ready unless the job's work type needs a permit
+    and none is issued and in date with every isolation in place."""
+    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
+        return dict(_NO_PERMITS)
+    needed, kind = _needs_permit(conn, job)
+    rows = conn.execute(_PERMITS, (_locations(conn, subjects),)).fetchall()
+    return _read_permits(rows, needed, kind, now or datetime.now(UTC))
+
+
+def locations_many(conn, subjects: dict[int, list[str]]) -> dict[int, set[str]]:
+    """`_locations` for many jobs in one query: {job: its subjects, what is installed at them and where they are}."""
+    every = sorted({s for ss in subjects.values() for s in ss})
+    near: dict[str, set[str]] = {s: {s} for s in every}
+    if every:
+        for r in conn.execute("select src, dst from edge where rel = 'installed_at' and valid_to is null "
+                              "and (src = any(%(s)s) or dst = any(%(s)s))", {"s": every}):
+            if r["dst"] in near:
+                near[r["dst"]].add(r["src"])
+            if r["src"] in near:
+                near[r["src"]].add(r["dst"])
+    return {job: set().union(*(near[s] for s in ss)) if ss else set() for job, ss in subjects.items()}
+
+
+def permits_many(conn, jobs: dict[int, tuple[str, list[str]]], places: dict[int, set[str]] | None = None,
+                 now: datetime | None = None) -> dict[int, dict]:
+    """`permits` for many jobs ({exception id: (its type, its subjects)}) in three queries instead of four each."""
+    if not conn.execute("select 1 from entity where kind = 'permit' limit 1").fetchone():
+        return {job: dict(_NO_PERMITS) for job in jobs}
+    now, kinds = now or datetime.now(UTC), _permit_kinds(conn)
+    places = places if places is not None else locations_many(conn, {j: ss for j, (_, ss) in jobs.items()})
+    rows = conn.execute(_PERMITS, (sorted(set().union(*places.values())) if places else [],)).fetchall()
+    return {job: _read_permits([r for r in rows if r["location"] in places[job]], type in kinds, type, now)
+            for job, (type, _) in jobs.items()}
 
 
 def _when(v: str | None) -> datetime | None:
@@ -246,27 +282,37 @@ def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
     return simops.at_dispatch(conn, subjects, job)
 
 
-def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
-    """Open management-of-change records on the job's equipment or where it is installed: a warning for whoever sends
-    or does the work that a change is proposed or in hand there, never a blocker. Read from whatever MOC records are
-    loaded (an open MOC in the register, method `moc_open`); silent when there are none."""
-    base = {"check": "moc", "label": "MOC", "ready": True, "blockers": []}
-    rows = conn.execute(
-        """
-        select m.record, m.quantity, m.value, m.unit, m.at, l.label as asset, r.source_key as moc, r.payload
-        from measurement m left join entity_label l on l.fuzer_id = m.fuzer_id
-        left join source_record r on m.record = r.source || ':' || r.record_type || ':' || r.source_key
-        where m.method = 'moc_open' and m.fuzer_id = any(%s)
-        order by m.at desc, m.record
-        """, (_locations(conn, subjects),)).fetchall()
+_MOCS = """
+    select m.fuzer_id, m.record, m.quantity, m.value, m.unit, m.at, l.label as asset, r.source_key as moc, r.payload
+    from measurement m left join entity_label l on l.fuzer_id = m.fuzer_id
+    left join source_record r on m.record = r.source || ':' || r.record_type || ':' || r.source_key
+    where m.method = 'moc_open' and m.fuzer_id = any(%s)
+    order by m.at desc, m.record
+"""
+
+
+def _read_mocs(rows: list[dict]) -> dict:
     found = [{"moc": r["moc"] or r["record"].rsplit(":", 1)[-1], "asset": r["asset"],
               "change": f"{r['quantity'].replace('_', ' ')} {_n(r['value'])} {r['unit'] or ''}".strip(),
               "description": (r["payload"] or {}).get("description"), "since": r["at"].date().isoformat()}
              for r in rows]
     warnings = [f"Open MOC {f['moc']} on {f['asset'] or 'this equipment'}: "
                 + (f["description"] or f"proposes {f['change']}").rstrip(".") for f in found]
-    return {**base, "checked": True, "mocs": found, "warnings": warnings,
-            "note": None if found else "No open MOC on this equipment."}
+    return {"check": "moc", "label": "MOC", "ready": True, "blockers": [], "checked": True, "mocs": found,
+            "warnings": warnings, "note": None if found else "No open MOC on this equipment."}
+
+
+def mocs(conn, subjects: list[str], job: int | None = None) -> dict:
+    """Open management-of-change records on the job's equipment or where it is installed: a warning for whoever sends
+    or does the work that a change is proposed or in hand there, never a blocker. Read from whatever MOC records are
+    loaded (an open MOC in the register, method `moc_open`); silent when there are none."""
+    return _read_mocs(conn.execute(_MOCS, (_locations(conn, subjects),)).fetchall())
+
+
+def mocs_many(conn, places: dict[int, set[str]]) -> dict[int, dict]:
+    """`mocs` for many jobs, from their places (`locations_many`), in one query."""
+    rows = conn.execute(_MOCS, (sorted(set().union(*places.values())) if places else [],)).fetchall()
+    return {job: _read_mocs([r for r in rows if r["fuzer_id"] in near]) for job, near in places.items()}
 
 
 CHECKS = (_spares, crew, permits, _simops, mocs)
