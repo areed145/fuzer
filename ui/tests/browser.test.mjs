@@ -909,6 +909,37 @@ test("Detection shows close-out rates beside each detector, duplicates counted a
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
+test("P6.3 a tuning proposal on Detection shows its replay and is accepted, confirmed, by the person", async () => {
+  await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true,
+    user: { ...signedInUser, roles: ["administrator"], permissions: ["read", "configure"] } } }));
+  await page.route("**/settings?*", (route) => route.fulfill({ json: setupSettings }));
+  await page.route("**/settings", (route) => route.fulfill({ json: setupSettings }));
+  const proposal = { id: 41, item_id: 912, title: "Tune steps: signals.step_z 2.0 to 2.5", detector: "steps",
+    param: "signals.step_z", class: null, current: 2.0, proposed: 2.5, cases: 14, windows: 3, noise_rate: 0.86,
+    before: { noise: 12, real: 2 }, after: { noise: 5, real: 2 }, missed: [] };
+  const posts = [];
+  await page.route("**/settings/detectors**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === "POST") {
+      posts.push({ path, body: route.request().postDataJSON() });
+      return route.fulfill({ json: {} });
+    }
+    if (path.endsWith("/settings/detectors/tuning")) return route.fulfill({ json: posts.length ? [] : [proposal] });
+    return route.fulfill({ json: { project: "okan", classes: [], trust_levels: {}, detectors: [], providers: [] } });
+  });
+  await page.goto(`${url}/#/settings?view=detection`);
+  await page.getByText("Tune steps: signals.step_z 2.0 to 2.5", { exact: true }).waitFor();
+  await page.getByText("noisy cases raised 12 to 5, real cases raised 2 to 2", { exact: false }).waitFor();
+  await page.getByText("It misses no real case.", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Accept tuning" }).click();
+  await page.getByText("Set signals.step_z to 2.5 for steps?", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Confirm Accept tuning" }).click();
+  await page.getByText("Tune steps: signals.step_z 2.0 to 2.5", { exact: true }).waitFor({ state: "detached" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].path, "/settings/detectors/tuning/41/accept");
+  assert.ok(posts[0].body.by);
+});
+
 test("reader Settings and Sources do not request protected configuration or connection details", async () => {
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: signedInUser } }));
   const administrative = [];

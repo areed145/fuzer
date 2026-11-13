@@ -11,6 +11,7 @@
 #   round:      an operator's reading on a round
 #   readings:   Claude's recorded readings land in the readers' cache as a reader run leaves them (no model call)
 #   about: source  work about a source rather than an asset
+#   tuning:     a window detector made noisy, its cases closed as false alarms, then the tuning job (about: detector)
 #   deliver:    the next delivery in deliveries/ lands as the source's load takes it (`incremental` when the source
 #               sends only the rows that changed), `rebuild` then runs the build that follows every load
 #   suggest:    a new export reaches the mapping suggester
@@ -86,3 +87,6 @@ arrive:
   repeat_leak: {detector: repeat_leaks}
   # The GGCP fuel gas meter reading zero from 15 September 2025: the gas balance open by the fuel those days
   gas_balance_gap: {detector: gas_balance_gaps, now: "2025-10-01"}
+  # Steps made noisy: what it then raises that it would not at its usual value is closed as false alarms, and the
+  # tuning job proposes a quieter value (P6.3)
+  detector_tuning: {tuning: {detector: steps, value: 2.0, since: "2024-11-04T00:00", until: "2024-11-04T12:00"}, about: detector}
