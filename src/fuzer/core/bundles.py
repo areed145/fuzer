@@ -17,6 +17,8 @@
       name: standard
       version: 1
       deviations: [{part: settings, key: handover.shift_times, value: "07:00,19:00", reason: ..., owner: ops_lead}]
+    packs_not_applicable:     # optional: specialist packs that can't apply to this asset, each with why (#826)
+      - {pack: wells-subsurface/wells-and-lift, reason: a pipeline and terminal has no wells}
 
 A bundle carries its source packs, roster template and operating model reference (P1.6); `init` validates and
 stores them with the project. It installs nothing and assigns nobody: people are assigned to roles by their
@@ -113,12 +115,14 @@ def read(path: Path) -> dict:
     source_packs, raw_packs = _source_packs(manifest, root, m.get("source_packs"))
     roster = _roster(manifest, root, m.get("roster"))
     model = _operating_model(manifest, m.get("operating_model"))
+    not_applicable = _not_applicable(manifest, m.get("packs_not_applicable"))
     digest = hashlib.sha256(json.dumps({"manifest": m, "pack": raw_pack, "source_packs": raw_packs, "roster": roster},
                                        sort_keys=True, default=str).encode())
     cfg = {**project, "pack": pack.name, "pack_config": raw_pack,
            "bundle": {"version": m["bundle"], "name": name, "digest": digest.hexdigest()[:16],
                       "description": m.get("description") or "", "source_packs": source_packs,
-                      "roster": roster, "operating_model": model}}
+                      "roster": roster, "operating_model": model,
+                      "packs_not_applicable": not_applicable}}
     return {"name": name, "config": cfg, "pack": pack, "root": str(root)}
 
 
@@ -162,6 +166,23 @@ def _roster(manifest: Path, root: Path, rel) -> list[dict]:
                 or r.get("seats", 1) < 1:
             raise BundleError(f"{manifest}: roster template {rel}: each role needs a name and a whole number of seats")
         out.append({"role": r["role"], "seats": r.get("seats", 1)})
+    return out
+
+
+def _not_applicable(manifest: Path, listed) -> dict[str, str]:
+    """The specialist packs that can't apply to this asset: {pack skill path: reason}. That each names a shipped
+    pack is checked by agents.packs (core sits below agents)."""
+    if listed is None:
+        return {}
+    if not isinstance(listed, list):
+        raise BundleError(f"{manifest}: packs_not_applicable must be a list of {{pack, reason}}")
+    out = {}
+    for x in listed:
+        if not isinstance(x, dict) or not all(isinstance(x.get(k), str) and x[k].strip() for k in ("pack", "reason")):
+            raise BundleError(f"{manifest}: each packs_not_applicable entry needs a pack and a reason")
+        if x["pack"] in out:
+            raise BundleError(f"{manifest}: packs_not_applicable names {x['pack']} twice")
+        out[x["pack"]] = x["reason"].strip()
     return out
 
 

@@ -19,3 +19,6 @@ project:
   timezone: America/Edmonton
 roster: roster.yaml
 operating_model: {name: standard, version: 1}
+packs_not_applicable:  # specialist packs that can't apply to a pipeline and terminal (#826)
+  - {pack: wells-subsurface/wells-and-lift, reason: a pipeline and terminal has no wells}
+  - {pack: field-operations-facilities/gas-treating, reason: it treats no gas; its vapours go to vapour recovery and the oxidiser}

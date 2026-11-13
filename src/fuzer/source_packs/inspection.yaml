@@ -3,4 +3,5 @@
 # fuzer.sources.packs.builtin. Optional datasets are ones not every site exports.
 fuzer_source_pack: 1
 system: {name: inspection}
-datasets: [inspection_readings]
+datasets: [inspection_readings, ili_features]
+optional: [ili_features]

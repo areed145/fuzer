@@ -22,6 +22,8 @@ on, and an eval of questions with answer keys:
 Because the pack is a skill folder, the agent ledger's skill version (P4.4) covers the manifest and the eval too.
 
     shipped()          every pack under agents/skills, by skill path
+    not_applicable()   the packs each shipped bundle says can't apply to its asset, with why (bundle.yaml
+                       packs_not_applicable): conformance asks no questions of that bundle for them (#826)
     load(path)         one pack's manifest, with its playbook and each shipped bundle's eval questions read
     conformance(path)  what is wrong with it: [] when every name resolves and the playbook and manifest agree
     coverage(conn, pack, asset)
@@ -50,20 +52,38 @@ def shipped() -> list[str]:
     return sorted(p.parent.relative_to(SKILLS).as_posix() for p in SKILLS.rglob(MANIFEST))
 
 
-def load(path: str) -> dict:
-    """One pack: its manifest, with `path`, `playbook` (the SKILL.md text) and `questions` (each shipped bundle's
-    eval questions, by bundle) added."""
+def not_applicable() -> dict[str, dict[str, str]]:
+    """The packs each shipped bundle says can't apply to its asset, with why: {bundle: {pack path: reason}} (#826)."""
     from ..core import bundles
 
+    return {b: got for b in bundles.shipped()
+            if (got := bundles.read(bundles.find(b))["config"]["bundle"]["packs_not_applicable"])}
+
+
+def unknown_exemptions() -> list[str]:
+    """A bundle that marks a pack not applicable when no such pack is shipped, in words; [] when all are known."""
+    known = set(shipped())
+    return [f"the {b} bundle marks {p} not applicable, but no such pack is shipped"
+            for b, got in not_applicable().items() for p in sorted(got) if p not in known]
+
+
+def load(path: str) -> dict:
+    """One pack: its manifest, with `path`, `playbook` (the SKILL.md text) and `questions` (each shipped bundle's
+    eval questions, by bundle) and `not_applicable` (the bundles that say it can't apply there, with why) added."""
+    from ..core import bundles
+
+    exempt = {b: got[path] for b, got in not_applicable().items() if path in got}
     root = SKILLS / path
     pack = yaml.safe_load((root / MANIFEST).read_text()) or {}
     questions = {}
     for b in bundles.shipped() if pack.get("eval") else ():
+        if b in exempt:
+            continue
         keys = bundles.find(b) / "evals" / f"{pack['eval']}.yaml"
         if keys.is_file():
             questions[b] = yaml.safe_load(keys.read_text()) or []
     return {**pack, "path": path, "playbook": (root / "SKILL.md").read_text() if (root / "SKILL.md").is_file() else "",
-            "questions": questions}
+            "questions": questions, "not_applicable": exempt}
 
 
 def _diff(what: str, declared, used) -> list[str]:
@@ -139,6 +159,10 @@ def conformance(path: str) -> list[str]:
 
     questions = pack["questions"]
     for b in bundles.shipped():
+        if b in (pack.get("not_applicable") or {}):
+            if (bundles.find(b) / "evals" / f"{pack['eval']}.yaml").is_file():
+                problems.append(f"the {b} bundle marks it not applicable but still holds evals/{pack['eval']}.yaml")
+            continue
         if not questions.get(b):
             problems.append(f"no eval questions for the {b} bundle (evals/{pack['eval']}.yaml in the bundle)")
     for b, qs in questions.items():

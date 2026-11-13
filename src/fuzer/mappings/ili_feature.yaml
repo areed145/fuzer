@@ -1,0 +1,24 @@
+# In-line inspection features (#61): what a pig run found along a line, at a station (metres from the line's start,
+# corrected to the run's reference girth welds by the vendor). Each lands on its line here; positions.py then links
+# it to the segment whose station range holds it, and places it on the map along the line's route.
+source: inspection
+record_type: ili_feature
+shape: records
+dataset: ili_features
+key: feature_id
+entity:
+  kind: pipeline_feature
+  fields:
+    - feature_type
+    - [station_m, {from: station_m, as: number}]
+    - [depth_pct, {from: depth_pct, as: number}]
+    - [length_mm, {from: length_mm, as: number}]
+    - [width_mm, {from: width_mm, as: number}]
+    - clock
+    - run_id
+    - run_date
+    - tool
+links:
+  - rel: found_on
+    when: line_id
+    to: {kind: pipeline, from: line_id}

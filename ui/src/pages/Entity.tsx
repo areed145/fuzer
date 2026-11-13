@@ -180,6 +180,7 @@ export function Entity({ id, tab }: { id: string; tab: "details" | "graph" }) {
             <KnowledgeCard id={e.fuzer_id} />
           )}
           {["tag", "equipment", "equipment_model"].includes(e.kind) && <SparesCard id={e.fuzer_id} />}
+          {["pipeline", "pipeline_segment"].includes(e.kind) && <AlongCard id={e.fuzer_id} />}
           {["tag", "equipment", "equipment_model", "equipment_class"].includes(e.kind) && (
             <><IncidentsCard id={e.fuzer_id} />
             <Related about={{ subject: e.fuzer_id }} incidents={false} /></>
@@ -693,6 +694,58 @@ function SparesCard({ id }: { id: string }) {
           ))}
         </tbody>
       </Table>
+    </UICard>
+  );
+}
+
+const km = (m: unknown) => (typeof m === "number" ? (m / 1000).toFixed(3) : "");
+
+/** A pipeline's segments and what in-line inspection found on it, by station (#61). */
+function AlongCard({ id }: { id: string }) {
+  const a = useAsync(() => api.along(id), [id]);
+  if (!a.data || (!a.data.segments.length && !a.data.features.length)) return null;
+  const { segments, features } = a.data;
+  const seg = Object.fromEntries(segments.map((s) => [s.id, s.label]));
+  return (
+    <UICard as="section">
+      <h2>Along the line <span className="muted small">by station, distance from the line's start</span></h2>
+      {segments.length > 0 && (
+        <Table variant="list">
+          <thead><tr><th>Segment</th><th>From (km)</th><th>To (km)</th><th>Wall (mm)</th><th>Class location</th></tr></thead>
+          <tbody>
+            {segments.map((s) => (
+              <tr key={s.id}>
+                <td><a href={entityHref(s.id)} className="mono">{s.label}</a><div className="muted small">{fmt(s.description)}</div></td>
+                <td className="small mono">{km(s.station_from_m)}</td>
+                <td className="small mono">{km(s.station_to_m)}</td>
+                <td className="small">{fmt(s.wall_thickness_mm)}</td>
+                <td className="small">{fmt(s.class_location)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      {features.length > 0 && (
+        <>
+          <h3>Found by in-line inspection</h3>
+          <Table variant="list">
+            <thead><tr><th>Feature</th><th>Station (km)</th><th>Clock</th><th>Segment</th><th>Depth (% of wall)</th><th>Length (mm)</th><th>Run</th></tr></thead>
+            <tbody>
+              {features.map((f) => (
+                <tr key={f.id}>
+                  <td><a href={entityHref(f.id)} className="mono">{f.label}</a><div className="small">{fmt(f.feature_type)}</div></td>
+                  <td className="small mono">{km(f.station_m)}</td>
+                  <td className="small mono">{fmt(f.clock)}</td>
+                  <td className="small mono">{f.segment ? seg[f.segment] ?? "" : <span className="muted">no segment holds it</span>}</td>
+                  <td className="small">{fmt(f.depth_pct)}</td>
+                  <td className="small">{fmt(f.length_mm)}</td>
+                  <td className="muted small">{fmt(f.run_id)} {f.run_date ? `· ${fmt(f.run_date)}` : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </>
+      )}
     </UICard>
   );
 }

@@ -108,7 +108,8 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `differential_pressure`, `composition`, `temperature`, `outlet_temperature`, `vibration`, `bearing_temperature`, `discharge_temperature`
 - **Charts:** `plot_operating_window`, `plot_trend`
-- **Eval:** 5 questions with answer keys across 3 bundles
+- **Eval:** 4 questions with answer keys across 2 bundles
+- **Not applicable:** harrier: it treats no gas; its vapours go to vapour recovery and the oxidiser
 
 ### Safety systems and relief
 
@@ -185,7 +186,8 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Briefs:** none
 - **Measurement roles:** `wellhead_pressure`, `wellhead_temperature`, `casing_pressure`, `choke_position`, `gas_lift_rate`, `pressure`, `flow`
 - **Charts:** `plot_decline`, `plot_water_diagnostic`, `plot_gas_lift_curve`, `plot_choke`, `plot_dp_drift`, `plot_intervention_gains`, `plot_voidage_replacement`, `plot_hall`, `plot_productivity_index`, `plot_material_balance`
-- **Eval:** 5 questions with answer keys across 3 bundles
+- **Eval:** 4 questions with answer keys across 2 bundles
+- **Not applicable:** harrier: a pipeline and terminal has no wells
 
 ## Not available
 

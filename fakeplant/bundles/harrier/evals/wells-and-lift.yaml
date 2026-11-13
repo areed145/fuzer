@@ -1,6 +1,0 @@
-# Answer keys for the wells-and-lift specialist pack's eval on this bundle (P4.1), in the shape of the assistant
-# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
-# Harrier is a pipeline and terminal (P8.4): it has no wells; the right answer says so rather than inventing a decline.
-- question: How fast are Harrier's wells declining?
-  must_mention: [[no wells, has no wells, doesn't have wells, does not have wells, pipeline]]
-  specialists: [wells-subsurface]
